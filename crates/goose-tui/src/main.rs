@@ -97,6 +97,10 @@ struct Cli {
 enum Commands {
     #[command(hide = true)]
     Mcp { name: String },
+    Server {
+        #[arg(long, short, default_value = "3000")]
+        port: u16,
+    },
 }
 
 fn setup_tui_logging() -> Result<WorkerGuard> {
@@ -142,8 +146,10 @@ fn read_stdin_if_piped() -> Option<String> {
 fn main() -> Result<()> {
     let cli_args = Cli::parse();
 
-    if let Some(Commands::Mcp { name }) = cli_args.command {
-        return run_mcp_server(name);
+    match cli_args.command {
+        Some(Commands::Mcp { name }) => return run_mcp_server(name),
+        Some(Commands::Server { port }) => return run_server(port),
+        None => {}
     }
 
     let stdin_input = read_stdin_if_piped();
@@ -191,6 +197,11 @@ fn run_mcp_server(name: String) -> Result<()> {
         }
         Ok(())
     })
+}
+
+fn run_server(port: u16) -> Result<()> {
+    std::env::set_var("GOOSE_PORT", port.to_string());
+    tokio::runtime::Runtime::new()?.block_on(goose_server::commands::agent::run())
 }
 
 fn load_recipe(path: &PathBuf) -> Result<goose::recipe::Recipe> {
