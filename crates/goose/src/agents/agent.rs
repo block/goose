@@ -58,7 +58,7 @@ use crate::tool_monitor::RepetitionInspector;
 use crate::utils::is_token_cancelled;
 use regex::Regex;
 use rmcp::model::{
-    CallToolRequestParam, Content, ErrorCode, ErrorData, GetPromptResult, Prompt,
+    CallToolRequestParam, CallToolResult, Content, ErrorCode, ErrorData, GetPromptResult, Prompt,
     ServerNotification, Tool,
 };
 use serde_json::Value;
@@ -100,7 +100,7 @@ pub struct Agent {
     pub(super) prompt_manager: Mutex<PromptManager>,
     pub(super) confirmation_tx: mpsc::Sender<(String, PermissionConfirmation)>,
     pub(super) confirmation_rx: Mutex<mpsc::Receiver<(String, PermissionConfirmation)>>,
-    pub(super) tool_result_tx: mpsc::Sender<(String, ToolResult<Vec<Content>>)>,
+    pub(super) tool_result_tx: mpsc::Sender<(String, ToolResult<CallToolResult>)>,
     pub(super) tool_result_rx: ToolResultReceiver,
 
     pub tool_route_manager: Arc<ToolRouteManager>,
@@ -128,7 +128,8 @@ pub enum ToolStreamItem<T> {
     Result(T),
 }
 
-pub type ToolStream = Pin<Box<dyn Stream<Item = ToolStreamItem<ToolResult<Vec<Content>>>> + Send>>;
+pub type ToolStream =
+    Pin<Box<dyn Stream<Item = ToolStreamItem<ToolResult<CallToolResult>>> + Send>>;
 
 // tool_stream combines a stream of ServerNotifications with a future representing the
 // final result of the tool call. MCP notifications are not request-scoped, but
@@ -137,7 +138,7 @@ pub type ToolStream = Pin<Box<dyn Stream<Item = ToolStreamItem<ToolResult<Vec<Co
 pub fn tool_stream<S, F>(rx: S, done: F) -> ToolStream
 where
     S: Stream<Item = ServerNotification> + Send + Unpin + 'static,
-    F: Future<Output = ToolResult<Vec<Content>>> + Send + 'static,
+    F: Future<Output = ToolResult<CallToolResult>> + Send + 'static,
 {
     Box::pin(async_stream::stream! {
         tokio::pin!(done);
@@ -360,7 +361,12 @@ impl Agent {
                 let mut response = response_msg.lock().await;
                 *response = response.clone().with_tool_response(
                     request.id.clone(),
-                    Ok(vec![rmcp::model::Content::text(DECLINED_RESPONSE)]),
+                    Ok(CallToolResult {
+                        content: vec![rmcp::model::Content::text(DECLINED_RESPONSE)],
+                        structured_content: None,
+                        is_error: Some(true),
+                        meta: None,
+                    }),
                 );
             }
         }
@@ -454,7 +460,13 @@ impl Agent {
             let result = self
                 .handle_schedule_management(arguments, request_id.clone())
                 .await;
-            return (request_id, Ok(ToolCallResult::from(result)));
+            let wrapped_result = result.map(|content| CallToolResult {
+                content,
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            });
+            return (request_id, Ok(ToolCallResult::from(wrapped_result)));
         }
 
         if tool_call.name == FINAL_OUTPUT_TOOL_NAME {
@@ -1090,7 +1102,12 @@ impl Agent {
                                             let mut response = response_msg.lock().await;
                                             *response = response.clone().with_tool_response(
                                                 request.id.clone(),
-                                                Ok(vec![Content::text(CHAT_MODE_TOOL_SKIPPED_RESPONSE)]),
+                                                Ok(CallToolResult {
+                                                    content: vec![Content::text(CHAT_MODE_TOOL_SKIPPED_RESPONSE)],
+                                                    structured_content: None,
+                                                    is_error: Some(false),
+                                                    meta: None,
+                                                }),
                                             );
                                         }
                                     }
@@ -1221,7 +1238,8 @@ impl Agent {
                                 no_tools_called = false;
                             }
                         }
-                        Err(ProviderError::ContextLengthExceeded(_error_msg)) => {
+                        Err(ref provider_err @ ProviderError::ContextLengthExceeded(_)) => {
+                            crate::posthog::emit_error(provider_err.telemetry_type());
                             yield AgentEvent::Message(
                                 Message::assistant().with_system_notification(
                                     SystemNotificationType::InlineMessage,
@@ -1255,11 +1273,12 @@ impl Agent {
                                 }
                             }
                         }
-                        Err(e) => {
-                            error!("Error: {}", e);
+                        Err(ref provider_err) => {
+                            crate::posthog::emit_error(provider_err.telemetry_type());
+                            error!("Error: {}", provider_err);
                             yield AgentEvent::Message(
                                 Message::assistant().with_text(
-                                    format!("Ran into this error: {e}.\n\nPlease retry if you think this is a transient or recoverable error.")
+                                    format!("Ran into this error: {provider_err}.\n\nPlease retry if you think this is a transient or recoverable error.")
                                 )
                             );
                             break;
@@ -1419,7 +1438,7 @@ impl Agent {
         Ok(plan_prompt)
     }
 
-    pub async fn handle_tool_result(&self, id: String, result: ToolResult<Vec<Content>>) {
+    pub async fn handle_tool_result(&self, id: String, result: ToolResult<CallToolResult>) {
         if let Err(e) = self.tool_result_tx.send((id, result)).await {
             error!("Failed to send tool result: {}", e);
         }

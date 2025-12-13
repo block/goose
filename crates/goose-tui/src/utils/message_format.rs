@@ -21,8 +21,8 @@ pub fn message_to_plain_text(message: &Message) -> String {
             }
             MessageContent::ToolResponse(resp) => {
                 lines.push("Tool Output:".to_string());
-                if let Ok(contents) = &resp.tool_result {
-                    for content in contents {
+                if let Ok(call_tool_result) = &resp.tool_result {
+                    for content in &call_tool_result.content {
                         if let Some(audience) = content.audience() {
                             if !audience.contains(&rmcp::model::Role::User) {
                                 continue;

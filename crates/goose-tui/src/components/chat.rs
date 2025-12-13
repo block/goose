@@ -165,8 +165,8 @@ impl ChatComponent {
             &tool_name, &tool_args, width, color, items, map, msg_idx,
         );
 
-        if let Ok(contents) = &resp.tool_result {
-            Self::render_tool_response_body(contents, width, items, map, msg_idx);
+        if let Ok(call_tool_result) = &resp.tool_result {
+            Self::render_tool_response_body(&call_tool_result.content, width, items, map, msg_idx);
         }
 
         let footer = format!("╰{:─<width$}╯", "", width = width.saturating_sub(2));

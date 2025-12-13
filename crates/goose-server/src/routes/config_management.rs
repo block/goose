@@ -392,7 +392,9 @@ pub async fn get_provider_models(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    match provider.fetch_supported_models().await {
+    let models_result = provider.fetch_recommended_models().await;
+
+    match models_result {
         Ok(Some(models)) => Ok(Json(models)),
         Ok(None) => Ok(Json(Vec::new())),
         Err(provider_error) => {

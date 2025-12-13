@@ -123,8 +123,8 @@ fn handle_event(
                             println!("[tool_result] {status}");
 
                             match &resp.tool_result {
-                                Ok(contents) => {
-                                    for content in contents {
+                                Ok(call_tool_result) => {
+                                    for content in &call_tool_result.content {
                                         if let Some(audience) = content.audience() {
                                             if !audience.contains(&rmcp::model::Role::User) {
                                                 continue;

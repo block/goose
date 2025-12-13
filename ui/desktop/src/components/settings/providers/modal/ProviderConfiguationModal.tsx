@@ -23,11 +23,13 @@ import { Button } from '../../../../components/ui/button';
 interface ProviderConfigurationModalProps {
   provider: ProviderDetails;
   onClose: () => void;
+  onConfigured?: (provider: ProviderDetails) => void;
 }
 
 export default function ProviderConfigurationModal({
   provider,
   onClose,
+  onConfigured,
 }: ProviderConfigurationModalProps) {
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const { upsert, remove } = useConfig();
@@ -83,7 +85,11 @@ export default function ProviderConfigurationModal({
 
     try {
       await providerConfigSubmitHandler(upsert, provider, toSubmit);
-      onClose();
+      if (onConfigured) {
+        onConfigured(provider);
+      } else {
+        onClose();
+      }
     } catch (error) {
       setError(`${error}`);
     }

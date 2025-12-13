@@ -37,8 +37,15 @@ async fn main() -> Result<()> {
                     arguments: Some(object!({"path": "./test_image.png"})),
                 }),
             ),
-            Message::user()
-                .with_tool_response("000", Ok(vec![Content::image(base64_image, "image/png")])),
+            Message::user().with_tool_response(
+                "000",
+                Ok(rmcp::model::CallToolResult {
+                    content: vec![Content::image(base64_image, "image/png")],
+                    structured_content: None,
+                    is_error: Some(false),
+                    meta: None,
+                }),
+            ),
         ];
 
         // Get a response from the model about the image

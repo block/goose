@@ -32,6 +32,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use tokio_util::sync::CancellationToken;
 use tracing::{error, warn};
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -91,6 +92,18 @@ pub struct RemoveExtensionRequest {
     pub session_id: String,
 }
 
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct ReadResourceRequest {
+    session_id: String,
+    extension_name: String,
+    uri: String,
+}
+
+#[derive(Serialize, Deserialize, utoipa::ToSchema)]
+pub struct ReadResourceResponse {
+    html: String,
+}
+
 #[utoipa::path(
     post,
     path = "/agent/start",
@@ -106,6 +119,8 @@ async fn start_agent(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<StartAgentRequest>,
 ) -> Result<Json<Session>, ErrorResponse> {
+    goose::posthog::set_session_context("desktop", false);
+
     let StartAgentRequest {
         working_dir,
         recipe,
@@ -198,6 +213,8 @@ async fn resume_agent(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<ResumeAgentRequest>,
 ) -> Result<Json<Session>, ErrorResponse> {
+    goose::posthog::set_session_context("desktop", true);
+
     let session = SessionManager::get_session(&payload.session_id, true)
         .await
         .map_err(|err| {
@@ -481,7 +498,7 @@ async fn update_router_tool_selector(
         .update_router_tool_selector(None, Some(true))
         .await
         .map_err(|e| {
-            tracing::error!("Failed to update tool selection strategy: {}", e);
+            error!("Failed to update tool selection strategy: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
@@ -577,6 +594,39 @@ pub struct CallToolResponse {
 
 #[utoipa::path(
     post,
+    path = "/agent/read_resource",
+    request_body = ReadResourceRequest,
+    responses(
+        (status = 200, description = "Resource read successfully", body = ReadResourceResponse),
+        (status = 401, description = "Unauthorized - invalid secret key"),
+        (status = 424, description = "Agent not initialized"),
+        (status = 404, description = "Resource not found"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+async fn read_resource(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<ReadResourceRequest>,
+) -> Result<Json<ReadResourceResponse>, StatusCode> {
+    let agent = state
+        .get_agent_for_route(payload.session_id.clone())
+        .await?;
+
+    let html = agent
+        .extension_manager
+        .read_ui_resource(
+            &payload.uri,
+            &payload.extension_name,
+            CancellationToken::default(),
+        )
+        .await
+        .map_err(|_e| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(ReadResourceResponse { html }))
+}
+
+#[utoipa::path(
+    post,
     path = "/agent/call_tool",
     request_body = CallToolRequest,
     responses(
@@ -620,15 +670,16 @@ async fn call_tool(
         Ok(tool_result) => {
             let content_result = tool_result.result.await;
             match content_result {
-                Ok(content) => {
-                    let output = content
+                Ok(call_tool_result) => {
+                    let output = call_tool_result
+                        .content
                         .iter()
                         .filter_map(|c| c.as_text().map(|t| t.text.to_string()))
                         .collect::<Vec<_>>()
                         .join("\n");
                     Ok(Json(CallToolResponse {
                         output,
-                        is_error: false,
+                        is_error: call_tool_result.is_error.unwrap_or(false),
                     }))
                 }
                 Err(error_data) => Ok(Json(CallToolResponse {
@@ -649,6 +700,8 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/agent/start", post(start_agent))
         .route("/agent/resume", post(resume_agent))
         .route("/agent/tools", get(get_tools))
+        .route("/agent/read_resource", post(read_resource))
+        .route("/agent/call_tool", post(call_tool))
         .route("/agent/update_provider", post(update_agent_provider))
         .route(
             "/agent/update_router_tool_selector",
@@ -658,6 +711,5 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/agent/add_extension", post(agent_add_extension))
         .route("/agent/remove_extension", post(agent_remove_extension))
         .route("/agent/stop", post(stop_agent))
-        .route("/agent/call_tool", post(call_tool))
         .with_state(state)
 }

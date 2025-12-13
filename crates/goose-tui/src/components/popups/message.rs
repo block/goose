@@ -108,10 +108,10 @@ impl MessagePopup {
                 .fg(theme.status.warning)
                 .add_modifier(Modifier::BOLD),
         )));
-        let Ok(contents) = &resp.tool_result else {
+        let Ok(call_tool_result) = &resp.tool_result else {
             return;
         };
-        for content in contents {
+        for content in &call_tool_result.content {
             if let Some(audience) = content.audience() {
                 if !audience.contains(&rmcp::model::Role::User) {
                     continue;

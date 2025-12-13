@@ -36,7 +36,7 @@ impl SecurityManager {
         let config = Config::global();
 
         config
-            .get_param::<bool>("security_prompt_enabled")
+            .get_param::<bool>("SECURITY_PROMPT_ENABLED")
             .unwrap_or(false)
     }
 
