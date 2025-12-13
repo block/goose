@@ -2,15 +2,26 @@ use crate::{
     agents::{subagent_task_config::TaskConfig, AgentEvent, SessionConfig},
     conversation::{message::Message, Conversation},
     execution::manager::AgentManager,
+    prompt_template::render_global_file,
     recipe::Recipe,
 };
 use anyhow::{anyhow, Result};
 use futures::StreamExt;
 use rmcp::model::{ErrorCode, ErrorData};
+use serde::Serialize;
 use std::future::Future;
 use std::pin::Pin;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info};
+
+#[derive(Serialize)]
+struct SubagentPromptContext {
+    max_turns: usize,
+    subagent_id: String,
+    task_instructions: String,
+    tool_count: usize,
+    available_tools: String,
+}
 
 type AgentMessagesFuture =
     Pin<Box<dyn Future<Output = Result<(Conversation, Option<String>)>> + Send>>;
@@ -140,6 +151,26 @@ fn get_agent_messages(
         agent
             .apply_recipe_components(recipe.sub_recipes.clone(), recipe.response.clone(), true)
             .await;
+
+        let tools = agent.list_tools(None).await;
+        let subagent_prompt = render_global_file(
+            "subagent_system.md",
+            &SubagentPromptContext {
+                max_turns: task_config
+                    .max_turns
+                    .expect("TaskConfig always sets max_turns"),
+                subagent_id: session_id.clone(),
+                task_instructions: text_instruction.clone(),
+                tool_count: tools.len(),
+                available_tools: tools
+                    .iter()
+                    .map(|t| t.name.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            },
+        )
+        .map_err(|e| anyhow!("Failed to render subagent system prompt: {}", e))?;
+        agent.override_system_prompt(subagent_prompt).await;
 
         let user_message = Message::user().with_text(text_instruction);
         let mut conversation = Conversation::new_unvalidated(vec![user_message.clone()]);
