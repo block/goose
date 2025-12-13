@@ -808,6 +808,7 @@ config_value!(GOOSE_MODE, GooseMode);
 config_value!(GOOSE_PROVIDER, String);
 config_value!(GOOSE_MODEL, String);
 config_value!(GOOSE_MAX_ACTIVE_AGENTS, usize);
+config_value!(GOOSE_ENABLE_EXTERNAL_SESSIONS, bool);
 
 /// Load init-config.yaml from workspace root if it exists.
 /// This function is shared between the config recovery and the init_config endpoint.

@@ -271,6 +271,10 @@ impl SessionManager {
             .await
     }
 
+    pub async fn ensure_local_session(id: &str) -> Result<String> {
+        Self::instance().await?.ensure_local_session(id).await
+    }
+
     pub fn update_session(id: &str) -> SessionUpdateBuilder {
         SessionUpdateBuilder::new(id.to_string())
     }
@@ -892,7 +896,7 @@ impl SessionStorage {
     }
 
     async fn get_session(&self, id: &str, include_messages: bool) -> Result<Session> {
-        let mut session = sqlx::query_as::<_, Session>(
+        let session_opt = sqlx::query_as::<_, Session>(
             r#"
         SELECT id, working_dir, name, description, user_set_name, session_type, created_at, updated_at, extension_data,
                total_tokens, input_tokens, output_tokens,
@@ -905,8 +909,19 @@ impl SessionStorage {
         )
             .bind(id)
             .fetch_optional(&self.pool)
-            .await?
-            .ok_or_else(|| anyhow::anyhow!("Session not found"))?;
+            .await?;
+
+        let mut session = if let Some(s) = session_opt {
+            s
+        } else {
+            use crate::session::external_sessions;
+
+            if let Some(s) = external_sessions::get_external_session(id, include_messages) {
+                return Ok(s);
+            }
+
+            return Err(anyhow::anyhow!("Session not found"));
+        };
 
         if include_messages {
             let conv = self.get_conversation(&session.id).await?;
@@ -922,6 +937,34 @@ impl SessionStorage {
         }
 
         Ok(session)
+    }
+
+    async fn ensure_local_session(&self, id: &str) -> Result<String> {
+        let exists =
+            sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM sessions WHERE id = ?)")
+                .bind(id)
+                .fetch_one(&self.pool)
+                .await?;
+
+        if exists {
+            return Ok(id.to_string());
+        }
+
+        use crate::session::external_sessions;
+        if let Some(external) = external_sessions::get_external_session(id, true) {
+            let session = self
+                .create_session(external.working_dir, external.name, SessionType::User)
+                .await?;
+
+            if let Some(conversation) = external.conversation {
+                self.replace_conversation(&session.id, &conversation)
+                    .await?;
+            }
+
+            return Ok(session.id);
+        }
+
+        Err(anyhow::anyhow!("Session not found: {}", id))
     }
 
     #[allow(clippy::too_many_lines)]
@@ -1068,6 +1111,8 @@ impl SessionStorage {
     }
 
     async fn add_message(&self, session_id: &str, message: &Message) -> Result<()> {
+        let local_id = self.ensure_local_session(session_id).await?;
+
         let mut tx = self.pool.begin().await?;
 
         let metadata_json = serde_json::to_string(&message.metadata)?;
@@ -1078,7 +1123,7 @@ impl SessionStorage {
             VALUES (?, ?, ?, ?, ?)
         "#,
         )
-        .bind(session_id)
+        .bind(&local_id)
         .bind(role_to_string(&message.role))
         .bind(serde_json::to_string(&message.content)?)
         .bind(message.created)
@@ -1087,7 +1132,7 @@ impl SessionStorage {
         .await?;
 
         sqlx::query("UPDATE sessions SET updated_at = datetime('now') WHERE id = ?")
-            .bind(session_id)
+            .bind(&local_id)
             .execute(&mut *tx)
             .await?;
 
@@ -1161,8 +1206,15 @@ impl SessionStorage {
     }
 
     async fn list_sessions(&self) -> Result<Vec<Session>> {
-        self.list_sessions_by_types(&[SessionType::User, SessionType::Scheduled])
-            .await
+        let mut sessions = self
+            .list_sessions_by_types(&[SessionType::User, SessionType::Scheduled])
+            .await?;
+
+        use crate::session::external_sessions;
+        sessions.extend(external_sessions::get_external_sessions_for_list());
+        sessions.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+
+        Ok(sessions)
     }
 
     async fn delete_session(&self, session_id: &str) -> Result<()> {
@@ -1175,6 +1227,12 @@ impl SessionStorage {
                 .await?;
 
         if !exists {
+            if crate::session::external_sessions::get_external_session(session_id, false).is_some()
+            {
+                return Err(anyhow::anyhow!(
+                    "External sessions cannot be deleted from Goose"
+                ));
+            }
             return Err(anyhow::anyhow!("Session not found"));
         }
 
