@@ -10,7 +10,10 @@ pub async fn check_token(
     request: Request,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    if request.uri().path() == "/status" || request.uri().path() == "/mcp-ui-proxy" {
+    if request.uri().path() == "/status"
+        || request.uri().path() == "/mcp-ui-proxy"
+        || request.uri().path() == "/mcp-app-proxy"
+    {
         return Ok(next.run(request).await);
     }
     let secret_key = request

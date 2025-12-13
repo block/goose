@@ -16,6 +16,8 @@ import { TooltipWrapper } from './settings/providers/subcomponents/buttons/Toolt
 import MCPUIResourceRenderer from './MCPUIResourceRenderer';
 import { isUIResource } from '@mcp-ui/client';
 import { Content, EmbeddedResource } from '../api';
+import McpAppRenderer from './McpApps/McpAppRenderer';
+import { mockResourceReadResult } from './McpApps/mockAppData';
 
 interface ToolCallWithResponseProps {
   isCancelledMessage: boolean;
@@ -96,6 +98,30 @@ export default function ToolCallWithResponse({
             return null;
           }
         })}
+
+      {/* MCP Apps - This data will be coming from a resources/read result. */}
+      {mockResourceReadResult.contents.map((content) => {
+        // Transform Goose's internal tool result format to MCP Apps spec format
+        // Goose internal: { status: "success", value: [...content] } or { status: "error", error: "..." }
+        // MCP Apps spec: { content: [...], structuredContent?: {...}, _meta?: {...}, isError?: boolean }
+        const rawResult = toolResponse?.toolResult as Record<string, unknown> | undefined;
+        const mcpAppToolResult = rawResult
+          ? {
+              content: getToolResultValue(rawResult) || undefined,
+              isError: rawResult.status === 'error',
+            }
+          : undefined;
+
+        return (
+          <McpAppRenderer
+            resource={content}
+            key={content.uri}
+            toolInput={{ arguments: toolCall.arguments }}
+            toolResult={mcpAppToolResult}
+            appendMessage={append}
+          />
+        );
+      })}
     </>
   );
 }
