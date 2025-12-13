@@ -1246,8 +1246,13 @@ impl ExtensionManager {
     }
 
     pub async fn collect_moim(&self) -> Option<String> {
-        let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-        let mut content = format!("<info-msg>\nDatetime: {}\n", timestamp);
+        let now = chrono::Local::now();
+        let timestamp = now.format("%Y-%m-%d %H:%M:%S");
+        let year = now.format("%Y");
+        let mut content = format!(
+            "<info-msg>\nThe current date and time is: {}\nThe current year is: {}\n",
+            timestamp, year
+        );
 
         let extensions = self.extensions.lock().await;
         for (name, extension) in extensions.iter() {
@@ -1678,6 +1683,20 @@ mod tests {
             .await;
 
         assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_collect_moim_datetime_format() {
+        let extension_manager = ExtensionManager::new_without_provider();
+
+        let moim = extension_manager
+            .collect_moim()
+            .await
+            .expect("collect_moim should return some content");
+
+        assert!(moim.contains("<info-msg>"));
+        assert!(moim.contains("The current date and time is:"));
+        assert!(moim.contains("The current year is:"));
     }
 
     #[tokio::test]
