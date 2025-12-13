@@ -4,7 +4,8 @@
 # Set up test environment variables
 export GOOSE_PROVIDER="openai"
 export GOOSE_MODEL="gpt-4o-mini"
-export OPENAI_API_KEY="test-key"
+# OPENAI_API_KEY should be set in your environment, not hardcoded here
+# export OPENAI_API_KEY="your-api-key-here"
 
 # Test 1: Default behavior (no lead/worker)
 echo "Test 1: Default behavior (no lead/worker)"
