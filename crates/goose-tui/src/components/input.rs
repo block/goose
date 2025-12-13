@@ -15,12 +15,18 @@ use ratatui::Frame;
 use std::path::Path;
 use tui_textarea::TextArea;
 
+const MAX_HISTORY_ENTRIES: usize = 100;
+const MAX_HISTORY_ENTRY_SIZE: usize = 10_000;
+
 pub struct InputComponent<'a> {
     textarea: TextArea<'a>,
     frame_count: usize,
     last_is_empty: bool,
     file_completions: Vec<(String, bool)>,
     completion_selected: usize,
+    history: Vec<String>,
+    history_index: Option<usize>,
+    saved_input: String,
 }
 
 impl<'a> Default for InputComponent<'a> {
@@ -31,16 +37,23 @@ impl<'a> Default for InputComponent<'a> {
 
 impl<'a> InputComponent<'a> {
     pub fn new() -> Self {
-        let mut textarea = TextArea::default();
-        textarea.set_placeholder_text("Type a message...");
-        textarea.set_cursor_line_style(Style::default());
         Self {
-            textarea,
+            textarea: Self::create_textarea(),
             frame_count: 0,
             last_is_empty: true,
             file_completions: Vec::new(),
             completion_selected: 0,
+            history: Vec::new(),
+            history_index: None,
+            saved_input: String::new(),
         }
+    }
+
+    fn create_textarea() -> TextArea<'a> {
+        let mut textarea = TextArea::default();
+        textarea.set_placeholder_text("Type a message...");
+        textarea.set_cursor_line_style(Style::default());
+        textarea
     }
 
     pub fn is_empty(&self) -> bool {
@@ -48,12 +61,90 @@ impl<'a> InputComponent<'a> {
     }
 
     pub fn clear(&mut self) {
-        self.textarea = TextArea::default();
-        self.textarea.set_placeholder_text("Type a message...");
-        self.textarea.set_cursor_line_style(Style::default());
+        self.textarea = Self::create_textarea();
         self.last_is_empty = true;
         self.file_completions.clear();
         self.completion_selected = 0;
+        self.reset_history_nav();
+    }
+
+    fn reset_history_nav(&mut self) {
+        self.history_index = None;
+        self.saved_input.clear();
+    }
+
+    fn add_to_history(&mut self, text: &str) {
+        let trimmed = text.trim();
+        if trimmed.is_empty() || trimmed.len() > MAX_HISTORY_ENTRY_SIZE {
+            return;
+        }
+        if self.history.last().map(|s| s.as_str()) == Some(trimmed) {
+            return;
+        }
+        self.history.push(trimmed.to_string());
+        if self.history.len() > MAX_HISTORY_ENTRIES {
+            self.history.remove(0);
+        }
+        self.reset_history_nav();
+    }
+
+    fn navigate_history(&mut self, delta: i32) {
+        if self.history.is_empty() {
+            return;
+        }
+        let len = self.history.len();
+        let new_index = match self.history_index {
+            None if delta < 0 => {
+                self.saved_input = self.textarea.lines().join("\n");
+                Some(len - 1)
+            }
+            None => return,
+            Some(i) => {
+                let next = i as i32 + delta;
+                if next < 0 {
+                    Some(0)
+                } else if next >= len as i32 {
+                    None
+                } else {
+                    Some(next as usize)
+                }
+            }
+        };
+        self.history_index = new_index;
+        let content = match new_index {
+            Some(i) => self.history.get(i).cloned().unwrap_or_default(),
+            None => std::mem::take(&mut self.saved_input),
+        };
+        self.set_content(&content);
+    }
+
+    fn set_content(&mut self, content: &str) {
+        let lines: Vec<String> = if content.is_empty() {
+            vec![String::new()]
+        } else {
+            content.split('\n').map(String::from).collect()
+        };
+        self.textarea = TextArea::new(lines);
+        self.textarea.set_placeholder_text("Type a message...");
+        self.textarea.set_cursor_line_style(Style::default());
+        self.textarea.move_cursor(tui_textarea::CursorMove::Bottom);
+        self.textarea.move_cursor(tui_textarea::CursorMove::End);
+    }
+
+    pub fn seed_history(&mut self, messages: &[goose::conversation::message::Message]) {
+        self.history.clear();
+        let mut is_first_user = true;
+        for msg in messages {
+            if msg.role == rmcp::model::Role::User {
+                let text =
+                    crate::hidden_blocks::strip_hidden_blocks(&msg.as_concat_text(), is_first_user);
+                is_first_user = false;
+                if !text.trim().is_empty() {
+                    self.add_to_history(&text);
+                }
+            }
+        }
+        self.reset_history_nav();
     }
 
     pub fn lines_count(&self) -> u16 {
@@ -395,6 +486,7 @@ impl<'a> Component for InputComponent<'a> {
             if state.input_mode == InputMode::Normal {
                 return Ok(Some(Action::ToggleInputMode));
             }
+            self.reset_history_nav();
             self.textarea.insert_str(text);
             let is_empty = self.is_empty();
             if is_empty != self.last_is_empty {
@@ -439,16 +531,30 @@ impl<'a> Component for InputComponent<'a> {
                             .checked_sub(1)
                             .unwrap_or(self.file_completions.len() - 1);
                     }
+                    KeyCode::Up if self.textarea.cursor().0 == 0 => {
+                        self.navigate_history(-1);
+                    }
+                    KeyCode::Down
+                        if self.history_index.is_some()
+                            && self.textarea.cursor().0
+                                == self.textarea.lines().len().saturating_sub(1) =>
+                    {
+                        self.navigate_history(1);
+                    }
                     KeyCode::Enter if key.modifiers.contains(KeyModifiers::SHIFT) => {
+                        self.reset_history_nav();
                         self.textarea.insert_newline();
                     }
                     KeyCode::Char('j') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                        self.reset_history_nav();
                         self.textarea.insert_newline();
                     }
                     KeyCode::Enter => {
                         let text = self.textarea.lines().join("\n");
                         let trimmed = text.trim();
                         if !trimmed.is_empty() {
+                            self.add_to_history(&text);
+
                             if trimmed.starts_with('/') {
                                 let cmd = trimmed.split_whitespace().next().unwrap_or("");
                                 let safe_commands = [
@@ -480,9 +586,7 @@ impl<'a> Component for InputComponent<'a> {
                                 )));
                             }
 
-                            self.textarea = TextArea::default();
-                            self.textarea.set_placeholder_text("Type a message...");
-                            self.textarea.set_cursor_line_style(Style::default());
+                            self.textarea = Self::create_textarea();
 
                             if trimmed.starts_with('/') {
                                 if let Some(action) = self.handle_slash_command(trimmed, state) {
@@ -534,13 +638,17 @@ impl<'a> Component for InputComponent<'a> {
                             return Ok(Some(Action::SendMessage(message)));
                         }
                     }
-                    _ => {
+                    KeyCode::Char(_) | KeyCode::Backspace | KeyCode::Delete => {
+                        self.reset_history_nav();
                         self.textarea.input(*key);
                         let is_empty = self.is_empty();
                         if is_empty != self.last_is_empty {
                             self.last_is_empty = is_empty;
                             return Ok(Some(Action::SetInputEmpty(is_empty)));
                         }
+                    }
+                    _ => {
+                        self.textarea.input(*key);
                     }
                 },
             }

@@ -60,6 +60,10 @@ impl<'a> App<'a> {
         }
     }
 
+    pub fn seed_input_history(&mut self, messages: &[goose::conversation::message::Message]) {
+        self.input.seed_history(messages);
+    }
+
     fn handle_popups(&mut self, event: &Event, state: &AppState) -> Result<Option<Action>> {
         let popup_handler: Option<&mut dyn Component> = match &state.active_popup {
             ActivePopup::Todo => Some(&mut self.todo_popup),

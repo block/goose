@@ -34,6 +34,10 @@ pub async fn run_event_loop(
         }
     });
 
+    if !state.messages.is_empty() {
+        app.seed_input_history(&state.messages);
+    }
+
     let mut reply_task: Option<tokio::task::JoinHandle<()>> = None;
     let mut should_redraw = true;
 
@@ -194,7 +198,11 @@ fn process_event(
             return true;
         }
         let was_copy_mode = state.copy_mode;
+        let should_seed_history = matches!(&action, Action::SessionResumed(_));
         crate::state::reducer::update(state, action);
+        if should_seed_history {
+            app.seed_input_history(&state.messages);
+        }
         if state.copy_mode != was_copy_mode {
             let _ = tui::set_mouse_capture(!state.copy_mode);
         }
