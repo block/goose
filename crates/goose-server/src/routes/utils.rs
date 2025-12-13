@@ -94,6 +94,11 @@ pub fn inspect_keys(
 pub fn check_provider_configured(metadata: &ProviderMetadata, provider_type: ProviderType) -> bool {
     let config = Config::global();
 
+    // Special case: Embedded provider is always available (local GGUF models)
+    if metadata.name == "embedded" {
+        return true;
+    }
+
     // TODO(Douwe): if the provider doesn't need an API key, it should be considered configured always
     if provider_type == ProviderType::Custom || provider_type == ProviderType::Declarative {
         if let Ok(loaded_provider) = load_provider(metadata.name.as_str()) {
