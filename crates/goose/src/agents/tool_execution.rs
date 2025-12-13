@@ -16,12 +16,12 @@ use rmcp::model::{Content, ServerNotification};
 // ToolCallResult combines the result of a tool call with an optional notification stream that
 // can be used to receive notifications from the tool.
 pub struct ToolCallResult {
-    pub result: Box<dyn Future<Output = ToolResult<Vec<Content>>> + Send + Unpin>,
+    pub result: Box<dyn Future<Output = ToolResult<rmcp::model::CallToolResult>> + Send + Unpin>,
     pub notification_stream: Option<Box<dyn Stream<Item = ServerNotification> + Send + Unpin>>,
 }
 
-impl From<ToolResult<Vec<Content>>> for ToolCallResult {
-    fn from(result: ToolResult<Vec<Content>>) -> Self {
+impl From<ToolResult<rmcp::model::CallToolResult>> for ToolCallResult {
+    fn from(result: ToolResult<rmcp::model::CallToolResult>) -> Self {
         Self {
             result: Box::new(futures::future::ready(result)),
             notification_stream: None,
@@ -73,7 +73,7 @@ impl Agent {
                     });
 
                 let confirmation = Message::assistant()
-                    .with_tool_confirmation_request(
+                    .with_action_required(
                         request.id.clone(),
                         tool_call.name.to_string().clone(),
                         tool_call.arguments.clone().unwrap_or_default(),
@@ -122,7 +122,12 @@ impl Agent {
                                 let mut response = response_msg.lock().await;
                                 *response = response.clone().with_tool_response(
                                     request.id.clone(),
-                                    Ok(vec![Content::text(DECLINED_RESPONSE)]),
+                                    Ok(rmcp::model::CallToolResult {
+                                        content: vec![Content::text(DECLINED_RESPONSE)],
+                                        structured_content: None,
+                                        is_error: Some(true),
+                                        meta: None,
+                                    }),
                                 );
                             }
                         }

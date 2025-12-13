@@ -68,6 +68,7 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                 MessageContent::ToolResponse(tool_response) => match &tool_response.tool_result {
                     Ok(result) => {
                         let text = result
+                            .content
                             .iter()
                             .filter_map(|c| c.as_text().map(|t| t.text.clone()))
                             .collect::<Vec<_>>()
@@ -90,6 +91,9 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                 },
                 MessageContent::ToolConfirmationRequest(_tool_confirmation_request) => {
                     // Skip tool confirmation requests
+                }
+                MessageContent::ActionRequired(_action_required) => {
+                    // Skip action required messages - they're for UI only
                 }
                 MessageContent::SystemNotification(_) => {
                     // Skip

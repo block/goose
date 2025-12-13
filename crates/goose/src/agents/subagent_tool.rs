@@ -242,7 +242,7 @@ async fn execute_subagent(
     params: SubagentParams,
     working_dir: PathBuf,
     cancellation_token: Option<CancellationToken>,
-) -> Result<Vec<Content>, ErrorData> {
+) -> Result<rmcp::model::CallToolResult, ErrorData> {
     let session = SessionManager::create_session(
         working_dir,
         "Subagent task".to_string(),
@@ -273,7 +273,12 @@ async fn execute_subagent(
     .await;
 
     match result {
-        Ok(text) => Ok(vec![Content::text(text)]),
+        Ok(text) => Ok(rmcp::model::CallToolResult {
+            content: vec![Content::text(text)],
+            structured_content: None,
+            is_error: Some(false),
+            meta: None,
+        }),
         Err(e) => Err(ErrorData {
             code: ErrorCode::INTERNAL_ERROR,
             message: Cow::from(e.to_string()),

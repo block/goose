@@ -2,7 +2,9 @@ use anstream::println;
 use bat::WrappingMode;
 use console::{measure_text_width, style, Color, Term};
 use goose::config::Config;
-use goose::conversation::message::{Message, MessageContent, ToolRequest, ToolResponse};
+use goose::conversation::message::{
+    ActionRequiredData, Message, MessageContent, ToolRequest, ToolResponse,
+};
 use goose::providers::pricing::get_model_pricing;
 use goose::providers::pricing::parse_model_id;
 use goose::utils::safe_truncate;
@@ -166,6 +168,17 @@ pub fn render_message(message: &Message, debug: bool) {
 
     for content in &message.content {
         match content {
+            MessageContent::ActionRequired(action) => match &action.data {
+                ActionRequiredData::ToolConfirmation { tool_name, .. } => {
+                    println!("action_required(tool_confirmation): {}", tool_name)
+                }
+                ActionRequiredData::Elicitation { message, .. } => {
+                    println!("action_required(elicitation): {}", message)
+                }
+                ActionRequiredData::ElicitationResponse { id, .. } => {
+                    println!("action_required(elicitation_response): {}", id)
+                }
+            },
             MessageContent::Text(text) => print_markdown(&text.text, theme),
             MessageContent::ToolRequest(req) => render_tool_request(req, theme, debug),
             MessageContent::ToolResponse(resp) => render_tool_response(resp, theme, debug),
@@ -272,8 +285,8 @@ fn render_tool_response(resp: &ToolResponse, theme: Theme, debug: bool) {
     let config = Config::global();
 
     match &resp.tool_result {
-        Ok(contents) => {
-            for content in contents {
+        Ok(result) => {
+            for content in &result.content {
                 if let Some(audience) = content.audience() {
                     if !audience.contains(&rmcp::model::Role::User) {
                         continue;

@@ -64,8 +64,9 @@ pub async fn run_complete_subagent_task(
                             tool_response,
                         ) => {
                             // Extract text from tool response
-                            if let Ok(contents) = &tool_response.tool_result {
-                                let texts: Vec<String> = contents
+                            if let Ok(result) = &tool_response.tool_result {
+                                let texts: Vec<String> = result
+                                    .content
                                     .iter()
                                     .filter_map(|content| {
                                         if let rmcp::model::RawContent::Text(raw_text_content) =

@@ -25,7 +25,7 @@ In a typical session, the interface spins up an instance of the agent, which the
 Extensions expose their functionality to goose through tools. Tools are the functions that allow extensions to perform specific actions, such as running commands, or performing file operations. For example, the Google Drive extension includes a tool for searching documents. That tool is what gives goose the ability to perform that action.
 
 
-goose comes with a set of [built-in extensions](/docs/getting-started/using-extensions#built-in-extensions), each designed to enhance your interaction. These include tools for development, web scraping, automation, memory, and integrations with JetBrains and Google Drive. goose also supports [connecting to external extensions](/docs/getting-started/using-extensions#adding-extensions) or [creating custom extensions](/docs/tutorials/custom-extensions) as MCP servers. 
+goose comes with a set of [built-in extensions](/docs/getting-started/using-extensions#built-in-extensions), each designed to enhance your interaction. These include tools for development, web scraping, automation, memory, and more. goose also supports [connecting to external extensions](/docs/getting-started/using-extensions#adding-extensions) or [creating custom extensions](/docs/tutorials/custom-extensions) as MCP servers. 
 
 To learn more about the design and implementation of extensions and tools, refer to the [Extensions Design Guide](/docs/goose-architecture/extensions-design#tools). 
 

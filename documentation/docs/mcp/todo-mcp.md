@@ -1,10 +1,11 @@
 ---
 title: Todo Extension
-description: Use Todo MCP Server as a goose Extension for Task Management
+description: Breaks complex work into trackable steps to help goose stay organized
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import { PlatformExtensionNote } from '@site/src/components/PlatformExtensionNote';
 import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';
 
 The Todo extension helps goose stay organized by breaking complex work into a series of steps and keeping you updated as it completes each step.
@@ -13,13 +14,11 @@ goose automatically knows to use the Todo extension if it has to do tasks that h
 
 At the start of the task, goose will create an internal checklist, read and update progress as it works, and verify that all tasks are completed.
 
-This tutorial will cover enabling and using the Todo MCP Server, which is a built-in goose extension.
+This tutorial will cover enabling and using the Todo extension.
 
 ## Configuration
 
-:::info
-The Todo extension is already enabled by default when goose is installed.
-:::
+<PlatformExtensionNote/>
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
