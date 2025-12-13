@@ -21,7 +21,11 @@ use rmcp::model::Role;
 use rmcp::model::Tool;
 
 pub const GEMINI_CLI_DEFAULT_MODEL: &str = "gemini-2.5-pro";
-pub const GEMINI_CLI_KNOWN_MODELS: &[&str] = &["gemini-2.5-pro"];
+pub const GEMINI_CLI_KNOWN_MODELS: &[&str] = &[
+    "gemini-2.5-pro",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+];
 
 pub const GEMINI_CLI_DOC_URL: &str = "https://ai.google.dev/gemini-api/docs";
 
@@ -98,7 +102,13 @@ impl GeminiCliProvider {
             cmd.arg("-m").arg(&self.model.model_name);
         }
 
-        cmd.arg("-p").arg(&full_prompt).arg("--yolo");
+        if cfg!(windows) {
+            let sanitized_prompt = full_prompt.replace("\r\n", "\\n").replace('\n', "\\n");
+
+            cmd.arg("-p").arg(&sanitized_prompt).arg("--yolo");
+        } else {
+            cmd.arg("-p").arg(&full_prompt).arg("--yolo");
+        }
 
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
