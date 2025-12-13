@@ -104,7 +104,7 @@
         },
         "responses": {
           "200": {
-            "description": "Resource read successfully",
+            "description": "Tool executed successfully",
             "content": {
               "application/json": {
                 "schema": {
@@ -113,17 +113,14 @@
               }
             }
           },
-          "401": {
-            "description": "Unauthorized - invalid secret key"
-          },
           "404": {
-            "description": "Resource not found"
+            "description": "Session not found"
           },
           "424": {
-            "description": "Agent not initialized"
+            "description": "Agent not initialized for session"
           },
           "500": {
-            "description": "Internal server error"
+            "description": "Tool execution failed"
           }
         }
       }
@@ -2625,15 +2622,17 @@
         "type": "object",
         "required": [
           "session_id",
-          "name",
-          "arguments"
+          "tool_name"
         ],
         "properties": {
-          "arguments": {},
-          "name": {
-            "type": "string"
+          "arguments": {
+            "type": "object",
+            "nullable": true
           },
           "session_id": {
+            "type": "string"
+          },
+          "tool_name": {
             "type": "string"
           }
         }
@@ -2641,21 +2640,15 @@
       "CallToolResponse": {
         "type": "object",
         "required": [
-          "content",
+          "output",
           "is_error"
         ],
         "properties": {
-          "content": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Content"
-            }
-          },
           "is_error": {
             "type": "boolean"
           },
-          "structured_content": {
-            "nullable": true
+          "output": {
+            "type": "string"
           }
         }
       },
