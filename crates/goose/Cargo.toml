@@ -82,9 +82,9 @@ urlencoding = "2.1"
 sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite", "chrono", "json"] }
 
 # For Bedrock provider
-aws-config = { version = "1.5.16", features = ["behavior-version-latest"] }
-aws-smithy-types = "1.2.13"
-aws-sdk-bedrockruntime = "1.106.0"
+aws-config = { version = "=1.8.12", features = ["behavior-version-latest"] }
+aws-smithy-types = "=1.3.5"
+aws-sdk-bedrockruntime = "=1.120.0"
 
 # For SageMaker TGI provider
 aws-sdk-sagemakerruntime = "1.62.0"
