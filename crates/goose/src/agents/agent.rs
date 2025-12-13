@@ -1007,6 +1007,7 @@ impl Agent {
                 let conversation_with_moim = super::moim::inject_moim(
                     conversation.clone(),
                     &self.extension_manager,
+                    Some(&system_prompt),
                 ).await;
 
                 let mut stream = Self::stream_response_from_provider(
