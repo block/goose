@@ -39,7 +39,8 @@ use crate::context_mgmt::{
     check_if_compaction_needed, compact_messages, DEFAULT_COMPACTION_THRESHOLD,
 };
 use crate::conversation::message::{
-    ActionRequiredData, Message, MessageContent, SystemNotificationType, ToolRequest,
+    ActionRequiredData, Message, MessageContent, ProviderMetadata, SystemNotificationType,
+    ToolRequest,
 };
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
 use crate::mcp_utils::ToolResult;
@@ -359,7 +360,7 @@ impl Agent {
         for request in &permission_check_result.denied {
             if let Some(response_msg) = request_to_response_map.get(&request.id) {
                 let mut response = response_msg.lock().await;
-                *response = response.clone().with_tool_response(
+                *response = response.clone().with_tool_response_with_metadata(
                     request.id.clone(),
                     Ok(CallToolResult {
                         content: vec![rmcp::model::Content::text(DECLINED_RESPONSE)],
@@ -367,6 +368,7 @@ impl Agent {
                         is_error: Some(true),
                         meta: None,
                     }),
+                    request.metadata.as_ref(),
                 );
             }
         }
@@ -1081,8 +1083,10 @@ impl Agent {
                                     .collect();
 
                                 let mut request_to_response_map = HashMap::new();
+                                let mut request_metadata: HashMap<String, Option<ProviderMetadata>> = HashMap::new();
                                 for (idx, request) in frontend_requests.iter().chain(remaining_requests.iter()).enumerate() {
                                     request_to_response_map.insert(request.id.clone(), tool_response_messages[idx].clone());
+                                    request_metadata.insert(request.id.clone(), request.metadata.clone());
                                 }
 
                                 for (idx, request) in frontend_requests.iter().enumerate() {
@@ -1100,7 +1104,7 @@ impl Agent {
                                     for request in remaining_requests.iter() {
                                         if let Some(response_msg) = request_to_response_map.get(&request.id) {
                                             let mut response = response_msg.lock().await;
-                                            *response = response.clone().with_tool_response(
+                                            *response = response.clone().with_tool_response_with_metadata(
                                                 request.id.clone(),
                                                 Ok(CallToolResult {
                                                     content: vec![Content::text(CHAT_MODE_TOOL_SKIPPED_RESPONSE)],
@@ -1108,6 +1112,7 @@ impl Agent {
                                                     is_error: Some(false),
                                                     meta: None,
                                                 }),
+                                                request.metadata.as_ref(),
                                             );
                                         }
                                     }
@@ -1199,8 +1204,9 @@ impl Agent {
                                                     all_install_successful = false;
                                                 }
                                                 if let Some(response_msg) = request_to_response_map.get(&request_id) {
+                                                    let metadata = request_metadata.get(&request_id).and_then(|m| m.as_ref());
                                                     let mut response = response_msg.lock().await;
-                                                    *response = response.clone().with_tool_response(request_id, output);
+                                                    *response = response.clone().with_tool_response_with_metadata(request_id, output, metadata);
                                                 }
                                             }
                                             ToolStreamItem::Message(msg) => {
@@ -1222,11 +1228,30 @@ impl Agent {
                                     }
                                 }
 
+                                // Preserve thinking content from the original response
+                                // Gemini (and other thinking models) require thinking to be echoed back
+                                let thinking_content: Vec<MessageContent> = response.content.iter()
+                                    .filter(|c| matches!(c, MessageContent::Thinking(_)))
+                                    .cloned()
+                                    .collect();
+                                if !thinking_content.is_empty() {
+                                    let thinking_msg = Message::new(
+                                        response.role.clone(),
+                                        response.created,
+                                        thinking_content,
+                                    ).with_id(format!("msg_{}", Uuid::new_v4()));
+                                    messages_to_add.push(thinking_msg);
+                                }
+
                                 for (idx, request) in frontend_requests.iter().chain(remaining_requests.iter()).enumerate() {
                                     if request.tool_call.is_ok() {
                                         let request_msg = Message::assistant()
                                             .with_id(format!("msg_{}", Uuid::new_v4()))
-                                            .with_tool_request(request.id.clone(), request.tool_call.clone());
+                                            .with_tool_request_with_metadata(
+                                                request.id.clone(),
+                                                request.tool_call.clone(),
+                                                request.metadata.as_ref(),
+                                            );
                                         messages_to_add.push(request_msg);
                                         let final_response = tool_response_messages[idx]
                                                                 .lock().await.clone();

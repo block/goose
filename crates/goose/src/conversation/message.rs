@@ -53,6 +53,10 @@ where
     Ok(content)
 }
 
+/// Provider-specific metadata for tool requests/responses.
+/// Allows providers to store custom data without polluting the core model.
+pub type ProviderMetadata = serde_json::Map<String, serde_json::Value>;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[derive(ToSchema)]
@@ -62,7 +66,8 @@ pub struct ToolRequest {
     #[schema(value_type = Object)]
     pub tool_call: ToolResult<CallToolRequestParam>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub thought_signature: Option<String>,
+    #[schema(value_type = Object)]
+    pub metadata: Option<ProviderMetadata>,
 }
 
 impl ToolRequest {
@@ -89,6 +94,9 @@ pub struct ToolResponse {
     #[serde(with = "tool_result_serde::call_tool_result")]
     #[schema(value_type = Object)]
     pub tool_result: ToolResult<CallToolResult>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Object)]
+    pub metadata: Option<ProviderMetadata>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -250,19 +258,19 @@ impl MessageContent {
         MessageContent::ToolRequest(ToolRequest {
             id: id.into(),
             tool_call,
-            thought_signature: None,
+            metadata: None,
         })
     }
 
-    pub fn tool_request_with_signature<S1: Into<String>, S2: Into<String>>(
-        id: S1,
+    pub fn tool_request_with_metadata<S: Into<String>>(
+        id: S,
         tool_call: ToolResult<CallToolRequestParam>,
-        thought_signature: Option<S2>,
+        metadata: Option<&ProviderMetadata>,
     ) -> Self {
         MessageContent::ToolRequest(ToolRequest {
             id: id.into(),
             tool_call,
-            thought_signature: thought_signature.map(|s| s.into()),
+            metadata: metadata.cloned(),
         })
     }
 
@@ -270,6 +278,19 @@ impl MessageContent {
         MessageContent::ToolResponse(ToolResponse {
             id: id.into(),
             tool_result,
+            metadata: None,
+        })
+    }
+
+    pub fn tool_response_with_metadata<S: Into<String>>(
+        id: S,
+        tool_result: ToolResult<CallToolResult>,
+        metadata: Option<&ProviderMetadata>,
+    ) -> Self {
+        MessageContent::ToolResponse(ToolResponse {
+            id: id.into(),
+            tool_result,
+            metadata: metadata.cloned(),
         })
     }
 
@@ -641,6 +662,17 @@ impl Message {
         self.with_content(MessageContent::tool_request(id, tool_call))
     }
 
+    pub fn with_tool_request_with_metadata<S: Into<String>>(
+        self,
+        id: S,
+        tool_call: ToolResult<CallToolRequestParam>,
+        metadata: Option<&ProviderMetadata>,
+    ) -> Self {
+        self.with_content(MessageContent::tool_request_with_metadata(
+            id, tool_call, metadata,
+        ))
+    }
+
     /// Add a tool response to the message
     pub fn with_tool_response<S: Into<String>>(
         self,
@@ -648,6 +680,17 @@ impl Message {
         result: ToolResult<CallToolResult>,
     ) -> Self {
         self.with_content(MessageContent::tool_response(id, result))
+    }
+
+    pub fn with_tool_response_with_metadata<S: Into<String>>(
+        self,
+        id: S,
+        result: ToolResult<CallToolResult>,
+        metadata: Option<&ProviderMetadata>,
+    ) -> Self {
+        self.with_content(MessageContent::tool_response_with_metadata(
+            id, result, metadata,
+        ))
     }
 
     /// Add an action required message for tool confirmation
