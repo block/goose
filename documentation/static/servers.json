@@ -641,6 +641,23 @@
     ]
   },
   {
+    "id": "sugar",
+    "name": "Sugar",
+    "description": "Autonomous AI development system - delegate tasks, run 24/7, auto-discover work from errors and GitHub issues",
+    "command": "npx -y sugarai-mcp",
+    "link": "https://github.com/cdnsteve/sugar",
+    "installation_notes": "Requires Python 3.11+ and Sugar CLI: pip install sugarai && sugar init",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [
+      {
+        "name": "SUGAR_PROJECT_ROOT",
+        "description": "Project directory for Sugar operations (defaults to current directory)",
+        "required": false
+      }
+    ]
+  },
+  {
     "id": "tavily",
     "name": "Tavily Web Search",
     "description": "Web search capabilities powered by Tavily",
