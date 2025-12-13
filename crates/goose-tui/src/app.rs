@@ -67,7 +67,7 @@ impl<'a> App<'a> {
             ActivePopup::SessionPicker => Some(&mut self.session_popup),
             ActivePopup::CommandBuilder => Some(&mut self.builder_popup),
             ActivePopup::MessageInfo(_) => Some(&mut self.message_popup),
-            ActivePopup::Config => Some(&mut self.config_popup),
+            ActivePopup::Config(_) => Some(&mut self.config_popup),
             ActivePopup::ThemePicker => Some(&mut self.theme_popup),
             ActivePopup::None => None,
         };
@@ -233,7 +233,7 @@ impl<'a> Component for App<'a> {
             ActivePopup::SessionPicker => self.session_popup.render(f, f.area(), state),
             ActivePopup::CommandBuilder => self.builder_popup.render(f, f.area(), state),
             ActivePopup::MessageInfo(_) => self.message_popup.render(f, f.area(), state),
-            ActivePopup::Config => self.config_popup.render(f, f.area(), state),
+            ActivePopup::Config(_) => self.config_popup.render(f, f.area(), state),
             ActivePopup::ThemePicker => self.theme_popup.render(f, f.area(), state),
             ActivePopup::None => {}
         }

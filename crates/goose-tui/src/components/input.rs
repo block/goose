@@ -80,6 +80,7 @@ impl<'a> InputComponent<'a> {
             ("/help", false),
             ("/todos", false),
             ("/config", false),
+            ("/mcp", false),
             ("/session", false),
             ("/alias", false),
             ("/clear", false),
@@ -262,6 +263,7 @@ impl<'a> InputComponent<'a> {
             "/help" => Some(Action::ToggleHelp),
             "/todos" => Some(Action::ToggleTodo),
             "/config" => Some(Action::OpenConfig),
+            "/mcp" => Some(Action::OpenMcp),
             "/session" => Some(Action::OpenSessionPicker),
             "/alias" => Some(Action::StartCommandBuilder),
             "/clear" => Some(Action::ClearChat),
@@ -451,6 +453,7 @@ impl<'a> Component for InputComponent<'a> {
                                 let cmd = trimmed.split_whitespace().next().unwrap_or("");
                                 let safe_commands = [
                                     "/config",
+                                    "/mcp",
                                     "/help",
                                     "/todos",
                                     "/theme",

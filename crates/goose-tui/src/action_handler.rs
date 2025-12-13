@@ -72,7 +72,7 @@ pub fn handle_action(
         Action::OpenSessionPicker => {
             handle_open_session_picker(client, tx);
         }
-        Action::OpenConfig => {
+        Action::OpenConfig | Action::OpenMcp => {
             handle_open_config(client, tx);
         }
         Action::FetchModels(provider) => {

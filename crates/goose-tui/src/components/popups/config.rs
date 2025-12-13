@@ -21,6 +21,7 @@ pub struct ConfigPopup {
     scroll_state: ScrollbarState,
     selected_provider_idx: Option<usize>,
     search_query: String,
+    initialized: bool,
 }
 
 impl Default for ConfigPopup {
@@ -37,6 +38,7 @@ impl ConfigPopup {
             scroll_state: ScrollbarState::default(),
             selected_provider_idx: None,
             search_query: String::new(),
+            initialized: false,
         }
     }
 
@@ -373,9 +375,17 @@ impl ConfigPopup {
 
 impl Component for ConfigPopup {
     fn handle_event(&mut self, event: &Event, state: &AppState) -> Result<Option<Action>> {
-        if state.active_popup != ActivePopup::Config {
-            self.reset();
-            return Ok(None);
+        let initial_tab = match state.active_popup {
+            ActivePopup::Config(tab) => tab,
+            _ => {
+                self.reset();
+                return Ok(None);
+            }
+        };
+        if !self.initialized {
+            self.tab_index = initial_tab;
+            self.list_state.select(Some(0));
+            self.initialized = true;
         }
 
         match event {

@@ -32,7 +32,7 @@ pub enum ActivePopup {
     Todo,
     SessionPicker,
     CommandBuilder,
-    Config,
+    Config(usize),
     ThemePicker,
     MessageInfo(usize),
 }

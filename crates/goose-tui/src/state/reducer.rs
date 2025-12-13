@@ -220,7 +220,11 @@ fn handle_ui(state: &mut AppState, action: &Action) -> bool {
             true
         }
         Action::OpenConfig => {
-            state.active_popup = ActivePopup::Config;
+            state.active_popup = ActivePopup::Config(0);
+            true
+        }
+        Action::OpenMcp => {
+            state.active_popup = ActivePopup::Config(1);
             true
         }
         Action::ClosePopup => {

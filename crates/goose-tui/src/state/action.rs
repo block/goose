@@ -47,6 +47,7 @@ pub enum Action {
     OpenMessageInfo(usize),
     SetInputEmpty(bool),
     OpenConfig,
+    OpenMcp,
     FetchModels(String),
     UpdateProvider {
         provider: String,

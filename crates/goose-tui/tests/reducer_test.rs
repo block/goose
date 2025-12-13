@@ -52,7 +52,7 @@ fn close_popup_clears_any_popup() {
     let mut state = test_state();
 
     update(&mut state, Action::OpenConfig);
-    assert_eq!(state.active_popup, ActivePopup::Config);
+    assert_eq!(state.active_popup, ActivePopup::Config(0));
 
     update(&mut state, Action::ClosePopup);
     assert_eq!(state.active_popup, ActivePopup::None);
