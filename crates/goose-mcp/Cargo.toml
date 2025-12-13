@@ -77,6 +77,7 @@ libc = "0.2"
 mpatch = "=0.2.0"
 tokio-util = "0.7.16"
 clap = { version = "4", features = ["derive"] }
+dirs = "6.0.0"
 
 
 [dev-dependencies]
