@@ -11,6 +11,7 @@ use axum::{
     Json, Router,
 };
 use goose::config::PermissionManager;
+use uuid::Uuid;
 
 use goose::agents::ExtensionConfig;
 use goose::config::{Config, GooseMode};
@@ -25,7 +26,6 @@ use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
     config::permission::PermissionLevel,
 };
-use rmcp::model::{CallToolRequestParam, Content};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -40,33 +40,33 @@ pub struct UpdateFromSessionRequest {
     session_id: String,
 }
 
-#[derive(Deserialize, utoipa::ToSchema)]
+#[derive(Deserialize, Serialize, utoipa::ToSchema)]
 pub struct UpdateProviderRequest {
-    provider: String,
-    model: Option<String>,
-    session_id: String,
+    pub provider: String,
+    pub model: Option<String>,
+    pub session_id: String,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct GetToolsQuery {
-    extension_name: Option<String>,
-    session_id: String,
+    pub extension_name: Option<String>,
+    pub session_id: String,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdateRouterToolSelectorRequest {
-    session_id: String,
+    pub session_id: String,
 }
 
-#[derive(Deserialize, utoipa::ToSchema)]
+#[derive(Deserialize, Serialize, utoipa::ToSchema)]
 pub struct StartAgentRequest {
-    working_dir: String,
+    pub working_dir: String,
     #[serde(default)]
-    recipe: Option<Recipe>,
+    pub recipe: Option<Recipe>,
     #[serde(default)]
-    recipe_id: Option<String>,
+    pub recipe_id: Option<String>,
     #[serde(default)]
-    recipe_deeplink: Option<String>,
+    pub recipe_deeplink: Option<String>,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -74,22 +74,22 @@ pub struct StopAgentRequest {
     session_id: String,
 }
 
-#[derive(Deserialize, utoipa::ToSchema)]
+#[derive(Deserialize, Serialize, utoipa::ToSchema)]
 pub struct ResumeAgentRequest {
-    session_id: String,
-    load_model_and_extensions: bool,
+    pub session_id: String,
+    pub load_model_and_extensions: bool,
 }
 
-#[derive(Deserialize, utoipa::ToSchema)]
+#[derive(Deserialize, Serialize, utoipa::ToSchema)]
 pub struct AddExtensionRequest {
-    session_id: String,
-    config: ExtensionConfig,
+    pub session_id: String,
+    pub config: ExtensionConfig,
 }
 
-#[derive(Deserialize, utoipa::ToSchema)]
+#[derive(Deserialize, Serialize, utoipa::ToSchema)]
 pub struct RemoveExtensionRequest {
-    name: String,
-    session_id: String,
+    pub name: String,
+    pub session_id: String,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -102,20 +102,6 @@ pub struct ReadResourceRequest {
 #[derive(Serialize, Deserialize, utoipa::ToSchema)]
 pub struct ReadResourceResponse {
     html: String,
-}
-
-#[derive(Deserialize, utoipa::ToSchema)]
-pub struct CallToolRequest {
-    session_id: String,
-    name: String,
-    arguments: Value,
-}
-
-#[derive(Serialize, utoipa::ToSchema)]
-pub struct CallToolResponse {
-    content: Vec<Content>,
-    structured_content: Option<Value>,
-    is_error: bool,
 }
 
 #[utoipa::path(
@@ -592,6 +578,20 @@ async fn stop_agent(
     Ok(StatusCode::OK)
 }
 
+#[derive(Deserialize, Serialize, utoipa::ToSchema)]
+pub struct CallToolRequest {
+    pub session_id: String,
+    pub tool_name: String,
+    #[schema(value_type = Option<Object>)]
+    pub arguments: Option<Value>,
+}
+
+#[derive(Deserialize, Serialize, utoipa::ToSchema)]
+pub struct CallToolResponse {
+    pub output: String,
+    pub is_error: bool,
+}
+
 #[utoipa::path(
     post,
     path = "/agent/read_resource",
@@ -630,47 +630,69 @@ async fn read_resource(
     path = "/agent/call_tool",
     request_body = CallToolRequest,
     responses(
-        (status = 200, description = "Resource read successfully", body = CallToolResponse),
-        (status = 401, description = "Unauthorized - invalid secret key"),
-        (status = 424, description = "Agent not initialized"),
-        (status = 404, description = "Resource not found"),
-        (status = 500, description = "Internal server error")
+        (status = 200, description = "Tool executed successfully", body = CallToolResponse),
+        (status = 404, description = "Session not found"),
+        (status = 424, description = "Agent not initialized for session"),
+        (status = 500, description = "Tool execution failed")
     )
 )]
 async fn call_tool(
     State(state): State<Arc<AppState>>,
-    Json(payload): Json<CallToolRequest>,
-) -> Result<Json<CallToolResponse>, StatusCode> {
+    Json(request): Json<CallToolRequest>,
+) -> Result<Json<CallToolResponse>, ErrorResponse> {
     let agent = state
-        .get_agent_for_route(payload.session_id.clone())
-        .await?;
+        .get_agent_for_route(request.session_id.clone())
+        .await
+        .map_err(|status| ErrorResponse {
+            message: "Agent not initialized for this session".into(),
+            status,
+        })?;
 
-    let arguments = match payload.arguments {
-        Value::Object(map) => Some(map),
-        _ => None,
+    let session = SessionManager::get_session(&request.session_id, false)
+        .await
+        .map_err(|e| ErrorResponse {
+            message: format!("Session not found: {}", e),
+            status: StatusCode::NOT_FOUND,
+        })?;
+
+    let tool_call = rmcp::model::CallToolRequestParam {
+        name: request.tool_name.clone().into(),
+        arguments: request.arguments.and_then(|v| v.as_object().cloned()),
     };
 
-    let tool_call = CallToolRequestParam {
-        name: payload.name.into(),
-        arguments,
-    };
+    let request_id = Uuid::new_v4().to_string();
 
-    let tool_result = agent
-        .extension_manager
-        .dispatch_tool_call(tool_call, CancellationToken::default())
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let (_req_id, result) = agent
+        .dispatch_tool_call(tool_call, request_id, None, &session)
+        .await;
 
-    let result = tool_result
-        .result
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    Ok(Json(CallToolResponse {
-        content: result.content,
-        structured_content: result.structured_content,
-        is_error: result.is_error.unwrap_or(false),
-    }))
+    match result {
+        Ok(tool_result) => {
+            let content_result = tool_result.result.await;
+            match content_result {
+                Ok(call_tool_result) => {
+                    let output = call_tool_result
+                        .content
+                        .iter()
+                        .filter_map(|c| c.as_text().map(|t| t.text.to_string()))
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                    Ok(Json(CallToolResponse {
+                        output,
+                        is_error: call_tool_result.is_error.unwrap_or(false),
+                    }))
+                }
+                Err(error_data) => Ok(Json(CallToolResponse {
+                    output: error_data.message.to_string(),
+                    is_error: true,
+                })),
+            }
+        }
+        Err(error_data) => Ok(Json(CallToolResponse {
+            output: error_data.message.to_string(),
+            is_error: true,
+        })),
+    }
 }
 
 pub fn routes(state: Arc<AppState>) -> Router {
