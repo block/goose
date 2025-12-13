@@ -1,6 +1,7 @@
 pub mod action_required;
 pub mod agent;
 pub mod audio;
+pub mod auth;
 pub mod config_management;
 pub mod errors;
 pub mod mcp_ui_proxy;
