@@ -30,6 +30,7 @@ pub struct ChatComponent {
     last_input_mode: InputMode,
     last_item_count: usize,
     last_width: u16,
+    last_height: u16,
     last_theme_name: String,
 }
 
@@ -53,6 +54,7 @@ impl ChatComponent {
             last_input_mode: InputMode::Normal,
             last_item_count: 0,
             last_width: 0,
+            last_height: 0,
             last_theme_name: String::new(),
         }
     }
@@ -619,6 +621,7 @@ impl Component for ChatComponent {
                         return Ok(Some(action));
                     }
 
+                    let page_size = self.last_height.saturating_sub(4) as usize;
                     match key.code {
                         KeyCode::Char('k') | KeyCode::Up => {
                             self.stick_to_bottom = false;
@@ -631,6 +634,31 @@ impl Component for ChatComponent {
                             self.list_state.select(Some(next));
                             if next >= self.last_item_count.saturating_sub(1) {
                                 self.stick_to_bottom = true;
+                            }
+                        }
+                        KeyCode::PageUp => {
+                            self.stick_to_bottom = false;
+                            let cur = self.list_state.selected().unwrap_or(0);
+                            self.list_state.select(Some(cur.saturating_sub(page_size)));
+                        }
+                        KeyCode::PageDown => {
+                            let cur = self.list_state.selected().unwrap_or(0);
+                            let max_idx = self.last_item_count.saturating_sub(1);
+                            let next = (cur + page_size).min(max_idx);
+                            self.list_state.select(Some(next));
+                            if next >= max_idx {
+                                self.stick_to_bottom = true;
+                            }
+                        }
+                        KeyCode::Home => {
+                            self.stick_to_bottom = false;
+                            self.list_state.select(Some(0));
+                        }
+                        KeyCode::End => {
+                            self.stick_to_bottom = true;
+                            if self.last_item_count > 0 {
+                                self.list_state
+                                    .select(Some(self.last_item_count.saturating_sub(1)));
                             }
                         }
                         KeyCode::Enter => {
@@ -651,14 +679,13 @@ impl Component for ChatComponent {
     }
 
     fn render(&mut self, f: &mut Frame, area: Rect, state: &AppState) {
-        // Check for mode transition: Normal -> Editing implies stick to bottom
+        self.last_height = area.height;
+
         if self.last_input_mode == InputMode::Normal && state.input_mode == InputMode::Editing {
             self.stick_to_bottom = true;
         }
         self.last_input_mode = state.input_mode;
 
-        // 1. Reconcile Cache
-        // If width changed, clear cache to force re-wrap
         if area.width != self.last_width {
             self.cached_items.clear();
             self.cached_mapping.clear();
