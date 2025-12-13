@@ -19,7 +19,7 @@ export default function CustomProviderForm({
   initialData,
   isEditable,
 }: CustomProviderFormProps) {
-  const [engine, setEngine] = useState('openai_compatible');
+  const [engine, setEngine] = useState('openai');
   const [displayName, setDisplayName] = useState('');
   const [apiUrl, setApiUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
@@ -30,13 +30,7 @@ export default function CustomProviderForm({
 
   useEffect(() => {
     if (initialData) {
-      const engineMap: Record<string, string> = {
-        openai: 'openai_compatible',
-        anthropic: 'anthropic_compatible',
-        ollama: 'ollama_compatible',
-      };
-
-      setEngine(engineMap[initialData.engine.toLowerCase()] || 'openai_compatible');
+      setEngine(initialData.engine);
       setDisplayName(initialData.display_name);
       setApiUrl(initialData.api_url);
       setModels(initialData.models.join(', '));
@@ -99,16 +93,16 @@ export default function CustomProviderForm({
               aria-invalid={!!validationErrors.providerType}
               aria-describedby={validationErrors.providerType ? 'provider-select-error' : undefined}
               options={[
-                { value: 'openai_compatible', label: 'OpenAI Compatible' },
-                { value: 'anthropic_compatible', label: 'Anthropic Compatible' },
-                { value: 'ollama_compatible', label: 'Ollama Compatible' },
+                { value: 'openai', label: 'OpenAI Compatible' },
+                { value: 'anthropic', label: 'Anthropic Compatible' },
+                { value: 'ollama', label: 'Ollama Compatible' },
               ]}
               value={{
                 value: engine,
                 label:
-                  engine === 'openai_compatible'
+                  engine === 'openai'
                     ? 'OpenAI Compatible'
-                    : engine === 'anthropic_compatible'
+                    : engine === 'anthropic'
                       ? 'Anthropic Compatible'
                       : 'Ollama Compatible',
               }}
