@@ -114,7 +114,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
         with:
-          fetch-depth: 0
+          ref: main
+          fetch-depth: 1
 
       - name: Install tools
         run: |
