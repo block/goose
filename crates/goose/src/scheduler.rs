@@ -749,11 +749,12 @@ async fn execute_job(
         job_def.current_session_id = Some(session.id.clone());
     }
 
-    let prompt_text = recipe
-        .prompt
-        .as_ref()
-        .or(recipe.instructions.as_ref())
-        .unwrap();
+    let prompt_text = match (&recipe.instructions, &recipe.prompt) {
+        (Some(instructions), Some(prompt)) => format!("{}\n\n{}", instructions, prompt),
+        (Some(instructions), None) => instructions.clone(),
+        (None, Some(prompt)) => prompt.clone(),
+        (None, None) => panic!("Recipe has no instructions or prompt"),
+    };
 
     let user_message = Message::user().with_text(prompt_text);
     let mut conversation = Conversation::new_unvalidated(vec![user_message.clone()]);
