@@ -19,7 +19,7 @@ export default function CustomProviderForm({
   initialData,
   isEditable,
 }: CustomProviderFormProps) {
-  const [engine, setEngine] = useState('openai');
+  const [engine, setEngine] = useState('openai_compatible');
   const [displayName, setDisplayName] = useState('');
   const [apiUrl, setApiUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
@@ -30,7 +30,12 @@ export default function CustomProviderForm({
 
   useEffect(() => {
     if (initialData) {
-      setEngine(initialData.engine);
+      const engineMap: Record<string, string> = {
+        openai: 'openai_compatible',
+        anthropic: 'anthropic_compatible',
+        ollama: 'ollama_compatible',
+      };
+      setEngine(engineMap[initialData.engine] || 'openai_compatible');
       setDisplayName(initialData.display_name);
       setApiUrl(initialData.api_url);
       setModels(initialData.models.join(', '));
@@ -93,16 +98,16 @@ export default function CustomProviderForm({
               aria-invalid={!!validationErrors.providerType}
               aria-describedby={validationErrors.providerType ? 'provider-select-error' : undefined}
               options={[
-                { value: 'openai', label: 'OpenAI Compatible' },
-                { value: 'anthropic', label: 'Anthropic Compatible' },
-                { value: 'ollama', label: 'Ollama Compatible' },
+                { value: 'openai_compatible', label: 'OpenAI Compatible' },
+                { value: 'anthropic_compatible', label: 'Anthropic Compatible' },
+                { value: 'ollama_compatible', label: 'Ollama Compatible' },
               ]}
               value={{
                 value: engine,
                 label:
-                  engine === 'openai'
+                  engine === 'openai_compatible'
                     ? 'OpenAI Compatible'
-                    : engine === 'anthropic'
+                    : engine === 'anthropic_compatible'
                       ? 'Anthropic Compatible'
                       : 'Ollama Compatible',
               }}
