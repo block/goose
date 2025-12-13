@@ -263,7 +263,7 @@ export default function CreateRecipeFromSessionModal({
                   className="text-lg font-medium text-textProminent"
                   data-testid="analyzing-title"
                 >
-                  Analyzing your conversation...
+                  Analyzing your conversation
                 </div>
               </div>
               <div className="text-textSubtle text-center max-w-md" data-testid="analysis-stage">
