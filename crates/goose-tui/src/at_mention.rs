@@ -29,18 +29,15 @@ pub fn process(input: &str, working_dir: &Path) -> ProcessResult {
         };
     }
 
-    let (attachments, errors): (Vec<_>, Vec<_>) = mentions
+    let attachments: Vec<_> = mentions
         .iter()
-        .map(|m| read_file(m, working_dir).map_err(|e| (m.clone(), e)))
-        .partition(Result::is_ok);
-
-    let attachments: Vec<_> = attachments.into_iter().map(Result::unwrap).collect();
-    let errors: Vec<_> = errors.into_iter().map(Result::unwrap_err).collect();
+        .filter_map(|m| read_file(m, working_dir).ok())
+        .collect();
 
     ProcessResult {
         augmented_text: build_augmented_message(input, &attachments, working_dir),
         attachments,
-        errors,
+        errors: vec![],
     }
 }
 
@@ -182,7 +179,9 @@ mod tests {
         assert!(result.augmented_text.ends_with("Review @test.rs please"));
 
         let missing = process("Check @nonexistent.txt", dir.path());
-        assert_eq!(missing.errors.len(), 1);
+        assert!(missing.errors.is_empty());
+        assert!(missing.attachments.is_empty());
+        assert_eq!(missing.augmented_text, "Check @nonexistent.txt");
 
         let plain = process("No mentions here", dir.path());
         assert_eq!(plain.augmented_text, "No mentions here");
