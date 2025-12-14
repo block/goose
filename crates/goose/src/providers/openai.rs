@@ -34,17 +34,29 @@ use rmcp::model::Tool;
 pub const OPEN_AI_DEFAULT_MODEL: &str = "gpt-4o";
 pub const OPEN_AI_DEFAULT_FAST_MODEL: &str = "gpt-4o-mini";
 pub const OPEN_AI_KNOWN_MODELS: &[(&str, usize)] = &[
+    // GPT-4 series
     ("gpt-4o", 128_000),
     ("gpt-4o-mini", 128_000),
     ("gpt-4.1", 128_000),
     ("gpt-4.1-mini", 128_000),
-    ("o1", 200_000),
-    ("o3", 200_000),
-    ("gpt-3.5-turbo", 16_385),
     ("gpt-4-turbo", 128_000),
-    ("o4-mini", 128_000),
-    ("gpt-5.1-codex", 400_000),
+    ("gpt-3.5-turbo", 16_385),
+    // GPT-5 series (reasoning models)
+    ("gpt-5", 272_000),
+    ("gpt-5-mini", 272_000),
+    ("gpt-5-nano", 272_000),
+    ("gpt-5.1", 400_000),
+    ("gpt-5.2", 400_000),
+    // GPT-5 Codex series (code-focused)
     ("gpt-5-codex", 400_000),
+    ("gpt-5.1-codex", 400_000),
+    ("gpt-5.1-codex-max", 400_000),
+    // O-series reasoning models
+    ("o1", 200_000),
+    ("o1-mini", 200_000),
+    ("o3", 200_000),
+    ("o3-mini", 200_000),
+    ("o4-mini", 200_000),
 ];
 
 pub const OPEN_AI_DOC_URL: &str = "https://platform.openai.com/docs/models";

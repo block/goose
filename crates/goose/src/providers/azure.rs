@@ -108,7 +108,8 @@ impl AzureProvider {
         let use_v1_api = use_v1_api_config.unwrap_or_else(|| {
             // Auto-detect: use v1 API for reasoning models (GPT-5, o1, o3, o4)
             // These models require reasoning_effort parameter which only works with v1 API
-            Self::is_reasoning_model(&deployment_name) || Self::is_reasoning_model(&model.model_name)
+            Self::is_reasoning_model(&deployment_name)
+                || Self::is_reasoning_model(&model.model_name)
         });
 
         if use_v1_api {
