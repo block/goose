@@ -160,23 +160,21 @@ fn get_agent_messages(
 
         if let Some(template) = system_prompt_template {
             let tools = agent.list_tools(None).await;
-            let prompt = render_global_file(
-                &template,
-                &SubagentPromptContext {
-                    max_turns: task_config
-                        .max_turns
-                        .expect("TaskConfig always sets max_turns"),
-                    subagent_id: session_id.clone(),
-                    task_instructions: text_instruction.clone(),
-                    tool_count: tools.len(),
-                    available_tools: tools
-                        .iter()
-                        .map(|t| t.name.to_string())
-                        .collect::<Vec<_>>()
-                        .join(", "),
-                },
-            )
-            .map_err(|e| {
+            let available_tools = tools
+                .iter()
+                .map(|t| t.name.to_string())
+                .collect::<Vec<_>>()
+                .join(", ");
+            let context = SubagentPromptContext {
+                max_turns: task_config
+                    .max_turns
+                    .expect("TaskConfig always sets max_turns"),
+                subagent_id: session_id.clone(),
+                task_instructions: text_instruction.clone(),
+                tool_count: tools.len(),
+                available_tools,
+            };
+            let prompt = render_global_file(&template, &context).map_err(|e| {
                 anyhow!(
                     "Failed to render system prompt template '{}': {}",
                     template,
