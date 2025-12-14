@@ -631,6 +631,7 @@ export type Recipe = {
     description: string;
     extensions?: Array<ExtensionConfig> | null;
     instructions?: string | null;
+    max_turns?: number | null;
     parameters?: Array<RecipeParameter> | null;
     prompt?: string | null;
     response?: Response | null;
