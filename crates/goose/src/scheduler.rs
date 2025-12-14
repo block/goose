@@ -12,12 +12,11 @@ use tokio::sync::Mutex;
 use tokio_cron_scheduler::{job::JobId, Job, JobScheduler as TokioJobScheduler};
 use tokio_util::sync::CancellationToken;
 
-use crate::agents::AgentEvent;
-use crate::agents::{Agent, SessionConfig};
+use crate::agents::subagent_handler::run_complete_subagent_task;
+use crate::agents::{ExtensionConfig, TaskConfig};
 use crate::config::paths::Paths;
 use crate::config::Config;
-use crate::conversation::message::Message;
-use crate::conversation::Conversation;
+use crate::model::ModelConfig;
 use crate::providers::create;
 use crate::recipe::Recipe;
 use crate::scheduler_trait::SchedulerTrait;
@@ -720,20 +719,13 @@ async fn execute_job(
         }
     };
 
-    let agent = Agent::new();
-
     let config = Config::global();
     let provider_name = config.get_goose_provider()?;
     let model_name = config.get_goose_model()?;
-    let model_config = crate::model::ModelConfig::new(&model_name)?;
+    let model_config = ModelConfig::new(&model_name)?;
+    let provider = create(&provider_name, model_config).await?;
 
-    let agent_provider = create(&provider_name, model_config).await?;
-
-    if let Some(ref extensions) = recipe.extensions {
-        for ext in extensions {
-            agent.add_extension(ext.clone()).await?;
-        }
-    }
+    let extensions: Vec<ExtensionConfig> = recipe.extensions.clone().unwrap_or_default();
 
     let session = SessionManager::create_session(
         std::env::current_dir()?,
@@ -742,63 +734,31 @@ async fn execute_job(
     )
     .await?;
 
-    agent.update_provider(agent_provider, &session.id).await?;
-
-    let mut jobs_guard = jobs.lock().await;
-    if let Some((_, job_def)) = jobs_guard.get_mut(job_id.as_str()) {
-        job_def.current_session_id = Some(session.id.clone());
-    }
-
-    let prompt_text = recipe
-        .prompt
-        .as_ref()
-        .or(recipe.instructions.as_ref())
-        .unwrap();
-
-    let user_message = Message::user().with_text(prompt_text);
-    let mut conversation = Conversation::new_unvalidated(vec![user_message.clone()]);
-
-    let session_config = SessionConfig {
-        id: session.id.clone(),
-        schedule_id: Some(job.id.clone()),
-        max_turns: None,
-        retry_config: None,
-    };
-
-    let session_id = session_config.id.clone();
-    let stream = crate::session_context::with_session_id(Some(session_id.clone()), async {
-        agent
-            .reply(user_message, session_config, Some(cancel_token))
-            .await
-    })
-    .await?;
-
-    use futures::StreamExt;
-    let mut stream = std::pin::pin!(stream);
-
-    while let Some(message_result) = stream.next().await {
-        tokio::task::yield_now().await;
-
-        match message_result {
-            Ok(AgentEvent::Message(msg)) => {
-                conversation.push(msg);
-            }
-            Ok(AgentEvent::HistoryReplaced(updated)) => {
-                conversation = updated;
-            }
-            Ok(_) => {}
-            Err(e) => {
-                tracing::error!("Error in agent stream: {}", e);
-                break;
-            }
+    {
+        let mut jobs_guard = jobs.lock().await;
+        if let Some((_, job_def)) = jobs_guard.get_mut(job_id.as_str()) {
+            job_def.current_session_id = Some(session.id.clone());
         }
     }
+
+    let task_config = TaskConfig::new(provider, &session.id, &std::env::current_dir()?, extensions);
+
+    let _result = run_complete_subagent_task(
+        recipe.clone(),
+        task_config,
+        false,
+        session.id.clone(),
+        Some(cancel_token),
+        None,
+    )
+    .await?;
 
     SessionManager::update_session(&session.id)
         .schedule_id(Some(job.id.clone()))
         .recipe(Some(recipe))
         .apply()
         .await?;
+
     Ok(session.id)
 }
 

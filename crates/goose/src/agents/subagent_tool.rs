@@ -173,9 +173,6 @@ fn get_subrecipe_params_description(sub_recipe: &SubRecipe) -> String {
     }
 }
 
-/// Note: SubRecipe.sequential_when_repeated is surfaced as a hint in the tool description
-/// (e.g., "[run sequentially, not in parallel]") but not enforced. The LLM controls
-/// sequencing by making sequential vs parallel tool calls.
 pub fn handle_subagent_tool(
     params: Value,
     task_config: TaskConfig,
@@ -269,6 +266,7 @@ async fn execute_subagent(
         params.summary,
         session.id,
         cancellation_token,
+        Some("subagent_system.md"),
     )
     .await;
 

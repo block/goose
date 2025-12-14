@@ -26,24 +26,29 @@ struct SubagentPromptContext {
 type AgentMessagesFuture =
     Pin<Box<dyn Future<Output = Result<(Conversation, Option<String>)>> + Send>>;
 
-/// Standalone function to run a complete subagent task with output options
 pub async fn run_complete_subagent_task(
     recipe: Recipe,
     task_config: TaskConfig,
     return_last_only: bool,
     session_id: String,
     cancellation_token: Option<CancellationToken>,
+    system_prompt_template: Option<&str>,
 ) -> Result<String, anyhow::Error> {
-    let (messages, final_output) =
-        get_agent_messages(recipe, task_config, session_id, cancellation_token)
-            .await
-            .map_err(|e| {
-                ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Failed to execute task: {}", e),
-                    None,
-                )
-            })?;
+    let (messages, final_output) = get_agent_messages(
+        recipe,
+        task_config,
+        session_id,
+        cancellation_token,
+        system_prompt_template.map(|s| s.to_string()),
+    )
+    .await
+    .map_err(|e| {
+        ErrorData::new(
+            ErrorCode::INTERNAL_ERROR,
+            format!("Failed to execute task: {}", e),
+            None,
+        )
+    })?;
 
     if let Some(output) = final_output {
         return Ok(output);
@@ -115,6 +120,7 @@ fn get_agent_messages(
     task_config: TaskConfig,
     session_id: String,
     cancellation_token: Option<CancellationToken>,
+    system_prompt_template: Option<String>,
 ) -> AgentMessagesFuture {
     Box::pin(async move {
         let text_instruction = recipe
@@ -152,25 +158,33 @@ fn get_agent_messages(
             .apply_recipe_components(recipe.sub_recipes.clone(), recipe.response.clone(), true)
             .await;
 
-        let tools = agent.list_tools(None).await;
-        let subagent_prompt = render_global_file(
-            "subagent_system.md",
-            &SubagentPromptContext {
-                max_turns: task_config
-                    .max_turns
-                    .expect("TaskConfig always sets max_turns"),
-                subagent_id: session_id.clone(),
-                task_instructions: text_instruction.clone(),
-                tool_count: tools.len(),
-                available_tools: tools
-                    .iter()
-                    .map(|t| t.name.to_string())
-                    .collect::<Vec<_>>()
-                    .join(", "),
-            },
-        )
-        .map_err(|e| anyhow!("Failed to render subagent system prompt: {}", e))?;
-        agent.override_system_prompt(subagent_prompt).await;
+        if let Some(template) = system_prompt_template {
+            let tools = agent.list_tools(None).await;
+            let prompt = render_global_file(
+                &template,
+                &SubagentPromptContext {
+                    max_turns: task_config
+                        .max_turns
+                        .expect("TaskConfig always sets max_turns"),
+                    subagent_id: session_id.clone(),
+                    task_instructions: text_instruction.clone(),
+                    tool_count: tools.len(),
+                    available_tools: tools
+                        .iter()
+                        .map(|t| t.name.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                },
+            )
+            .map_err(|e| {
+                anyhow!(
+                    "Failed to render system prompt template '{}': {}",
+                    template,
+                    e
+                )
+            })?;
+            agent.override_system_prompt(prompt).await;
+        }
 
         let user_message = Message::user().with_text(text_instruction);
         let mut conversation = Conversation::new_unvalidated(vec![user_message.clone()]);
