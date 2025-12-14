@@ -145,6 +145,17 @@ GOOSE_SEARCH_PATHS:
 
 These paths are prepended to the system PATH when running extension commands, ensuring your custom tools are found without modifying your global PATH.
 
+## Recipe Command Configuration
+You can optionally set up [custom slash commands](/docs/guides/recipes/session-recipes.md#custom-recipe-commands) to run recipes that you create. List the command (without the leading `/`) along with the path to the recipe:
+
+```yaml
+slash_commands:
+  - command: "run-tests"
+    recipe_path: "/path/to/recipe.yaml"
+  - command: "daily-standup"
+    recipe_path: "/Users/me/.local/share/goose/recipes/standup.yaml"
+```
+
 ## Configuration Priority
 
 Settings are applied in the following order of precedence:
