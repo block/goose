@@ -4474,6 +4474,12 @@
             "type": "string",
             "nullable": true
           },
+          "max_turns": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true,
+            "minimum": 0
+          },
           "parameters": {
             "type": "array",
             "items": {
