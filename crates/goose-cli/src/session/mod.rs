@@ -547,6 +547,17 @@ impl CliSession {
                     output::set_theme(new_theme);
                     continue;
                 }
+                input::InputResult::ToggleFullToolOutput => {
+                    save_history(&mut editor);
+
+                    let enabled = output::toggle_full_tool_output();
+                    if enabled {
+                        println!("{}", console::style("✓ Full tool output enabled - tool parameters will no longer be truncated").green());
+                    } else {
+                        println!("{}", console::style("✓ Full tool output disabled - tool parameters will be truncated to fit terminal width").dim());
+                    }
+                    continue;
+                }
 
                 input::InputResult::SelectTheme(theme_name) => {
                     save_history(&mut editor);
