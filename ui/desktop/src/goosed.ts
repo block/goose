@@ -1,6 +1,6 @@
 import Electron from 'electron';
 import fs from 'node:fs';
-import { spawn, ChildProcess } from 'child_process';
+import { spawn, ChildProcess, execFileSync } from 'child_process';
 import { createServer } from 'net';
 import os from 'node:os';
 import path from 'node:path';
@@ -81,6 +81,53 @@ interface GooseProcessEnv {
   GOOSE_SERVER__SECRET_KEY?: string;
 }
 
+const getUserShellPath = (): string | undefined => {
+  if (process.platform === 'win32') {
+    return undefined;
+  }
+
+  const shell = process.env.SHELL || '/bin/zsh';
+
+  try {
+    const output = execFileSync(shell, ['-lc', 'echo -n "$PATH"'], {
+      encoding: 'utf8',
+      timeout: 3000,
+    });
+    return output.trim();
+  } catch (error) {
+    log.error('Failed to read user shell PATH', error);
+    return undefined;
+  }
+};
+
+const buildGoosedPath = (resolvedGoosedPath: string): string => {
+  const binaryDir = path.dirname(resolvedGoosedPath);
+  const parts: string[] = [];
+  const seen = new Set<string>();
+
+  const addFrom = (value: string | undefined) => {
+    if (!value) return;
+
+    for (const entry of value.split(path.delimiter)) {
+      const trimmed = entry.trim();
+      if (!trimmed) continue;
+      if (!seen.has(trimmed)) {
+        seen.add(trimmed);
+        parts.push(trimmed);
+      }
+    }
+  };
+
+  // Always ensure the goosed binary directory comes first
+  addFrom(binaryDir);
+  // Then include the PATH that Electron was started with
+  addFrom(process.env.PATH);
+  // Finally, try to merge in the user's shell PATH (best-effort)
+  addFrom(getUserShellPath());
+
+  return parts.join(path.delimiter);
+};
+
 export const startGoosed = async (
   app: App,
   serverSecret: string,
@@ -113,8 +160,8 @@ export const startGoosed = async (
     APPDATA: process.env.APPDATA || path.join(homeDir, 'AppData', 'Roaming'),
     // Set LOCAL_APPDATA for Windows
     LOCALAPPDATA: process.env.LOCALAPPDATA || path.join(homeDir, 'AppData', 'Local'),
-    // Set PATH to include the binary directory
-    PATH: `${path.dirname(resolvedGoosedPath)}${path.delimiter}${process.env.PATH || ''}`,
+    // Set PATH to include the goosed binary directory, the Electron PATH, and (best-effort) the user's shell PATH
+    PATH: buildGoosedPath(resolvedGoosedPath),
     GOOSE_PORT: String(port),
     GOOSE_SERVER__SECRET_KEY: serverSecret,
     // Add any additional environment variables passed in
