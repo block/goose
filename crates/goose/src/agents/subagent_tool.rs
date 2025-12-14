@@ -320,13 +320,61 @@ fn build_recipe(
     Ok(recipe)
 }
 
+fn params_to_values(params: &SubagentParams) -> Vec<(String, String)> {
+    params
+        .parameters
+        .as_ref()
+        .map(|p| {
+            p.iter()
+                .map(|(k, v)| {
+                    let v = match v {
+                        Value::String(s) => s.clone(),
+                        other => other.to_string(),
+                    };
+                    (k.clone(), v)
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn combine_instructions(recipe: &mut Recipe, extra: Option<&str>) {
+    let mut combined = recipe.instructions.take().unwrap_or_default();
+
+    if let Some(prompt) = &recipe.prompt {
+        if !combined.is_empty() {
+            combined.push_str("\n\n");
+        }
+        combined.push_str(prompt);
+    }
+
+    if let Some(extra) = extra {
+        if !combined.is_empty() {
+            combined.push_str("\n\n");
+        }
+        combined.push_str("Additional context from parent agent:\n");
+        combined.push_str(extra);
+    }
+
+    if !combined.is_empty() {
+        recipe.instructions = Some(combined);
+    }
+}
+
 fn build_subrecipe(
     subrecipe_name: &str,
     params: &SubagentParams,
     user_sub_recipes: &HashMap<String, SubRecipe>,
 ) -> Result<Recipe> {
     if let Some(content) = get_bundled_subrecipe_content(subrecipe_name) {
-        return build_bundled_subrecipe(content, params);
+        let mut recipe = build_recipe_from_template(
+            content.to_string(),
+            &PathBuf::new(),
+            params_to_values(params),
+            None::<fn(&str, &str) -> Result<String, anyhow::Error>>,
+        )?;
+        combine_instructions(&mut recipe, params.instructions.as_deref());
+        return Ok(recipe);
     }
 
     let sub_recipe = user_sub_recipes.get(subrecipe_name).ok_or_else(|| {
@@ -343,23 +391,12 @@ fn build_subrecipe(
     let recipe_file = load_local_recipe_file(&sub_recipe.path)
         .map_err(|e| anyhow!("Failed to load subrecipe '{}': {}", subrecipe_name, e))?;
 
-    let mut param_values: Vec<(String, String)> = Vec::new();
-
-    if let Some(values) = &sub_recipe.values {
-        for (k, v) in values {
-            param_values.push((k.clone(), v.clone()));
-        }
-    }
-
-    if let Some(provided_params) = &params.parameters {
-        for (k, v) in provided_params {
-            let value_str = match v {
-                Value::String(s) => s.clone(),
-                other => other.to_string(),
-            };
-            param_values.push((k.clone(), value_str));
-        }
-    }
+    let mut param_values: Vec<(String, String)> = sub_recipe
+        .values
+        .as_ref()
+        .map(|v| v.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+        .unwrap_or_default();
+    param_values.extend(params_to_values(params));
 
     let mut recipe = build_recipe_from_template(
         recipe_file.content,
@@ -369,85 +406,7 @@ fn build_subrecipe(
     )
     .map_err(|e| anyhow!("Failed to build subrecipe: {}", e))?;
 
-    let mut combined = String::new();
-
-    if let Some(instructions) = &recipe.instructions {
-        combined.push_str(instructions);
-    }
-
-    if let Some(prompt) = &recipe.prompt {
-        if !combined.is_empty() {
-            combined.push_str("\n\n");
-        }
-        combined.push_str(prompt);
-    }
-
-    if let Some(extra_instructions) = &params.instructions {
-        if !combined.is_empty() {
-            combined.push_str("\n\n");
-        }
-        combined.push_str("Additional context from parent agent:\n");
-        combined.push_str(extra_instructions);
-    }
-
-    if !combined.is_empty() {
-        recipe.instructions = Some(combined);
-    }
-
-    Ok(recipe)
-}
-
-fn build_bundled_subrecipe(content: &str, params: &SubagentParams) -> Result<Recipe> {
-    let param_values: Vec<(String, String)> = params
-        .parameters
-        .as_ref()
-        .map(|p| {
-            p.iter()
-                .map(|(k, v)| {
-                    (
-                        k.clone(),
-                        match v {
-                            Value::String(s) => s.clone(),
-                            other => other.to_string(),
-                        },
-                    )
-                })
-                .collect()
-        })
-        .unwrap_or_default();
-
-    let mut recipe = build_recipe_from_template(
-        content.to_string(),
-        &PathBuf::new(),
-        param_values,
-        None::<fn(&str, &str) -> Result<String, anyhow::Error>>,
-    )?;
-
-    let mut combined = String::new();
-
-    if let Some(instructions) = &recipe.instructions {
-        combined.push_str(instructions);
-    }
-
-    if let Some(prompt) = &recipe.prompt {
-        if !combined.is_empty() {
-            combined.push_str("\n\n");
-        }
-        combined.push_str(prompt);
-    }
-
-    if let Some(extra) = &params.instructions {
-        if !combined.is_empty() {
-            combined.push_str("\n\n");
-        }
-        combined.push_str("Additional context from parent agent:\n");
-        combined.push_str(extra);
-    }
-
-    if !combined.is_empty() {
-        recipe.instructions = Some(combined);
-    }
-
+    combine_instructions(&mut recipe, params.instructions.as_deref());
     Ok(recipe)
 }
 
@@ -610,10 +569,7 @@ mod tests {
     }
 
     #[test]
-    fn test_build_bundled_subrecipe() {
-        let content = get_bundled_subrecipe_content("investigator");
-        assert!(content.is_some());
-
+    fn test_build_subrecipe_bundled() {
         let params = SubagentParams {
             instructions: Some("Find the main entry point".to_string()),
             subrecipe: Some("investigator".to_string()),
@@ -623,7 +579,7 @@ mod tests {
             summary: true,
         };
 
-        let recipe = build_bundled_subrecipe(content.unwrap(), &params).unwrap();
+        let recipe = build_subrecipe("investigator", &params, &HashMap::new()).unwrap();
         assert!(recipe.instructions.is_some());
         let instructions = recipe.instructions.unwrap();
         assert!(instructions.contains("Investigator"));
