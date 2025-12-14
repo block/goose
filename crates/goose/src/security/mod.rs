@@ -1,6 +1,5 @@
 pub mod classification_client;
 pub mod patterns;
-pub mod prompt_ml_detector;
 pub mod scanner;
 pub mod security_inspector;
 
@@ -45,7 +44,7 @@ impl SecurityManager {
         let config = Config::global();
 
         config
-            .get_param::<bool>("SECURITY_PROMPT_BERT_ENABLED")
+            .get_param::<bool>("SECURITY_PROMPT_CLASSIFIER_ENABLED")
             .unwrap_or(false)
     }
 

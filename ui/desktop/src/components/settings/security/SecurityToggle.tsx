@@ -5,10 +5,10 @@ import { useConfig } from '../../ConfigContext';
 interface SecurityConfig {
   SECURITY_PROMPT_ENABLED?: boolean;
   SECURITY_PROMPT_THRESHOLD?: number;
-  SECURITY_PROMPT_BERT_ENABLED?: boolean;
-  SECURITY_PROMPT_BERT_MODEL?: string;
-  SECURITY_PROMPT_BERT_ENDPOINT?: string;
-  SECURITY_PROMPT_BERT_TOKEN?: string;
+  SECURITY_PROMPT_CLASSIFIER_ENABLED?: boolean;
+  SECURITY_PROMPT_CLASSIFIER_MODEL?: string;
+  SECURITY_PROMPT_CLASSIFIER_ENDPOINT?: string;
+  SECURITY_PROMPT_CLASSIFIER_TOKEN?: string;
 }
 
 export const SecurityToggle = () => {
@@ -37,10 +37,10 @@ export const SecurityToggle = () => {
   const {
     SECURITY_PROMPT_ENABLED: enabled = false,
     SECURITY_PROMPT_THRESHOLD: configThreshold = 0.7,
-    SECURITY_PROMPT_BERT_ENABLED: mlEnabled = false,
-    SECURITY_PROMPT_BERT_MODEL: mlModel = '',
-    SECURITY_PROMPT_BERT_ENDPOINT: mlEndpoint = '',
-    SECURITY_PROMPT_BERT_TOKEN: mlToken = '',
+    SECURITY_PROMPT_CLASSIFIER_ENABLED: mlEnabled = false,
+    SECURITY_PROMPT_CLASSIFIER_MODEL: mlModel = '',
+    SECURITY_PROMPT_CLASSIFIER_ENDPOINT: mlEndpoint = '',
+    SECURITY_PROMPT_CLASSIFIER_TOKEN: mlToken = '',
   } = (config as SecurityConfig) ?? {};
 
   const effectiveModel = mlModel || availableModels[0]?.value || '';
@@ -70,30 +70,30 @@ export const SecurityToggle = () => {
   };
 
   const handleMlToggle = async (enabled: boolean) => {
-    await upsert('SECURITY_PROMPT_BERT_ENABLED', enabled, false);
+    await upsert('SECURITY_PROMPT_CLASSIFIER_ENABLED', enabled, false);
 
     if (enabled) {
       if (showModelDropdown) {
         const modelToSet = mlModel || availableModels[0]?.value;
         if (modelToSet) {
-          await upsert('SECURITY_PROMPT_BERT_MODEL', modelToSet, false);
+          await upsert('SECURITY_PROMPT_CLASSIFIER_MODEL', modelToSet, false);
         }
       } else {
-        await upsert('SECURITY_PROMPT_BERT_MODEL', '', false);
+        await upsert('SECURITY_PROMPT_CLASSIFIER_MODEL', '', false);
       }
     }
   };
 
   const handleModelChange = async (model: string) => {
-    await upsert('SECURITY_PROMPT_BERT_MODEL', model, false);
+    await upsert('SECURITY_PROMPT_CLASSIFIER_MODEL', model, false);
   };
 
   const handleEndpointChange = async (endpoint: string) => {
-    await upsert('SECURITY_PROMPT_BERT_ENDPOINT', endpoint, false);
+    await upsert('SECURITY_PROMPT_CLASSIFIER_ENDPOINT', endpoint, false);
   };
 
   const handleTokenChange = async (token: string) => {
-    await upsert('SECURITY_PROMPT_BERT_TOKEN', token, true); // true = secret
+    await upsert('SECURITY_PROMPT_CLASSIFIER_TOKEN', token, true); // true = secret
   };
 
   return (

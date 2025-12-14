@@ -1,6 +1,7 @@
+use crate::config::Config;
 use crate::conversation::message::Message;
+use crate::security::classification_client::ClassificationClient;
 use crate::security::patterns::{PatternMatch, PatternMatcher};
-use crate::security::prompt_ml_detector::MlDetector;
 use anyhow::Result;
 use futures::stream::{self, StreamExt};
 use rmcp::model::CallToolRequestParam;
@@ -23,27 +24,65 @@ struct DetailedScanResult {
 
 pub struct PromptInjectionScanner {
     pattern_matcher: PatternMatcher,
-    ml_detector: Option<MlDetector>,
+    classifier_client: Option<ClassificationClient>,
 }
 
 impl PromptInjectionScanner {
     pub fn new() -> Self {
         Self {
             pattern_matcher: PatternMatcher::new(),
-            ml_detector: None,
+            classifier_client: None,
         }
     }
 
     pub fn with_ml_detection() -> Result<Self> {
-        let ml_detector = MlDetector::new_from_config()?;
+        let classifier_client = Self::create_classifier_from_config()?;
         Ok(Self {
             pattern_matcher: PatternMatcher::new(),
-            ml_detector: Some(ml_detector),
+            classifier_client: Some(classifier_client),
         })
     }
 
+    fn create_classifier_from_config() -> Result<ClassificationClient> {
+        let config = Config::global();
+
+        let model_name = config
+            .get_param::<String>("SECURITY_PROMPT_CLASSIFIER_MODEL")
+            .ok()
+            .filter(|s| !s.trim().is_empty());
+        let endpoint = config
+            .get_param::<String>("SECURITY_PROMPT_CLASSIFIER_ENDPOINT")
+            .ok()
+            .filter(|s| !s.trim().is_empty());
+        let token = config
+            .get_secret::<String>("SECURITY_PROMPT_CLASSIFIER_TOKEN")
+            .ok()
+            .filter(|s| !s.trim().is_empty());
+
+        tracing::debug!(
+            model_name = ?model_name,
+            has_endpoint = endpoint.is_some(),
+            has_token = token.is_some(),
+            "Initializing classifier from config"
+        );
+
+        if let Some(model) = model_name {
+            tracing::info!(model_name = %model, "Using model-based configuration (internal)");
+            return ClassificationClient::from_model_name(&model, None);
+        }
+
+        if let Some(endpoint_url) = endpoint {
+            tracing::info!(endpoint = %endpoint_url, "Using endpoint-based configuration (external)");
+            return ClassificationClient::from_endpoint(endpoint_url, None, token);
+        }
+
+        anyhow::bail!(
+            "ML detection requires either SECURITY_PROMPT_CLASSIFIER_MODEL (for model mapping) \
+             or SECURITY_PROMPT_CLASSIFIER_ENDPOINT (for direct endpoint configuration)"
+        )
+    }
+
     pub fn get_threshold_from_config(&self) -> f32 {
-        use crate::config::Config;
         Config::global()
             .get_param::<f64>("SECURITY_PROMPT_THRESHOLD")
             .unwrap_or(0.7) as f32
@@ -86,7 +125,7 @@ impl PromptInjectionScanner {
 
     async fn analyze_text(&self, text: &str) -> Result<DetailedScanResult> {
         let (pattern_confidence, pattern_matches) = self.pattern_based_scanning(text);
-        let ml_confidence = self.scan_with_ml(text).await;
+        let ml_confidence = self.scan_with_classifier(text).await;
         let confidence = ml_confidence.unwrap_or(0.0).max(pattern_confidence);
 
         Ok(DetailedScanResult {
@@ -99,8 +138,8 @@ impl PromptInjectionScanner {
     async fn scan_conversation(&self, messages: &[Message]) -> Result<DetailedScanResult> {
         let user_messages = self.extract_user_messages(messages, USER_SCAN_LIMIT);
 
-        if user_messages.is_empty() || self.ml_detector.is_none() {
-            tracing::debug!("Skipping conversation scan - no ML detector or messages");
+        if user_messages.is_empty() || self.classifier_client.is_none() {
+            tracing::debug!("Skipping conversation scan - no classifier or messages");
             return Ok(DetailedScanResult {
                 confidence: 0.0,
                 pattern_matches: Vec::new(),
@@ -116,7 +155,7 @@ impl PromptInjectionScanner {
         );
 
         let max_confidence = stream::iter(user_messages)
-            .map(|msg| async move { self.scan_with_ml(&msg).await })
+            .map(|msg| async move { self.scan_with_classifier(&msg).await })
             .buffer_unordered(ML_SCAN_CONCURRENCY)
             .fold(0.0_f32, |acc, result| async move {
                 result.unwrap_or(0.0).max(acc)
@@ -142,23 +181,23 @@ impl PromptInjectionScanner {
         }
     }
 
-    async fn scan_with_ml(&self, text: &str) -> Option<f32> {
-        let ml_detector = self.ml_detector.as_ref()?;
+    async fn scan_with_classifier(&self, text: &str) -> Option<f32> {
+        let classifier = self.classifier_client.as_ref()?;
 
-        tracing::debug!("🤖 Running ML scan ({} chars)", text.len());
+        tracing::debug!("🤖 Running classifier scan ({} chars)", text.len());
         let start = std::time::Instant::now();
 
-        match ml_detector.scan(text).await {
+        match classifier.classify(text).await {
             Ok(conf) => {
                 tracing::debug!(
-                    "✅ ML scan: confidence={:.3}, duration={:.0}ms",
+                    "✅ Classifier scan: confidence={:.3}, duration={:.0}ms",
                     conf,
                     start.elapsed().as_secs_f64() * 1000.0
                 );
                 Some(conf)
             }
             Err(e) => {
-                tracing::warn!("ML scan failed: {:#}", e);
+                tracing::warn!("Classifier scan failed: {:#}", e);
                 None
             }
         }
