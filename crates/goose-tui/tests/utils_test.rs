@@ -1,9 +1,36 @@
 use goose_tui::hidden_blocks::strip_hidden_blocks;
 use goose_tui::utils::json::has_input_placeholder;
+use goose_tui::utils::layout::centered_rect;
+use goose_tui::utils::message_format::message_to_plain_text;
 use goose_tui::utils::sanitize::{sanitize_line, strip_ansi_codes};
 use goose_tui::utils::styles::{breathing_color, color_to_rgb};
+use goose::conversation::message::Message;
+use ratatui::layout::Rect;
 use ratatui::style::Color;
 use serde_json::json;
+
+#[test]
+fn centered_rect_calculates_dimensions() {
+    let area = Rect::new(0, 0, 100, 100);
+    let popup = centered_rect(50, 50, area);
+
+    // x: (100 - 50) / 2 = 25
+    // y: (100 - 50) / 2 = 25
+    // width: 50% of 100 = 50
+    // height: 50% of 100 = 50
+    assert_eq!(popup.x, 25);
+    assert_eq!(popup.y, 25);
+    assert_eq!(popup.width, 50);
+    assert_eq!(popup.height, 50);
+}
+
+#[test]
+fn message_to_plain_text_formats_simple_text() {
+    let msg = Message::user().with_text("Hello world");
+    let text = message_to_plain_text(&msg);
+    assert!(text.contains("Hello world"));
+}
+
 
 #[test]
 fn has_input_placeholder_finds_in_strings() {
