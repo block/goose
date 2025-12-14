@@ -45,7 +45,6 @@ pub enum SchedulerError {
     JobNotFound(String),
     StorageError(io::Error),
     RecipeLoadError(String),
-    AgentSetupError(String),
     PersistError(String),
     CronParseError(String),
     SchedulerInternalError(String),
@@ -59,7 +58,6 @@ impl std::fmt::Display for SchedulerError {
             SchedulerError::JobNotFound(id) => write!(f, "Job ID '{}' not found.", id),
             SchedulerError::StorageError(e) => write!(f, "Storage error: {}", e),
             SchedulerError::RecipeLoadError(e) => write!(f, "Recipe load error: {}", e),
-            SchedulerError::AgentSetupError(e) => write!(f, "Agent setup error: {}", e),
             SchedulerError::PersistError(e) => write!(f, "Failed to persist schedules: {}", e),
             SchedulerError::CronParseError(e) => write!(f, "Invalid cron string: {}", e),
             SchedulerError::SchedulerInternalError(e) => {
@@ -703,21 +701,7 @@ async fn execute_job(
         return Ok(job.id.to_string());
     }
 
-    let recipe_path = Path::new(&job.source);
-    let recipe_content = fs::read_to_string(recipe_path)?;
-
-    let recipe: Recipe = {
-        let extension = recipe_path
-            .extension()
-            .and_then(|s| s.to_str())
-            .unwrap_or("yaml")
-            .to_lowercase();
-
-        match extension.as_str() {
-            "json" | "jsonl" => serde_json::from_str(&recipe_content)?,
-            _ => serde_yaml::from_str(&recipe_content)?,
-        }
-    };
+    let recipe = Recipe::from_file_path(Path::new(&job.source))?;
 
     let config = Config::global();
     let provider_name = config.get_goose_provider()?;
