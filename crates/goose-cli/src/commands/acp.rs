@@ -3,8 +3,9 @@ use agent_client_protocol::{
     ToolCallContent,
 };
 use anyhow::Result;
-use goose::agents::{Agent, SessionConfig};
-use goose::config::{get_all_extensions, Config};
+use goose::agents::extension::Envs;
+use goose::agents::{Agent, ExtensionConfig, SessionConfig};
+use goose::config::{get_all_extensions, set_extension, Config, ExtensionEntry};
 use goose::conversation::message::{Message, MessageContent};
 use goose::conversation::Conversation;
 use goose::mcp_utils::ToolResult;
@@ -608,9 +609,39 @@ impl acp::Agent for GooseAcpAgent {
     ) -> Result<acp::NewSessionResponse, acp::Error> {
         info!("ACP: Received new session request {:?}", args);
 
+        for server in args.mcp_servers {
+            if let acp::McpServer::Stdio {
+                name,
+                command,
+                args,
+                env,
+            } = server
+            {
+                let envs = env
+                    .into_iter()
+                    .map(|e| (e.name, e.value))
+                    .collect::<HashMap<_, _>>();
+
+                set_extension(ExtensionEntry {
+                    enabled: true,
+                    config: ExtensionConfig::Stdio {
+                        name,
+                        description: String::new(),
+                        cmd: command.display().to_string(),
+                        args,
+                        envs: Envs::new(envs),
+                        env_keys: Vec::new(),
+                        timeout: None,
+                        bundled: None,
+                        available_tools: Vec::new(),
+                    },
+                });
+            }
+        }
+
         let goose_session = SessionManager::create_session(
             std::env::current_dir().unwrap_or_default(),
-            "ACP Session".to_string(), // just an initial name - may be replaced by maybe_update_name
+            "ACP Session".to_string(),
             SessionType::User,
         )
         .await?;
