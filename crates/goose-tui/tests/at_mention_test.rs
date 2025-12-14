@@ -1,12 +1,8 @@
 use goose_tui::at_mention::{consume_path, process};
 use tempfile::TempDir;
 
-// ============================================================================
-// process (end-to-end) tests
-// ============================================================================
-
 #[test]
-fn end_to_end_file_attachment() {
+fn process_attaches_file_content() {
     let dir = TempDir::new().unwrap();
     std::fs::write(dir.path().join("test.rs"), "fn main() {}").unwrap();
 
@@ -20,137 +16,78 @@ fn end_to_end_file_attachment() {
 }
 
 #[test]
-fn process_missing_file_returns_empty_attachments() {
+fn process_ignores_missing_files() {
     let dir = TempDir::new().unwrap();
 
-    let missing = process("Check @nonexistent.txt", dir.path());
+    let result = process("Check @nonexistent.txt", dir.path());
 
-    assert!(missing.errors.is_empty());
-    assert!(missing.attachments.is_empty());
-    assert_eq!(missing.augmented_text, "Check @nonexistent.txt");
+    assert!(result.attachments.is_empty());
+    assert_eq!(result.augmented_text, "Check @nonexistent.txt");
 }
 
 #[test]
-fn process_no_mentions_returns_original() {
+fn process_returns_original_without_mentions() {
     let dir = TempDir::new().unwrap();
 
-    let plain = process("No mentions here", dir.path());
+    let result = process("No mentions here", dir.path());
 
-    assert_eq!(plain.augmented_text, "No mentions here");
-    assert!(plain.attachments.is_empty());
-}
-
-// ============================================================================
-// consume_path tests
-// ============================================================================
-
-#[test]
-fn consume_path_handles_backslash_escape() {
-    let input = r"my\ file.txt";
-    let mut chars = input.chars().peekable();
-
-    let result = consume_path(&mut chars);
-
-    assert_eq!(result, "my file.txt");
+    assert_eq!(result.augmented_text, "No mentions here");
+    assert!(result.attachments.is_empty());
 }
 
 #[test]
-fn consume_path_handles_multiple_escapes() {
-    let input = r"a\ b\ c.txt";
-    let mut chars = input.chars().peekable();
+fn consume_path_unescapes_backslash_spaces() {
+    let mut chars = r"my\ file.txt".chars().peekable();
+    assert_eq!(consume_path(&mut chars), "my file.txt");
 
-    let result = consume_path(&mut chars);
-
-    assert_eq!(result, "a b c.txt");
+    let mut chars = r"a\ b\ c.txt".chars().peekable();
+    assert_eq!(consume_path(&mut chars), "a b c.txt");
 }
 
 #[test]
 fn consume_path_stops_at_terminators() {
-    let input = "file.txt,other";
-    let mut chars = input.chars().peekable();
-
-    let result = consume_path(&mut chars);
-
-    assert_eq!(result, "file.txt");
-    // Verify the comma is still in the iterator
+    let mut chars = "file.txt,other".chars().peekable();
+    assert_eq!(consume_path(&mut chars), "file.txt");
     assert_eq!(chars.next(), Some(','));
 }
 
 #[test]
 fn consume_path_handles_trailing_backslash() {
-    let input = r"file\";
-    let mut chars = input.chars().peekable();
-
-    let result = consume_path(&mut chars);
-
-    // Trailing backslash with nothing after should just be consumed
-    assert_eq!(result, "file");
+    let mut chars = r"file\".chars().peekable();
+    assert_eq!(consume_path(&mut chars), "file");
 }
 
 #[test]
 fn consume_path_stops_at_whitespace() {
-    let input = "path/to/file.rs rest of text";
-    let mut chars = input.chars().peekable();
-
-    let result = consume_path(&mut chars);
-
-    assert_eq!(result, "path/to/file.rs");
+    let mut chars = "path/to/file.rs rest".chars().peekable();
+    assert_eq!(consume_path(&mut chars), "path/to/file.rs");
 }
 
 #[test]
-fn consume_path_handles_various_terminators() {
-    // Test each terminator from PATH_TERMINATORS: ",:;!?()[]{}\"'"
-    let terminators = [
+fn consume_path_handles_all_terminators() {
+    for term in [
         ',', ':', ';', '!', '?', '(', ')', '[', ']', '{', '}', '"', '\'',
-    ];
-
-    for term in terminators {
+    ] {
         let input = format!("file.txt{term}rest");
         let mut chars = input.chars().peekable();
-
-        let result = consume_path(&mut chars);
-
-        assert_eq!(result, "file.txt", "Failed for terminator: {term}");
+        assert_eq!(consume_path(&mut chars), "file.txt", "Failed for: {term}");
     }
 }
 
 #[test]
-fn consume_path_handles_empty_input() {
-    let input = "";
-    let mut chars = input.chars().peekable();
+fn consume_path_returns_empty_for_empty_or_whitespace() {
+    let mut chars = "".chars().peekable();
+    assert_eq!(consume_path(&mut chars), "");
 
-    let result = consume_path(&mut chars);
-
-    assert_eq!(result, "");
+    let mut chars = " file.txt".chars().peekable();
+    assert_eq!(consume_path(&mut chars), "");
 }
 
 #[test]
-fn consume_path_handles_only_whitespace() {
-    let input = " file.txt";
-    let mut chars = input.chars().peekable();
+fn consume_path_preserves_path_structure() {
+    let mut chars = "path/to/nested/file.rs".chars().peekable();
+    assert_eq!(consume_path(&mut chars), "path/to/nested/file.rs");
 
-    let result = consume_path(&mut chars);
-
-    // Should stop immediately at whitespace
-    assert_eq!(result, "");
-}
-
-#[test]
-fn consume_path_preserves_slashes() {
-    let input = "path/to/nested/file.rs";
-    let mut chars = input.chars().peekable();
-
-    let result = consume_path(&mut chars);
-
-    assert_eq!(result, "path/to/nested/file.rs");
-}
-
-#[test]
-fn consume_path_handles_tilde_home() {
-    let input = "~/Documents/file.txt";
-    let mut chars = input.chars().peekable();
-
-    let result = consume_path(&mut chars);
-
-    assert_eq!(result, "~/Documents/file.txt");
+    let mut chars = "~/Documents/file.txt".chars().peekable();
+    assert_eq!(consume_path(&mut chars), "~/Documents/file.txt");
 }

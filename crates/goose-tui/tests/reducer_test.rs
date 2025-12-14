@@ -126,10 +126,6 @@ fn toggle_copy_mode() {
     assert!(!state.copy_mode);
 }
 
-// ============================================================================
-// extract_todos_from_message tests
-// ============================================================================
-
 #[test]
 fn extract_todos_parses_done_and_undone() {
     let content = "- [ ] Task 1\n- [x] Task 2\n- [ ] Task 3";
@@ -149,31 +145,20 @@ fn extract_todos_parses_done_and_undone() {
 #[test]
 fn extract_todos_ignores_non_todo_tool() {
     let message = make_shell_tool_request("ls -la");
-
-    let todos = extract_todos_from_message(&message);
-
-    assert!(todos.is_none());
+    assert!(extract_todos_from_message(&message).is_none());
 }
 
 #[test]
 fn extract_todos_handles_empty_content() {
     let message = make_todo_tool_request("");
-
-    let todos = extract_todos_from_message(&message);
-
-    assert!(todos.is_none());
+    assert!(extract_todos_from_message(&message).is_none());
 }
 
 #[test]
-fn extract_todos_handles_malformed_checkboxes() {
-    // These should NOT be parsed as todos
+fn extract_todos_rejects_malformed_checkboxes() {
     let content = "- [] Task without space\n-[ ] Task without dash space\n- [X] Uppercase X";
     let message = make_todo_tool_request(content);
-
-    let todos = extract_todos_from_message(&message);
-
-    // None of these match the expected format "- [ ] " or "- [x] "
-    assert!(todos.is_none());
+    assert!(extract_todos_from_message(&message).is_none());
 }
 
 #[test]
@@ -188,12 +173,8 @@ fn extract_todos_handles_indented_items() {
     assert_eq!(todos[1].text, "Deeply indented");
 }
 
-// ============================================================================
-// ConfirmToolCall tests
-// ============================================================================
-
 #[test]
-fn confirm_tool_call_matches_pending_id() {
+fn confirm_tool_call_clears_pending_on_match() {
     let mut state = test_state();
     state.pending_confirmation = Some(PendingToolConfirmation {
         id: "tool_abc".to_string(),
@@ -214,7 +195,6 @@ fn confirm_tool_call_matches_pending_id() {
 
     assert!(state.pending_confirmation.is_none());
     assert!(state.is_working);
-    assert!(state.flash_message.is_some());
     assert!(state.flash_message.unwrap().0.contains("allowed"));
 }
 
@@ -237,16 +217,13 @@ fn confirm_tool_call_ignores_mismatched_id() {
         },
     );
 
-    // Should not clear pending since ID doesn't match
     assert!(state.pending_confirmation.is_some());
 }
 
 #[test]
 fn confirm_tool_call_noop_when_no_pending() {
     let mut state = test_state();
-    assert!(state.pending_confirmation.is_none());
 
-    // Should not panic
     update(
         &mut state,
         Action::ConfirmToolCall {
@@ -278,42 +255,25 @@ fn confirm_tool_call_denied_sets_flash() {
     );
 
     assert!(state.pending_confirmation.is_none());
-    assert!(state.flash_message.is_some());
     assert!(state.flash_message.unwrap().0.contains("denied"));
 }
 
-// ============================================================================
-// CwdAnalysisState tests
-// ============================================================================
-
 #[test]
-fn cwd_analysis_state_take_result_complete() {
+fn cwd_analysis_state_take_result_returns_complete_data() {
     let mut state = CwdAnalysisState::Complete("analysis data".to_string());
-
-    let result = state.take_result();
-
-    assert_eq!(result, Some("analysis data".to_string()));
+    assert_eq!(state.take_result(), Some("analysis data".to_string()));
     assert!(matches!(state, CwdAnalysisState::NotStarted));
 }
 
 #[test]
-fn cwd_analysis_state_take_result_pending() {
-    let mut state = CwdAnalysisState::Pending;
+fn cwd_analysis_state_take_result_preserves_other_states() {
+    let mut pending = CwdAnalysisState::Pending;
+    assert!(pending.take_result().is_none());
+    assert!(matches!(pending, CwdAnalysisState::Pending));
 
-    let result = state.take_result();
-
-    assert!(result.is_none());
-    assert!(matches!(state, CwdAnalysisState::Pending));
-}
-
-#[test]
-fn cwd_analysis_state_take_result_failed() {
-    let mut state = CwdAnalysisState::Failed;
-
-    let result = state.take_result();
-
-    assert!(result.is_none());
-    assert!(matches!(state, CwdAnalysisState::Failed));
+    let mut failed = CwdAnalysisState::Failed;
+    assert!(failed.take_result().is_none());
+    assert!(matches!(failed, CwdAnalysisState::Failed));
 }
 
 #[test]

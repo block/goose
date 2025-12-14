@@ -15,8 +15,50 @@ use ratatui::Frame;
 use std::path::Path;
 use tui_textarea::TextArea;
 
-const MAX_HISTORY_ENTRIES: usize = 100;
-const MAX_HISTORY_ENTRY_SIZE: usize = 10_000;
+pub const MAX_HISTORY_ENTRIES: usize = 100;
+pub const MAX_HISTORY_ENTRY_SIZE: usize = 10_000;
+
+#[allow(dead_code)]
+pub fn should_add_to_history(text: &str, last_entry: Option<&str>) -> bool {
+    let trimmed = text.trim();
+    if trimmed.is_empty() || trimmed.len() > MAX_HISTORY_ENTRY_SIZE {
+        return false;
+    }
+    last_entry != Some(trimmed)
+}
+
+#[allow(dead_code)]
+pub fn parse_slash_command(input: &str) -> Option<(&str, &str)> {
+    let trimmed = input.trim();
+    if !trimmed.starts_with('/') {
+        return None;
+    }
+    match trimmed.split_once(' ') {
+        Some((cmd, args)) => Some((cmd, args.trim())),
+        None => Some((trimmed, "")),
+    }
+}
+
+#[allow(dead_code)]
+pub fn is_builtin_command(cmd: &str) -> bool {
+    matches!(
+        cmd,
+        "/exit"
+            | "/quit"
+            | "/help"
+            | "/todos"
+            | "/config"
+            | "/mcp"
+            | "/session"
+            | "/alias"
+            | "/clear"
+            | "/compact"
+            | "/theme"
+            | "/copy"
+            | "/copymode"
+            | "/mode"
+    )
+}
 
 pub struct InputComponent<'a> {
     textarea: TextArea<'a>,
