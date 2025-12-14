@@ -614,16 +614,10 @@ mod tests {
         let content = get_bundled_subrecipe_content("investigator");
         assert!(content.is_some());
 
-        let mut parameters = HashMap::new();
-        parameters.insert(
-            "objective".to_string(),
-            Value::String("Find the main entry point".to_string()),
-        );
-
         let params = SubagentParams {
-            instructions: Some("Extra context here".to_string()),
+            instructions: Some("Find the main entry point".to_string()),
             subrecipe: Some("investigator".to_string()),
-            parameters: Some(parameters),
+            parameters: None,
             extensions: None,
             settings: None,
             summary: true,
@@ -632,8 +626,8 @@ mod tests {
         let recipe = build_bundled_subrecipe(content.unwrap(), &params).unwrap();
         assert!(recipe.instructions.is_some());
         let instructions = recipe.instructions.unwrap();
-        assert!(instructions.contains("Find the main entry point"));
+        assert!(instructions.contains("Investigator"));
         assert!(instructions.contains("Additional context from parent agent:"));
-        assert!(instructions.contains("Extra context here"));
+        assert!(instructions.contains("Find the main entry point"));
     }
 }
