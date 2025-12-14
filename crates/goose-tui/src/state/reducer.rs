@@ -433,7 +433,7 @@ fn set_pending_confirmation(
     ));
 }
 
-fn extract_todos_from_message(message: &Message) -> Option<Vec<TodoItem>> {
+pub fn extract_todos_from_message(message: &Message) -> Option<Vec<TodoItem>> {
     for content in &message.content {
         let MessageContent::ToolRequest(req) = content else {
             continue;

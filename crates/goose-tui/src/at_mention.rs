@@ -63,7 +63,7 @@ fn looks_like_path(s: &str) -> bool {
     s.contains('/') || s.contains('.') || s.starts_with('~')
 }
 
-fn consume_path(chars: &mut std::iter::Peekable<std::str::Chars>) -> String {
+pub fn consume_path(chars: &mut std::iter::Peekable<std::str::Chars>) -> String {
     let mut path = String::new();
     let mut escaped = false;
 
@@ -158,33 +158,4 @@ fn build_augmented_message(
         .collect();
 
     format!("<{ATTACHED_FILES_TAG}>\n<!-- Contents provided inline. Do not use tools to re-read these files. -->\n{files_xml}</{ATTACHED_FILES_TAG}>\n\n{input}")
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use tempfile::TempDir;
-
-    #[test]
-    fn end_to_end_file_attachment() {
-        let dir = TempDir::new().unwrap();
-        std::fs::write(dir.path().join("test.rs"), "fn main() {}").unwrap();
-
-        let result = process("Review @test.rs please", dir.path());
-
-        assert!(result.errors.is_empty());
-        assert_eq!(result.attachments.len(), 1);
-        assert_eq!(result.attachments[0].content, "fn main() {}");
-        assert!(result.augmented_text.contains("<attached_files_goose_tui>"));
-        assert!(result.augmented_text.ends_with("Review @test.rs please"));
-
-        let missing = process("Check @nonexistent.txt", dir.path());
-        assert!(missing.errors.is_empty());
-        assert!(missing.attachments.is_empty());
-        assert_eq!(missing.augmented_text, "Check @nonexistent.txt");
-
-        let plain = process("No mentions here", dir.path());
-        assert_eq!(plain.augmented_text, "No mentions here");
-        assert!(plain.attachments.is_empty());
-    }
 }

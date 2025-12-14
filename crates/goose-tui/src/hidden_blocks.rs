@@ -30,20 +30,3 @@ fn strip_block(text: &str, tag: &str) -> String {
         _ => format!("{before}\n\n{after}"),
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn strips_hidden_blocks_appropriately() {
-        let with_both = "<cwd_analysis_goose_tui>\nanalysis\n</cwd_analysis_goose_tui>\n\nMessage\n\n<attached_files_goose_tui>\nfiles\n</attached_files_goose_tui>";
-        assert_eq!(strip_hidden_blocks(with_both, true), "Message");
-        assert_eq!(
-            strip_hidden_blocks(with_both, false),
-            "<cwd_analysis_goose_tui>\nanalysis\n</cwd_analysis_goose_tui>\n\nMessage"
-        );
-
-        assert_eq!(strip_hidden_blocks("plain text", true), "plain text");
-    }
-}

@@ -7,7 +7,7 @@ use std::io::Write;
 use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 
-fn prepend_context(prompt: &str, context: Option<&str>) -> String {
+pub fn prepend_context(prompt: &str, context: Option<&str>) -> String {
     match context {
         Some(analysis) => {
             format!("<{CWD_ANALYSIS_TAG}>\n{analysis}\n</{CWD_ANALYSIS_TAG}>\n\n{prompt}")

@@ -454,7 +454,7 @@ fn complete_path(partial: &str, cwd: &Path) -> Vec<(String, bool)> {
     completions
 }
 
-fn replace_input_placeholder(args: &serde_json::Value, input: &str) -> serde_json::Value {
+pub fn replace_input_placeholder(args: &serde_json::Value, input: &str) -> serde_json::Value {
     match args {
         serde_json::Value::String(s) => serde_json::Value::String(s.replace("{input}", input)),
         serde_json::Value::Object(obj) => {
