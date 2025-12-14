@@ -69,10 +69,13 @@ pub struct Recipe {
     pub response: Option<Response>, // response configuration including JSON schema
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub sub_recipes: Option<Vec<SubRecipe>>, // sub-recipes for the recipe
+    pub sub_recipes: Option<Vec<SubRecipe>>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub retry: Option<RetryConfig>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_turns: Option<u32>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
@@ -192,15 +195,11 @@ pub struct RecipeParameter {
     pub options: Option<Vec<String>>,
 }
 
-/// Builder for creating Recipe instances
 pub struct RecipeBuilder {
-    // Required fields with default values
     version: String,
     title: Option<String>,
     description: Option<String>,
     instructions: Option<String>,
-
-    // Optional fields
     prompt: Option<String>,
     extensions: Option<Vec<ExtensionConfig>>,
     settings: Option<Settings>,
@@ -210,6 +209,7 @@ pub struct RecipeBuilder {
     response: Option<Response>,
     sub_recipes: Option<Vec<SubRecipe>>,
     retry: Option<RetryConfig>,
+    max_turns: Option<u32>,
 }
 
 impl Recipe {
@@ -255,6 +255,7 @@ impl Recipe {
             response: None,
             sub_recipes: None,
             retry: None,
+            max_turns: None,
         }
     }
 
@@ -357,6 +358,11 @@ impl RecipeBuilder {
         self
     }
 
+    pub fn max_turns(mut self, max_turns: u32) -> Self {
+        self.max_turns = Some(max_turns);
+        self
+    }
+
     pub fn build(self) -> Result<Recipe, &'static str> {
         let title = self.title.ok_or("Title is required")?;
         let description = self.description.ok_or("Description is required")?;
@@ -379,6 +385,7 @@ impl RecipeBuilder {
             response: self.response,
             sub_recipes: self.sub_recipes,
             retry: self.retry,
+            max_turns: self.max_turns,
         })
     }
 }
@@ -717,6 +724,7 @@ isGlobal: true"#;
             response: None,
             sub_recipes: None,
             retry: None,
+            max_turns: None,
         };
 
         assert!(!recipe.check_for_security_warnings());

@@ -100,6 +100,29 @@ pub fn render_inline_once<T: Serialize>(
     Ok(rendered.trim().to_string())
 }
 
+pub fn get_bundled_subrecipe_content(name: &str) -> Option<&'static str> {
+    let path = format!("subrecipes/{}.yaml", name);
+    CORE_PROMPTS_DIR
+        .get_file(&path)
+        .and_then(|f| std::str::from_utf8(f.contents()).ok())
+}
+
+pub fn iter_bundled_subrecipes() -> impl Iterator<Item = (&'static str, &'static str)> {
+    CORE_PROMPTS_DIR
+        .get_dir("subrecipes")
+        .into_iter()
+        .flat_map(|dir| dir.files())
+        .filter_map(|file| {
+            let ext = file.path().extension().and_then(|e| e.to_str());
+            if ext != Some("yaml") && ext != Some("yml") {
+                return None;
+            }
+            let name = file.path().file_stem()?.to_str()?;
+            let content = std::str::from_utf8(file.contents()).ok()?;
+            Some((name, content))
+        })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -173,6 +173,7 @@ mod tests {
             response: None,
             sub_recipes: None,
             retry: None,
+            max_turns: None,
         }
     }
 
@@ -216,6 +217,7 @@ mod tests {
             response: None,
             sub_recipes: None,
             retry: None,
+            max_turns: None,
         };
 
         let secrets = discover_recipe_secrets(&recipe);
@@ -260,6 +262,7 @@ mod tests {
             response: None,
             sub_recipes: None,
             retry: None,
+            max_turns: None,
         };
 
         let secrets = discover_recipe_secrets(&recipe);
@@ -312,6 +315,7 @@ mod tests {
             parameters: None,
             response: None,
             retry: None,
+            max_turns: None,
         };
 
         let secrets = discover_recipe_secrets(&recipe);

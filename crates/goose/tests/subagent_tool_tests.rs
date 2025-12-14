@@ -82,12 +82,11 @@ fn test_adhoc_tool_schema_properties() {
     let tool = create_subagent_tool(&[]);
 
     assert_eq!(tool.name, SUBAGENT_TOOL_NAME);
-    assert!(tool.description.as_ref().unwrap().contains("Ad-hoc"));
-    assert!(!tool
-        .description
-        .as_ref()
-        .unwrap()
-        .contains("Available subrecipes"));
+    let desc = tool.description.as_ref().unwrap();
+    assert!(desc.contains("Ad-hoc"));
+    assert!(desc.contains("Built-in subrecipes:"));
+    assert!(desc.contains("investigator"));
+    assert!(desc.contains("planner"));
 
     let props = tool
         .input_schema
