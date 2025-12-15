@@ -1,6 +1,6 @@
 ---
 title: Using Skills
-sidebar_position: 41
+sidebar_position: 2
 sidebar_label: Using Skills
 ---
 
@@ -20,9 +20,15 @@ When a session starts, goose adds any skills that it discovers to its instructio
 You can also ask goose what skills are available.
 
 :::tip Other goose features that support reuse
-- [.goosehints](/docs/guides/using-goosehints): Best for general preferences, project context, and repeated instructions like "Always use TypeScript"
+- [.goosehints](/docs/guides/context-engineering/using-goosehints): Best for general preferences, project context, and repeated instructions like "Always use TypeScript"
 - [recipes](/docs/guides/recipes/session-recipes): Shareable configurations that package instructions, prompts, and settings together
 :::
+
+## Claude Compatibility
+
+goose skills use the same format as Claude Desktop skills. goose discovers skills from both `.claude/skills/` and `.goose/skills/` directories, so you can share skills between both tools or create tool-specific versions as needed.
+
+When the same skill name exists in multiple directories, goose follows the priority order listed in [Skill Locations](#skill-locations). Later directories override earlier ones regardless of whether they're `.claude` or `.goose` directories.
 
 ## Creating a Skill
 
@@ -258,9 +264,3 @@ Always verify webhook signatures. See `src/webhooks/square.js` for our handler p
 - **Keep skills focused** — One skill per workflow or domain. If a skill is getting long, consider splitting it.
 - **Write for clarity** — Skills are instructions for goose. Use clear, direct language and numbered steps.
 - **Include verification steps** — Help goose confirm the workflow completed successfully.
-
-## Claude Compatibility
-
-goose skills use the same format as Claude Desktop skills. goose discovers skills from both `.claude/skills/` and `.goose/skills/` directories, so you can share skills between both tools or create tool-specific versions as needed.
-
-When the same skill name exists in multiple directories, goose follows the priority order listed in [Skill Locations](#skill-locations). Later directories override earlier ones regardless of whether they're `.claude` or `.goose` directories.

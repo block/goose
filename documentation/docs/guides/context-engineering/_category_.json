@@ -1,0 +1,8 @@
+{
+  "label": "Context Engineering",
+  "position": 22,
+  "link": {
+    "type": "doc",
+    "id": "guides/context-engineering/index"
+  }
+}

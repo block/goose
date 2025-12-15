@@ -10,7 +10,7 @@ import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';
 
 The Skills extension loads *skills* &mdash; reusable sets of instructions that teach goose how to perform specific tasks or follow particular workflows.
 
-goose automatically discovers skills at startup and uses them when relevant to your request. goose skills are compatible with Claude Desktop's skill format, so skills you create for one tool work with both. To learn about creating skills and how goose uses them, see [Using Skills](/docs/guides/using-skills).
+goose automatically discovers skills at startup and uses them when relevant to your request. goose skills are compatible with Claude Desktop's skill format, so skills you create for one tool work with both. To learn about creating skills and how goose uses them, see [Using Skills](/docs/guides/context-engineering/using-skills).
 
 ## Configuration
 

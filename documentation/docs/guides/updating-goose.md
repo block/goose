@@ -1,5 +1,5 @@
 ---
-sidebar_position: 20
+sidebar_position: 25
 title: Updating goose
 sidebar_label: Updating goose
 ---

@@ -76,7 +76,7 @@ The lead model acts as your strategic partner, while the worker model becomes yo
 ## Pro Tips from Our Session
 
 ### Start with Good Goose Hints
-We always recommend setting up your [goosehints](/docs/guides/using-goosehints) to give context about your project. It saves you from re-explaining the same things over and over.
+We always recommend setting up your [goosehints](/docs/guides/context-engineering/using-goosehints) to give context about your project. It saves you from re-explaining the same things over and over.
 
 ### Don't Micromanage
 Let the lead model do its planning thing. Sometimes the best results come from giving high-level direction and letting the system figure out the details.

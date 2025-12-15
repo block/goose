@@ -57,7 +57,7 @@ Panther MCP functions as a Goose extension, seamlessly embedding its capabilitie
 
 ### Leveraging Enhanced Context with `.goosehints`
 
-The integration between Panther MCP and Goose is enhanced through the use of the [.goosehints](https://block.github.io/goose/docs/guides/using-goosehints/) file—a Goose feature that supplies additional context like rule examples and best practices. This enriched context enables Goose to generate more accurate and efficient detections, aligned with Block’s standards and requirements. 
+The integration between Panther MCP and Goose is enhanced through the use of the [.goosehints](/docs/guides/context-engineering/using-goosehints/) file—a Goose feature that supplies additional context like rule examples and best practices. This enriched context enables Goose to generate more accurate and efficient detections, aligned with Block’s standards and requirements. 
 
 Let's illustrate this with an example: creating a rule to detect users adding themselves to privileged Okta groups, a common privilege escalation technique.
 
