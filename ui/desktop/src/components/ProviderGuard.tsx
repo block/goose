@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useConfig } from './ConfigContext';
 import { SetupModal } from './SetupModal';
@@ -8,6 +8,9 @@ import WelcomeGooseLogo from './WelcomeGooseLogo';
 import { toastService } from '../toasts';
 import { OllamaSetup } from './OllamaSetup';
 import ApiKeyTester from './ApiKeyTester';
+import { SwitchModelModal } from './settings/models/subcomponents/SwitchModelModal';
+import { createNavigationHandler } from '../utils/navigationUtils';
+import TelemetrySettings from './settings/app/TelemetrySettings';
 
 import { Goose, OpenRouter, Tetrate } from './icons';
 
@@ -24,6 +27,10 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
   const [showFirstTimeSetup, setShowFirstTimeSetup] = useState(false);
   const [showOllamaSetup, setShowOllamaSetup] = useState(false);
   const [userInActiveSetup, setUserInActiveSetup] = useState(false);
+  const [showSwitchModelModal, setShowSwitchModelModal] = useState(false);
+  const [switchModelProvider, setSwitchModelProvider] = useState<string | null>(null);
+
+  const setView = useMemo(() => createNavigationHandler(navigate), [navigate]);
 
   const [openRouterSetupState, setOpenRouterSetupState] = useState<{
     show: boolean;
@@ -45,18 +52,8 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
     try {
       const result = await startTetrateSetup();
       if (result.success) {
-        setTetrateSetupState({
-          show: true,
-          title: 'Setup Complete!',
-          message: result.message,
-          showRetry: false,
-          autoClose: 3000,
-        });
-        setTimeout(() => {
-          setShowFirstTimeSetup(false);
-          setHasProvider(true);
-          navigate('/', { replace: true });
-        }, 3000);
+        setSwitchModelProvider('tetrate');
+        setShowSwitchModelModal(true);
       } else {
         setTetrateSetupState({
           show: true,
@@ -76,34 +73,33 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
     }
   };
 
-  const handleApiKeySuccess = async (provider: string, model: string, apiKey: string) => {
+  const handleApiKeySuccess = async (provider: string, _model: string, apiKey: string) => {
     const keyName = `${provider.toUpperCase()}_API_KEY`;
     await upsert(keyName, apiKey, true);
     await upsert('GOOSE_PROVIDER', provider, false);
-    await upsert('GOOSE_MODEL', model, false);
 
+    setSwitchModelProvider(provider);
+    setShowSwitchModelModal(true);
+  };
+
+  const handleModelSelected = () => {
+    setShowSwitchModelModal(false);
     setUserInActiveSetup(false);
     setShowFirstTimeSetup(false);
     setHasProvider(true);
     navigate('/', { replace: true });
   };
 
+  const handleSwitchModelClose = () => {
+    setShowSwitchModelModal(false);
+  };
+
   const handleOpenRouterSetup = async () => {
     try {
       const result = await startOpenRouterSetup();
       if (result.success) {
-        setOpenRouterSetupState({
-          show: true,
-          title: 'Setup Complete!',
-          message: result.message,
-          showRetry: false,
-          autoClose: 3000,
-        });
-        setTimeout(() => {
-          setShowFirstTimeSetup(false);
-          setHasProvider(true);
-          navigate('/', { replace: true });
-        }, 3000);
+        setSwitchModelProvider('openrouter');
+        setShowSwitchModelModal(true);
       } else {
         setOpenRouterSetupState({
           show: true,
@@ -311,6 +307,9 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
                   Go to Provider Settings →
                 </button>
               </div>
+              <div className="mt-6">
+                <TelemetrySettings isWelcome />
+              </div>
             </div>
           </div>
         </div>
@@ -335,6 +334,17 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
             onRetry={() => handleRetrySetup('tetrate')}
             onClose={() => closeSetupModal('tetrate')}
             autoClose={tetrateSetupState.autoClose}
+          />
+        )}
+
+        {showSwitchModelModal && (
+          <SwitchModelModal
+            sessionId={null}
+            onClose={handleSwitchModelClose}
+            setView={setView}
+            onModelSelected={handleModelSelected}
+            initialProvider={switchModelProvider}
+            titleOverride="Choose Model"
           />
         )}
       </div>

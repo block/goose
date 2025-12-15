@@ -22,7 +22,12 @@ export function Key({ className = '' }: KeyProps) {
       </g>
       <defs>
         <clipPath id="clip0_986_19974">
-          <rect width="16" height="16" fill="white" transform="translate(0.00708008 0.677979) rotate(0.0256089)" />
+          <rect
+            width="16"
+            height="16"
+            fill="white"
+            transform="translate(0.00708008 0.677979) rotate(0.0256089)"
+          />
         </clipPath>
       </defs>
     </svg>

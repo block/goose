@@ -248,6 +248,8 @@ pub struct SessionSettings {
 }
 
 pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
+    goose::posthog::set_session_context("cli", session_config.resume);
+
     let config = Config::global();
 
     let (saved_provider, saved_model_config) = if session_config.resume {

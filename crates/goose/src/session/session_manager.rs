@@ -120,8 +120,8 @@ pub struct SessionUpdateBuilder {
 #[derive(Serialize, ToSchema, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionInsights {
-    total_sessions: usize,
-    total_tokens: i64,
+    pub total_sessions: usize,
+    pub total_tokens: i64,
 }
 
 impl SessionUpdateBuilder {
@@ -887,6 +887,7 @@ impl SessionStorage {
             .await?;
 
         tx.commit().await?;
+        crate::posthog::emit_session_started();
         Ok(session)
     }
 
