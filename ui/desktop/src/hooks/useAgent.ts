@@ -12,7 +12,6 @@ import {
   startAgent,
   validateConfig,
 } from '../api';
-import { COST_TRACKING_ENABLED } from '../updates';
 
 export enum AgentState {
   UNINITIALIZED = 'uninitialized',
