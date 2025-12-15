@@ -483,7 +483,7 @@ pub async fn summarize_tool_call(
     let system_prompt = indoc! {r#"
                 Your task is to summarize a tool call & response pair to save tokens
 
-                reply with a single message that described what happened. Typically a toolcall
+                reply with a single message that describe what happened. Typically a toolcall
                 is asks for something using a bunch of parameters and then the result is also some
                 structured output. So the tool might ask to look up something on github and the
                 reply might be a json document. So you could reply with something like:
