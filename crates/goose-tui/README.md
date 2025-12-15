@@ -11,7 +11,9 @@ A terminal user interface for [Goose](https://github.com/block/goose), the AI ag
 
 - **Interactive Chat**: Full conversation interface with markdown rendering
 - **Session Management**: Create, resume, and fork sessions
-- **Theming**: 11 built-in color themes
+- **File Attachments**: Reference files inline with `@path/to/file` syntax
+- **Tool Approval**: Interactive approval workflow for sensitive operations
+- **Theming**: 11 built-in color themes plus custom theme support
 - **Recipe Support**: Run automated workflows from YAML files
 - **Headless Mode**: Non-interactive execution for scripts and CI
 - **Custom Commands**: Create shortcuts for frequently used tools with dynamic arguments
@@ -36,7 +38,16 @@ The binary will be at `target/release/goose-tui`.
 # Start interactive session
 goose-tui
 
-# Resume a previous session
+# Start a named session
+goose-tui --name "my-project"
+
+# Resume the most recent session
+goose-tui --resume
+
+# Resume a named session
+goose-tui --resume --name "my-project"
+
+# Resume a session by ID
 goose-tui --session <session-id>
 
 # Run a recipe
@@ -133,6 +144,7 @@ CLI mode provides the same functionality with simple line-by-line output. Use it
 |-----|--------|
 | `Enter` | Send message |
 | `Ctrl+J` | Insert newline |
+| `↑` / `↓` | Navigate command history (at first/last line) |
 | `Esc` | Switch to Normal mode |
 
 ### Normal Mode
@@ -142,7 +154,10 @@ CLI mode provides the same functionality with simple line-by-line output. Use it
 | `i` / `e` | Switch to Editing mode |
 | `j` / `↓` | Scroll down |
 | `k` / `↑` | Scroll up |
+| `PageUp` / `PageDown` | Page scroll |
+| `Home` / `End` | Jump to start/end |
 | `Enter` | View message details |
+| `Y` / `N` | Approve/deny tool call (when prompted) |
 
 ### Message Detail Popup
 
@@ -160,8 +175,10 @@ Type these in the input field:
 |---------|-------------|
 | `/help` | Show help popup |
 | `/config` | Open configuration (provider, model, extensions) |
+| `/mcp` | Open MCP extensions configuration |
 | `/session` | Open session picker |
 | `/theme [name]` | Change theme (e.g., `/theme dark`) |
+| `/mode <mode>` | Set goose mode: `auto`, `approve`, `chat`, `smart_approve` |
 | `/alias` | Create or manage custom commands |
 | `/clear` | Clear chat history |
 | `/compact` | Trigger context compaction |
@@ -257,6 +274,7 @@ TUI-specific settings:
 - `tui_theme`: Current theme name
 - `tui_custom_themes`: Custom theme definitions (see [Custom Themes](#custom-themes))
 - `tui_custom_commands`: List of custom commands
+- `tui_smart_context`: Enable automatic project analysis on new sessions (default: true)
 
 Use `/config` to change:
 - **Provider**: AI provider (OpenAI, Anthropic, etc.)
@@ -303,6 +321,21 @@ Fork a session to explore alternative paths:
 5. A new session is created with messages up to that point
 
 The original session remains unchanged. Useful for trying different approaches or recovering from mistakes.
+
+## File Attachments
+
+Reference files in your messages using `@` followed by a path:
+
+```
+Can you review @src/main.rs and suggest improvements?
+```
+
+Paths can be relative, absolute, or use `~` for home directory:
+- `@src/lib.rs` - relative to current directory
+- `@~/Documents/notes.md` - home directory
+- `@/etc/hosts` - absolute path
+
+The file contents are included with your message. Files over 2000 lines are truncated.
 
 ## Copy Mode
 

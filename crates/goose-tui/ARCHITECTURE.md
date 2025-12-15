@@ -152,17 +152,20 @@ Central state struct containing:
 - `config`: TuiConfig (theme, custom commands)
 - `available_*`: Loaded data (tools, sessions, providers, extensions)
 - `active_provider`, `active_model`: Current provider/model
+- `model_context_limit`: Context window size for token display
 - `copy_mode`: Whether mouse capture is disabled
+- `pending_confirmation`: Tool approval request awaiting user response
+- `cwd_analysis`: Smart context analysis state (pending, complete, or failed)
 
 ### Actions
 
 Action variants grouped by category:
 - **System**: Tick, Quit, Refresh, Resize
-- **Server/Data**: ServerMessage, SessionResumed, SessionsListLoaded, ToolsLoaded, ProvidersLoaded, ExtensionsLoaded, ModelsLoaded, ConfigLoaded, Error, ShowFlash
-- **Chat**: SendMessage, Interrupt, ToggleInputMode, ClearChat
-- **UI/Popups**: ToggleTodo, ToggleHelp, OpenSessionPicker, OpenConfig, OpenThemePicker, OpenMessageInfo, ClosePopup, StartCommandBuilder
+- **Server/Data**: ServerMessage, SessionResumed, SessionsListLoaded, ToolsLoaded, ProvidersLoaded, ExtensionsLoaded, ModelsLoaded, ConfigLoaded, Error, ShowFlash, CwdAnalysisComplete
+- **Chat**: SendMessage, SendMessageWithFlash, Interrupt, ToggleInputMode, ClearChat, ConfirmToolCall
+- **UI/Popups**: ToggleTodo, ToggleHelp, OpenSessionPicker, OpenConfig, OpenMcp, OpenThemePicker, OpenMessageInfo, ClosePopup, StartCommandBuilder
 - **Session**: ResumeSession, CreateNewSession, ForkFromMessage
-- **Config**: ChangeTheme, UpdateProvider, ToggleExtension
+- **Config**: ChangeTheme, PreviewTheme, UpdateProvider, ToggleExtension, SetGooseMode, FetchModels
 - **Custom Commands**: DeleteCustomCommand, SubmitCommandBuilder
 - **Other**: ToggleCopyMode, SetInputEmpty
 

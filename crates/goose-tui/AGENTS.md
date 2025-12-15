@@ -17,12 +17,15 @@ cargo run -p goose-tui -- --cli
 ```
 src/
 ├── main.rs           # Entry, CLI args, embedded server setup
+├── lib.rs            # Public exports, analysis_target module
 ├── app.rs            # App orchestrator, component coordination
 ├── runner.rs         # Event loops (interactive and recipe modes)
 ├── action_handler.rs # Async side effects (API calls, spawning tasks)
 ├── tui.rs            # Terminal init/restore (crossterm)
 ├── headless.rs       # Non-TUI recipe execution
 ├── cli.rs            # CLI mode (lightweight fallback REPL)
+├── at_mention.rs     # @path file attachment processing
+├── hidden_blocks.rs  # Strip internal XML blocks from display
 ├── components/
 │   ├── mod.rs        # Component trait definition
 │   ├── chat.rs       # Message display, caching, scrolling
@@ -91,4 +94,4 @@ Never: Forget to restore terminal on panic (tui.rs handles this)
 
 ## Testing
 
-Tests in `tests/` folder + inline in `utils/sanitize.rs`
+Tests in `tests/` folder.
