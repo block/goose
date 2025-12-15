@@ -123,7 +123,7 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
     <div 
       ref={containerRef}
       className={cn(
-        'relative overflow-hidden bg-background-card border-b border-border-default',
+        'relative overflow-hidden bg-background-default border-b border-border-default',
         'font-mono text-xs leading-none font-bold',
         // Pixelated effect
         'image-rendering-pixelated',
@@ -148,7 +148,7 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
       </div>
 
       {/* Scrolling content */}
-      <div className="absolute top-0 h-full flex items-center pl-24 bg-background-card">
+      <div className="absolute top-0 h-full flex items-center pl-24 bg-background-default">
         <div
           ref={contentRef}
           className="flex items-center whitespace-nowrap"
@@ -177,7 +177,7 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
       </div>
 
       {/* Right fade effect */}
-      <div className="absolute right-0 top-0 h-full w-8 bg-gradient-to-l from-background-card to-transparent pointer-events-none" />
+      <div className="absolute right-0 top-0 h-full w-8 bg-gradient-to-l from-background-default to-transparent pointer-events-none" />
       
       {/* Terminal cursor blink effect */}
       <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
