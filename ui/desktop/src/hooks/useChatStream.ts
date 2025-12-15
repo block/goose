@@ -212,7 +212,6 @@ export function useChatStream({
     if (cached) {
       setSession(cached.session);
       updateMessages(cached.messages);
-      // Initialize tokenState with accumulated values from cached session
       setTokenState({
         inputTokens: cached.session?.input_tokens ?? 0,
         outputTokens: cached.session?.output_tokens ?? 0,
@@ -250,7 +249,6 @@ export function useChatStream({
         const session = response.data;
         setSession(session);
         updateMessages(session?.conversation || []);
-        // Initialize tokenState with accumulated values from loaded session
         setTokenState({
           inputTokens: session?.input_tokens ?? 0,
           outputTokens: session?.output_tokens ?? 0,
