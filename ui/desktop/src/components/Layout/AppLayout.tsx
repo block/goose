@@ -18,7 +18,7 @@ import { NavigationPosition } from '../settings/app/NavigationPositionSelector';
 import { NavigationStyle } from '../settings/app/NavigationStyleSelector';
 import { NavigationMode } from '../settings/app/NavigationModeSelector';
 import { NotificationTicker, useNotificationTicker } from '../NotificationTicker';
-import { useMatrix } from '../contexts/MatrixContext';
+import { useMatrix } from '../../contexts/MatrixContext';
 
 // Create context for navigation state
 const NavigationContext = createContext<{
