@@ -283,7 +283,7 @@ impl Agent {
         let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
         let tool_call_cut_off = config
             .get_param::<usize>("GOOSE_TOOL_CALL_CUTOFF")
-            .unwrap_or(3);
+            .unwrap_or(10);
 
         self.tool_inspection_manager
             .update_permission_inspector_mode(goose_mode)
