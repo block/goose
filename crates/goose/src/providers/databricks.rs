@@ -433,13 +433,8 @@ impl Provider for DatabricksProvider {
             .collect();
 
         if models.is_empty() {
-            tracing::debug!("No serving endpoints found in Databricks workspace");
             Ok(None)
         } else {
-            tracing::debug!(
-                "Found {} serving endpoints in Databricks workspace",
-                models.len()
-            );
             Ok(Some(models))
         }
     }

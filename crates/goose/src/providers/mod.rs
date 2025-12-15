@@ -1,9 +1,11 @@
 pub mod anthropic;
 pub mod api_client;
+pub mod auto_detect;
 pub mod azure;
 pub mod azureauth;
 pub mod base;
 pub mod bedrock;
+pub mod canonical;
 pub mod claude_code;
 pub mod cursor_agent;
 pub mod databricks;
@@ -24,6 +26,7 @@ pub mod openai;
 pub mod openrouter;
 pub mod pricing;
 pub mod provider_registry;
+pub mod provider_test;
 mod retry;
 pub mod sagemaker_tgi;
 pub mod snowflake;
@@ -36,4 +39,6 @@ pub mod utils_universal_openai_stream;
 pub mod venice;
 pub mod xai;
 
-pub use factory::{create, create_with_named_model, providers, refresh_custom_providers};
+pub use factory::{
+    create, create_with_default_model, create_with_named_model, providers, refresh_custom_providers,
+};

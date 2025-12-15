@@ -46,7 +46,7 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
     const isActivelyScrollingRef = React.useRef(false);
     const scrollTimeoutRef = React.useRef<number | null>(null);
 
-    const BOTTOM_SCROLL_THRESHOLD = 100;
+    const BOTTOM_SCROLL_THRESHOLD = 200;
 
     const isAtBottom = React.useCallback(() => {
       if (!viewportRef.current) return false;

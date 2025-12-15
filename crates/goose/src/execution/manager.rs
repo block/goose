@@ -1,7 +1,8 @@
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::Agent;
 use crate::config::paths::Paths;
-use crate::scheduler_factory::SchedulerFactory;
+use crate::config::Config;
+use crate::scheduler::Scheduler;
 use crate::scheduler_trait::SchedulerTrait;
 use anyhow::Result;
 use lru::LruCache;
@@ -35,7 +36,7 @@ impl AgentManager {
     async fn new(max_sessions: Option<usize>) -> Result<Self> {
         let schedule_file_path = Paths::data_dir().join("schedule.json");
 
-        let scheduler = SchedulerFactory::create(schedule_file_path).await?;
+        let scheduler = Scheduler::new(schedule_file_path).await?;
 
         let capacity = NonZeroUsize::new(max_sessions.unwrap_or(DEFAULT_MAX_SESSION))
             .unwrap_or_else(|| NonZeroUsize::new(100).unwrap());
@@ -52,15 +53,18 @@ impl AgentManager {
     pub async fn instance() -> Result<Arc<Self>> {
         AGENT_MANAGER
             .get_or_try_init(|| async {
-                let manager = Self::new(Some(DEFAULT_MAX_SESSION)).await?;
+                let max_sessions = Config::global()
+                    .get_goose_max_active_agents()
+                    .unwrap_or(DEFAULT_MAX_SESSION);
+                let manager = Self::new(Some(max_sessions)).await?;
                 Ok(Arc::new(manager))
             })
             .await
             .cloned()
     }
 
-    pub async fn scheduler(&self) -> Result<Arc<dyn SchedulerTrait>> {
-        Ok(Arc::clone(&self.scheduler))
+    pub fn scheduler(&self) -> Arc<dyn SchedulerTrait> {
+        Arc::clone(&self.scheduler)
     }
 
     pub async fn set_default_provider(&self, provider: Arc<dyn crate::providers::base::Provider>) {
@@ -87,7 +91,9 @@ impl AgentManager {
             })
             .await;
         if let Some(provider) = &*self.default_provider.read().await {
-            agent.update_provider(Arc::clone(provider)).await?;
+            agent
+                .update_provider(Arc::clone(provider), &session_id)
+                .await?;
         }
 
         let mut sessions = self.sessions.write().await;

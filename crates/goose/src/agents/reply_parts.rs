@@ -16,8 +16,10 @@ use crate::providers::toolshim::{
     modify_system_prompt_for_tool_json, OllamaInterpreter,
 };
 
-use crate::agents::recipe_tools::dynamic_task_tools::should_enabled_subagents;
+use crate::agents::subagent_tool::should_enable_subagents;
 use crate::session::SessionManager;
+#[cfg(test)]
+use crate::session::SessionType;
 use rmcp::model::Tool;
 
 fn coerce_value(s: &str, schema: &Value) -> Value {
@@ -123,11 +125,8 @@ impl Agent {
             let provider = self.provider().await?;
             let model_name = provider.get_model_config().model_name;
 
-            if !should_enabled_subagents(&model_name) {
-                tools.retain(|tool| {
-                    tool.name != crate::agents::subagent_execution_tool::subagent_execute_task_tool::SUBAGENT_EXECUTE_TASK_TOOL_NAME
-                        && tool.name != crate::agents::recipe_tools::dynamic_task_tools::DYNAMIC_TASK_TOOL_NAME_PREFIX
-                });
+            if !should_enable_subagents(&model_name) {
+                tools.retain(|tool| tool.name != crate::agents::subagent_tool::SUBAGENT_TOOL_NAME);
             }
         }
 
@@ -439,9 +438,16 @@ mod tests {
     ) -> anyhow::Result<()> {
         let agent = crate::agents::Agent::new();
 
+        let session = SessionManager::create_session(
+            std::path::PathBuf::default(),
+            "test-prepare-tools".to_string(),
+            SessionType::Hidden,
+        )
+        .await?;
+
         let model_config = ModelConfig::new("test-model").unwrap();
         let provider = std::sync::Arc::new(MockProvider { model_config });
-        agent.update_provider(provider).await?;
+        agent.update_provider(provider, &session.id).await?;
 
         // Disable the router to trigger sorting
         agent.disable_router_for_recipe().await;

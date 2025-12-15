@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::{env, fs};
 
-use rmcp::model::{CallToolRequestParam, Content, Tool};
+use rmcp::model::{CallToolRequestParam, CallToolResult, Tool};
 use rmcp::object;
 use tokio_util::sync::CancellationToken;
 
@@ -108,7 +108,7 @@ fn build_and_get_binary_path() -> PathBuf {
             }
         })
         .next()
-        .expect("failed to parase binary path")
+        .expect("failed to parse binary path")
 }
 
 static REPLAY_BINARY_PATH: Lazy<PathBuf> = Lazy::new(build_and_get_binary_path);
@@ -284,7 +284,7 @@ async fn test_replayed_session(
                 serde_json::to_writer_pretty(File::create(results_path)?, &results)?
             }
             TestMode::Playback => assert_eq!(
-                serde_json::from_reader::<_, Vec<Vec<Content>>>(File::open(results_path)?)?,
+                serde_json::from_reader::<_, Vec<CallToolResult>>(File::open(results_path)?)?,
                 results
             ),
         };

@@ -1,6 +1,6 @@
 ---
 title: Apify Extension
-description: Add Apify MCP server as a Goose Extension
+description: Add Apify MCP server as a goose Extension
 ---
 
 import Tabs from '@theme/Tabs';

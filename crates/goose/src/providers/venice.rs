@@ -225,11 +225,6 @@ impl Provider for VeniceProvider {
         let response = self.api_client.response_get(&self.models_path).await?;
         let json: serde_json::Value = response.json().await?;
 
-        // Print legend once so users know what flags mean
-        println!(
-            "Capabilities:\n  c=code\n  f=function calls (goose supported models)\n  s=schema\n  v=vision\n  w=web search\n  r=reasoning"
-        );
-
         let mut models = json["data"]
             .as_array()
             .ok_or_else(|| ProviderError::RequestFailed("No data field in JSON".to_string()))?

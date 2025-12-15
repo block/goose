@@ -141,6 +141,8 @@ where
     use goose::config::ExtensionConfig;
     use tokio::sync::Mutex;
 
+    goose::agents::moim::SKIP.with(|f| f.set(true));
+
     if let Ok(path) = dotenv() {
         println!("Loaded environment from {:?}", path);
     }
@@ -215,16 +217,20 @@ where
         )
         .await;
 
-    agent
-        .update_provider(provider_arc as Arc<dyn goose::providers::base::Provider>)
-        .await?;
-
     let session = SessionManager::create_session(
         PathBuf::default(),
         "scenario-runner".to_string(),
         SessionType::Hidden,
     )
     .await?;
+
+    agent
+        .update_provider(
+            provider_arc as Arc<dyn goose::providers::base::Provider>,
+            &session.id,
+        )
+        .await?;
+
     let mut cli_session = CliSession::new(
         agent,
         session.id,

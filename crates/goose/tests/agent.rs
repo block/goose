@@ -18,6 +18,7 @@ mod tests {
         use goose::scheduler::{ScheduledJob, SchedulerError};
         use goose::scheduler_trait::SchedulerTrait;
         use goose::session::Session;
+        use std::path::PathBuf;
         use std::sync::Arc;
 
         struct MockScheduler {
@@ -34,18 +35,34 @@ mod tests {
 
         #[async_trait]
         impl SchedulerTrait for MockScheduler {
-            async fn add_scheduled_job(&self, job: ScheduledJob) -> Result<(), SchedulerError> {
+            async fn add_scheduled_job(
+                &self,
+                job: ScheduledJob,
+                _copy: bool,
+            ) -> Result<(), SchedulerError> {
                 let mut jobs = self.jobs.lock().await;
                 jobs.push(job);
                 Ok(())
             }
 
-            async fn list_scheduled_jobs(&self) -> Result<Vec<ScheduledJob>, SchedulerError> {
-                let jobs = self.jobs.lock().await;
-                Ok(jobs.clone())
+            async fn schedule_recipe(
+                &self,
+                _recipe_path: PathBuf,
+                _cron_schedule: Option<String>,
+            ) -> Result<(), SchedulerError> {
+                Ok(())
             }
 
-            async fn remove_scheduled_job(&self, id: &str) -> Result<(), SchedulerError> {
+            async fn list_scheduled_jobs(&self) -> Vec<ScheduledJob> {
+                let jobs = self.jobs.lock().await;
+                jobs.clone()
+            }
+
+            async fn remove_scheduled_job(
+                &self,
+                id: &str,
+                _remove: bool,
+            ) -> Result<(), SchedulerError> {
                 let mut jobs = self.jobs.lock().await;
                 if let Some(pos) = jobs.iter().position(|job| job.id == id) {
                     jobs.remove(pos);
@@ -356,7 +373,6 @@ mod tests {
         async fn test_max_turns_limit() -> Result<()> {
             let agent = Agent::new();
             let provider = Arc::new(MockToolProvider::new());
-            agent.update_provider(provider).await?;
             let user_message = Message::user().with_text("Hello");
 
             let session = SessionManager::create_session(
@@ -365,6 +381,9 @@ mod tests {
                 SessionType::Hidden,
             )
             .await?;
+
+            agent.update_provider(provider, &session.id).await?;
+
             let session_config = SessionConfig {
                 id: session.id,
                 schedule_id: None,

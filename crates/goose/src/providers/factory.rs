@@ -24,9 +24,12 @@ use super::{
     venice::VeniceProvider,
     xai::XaiProvider,
 };
-use crate::config::declarative_providers::register_declarative_providers;
 use crate::model::ModelConfig;
 use crate::providers::base::ProviderType;
+use crate::{
+    config::declarative_providers::register_declarative_providers,
+    providers::provider_registry::ProviderEntry,
+};
 use anyhow::Result;
 use tokio::sync::OnceCell;
 
@@ -111,6 +114,15 @@ pub async fn refresh_custom_providers() -> Result<()> {
     Ok(())
 }
 
+async fn get_from_registry(name: &str) -> Result<ProviderEntry> {
+    let guard = get_registry().await.read().unwrap();
+    guard
+        .entries
+        .get(name)
+        .ok_or_else(|| anyhow::anyhow!("Unknown provider: {}", name))
+        .cloned()
+}
+
 pub async fn create(name: &str, model: ModelConfig) -> Result<Arc<dyn Provider>> {
     let config = crate::config::Config::global();
 
@@ -119,17 +131,15 @@ pub async fn create(name: &str, model: ModelConfig) -> Result<Arc<dyn Provider>>
         return create_lead_worker_from_env(name, &model, &lead_model_name).await;
     }
 
-    let registry = get_registry().await;
-    let constructor = {
-        let guard = registry.read().unwrap();
-        guard
-            .entries
-            .get(name)
-            .ok_or_else(|| anyhow::anyhow!("Unknown provider: {}", name))?
-            .constructor
-            .clone()
-    };
+    let constructor = get_from_registry(name).await?.constructor.clone();
     constructor(model).await
+}
+
+pub async fn create_with_default_model(name: impl AsRef<str>) -> Result<Arc<dyn Provider>> {
+    get_from_registry(name.as_ref())
+        .await?
+        .create_with_default_model()
+        .await
 }
 
 pub async fn create_with_named_model(
@@ -361,5 +371,40 @@ mod tests {
 
         _guard.set("GOOSE_CONTEXT_LIMIT", "64000");
         let _result = create_lead_worker_from_env("openai", &default_model, "gpt-4o");
+    }
+
+    #[tokio::test]
+    async fn test_openai_compatible_providers_config_keys() {
+        let providers_list = providers().await;
+        let cases = vec![
+            ("openai", "OPENAI_API_KEY"),
+            ("groq", "GROQ_API_KEY"),
+            ("mistral", "MISTRAL_API_KEY"),
+            ("custom_deepseek", "DEEPSEEK_API_KEY"),
+        ];
+        for (name, expected_key) in cases {
+            if let Some((meta, _)) = providers_list.iter().find(|(m, _)| m.name == name) {
+                assert!(
+                    !meta.config_keys.is_empty(),
+                    "{name} provider should have config keys"
+                );
+                assert_eq!(
+                    meta.config_keys[0].name, expected_key,
+                    "First config key for {name} should be {expected_key}, got {}",
+                    meta.config_keys[0].name
+                );
+                assert!(
+                    meta.config_keys[0].required,
+                    "{expected_key} should be required"
+                );
+                assert!(
+                    meta.config_keys[0].secret,
+                    "{expected_key} should be secret"
+                );
+            } else {
+                // Provider not registered; skip test for this provider
+                continue;
+            }
+        }
     }
 }

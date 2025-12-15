@@ -4,12 +4,14 @@ import { Button } from '../../ui/button';
 import { Settings, RefreshCw, ExternalLink } from 'lucide-react';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog';
 import UpdateSection from './UpdateSection';
+import TunnelSection from '../tunnel/TunnelSection';
 import { COST_TRACKING_ENABLED, UPDATES_ENABLED } from '../../../updates';
 import { getApiUrl } from '../../../config';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import ThemeSelector from '../../GooseSidebar/ThemeSelector';
 import BlockLogoBlack from './icons/block-lockup_black.png';
 import BlockLogoWhite from './icons/block-lockup_white.png';
+import TelemetrySettings from './TelemetrySettings';
 
 interface AppSettingsSectionProps {
   scrollToSection?: string;
@@ -287,7 +289,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
             <div>
               <h3 className="text-text-default text-xs">Prevent Sleep</h3>
               <p className="text-xs text-text-muted max-w-md mt-[2px]">
-                Keep your computer awake while Goose is running a task (screen can still lock)
+                Keep your computer awake while goose is running a task (screen can still lock)
               </p>
             </div>
             <div className="flex items-center">
@@ -393,6 +395,10 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
           <ThemeSelector className="w-auto" hideTitle horizontal />
         </CardContent>
       </Card>
+
+      <TunnelSection />
+
+      <TelemetrySettings isWelcome={false} />
 
       <Card className="rounded-lg">
         <CardHeader className="pb-0">

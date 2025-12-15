@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use base64::Engine;
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use include_dir::{include_dir, Dir};
@@ -17,6 +18,8 @@ use rmcp::{
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
+    env::join_paths,
+    ffi::OsString,
     future::Future,
     io::Cursor,
     path::{Path, PathBuf},
@@ -31,11 +34,11 @@ use tokio::{
 use tokio_stream::{wrappers::SplitStream, StreamExt as _};
 use tokio_util::sync::CancellationToken;
 
+use crate::developer::{paths::get_shell_path_dirs, shell::ShellConfig};
+
 use super::analyze::{types::AnalyzeParams, CodeAnalyzer};
 use super::editor_models::{create_editor_model, EditorModel};
-use super::shell::{
-    configure_shell_command, expand_path, get_shell_config, is_absolute_path, kill_process_group,
-};
+use super::shell::{configure_shell_command, expand_path, is_absolute_path, kill_process_group};
 use super::text_editor::{
     text_editor_insert, text_editor_replace, text_editor_undo, text_editor_view, text_editor_write,
 };
@@ -179,6 +182,8 @@ pub struct DeveloperServer {
     pub running_processes: Arc<RwLock<HashMap<String, CancellationToken>>>,
     #[cfg(not(test))]
     running_processes: Arc<RwLock<HashMap<String, CancellationToken>>>,
+    bash_env_file: Option<PathBuf>,
+    extend_path_with_shell: bool,
 }
 
 #[tool_handler(router = self.tool_router)]
@@ -320,6 +325,8 @@ impl ServerHandler for DeveloperServer {
             **Important**: Each shell command runs in its own process. Things like directory changes or
             sourcing files do not persist between tool calls. So you may need to repeat them each time by
             stringing together commands.
+
+            If fetching web content, consider adding Accept: text/markdown header
         "#};
 
         let windows_specific = indoc! {r#"
@@ -549,7 +556,19 @@ impl DeveloperServer {
             prompts: load_prompt_files(),
             code_analyzer: CodeAnalyzer::new(),
             running_processes: Arc::new(RwLock::new(HashMap::new())),
+            extend_path_with_shell: false,
+            bash_env_file: None,
         }
+    }
+
+    pub fn extend_path_with_shell(mut self, value: bool) -> Self {
+        self.extend_path_with_shell = value;
+        self
+    }
+
+    pub fn bash_env_file(mut self, value: Option<PathBuf>) -> Self {
+        self.bash_env_file = value;
+        self
     }
 
     /// List all available windows that can be used with screen_capture.
@@ -942,10 +961,34 @@ impl DeveloperServer {
         peer: &rmcp::service::Peer<RoleServer>,
         cancellation_token: CancellationToken,
     ) -> Result<String, ErrorData> {
-        // Get platform-specific shell configuration
-        let shell_config = get_shell_config();
+        let mut shell_config = ShellConfig::default();
+        let shell_name = std::path::Path::new(&shell_config.executable)
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("bash");
 
-        let mut child = configure_shell_command(&shell_config, command)
+        if let Some(ref env_file) = self.bash_env_file {
+            if shell_name == "bash" {
+                shell_config.envs.push((
+                    OsString::from("BASH_ENV"),
+                    env_file.clone().into_os_string(),
+                ))
+            }
+        }
+
+        let mut command = configure_shell_command(&shell_config, command);
+
+        if self.extend_path_with_shell {
+            if let Err(e) = get_shell_path_dirs()
+                .await
+                .and_then(|dirs| join_paths(dirs).map_err(|e| anyhow!(e)))
+                .map(|path| command.env("PATH", path))
+            {
+                tracing::error!("Failed to extend PATH with shell directories: {}", e)
+            }
+        }
+
+        let mut child = command
             .spawn()
             .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
 
@@ -1238,27 +1281,16 @@ impl DeveloperServer {
         }
     }
 
-    // Helper method to build ignore patterns from .gooseignore or .gitignore files
     fn build_ignore_patterns(cwd: &PathBuf) -> Gitignore {
         let mut builder = GitignoreBuilder::new(cwd);
-
-        // Check for local .gooseignore
         let local_ignore_path = cwd.join(".gooseignore");
         let mut has_ignore_file = false;
 
         if local_ignore_path.is_file() {
             let _ = builder.add(local_ignore_path);
             has_ignore_file = true;
-        } else {
-            // Fallback to .gitignore
-            let gitignore_path = cwd.join(".gitignore");
-            if gitignore_path.is_file() {
-                let _ = builder.add(gitignore_path);
-                has_ignore_file = true;
-            }
         }
 
-        // Add default patterns if no ignore files found
         if !has_ignore_file {
             let _ = builder.add_line(None, "**/.env");
             let _ = builder.add_line(None, "**/.env.*");
@@ -1935,51 +1967,6 @@ mod tests {
 
     #[tokio::test]
     #[serial]
-    async fn test_gitignore_fallback_when_no_gooseignore() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
-
-        // Create .gitignore file (no .gooseignore)
-        fs::write(".gitignore", "*.log").unwrap();
-
-        let server = create_test_server();
-
-        assert!(
-            server.is_ignored(Path::new("debug.log")),
-            "*.log pattern from .gitignore should match debug.log"
-        );
-        assert!(
-            !server.is_ignored(Path::new("debug.txt")),
-            "*.log pattern should not match debug.txt"
-        );
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_gooseignore_takes_precedence_over_gitignore() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
-
-        // Create both files
-        fs::write(".gitignore", "*.log").unwrap();
-        fs::write(".gooseignore", "*.env").unwrap();
-
-        let server = create_test_server();
-
-        // Should respect .gooseignore patterns
-        assert!(
-            server.is_ignored(Path::new("test.env")),
-            ".gooseignore pattern should work"
-        );
-        // Should NOT respect .gitignore patterns when .gooseignore exists
-        assert!(
-            !server.is_ignored(Path::new("test.log")),
-            ".gitignore patterns should be ignored when .gooseignore exists"
-        );
-    }
-
-    #[tokio::test]
-    #[serial]
     async fn test_text_editor_descriptions() {
         let temp_dir = tempfile::tempdir().unwrap();
         std::env::set_current_dir(&temp_dir).unwrap();
@@ -1999,136 +1986,6 @@ mod tests {
         assert!(!instructions.contains("Edit the file with the new content"));
         assert!(!instructions.contains("edit_file"));
         assert!(!instructions.contains("work out how to place old_str with it intelligently"));
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_text_editor_respects_gitignore_fallback() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
-
-        // Create a .gitignore file but no .gooseignore
-        fs::write(temp_dir.path().join(".gitignore"), "*.log").unwrap();
-
-        let server = create_test_server();
-
-        // Try to write to a file ignored by .gitignore
-        let result = server
-            .text_editor(Parameters(TextEditorParams {
-                command: "write".to_string(),
-                path: temp_dir
-                    .path()
-                    .join("test.log")
-                    .to_str()
-                    .unwrap()
-                    .to_string(),
-                file_text: Some("test content".parse().unwrap()),
-                old_str: None,
-                new_str: None,
-                view_range: None,
-                insert_line: None,
-                diff: None,
-            }))
-            .await;
-
-        assert!(
-            result.is_err(),
-            "Should not be able to write to file ignored by .gitignore fallback"
-        );
-        assert_eq!(result.unwrap_err().code, ErrorCode::INTERNAL_ERROR);
-
-        let result = server
-            .text_editor(Parameters(TextEditorParams {
-                command: "write".to_string(),
-                path: temp_dir
-                    .path()
-                    .join("allowed.txt")
-                    .to_str()
-                    .unwrap()
-                    .to_string(),
-                file_text: Some("test content".to_string()),
-                old_str: None,
-                new_str: None,
-                view_range: None,
-                insert_line: None,
-                diff: None,
-            }))
-            .await;
-
-        assert!(
-            result.is_ok(),
-            "Should be able to write to non-ignored file"
-        );
-
-        temp_dir.close().unwrap();
-    }
-
-    #[test]
-    #[serial]
-    fn test_shell_respects_gitignore_fallback() {
-        run_shell_test(|| async {
-            let temp_dir = tempfile::tempdir().unwrap();
-            std::env::set_current_dir(&temp_dir).unwrap();
-
-            // Create a .gitignore file but no .gooseignore
-            std::fs::write(temp_dir.path().join(".gitignore"), "*.log").unwrap();
-
-            let server = create_test_server();
-            let running_service = serve_directly(server.clone(), create_test_transport(), None);
-            let peer = running_service.peer().clone();
-
-            // Create a file that would be ignored by .gitignore
-            let log_file_path = temp_dir.path().join("test.log");
-            std::fs::write(&log_file_path, "log content").unwrap();
-
-            // Try to cat the ignored file
-            let result = server
-                .shell(
-                    Parameters(ShellParams {
-                        command: format!("cat {}", log_file_path.to_str().unwrap()),
-                    }),
-                    RequestContext {
-                        ct: Default::default(),
-                        id: NumberOrString::Number(1),
-                        meta: Default::default(),
-                        extensions: Default::default(),
-                        peer: peer.clone(),
-                    },
-                )
-                .await;
-
-            assert!(
-                result.is_err(),
-                "Should not be able to cat file ignored by .gitignore fallback"
-            );
-            assert_eq!(result.unwrap_err().code, ErrorCode::INTERNAL_ERROR);
-
-            // Try to cat a non-ignored file
-            let allowed_file_path = temp_dir.path().join("allowed.txt");
-            fs::write(&allowed_file_path, "allowed content").unwrap();
-
-            let result = server
-                .shell(
-                    Parameters(ShellParams {
-                        command: format!("cat {}", allowed_file_path.to_str().unwrap()),
-                    }),
-                    RequestContext {
-                        ct: Default::default(),
-                        id: NumberOrString::Number(1),
-                        meta: Default::default(),
-                        extensions: Default::default(),
-                        peer: peer.clone(),
-                    },
-                )
-                .await;
-
-            assert!(result.is_ok(), "Should be able to cat non-ignored file");
-
-            // Force cleanup before runtime shutdown
-            cleanup_test_service(running_service, peer);
-
-            temp_dir.close().unwrap();
-        });
     }
 
     #[tokio::test]

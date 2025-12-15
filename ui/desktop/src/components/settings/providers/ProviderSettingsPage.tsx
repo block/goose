@@ -1,21 +1,30 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ScrollArea } from '../../ui/scroll-area';
 import BackButton from '../../ui/BackButton';
 import ProviderGrid from './ProviderGrid';
 import { useConfig } from '../../ConfigContext';
 import { ProviderDetails } from '../../../api';
-import { toastService } from '../../../toasts';
+import { createNavigationHandler } from '../../../utils/navigationUtils';
 
 interface ProviderSettingsProps {
   onClose: () => void;
   isOnboarding: boolean;
+  onProviderLaunched?: () => void;
 }
 
-export default function ProviderSettings({ onClose, isOnboarding }: ProviderSettingsProps) {
-  const { getProviders, upsert } = useConfig();
+export default function ProviderSettings({
+  onClose,
+  isOnboarding,
+  onProviderLaunched,
+}: ProviderSettingsProps) {
+  const { getProviders } = useConfig();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [providers, setProviders] = useState<ProviderDetails[]>([]);
   const initialLoadDone = useRef(false);
+
+  const setView = useMemo(() => createNavigationHandler(navigate), [navigate]);
 
   // Create a function to load providers that can be called multiple times
   const loadProviders = useCallback(async () => {
@@ -49,45 +58,6 @@ export default function ProviderSettings({ onClose, isOnboarding }: ProviderSett
     }
   }, [getProviders]);
 
-  // Handler for when a provider is launched if this component is used as part of onboarding page
-  const handleProviderLaunch = useCallback(
-    async (provider: ProviderDetails) => {
-      const provider_name = provider.name;
-      const model = provider.metadata.default_model;
-
-      try {
-        // update the config
-        // set GOOSE_PROVIDER in the config file
-        upsert('GOOSE_PROVIDER', provider_name, false).then((_) =>
-          console.log('Setting GOOSE_PROVIDER to', provider_name)
-        );
-        // set GOOSE_MODEL in the config file
-        upsert('GOOSE_MODEL', model, false).then((_) =>
-          console.log('Setting GOOSE_MODEL to', model)
-        );
-
-        toastService.configure({ silent: false });
-        toastService.success({
-          title: 'Success!',
-          msg: `Started goose with ${model} by ${provider.metadata.display_name}. You can change the model via the dropdown.`,
-        });
-
-        onClose();
-      } catch (error) {
-        console.error(`Failed to initialize with provider ${provider_name}:`, error);
-
-        // Show error toast
-        toastService.configure({ silent: false });
-        toastService.error({
-          title: 'Initialization Failed',
-          msg: `Failed to initialize with ${provider.metadata.display_name}: ${error instanceof Error ? error.message : String(error)}`,
-          traceback: error instanceof Error ? error.stack || '' : '',
-        });
-      }
-    },
-    [onClose, upsert]
-  );
-
   return (
     <div className="h-screen w-full flex flex-col bg-background-default text-text-default">
       <ScrollArea className="flex-1 w-full">
@@ -120,8 +90,9 @@ export default function ProviderSettings({ onClose, isOnboarding }: ProviderSett
                 <ProviderGrid
                   providers={providers}
                   isOnboarding={isOnboarding}
-                  onProviderLaunch={handleProviderLaunch}
                   refreshProviders={refreshProviders}
+                  setView={setView}
+                  onModelSelected={onProviderLaunched}
                 />
               )}
             </div>

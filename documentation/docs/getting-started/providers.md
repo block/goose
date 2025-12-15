@@ -32,6 +32,7 @@ goose is compatible with a wide range of LLM providers, allowing you to choose a
 | [GitHub Copilot](https://docs.github.com/en/copilot/using-github-copilot/ai-models) | Access to AI models from OpenAI, Anthropic, Google, and other providers through GitHub's Copilot infrastructure. **GitHub account with Copilot access required.** | No manual key. Must configure through the CLI using the GitHub authentication flow to enable both CLI and Desktop access. |
 | [Groq](https://groq.com/)                                                   | High-performance inference hardware and tools for LLMs.                                                                                                                                                                   | `GROQ_API_KEY`                                                                                                                                                                      |
 | [LiteLLM](https://docs.litellm.ai/docs/) | LiteLLM proxy supporting multiple models with automatic prompt caching and unified API access. | `LITELLM_HOST`, `LITELLM_BASE_PATH` (optional), `LITELLM_API_KEY` (optional), `LITELLM_CUSTOM_HEADERS` (optional), `LITELLM_TIMEOUT` (optional) |
+| [Mistral AI](https://mistral.ai/)                                           | Provides access to Mistral models including general-purpose models, specialized coding models (Codestral), and multimodal models (Pixtral).                                                                   | `MISTRAL_API_KEY`                                                                                                 |
 | [Ollama](https://ollama.com/)                                               | Local model runner supporting Qwen, Llama, DeepSeek, and other open-source models. **Because this provider runs locally, you must first [download and run a model](#local-llms).**  | `OLLAMA_HOST`                                                                                                                                                                       |
 | [Ramalama](https://ramalama.ai/)                                            | Local model using native [OCI](https://opencontainers.org/) container runtimes, [CNCF](https://www.cncf.io/) tools, and supporting models as OCI artifacts. Ramalama API an compatible alternative to Ollama and can be used with the goose Ollama provider. Supports Qwen, Llama, DeepSeek, and other open-source models. **Because this provider runs locally, you must first [download and run a model](#local-llms).**  | `OLLAMA_HOST`                                                                                                                                                                       |
 | [OpenAI](https://platform.openai.com/api-keys)                              | Provides gpt-4o, o1, and other advanced language models. Also supports OpenAI-compatible endpoints (e.g., self-hosted LLaMA, vLLM, KServe). **o1-mini and o1-preview are not supported because goose uses tool calling.** | `OPENAI_API_KEY`, `OPENAI_HOST` (optional), `OPENAI_ORGANIZATION` (optional), `OPENAI_PROJECT` (optional), `OPENAI_CUSTOM_HEADERS` (optional)                                       |
@@ -41,7 +42,7 @@ goose is compatible with a wide range of LLM providers, allowing you to choose a
 | [Venice AI](https://venice.ai/home)                                         | Provides access to open source models like Llama, Mistral, and Qwen while prioritizing user privacy. **Requires an account and an [API key](https://docs.venice.ai/overview/guides/generating-api-key)**.                 | `VENICE_API_KEY`, `VENICE_HOST` (optional), `VENICE_BASE_PATH` (optional), `VENICE_MODELS_PATH` (optional)                                                                          |
 | [xAI](https://x.ai/)                                                        | Access to xAI's Grok models including grok-3, grok-3-mini, and grok-3-fast with 131,072 token context window.                                                                                                            | `XAI_API_KEY`, `XAI_HOST` (optional)                                                                                                                                                |
 
-## CLI Providers
+### CLI Providers
 
 goose also supports special "pass-through" providers that work with existing CLI tools, allowing you to use your subscriptions instead of paying per token:
 
@@ -55,10 +56,9 @@ goose also supports special "pass-through" providers that work with existing CLI
 CLI providers are cost-effective alternatives that use your existing subscriptions. They work differently from API providers as they execute CLI commands and integrate with the tools' native capabilities. See the [CLI Providers guide](/docs/guides/cli-providers) for detailed setup instructions.
 :::
 
-   
-## Configure Provider
+## Configure Provider and Model
 
-To configure your chosen provider or see available options, visit the `Models` tab in goose Desktop or run `goose configure` in the CLI.
+To configure your chosen provider, see available options, or select a model, visit the `Models` tab in goose Desktop or run `goose configure` in the CLI.
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
@@ -88,8 +88,13 @@ To configure your chosen provider or see available options, visit the `Models` t
 
     <TabItem value="others" label="Other Providers">
     1. If you have a specific provider you want to use with goose, and an API key from that provider, choose `Other Providers`. 
-    2. Find the provider of your choice and click its `Configure` button. If you don't see your provider in the list, click `Add Custom Provider` at the bottom of the window. 
+    2. Find the provider of your choice and click its `Configure` button. If you don't see your provider in the list, click `Add Custom Provider` at the bottom of the window to [configure a custom provider](#configure-custom-provider). 
     3. Depending on your provider, you'll need to input your API Key, API Host, or other optional [parameters](#available-providers). Click the `Submit` button to authenticate and begin your first session.
+
+    :::info Ollama Model Detection
+    For Ollama users, all locally installed models display automatically in the model selection dropdown.
+    :::
+    
     </TabItem>
   </Tabs>
   **To update your LLM provider and API key:** 
@@ -122,84 +127,121 @@ To configure your chosen provider or see available options, visit the `Models` t
   <TabItem value="cli" label="goose CLI">
     1. In your terminal, run the following command: 
 
-    ```sh
-    goose configure
-    ```
+       ```sh
+       goose configure
+       ```
 
-    2. Select `Configure Providers` from the menu and press Enter.
+    2. Select `Configure Providers` from the menu and press `Enter`.
 
-    ```
-   ┌   goose-configure 
-   │
-   ◆  What would you like to configure?
-   │  ● Configure Providers (Change provider or update credentials)
-   │  ○ Add Extension 
-   │  ○ Toggle Extensions 
-   │  ○ Remove Extension 
-   │  ○ goose Settings 
-   └  
-   ```
-   3. Choose a model provider and press Enter.
+       ```
+       ┌   goose-configure 
+       │
+       ◆  What would you like to configure?
+       // highlight-start
+       │  ● Configure Providers (Change provider or update credentials)
+       // highlight-end
+       │  ○ Custom Providers 
+       │  ○ Add Extension 
+       │  ○ Toggle Extensions 
+       │  ○ Remove Extension 
+       │  ○ goose Settings 
+       └  
+       ```
+    3. Choose a model provider and press `Enter`. Use the arrow keys (↑/↓) to move through the options.
 
-   ```
-   ┌   goose-configure 
-   │
-   ◇  What would you like to configure?
-   │  Configure Providers 
-   │
-   ◆  Which model provider should we use?
-   │  ● Anthropic (Claude and other models from Anthropic)
-   │  ○ Azure OpenAI 
-   │  ○ Amazon Bedrock 
-   │  ○ Claude Code 
-   │  ○ Databricks 
-   │  ○ ...
-   └  
-   ```
-   4. Enter your API key (and any other configuration details) when prompted.
+       ```
+       ┌   goose-configure 
+       │
+       ◇  What would you like to configure?
+       │  Configure Providers 
+       │
+       ◆  Which model provider should we use?
+       │  ○ Amazon Bedrock 
+       │  ○ Amazon SageMaker TGI 
+       // highlight-start
+       │  ● Anthropic (Claude and other models from Anthropic)
+       // highlight-end
+       │  ○ Azure OpenAI 
+       │  ○ Claude Code CLI
+       │  ○ ...
+       └  
+       ```
+    4. Enter your API key (and any other configuration details) when prompted.
 
-   ```
-   ┌   goose-configure 
-   │
-   ◇  What would you like to configure?
-   │  Configure Providers 
-   │
-   ◇  Which model provider should we use?
-   │  Anthropic 
-   │
-   ◆  Provider Anthropic requires ANTHROPIC_API_KEY, please enter a value
-   │  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
-   └  
-    ```
-    5. Enter your desired `ANTHROPIC_HOST` or you can use the default one by hitting the `Enter` key. 
+       ```
+       ┌   goose-configure 
+       │
+       ◇  What would you like to configure?
+       │  Configure Providers 
+       │
+       ◇  Which model provider should we use?
+       │  Anthropic 
+       │
+       ◆  Provider Anthropic requires ANTHROPIC_API_KEY, please enter a value
+       // highlight-start
+       │  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+       // highlight-end
+       └  
+       ```
+       
+       If you're just changing models, skip any prompts to update the provider configuration.
 
-    ```
-    ◇  Enter new value for ANTHROPIC_HOST
-    │  https://api.anthropic.com (default)
-    ```
-    6. Enter the model you want to use or you can use the default one by hitting the `Enter` key. 
-    ```
-    │
-    ◇  Model fetch complete
-    │
-    ◇  Enter a model from that provider:
-    │  claude-sonnet-4-0 (default)
-    │
-    ◓  Checking your configuration...
-    └  Configuration saved successfully
+    5. Enter your desired `ANTHROPIC_HOST` or press `Enter` to use the default. 
+
+       ```
+       ◆  Provider Anthropic requires ANTHROPIC_HOST, please enter a value
+       // highlight-start
+       │  https://api.anthropic.com (default)
+       // highlight-end
+       ```
+    6. Choose the model you want to use. Depending on the provider, you can:
+       - Select the model from a list
+       - Search for the model by name
+       - Enter the model name directly
+       
+       ```
+       │
+       ◇  Model fetch complete
+       │
+       ◇  Select a model:
+       // highlight-start
+       │  claude-sonnet-4-5 (default)
+       // highlight-end
+       │
+       ◒  Checking your configuration...
+       └  Configuration saved successfully
+       ```
+  
+       This change takes effect the next time you start a session.
+
+  :::note
+  `goose configure` doesn't support entering custom model names. To use a model not in the provider's list, use goose Desktop or edit the `GOOSE_MODEL` variable in your [`config.yaml`](/docs/guides/config-files) directly.
+  :::
+
+  :::tip
+  Set the model for an individual session using the [`run` command](/docs/guides/goose-cli-commands#run-options):
+
+  ```bash
+  goose run --model claude-sonnet-4-0 -t "initial prompt"
   ```
+  :::
+
   </TabItem>
 </Tabs>
 
-## Using Custom OpenAI Endpoints
+### Using Custom OpenAI Endpoints
 
-goose supports using custom OpenAI-compatible endpoints, which is particularly useful for:
+The built-in OpenAI provider can connect to OpenAI's official API (`api.openai.com`) or any OpenAI-compatible endpoint, such as:
 - Self-hosted LLMs (e.g., LLaMA, Mistral) using vLLM or KServe
 - Private OpenAI-compatible API servers
 - Enterprise deployments requiring data governance and security compliance
 - OpenAI API proxies or gateways
 
-### Configuration Parameters
+:::tip Custom Provider Option
+Need to connect to multiple OpenAI-compatible endpoints? [Configure custom providers](#configure-custom-provider) instead for easier switching and better organization, as well as custom naming and shareable configurations.
+:::
+
+#### Configuration Parameters
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
@@ -209,7 +251,7 @@ goose supports using custom OpenAI-compatible endpoints, which is particularly u
 | `OPENAI_PROJECT` | No | Project identifier for resource management |
 | `OPENAI_CUSTOM_HEADERS` | No | Additional headers to include in the request. Can be set via environment variable, configuration file, or CLI, in the format `HEADER_A=VALUE_A,HEADER_B=VALUE_B`. |
 
-### Example Configurations
+#### Example Configurations
 
 <Tabs groupId="deployment">
   <TabItem value="vllm" label="vLLM Self-Hosted" default>
@@ -247,7 +289,7 @@ goose supports using custom OpenAI-compatible endpoints, which is particularly u
   </TabItem>
 </Tabs>
 
-### Setup Instructions
+#### Setup Instructions
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
@@ -278,6 +320,286 @@ goose supports using custom OpenAI-compatible endpoints, which is particularly u
 :::tip Enterprise Deployment
 For enterprise deployments, you can pre-configure these values using environment variables or configuration files to ensure consistent governance across your organization.
 :::
+
+## Configure Custom Provider
+
+Custom providers let you connect to services that aren't in the [available providers](#available-providers) list. They appear in goose's provider list and can be selected like any other provider.
+
+**Benefits:**
+- **Multiple endpoints**: Switch between different services (e.g., vLLM, corporate proxy, OpenAI)
+- **Pre-configured models**: Store a list of preferred models
+- **Shareable configuration**: JSON files can be shared across teams or checked into repos
+- **Custom naming**: Show "Corporate API" instead of "OpenAI" in the UI
+- **Separate credentials**: Assign each provider its own API key
+
+Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. OpenAI-compatible providers can include custom headers for additional authentication, API keys, tokens, or tenant identifiers. Each custom provider maps to a JSON configuration file.
+
+**To add a custom provider:**
+<Tabs groupId="interface">
+  <TabItem value="ui" label="goose Desktop" default>
+    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+    2. Click the `Settings` button on the sidebar
+    3. Click the `Models` tab
+    4. Click `Configure providers`
+    5. Click `Add Custom Provider` at the bottom of the window
+    6. Fill in the provider details:
+       - **Provider Type**: 
+         - `OpenAI Compatible` (most common)
+         - `Anthropic Compatible`
+         - `Ollama Compatible`
+       - **Display Name**: A friendly name for the provider
+       - **API URL**: The base URL of the API endpoint
+       - **API Key**: The API key, which is accessed using a custom environment variable and stored in the keychain (or `secrets.yaml` if the keyring is disabled)
+         - For `Ollama Compatible` providers, click `This is a local model (no auth required)`
+       - **Available Models**: Comma-separated list of available model names
+       - **Streaming Support**: Whether the API supports streaming responses (click to toggle)
+    7. Click `Create Provider`
+
+    :::info Custom Headers
+    Currently, custom headers for OpenAI compatible providers can't be defined in goose Desktop. As a workaround, configure the provider using goose CLI or edit the provider configuration file directly.
+    :::
+
+  </TabItem>
+  <TabItem value="cli" label="goose CLI">
+    1. In your terminal, run the following command: 
+
+       ```sh
+       goose configure
+       ```
+
+    2. Select `Custom Providers`. Use the arrow keys (↑/↓) to move through the options.
+
+       ```sh
+       ┌   goose-configure 
+       │
+       ◆  What would you like to configure?
+       │  ○ Configure Providers
+       // highlight-start
+       │  ● Custom Providers (Add custom provider with compatible API)
+       // highlight-end
+       │  ○ Add Extension 
+       │  ○ Toggle Extensions 
+       │  ○ Remove Extension 
+       │  ○ goose Settings 
+       └  
+       ```
+
+    3. Select `Add A Custom Provider`
+
+       ```sh
+       ┌   goose-configure 
+       │
+       ◇  What would you like to configure?
+       │  Custom Providers 
+       │
+       ◆  What would you like to do?
+       // highlight-start
+       │  ● Add A Custom Provider (Add a new OpenAI/Anthropic/Ollama compatible Provider)
+       // highlight-end
+       │  ○ Remove Custom Provider
+       └  
+       ```
+
+    4. Follow the prompts to enter the provider details:
+       - **API Type**: 
+         - `OpenAI Compatible` (most common)
+         - `Anthropic Compatible`
+         - `Ollama Compatible`
+       - **Name**: A friendly name for the provider
+       - **API URL**: The base URL of the API endpoint
+       - **API Key**: The API key, which is accessed using a custom environment variable and stored in the keychain (or `secrets.yaml` if the keyring is disabled)
+         - For `Ollama Compatible` providers, press `Enter` to skip (or enter any value to be able to use the provider in goose Desktop)
+       - **Available Models**: Comma-separated list of available model names
+       - **Streaming Support**: Whether the API supports streaming responses
+       - **Custom Headers**: Required header names and values (`OpenAI Compatible` providers only)
+
+  </TabItem>
+  <TabItem value="config" label="Config File">
+
+    First create a JSON file in the `custom_providers` directory:
+    - macOS/Linux: `~/.config/goose/custom_providers/`
+    - Windows: `%APPDATA%\Block\goose\config\custom_providers\`
+
+    Example `custom_corp_api.json` configuration file:
+    ```json
+    {
+      "name": "custom_corp_api",
+      "engine": "openai",
+      "display_name": "Corporate API",
+      "description": "Custom Corporate API provider",
+      "api_key_env": "CUSTOM_CORP_API_API_KEY",
+      "base_url": "https://api.company.com/v1/chat/completions",
+      "models": [
+        {
+          "name": "gpt-4o",
+          "context_limit": 128000
+        },
+        {
+          "name": "gpt-3.5-turbo",
+          "context_limit": 16385
+        }
+      ],
+      "headers": {
+        "x-origin-client-id": "YOUR_CLIENT_ID",
+        "x-origin-secret": "YOUR_SECRET_VALUE"
+      },
+      "supports_streaming": true
+    }
+    ```
+
+    Then use the `api_key_env` to set the key for your session. For example:
+    ```bash
+    export CUSTOM_CORP_API_API_KEY="your-api-key"
+    goose session start --provider custom_corp_api
+    ```
+
+    :::tip Keychain Key Storage
+    If you want to store the API key in the `goose` keychain, update the provider in goose Desktop and enter the key. This provides secure, persistent storage and allows goose to connect natively to the provider.
+    :::
+
+  </TabItem>
+</Tabs>
+
+**To update a custom provider:**
+
+<Tabs groupId="interface">
+  <TabItem value="ui" label="goose Desktop" default>
+    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+    2. Click the `Settings` button on the sidebar
+    3. Click the `Models` tab
+    4. Click `Configure providers`
+    5. Click on your custom provider in the list
+    6. Update the fields you want to change
+       <br/>**Important:** Verify that `Provider Type` shows the correct value before saving. Otherwise, it may default to `OpenAI Compatible` regardless of the original setting.
+    7. Click `Update Provider`
+
+  </TabItem>
+  <TabItem value="cli" label="goose CLI">
+    
+    1. In your terminal, run the following command: 
+
+       ```sh
+       goose configure
+       ```
+
+    2. Select `Configure Providers` from the menu and press `Enter`.
+
+       ```sh
+       ┌   goose-configure 
+       │
+       ◆  What would you like to configure?
+       // highlight-start
+       │  ● Configure Providers (Change provider or update credentials)
+       // highlight-end
+       │  ○ Custom Providers 
+       │  ○ Add Extension 
+       │  ○ Toggle Extensions 
+       │  ○ Remove Extension 
+       │  ○ goose Settings 
+       └  
+       ```
+
+    3. Select the custom provider you want to update and press `Enter`. Use the arrow keys (↑/↓) to move through the options.
+
+       ```sh
+       ┌   goose-configure 
+       │
+       ◇  What would you like to configure?
+       │  Configure Providers 
+       │
+       ◆  Which model provider should we use?
+       │  ○ Amazon Bedrock 
+       │  ○ Amazon SageMaker TGI 
+       │  ○ Anthropic
+       │  ○ Azure OpenAI 
+       │  ○ Claude Code CLI 
+       // highlight-start
+       │  ● Corporate API (Custom Corporate API provider)
+       // highlight-end
+       │  ○ Cursor Agent 
+       │  ○ ...
+       └  
+       ```
+
+    4. Follow the prompts to update the fields.
+
+  </TabItem>
+  <TabItem value="config" label="Config File">
+
+    Open the custom provider configuration file in the `custom_providers` directory:
+    - macOS/Linux: `~/.config/goose/custom_providers/`
+    - Windows: `%APPDATA%\Block\goose\config\custom_providers\`
+
+    Update the fields you want to change and save your changes.
+  </TabItem>
+</Tabs>
+
+Your changes are available in your next goose session.
+
+**To remove a custom provider:**
+
+<Tabs groupId="interface">
+  <TabItem value="ui" label="goose Desktop" default>
+    Currently you cannot remove custom providers using goose Desktop.
+  </TabItem>
+  <TabItem value="cli" label="goose CLI">
+    
+    1. In your terminal, run the following command: 
+
+       ```sh
+       goose configure
+       ```
+
+    2. Select `Custom Providers`. Use the arrow keys (↑/↓) to move through the options.
+
+       ```sh
+       ┌   goose-configure 
+       │
+       ◆  What would you like to configure?
+       │  ○ Configure Providers
+       // highlight-start
+       │  ● Custom Providers (Add custom provider with compatible API)
+       // highlight-end
+       │  ○ Add Extension 
+       │  ○ Toggle Extensions 
+       │  ○ Remove Extension 
+       │  ○ goose Settings 
+       └  
+       ```
+
+    3. Select `Remove Custom Provider`.
+
+       ```sh
+       ┌   goose-configure 
+       │
+       ◇  What would you like to configure?
+       │  Custom Providers 
+       │
+       ◆  What would you like to do?
+       │  ○ Add A Custom Provider 
+       // highlight-start
+       │  ● Remove Custom Provider (Remove an existing custom provider)
+       // highlight-end
+       └  
+       ```
+
+    4. Select the custom provider you want to remove.
+
+    The provider configuration file is removed from the `custom_providers` directory and the key is removed from the keychain.
+
+  </TabItem>
+  <TabItem value="config" label="Config File">
+
+    :::tip
+    If the provider's API key is stored in the keychain, use goose CLI to remove the custom provider. This also removes the stored API key.
+    :::
+
+    Delete the custom provider configuration file in the `custom_providers` directory:
+    - macOS/Linux: `~/.config/goose/custom_providers/`
+    - Windows: `%APPDATA%\Block\goose\config\custom_providers\`
+
+  </TabItem>
+</Tabs>
 
 ## Using goose for Free
 
@@ -781,13 +1103,12 @@ This method simplifies authentication and enhances security for enterprise envir
 
 Beyond single-model setups, goose supports [multi-model configurations](/docs/guides/multi-model/) that can use different models and providers for specialized tasks:
 
-- **AutoPilot** - Intelligent, context-aware switching between specialized models based on conversation content and complexity
 - **Lead/Worker Model** - Automatic switching between a lead model for initial turns and a worker model for execution tasks
 - **Planning Mode** - Manual planning phase using a dedicated model to create detailed project breakdowns before execution
 
 ---
 
-If you have any questions or need help with a specific provider, feel free to reach out to us on [Discord](https://discord.gg/goose-oss) or on the [Goose repo](https://github.com/block/goose).
+If you have any questions or need help with a specific provider, feel free to reach out to us on [Discord](https://discord.gg/goose-oss) or on the [goose repo](https://github.com/block/goose).
 
 
 [providers]: /docs/getting-started/providers

@@ -29,7 +29,17 @@
       "id": "september-2025",
       "display": "September 2025",
       "file": "september-2025.json"
+    },
+    {
+      "id": "october-2025",
+      "display": "October 2025",
+      "file": "october-2025.json"
+    },
+    {
+      "id": "november-2025",
+      "display": "November 2025",
+      "file": "november-2025.json"
     }
   ],
-  "defaultMonth": "september-2025"
+  "defaultMonth": "november-2025"
 }

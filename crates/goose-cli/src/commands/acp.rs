@@ -11,7 +11,7 @@ use goose::mcp_utils::ToolResult;
 use goose::providers::create;
 use goose::session::session_manager::SessionType;
 use goose::session::SessionManager;
-use rmcp::model::{Content, RawContent, ResourceContents};
+use rmcp::model::{CallToolResult, RawContent, ResourceContents, Role};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::sync::Arc;
@@ -74,8 +74,8 @@ fn extract_tool_locations(
                 .and_then(|c| c.as_str());
 
             // Extract line numbers from the response content
-            if let Ok(content_items) = &tool_response.tool_result {
-                for content in content_items {
+            if let Ok(result) = &tool_response.tool_result {
+                for content in &result.content {
                     if let RawContent::Text(text_content) = &content.raw {
                         let text = &text_content.text;
 
@@ -230,18 +230,22 @@ impl GooseAcpAgent {
         };
         let provider = create(&provider_name, model_config).await?;
 
-        // Create a shared agent instance
-        let agent = Agent::new();
-        agent.update_provider(provider.clone()).await?;
+        let session = SessionManager::create_session(
+            std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
+            "ACP Session".to_string(),
+            SessionType::Hidden,
+        )
+        .await?;
 
-        // Load and add extensions just like the normal CLI
+        let agent = Agent::new();
+        agent.update_provider(provider.clone(), &session.id).await?;
+
         let extensions_to_run: Vec<_> = get_all_extensions()
             .into_iter()
             .filter(|ext| ext.enabled)
             .map(|ext| ext.config)
             .collect();
 
-        // Add extensions to the agent in parallel
         let agent_ptr = Arc::new(agent);
         let mut set = JoinSet::new();
         let mut waiting_on = HashSet::new();
@@ -257,7 +261,6 @@ impl GooseAcpAgent {
             });
         }
 
-        // Wait for all extensions to load
         while let Some(result) = set.join_next().await {
             match result {
                 Ok((name, Ok(_))) => {
@@ -274,7 +277,6 @@ impl GooseAcpAgent {
             }
         }
 
-        // Unwrap the Arc to get the agent back
         let agent = Arc::try_unwrap(agent_ptr)
             .map_err(|_| anyhow::anyhow!("Failed to unwrap agent Arc"))?;
 
@@ -489,9 +491,10 @@ impl GooseAcpAgent {
 }
 
 /// Build tool call content from tool result
-fn build_tool_call_content(tool_result: &ToolResult<Vec<Content>>) -> Vec<ToolCallContent> {
+fn build_tool_call_content(tool_result: &ToolResult<CallToolResult>) -> Vec<ToolCallContent> {
     match tool_result {
-        Ok(content_items) => content_items
+        Ok(result) => result
+            .content
             .iter()
             .filter_map(|content| match &content.raw {
                 RawContent::Text(val) => Some(ToolCallContent::Content {
@@ -568,7 +571,7 @@ impl acp::Agent for GooseAcpAgent {
 
         // Advertise Goose's capabilities
         let agent_capabilities = acp::AgentCapabilities {
-            load_session: false, // TODO: Implement session persistence
+            load_session: true,
             prompt_capabilities: acp::PromptCapabilities {
                 image: true,            // Goose supports image inputs via providers
                 audio: false,           // TODO: Add audio support when providers support it
@@ -605,8 +608,12 @@ impl acp::Agent for GooseAcpAgent {
     ) -> Result<acp::NewSessionResponse, acp::Error> {
         info!("ACP: Received new session request {:?}", args);
 
-        // Generate a unique session ID
-        let session_id = uuid::Uuid::new_v4().to_string();
+        let goose_session = SessionManager::create_session(
+            std::env::current_dir().unwrap_or_default(),
+            "ACP Session".to_string(), // just an initial name - may be replaced by maybe_update_name
+            SessionType::User,
+        )
+        .await?;
 
         let session = GooseAcpSession {
             messages: Conversation::new_unvalidated(Vec::new()),
@@ -615,15 +622,14 @@ impl acp::Agent for GooseAcpAgent {
             cancel_token: None,
         };
 
-        // Store the session
         let mut sessions = self.sessions.lock().await;
-        sessions.insert(session_id.clone(), session);
+        sessions.insert(goose_session.id.clone(), session);
 
-        info!("Created new session with ID: {}", session_id);
+        info!("Created new ACP/goose session {}", goose_session.id);
 
         Ok(acp::NewSessionResponse {
-            session_id: acp::SessionId(session_id.into()),
-            modes: None, // TODO: Implement session modes if needed
+            session_id: acp::SessionId(goose_session.id.into()),
+            modes: None,
             meta: None,
         })
     }
@@ -633,31 +639,114 @@ impl acp::Agent for GooseAcpAgent {
         args: acp::LoadSessionRequest,
     ) -> Result<acp::LoadSessionResponse, acp::Error> {
         info!("ACP: Received load session request {:?}", args);
-        // For now, will start a new session. We could use goose session storage as an enhancement
-        // we would need to map ACP session IDs to goose session ids (which by default are auto generated)
-        // normal goose session restore in CLI doesn't load conversation visually.
-        //
-        // Example flow:
-        // - Load session file by session_id (might need to map ACP session IDs to Goose session paths)
-        // - For each message in history:
-        //   - If user message: send user_message_chunk notification
-        //   - If assistant message: send agent_message_chunk notification
-        //   - If tool calls/responses: send appropriate notifications
 
-        // For now, we don't support loading previous sessions
-        Err(acp::Error::method_not_found())
+        let session_id = args.session_id.0.to_string();
+
+        let goose_session = SessionManager::get_session(&session_id, true)
+            .await
+            .map_err(|e| {
+                error!("Failed to load session {}: {}", session_id, e);
+                acp::Error::invalid_params()
+            })?;
+
+        let conversation = goose_session.conversation.ok_or_else(|| {
+            error!("Session {} has no conversation data", session_id);
+            acp::Error::internal_error()
+        })?;
+
+        SessionManager::update_session(&session_id)
+            .working_dir(args.cwd.clone())
+            .apply()
+            .await
+            .map_err(|e| {
+                error!("Failed to update session working directory: {}", e);
+                acp::Error::internal_error()
+            })?;
+
+        let mut session = GooseAcpSession {
+            messages: conversation.clone(),
+            tool_call_ids: HashMap::new(),
+            tool_requests: HashMap::new(),
+            cancel_token: None,
+        };
+
+        // Replay conversation history to client
+        for message in conversation.messages() {
+            // Only replay user-visible messages
+            if !message.metadata.user_visible {
+                continue;
+            }
+
+            for content_item in &message.content {
+                match content_item {
+                    MessageContent::Text(text) => {
+                        let update = match message.role {
+                            Role::User => acp::SessionUpdate::UserMessageChunk {
+                                content: text.text.clone().into(),
+                            },
+                            Role::Assistant => acp::SessionUpdate::AgentMessageChunk {
+                                content: text.text.clone().into(),
+                            },
+                        };
+                        let (tx, rx) = oneshot::channel();
+                        self.session_update_tx
+                            .send((
+                                SessionNotification {
+                                    session_id: args.session_id.clone(),
+                                    update,
+                                    meta: None,
+                                },
+                                tx,
+                            ))
+                            .map_err(|_| acp::Error::internal_error())?;
+                        rx.await.map_err(|_| acp::Error::internal_error())?;
+                    }
+                    MessageContent::ToolRequest(tool_request) => {
+                        self.handle_tool_request(tool_request, &args.session_id, &mut session)
+                            .await?;
+                    }
+                    MessageContent::ToolResponse(tool_response) => {
+                        self.handle_tool_response(tool_response, &args.session_id, &mut session)
+                            .await?;
+                    }
+                    MessageContent::Thinking(thinking) => {
+                        let (tx, rx) = oneshot::channel();
+                        self.session_update_tx
+                            .send((
+                                SessionNotification {
+                                    session_id: args.session_id.clone(),
+                                    update: acp::SessionUpdate::AgentThoughtChunk {
+                                        content: thinking.thinking.clone().into(),
+                                    },
+                                    meta: None,
+                                },
+                                tx,
+                            ))
+                            .map_err(|_| acp::Error::internal_error())?;
+                        rx.await.map_err(|_| acp::Error::internal_error())?;
+                    }
+                    _ => {
+                        // Ignore other content types
+                    }
+                }
+            }
+        }
+
+        let mut sessions = self.sessions.lock().await;
+        sessions.insert(session_id.clone(), session);
+
+        info!("Loaded ACP session {}", session_id);
+
+        Ok(acp::LoadSessionResponse {
+            modes: None,
+            meta: None,
+        })
     }
 
     async fn prompt(&self, args: acp::PromptRequest) -> Result<acp::PromptResponse, acp::Error> {
-        info!("ACP: Received prompt request {:?}", args);
-
-        // Get the session
         let session_id = args.session_id.0.to_string();
-
-        // Create and store cancellation token for this prompt
         let cancel_token = CancellationToken::new();
 
-        // Store the cancel token in the session BEFORE starting the prompt
         {
             let mut sessions = self.sessions.lock().await;
             let session = sessions
@@ -668,21 +757,13 @@ impl acp::Agent for GooseAcpAgent {
 
         let user_message = self.convert_acp_prompt_to_message(args.prompt);
 
-        let session = SessionManager::create_session(
-            std::env::current_dir().unwrap_or_default(),
-            "ACP Session".to_string(),
-            SessionType::Hidden,
-        )
-        .await?;
-
         let session_config = SessionConfig {
-            id: session.id.clone(),
+            id: session_id.clone(),
             schedule_id: None,
             max_turns: None,
             retry_config: None,
         };
 
-        // Get agent's reply through the Goose agent
         let mut stream = self
             .agent
             .reply(user_message, session_config, Some(cancel_token.clone()))
@@ -694,12 +775,9 @@ impl acp::Agent for GooseAcpAgent {
 
         use futures::StreamExt;
 
-        // Track if we were cancelled
         let mut was_cancelled = false;
 
-        // Process the agent's response stream
         while let Some(event) = stream.next().await {
-            // Check if we've been cancelled
             if cancel_token.is_cancelled() {
                 was_cancelled = true;
                 break;
@@ -707,24 +785,19 @@ impl acp::Agent for GooseAcpAgent {
 
             match event {
                 Ok(goose::agents::AgentEvent::Message(message)) => {
-                    // Re-acquire the lock to add message to conversation
                     let mut sessions = self.sessions.lock().await;
                     let session = sessions
                         .get_mut(&session_id)
                         .ok_or_else(acp::Error::invalid_params)?;
 
-                    // Add to conversation
                     session.messages.push(message.clone());
 
-                    // Process message content, including tool calls
                     for content_item in &message.content {
                         self.handle_message_content(content_item, &args.session_id, session)
                             .await?;
                     }
                 }
-                Ok(_) => {
-                    // Ignore other events for now
-                }
+                Ok(_) => {}
                 Err(e) => {
                     error!("Error in agent response stream: {}", e);
                     return Err(acp::Error::internal_error());
@@ -732,7 +805,6 @@ impl acp::Agent for GooseAcpAgent {
             }
         }
 
-        // Clear the cancel token since we're done
         let mut sessions = self.sessions.lock().await;
         if let Some(session) = sessions.get_mut(&session_id) {
             session.cancel_token = None;
@@ -751,7 +823,6 @@ impl acp::Agent for GooseAcpAgent {
     async fn cancel(&self, args: acp::CancelNotification) -> Result<(), acp::Error> {
         info!("ACP: Received cancel request {:?}", args);
 
-        // Get the session and cancel its active operation
         let session_id = args.session_id.0.to_string();
         let mut sessions = self.sessions.lock().await;
 
@@ -892,7 +963,7 @@ print(\"hello, world\")
             format_tool_name("platform__manage_extensions"),
             "Platform: Manage Extensions"
         );
-        assert_eq!(format_tool_name("todo__read"), "Todo: Read");
+        assert_eq!(format_tool_name("todo__write"), "Todo: Write");
     }
 
     #[test]

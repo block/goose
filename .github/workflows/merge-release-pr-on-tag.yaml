@@ -114,7 +114,7 @@ jobs:
       env:
         BRANCH: ${{ steps.version.outputs.branch }}
       run: |
-        git fetch origin
+        git fetch origin "$BRANCH"
 
         BRANCH_SHA=$(git rev-parse "origin/$BRANCH")
         echo "branch_sha=$BRANCH_SHA" >> $GITHUB_OUTPUT

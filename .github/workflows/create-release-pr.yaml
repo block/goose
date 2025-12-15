@@ -58,7 +58,9 @@ jobs:
 
         just prepare-release $VERSION
         BRANCH_NAME=$(git branch --show-current)
+        HEAD_REF=$(git rev-parse HEAD)
         echo "branch_name=$BRANCH_NAME" >> $GITHUB_ENV
+        echo "head_ref=$HEAD_REF" >> $GITHUB_ENV
         echo "Branch: $BRANCH_NAME"
 
     - name: push release branch
@@ -69,7 +71,7 @@ jobs:
       uses: ./.github/actions/generate-release-pr-body
       with:
         version: ${{ env.version }}
-        head_ref: ${{ github.event.pull_request.head.sha || github.sha }}
+        head_ref: ${{ env.head_ref }}
         prior_ref: ${{ env.prior_ref }}
 
     - name: Create Pull Request

@@ -24,7 +24,8 @@ pub fn prepare_log_directory(component: &str, use_date_subdir: bool) -> Result<P
         component_dir
     };
 
-    fs::create_dir_all(&log_dir).context("Failed to create log directory")?;
+    fs::create_dir_all(&log_dir)
+        .with_context(|| format!("Failed to create log directory: {:?}", log_dir))?;
 
     Ok(log_dir)
 }
