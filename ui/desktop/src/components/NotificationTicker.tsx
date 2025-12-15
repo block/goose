@@ -28,7 +28,7 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
   items = defaultItems,
   speed = 50,
   className,
-  height = 48, // Increased from 32 to 48
+  height = 32, // Reduced back to 32 for smaller text
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -130,7 +130,7 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
         // Add some visual emphasis
         'shadow-lg shadow-green-500/20',
         // Ensure it's visible
-        'min-h-[56px]',
+        'min-h-[32px]',
         className
       )}
       style={{ 

@@ -478,7 +478,7 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
         {/* Notification Ticker - Always at the very top */}
         <NotificationTicker 
           items={ticker.items} 
-          height={56} 
+          height={32} 
           className="z-[10001]" 
         />
         
