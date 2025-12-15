@@ -124,7 +124,7 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
       ref={containerRef}
       className={cn(
         'relative overflow-hidden bg-black border-b-2 border-green-500/50',
-        'font-mono text-base leading-none font-bold',
+        'font-mono text-xs leading-none font-bold',
         // Pixelated effect
         'image-rendering-pixelated',
         // Add some visual emphasis
@@ -150,8 +150,8 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
       </div>
 
       {/* Time display - fixed on the left */}
-      <div className="absolute left-0 top-0 h-full flex items-center px-4 bg-black/90 border-r-2 border-green-500/50 z-10">
-        <span className="text-green-400 font-bold text-sm tracking-wider">
+      <div className="absolute left-0 top-0 h-full flex items-center px-3 bg-black/90 border-r-2 border-green-500/50 z-10">
+        <span className="text-green-400 font-bold text-xs tracking-wider image-rendering-pixelated">
           {formatTime()}
         </span>
       </div>
@@ -167,19 +167,19 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
         >
           {items.map((item, index) => (
             <React.Fragment key={`${item.id}-${index}`}>
-              <span className={cn('px-4 font-bold tracking-wide', getTypeColor(item.type))}>
+              <span className={cn('px-3 font-bold tracking-wide text-xs image-rendering-pixelated', getTypeColor(item.type))}>
                 {item.text}
               </span>
-              <span className="text-green-500 px-2">●</span>
+              <span className="text-green-500 px-2 text-xs">●</span>
             </React.Fragment>
           ))}
           {/* Duplicate content for seamless loop */}
           {items.map((item, index) => (
             <React.Fragment key={`${item.id}-duplicate-${index}`}>
-              <span className={cn('px-4 font-bold tracking-wide', getTypeColor(item.type))}>
+              <span className={cn('px-3 font-bold tracking-wide text-xs image-rendering-pixelated', getTypeColor(item.type))}>
                 {item.text}
               </span>
-              <span className="text-green-500 px-2">●</span>
+              <span className="text-green-500 px-2 text-xs">●</span>
             </React.Fragment>
           ))}
         </div>

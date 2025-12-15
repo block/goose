@@ -807,6 +807,12 @@ p > code.bg-inline-code {
   image-rendering: pixelated;
   image-rendering: -moz-crisp-edges;
   image-rendering: crisp-edges;
+  font-smooth: never;
+  -webkit-font-smoothing: none;
+  -moz-osx-font-smoothing: unset;
+  text-rendering: optimizeSpeed;
+  /* Additional pixelated effect */
+  filter: contrast(1.2) brightness(1.1);
 }
 
 /* Terminal scanlines effect */
