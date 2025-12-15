@@ -131,19 +131,39 @@ export type AnalyticsEvent =
     }
   | {
       name: 'extension_added';
-      properties: { extension_name: string; success: boolean; error_details?: string };
+      properties: {
+        extension_name?: string;
+        is_builtin: boolean;
+        success: boolean;
+        error_details?: string;
+      };
     }
   | {
       name: 'extension_enabled';
-      properties: { extension_name: string; success: boolean; error_details?: string };
+      properties: {
+        extension_name?: string;
+        is_builtin: boolean;
+        success: boolean;
+        error_details?: string;
+      };
     }
   | {
       name: 'extension_disabled';
-      properties: { extension_name: string; success: boolean; error_details?: string };
+      properties: {
+        extension_name?: string;
+        is_builtin: boolean;
+        success: boolean;
+        error_details?: string;
+      };
     }
   | {
       name: 'extension_deleted';
-      properties: { extension_name: string; success: boolean; error_details?: string };
+      properties: {
+        extension_name?: string;
+        is_builtin: boolean;
+        success: boolean;
+        error_details?: string;
+      };
     }
   // Chat input bar features
   | { name: 'input_file_attached'; properties: { file_type: 'file' | 'directory' } }
@@ -322,47 +342,76 @@ export function getStackSummary(error: unknown): string | undefined {
 // Extension Tracking
 // ============================================================================
 
+// Only track names for builtin extensions (privacy protection for user-created extensions)
+function getTrackableExtensionName(extensionName: string, isBuiltin: boolean): string | undefined {
+  return isBuiltin ? extensionName : undefined;
+}
+
 export function trackExtensionAdded(
   extensionName: string,
   success: boolean,
-  errorDetails?: string
+  errorDetails?: string,
+  isBuiltin: boolean = false
 ): void {
   trackEvent({
     name: 'extension_added',
-    properties: { extension_name: extensionName, success, error_details: errorDetails },
+    properties: {
+      extension_name: getTrackableExtensionName(extensionName, isBuiltin),
+      is_builtin: isBuiltin,
+      success,
+      error_details: errorDetails,
+    },
   });
 }
 
 export function trackExtensionEnabled(
   extensionName: string,
   success: boolean,
-  errorDetails?: string
+  errorDetails?: string,
+  isBuiltin: boolean = false
 ): void {
   trackEvent({
     name: 'extension_enabled',
-    properties: { extension_name: extensionName, success, error_details: errorDetails },
+    properties: {
+      extension_name: getTrackableExtensionName(extensionName, isBuiltin),
+      is_builtin: isBuiltin,
+      success,
+      error_details: errorDetails,
+    },
   });
 }
 
 export function trackExtensionDisabled(
   extensionName: string,
   success: boolean,
-  errorDetails?: string
+  errorDetails?: string,
+  isBuiltin: boolean = false
 ): void {
   trackEvent({
     name: 'extension_disabled',
-    properties: { extension_name: extensionName, success, error_details: errorDetails },
+    properties: {
+      extension_name: getTrackableExtensionName(extensionName, isBuiltin),
+      is_builtin: isBuiltin,
+      success,
+      error_details: errorDetails,
+    },
   });
 }
 
 export function trackExtensionDeleted(
   extensionName: string,
   success: boolean,
-  errorDetails?: string
+  errorDetails?: string,
+  isBuiltin: boolean = false
 ): void {
   trackEvent({
     name: 'extension_deleted',
-    properties: { extension_name: extensionName, success, error_details: errorDetails },
+    properties: {
+      extension_name: getTrackableExtensionName(extensionName, isBuiltin),
+      is_builtin: isBuiltin,
+      success,
+      error_details: errorDetails,
+    },
   });
 }
 

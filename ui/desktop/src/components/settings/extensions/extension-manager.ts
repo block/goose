@@ -9,6 +9,10 @@ import {
   getErrorType,
 } from '../../../utils/analytics';
 
+function isBuiltinExtension(config: ExtensionConfig): boolean {
+  return config.type === 'builtin';
+}
+
 interface ActivateExtensionProps {
   addToConfig: (name: string, extensionConfig: ExtensionConfig, enabled: boolean) => Promise<void>;
   extensionConfig: ExtensionConfig;
@@ -65,19 +69,21 @@ export async function activateExtension({
   extensionConfig,
   sessionId,
 }: ActivateExtensionProps): Promise<void> {
+  const isBuiltin = isBuiltinExtension(extensionConfig);
+
   try {
     // AddToAgent
     await addToAgent(extensionConfig, sessionId, true);
   } catch (error) {
     console.error('Failed to add extension to agent:', error);
     await addToConfig(extensionConfig.name, extensionConfig, false);
-    trackExtensionAdded(extensionConfig.name, false, getErrorType(error));
+    trackExtensionAdded(extensionConfig.name, false, getErrorType(error), isBuiltin);
     throw error;
   }
 
   try {
     await addToConfig(extensionConfig.name, extensionConfig, true);
-    trackExtensionAdded(extensionConfig.name, true);
+    trackExtensionAdded(extensionConfig.name, true, undefined, isBuiltin);
   } catch (error) {
     console.error('Failed to add extension to config:', error);
     // remove from Agent
@@ -86,7 +92,7 @@ export async function activateExtension({
     } catch (removeError) {
       console.error('Failed to remove extension from agent after config failure:', removeError);
     }
-    trackExtensionAdded(extensionConfig.name, false, getErrorType(error));
+    trackExtensionAdded(extensionConfig.name, false, getErrorType(error), isBuiltin);
     // Rethrow the error to inform the caller
     throw error;
   }
@@ -262,6 +268,8 @@ export async function toggleExtension({
   toastOptions = {},
   sessionId,
 }: ToggleExtensionProps) {
+  const isBuiltin = isBuiltinExtension(extensionConfig);
+
   // disabled to enabled
   if (toggle == 'toggleOn') {
     try {
@@ -269,7 +277,7 @@ export async function toggleExtension({
       await addToAgent(extensionConfig, sessionId, !toastOptions?.silent);
     } catch (error) {
       console.error('Error adding extension to agent. Attempting to toggle back off.');
-      trackExtensionEnabled(extensionConfig.name, false, getErrorType(error));
+      trackExtensionEnabled(extensionConfig.name, false, getErrorType(error), isBuiltin);
       try {
         await toggleExtension({
           toggle: 'toggleOff',
@@ -287,10 +295,10 @@ export async function toggleExtension({
     // update the config
     try {
       await addToConfig(extensionConfig.name, extensionConfig, true);
-      trackExtensionEnabled(extensionConfig.name, true);
+      trackExtensionEnabled(extensionConfig.name, true, undefined, isBuiltin);
     } catch (error) {
       console.error('Failed to update config after enabling extension:', error);
-      trackExtensionEnabled(extensionConfig.name, false, getErrorType(error));
+      trackExtensionEnabled(extensionConfig.name, false, getErrorType(error), isBuiltin);
       // remove from agent
       try {
         await removeFromAgent(extensionConfig.name, sessionId, !toastOptions?.silent);
@@ -314,13 +322,18 @@ export async function toggleExtension({
     try {
       await addToConfig(extensionConfig.name, extensionConfig, false);
       if (agentRemoveError) {
-        trackExtensionDisabled(extensionConfig.name, false, getErrorType(agentRemoveError));
+        trackExtensionDisabled(
+          extensionConfig.name,
+          false,
+          getErrorType(agentRemoveError),
+          isBuiltin
+        );
       } else {
-        trackExtensionDisabled(extensionConfig.name, true);
+        trackExtensionDisabled(extensionConfig.name, true, undefined, isBuiltin);
       }
     } catch (error) {
       console.error('Error removing extension from config', extensionConfig.name, 'Error:', error);
-      trackExtensionDisabled(extensionConfig.name, false, getErrorType(error));
+      trackExtensionDisabled(extensionConfig.name, false, getErrorType(error), isBuiltin);
       throw error;
     }
 
@@ -335,12 +348,20 @@ interface DeleteExtensionProps {
   name: string;
   removeFromConfig: (name: string) => Promise<void>;
   sessionId: string;
+  extensionConfig?: ExtensionConfig;
 }
 
 /**
  * Deletes an extension completely from both agent and config
  */
-export async function deleteExtension({ name, removeFromConfig, sessionId }: DeleteExtensionProps) {
+export async function deleteExtension({
+  name,
+  removeFromConfig,
+  sessionId,
+  extensionConfig,
+}: DeleteExtensionProps) {
+  const isBuiltin = extensionConfig ? isBuiltinExtension(extensionConfig) : false;
+
   let agentRemoveError = null;
   try {
     await removeFromAgent(name, sessionId, true);
@@ -352,16 +373,16 @@ export async function deleteExtension({ name, removeFromConfig, sessionId }: Del
   try {
     await removeFromConfig(name);
     if (agentRemoveError) {
-      trackExtensionDeleted(name, false, getErrorType(agentRemoveError));
+      trackExtensionDeleted(name, false, getErrorType(agentRemoveError), isBuiltin);
     } else {
-      trackExtensionDeleted(name, true);
+      trackExtensionDeleted(name, true, undefined, isBuiltin);
     }
   } catch (error) {
     console.error(
       'Failed to remove extension from config after removing from agent. Error:',
       error
     );
-    trackExtensionDeleted(name, false, getErrorType(error));
+    trackExtensionDeleted(name, false, getErrorType(error), isBuiltin);
     throw error;
   }
 
