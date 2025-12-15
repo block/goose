@@ -418,7 +418,7 @@ fn format_message_for_compacting(msg: &Message) -> String {
     }
 }
 
-/// Find the id of a  tool call to summarize. We only do this if we have more than
+/// Find the id of a tool call to summarize. We only do this if we have more than
 /// cutoff tool calls that aren't summarized yet
 pub fn tool_id_to_summarize(conversation: &Conversation, cutoff: usize) -> Option<String> {
     let messages = conversation.messages();
