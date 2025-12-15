@@ -95,6 +95,8 @@ impl ClassificationClient {
         timeout_ms: Option<u64>,
         auth_token: Option<String>,
     ) -> Result<Self> {
+        let endpoint_url = endpoint_url.trim().to_string();
+
         Url::parse(&endpoint_url)
             .context("Invalid endpoint URL format. Must be a valid HTTP/HTTPS URL")?;
 
