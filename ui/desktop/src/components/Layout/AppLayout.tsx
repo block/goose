@@ -328,9 +328,34 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
     return () => window.removeEventListener('open-sidecar-localhost', handler);
   }, [sidecar]);
 
-  // Add ticker updates based on navigation changes and system events
+  // Add Matrix-related notifications and demo content
   useEffect(() => {
-    // Update ticker when route changes
+    // Simulate Matrix notifications for demo purposes
+    const demoNotifications = [
+      () => ticker.addSessionInvitation('project-gamma', 'david'),
+      () => ticker.addMessageNotification('eve', 'design-team', 2),
+      () => ticker.addSessionJoined('frank', 'standup-meeting'),
+      () => ticker.addSessionWaiting('code-review-session', 3),
+      () => ticker.addConnectionStatus('connected'),
+    ];
+
+    // Add initial demo notification
+    setTimeout(() => {
+      const randomNotification = demoNotifications[Math.floor(Math.random() * demoNotifications.length)];
+      randomNotification();
+    }, 2000);
+
+    // Add periodic demo notifications
+    const interval = setInterval(() => {
+      const randomNotification = demoNotifications[Math.floor(Math.random() * demoNotifications.length)];
+      randomNotification();
+    }, 15000); // Every 15 seconds
+
+    return () => clearInterval(interval);
+  }, []); // Removed ticker from dependencies
+
+  // Add route change notifications
+  useEffect(() => {
     const routeNames: Record<string, string> = {
       '/': 'hub',
       '/pair': 'chat',
@@ -344,41 +369,15 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
     };
     
     const currentRoute = routeNames[location.pathname] || 'unknown';
-    ticker.addItem({
-      text: `section: ${currentRoute}`,
-      type: 'info'
-    });
-  }, [location.pathname]); // Removed ticker from dependencies
-
-  // Add ticker updates for sidecar changes
-  useEffect(() => {
-    if (sidecar?.activeViews.length) {
+    
+    // Only add route notifications for Matrix-related sections
+    if (currentRoute === 'sessions' || currentRoute === 'peers' || currentRoute === 'channels') {
       ticker.addItem({
-        text: `sidecars active: ${sidecar.activeViews.length}`,
-        type: 'success'
+        text: `navigated to ${currentRoute}`,
+        type: 'info'
       });
     }
-  }, [sidecar?.activeViews.length]); // Removed ticker from dependencies
-
-  // Add periodic system status updates
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const memoryUsage = Math.floor(Math.random() * 30) + 40; // Mock memory usage 40-70%
-      const activeConnections = Math.floor(Math.random() * 5) + 1; // Mock 1-6 connections
-      
-      ticker.addItem({
-        text: `mem: ${memoryUsage}%`,
-        type: memoryUsage > 60 ? 'warning' : 'info'
-      });
-      
-      ticker.addItem({
-        text: `connections: ${activeConnections}`,
-        type: 'neutral'
-      });
-    }, 30000); // Update every 30 seconds
-
-    return () => clearInterval(interval);
-  }, []); // Removed ticker from dependencies
+  }, [location.pathname]); // Removed ticker from dependencies
 
   // Determine layout direction based on navigation position (only for push mode)
   const isHorizontalNav = navigationPosition === 'top' || navigationPosition === 'bottom';

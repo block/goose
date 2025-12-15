@@ -4,8 +4,10 @@ import { cn } from '../utils';
 interface TickerItem {
   id: string;
   text: string;
-  type?: 'info' | 'warning' | 'error' | 'success' | 'neutral';
+  type?: 'info' | 'warning' | 'error' | 'success' | 'neutral' | 'notification' | 'invitation';
   timestamp?: Date;
+  priority?: 'low' | 'medium' | 'high';
+  actionable?: boolean;
 }
 
 interface NotificationTickerProps {
@@ -16,12 +18,12 @@ interface NotificationTickerProps {
 }
 
 const defaultItems: TickerItem[] = [
-  { id: '1', text: 'goose ai agent online', type: 'success' },
-  { id: '2', text: 'system status: operational', type: 'info' },
-  { id: '3', text: 'extensions loaded: 12', type: 'info' },
-  { id: '4', text: 'last sync: 2 min ago', type: 'neutral' },
-  { id: '5', text: 'memory usage: 45%', type: 'info' },
-  { id: '6', text: 'active sessions: 3', type: 'success' },
+  { id: '1', text: 'matrix: connected', type: 'success', priority: 'high' },
+  { id: '2', text: 'session invitation from alice: project-alpha', type: 'invitation', priority: 'high', actionable: true },
+  { id: '3', text: 'new message from bob in dev-team', type: 'notification', priority: 'medium', actionable: true },
+  { id: '4', text: 'charlie joined project-beta', type: 'success', priority: 'low' },
+  { id: '5', text: 'session waiting: code-review (2 participants)', type: 'invitation', priority: 'high', actionable: true },
+  { id: '6', text: '3 new messages from team in general', type: 'notification', priority: 'medium', actionable: true },
 ];
 
 export const NotificationTicker: React.FC<NotificationTickerProps> = ({
@@ -212,12 +214,82 @@ export const useNotificationTicker = () => {
     });
   }, [addItem]);
 
+  // Matrix-specific notification functions
+  const addSessionInvitation = useCallback((sessionName: string, inviterName: string) => {
+    addItem({
+      text: `session invitation from ${inviterName.toLowerCase()}: ${sessionName.toLowerCase()}`,
+      type: 'invitation',
+      priority: 'high',
+      actionable: true,
+    });
+  }, [addItem]);
+
+  const addMessageNotification = useCallback((senderName: string, sessionName: string, messageCount: number = 1) => {
+    const messageText = messageCount === 1 
+      ? `new message from ${senderName.toLowerCase()} in ${sessionName.toLowerCase()}`
+      : `${messageCount} new messages from ${senderName.toLowerCase()} in ${sessionName.toLowerCase()}`;
+    
+    addItem({
+      text: messageText,
+      type: 'notification',
+      priority: 'medium',
+      actionable: true,
+    });
+  }, [addItem]);
+
+  const addSessionJoined = useCallback((userName: string, sessionName: string) => {
+    addItem({
+      text: `${userName.toLowerCase()} joined ${sessionName.toLowerCase()}`,
+      type: 'success',
+      priority: 'low',
+    });
+  }, [addItem]);
+
+  const addSessionLeft = useCallback((userName: string, sessionName: string) => {
+    addItem({
+      text: `${userName.toLowerCase()} left ${sessionName.toLowerCase()}`,
+      type: 'neutral',
+      priority: 'low',
+    });
+  }, [addItem]);
+
+  const addConnectionStatus = useCallback((status: 'connected' | 'disconnected' | 'reconnecting') => {
+    const statusMessages = {
+      connected: { text: 'matrix: connected', type: 'success' as const },
+      disconnected: { text: 'matrix: disconnected', type: 'error' as const },
+      reconnecting: { text: 'matrix: reconnecting...', type: 'warning' as const },
+    };
+    
+    const { text, type } = statusMessages[status];
+    addItem({
+      text,
+      type,
+      priority: 'high',
+    });
+  }, [addItem]);
+
+  const addSessionWaiting = useCallback((sessionName: string, participantCount: number) => {
+    addItem({
+      text: `session waiting: ${sessionName.toLowerCase()} (${participantCount} participants)`,
+      type: 'invitation',
+      priority: 'high',
+      actionable: true,
+    });
+  }, [addItem]);
+
   return {
     items,
     addItem,
     removeItem,
     clearItems,
     updateSystemStatus,
+    // Matrix-specific functions
+    addSessionInvitation,
+    addMessageNotification,
+    addSessionJoined,
+    addSessionLeft,
+    addConnectionStatus,
+    addSessionWaiting,
   };
 };
 
