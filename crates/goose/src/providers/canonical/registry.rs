@@ -83,6 +83,48 @@ impl CanonicalModelRegistry {
     pub fn contains(&self, name: &str) -> bool {
         self.models.contains_key(name)
     }
+
+    /// Get pricing for a specific provider/model combination
+    /// Returns (input_cost, output_cost, context_length) if found
+    pub fn get_model_pricing(
+        &self,
+        provider: &str,
+        model: &str,
+    ) -> Option<(f64, f64, Option<u32>)> {
+        // Try to map to canonical model first
+        let canonical_id = super::map_to_canonical_model(provider, model, self)?;
+        let model = self.get(&canonical_id)?;
+
+        let prompt = model.pricing.prompt?;
+        let completion = model.pricing.completion?;
+        let context_length = model.context_length as u32;
+
+        Some((prompt, completion, Some(context_length)))
+    }
+
+    /// Get all pricing data organized by provider
+    /// Returns HashMap<provider, HashMap<model_name, (input_cost, output_cost, context_length)>>
+    pub fn get_all_pricing(&self) -> HashMap<String, HashMap<String, (f64, f64, Option<u32>)>> {
+        let mut result: HashMap<String, HashMap<String, (f64, f64, Option<u32>)>> =
+            HashMap::new();
+
+        for model in self.models.values() {
+            // Parse canonical ID to get provider and model name
+            if let Some((provider, model_name)) = model.id.split_once('/') {
+                if let (Some(prompt), Some(completion)) =
+                    (model.pricing.prompt, model.pricing.completion)
+                {
+                    let provider_models = result.entry(provider.to_string()).or_default();
+                    provider_models.insert(
+                        model_name.to_string(),
+                        (prompt, completion, Some(model.context_length as u32)),
+                    );
+                }
+            }
+        }
+
+        result
+    }
 }
 
 impl Default for CanonicalModelRegistry {

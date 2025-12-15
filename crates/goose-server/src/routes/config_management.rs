@@ -13,10 +13,8 @@ use goose::config::{Config, ConfigError};
 use goose::model::ModelConfig;
 use goose::providers::auto_detect::detect_provider_from_api_key;
 use goose::providers::base::{ProviderMetadata, ProviderType};
+use goose::providers::canonical::{get_all_pricing, get_model_pricing, parse_model_id};
 use goose::providers::create_with_default_model;
-use goose::providers::pricing::{
-    get_all_pricing, get_model_pricing, parse_model_id, refresh_pricing,
-};
 use goose::providers::providers as get_providers;
 use goose::{agents::ExtensionConfig, config::permission::PermissionLevel, slash_commands};
 use http::StatusCode;
@@ -479,28 +477,21 @@ pub async fn get_pricing(
 ) -> Result<Json<PricingResponse>, StatusCode> {
     let configured_only = query.configured_only;
 
-    // If refresh requested (configured_only = false), refresh the cache
-    if !configured_only {
-        if let Err(e) = refresh_pricing().await {
-            tracing::error!("Failed to refresh pricing data: {}", e);
-        }
-    }
-
     let mut pricing_data = Vec::new();
 
     if !configured_only {
-        // Get ALL pricing data from the cache
-        let all_pricing = get_all_pricing().await;
+        // Get ALL pricing data from canonical models
+        let all_pricing = get_all_pricing();
 
         for (provider, models) in all_pricing {
-            for (model, pricing) in models {
+            for (model, (input_cost, output_cost, context_length)) in models {
                 pricing_data.push(PricingData {
                     provider: provider.clone(),
                     model: model.clone(),
-                    input_token_cost: pricing.input_cost,
-                    output_token_cost: pricing.output_cost,
+                    input_token_cost: input_cost,
+                    output_token_cost: output_cost,
                     currency: "$".to_string(),
-                    context_length: pricing.context_length,
+                    context_length,
                 });
             }
         }
@@ -526,15 +517,17 @@ pub async fn get_pricing(
                     (metadata.name.clone(), model_info.name.clone())
                 };
 
-                // Only get pricing from OpenRouter cache
-                if let Some(pricing) = get_model_pricing(&lookup_provider, &lookup_model).await {
+                // Get pricing from canonical models
+                if let Some((input_cost, output_cost, context_length)) =
+                    get_model_pricing(&lookup_provider, &lookup_model)
+                {
                     pricing_data.push(PricingData {
                         provider: metadata.name.clone(),
                         model: model_info.name.clone(),
-                        input_token_cost: pricing.input_cost,
-                        output_token_cost: pricing.output_cost,
+                        input_token_cost: input_cost,
+                        output_token_cost: output_cost,
                         currency: "$".to_string(),
-                        context_length: pricing.context_length,
+                        context_length,
                     });
                 }
                 // No fallback to hardcoded prices
@@ -554,7 +547,7 @@ pub async fn get_pricing(
 
     Ok(Json(PricingResponse {
         pricing: pricing_data,
-        source: "openrouter".to_string(),
+        source: "canonical".to_string(),
     }))
 }
 

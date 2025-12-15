@@ -5,8 +5,7 @@ use goose::config::Config;
 use goose::conversation::message::{
     ActionRequiredData, Message, MessageContent, ToolRequest, ToolResponse,
 };
-use goose::providers::pricing::get_model_pricing;
-use goose::providers::pricing::parse_model_id;
+use goose::providers::canonical::{get_model_pricing, parse_model_id};
 use goose::utils::safe_truncate;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use regex::Regex;
@@ -818,7 +817,7 @@ fn normalize_model_name(model: &str) -> String {
     result
 }
 
-async fn estimate_cost_usd(
+fn estimate_cost_usd(
     provider: &str,
     model: &str,
     input_tokens: usize,
@@ -836,14 +835,14 @@ async fn estimate_cost_usd(
         None => (provider, model),
     };
 
-    // Use the pricing module's get_model_pricing which handles model name mapping internally
+    // Use canonical model pricing which handles model name mapping internally
     let cleaned_model = normalize_model_name(model_to_use);
-    let pricing_info = get_model_pricing(provider_to_use, &cleaned_model).await;
+    let pricing_info = get_model_pricing(provider_to_use, &cleaned_model);
 
     match pricing_info {
-        Some(pricing) => {
-            let input_cost = pricing.input_cost * input_tokens as f64;
-            let output_cost = pricing.output_cost * output_tokens as f64;
+        Some((input_cost_per_token, output_cost_per_token, _context_length)) => {
+            let input_cost = input_cost_per_token * input_tokens as f64;
+            let output_cost = output_cost_per_token * output_tokens as f64;
             Some(input_cost + output_cost)
         }
         None => None,
@@ -851,13 +850,13 @@ async fn estimate_cost_usd(
 }
 
 /// Display cost information, if price data is available.
-pub async fn display_cost_usage(
+pub fn display_cost_usage(
     provider: &str,
     model: &str,
     input_tokens: usize,
     output_tokens: usize,
 ) {
-    if let Some(cost) = estimate_cost_usd(provider, model, input_tokens, output_tokens).await {
+    if let Some(cost) = estimate_cost_usd(provider, model, input_tokens, output_tokens) {
         use console::style;
         eprintln!(
             "Cost: {} USD ({} tokens: in {}, out {})",
