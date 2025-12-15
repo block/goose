@@ -2,7 +2,6 @@ import { useCallback, useRef, useState } from 'react';
 import { useConfig } from '../components/ConfigContext';
 import { ChatType } from '../types/chat';
 import { initializeSystem } from '../utils/providerUtils';
-import { initializeCostDatabase } from '../utils/costDatabase';
 import {
   backupConfig,
   initConfig,
@@ -235,13 +234,7 @@ export function useAgent(): UseAgentReturn {
             recipe: recipeForInit,
           });
 
-          if (COST_TRACKING_ENABLED) {
-            try {
-              await initializeCostDatabase();
-            } catch (error) {
-              console.error('Failed to initialize cost database:', error);
-            }
-          }
+          // Cost tracking enabled - no initialization needed
 
           const recipe = initContext.recipe || agentSession.recipe;
           const conversation = agentSession.conversation || [];

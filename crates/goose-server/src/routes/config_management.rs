@@ -13,7 +13,7 @@ use goose::config::{Config, ConfigError};
 use goose::model::ModelConfig;
 use goose::providers::auto_detect::detect_provider_from_api_key;
 use goose::providers::base::{ProviderMetadata, ProviderType};
-use goose::providers::canonical::{all_canonical_models, maybe_get_canonical_model};
+use goose::providers::canonical::maybe_get_canonical_model;
 use goose::providers::create_with_default_model;
 use goose::providers::providers as get_providers;
 use goose::{agents::ExtensionConfig, config::permission::PermissionLevel, slash_commands};
@@ -461,7 +461,8 @@ pub struct PricingResponse {
 
 #[derive(Deserialize, ToSchema)]
 pub struct PricingQuery {
-    pub configured_only: bool,
+    pub provider: String,
+    pub model: String,
 }
 
 #[utoipa::path(
@@ -475,66 +476,25 @@ pub struct PricingQuery {
 pub async fn get_pricing(
     Json(query): Json<PricingQuery>,
 ) -> Result<Json<PricingResponse>, StatusCode> {
-    let configured_only = query.configured_only;
+    // Try to get canonical model for the specific provider/model
+    let canonical_model = maybe_get_canonical_model(&query.provider, &query.model)
+        .ok_or(StatusCode::NOT_FOUND)?;
 
     let mut pricing_data = Vec::new();
 
-    if !configured_only {
-        // Get ALL pricing data from canonical models
-        for canonical_model in all_canonical_models() {
-            // Parse canonical ID to get provider and model name
-            if let Some((provider, model_name)) = canonical_model.id.split_once('/') {
-                if let (Some(input_cost), Some(output_cost)) =
-                    (canonical_model.pricing.prompt, canonical_model.pricing.completion)
-                {
-                    pricing_data.push(PricingData {
-                        provider: provider.to_string(),
-                        model: model_name.to_string(),
-                        input_token_cost: input_cost,
-                        output_token_cost: output_cost,
-                        currency: "$".to_string(),
-                        context_length: Some(canonical_model.context_length as u32),
-                    });
-                }
-            }
-        }
-    } else {
-        for (metadata, provider_type) in get_providers().await {
-            // Skip unconfigured providers if filtering
-            if !check_provider_configured(&metadata, provider_type) {
-                continue;
-            }
-
-            for model_info in &metadata.known_models {
-                // Try to get canonical model - returns None if model not found
-                // For OpenRouter, model is already in "provider/model" format and map_to_canonical_model handles it
-                if let Some(canonical_model) = maybe_get_canonical_model(&metadata.name, &model_info.name) {
-                    if let (Some(input_cost), Some(output_cost)) =
-                        (canonical_model.pricing.prompt, canonical_model.pricing.completion)
-                    {
-                        pricing_data.push(PricingData {
-                            provider: metadata.name.clone(),
-                            model: model_info.name.clone(),
-                            input_token_cost: input_cost,
-                            output_token_cost: output_cost,
-                            currency: "$".to_string(),
-                            context_length: Some(canonical_model.context_length as u32),
-                        });
-                    }
-                }
-            }
-        }
+    // Extract pricing from canonical model
+    if let (Some(input_cost), Some(output_cost)) =
+        (canonical_model.pricing.prompt, canonical_model.pricing.completion)
+    {
+        pricing_data.push(PricingData {
+            provider: query.provider.clone(),
+            model: query.model.clone(),
+            input_token_cost: input_cost,
+            output_token_cost: output_cost,
+            currency: "$".to_string(),
+            context_length: Some(canonical_model.context_length as u32),
+        });
     }
-
-    tracing::debug!(
-        "Returning pricing for {} models{}",
-        pricing_data.len(),
-        if configured_only {
-            " (configured providers only)"
-        } else {
-            " (all canonical models)"
-        }
-    );
 
     Ok(Json(PricingResponse {
         pricing: pricing_data,
