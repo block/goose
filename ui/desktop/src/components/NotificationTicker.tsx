@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { cn } from '../utils';
 
 interface TickerItem {
@@ -200,29 +200,33 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
 export const useNotificationTicker = () => {
   const [items, setItems] = useState<TickerItem[]>(defaultItems);
 
-  const addItem = (item: Omit<TickerItem, 'id' | 'timestamp'>) => {
+  const addItem = useCallback((item: Omit<TickerItem, 'id' | 'timestamp'>) => {
     const newItem: TickerItem = {
       ...item,
       id: `ticker-${Date.now()}-${Math.random()}`,
       timestamp: new Date(),
     };
-    setItems(prev => [...prev, newItem]);
-  };
+    setItems(prev => {
+      // Limit the number of items to prevent infinite growth
+      const newItems = [...prev, newItem];
+      return newItems.length > 20 ? newItems.slice(-20) : newItems;
+    });
+  }, []);
 
-  const removeItem = (id: string) => {
+  const removeItem = useCallback((id: string) => {
     setItems(prev => prev.filter(item => item.id !== id));
-  };
+  }, []);
 
-  const clearItems = () => {
-    setItems([]);
-  };
+  const clearItems = useCallback(() => {
+    setItems(defaultItems); // Reset to default items instead of empty
+  }, []);
 
-  const updateSystemStatus = (status: string, type: TickerItem['type'] = 'info') => {
+  const updateSystemStatus = useCallback((status: string, type: TickerItem['type'] = 'info') => {
     addItem({
       text: `SYSTEM: ${status.toUpperCase()}`,
       type,
     });
-  };
+  }, [addItem]);
 
   return {
     items,

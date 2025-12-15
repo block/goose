@@ -47,10 +47,10 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
   // Notification ticker
   const ticker = useNotificationTicker();
   
-  // Debug log to ensure ticker is initialized
+  // Debug log to ensure ticker is initialized (only once)
   useEffect(() => {
-    console.log('🎯 AppLayout ticker initialized with items:', ticker.items.length);
-  }, [ticker.items]);
+    console.log('🎯 AppLayout ticker initialized');
+  }, []);
   const [navigationPosition, setNavigationPosition] = useState<NavigationPosition>(() => {
     const stored = localStorage.getItem('navigation_position');
     return (stored as NavigationPosition) || 'top';
@@ -348,7 +348,7 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
       text: `SECTION: ${currentRoute}`,
       type: 'info'
     });
-  }, [location.pathname, ticker]);
+  }, [location.pathname]); // Removed ticker from dependencies
 
   // Add ticker updates for sidecar changes
   useEffect(() => {
@@ -358,7 +358,7 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
         type: 'success'
       });
     }
-  }, [sidecar?.activeViews.length, ticker]);
+  }, [sidecar?.activeViews.length]); // Removed ticker from dependencies
 
   // Add periodic system status updates
   useEffect(() => {
@@ -378,7 +378,7 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
     }, 30000); // Update every 30 seconds
 
     return () => clearInterval(interval);
-  }, [ticker]);
+  }, []); // Removed ticker from dependencies
 
   // Determine layout direction based on navigation position (only for push mode)
   const isHorizontalNav = navigationPosition === 'top' || navigationPosition === 'bottom';
