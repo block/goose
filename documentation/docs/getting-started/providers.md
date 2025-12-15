@@ -1089,7 +1089,7 @@ Here are some local providers we support:
 
 GitHub Copilot uses a device flow for authentication, so no API keys are required:
 
-1. Run `goose configure` and select **GitHub Copilot**
+1. Run [`goose configure`](#configure-provider-and-model) and select **GitHub Copilot**
 2. An eight-character code is automatically copied to your clipboard
 3. A browser opens to GitHub's device activation page
 4. Paste the code and authorize the application
