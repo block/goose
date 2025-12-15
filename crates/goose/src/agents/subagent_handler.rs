@@ -2,14 +2,26 @@ use crate::{
     agents::{subagent_task_config::TaskConfig, AgentEvent, SessionConfig},
     conversation::{message::Message, Conversation},
     execution::manager::AgentManager,
+    prompt_template::render_global_file,
     recipe::Recipe,
 };
 use anyhow::{anyhow, Result};
 use futures::StreamExt;
 use rmcp::model::{ErrorCode, ErrorData};
+use serde::Serialize;
 use std::future::Future;
 use std::pin::Pin;
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, info};
+
+#[derive(Serialize)]
+struct SubagentPromptContext {
+    max_turns: usize,
+    subagent_id: String,
+    task_instructions: String,
+    tool_count: usize,
+    available_tools: String,
+}
 
 type AgentMessagesFuture =
     Pin<Box<dyn Future<Output = Result<(Conversation, Option<String>)>> + Send>>;
@@ -20,16 +32,18 @@ pub async fn run_complete_subagent_task(
     task_config: TaskConfig,
     return_last_only: bool,
     session_id: String,
+    cancellation_token: Option<CancellationToken>,
 ) -> Result<String, anyhow::Error> {
-    let (messages, final_output) = get_agent_messages(recipe, task_config, session_id)
-        .await
-        .map_err(|e| {
-            ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!("Failed to execute task: {}", e),
-                None,
-            )
-        })?;
+    let (messages, final_output) =
+        get_agent_messages(recipe, task_config, session_id, cancellation_token)
+            .await
+            .map_err(|e| {
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Failed to execute task: {}", e),
+                    None,
+                )
+            })?;
 
     if let Some(output) = final_output {
         return Ok(output);
@@ -100,6 +114,7 @@ fn get_agent_messages(
     recipe: Recipe,
     task_config: TaskConfig,
     session_id: String,
+    cancellation_token: Option<CancellationToken>,
 ) -> AgentMessagesFuture {
     Box::pin(async move {
         let text_instruction = recipe
@@ -137,6 +152,26 @@ fn get_agent_messages(
             .apply_recipe_components(recipe.sub_recipes.clone(), recipe.response.clone(), true)
             .await;
 
+        let tools = agent.list_tools(None).await;
+        let subagent_prompt = render_global_file(
+            "subagent_system.md",
+            &SubagentPromptContext {
+                max_turns: task_config
+                    .max_turns
+                    .expect("TaskConfig always sets max_turns"),
+                subagent_id: session_id.clone(),
+                task_instructions: text_instruction.clone(),
+                tool_count: tools.len(),
+                available_tools: tools
+                    .iter()
+                    .map(|t| t.name.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            },
+        )
+        .map_err(|e| anyhow!("Failed to render subagent system prompt: {}", e))?;
+        agent.override_system_prompt(subagent_prompt).await;
+
         let user_message = Message::user().with_text(text_instruction);
         let mut conversation = Conversation::new_unvalidated(vec![user_message.clone()]);
 
@@ -153,7 +188,9 @@ fn get_agent_messages(
         };
 
         let mut stream = crate::session_context::with_session_id(Some(session_id.clone()), async {
-            agent.reply(user_message, session_config, None).await
+            agent
+                .reply(user_message, session_config, cancellation_token)
+                .await
         })
         .await
         .map_err(|e| anyhow!("Failed to get reply from agent: {}", e))?;

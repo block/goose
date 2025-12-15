@@ -25,13 +25,11 @@ where
     }
 }
 
-// For deserialization, let's use a simpler approach that works with the format we're serializing to
 pub fn deserialize<'de, T, D>(deserializer: D) -> Result<ToolResult<T>, D::Error>
 where
     T: Deserialize<'de>,
     D: Deserializer<'de>,
 {
-    // Define a helper enum to handle the two possible formats
     #[derive(Deserialize)]
     #[serde(untagged)]
     enum ResultFormat<T> {
@@ -64,6 +62,82 @@ where
                     "Expected status 'error', got '{}'",
                     status
                 )))
+            }
+        }
+    }
+}
+
+pub mod call_tool_result {
+    use super::*;
+    use rmcp::model::{CallToolResult, Content};
+
+    pub fn serialize<S>(
+        value: &ToolResult<CallToolResult>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        super::serialize(value, serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<ToolResult<CallToolResult>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum ResultFormat {
+            NewSuccess {
+                status: String,
+                value: CallToolResult,
+            },
+            LegacySuccess {
+                status: String,
+                value: Vec<Content>,
+            },
+            Error {
+                status: String,
+                error: String,
+            },
+        }
+
+        let format = ResultFormat::deserialize(deserializer)?;
+
+        match format {
+            ResultFormat::NewSuccess { status, value } => {
+                if status == "success" {
+                    Ok(Ok(value))
+                } else {
+                    Err(serde::de::Error::custom(format!(
+                        "Expected status 'success', got '{}'",
+                        status
+                    )))
+                }
+            }
+            ResultFormat::LegacySuccess { status, value } => {
+                if status == "success" {
+                    Ok(Ok(CallToolResult::success(value)))
+                } else {
+                    Err(serde::de::Error::custom(format!(
+                        "Expected status 'success', got '{}'",
+                        status
+                    )))
+                }
+            }
+            ResultFormat::Error { status, error } => {
+                if status == "error" {
+                    Ok(Err(ErrorData {
+                        code: ErrorCode::INTERNAL_ERROR,
+                        message: Cow::from(error),
+                        data: None,
+                    }))
+                } else {
+                    Err(serde::de::Error::custom(format!(
+                        "Expected status 'error', got '{}'",
+                        status
+                    )))
+                }
             }
         }
     }
