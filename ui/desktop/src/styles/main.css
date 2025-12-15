@@ -802,3 +802,112 @@ p > code.bg-inline-code {
   mix-blend-mode: multiply; /* Blend with background for better visibility */
 }
 
+/* Notification Ticker Styles */
+.image-rendering-pixelated {
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+}
+
+/* Terminal scanlines effect */
+@keyframes scanlines {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 0 4px;
+  }
+}
+
+.terminal-scanlines {
+  animation: scanlines 0.1s linear infinite;
+}
+
+/* Terminal flicker effect */
+@keyframes terminal-flicker {
+  0%, 98% {
+    opacity: 1;
+  }
+  99% {
+    opacity: 0.98;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.terminal-flicker {
+  animation: terminal-flicker 0.15s linear infinite;
+}
+
+/* Terminal cursor blink */
+@keyframes terminal-cursor {
+  0%, 50% {
+    opacity: 1;
+  }
+  51%, 100% {
+    opacity: 0;
+  }
+}
+
+.terminal-cursor {
+  animation: terminal-cursor 1s step-end infinite;
+}
+
+/* Bloomberg-style ticker text glow */
+.ticker-text-glow {
+  text-shadow: 
+    0 0 5px currentColor,
+    0 0 10px currentColor,
+    0 0 15px currentColor;
+}
+
+/* Retro CRT monitor effect */
+.crt-monitor {
+  position: relative;
+}
+
+.crt-monitor::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    linear-gradient(
+      90deg,
+      transparent 50%,
+      rgba(0, 255, 0, 0.03) 50%
+    ),
+    linear-gradient(
+      rgba(18, 16, 16, 0) 50%,
+      rgba(0, 0, 0, 0.25) 50%
+    );
+  background-size: 2px 2px, 100% 2px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Matrix-style scrolling effect */
+@keyframes matrix-scroll {
+  0% {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+}
+
+.matrix-scroll {
+  animation: matrix-scroll 20s linear infinite;
+}
+
