@@ -544,8 +544,8 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
   return (
     <NavigationContext.Provider value={{ isNavExpanded, setIsNavExpanded, navigationPosition }}>
       <div className="flex flex-col flex-1 w-full h-full bg-background-muted">
-        {/* Notification Ticker - Only show when navigation is open */}
-        {isNavExpanded && (
+        {/* Notification Ticker - Only show when navigation is open AND there are notifications */}
+        {isNavExpanded && ticker.items.length > 0 && (
           <NotificationTicker 
             items={ticker.items} 
             height={32} 

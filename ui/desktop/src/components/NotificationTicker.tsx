@@ -144,32 +144,23 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
             transform: `translateX(${translateX}px)`,
           }}
         >
-          {items.length === 0 ? (
-            // Show placeholder when no items
-            <span className="px-3 font-mono text-xs font-medium tracking-wide ticker-pixelated text-text-muted">
-              waiting for notifications...
-            </span>
-          ) : (
-            <>
-              {items.map((item, index) => (
-                <React.Fragment key={`${item.id}-${index}`}>
-                  <span className={cn('px-3 font-mono text-xs font-medium tracking-wide ticker-pixelated', getTypeColor(item.type))}>
-                    {item.text.toLowerCase()}
-                  </span>
-                  <span className="text-text-default px-2 font-mono text-xs ticker-pixelated">●</span>
-                </React.Fragment>
-              ))}
-              {/* Duplicate content for seamless loop */}
-              {items.map((item, index) => (
-                <React.Fragment key={`${item.id}-duplicate-${index}`}>
-                  <span className={cn('px-3 font-mono text-xs font-medium tracking-wide ticker-pixelated', getTypeColor(item.type))}>
-                    {item.text.toLowerCase()}
-                  </span>
-                  <span className="text-text-default px-2 font-mono text-xs ticker-pixelated">●</span>
-                </React.Fragment>
-              ))}
-            </>
-          )}
+          {items.map((item, index) => (
+            <React.Fragment key={`${item.id}-${index}`}>
+              <span className={cn('px-3 font-mono text-xs font-medium tracking-wide ticker-pixelated', getTypeColor(item.type))}>
+                {item.text.toLowerCase()}
+              </span>
+              <span className="text-text-default px-2 font-mono text-xs ticker-pixelated">●</span>
+            </React.Fragment>
+          ))}
+          {/* Duplicate content for seamless loop - only if there are items */}
+          {items.length > 0 && items.map((item, index) => (
+            <React.Fragment key={`${item.id}-duplicate-${index}`}>
+              <span className={cn('px-3 font-mono text-xs font-medium tracking-wide ticker-pixelated', getTypeColor(item.type))}>
+                {item.text.toLowerCase()}
+              </span>
+              <span className="text-text-default px-2 font-mono text-xs ticker-pixelated">●</span>
+            </React.Fragment>
+          ))}
         </div>
       </div>
 
