@@ -46,7 +46,7 @@ use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
 use crate::scheduler_trait::SchedulerTrait;
 use crate::security::security_inspector::SecurityInspector;
 use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
-use crate::session::{Session, SessionManager};
+use crate::session::{Session, SessionManager, SessionType};
 use crate::tool_inspection::ToolInspectionManager;
 use crate::tool_monitor::RepetitionInspector;
 use crate::utils::is_token_cancelled;
@@ -433,9 +433,7 @@ impl Agent {
         session: &Session,
     ) -> (String, Result<ToolCallResult, ErrorData>) {
         // Prevent subagents from creating other subagents
-        if session.session_type == crate::session::SessionType::SubAgent
-            && tool_call.name == SUBAGENT_TOOL_NAME
-        {
+        if session.session_type == SessionType::SubAgent && tool_call.name == SUBAGENT_TOOL_NAME {
             return (
                 request_id,
                 Err(ErrorData::new(
@@ -653,6 +651,17 @@ impl Agent {
             .unwrap_or(false)
         {
             return false;
+        }
+        if let Some(ref session_id) = self.extension_manager.get_context().await.session_id {
+            if matches!(
+                SessionManager::get_session(session_id, false)
+                    .await
+                    .ok()
+                    .map(|session| session.session_type),
+                Some(SessionType::SubAgent)
+            ) {
+                return false;
+            }
         }
         !self
             .extension_manager
