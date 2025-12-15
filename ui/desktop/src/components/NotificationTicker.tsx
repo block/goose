@@ -114,8 +114,6 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
       className={cn(
         'relative overflow-hidden bg-background-default border-b border-border-default',
         'font-mono text-xs leading-none font-bold',
-        // Pixelated effect
-        'image-rendering-pixelated',
         // Add some visual emphasis
         'shadow-sm',
         // Ensure it's visible
