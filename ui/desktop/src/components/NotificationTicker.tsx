@@ -114,6 +114,8 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
       className={cn(
         'relative overflow-hidden bg-background-default border-b border-border-default',
         'font-mono text-xs leading-none font-bold',
+        // Pixelated effect for container
+        'image-rendering-pixelated',
         // Add some visual emphasis
         'shadow-sm',
         // Ensure it's visible
@@ -125,17 +127,26 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
         minHeight: `${height}px`
       }}
     >
-
+      {/* Scanlines effect for retro ticker look */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div 
+          className="absolute inset-0 opacity-20"
+          style={{
+            backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(0, 0, 0, 0.1) 2px)',
+            backgroundSize: '100% 2px'
+          }}
+        />
+      </div>
 
       {/* Time display - fixed on the left */}
-      <div className="absolute left-0 top-0 h-full flex items-center px-3 bg-background-muted border-r border-border-default z-10">
-        <span className="text-text-default font-mono text-xs font-medium tracking-wider">
+      <div className="absolute left-0 top-0 h-full flex items-center px-3 bg-background-muted border-r border-border-default z-10 image-rendering-pixelated">
+        <span className="text-text-default font-mono text-xs font-medium tracking-wider ticker-pixelated">
           {formatTime()}
         </span>
       </div>
 
       {/* Scrolling content */}
-      <div className="absolute top-0 h-full flex items-center pl-24 bg-background-default">
+      <div className="absolute top-0 h-full flex items-center pl-24 bg-background-default image-rendering-pixelated">
         <div
           ref={contentRef}
           className="flex items-center whitespace-nowrap"
@@ -145,19 +156,19 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
         >
           {items.map((item, index) => (
             <React.Fragment key={`${item.id}-${index}`}>
-              <span className={cn('px-3 font-mono text-xs font-medium tracking-wide', getTypeColor(item.type))}>
+              <span className={cn('px-3 font-mono text-xs font-medium tracking-wide ticker-pixelated', getTypeColor(item.type))}>
                 {item.text.toLowerCase()}
               </span>
-              <span className="text-text-default px-2 font-mono text-xs">●</span>
+              <span className="text-text-default px-2 font-mono text-xs ticker-pixelated">●</span>
             </React.Fragment>
           ))}
           {/* Duplicate content for seamless loop */}
           {items.map((item, index) => (
             <React.Fragment key={`${item.id}-duplicate-${index}`}>
-              <span className={cn('px-3 font-mono text-xs font-medium tracking-wide', getTypeColor(item.type))}>
+              <span className={cn('px-3 font-mono text-xs font-medium tracking-wide ticker-pixelated', getTypeColor(item.type))}>
                 {item.text.toLowerCase()}
               </span>
-              <span className="text-text-default px-2 font-mono text-xs">●</span>
+              <span className="text-text-default px-2 font-mono text-xs ticker-pixelated">●</span>
             </React.Fragment>
           ))}
         </div>
