@@ -26,7 +26,6 @@ use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, warn};
 
-use super::code_execution_extension::EXTENSION_NAME as CODE_EXECUTION_NAME;
 use super::extension::{
     ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult, PlatformExtensionContext,
     ToolInfo, PLATFORM_EXTENSIONS,
@@ -599,25 +598,12 @@ impl ExtensionManager {
             .insert(name, Extension::new(config, client, info, temp_dir));
     }
 
-    /// Get extensions info for building the system prompt.
-    /// When code_execution is enabled, it routes tools from other extensions through its
-    /// execute_code interface, so those extensions should not appear as separate sections
-    /// in the system prompt (their instructions would be irrelevant/confusing).
+    /// Get extensions info for building the system prompt
     pub async fn get_extensions_info(&self) -> Vec<ExtensionInfo> {
-        let extensions = self.extensions.lock().await;
-        let code_exec_enabled = extensions.contains_key(CODE_EXECUTION_NAME);
-
-        extensions
+        self.extensions
+            .lock()
+            .await
             .iter()
-            .filter(|(name, _)| {
-                if code_exec_enabled {
-                    // When code_execution is enabled, only show code_execution itself
-                    // Other extensions' tools are accessed via code_execution's execute_code
-                    name.as_str() == CODE_EXECUTION_NAME
-                } else {
-                    true
-                }
-            })
             .map(|(name, ext)| {
                 ExtensionInfo::new(
                     name,

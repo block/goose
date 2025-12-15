@@ -39,8 +39,10 @@ struct ExecuteCodeParams {
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 struct ReadModuleParams {
-    /// Module path: "server" for all tools, "server/tool" for one tool.
-    path: String,
+    /// Module path format:
+    /// - For entire server: "server_name"
+    /// - For specific tool: "server_name/tool_name"
+    module_path: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
@@ -59,6 +61,14 @@ enum SearchTerms {
     Multiple(Vec<String>),
 }
 
+#[derive(Debug, Default, Deserialize)]
+struct InputSchema {
+    #[serde(default)]
+    properties: BTreeMap<String, Value>,
+    #[serde(default)]
+    required: Vec<String>,
+}
+
 struct ToolInfo {
     server_name: String,
     tool_name: String,
@@ -72,19 +82,20 @@ impl ToolInfo {
         let (server_name, tool_name) = tool.name.as_ref().split_once("__")?;
         let param_names = get_parameter_names(tool);
 
+        let schema: InputSchema =
+            serde_json::from_value(Value::Object(tool.input_schema.as_ref().clone()))
+                .unwrap_or_default();
+
         let params = param_names
             .iter()
             .map(|name| {
-                let schema = &tool.input_schema;
-                let prop = schema
-                    .get("properties")
-                    .and_then(|p| p.get(name))
-                    .and_then(|v| v.as_object());
-                let required = schema
-                    .get("required")
-                    .and_then(|r| r.as_array())
-                    .is_some_and(|arr| arr.iter().any(|v| v.as_str() == Some(name)));
-                let ty = prop.and_then(|p| p.get("type")?.as_str()).unwrap_or("any");
+                let ty = schema
+                    .properties
+                    .get(name)
+                    .and_then(|p| p.get("type"))
+                    .and_then(|t| t.as_str())
+                    .unwrap_or("any");
+                let required = schema.required.contains(name);
                 (name.clone(), ty.to_string(), required)
             })
             .collect();
@@ -120,15 +131,15 @@ thread_local! {
 }
 
 fn create_server_module(server_tools: &[&ToolInfo], ctx: &mut Context) -> Module {
-    let export_names: Vec<JsString> = server_tools
+    let (export_names, tool_data): (Vec<JsString>, Vec<(String, String)>) = server_tools
         .iter()
-        .map(|t| js_string!(t.tool_name.as_str()))
-        .collect();
-
-    let tool_data: Vec<(String, String)> = server_tools
-        .iter()
-        .map(|t| (t.tool_name.clone(), t.full_name.clone()))
-        .collect();
+        .map(|t| {
+            (
+                js_string!(t.tool_name.as_str()),
+                (t.tool_name.clone(), t.full_name.clone()),
+            )
+        })
+        .unzip();
 
     Module::synthetic(
         &export_names,
@@ -149,7 +160,7 @@ fn create_server_module(server_tools: &[&ToolInfo], ctx: &mut Context) -> Module
     )
 }
 
-fn create_tool_function(full_name: String) -> NativeFunction {
+fn create_tool_function(full_tool_name: String) -> NativeFunction {
     NativeFunction::from_copy_closure_with_captures(
         |_this, args, full_name: &String, ctx| {
             let args_json = args
@@ -178,7 +189,7 @@ fn create_tool_function(full_name: String) -> NativeFunction {
                 .map(|result| JsValue::from(js_string!(result.as_str())))
                 .map_err(|e| JsNativeError::error().with_message(e).into())
         },
-        full_name,
+        full_tool_name,
     )
 }
 

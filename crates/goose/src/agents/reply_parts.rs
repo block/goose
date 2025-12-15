@@ -17,7 +17,6 @@ use crate::providers::toolshim::{
 };
 
 use crate::agents::code_execution_extension::EXTENSION_NAME as CODE_EXECUTION_EXTENSION;
-use crate::agents::subagent_tool::should_enable_subagents;
 use crate::session::SessionManager;
 #[cfg(test)]
 use crate::session::SessionType;
@@ -161,6 +160,7 @@ impl Agent {
             .with_frontend_instructions(self.frontend_instructions.lock().await.clone())
             .with_extension_and_tool_counts(extension_count, tool_count)
             .with_router_enabled(router_enabled)
+            .with_code_execution_mode(code_execution_active)
             .with_hints(working_dir)
             .with_enable_subagents(self.subagents_enabled().await)
             .build();

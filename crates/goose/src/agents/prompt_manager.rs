@@ -55,6 +55,7 @@ pub struct SystemPromptBuilder<'a, M> {
     router_enabled: bool,
     subagents_enabled: bool,
     hints: Option<String>,
+    code_execution_mode: bool,
 }
 
 impl<'a> SystemPromptBuilder<'a, PromptManager> {
@@ -86,6 +87,11 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
 
     pub fn with_router_enabled(mut self, enabled: bool) -> Self {
         self.router_enabled = enabled;
+        self
+    }
+
+    pub fn with_code_execution_mode(mut self, enabled: bool) -> Self {
+        self.code_execution_mode = enabled;
         self
     }
 
@@ -143,11 +149,6 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
             })
             .collect();
 
-        // Detect code_execution mode: when enabled, only code_execution extension is passed
-        let code_execution_mode = sanitized_extensions_info
-            .iter()
-            .any(|ext| ext.name == "code_execution");
-
         let config = Config::global();
         let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
 
@@ -165,7 +166,7 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
             enable_subagents: self.subagents_enabled,
             max_extensions: MAX_EXTENSIONS,
             max_tools: MAX_TOOLS,
-            code_execution_mode,
+            code_execution_mode: self.code_execution_mode,
         };
 
         let base_prompt = if let Some(override_prompt) = &self.manager.system_prompt_override {
@@ -249,6 +250,7 @@ impl PromptManager {
             router_enabled: false,
             subagents_enabled: false,
             hints: None,
+            code_execution_mode: false,
         }
     }
 
