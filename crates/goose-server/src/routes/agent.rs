@@ -557,11 +557,15 @@ async fn agent_add_extension(
             }
         })?;
 
-    let agent = state.get_agent(request.session_id).await?;
+    let agent = state.get_agent(request.session_id.clone()).await?;
     agent
-        .add_extension(request.config, Some(session.working_dir))
+        .add_extension(request.config, Some(session.working_dir.clone()))
         .await
         .map_err(|e| ErrorResponse::internal(format!("Failed to add extension: {}", e)))?;
+
+    // Persist the updated extension state to the session
+    persist_session_extensions(&agent, &request.session_id, &session).await?;
+
     Ok(StatusCode::OK)
 }
 
@@ -580,8 +584,22 @@ async fn agent_remove_extension(
     State(state): State<Arc<AppState>>,
     Json(request): Json<RemoveExtensionRequest>,
 ) -> Result<StatusCode, ErrorResponse> {
-    let agent = state.get_agent(request.session_id).await?;
+    let session = SessionManager::get_session(&request.session_id, false)
+        .await
+        .map_err(|err| {
+            error!("Failed to get session for remove_extension: {}", err);
+            ErrorResponse {
+                message: format!("Failed to get session: {}", err),
+                status: StatusCode::NOT_FOUND,
+            }
+        })?;
+
+    let agent = state.get_agent(request.session_id.clone()).await?;
     agent.remove_extension(&request.name).await?;
+
+    // Persist the updated extension state to the session
+    persist_session_extensions(&agent, &request.session_id, &session).await?;
+
     Ok(StatusCode::OK)
 }
 
@@ -611,6 +629,40 @@ async fn stop_agent(
         })?;
 
     Ok(StatusCode::OK)
+}
+
+async fn persist_session_extensions(
+    agent: &Arc<Agent>,
+    session_id: &str,
+    session: &Session,
+) -> Result<(), ErrorResponse> {
+    let current_extensions = agent.extension_manager.get_extension_configs().await;
+    let extensions_state = EnabledExtensionsState::new(current_extensions);
+
+    let mut extension_data = session.extension_data.clone();
+    extensions_state
+        .to_extension_data(&mut extension_data)
+        .map_err(|e| {
+            error!("Failed to serialize extension state: {}", e);
+            ErrorResponse {
+                message: format!("Failed to serialize extension state: {}", e),
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+            }
+        })?;
+
+    SessionManager::update_session(session_id)
+        .extension_data(extension_data)
+        .apply()
+        .await
+        .map_err(|e| {
+            error!("Failed to persist extension state: {}", e);
+            ErrorResponse {
+                message: format!("Failed to persist extension state: {}", e),
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+            }
+        })?;
+
+    Ok(())
 }
 
 async fn restore_agent_provider(
