@@ -97,16 +97,16 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
   const getTypeColor = (type: TickerItem['type']) => {
     switch (type) {
       case 'success':
-        return 'text-green-400';
+        return 'text-text-success';
       case 'warning':
-        return 'text-yellow-400';
+        return 'text-text-warning';
       case 'error':
-        return 'text-red-400';
+        return 'text-text-error';
       case 'info':
-        return 'text-blue-400';
+        return 'text-text-info';
       case 'neutral':
       default:
-        return 'text-gray-300';
+        return 'text-text-default';
     }
   };
 
@@ -158,19 +158,19 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
         >
           {items.map((item, index) => (
             <React.Fragment key={`${item.id}-${index}`}>
-              <span className={cn('px-3 font-bold tracking-wide ticker-pixelated', getTypeColor(item.type))}>
+              <span className={cn('px-3 font-mono text-xs font-medium tracking-wide', getTypeColor(item.type))}>
                 {item.text}
               </span>
-              <span className="text-text-muted px-2 ticker-pixelated">●</span>
+              <span className="text-text-muted px-2 font-mono text-xs">●</span>
             </React.Fragment>
           ))}
           {/* Duplicate content for seamless loop */}
           {items.map((item, index) => (
             <React.Fragment key={`${item.id}-duplicate-${index}`}>
-              <span className={cn('px-3 font-bold tracking-wide ticker-pixelated', getTypeColor(item.type))}>
+              <span className={cn('px-3 font-mono text-xs font-medium tracking-wide', getTypeColor(item.type))}>
                 {item.text}
               </span>
-              <span className="text-text-muted px-2 ticker-pixelated">●</span>
+              <span className="text-text-muted px-2 font-mono text-xs">●</span>
             </React.Fragment>
           ))}
         </div>
