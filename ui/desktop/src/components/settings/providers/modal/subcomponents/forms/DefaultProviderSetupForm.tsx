@@ -121,6 +121,21 @@ export default function DefaultProviderSetupForm({
     );
   };
 
+  // Get hint text for specific config fields
+  const getFieldHint = (parameter: ConfigKey): string | null => {
+    // Azure OpenAI specific hints
+    if (parameter.name === 'AZURE_OPENAI_API_KEY') {
+      return 'Optional when using Azure credential chain (az login)';
+    }
+    if (parameter.name === 'AZURE_SUBSCRIPTION_ID') {
+      return 'For listing available deployments from Azure';
+    }
+    if (parameter.name === 'AZURE_RESOURCE_GROUP') {
+      return 'For listing available deployments from Azure';
+    }
+    return null;
+  };
+
   if (isLoading) {
     return <div className="text-center py-4">Loading configuration values...</div>;
   }
@@ -135,37 +150,41 @@ export default function DefaultProviderSetupForm({
   }
 
   const renderParametersList = (parameters: ConfigKey[]) => {
-    return parameters.map((parameter) => (
-      <div key={parameter.name}>
-        <label className="block text-sm font-medium text-textStandard mb-1">
-          {getFieldLabel(parameter)}
-          {parameter.required && <span className="text-red-500 ml-1">*</span>}
-        </label>
-        <Input
-          type="text"
-          value={getRenderValue(parameter)}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-            setConfigValues((prev) => {
-              const newValue = { ...(prev[parameter.name] || {}), value: e.target.value };
-              return {
-                ...prev,
-                [parameter.name]: newValue,
-              };
-            });
-          }}
-          placeholder={getPlaceholder(parameter)}
-          className={`w-full h-14 px-4 font-regular rounded-lg shadow-none ${
-            validationErrors[parameter.name]
-              ? 'border-2 border-red-500'
-              : 'border border-borderSubtle hover:border-borderStandard'
-          } bg-background-default text-lg placeholder:text-textSubtle font-regular text-textStandard`}
-          required={parameter.required}
-        />
-        {validationErrors[parameter.name] && (
-          <p className="text-red-500 text-sm mt-1">{validationErrors[parameter.name]}</p>
-        )}
-      </div>
-    ));
+    return parameters.map((parameter) => {
+      const hint = getFieldHint(parameter);
+      return (
+        <div key={parameter.name}>
+          <label className="block text-sm font-medium text-textStandard mb-1">
+            {getFieldLabel(parameter)}
+            {parameter.required && <span className="text-red-500 ml-1">*</span>}
+          </label>
+          <Input
+            type="text"
+            value={getRenderValue(parameter)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+              setConfigValues((prev) => {
+                const newValue = { ...(prev[parameter.name] || {}), value: e.target.value };
+                return {
+                  ...prev,
+                  [parameter.name]: newValue,
+                };
+              });
+            }}
+            placeholder={getPlaceholder(parameter)}
+            className={`w-full h-14 px-4 font-regular rounded-lg shadow-none ${
+              validationErrors[parameter.name]
+                ? 'border-2 border-red-500'
+                : 'border border-borderSubtle hover:border-borderStandard'
+            } bg-background-default text-lg placeholder:text-textSubtle font-regular text-textStandard`}
+            required={parameter.required}
+          />
+          {hint && <p className="text-textSubtle text-sm mt-1">{hint}</p>}
+          {validationErrors[parameter.name] && (
+            <p className="text-red-500 text-sm mt-1">{validationErrors[parameter.name]}</p>
+          )}
+        </div>
+      );
+    });
   };
 
   let aboveFoldParameters = parameters.filter((p) => p.required);
