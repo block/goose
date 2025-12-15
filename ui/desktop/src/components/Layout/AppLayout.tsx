@@ -332,20 +332,20 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
   useEffect(() => {
     // Update ticker when route changes
     const routeNames: Record<string, string> = {
-      '/': 'HUB',
-      '/pair': 'CHAT',
-      '/tabs': 'TABS',
-      '/settings': 'SETTINGS',
-      '/sessions': 'SESSIONS',
-      '/recipes': 'RECIPES',
-      '/extensions': 'EXTENSIONS',
-      '/peers': 'PEERS',
-      '/channels': 'CHANNELS',
+      '/': 'hub',
+      '/pair': 'chat',
+      '/tabs': 'tabs',
+      '/settings': 'settings',
+      '/sessions': 'sessions',
+      '/recipes': 'recipes',
+      '/extensions': 'extensions',
+      '/peers': 'peers',
+      '/channels': 'channels',
     };
     
-    const currentRoute = routeNames[location.pathname] || 'UNKNOWN';
+    const currentRoute = routeNames[location.pathname] || 'unknown';
     ticker.addItem({
-      text: `SECTION: ${currentRoute}`,
+      text: `section: ${currentRoute}`,
       type: 'info'
     });
   }, [location.pathname]); // Removed ticker from dependencies
@@ -354,7 +354,7 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
   useEffect(() => {
     if (sidecar?.activeViews.length) {
       ticker.addItem({
-        text: `SIDECARS ACTIVE: ${sidecar.activeViews.length}`,
+        text: `sidecars active: ${sidecar.activeViews.length}`,
         type: 'success'
       });
     }
@@ -367,12 +367,12 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
       const activeConnections = Math.floor(Math.random() * 5) + 1; // Mock 1-6 connections
       
       ticker.addItem({
-        text: `MEM: ${memoryUsage}%`,
+        text: `mem: ${memoryUsage}%`,
         type: memoryUsage > 60 ? 'warning' : 'info'
       });
       
       ticker.addItem({
-        text: `CONNECTIONS: ${activeConnections}`,
+        text: `connections: ${activeConnections}`,
         type: 'neutral'
       });
     }, 30000); // Update every 30 seconds

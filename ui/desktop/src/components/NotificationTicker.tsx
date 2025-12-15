@@ -16,12 +16,12 @@ interface NotificationTickerProps {
 }
 
 const defaultItems: TickerItem[] = [
-  { id: '1', text: 'GOOSE AI AGENT ONLINE', type: 'success' },
-  { id: '2', text: 'SYSTEM STATUS: OPERATIONAL', type: 'info' },
-  { id: '3', text: 'EXTENSIONS LOADED: 12', type: 'info' },
-  { id: '4', text: 'LAST SYNC: 2 MIN AGO', type: 'neutral' },
-  { id: '5', text: 'MEMORY USAGE: 45%', type: 'info' },
-  { id: '6', text: 'ACTIVE SESSIONS: 3', type: 'success' },
+  { id: '1', text: 'goose ai agent online', type: 'success' },
+  { id: '2', text: 'system status: operational', type: 'info' },
+  { id: '3', text: 'extensions loaded: 12', type: 'info' },
+  { id: '4', text: 'last sync: 2 min ago', type: 'neutral' },
+  { id: '5', text: 'memory usage: 45%', type: 'info' },
+  { id: '6', text: 'active sessions: 3', type: 'success' },
 ];
 
 export const NotificationTicker: React.FC<NotificationTickerProps> = ({
@@ -146,7 +146,7 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
           {items.map((item, index) => (
             <React.Fragment key={`${item.id}-${index}`}>
               <span className={cn('px-3 font-mono text-xs font-medium tracking-wide', getTypeColor(item.type))}>
-                {item.text}
+                {item.text.toLowerCase()}
               </span>
               <span className="text-text-default px-2 font-mono text-xs">●</span>
             </React.Fragment>
@@ -155,7 +155,7 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
           {items.map((item, index) => (
             <React.Fragment key={`${item.id}-duplicate-${index}`}>
               <span className={cn('px-3 font-mono text-xs font-medium tracking-wide', getTypeColor(item.type))}>
-                {item.text}
+                {item.text.toLowerCase()}
               </span>
               <span className="text-text-default px-2 font-mono text-xs">●</span>
             </React.Fragment>
@@ -201,7 +201,7 @@ export const useNotificationTicker = () => {
 
   const updateSystemStatus = useCallback((status: string, type: TickerItem['type'] = 'info') => {
     addItem({
-      text: `SYSTEM: ${status.toUpperCase()}`,
+      text: `system: ${status.toLowerCase()}`,
       type,
     });
   }, [addItem]);
