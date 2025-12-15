@@ -151,7 +151,7 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
 
       {/* Time display - fixed on the left */}
       <div className="absolute left-0 top-0 h-full flex items-center px-3 bg-black/90 border-r-2 border-green-500/50 z-10">
-        <span className="text-green-400 font-bold text-xs tracking-wider image-rendering-pixelated">
+        <span className="text-green-400 font-bold tracking-wider ticker-pixelated">
           {formatTime()}
         </span>
       </div>
@@ -167,19 +167,19 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
         >
           {items.map((item, index) => (
             <React.Fragment key={`${item.id}-${index}`}>
-              <span className={cn('px-3 font-bold tracking-wide text-xs image-rendering-pixelated', getTypeColor(item.type))}>
+              <span className={cn('px-3 font-bold tracking-wide ticker-pixelated', getTypeColor(item.type))}>
                 {item.text}
               </span>
-              <span className="text-green-500 px-2 text-xs">●</span>
+              <span className="text-green-500 px-2 ticker-pixelated">●</span>
             </React.Fragment>
           ))}
           {/* Duplicate content for seamless loop */}
           {items.map((item, index) => (
             <React.Fragment key={`${item.id}-duplicate-${index}`}>
-              <span className={cn('px-3 font-bold tracking-wide text-xs image-rendering-pixelated', getTypeColor(item.type))}>
+              <span className={cn('px-3 font-bold tracking-wide ticker-pixelated', getTypeColor(item.type))}>
                 {item.text}
               </span>
-              <span className="text-green-500 px-2 text-xs">●</span>
+              <span className="text-green-500 px-2 ticker-pixelated">●</span>
             </React.Fragment>
           ))}
         </div>

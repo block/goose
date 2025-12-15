@@ -804,15 +804,57 @@ p > code.bg-inline-code {
 
 /* Notification Ticker Styles */
 .image-rendering-pixelated {
-  image-rendering: pixelated;
-  image-rendering: -moz-crisp-edges;
-  image-rendering: crisp-edges;
-  font-smooth: never;
-  -webkit-font-smoothing: none;
-  -moz-osx-font-smoothing: unset;
-  text-rendering: optimizeSpeed;
-  /* Additional pixelated effect */
-  filter: contrast(1.2) brightness(1.1);
+  /* Force pixelated rendering */
+  image-rendering: pixelated !important;
+  image-rendering: -moz-crisp-edges !important;
+  image-rendering: crisp-edges !important;
+  
+  /* Disable font smoothing completely */
+  font-smooth: never !important;
+  -webkit-font-smoothing: none !important;
+  -moz-osx-font-smoothing: unset !important;
+  text-rendering: optimizeSpeed !important;
+  
+  /* Use a more pixelated font stack */
+  font-family: 'Courier New', 'Monaco', 'Menlo', 'Consolas', monospace !important;
+  
+  /* Additional pixelated effects */
+  filter: contrast(1.3) brightness(1.1) !important;
+  
+  /* Force pixel-perfect rendering */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* Extra pixelated class for ticker text */
+.ticker-pixelated {
+  /* More aggressive pixelation */
+  image-rendering: pixelated !important;
+  image-rendering: -moz-crisp-edges !important;
+  image-rendering: crisp-edges !important;
+  
+  /* Completely disable smoothing */
+  -webkit-font-smoothing: none !important;
+  -moz-osx-font-smoothing: unset !important;
+  font-smooth: never !important;
+  text-rendering: optimizeSpeed !important;
+  
+  /* Use system monospace for better pixelation */
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace !important;
+  
+  /* Force smaller font size for better pixelation */
+  font-size: 10px !important;
+  line-height: 1.2 !important;
+  
+  /* Enhance pixelated appearance */
+  filter: contrast(1.4) brightness(1.15) saturate(1.1) !important;
+  
+  /* Prevent subpixel rendering */
+  transform: translateZ(0) scale(1);
+  backface-visibility: hidden;
+  
+  /* Force integer pixel positioning */
+  position: relative;
 }
 
 /* Terminal scanlines effect */
