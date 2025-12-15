@@ -17,6 +17,8 @@
 # Optional Variables:
 #   - GOOSE_PROVIDER: LLM provider (default: openai)
 #   - GOOSE_MODEL: Model name (default: gpt-5.1-codex)
+#
+# Security: PR content could prompt-inject the agent; only trigger on PRs you trust.
 
 name: goose PR Reviewer
 
@@ -223,13 +225,14 @@ jobs:
         if: steps.goose.outputs.has_review == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUM: ${{ steps.pr.outputs.number }}
         run: |
-          gh pr comment ${{ steps.pr.outputs.number }} --repo ${{ github.repository }} --body-file /tmp/pr_review.md
+          gh pr comment "$PR_NUM" --repo ${{ github.repository }} --body-file /tmp/pr_review.md
 
       - name: Post failure comment
         if: failure() || steps.goose.outputs.has_review != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUM: ${{ steps.pr.outputs.number || github.event.issue.number || github.event.inputs.pr_number }}
         run: |
-          PR_NUM="${{ steps.pr.outputs.number || github.event.issue.number || github.event.inputs.pr_number }}"
           gh pr comment "$PR_NUM" --repo ${{ github.repository }} --body "⚠️ goose PR review could not be completed. Check the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details."
