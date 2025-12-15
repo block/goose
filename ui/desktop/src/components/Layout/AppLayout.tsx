@@ -334,7 +334,12 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
 
   // Listen to real Matrix events for notifications
   useEffect(() => {
-    if (!matrix) return;
+    if (!matrix || !matrix.isReady) {
+      console.log('🎯 Matrix not ready, skipping event listeners');
+      return;
+    }
+    
+    console.log('🎯 Setting up Matrix event listeners for ticker');
 
     // Connection status notifications
     const handleConnected = () => {
@@ -399,7 +404,7 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
       }
     };
 
-    // Set up event listeners
+    // Set up event listeners only - no initial state checks
     matrix.onMessage(handleMessage);
     matrix.onGooseMessage(handleGooseMessage);
     matrix.onSessionMessage(handleSessionMessage);
@@ -410,19 +415,6 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
     const unsubscribeReconnecting = matrix.onMessage('reconnecting', handleReconnecting);
     const unsubscribeMembership = matrix.onMessage('membershipChange', handleMembershipChange);
 
-    // Check initial connection status
-    if (matrix.isConnected) {
-      ticker.addConnectionStatus('connected');
-    }
-
-    // Check for pending invitations
-    const pendingInvites = matrix.getPendingInvitedRooms();
-    pendingInvites.forEach(invite => {
-      const inviterName = invite.inviterName || invite.inviter;
-      const roomName = invite.roomName || 'session';
-      ticker.addSessionInvitation(roomName, inviterName);
-    });
-
     return () => {
       // Cleanup event listeners
       unsubscribeConnected();
@@ -430,7 +422,7 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
       unsubscribeReconnecting();
       unsubscribeMembership();
     };
-  }, [matrix, ticker]); // Include dependencies
+  }, [matrix, matrix?.isReady, ticker]); // Include dependencies
 
   // Add route change notifications
   useEffect(() => {
