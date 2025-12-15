@@ -47,15 +47,16 @@ export type AuthorRequest = {
 };
 
 export type CallToolRequest = {
-    arguments: unknown;
-    name: string;
+    arguments?: {
+        [key: string]: unknown;
+    } | null;
     session_id: string;
+    tool_name: string;
 };
 
 export type CallToolResponse = {
-    content: Array<Content>;
     is_error: boolean;
-    structured_content?: unknown;
+    output: string;
 };
 
 export type ChatRequest = {
@@ -1109,26 +1110,22 @@ export type CallToolData = {
 
 export type CallToolErrors = {
     /**
-     * Unauthorized - invalid secret key
-     */
-    401: unknown;
-    /**
-     * Resource not found
+     * Session not found
      */
     404: unknown;
     /**
-     * Agent not initialized
+     * Agent not initialized for session
      */
     424: unknown;
     /**
-     * Internal server error
+     * Tool execution failed
      */
     500: unknown;
 };
 
 export type CallToolResponses = {
     /**
-     * Resource read successfully
+     * Tool executed successfully
      */
     200: CallToolResponse;
 };
