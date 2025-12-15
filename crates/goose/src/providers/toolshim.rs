@@ -343,8 +343,9 @@ pub fn convert_tool_messages_to_text(messages: &[Message]) -> Conversation {
                         has_tool_content = true;
                         // Convert tool response to text format
                         let text = match &res.tool_result {
-                            Ok(contents) => {
-                                let text_contents: Vec<String> = contents
+                            Ok(result) => {
+                                let text_contents: Vec<String> = result
+                                    .content
                                     .iter()
                                     .filter_map(|c| match c.deref() {
                                         RawContent::Text(t) => Some(t.text.clone()),

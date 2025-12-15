@@ -86,6 +86,90 @@
         }
       }
     },
+    "/agent/call_tool": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "call_tool",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CallToolRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Resource read successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CallToolResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "424": {
+            "description": "Agent not initialized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/agent/read_resource": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "read_resource",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReadResourceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Resource read successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadResourceResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "424": {
+            "description": "Agent not initialized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/agent/remove_extension": {
       "post": {
         "tags": [
@@ -2665,6 +2749,44 @@
           }
         }
       },
+      "CallToolRequest": {
+        "type": "object",
+        "required": [
+          "session_id",
+          "name",
+          "arguments"
+        ],
+        "properties": {
+          "arguments": {},
+          "name": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          }
+        }
+      },
+      "CallToolResponse": {
+        "type": "object",
+        "required": [
+          "content",
+          "is_error"
+        ],
+        "properties": {
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Content"
+            }
+          },
+          "is_error": {
+            "type": "boolean"
+          },
+          "structured_content": {
+            "nullable": true
+          }
+        }
+      },
       "ChatRequest": {
         "type": "object",
         "required": [
@@ -4410,6 +4532,36 @@
             "additionalProperties": true
           },
           "text": {
+            "type": "string"
+          }
+        }
+      },
+      "ReadResourceRequest": {
+        "type": "object",
+        "required": [
+          "session_id",
+          "extension_name",
+          "uri"
+        ],
+        "properties": {
+          "extension_name": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "uri": {
+            "type": "string"
+          }
+        }
+      },
+      "ReadResourceResponse": {
+        "type": "object",
+        "required": [
+          "html"
+        ],
+        "properties": {
+          "html": {
             "type": "string"
           }
         }

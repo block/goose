@@ -26,12 +26,14 @@ use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
     config::permission::PermissionLevel,
 };
-use serde::Deserialize;
+use rmcp::model::{CallToolRequestParam, Content};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use tokio_util::sync::CancellationToken;
 use tracing::{error, warn};
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -96,6 +98,32 @@ pub struct AddExtensionRequest {
 pub struct RemoveExtensionRequest {
     name: String,
     session_id: String,
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct ReadResourceRequest {
+    session_id: String,
+    extension_name: String,
+    uri: String,
+}
+
+#[derive(Serialize, Deserialize, utoipa::ToSchema)]
+pub struct ReadResourceResponse {
+    html: String,
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct CallToolRequest {
+    session_id: String,
+    name: String,
+    arguments: Value,
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct CallToolResponse {
+    content: Vec<Content>,
+    structured_content: Option<Value>,
+    is_error: bool,
 }
 
 #[utoipa::path(
@@ -495,7 +523,7 @@ async fn update_router_tool_selector(
         .update_router_tool_selector(None, Some(true))
         .await
         .map_err(|e| {
-            tracing::error!("Failed to update tool selection strategy: {}", e);
+            error!("Failed to update tool selection strategy: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
@@ -742,12 +770,95 @@ async fn restart_agent(
     Ok(StatusCode::OK)
 }
 
+#[utoipa::path(
+    post,
+    path = "/agent/read_resource",
+    request_body = ReadResourceRequest,
+    responses(
+        (status = 200, description = "Resource read successfully", body = ReadResourceResponse),
+        (status = 401, description = "Unauthorized - invalid secret key"),
+        (status = 424, description = "Agent not initialized"),
+        (status = 404, description = "Resource not found"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+async fn read_resource(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<ReadResourceRequest>,
+) -> Result<Json<ReadResourceResponse>, StatusCode> {
+    let agent = state
+        .get_agent_for_route(payload.session_id.clone())
+        .await?;
+
+    let html = agent
+        .extension_manager
+        .read_ui_resource(
+            &payload.uri,
+            &payload.extension_name,
+            CancellationToken::default(),
+        )
+        .await
+        .map_err(|_e| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(ReadResourceResponse { html }))
+}
+
+#[utoipa::path(
+    post,
+    path = "/agent/call_tool",
+    request_body = CallToolRequest,
+    responses(
+        (status = 200, description = "Resource read successfully", body = CallToolResponse),
+        (status = 401, description = "Unauthorized - invalid secret key"),
+        (status = 424, description = "Agent not initialized"),
+        (status = 404, description = "Resource not found"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+async fn call_tool(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<CallToolRequest>,
+) -> Result<Json<CallToolResponse>, StatusCode> {
+    let agent = state
+        .get_agent_for_route(payload.session_id.clone())
+        .await?;
+
+    let arguments = match payload.arguments {
+        Value::Object(map) => Some(map),
+        _ => None,
+    };
+
+    let tool_call = CallToolRequestParam {
+        name: payload.name.into(),
+        arguments,
+    };
+
+    let tool_result = agent
+        .extension_manager
+        .dispatch_tool_call(tool_call, CancellationToken::default())
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let result = tool_result
+        .result
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(CallToolResponse {
+        content: result.content,
+        structured_content: result.structured_content,
+        is_error: result.is_error.unwrap_or(false),
+    }))
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/agent/start", post(start_agent))
         .route("/agent/resume", post(resume_agent))
         .route("/agent/restart", post(restart_agent))
         .route("/agent/tools", get(get_tools))
+        .route("/agent/read_resource", post(read_resource))
+        .route("/agent/call_tool", post(call_tool))
         .route("/agent/update_provider", post(update_agent_provider))
         .route(
             "/agent/update_router_tool_selector",

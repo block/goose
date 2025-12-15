@@ -466,16 +466,23 @@ const getBundledConfig = (): BundledConfig => {
 const { defaultProvider, defaultModel, predefinedModels, baseUrlShare, version } =
   getBundledConfig();
 
-const SERVER_SECRET = process.env.GOOSE_EXTERNAL_BACKEND
-  ? 'test'
-  : crypto.randomBytes(32).toString('hex');
+const GENERATED_SECRET = crypto.randomBytes(32).toString('hex');
+
+const getServerSecret = (settings: ReturnType<typeof loadSettings>): string => {
+  if (settings.externalGoosed?.enabled && settings.externalGoosed.secret) {
+    return settings.externalGoosed.secret;
+  }
+  if (process.env.GOOSE_EXTERNAL_BACKEND) {
+    return 'test';
+  }
+  return GENERATED_SECRET;
+};
 
 let appConfig = {
   GOOSE_DEFAULT_PROVIDER: defaultProvider,
   GOOSE_DEFAULT_MODEL: defaultModel,
   GOOSE_PREDEFINED_MODELS: predefinedModels,
   GOOSE_API_HOST: 'http://127.0.0.1',
-  GOOSE_PORT: 0,
   GOOSE_WORKING_DIR: '',
   // If GOOSE_ALLOWLIST_WARNING env var is not set, defaults to false (strict blocking mode)
   GOOSE_ALLOWLIST_WARNING: process.env.GOOSE_ALLOWLIST_WARNING === 'true',
@@ -503,15 +510,18 @@ const createChat = async (
 ) => {
   updateEnvironmentVariables(envToggles);
 
-  const envVars = {
-    GOOSE_PATH_ROOT: process.env.GOOSE_PATH_ROOT,
-  };
-  const [port, workingDir, goosedProcess, errorLog] = await startGoosed(
+  const settings = loadSettings();
+  const serverSecret = getServerSecret(settings);
+
+  const goosedResult = await startGoosed({
     app,
-    SERVER_SECRET,
-    dir || os.homedir(),
-    envVars
-  );
+    serverSecret,
+    dir: dir || os.homedir(),
+    env: { GOOSE_PATH_ROOT: process.env.GOOSE_PATH_ROOT },
+    externalGoosed: settings.externalGoosed,
+  });
+
+  const { baseUrl, workingDir, process: goosedProcess, errorLog } = goosedResult;
 
   const mainWindowState = windowStateKeeper({
     defaultWidth: 940,
@@ -534,14 +544,13 @@ const createChat = async (
     webPreferences: {
       spellcheck: true,
       preload: path.join(__dirname, 'preload.js'),
-      // Enable features needed for Web Speech API
       webSecurity: true,
       nodeIntegration: false,
       contextIsolation: true,
       additionalArguments: [
         JSON.stringify({
           ...appConfig,
-          GOOSE_PORT: port,
+          GOOSE_API_HOST: baseUrl,
           GOOSE_WORKING_DIR: workingDir,
           REQUEST_DIR: dir,
           GOOSE_BASE_URL_SHARE: baseUrlShare,
@@ -552,7 +561,7 @@ const createChat = async (
           scheduledJobId: scheduledJobId,
         }),
       ],
-      partition: 'persist:goose', // Add this line to ensure persistence
+      partition: 'persist:goose',
     },
   });
 
@@ -567,10 +576,10 @@ const createChat = async (
 
   const goosedClient = createClient(
     createConfig({
-      baseUrl: `http://127.0.0.1:${port}`,
+      baseUrl,
       headers: {
         'Content-Type': 'application/json',
-        'X-Secret-Key': SERVER_SECRET,
+        'X-Secret-Key': serverSecret,
       },
     })
   );
@@ -578,13 +587,41 @@ const createChat = async (
 
   const serverReady = await checkServerStatus(goosedClient, errorLog);
   if (!serverReady) {
-    dialog.showMessageBoxSync({
-      type: 'error',
-      title: 'Goose Failed to Start',
-      message: 'The backend server failed to start.',
-      detail: errorLog.join('\n'),
-      buttons: ['OK'],
-    });
+    const isUsingExternalBackend = settings.externalGoosed?.enabled;
+
+    if (isUsingExternalBackend) {
+      const response = dialog.showMessageBoxSync({
+        type: 'error',
+        title: 'External Backend Unreachable',
+        message: `Could not connect to external backend at ${settings.externalGoosed?.url}`,
+        detail: 'The external goosed server may not be running.',
+        buttons: ['Disable External Backend & Retry', 'Quit'],
+        defaultId: 0,
+        cancelId: 1,
+      });
+
+      if (response === 0) {
+        const updatedSettings = {
+          ...settings,
+          externalGoosed: {
+            enabled: false,
+            url: settings.externalGoosed?.url || '',
+            secret: settings.externalGoosed?.secret || '',
+          },
+        };
+        saveSettings(updatedSettings);
+        mainWindow.destroy();
+        return createChat(app, initialMessage, dir);
+      }
+    } else {
+      dialog.showMessageBoxSync({
+        type: 'error',
+        title: 'Goose Failed to Start',
+        message: 'The backend server failed to start.',
+        detail: errorLog.join('\n'),
+        buttons: ['OK'],
+      });
+    }
     app.quit();
   }
 
@@ -1182,8 +1219,19 @@ ipcMain.handle('get-settings', () => {
   }
 });
 
+ipcMain.handle('save-settings', (_event, settings) => {
+  try {
+    saveSettings(settings);
+    return true;
+  } catch (error) {
+    console.error('Error saving settings:', error);
+    return false;
+  }
+});
+
 ipcMain.handle('get-secret-key', () => {
-  return SERVER_SECRET;
+  const settings = loadSettings();
+  return getServerSecret(settings);
 });
 
 ipcMain.handle('get-goosed-host-port', async (event) => {
@@ -1779,6 +1827,28 @@ async function appMain() {
     }
   });
 
+  const buildConnectSrc = (): string => {
+    const sources = [
+      "'self'",
+      'http://127.0.0.1:*',
+      'https://api.github.com',
+      'https://github.com',
+      'https://objects.githubusercontent.com',
+    ];
+
+    const settings = loadSettings();
+    if (settings.externalGoosed?.enabled && settings.externalGoosed.url) {
+      try {
+        const externalUrl = new URL(settings.externalGoosed.url);
+        sources.push(externalUrl.origin);
+      } catch {
+        console.warn('Invalid external goosed URL in settings, skipping CSP entry');
+      }
+    }
+
+    return sources.join(' ');
+  };
+
   // Add CSP headers to all sessions
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     callback({
@@ -1786,31 +1856,18 @@ async function appMain() {
         ...details.responseHeaders,
         'Content-Security-Policy':
           "default-src 'self';" +
-          // Allow inline styles since we use them in our React components
           "style-src 'self' 'unsafe-inline';" +
-          // Scripts from our app and inline scripts (for theme initialization)
           "script-src 'self' 'unsafe-inline';" +
-          // Images from our app and data: URLs (for base64 images)
           "img-src 'self' data: https:;" +
-          // Connect to our local API and specific external services
-          "connect-src 'self' http://127.0.0.1:* https://api.github.com https://github.com https://objects.githubusercontent.com" +
-          // Don't allow any plugins
+          `connect-src ${buildConnectSrc()};` +
           "object-src 'none';" +
-          // Allow all frames (iframes)
           "frame-src 'self' https: http:;" +
-          // Font sources - allow self, data URLs, and external fonts
           "font-src 'self' data: https:;" +
-          // Media sources - allow microphone
           "media-src 'self' mediastream:;" +
-          // Form actions
           "form-action 'none';" +
-          // Base URI restriction
           "base-uri 'self';" +
-          // Manifest files
           "manifest-src 'self';" +
-          // Worker sources
           "worker-src 'self';" +
-          // Upgrade insecure requests
           'upgrade-insecure-requests;',
       },
     });

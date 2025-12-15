@@ -166,8 +166,9 @@ impl ProviderTester {
 
         let weather = Message::user().with_tool_response(
             id,
-            Ok(vec![Content::text(
-                "
+            Ok(rmcp::model::CallToolResult {
+                content: vec![Content::text(
+                    "
                   50°F°C
                   Precipitation: 0%
                   Humidity: 84%
@@ -175,7 +176,11 @@ impl ProviderTester {
                   Weather
                   Saturday 9:00 PM
                   Clear",
-            )]),
+                )],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
         );
 
         let (response2, _) = self
@@ -318,10 +323,15 @@ impl ProviderTester {
         );
         let tool_response = Message::user().with_tool_response(
             "test_id",
-            Ok(vec![Content::image(
-                image_content.data.clone(),
-                image_content.mime_type.clone(),
-            )]),
+            Ok(rmcp::model::CallToolResult {
+                content: vec![Content::image(
+                    image_content.data.clone(),
+                    image_content.mime_type.clone(),
+                )],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
         );
 
         let result2 = self

@@ -100,10 +100,10 @@ export default function MCPUIResourceRenderer({
 
     const fetchProxyUrl = async () => {
       try {
-        const baseUrl = await window.electron.getGoosedHostPort();
+        const gooseApiHost = await window.electron.getGoosedHostPort();
         const secretKey = await window.electron.getSecretKey();
-        if (baseUrl && secretKey) {
-          setProxyUrl(`${baseUrl}/mcp-ui-proxy?secret=${encodeURIComponent(secretKey)}`);
+        if (gooseApiHost && secretKey) {
+          setProxyUrl(`${gooseApiHost}/mcp-ui-proxy?secret=${encodeURIComponent(secretKey)}`);
         } else {
           console.error('Failed to get goosed host/port or secret key');
         }
