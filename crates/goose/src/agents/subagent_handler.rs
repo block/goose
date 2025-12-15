@@ -117,10 +117,11 @@ fn get_agent_messages(
     cancellation_token: Option<CancellationToken>,
 ) -> AgentMessagesFuture {
     Box::pin(async move {
-        let text_instruction = recipe
-            .instructions
+        let system_instructions = recipe.instructions.clone().unwrap_or_default();
+        let user_task = recipe
+            .prompt
             .clone()
-            .or(recipe.prompt.clone())
+            .or(recipe.instructions.clone())
             .ok_or_else(|| anyhow!("Recipe has no instructions or prompt"))?;
 
         let agent_manager = AgentManager::instance()
@@ -160,7 +161,7 @@ fn get_agent_messages(
                     .max_turns
                     .expect("TaskConfig always sets max_turns"),
                 subagent_id: session_id.clone(),
-                task_instructions: text_instruction.clone(),
+                task_instructions: system_instructions,
                 tool_count: tools.len(),
                 available_tools: tools
                     .iter()
@@ -172,7 +173,7 @@ fn get_agent_messages(
         .map_err(|e| anyhow!("Failed to render subagent system prompt: {}", e))?;
         agent.override_system_prompt(subagent_prompt).await;
 
-        let user_message = Message::user().with_text(text_instruction);
+        let user_message = Message::user().with_text(user_task);
         let mut conversation = Conversation::new_unvalidated(vec![user_message.clone()]);
 
         if let Some(activities) = recipe.activities {
