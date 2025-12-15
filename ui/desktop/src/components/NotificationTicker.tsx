@@ -129,9 +129,14 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
         'image-rendering-pixelated',
         // Add some visual emphasis
         'shadow-lg shadow-green-500/20',
+        // Ensure it's visible
+        'min-h-[56px]',
         className
       )}
-      style={{ height: `${height}px` }}
+      style={{ 
+        height: `${height}px`,
+        minHeight: `${height}px`
+      }}
     >
       {/* Scanlines effect for retro terminal look */}
       <div className="absolute inset-0 pointer-events-none">

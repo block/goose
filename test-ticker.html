@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ticker Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Courier New', monospace;
+            background: #1a1a1a;
+        }
+        
+        .ticker {
+            height: 56px;
+            background: black;
+            border-bottom: 2px solid rgba(34, 197, 94, 0.5);
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(34, 197, 94, 0.2);
+        }
+        
+        .time-display {
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            background: rgba(0, 0, 0, 0.9);
+            border-right: 2px solid rgba(34, 197, 94, 0.5);
+            z-index: 10;
+        }
+        
+        .time-text {
+            color: #22c55e;
+            font-weight: bold;
+            font-size: 14px;
+            letter-spacing: 1px;
+        }
+        
+        .scrolling-content {
+            position: absolute;
+            top: 0;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            padding-left: 96px;
+        }
+        
+        .ticker-content {
+            display: flex;
+            align-items: center;
+            white-space: nowrap;
+            animation: scroll 30s linear infinite;
+        }
+        
+        .ticker-item {
+            padding: 0 16px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            color: #22c55e;
+        }
+        
+        .ticker-separator {
+            color: #22c55e;
+            padding: 0 8px;
+        }
+        
+        @keyframes scroll {
+            0% {
+                transform: translateX(100%);
+            }
+            100% {
+                transform: translateX(-100%);
+            }
+        }
+        
+        .scanlines {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 1px,
+                rgba(34, 197, 94, 0.1) 2px
+            );
+            background-size: 100% 2px;
+            pointer-events: none;
+            opacity: 0.1;
+        }
+        
+        .cursor {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 8px;
+            height: 16px;
+            background: #22c55e;
+            animation: blink 1s step-end infinite;
+            opacity: 0.6;
+        }
+        
+        @keyframes blink {
+            0%, 50% {
+                opacity: 0.6;
+            }
+            51%, 100% {
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="ticker">
+        <div class="scanlines"></div>
+        
+        <div class="time-display">
+            <span class="time-text" id="time"></span>
+        </div>
+        
+        <div class="scrolling-content">
+            <div class="ticker-content">
+                <span class="ticker-item">GOOSE AI AGENT ONLINE</span>
+                <span class="ticker-separator">●</span>
+                <span class="ticker-item">SYSTEM STATUS: OPERATIONAL</span>
+                <span class="ticker-separator">●</span>
+                <span class="ticker-item">EXTENSIONS LOADED: 12</span>
+                <span class="ticker-separator">●</span>
+                <span class="ticker-item">MEMORY USAGE: 45%</span>
+                <span class="ticker-separator">●</span>
+                <span class="ticker-item">ACTIVE SESSIONS: 3</span>
+                <span class="ticker-separator">●</span>
+                <span class="ticker-item">LAST SYNC: 2 MIN AGO</span>
+                <span class="ticker-separator">●</span>
+            </div>
+        </div>
+        
+        <div class="cursor"></div>
+    </div>
+    
+    <div style="padding: 20px; color: #22c55e;">
+        <h2>Ticker Test</h2>
+        <p>This should show a Bloomberg-style ticker at the top.</p>
+        <p>The ticker should have:</p>
+        <ul>
+            <li>Black background with green text</li>
+            <li>Current time on the left</li>
+            <li>Scrolling messages from left to right</li>
+            <li>Scanlines effect</li>
+            <li>Blinking cursor on the right</li>
+        </ul>
+    </div>
+
+    <script>
+        function updateTime() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('en-US', { 
+                hour12: false,
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+            document.getElementById('time').textContent = timeString;
+        }
+        
+        // Update time every second
+        setInterval(updateTime, 1000);
+        updateTime(); // Initial call
+    </script>
+</body>
+</html>
