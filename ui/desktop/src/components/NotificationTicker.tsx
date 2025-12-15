@@ -95,19 +95,8 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
   }, []);
 
   const getTypeColor = (type: TickerItem['type']) => {
-    switch (type) {
-      case 'success':
-        return 'text-text-success';
-      case 'warning':
-        return 'text-text-warning';
-      case 'error':
-        return 'text-text-error';
-      case 'info':
-        return 'text-text-info';
-      case 'neutral':
-      default:
-        return 'text-text-default';
-    }
+    // Use single color for all text types
+    return 'text-text-default';
   };
 
   const formatTime = () => {
@@ -142,7 +131,7 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
 
       {/* Time display - fixed on the left */}
       <div className="absolute left-0 top-0 h-full flex items-center px-3 bg-background-muted border-r border-border-default z-10">
-        <span className="text-text-muted font-bold tracking-wider ticker-pixelated">
+        <span className="text-text-default font-mono text-xs font-medium tracking-wider">
           {formatTime()}
         </span>
       </div>
@@ -161,7 +150,7 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
               <span className={cn('px-3 font-mono text-xs font-medium tracking-wide', getTypeColor(item.type))}>
                 {item.text}
               </span>
-              <span className="text-text-muted px-2 font-mono text-xs">●</span>
+              <span className="text-text-default px-2 font-mono text-xs">●</span>
             </React.Fragment>
           ))}
           {/* Duplicate content for seamless loop */}
@@ -170,7 +159,7 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
               <span className={cn('px-3 font-mono text-xs font-medium tracking-wide', getTypeColor(item.type))}>
                 {item.text}
               </span>
-              <span className="text-text-muted px-2 font-mono text-xs">●</span>
+              <span className="text-text-default px-2 font-mono text-xs">●</span>
             </React.Fragment>
           ))}
         </div>
