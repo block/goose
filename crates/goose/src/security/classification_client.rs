@@ -161,15 +161,15 @@ impl ClassificationClient {
             .first()
             .context("Classification API returned empty response")?;
 
+        let sum: f32 = batch_result.iter().map(|l| l.score).sum();
         let is_probabilities = batch_result
             .iter()
-            .all(|label| label.score >= 0.0 && label.score <= 1.0);
+            .all(|label| label.score >= 0.0 && label.score <= 1.0)
+            && (sum - 1.0).abs() < 0.1;
 
         let normalized_results: Vec<ClassificationLabel> = if is_probabilities {
-            tracing::debug!("Detected probability scores (0-1 range)");
             batch_result.to_vec()
         } else {
-            tracing::debug!("Detected logit scores, applying softmax normalization");
             self.apply_softmax(batch_result)?
         };
 
