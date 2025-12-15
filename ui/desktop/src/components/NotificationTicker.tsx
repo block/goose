@@ -123,12 +123,12 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
     <div 
       ref={containerRef}
       className={cn(
-        'relative overflow-hidden bg-black border-b-2 border-green-500/50',
+        'relative overflow-hidden bg-background-card border-b border-border-default',
         'font-mono text-xs leading-none font-bold',
         // Pixelated effect
         'image-rendering-pixelated',
         // Add some visual emphasis
-        'shadow-lg shadow-green-500/20',
+        'shadow-sm',
         // Ensure it's visible
         'min-h-[32px]',
         className
@@ -138,20 +138,11 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
         minHeight: `${height}px`
       }}
     >
-      {/* Scanlines effect for retro terminal look */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div 
-          className="absolute inset-0 opacity-10"
-          style={{
-            backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(0, 255, 0, 0.1) 2px)',
-            backgroundSize: '100% 2px'
-          }}
-        />
-      </div>
+
 
       {/* Time display - fixed on the left */}
-      <div className="absolute left-0 top-0 h-full flex items-center px-3 bg-black/90 border-r-2 border-green-500/50 z-10">
-        <span className="text-green-400 font-bold tracking-wider ticker-pixelated">
+      <div className="absolute left-0 top-0 h-full flex items-center px-3 bg-background-muted border-r border-border-default z-10">
+        <span className="text-text-muted font-bold tracking-wider ticker-pixelated">
           {formatTime()}
         </span>
       </div>
@@ -170,7 +161,7 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
               <span className={cn('px-3 font-bold tracking-wide ticker-pixelated', getTypeColor(item.type))}>
                 {item.text}
               </span>
-              <span className="text-green-500 px-2 ticker-pixelated">●</span>
+              <span className="text-text-muted px-2 ticker-pixelated">●</span>
             </React.Fragment>
           ))}
           {/* Duplicate content for seamless loop */}
@@ -179,18 +170,18 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
               <span className={cn('px-3 font-bold tracking-wide ticker-pixelated', getTypeColor(item.type))}>
                 {item.text}
               </span>
-              <span className="text-green-500 px-2 ticker-pixelated">●</span>
+              <span className="text-text-muted px-2 ticker-pixelated">●</span>
             </React.Fragment>
           ))}
         </div>
       </div>
 
       {/* Right fade effect */}
-      <div className="absolute right-0 top-0 h-full w-8 bg-gradient-to-l from-black to-transparent pointer-events-none" />
+      <div className="absolute right-0 top-0 h-full w-8 bg-gradient-to-l from-background-card to-transparent pointer-events-none" />
       
       {/* Terminal cursor blink effect */}
       <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
-        <div className="w-2 h-4 bg-green-400 animate-pulse opacity-60" />
+        <div className="w-2 h-4 bg-text-accent animate-pulse opacity-60" />
       </div>
     </div>
   );
