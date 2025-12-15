@@ -197,7 +197,7 @@ export const SwitchModelModal = ({
 
         setLoadingModels(true);
 
-        // Fetching models for all providers
+        // Fetching models for all providers (always recommended)
         const results = await fetchModelsForProviders(activeProviders, getProviderModels);
 
         // Process results and build grouped options

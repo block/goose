@@ -74,9 +74,10 @@ impl ClaudeCodeProvider {
                         }
                     }
                     MessageContent::ToolResponse(tool_response) => {
-                        if let Ok(tool_contents) = &tool_response.tool_result {
+                        if let Ok(result) = &tool_response.tool_result {
                             // Convert tool result contents to text
-                            let content_text = tool_contents
+                            let content_text = result
+                                .content
                                 .iter()
                                 .filter_map(|content| match &content.raw {
                                     rmcp::model::RawContent::Text(text_content) => {

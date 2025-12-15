@@ -114,7 +114,15 @@ mod tests {
                         arguments: None,
                     }),
                 ),
-            Message::user().with_tool_response("search_1", Ok(vec![])),
+            Message::user().with_tool_response(
+                "search_1",
+                Ok(rmcp::model::CallToolResult {
+                    content: vec![],
+                    structured_content: None,
+                    is_error: Some(false),
+                    meta: None,
+                }),
+            ),
             Message::assistant()
                 .with_text("I need to search more")
                 .with_tool_request(
@@ -124,7 +132,15 @@ mod tests {
                         arguments: None,
                     }),
                 ),
-            Message::user().with_tool_response("search_2", Ok(vec![])),
+            Message::user().with_tool_response(
+                "search_2",
+                Ok(rmcp::model::CallToolResult {
+                    content: vec![],
+                    structured_content: None,
+                    is_error: Some(false),
+                    meta: None,
+                }),
+            ),
         ]);
 
         let result = inject_moim(conv, &em, &working_dir).await;
