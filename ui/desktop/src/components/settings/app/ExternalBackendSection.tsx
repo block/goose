@@ -11,28 +11,35 @@ interface ExternalGoosedConfig {
 }
 
 interface Settings {
-  externalGoosed?: ExternalGoosedConfig;
+  externalGoosed?: Partial<ExternalGoosedConfig>;
+}
+
+const DEFAULT_CONFIG: ExternalGoosedConfig = {
+  enabled: false,
+  url: '',
+  secret: '',
+};
+
+function parseConfig(partial: Partial<ExternalGoosedConfig> | undefined): ExternalGoosedConfig {
+  return {
+    enabled: partial?.enabled ?? DEFAULT_CONFIG.enabled,
+    url: partial?.url ?? DEFAULT_CONFIG.url,
+    secret: partial?.secret ?? DEFAULT_CONFIG.secret,
+  };
 }
 
 export default function ExternalBackendSection() {
-  const [enabled, setEnabled] = useState(false);
-  const [url, setUrl] = useState('');
-  const [secret, setSecret] = useState('');
+  const [config, setConfig] = useState<ExternalGoosedConfig>(DEFAULT_CONFIG);
   const [isSaving, setIsSaving] = useState(false);
   const [urlError, setUrlError] = useState<string | null>(null);
 
   useEffect(() => {
+    const loadSettings = async () => {
+      const settings = (await window.electron.getSettings()) as Settings | null;
+      setConfig(parseConfig(settings?.externalGoosed));
+    };
     loadSettings();
   }, []);
-
-  const loadSettings = async () => {
-    const settings = (await window.electron.getSettings()) as Settings | null;
-    if (settings?.externalGoosed) {
-      setEnabled(settings.externalGoosed.enabled);
-      setUrl(settings.externalGoosed.url || '');
-      setSecret(settings.externalGoosed.secret || '');
-    }
-  };
 
   const validateUrl = (value: string): boolean => {
     if (!value) {
@@ -53,23 +60,14 @@ export default function ExternalBackendSection() {
     }
   };
 
-  const saveSettings = async (
-    newEnabled: boolean,
-    newUrl: string,
-    newSecret: string
-  ): Promise<void> => {
+  const saveConfig = async (newConfig: ExternalGoosedConfig): Promise<void> => {
     setIsSaving(true);
     try {
       const currentSettings = ((await window.electron.getSettings()) as Settings) || {};
-      const updatedSettings = {
+      await window.electron.saveSettings({
         ...currentSettings,
-        externalGoosed: {
-          enabled: newEnabled,
-          url: newUrl,
-          secret: newSecret,
-        },
-      };
-      await window.electron.saveSettings(updatedSettings);
+        externalGoosed: newConfig,
+      });
     } catch (error) {
       console.error('Failed to save external backend settings:', error);
     } finally {
@@ -77,24 +75,24 @@ export default function ExternalBackendSection() {
     }
   };
 
-  const handleEnabledChange = async (checked: boolean) => {
-    setEnabled(checked);
-    await saveSettings(checked, url, secret);
+  const updateField = <K extends keyof ExternalGoosedConfig>(
+    field: K,
+    value: ExternalGoosedConfig[K]
+  ) => {
+    const newConfig = { ...config, [field]: value };
+    setConfig(newConfig);
+    return newConfig;
   };
 
   const handleUrlChange = (value: string) => {
-    setUrl(value);
+    updateField('url', value);
     validateUrl(value);
   };
 
   const handleUrlBlur = async () => {
-    if (validateUrl(url)) {
-      await saveSettings(enabled, url, secret);
+    if (validateUrl(config.url)) {
+      await saveConfig(config);
     }
-  };
-
-  const handleSecretBlur = async () => {
-    await saveSettings(enabled, url, secret);
   };
 
   return (
@@ -116,15 +114,15 @@ export default function ExternalBackendSection() {
           </div>
           <div className="flex items-center">
             <Switch
-              checked={enabled}
-              onCheckedChange={handleEnabledChange}
+              checked={config.enabled}
+              onCheckedChange={(checked) => saveConfig(updateField('enabled', checked))}
               disabled={isSaving}
               variant="mono"
             />
           </div>
         </div>
 
-        {enabled && (
+        {config.enabled && (
           <>
             <div className="space-y-2">
               <label htmlFor="external-url" className="text-text-default text-xs">
@@ -134,7 +132,7 @@ export default function ExternalBackendSection() {
                 id="external-url"
                 type="url"
                 placeholder="http://127.0.0.1:3000"
-                value={url}
+                value={config.url}
                 onChange={(e) => handleUrlChange(e.target.value)}
                 onBlur={handleUrlBlur}
                 disabled={isSaving}
@@ -156,9 +154,9 @@ export default function ExternalBackendSection() {
                 id="external-secret"
                 type="password"
                 placeholder="Enter the server's secret key"
-                value={secret}
-                onChange={(e) => setSecret(e.target.value)}
-                onBlur={handleSecretBlur}
+                value={config.secret}
+                onChange={(e) => updateField('secret', e.target.value)}
+                onBlur={() => saveConfig(config)}
                 disabled={isSaving}
               />
               <p className="text-xs text-text-muted">
