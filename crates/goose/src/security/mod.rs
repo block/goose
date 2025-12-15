@@ -68,7 +68,7 @@ impl SecurityManager {
                 match PromptInjectionScanner::with_ml_detection() {
                     Ok(s) => {
                         tracing::info!(
-                            gauge.goose.prompt_injection_scanner_enabled = 1,
+                            counter.goose.prompt_injection_scanner_enabled = 1,
                             "🔓 Security scanner initialized with ML-based detection"
                         );
                         s
@@ -84,7 +84,7 @@ impl SecurityManager {
                 }
             } else {
                 tracing::info!(
-                    gauge.goose.prompt_injection_scanner_enabled = 1,
+                    counter.goose.prompt_injection_scanner_enabled = 1,
                     "🔓 Security scanner initialized with pattern-based detection only"
                 );
                 PromptInjectionScanner::new()
