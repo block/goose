@@ -166,6 +166,13 @@ jobs:
           apt-get update
           apt-get install -y gh
 
+      - name: Acknowledge trigger
+        if: github.event.comment.id
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api --method POST /repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions -f content=eyes
+
       - name: Get PR details
         id: pr
         env:
