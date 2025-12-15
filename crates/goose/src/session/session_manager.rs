@@ -371,14 +371,15 @@ impl SessionManager {
 
     pub async fn update_message_metadata<F>(id: &str, message_id: &str, f: F) -> Result<()>
     where
-        F: FnOnce(crate::conversation::message::MessageMetadata) -> crate::conversation::message::MessageMetadata,
+        F: FnOnce(
+            crate::conversation::message::MessageMetadata,
+        ) -> crate::conversation::message::MessageMetadata,
     {
         Self::instance()
             .await?
             .update_message_metadata(id, message_id, f)
             .await
     }
-
 }
 
 pub struct SessionStorage {
@@ -775,6 +776,7 @@ impl SessionStorage {
         Ok(())
     }
 
+    #[allow(clippy::too_many_lines)]
     async fn apply_migration(&self, version: i32) -> Result<()> {
         match version {
             1 => {
@@ -856,7 +858,7 @@ impl SessionStorage {
             }
             7 => {
                 sqlx::query(
-                r#"
+                    r#"
                     ALTER TABLE messages ADD COLUMN message_id TEXT
                 "#,
                 )
@@ -864,7 +866,7 @@ impl SessionStorage {
                 .await?;
 
                 sqlx::query(
-                r#"
+                    r#"
                     UPDATE messages
                     SET message_id = 'msg_' || session_id || '_' || id
                 "#,
@@ -1077,7 +1079,9 @@ impl SessionStorage {
             .await?;
 
         let mut messages = Vec::new();
-        for (role_str, content_json, created_timestamp, metadata_json, message_id) in rows.into_iter() {
+        for (role_str, content_json, created_timestamp, metadata_json, message_id) in
+            rows.into_iter()
+        {
             let role = match role_str.as_str() {
                 "user" => Role::User,
                 "assistant" => Role::Assistant,
@@ -1105,9 +1109,10 @@ impl SessionStorage {
 
         let metadata_json = serde_json::to_string(&message.metadata)?;
 
-        let message_id = message.id.clone().unwrap_or_else(|| {
-            format!("msg_{}_{}", session_id, uuid::Uuid::new_v4())
-        });
+        let message_id = message
+            .id
+            .clone()
+            .unwrap_or_else(|| format!("msg_{}_{}", session_id, uuid::Uuid::new_v4()));
 
         sqlx::query(
             r#"
@@ -1355,17 +1360,19 @@ impl SessionStorage {
         f: F,
     ) -> Result<()>
     where
-        F: FnOnce(crate::conversation::message::MessageMetadata) -> crate::conversation::message::MessageMetadata,
+        F: FnOnce(
+            crate::conversation::message::MessageMetadata,
+        ) -> crate::conversation::message::MessageMetadata,
     {
         let mut tx = self.pool.begin().await?;
 
         let current_metadata_json = sqlx::query_scalar::<_, String>(
-            "SELECT metadata_json FROM messages WHERE message_id = ? AND session_id = ?"
+            "SELECT metadata_json FROM messages WHERE message_id = ? AND session_id = ?",
         )
-            .bind(message_id)
-            .bind(session_id)
-            .fetch_one(&mut *tx)
-            .await?;
+        .bind(message_id)
+        .bind(session_id)
+        .fetch_one(&mut *tx)
+        .await?;
 
         let current_metadata: crate::conversation::message::MessageMetadata =
             serde_json::from_str(&current_metadata_json)?;
@@ -1373,12 +1380,14 @@ impl SessionStorage {
         let new_metadata = f(current_metadata);
         let metadata_json = serde_json::to_string(&new_metadata)?;
 
-        sqlx::query("UPDATE messages SET metadata_json = ? WHERE message_id = ? AND session_id = ?")
-            .bind(metadata_json)
-            .bind(message_id)
-            .bind(session_id)
-            .execute(&mut *tx)
-            .await?;
+        sqlx::query(
+            "UPDATE messages SET metadata_json = ? WHERE message_id = ? AND session_id = ?",
+        )
+        .bind(metadata_json)
+        .bind(message_id)
+        .bind(session_id)
+        .execute(&mut *tx)
+        .await?;
 
         tx.commit().await?;
 

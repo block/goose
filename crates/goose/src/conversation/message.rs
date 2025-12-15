@@ -1,4 +1,6 @@
+use crate::conversation::tool_result_serde;
 use crate::mcp_utils::ToolResult;
+use crate::utils::sanitize_unicode_tags;
 use chrono::Utc;
 use rmcp::model::{
     AnnotateAble, CallToolRequestParam, CallToolResult, Content, ImageContent, JsonObject,
@@ -10,8 +12,6 @@ use std::collections::HashSet;
 use std::fmt;
 use utoipa::ToSchema;
 use uuid::Uuid;
-use crate::conversation::tool_result_serde;
-use crate::utils::sanitize_unicode_tags;
 
 #[derive(ToSchema)]
 pub enum ToolCallResult<T> {
@@ -607,7 +607,7 @@ impl Message {
         self
     }
 
-    pub fn with_generated_id(mut self) -> Self {
+    pub fn with_generated_id(self) -> Self {
         self.with_id(format!("msg_{}", Uuid::new_v4()))
     }
 

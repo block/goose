@@ -6,7 +6,6 @@ use std::sync::Arc;
 use anyhow::{anyhow, Context, Result};
 use futures::stream::BoxStream;
 use futures::{stream, FutureExt, Stream, StreamExt, TryStreamExt};
-use uuid::Uuid;
 
 use super::final_output_tool::FinalOutputTool;
 use super::platform_tools;
@@ -35,7 +34,9 @@ use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, SharedProvider, ToolResultReceiver};
 use crate::config::{get_enabled_extensions, Config, GooseMode};
-use crate::context_mgmt::{check_if_compaction_needed, compact_messages, DEFAULT_COMPACTION_THRESHOLD};
+use crate::context_mgmt::{
+    check_if_compaction_needed, compact_messages, DEFAULT_COMPACTION_THRESHOLD,
+};
 use crate::conversation::message::{
     ActionRequiredData, Message, MessageContent, SystemNotificationType, ToolRequest,
 };
@@ -856,7 +857,8 @@ impl Agent {
                 .join("\n\n");
             let prompt_message = Message::user()
                 .with_text(prompt)
-                .with_visibility(false, true).with_generated_id();
+                .with_visibility(false, true)
+                .with_generated_id();
             SessionManager::add_message(&session_config.id, &prompt_message).await?;
             SessionManager::add_message(
                 &session_config.id,
