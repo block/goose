@@ -9,7 +9,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashSet;
 use std::fmt;
 use utoipa::ToSchema;
-
+use uuid::Uuid;
 use crate::conversation::tool_result_serde;
 use crate::utils::sanitize_unicode_tags;
 
@@ -605,6 +605,10 @@ impl Message {
     pub fn with_id<S: Into<String>>(mut self, id: S) -> Self {
         self.id = Some(id.into());
         self
+    }
+
+    pub fn with_generated_id(mut self) -> Self {
+        self.with_id(format!("msg_{}", Uuid::new_v4()))
     }
 
     /// Add any MessageContent to the message

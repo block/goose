@@ -246,7 +246,10 @@ impl Agent {
     async fn drain_elicitation_messages(session_id: &str) -> Vec<Message> {
         let mut messages = Vec::new();
         let mut elicitation_rx = ActionRequiredManager::global().request_rx.lock().await;
-        while let Ok(elicitation_message) = elicitation_rx.try_recv() {
+        while let Ok(mut elicitation_message) = elicitation_rx.try_recv() {
+            if elicitation_message.id.is_none() {
+                elicitation_message = elicitation_message.with_generated_id();
+            }
             if let Err(e) = SessionManager::add_message(session_id, &elicitation_message).await {
                 warn!("Failed to save elicitation message to session: {}", e);
             }
@@ -853,11 +856,13 @@ impl Agent {
                 .join("\n\n");
             let prompt_message = Message::user()
                 .with_text(prompt)
-                .with_visibility(false, true);
+                .with_visibility(false, true).with_generated_id();
             SessionManager::add_message(&session_config.id, &prompt_message).await?;
             SessionManager::add_message(
                 &session_config.id,
-                &user_message.with_visibility(true, false),
+                &user_message
+                    .with_visibility(true, false)
+                    .with_generated_id(),
             )
             .await?;
         } else {
@@ -1085,9 +1090,7 @@ impl Agent {
                                 }
 
                                 let tool_response_messages: Vec<Arc<Mutex<Message>>> = (0..num_tool_requests)
-                                    .map(|_| Arc::new(Mutex::new(Message::user().with_id(
-                                        format!("msg_{}", Uuid::new_v4())
-                                    ))))
+                                    .map(|_| Arc::new(Mutex::new(Message::user().with_generated_id())))
                                     .collect();
 
                                 let mut request_to_response_map = HashMap::new();
@@ -1235,7 +1238,7 @@ impl Agent {
                                 for (idx, request) in frontend_requests.iter().chain(remaining_requests.iter()).enumerate() {
                                     if request.tool_call.is_ok() {
                                         let request_msg = Message::assistant()
-                                            .with_id(format!("msg_{}", Uuid::new_v4()))
+                                            .with_generated_id()
                                             .with_tool_request(request.id.clone(), request.tool_call.clone());
                                         messages_to_add.push(request_msg);
                                         let final_response = tool_response_messages[idx]
@@ -1339,14 +1342,20 @@ impl Agent {
 
                 if let Ok(Some((summary_msg, tool_id))) = tool_pair_summarization_task.await {
                     let mut updated_messages = conversation.messages().clone();
-                    for msg in updated_messages.iter_mut() {
-                        let has_matching_content = msg.content.iter().any(|c| match c {
-                            MessageContent::ToolRequest(req) => req.id == tool_id,
-                            MessageContent::ToolResponse(resp) => resp.id == tool_id,
-                            _ => false,
-                        });
 
-                        if has_matching_content {
+                    let matching: Vec<&mut Message> = updated_messages
+                        .iter_mut()
+                        .filter(|msg| {
+                            msg.content.iter().any(|c| match c {
+                                MessageContent::ToolRequest(req) => req.id == tool_id,
+                                MessageContent::ToolResponse(resp) => resp.id == tool_id,
+                                _ => false,
+                            })
+                        })
+                        .collect();
+
+                    if matching.len() == 2 {
+                        for msg in matching {
                             msg.metadata = msg.metadata.with_agent_invisible();
                             if let Some(id) = &msg.id {
                                 SessionManager::update_message_metadata(&session_config.id, id, |metadata| {
@@ -1354,9 +1363,12 @@ impl Agent {
                                 }).await?;
                             }
                         }
+                        conversation = Conversation::new_unvalidated(updated_messages);
+                        messages_to_add.push(summary_msg);
+                    } else {
+                        warn!("Expected a tool request/reply pair, but found {} matching messages",
+                            matching.len());
                     }
-                    conversation = Conversation::new_unvalidated(updated_messages);
-                    messages_to_add.push(summary_msg);
                 }
 
                 for msg in &messages_to_add {

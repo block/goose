@@ -1418,7 +1418,7 @@ mod tests {
                     .add_message(
                         &session.id,
                         &Message {
-                            id: None,
+                            id: Some("msg-1".to_string()),
                             role: Role::User,
                             created: chrono::Utc::now().timestamp_millis(),
                             content: vec![MessageContent::text("hello world")],
@@ -1432,7 +1432,7 @@ mod tests {
                     .add_message(
                         &session.id,
                         &Message {
-                            id: None,
+                            id: Some("msg-2".to_string()),
                             role: Role::Assistant,
                             created: chrono::Utc::now().timestamp_millis(),
                             content: vec![MessageContent::text("sup world?")],
@@ -1525,7 +1525,7 @@ mod tests {
             .add_message(
                 &original.id,
                 &Message {
-                    id: None,
+                    id: Some("msg-1".to_string()),
                     role: Role::User,
                     created: chrono::Utc::now().timestamp_millis(),
                     content: vec![MessageContent::text(USER_MESSAGE)],
@@ -1539,7 +1539,7 @@ mod tests {
             .add_message(
                 &original.id,
                 &Message {
-                    id: None,
+                    id: Some("msg-2".to_string()),
                     role: Role::Assistant,
                     created: chrono::Utc::now().timestamp_millis(),
                     content: vec![MessageContent::text(ASSISTANT_MESSAGE)],
