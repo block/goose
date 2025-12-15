@@ -2,6 +2,7 @@
 
 use crate::config::paths::Paths;
 use crate::config::{get_enabled_extensions, Config};
+use crate::session::session_manager::CURRENT_SCHEMA_VERSION;
 use crate::session::SessionManager;
 use chrono::{DateTime, Utc};
 use once_cell::sync::Lazy;
@@ -167,6 +168,10 @@ fn detect_install_method() -> String {
     "binary".to_string()
 }
 
+fn is_dev_mode() -> bool {
+    cfg!(debug_assertions)
+}
+
 // ============================================================================
 // Session Context (set by CLI/Desktop at startup)
 // ============================================================================
@@ -209,7 +214,17 @@ pub fn emit_session_started() {
     });
 }
 
+#[derive(Default, Clone)]
+pub struct ErrorContext {
+    pub component: Option<String>,
+    pub action: Option<String>,
+}
+
 pub fn emit_error(error_type: &str) {
+    emit_error_with_context(error_type, ErrorContext::default());
+}
+
+pub fn emit_error_with_context(error_type: &str, context: ErrorContext) {
     if !is_telemetry_enabled() {
         return;
     }
@@ -218,15 +233,94 @@ pub fn emit_error(error_type: &str) {
     let error_type = error_type.to_string();
 
     tokio::spawn(async move {
-        let _ = send_error_event(&installation, &error_type).await;
+        let _ = send_error_event(&installation, &error_type, context).await;
     });
 }
 
-async fn send_error_event(installation: &InstallationData, error_type: &str) -> Result<(), String> {
+/// Type of slash command for analytics tracking
+#[derive(Debug, Clone)]
+pub enum SlashCommandType {
+    /// Builtin command (e.g., /compact) - name is safe to track
+    Builtin(String),
+    /// Recipe command - name is NOT tracked for privacy
+    Recipe,
+    /// Unknown/unrecognized command
+    Unknown,
+}
+
+pub fn emit_slash_command_used(command_type: SlashCommandType) {
+    if !is_telemetry_enabled() {
+        return;
+    }
+
+    let installation = load_or_create_installation();
+
+    tokio::spawn(async move {
+        let _ = send_slash_command_event(&installation, command_type).await;
+    });
+}
+
+async fn send_error_event(
+    installation: &InstallationData,
+    error_type: &str,
+    context: ErrorContext,
+) -> Result<(), String> {
     let client = posthog_rs::client(POSTHOG_API_KEY).await;
     let mut event = posthog_rs::Event::new("error", &installation.installation_id);
 
     event.insert_prop("error_type", error_type).ok();
+    event
+        .insert_prop("error_category", classify_error(error_type))
+        .ok();
+    event.insert_prop("source", "backend").ok();
+    event.insert_prop("version", env!("CARGO_PKG_VERSION")).ok();
+    event.insert_prop("interface", get_session_interface()).ok();
+    event.insert_prop("os", std::env::consts::OS).ok();
+    event.insert_prop("arch", std::env::consts::ARCH).ok();
+
+    if let Some(component) = &context.component {
+        event.insert_prop("component", component.as_str()).ok();
+    }
+    if let Some(action) = &context.action {
+        event.insert_prop("action", action.as_str()).ok();
+    }
+
+    if let Some(platform_version) = get_platform_version() {
+        event.insert_prop("platform_version", platform_version).ok();
+    }
+
+    let config = Config::global();
+    if let Ok(provider) = config.get_param::<String>("GOOSE_PROVIDER") {
+        event.insert_prop("provider", provider).ok();
+    }
+    if let Ok(model) = config.get_param::<String>("GOOSE_MODEL") {
+        event.insert_prop("model", model).ok();
+    }
+
+    client.capture(event).await.map_err(|e| format!("{:?}", e))
+}
+
+async fn send_slash_command_event(
+    installation: &InstallationData,
+    command_type: SlashCommandType,
+) -> Result<(), String> {
+    let client = posthog_rs::client(POSTHOG_API_KEY).await;
+    let mut event = posthog_rs::Event::new("slash_command_used", &installation.installation_id);
+
+    // Set success and command_type based on the enum
+    let (success, type_str, command_name) = match &command_type {
+        SlashCommandType::Builtin(name) => (true, "builtin", Some(name.clone())),
+        SlashCommandType::Recipe => (true, "recipe", None),
+        SlashCommandType::Unknown => (false, "unknown", None),
+    };
+
+    event.insert_prop("success", success).ok();
+    event.insert_prop("command_type", type_str).ok();
+    if let Some(name) = command_name {
+        event.insert_prop("command_name", name).ok();
+    }
+
+    event.insert_prop("source", "backend").ok();
     event.insert_prop("version", env!("CARGO_PKG_VERSION")).ok();
     event.insert_prop("interface", get_session_interface()).ok();
     event.insert_prop("os", std::env::consts::OS).ok();
@@ -254,6 +348,7 @@ async fn send_session_event(installation: &InstallationData) -> Result<(), Strin
     event.insert_prop("os", std::env::consts::OS).ok();
     event.insert_prop("arch", std::env::consts::ARCH).ok();
     event.insert_prop("version", env!("CARGO_PKG_VERSION")).ok();
+    event.insert_prop("is_dev", is_dev_mode()).ok();
 
     if let Some(platform_version) = get_platform_version() {
         event.insert_prop("platform_version", platform_version).ok();
@@ -285,10 +380,48 @@ async fn send_session_event(installation: &InstallationData) -> Result<(), Strin
         event.insert_prop("model", model).ok();
     }
 
+    if let Ok(mode) = config.get_param::<String>("GOOSE_MODE") {
+        event.insert_prop("setting_mode", mode).ok();
+    }
+    if let Ok(max_turns) = config.get_param::<i64>("GOOSE_MAX_TURNS") {
+        event.insert_prop("setting_max_turns", max_turns).ok();
+    }
+    if let Ok(router_enabled) = config.get_param::<bool>("GOOSE_ENABLE_ROUTER") {
+        event
+            .insert_prop("setting_router_enabled", router_enabled)
+            .ok();
+    }
+
+    if let Ok(lead_model) = config.get_param::<String>("GOOSE_LEAD_MODEL") {
+        event.insert_prop("setting_lead_model", lead_model).ok();
+    }
+    if let Ok(lead_provider) = config.get_param::<String>("GOOSE_LEAD_PROVIDER") {
+        event
+            .insert_prop("setting_lead_provider", lead_provider)
+            .ok();
+    }
+    if let Ok(lead_turns) = config.get_param::<i64>("GOOSE_LEAD_TURNS") {
+        event.insert_prop("setting_lead_turns", lead_turns).ok();
+    }
+    if let Ok(lead_failure_threshold) = config.get_param::<i64>("GOOSE_LEAD_FAILURE_THRESHOLD") {
+        event
+            .insert_prop("setting_lead_failure_threshold", lead_failure_threshold)
+            .ok();
+    }
+    if let Ok(lead_fallback_turns) = config.get_param::<i64>("GOOSE_LEAD_FALLBACK_TURNS") {
+        event
+            .insert_prop("setting_lead_fallback_turns", lead_fallback_turns)
+            .ok();
+    }
+
     let extensions = get_enabled_extensions();
     event.insert_prop("extensions_count", extensions.len()).ok();
     let extension_names: Vec<String> = extensions.iter().map(|e| e.name()).collect();
     event.insert_prop("extensions", extension_names).ok();
+
+    event
+        .insert_prop("db_schema_version", CURRENT_SCHEMA_VERSION)
+        .ok();
 
     if let Ok(insights) = SessionManager::get_insights().await {
         event
@@ -297,6 +430,164 @@ async fn send_session_event(installation: &InstallationData) -> Result<(), Strin
         event
             .insert_prop("total_tokens", insights.total_tokens)
             .ok();
+    }
+
+    client.capture(event).await.map_err(|e| format!("{:?}", e))
+}
+
+// ============================================================================
+// Error Classification
+// ============================================================================
+pub fn classify_error(error: &str) -> &'static str {
+    let error_lower = error.to_lowercase();
+
+    if error_lower.contains("network") || error_lower.contains("fetch") {
+        return "network_error";
+    }
+    if error_lower.contains("timeout") {
+        return "timeout";
+    }
+    if error_lower.contains("rate") && error_lower.contains("limit") {
+        return "rate_limit";
+    }
+    if error_lower.contains("auth")
+        || error_lower.contains("unauthorized")
+        || error_lower.contains("401")
+    {
+        return "auth_error";
+    }
+    if error_lower.contains("permission") || error_lower.contains("403") {
+        return "permission_error";
+    }
+    if error_lower.contains("not found") || error_lower.contains("404") {
+        return "not_found";
+    }
+    if error_lower.contains("provider") {
+        return "provider_error";
+    }
+    if error_lower.contains("config") {
+        return "config_error";
+    }
+    if error_lower.contains("extension") {
+        return "extension_error";
+    }
+    if error_lower.contains("database") || error_lower.contains("db") || error_lower.contains("sql")
+    {
+        return "database_error";
+    }
+    if error_lower.contains("migration") {
+        return "migration_error";
+    }
+    if error_lower.contains("render") || error_lower.contains("react") {
+        return "render_error";
+    }
+    if error_lower.contains("chunk") || error_lower.contains("module") {
+        return "module_error";
+    }
+
+    "unknown_error"
+}
+
+// ============================================================================
+// Privacy Sanitization
+// ============================================================================
+
+use regex::Regex;
+use std::sync::LazyLock;
+
+static SENSITIVE_PATTERNS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
+    vec![
+        // File paths with usernames (Unix)
+        Regex::new(r"/Users/[^/\s]+").unwrap(),
+        Regex::new(r"/home/[^/\s]+").unwrap(),
+        // File paths with usernames (Windows)
+        Regex::new(r"(?i)C:\\Users\\[^\\\s]+").unwrap(),
+        // API keys and tokens (common patterns)
+        Regex::new(r"sk-[a-zA-Z0-9]{20,}").unwrap(),
+        Regex::new(r"pk-[a-zA-Z0-9]{20,}").unwrap(),
+        Regex::new(r"(?i)key[_-]?[a-zA-Z0-9]{16,}").unwrap(),
+        Regex::new(r"(?i)token[_-]?[a-zA-Z0-9]{16,}").unwrap(),
+        Regex::new(r"(?i)bearer\s+[a-zA-Z0-9._-]+").unwrap(),
+        // Email addresses
+        Regex::new(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}").unwrap(),
+        // URLs with auth info
+        Regex::new(r"https?://[^:]+:[^@]+@").unwrap(),
+        // UUIDs (might be session/user IDs in error messages)
+        Regex::new(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
+            .unwrap(),
+    ]
+});
+
+fn sanitize_string(s: &str) -> String {
+    let mut result = s.to_string();
+    for pattern in SENSITIVE_PATTERNS.iter() {
+        result = pattern.replace_all(&result, "[REDACTED]").to_string();
+    }
+    result
+}
+
+fn sanitize_value(value: serde_json::Value) -> serde_json::Value {
+    match value {
+        serde_json::Value::String(s) => serde_json::Value::String(sanitize_string(&s)),
+        serde_json::Value::Array(arr) => {
+            serde_json::Value::Array(arr.into_iter().map(sanitize_value).collect())
+        }
+        serde_json::Value::Object(obj) => serde_json::Value::Object(
+            obj.into_iter()
+                .map(|(k, v)| (k, sanitize_value(v)))
+                .collect(),
+        ),
+        other => other,
+    }
+}
+
+// ============================================================================
+// Generic Event API (for frontend)
+// ============================================================================
+pub async fn emit_event(
+    event_name: &str,
+    mut properties: std::collections::HashMap<String, serde_json::Value>,
+) -> Result<(), String> {
+    if !is_telemetry_enabled() {
+        return Ok(());
+    }
+
+    let installation = load_or_create_installation();
+    let client = posthog_rs::client(POSTHOG_API_KEY).await;
+    let mut event = posthog_rs::Event::new(event_name, &installation.installation_id);
+
+    event.insert_prop("os", std::env::consts::OS).ok();
+    event.insert_prop("arch", std::env::consts::ARCH).ok();
+    event.insert_prop("version", env!("CARGO_PKG_VERSION")).ok();
+    event.insert_prop("interface", "desktop").ok();
+    event.insert_prop("source", "ui").ok();
+
+    if let Some(platform_version) = get_platform_version() {
+        event.insert_prop("platform_version", platform_version).ok();
+    }
+
+    if event_name == "error_occurred" || event_name == "app_crashed" {
+        if let Some(serde_json::Value::String(error_type)) = properties.get("error_type") {
+            let classified = classify_error(error_type);
+            properties.insert(
+                "error_category".to_string(),
+                serde_json::Value::String(classified.to_string()),
+            );
+        }
+    }
+
+    for (key, value) in properties {
+        let key_lower = key.to_lowercase();
+        if key_lower.contains("key")
+            || key_lower.contains("token")
+            || key_lower.contains("secret")
+            || key_lower.contains("password")
+            || key_lower.contains("credential")
+        {
+            continue;
+        }
+        let sanitized_value = sanitize_value(value);
+        event.insert_prop(&key, sanitized_value).ok();
     }
 
     client.capture(event).await.map_err(|e| format!("{:?}", e))

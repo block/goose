@@ -748,7 +748,36 @@ impl Agent {
 
         let slash_command_recipe = if message_text.trim().starts_with('/') {
             let command = message_text.split_whitespace().next();
-            command.and_then(crate::slash_commands::resolve_slash_command)
+
+            // Check if it's a builtin command first
+            let is_builtin = command
+                .map(|cmd| MANUAL_COMPACT_TRIGGERS.contains(&cmd))
+                .unwrap_or(false);
+
+            if is_builtin {
+                // Track builtin command with name (safe to track)
+                let cmd_name = command.unwrap_or("/unknown").trim_start_matches('/');
+                crate::posthog::emit_slash_command_used(crate::posthog::SlashCommandType::Builtin(
+                    cmd_name.to_string(),
+                ));
+                None
+            } else {
+                // Try to resolve as recipe command
+                let recipe = command.and_then(crate::slash_commands::resolve_slash_command);
+
+                // Track slash command usage
+                if recipe.is_some() {
+                    crate::posthog::emit_slash_command_used(
+                        crate::posthog::SlashCommandType::Recipe,
+                    );
+                } else {
+                    crate::posthog::emit_slash_command_used(
+                        crate::posthog::SlashCommandType::Unknown,
+                    );
+                }
+
+                recipe
+            }
         } else {
             None
         };

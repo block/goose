@@ -23,6 +23,17 @@ import cronstrue from 'cronstrue';
 import { formatToLocalDateWithTimezone } from '../../utils/date';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
 import { ViewOptions } from '../../utils/navigationUtils';
+import {
+  trackScheduleCreated,
+  trackScheduleUpdated,
+  trackScheduleDeleted,
+  trackSchedulePaused,
+  trackScheduleUnpaused,
+  trackScheduleKilled,
+  trackScheduleInspected,
+  trackScheduleViewed,
+  getErrorType,
+} from '../../utils/analytics';
 
 interface SchedulesViewProps {
   onClose?: () => void;
@@ -254,19 +265,31 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
     try {
       if (editingSchedule) {
         await updateSchedule(editingSchedule.id, payload as string);
+        trackScheduleUpdated(true);
         toastSuccess({
           title: 'Schedule Updated',
           msg: `Successfully updated schedule "${editingSchedule.id}"`,
         });
       } else {
-        await createSchedule(payload as NewSchedulePayload);
+        const newPayload = payload as NewSchedulePayload;
+        await createSchedule(newPayload);
+        const sourceType = pendingDeepLink ? 'deeplink' : 'file';
+        trackScheduleCreated(sourceType, true);
       }
       await fetchSchedules();
       setIsModalOpen(false);
       setEditingSchedule(null);
     } catch (error) {
       console.error('Failed to save schedule:', error);
-      setSubmitApiError(error instanceof Error ? error.message : 'Unknown error saving schedule.');
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error saving schedule.';
+      setSubmitApiError(errorMsg);
+
+      if (editingSchedule) {
+        trackScheduleUpdated(false, getErrorType(error));
+      } else {
+        const sourceType = pendingDeepLink ? 'deeplink' : 'file';
+        trackScheduleCreated(sourceType, false, getErrorType(error));
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -281,10 +304,13 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
 
     try {
       await deleteSchedule(id);
+      trackScheduleDeleted(true);
       await fetchSchedules();
     } catch (error) {
       console.error(`Failed to delete schedule "${id}":`, error);
-      setApiError(error instanceof Error ? error.message : `Unknown error deleting "${id}".`);
+      const errorMsg = error instanceof Error ? error.message : `Unknown error deleting "${id}".`;
+      setApiError(errorMsg);
+      trackScheduleDeleted(false, getErrorType(error));
     } finally {
       setActionsInProgress((prev) => {
         const newSet = new Set(prev);
@@ -300,6 +326,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
 
     try {
       await pauseSchedule(id);
+      trackSchedulePaused(true);
       toastSuccess({
         title: 'Schedule Paused',
         msg: `Successfully paused schedule "${id}"`,
@@ -309,6 +336,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
       console.error(`Failed to pause schedule "${id}":`, error);
       const errorMsg = error instanceof Error ? error.message : `Unknown error pausing "${id}".`;
       setApiError(errorMsg);
+      trackSchedulePaused(false, getErrorType(error));
       toastError({
         title: 'Pause Schedule Error',
         msg: errorMsg,
@@ -328,6 +356,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
 
     try {
       await unpauseSchedule(id);
+      trackScheduleUnpaused(true);
       toastSuccess({
         title: 'Schedule Unpaused',
         msg: `Successfully unpaused schedule "${id}"`,
@@ -337,6 +366,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
       console.error(`Failed to unpause schedule "${id}":`, error);
       const errorMsg = error instanceof Error ? error.message : `Unknown error unpausing "${id}".`;
       setApiError(errorMsg);
+      trackScheduleUnpaused(false, getErrorType(error));
       toastError({
         title: 'Unpause Schedule Error',
         msg: errorMsg,
@@ -356,6 +386,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
 
     try {
       const result = await killRunningJob(id);
+      trackScheduleKilled(true);
       toastSuccess({
         title: 'Job Killed',
         msg: result.message,
@@ -366,6 +397,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
       const errorMsg =
         error instanceof Error ? error.message : `Unknown error killing job "${id}".`;
       setApiError(errorMsg);
+      trackScheduleKilled(false, getErrorType(error));
       toastError({
         title: 'Kill Job Error',
         msg: errorMsg,
@@ -385,6 +417,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
 
     try {
       const result = await inspectRunningJob(id);
+      trackScheduleInspected(true);
       if (result.sessionId) {
         const duration = result.runningDurationSeconds
           ? `${Math.floor(result.runningDurationSeconds / 60)}m ${result.runningDurationSeconds % 60}s`
@@ -404,6 +437,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
       const errorMsg =
         error instanceof Error ? error.message : `Unknown error inspecting job "${id}".`;
       setApiError(errorMsg);
+      trackScheduleInspected(false, getErrorType(error));
       toastError({
         title: 'Inspect Job Error',
         msg: errorMsg,
@@ -415,6 +449,11 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
         return newSet;
       });
     }
+  };
+
+  const handleNavigateToDetail = (id: string) => {
+    trackScheduleViewed();
+    setViewingScheduleId(id);
   };
 
   if (viewingScheduleId) {
@@ -492,7 +531,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
                       <ScheduleCard
                         key={job.id}
                         job={job}
-                        onNavigateToDetail={setViewingScheduleId}
+                        onNavigateToDetail={handleNavigateToDetail}
                         onEdit={(schedule) => {
                           setEditingSchedule(schedule);
                           setSubmitApiError(null);

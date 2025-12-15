@@ -1,6 +1,13 @@
 import type { ExtensionConfig } from '../../../api/types.gen';
 import { toastService, ToastServiceOptions } from '../../../toasts';
 import { addToAgent, removeFromAgent, sanitizeName } from './agent-api';
+import {
+  trackExtensionAdded,
+  trackExtensionEnabled,
+  trackExtensionDisabled,
+  trackExtensionDeleted,
+  getErrorType,
+} from '../../../utils/analytics';
 
 interface ActivateExtensionProps {
   addToConfig: (name: string, extensionConfig: ExtensionConfig, enabled: boolean) => Promise<void>;
@@ -64,11 +71,13 @@ export async function activateExtension({
   } catch (error) {
     console.error('Failed to add extension to agent:', error);
     await addToConfig(extensionConfig.name, extensionConfig, false);
+    trackExtensionAdded(extensionConfig.name, false, getErrorType(error));
     throw error;
   }
 
   try {
     await addToConfig(extensionConfig.name, extensionConfig, true);
+    trackExtensionAdded(extensionConfig.name, true);
   } catch (error) {
     console.error('Failed to add extension to config:', error);
     // remove from Agent
@@ -77,6 +86,7 @@ export async function activateExtension({
     } catch (removeError) {
       console.error('Failed to remove extension from agent after config failure:', removeError);
     }
+    trackExtensionAdded(extensionConfig.name, false, getErrorType(error));
     // Rethrow the error to inform the caller
     throw error;
   }
@@ -258,7 +268,8 @@ export async function toggleExtension({
       // add to agent with toast options
       await addToAgent(extensionConfig, sessionId, !toastOptions?.silent);
     } catch (error) {
-      console.error('Error adding extension to agent. Will try to toggle back off.');
+      console.error('Error adding extension to agent. Attempting to toggle back off.');
+      trackExtensionEnabled(extensionConfig.name, false, getErrorType(error));
       try {
         await toggleExtension({
           toggle: 'toggleOff',
@@ -276,8 +287,10 @@ export async function toggleExtension({
     // update the config
     try {
       await addToConfig(extensionConfig.name, extensionConfig, true);
+      trackExtensionEnabled(extensionConfig.name, true);
     } catch (error) {
       console.error('Failed to update config after enabling extension:', error);
+      trackExtensionEnabled(extensionConfig.name, false, getErrorType(error));
       // remove from agent
       try {
         await removeFromAgent(extensionConfig.name, sessionId, !toastOptions?.silent);
@@ -300,8 +313,14 @@ export async function toggleExtension({
     // update the config
     try {
       await addToConfig(extensionConfig.name, extensionConfig, false);
+      if (agentRemoveError) {
+        trackExtensionDisabled(extensionConfig.name, false, getErrorType(agentRemoveError));
+      } else {
+        trackExtensionDisabled(extensionConfig.name, true);
+      }
     } catch (error) {
       console.error('Error removing extension from config', extensionConfig.name, 'Error:', error);
+      trackExtensionDisabled(extensionConfig.name, false, getErrorType(error));
       throw error;
     }
 
@@ -322,7 +341,6 @@ interface DeleteExtensionProps {
  * Deletes an extension completely from both agent and config
  */
 export async function deleteExtension({ name, removeFromConfig, sessionId }: DeleteExtensionProps) {
-  // remove from agent
   let agentRemoveError = null;
   try {
     await removeFromAgent(name, sessionId, true);
@@ -333,16 +351,20 @@ export async function deleteExtension({ name, removeFromConfig, sessionId }: Del
 
   try {
     await removeFromConfig(name);
+    if (agentRemoveError) {
+      trackExtensionDeleted(name, false, getErrorType(agentRemoveError));
+    } else {
+      trackExtensionDeleted(name, true);
+    }
   } catch (error) {
     console.error(
       'Failed to remove extension from config after removing from agent. Error:',
       error
     );
-    // If we also had an agent remove error, log it but throw the config error as it's more critical
+    trackExtensionDeleted(name, false, getErrorType(error));
     throw error;
   }
 
-  // If we had an error removing from agent but succeeded removing from config, still throw the original error
   if (agentRemoveError) {
     throw agentRemoveError;
   }
