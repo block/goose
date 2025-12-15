@@ -46,6 +46,11 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
   
   // Notification ticker
   const ticker = useNotificationTicker();
+  
+  // Debug log to ensure ticker is initialized
+  useEffect(() => {
+    console.log('🎯 AppLayout ticker initialized with items:', ticker.items.length);
+  }, [ticker.items]);
   const [navigationPosition, setNavigationPosition] = useState<NavigationPosition>(() => {
     const stored = localStorage.getItem('navigation_position');
     return (stored as NavigationPosition) || 'top';
@@ -471,7 +476,11 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
     <NavigationContext.Provider value={{ isNavExpanded, setIsNavExpanded, navigationPosition }}>
       <div className="flex flex-col flex-1 w-full h-full bg-background-muted">
         {/* Notification Ticker - Always at the very top */}
-        <NotificationTicker items={ticker.items} className="z-[10001]" />
+        <NotificationTicker 
+          items={ticker.items} 
+          height={56} 
+          className="z-[10001]" 
+        />
         
         {navigationMode === 'overlay' ? (
           // Overlay Mode - Full screen content with floating navigation

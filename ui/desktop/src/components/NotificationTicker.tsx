@@ -28,13 +28,18 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
   items = defaultItems,
   speed = 50,
   className,
-  height = 32,
+  height = 48, // Increased from 32 to 48
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [translateX, setTranslateX] = useState(0);
   const [contentWidth, setContentWidth] = useState(0);
   const [containerWidth, setContainerWidth] = useState(0);
+
+  // Debug log to ensure ticker is rendering
+  useEffect(() => {
+    console.log('🎯 NotificationTicker rendered with items:', items.length);
+  }, [items]);
 
   // Measure content width
   useEffect(() => {
@@ -118,10 +123,12 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
     <div 
       ref={containerRef}
       className={cn(
-        'relative overflow-hidden bg-black border-b border-green-500/30',
-        'font-mono text-sm leading-none',
+        'relative overflow-hidden bg-black border-b-2 border-green-500/50',
+        'font-mono text-base leading-none font-bold',
         // Pixelated effect
         'image-rendering-pixelated',
+        // Add some visual emphasis
+        'shadow-lg shadow-green-500/20',
         className
       )}
       style={{ height: `${height}px` }}
@@ -138,14 +145,14 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
       </div>
 
       {/* Time display - fixed on the left */}
-      <div className="absolute left-0 top-0 h-full flex items-center px-3 bg-black/80 border-r border-green-500/30 z-10">
-        <span className="text-green-400 font-bold text-xs tracking-wider">
+      <div className="absolute left-0 top-0 h-full flex items-center px-4 bg-black/90 border-r-2 border-green-500/50 z-10">
+        <span className="text-green-400 font-bold text-sm tracking-wider">
           {formatTime()}
         </span>
       </div>
 
       {/* Scrolling content */}
-      <div className="absolute top-0 h-full flex items-center pl-20">
+      <div className="absolute top-0 h-full flex items-center pl-24">
         <div
           ref={contentRef}
           className="flex items-center whitespace-nowrap"
