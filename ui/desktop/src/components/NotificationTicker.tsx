@@ -148,7 +148,7 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
       </div>
 
       {/* Scrolling content */}
-      <div className="absolute top-0 h-full flex items-center pl-24">
+      <div className="absolute top-0 h-full flex items-center pl-24 bg-background-card">
         <div
           ref={contentRef}
           className="flex items-center whitespace-nowrap"
