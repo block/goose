@@ -18,6 +18,7 @@ import { NavigationPosition } from '../settings/app/NavigationPositionSelector';
 import { NavigationStyle } from '../settings/app/NavigationStyleSelector';
 import { NavigationMode } from '../settings/app/NavigationModeSelector';
 import { NotificationTicker, useNotificationTicker } from '../NotificationTicker';
+import { useMatrix } from '../contexts/MatrixContext';
 
 // Create context for navigation state
 const NavigationContext = createContext<{
@@ -46,6 +47,9 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
   
   // Notification ticker
   const ticker = useNotificationTicker();
+  
+  // Matrix context for real notifications
+  const matrix = useMatrix();
   
   // Debug log to ensure ticker is initialized (only once)
   useEffect(() => {
@@ -328,31 +332,105 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
     return () => window.removeEventListener('open-sidecar-localhost', handler);
   }, [sidecar]);
 
-  // Add Matrix-related notifications and demo content
+  // Listen to real Matrix events for notifications
   useEffect(() => {
-    // Simulate Matrix notifications for demo purposes
-    const demoNotifications = [
-      () => ticker.addSessionInvitation('project-gamma', 'david'),
-      () => ticker.addMessageNotification('eve', 'design-team', 2),
-      () => ticker.addSessionJoined('frank', 'standup-meeting'),
-      () => ticker.addSessionWaiting('code-review-session', 3),
-      () => ticker.addConnectionStatus('connected'),
-    ];
+    if (!matrix) return;
 
-    // Add initial demo notification
-    setTimeout(() => {
-      const randomNotification = demoNotifications[Math.floor(Math.random() * demoNotifications.length)];
-      randomNotification();
-    }, 2000);
+    // Connection status notifications
+    const handleConnected = () => {
+      ticker.addConnectionStatus('connected');
+    };
 
-    // Add periodic demo notifications
-    const interval = setInterval(() => {
-      const randomNotification = demoNotifications[Math.floor(Math.random() * demoNotifications.length)];
-      randomNotification();
-    }, 15000); // Every 15 seconds
+    const handleDisconnected = () => {
+      ticker.addConnectionStatus('disconnected');
+    };
 
-    return () => clearInterval(interval);
-  }, []); // Removed ticker from dependencies
+    const handleReconnecting = () => {
+      ticker.addConnectionStatus('reconnecting');
+    };
+
+    // Message notifications
+    const handleMessage = (data: any) => {
+      if (data.sender && data.roomId && data.content) {
+        const senderName = data.senderInfo?.displayName || data.sender;
+        const roomName = matrix.rooms.find(room => room.id === data.roomId)?.name || 'unknown room';
+        ticker.addMessageNotification(senderName, roomName);
+      }
+    };
+
+    // Room membership changes
+    const handleMembershipChange = (data: any) => {
+      if (data.userId && data.roomId && data.membership) {
+        const userName = data.displayName || data.userId;
+        const roomName = matrix.rooms.find(room => room.id === data.roomId)?.name || 'unknown room';
+        
+        if (data.membership === 'join') {
+          ticker.addSessionJoined(userName, roomName);
+        } else if (data.membership === 'leave') {
+          ticker.addSessionLeft(userName, roomName);
+        }
+      }
+    };
+
+    // Goose-specific notifications
+    const handleGooseMessage = (message: any) => {
+      if (message.type === 'collaboration_invite') {
+        const inviterName = message.senderInfo?.displayName || message.sender;
+        const projectName = message.content || 'collaboration project';
+        ticker.addSessionInvitation(projectName, inviterName);
+      } else if (message.type === 'task_request') {
+        const requesterName = message.senderInfo?.displayName || message.sender;
+        const taskDescription = message.content || 'task';
+        ticker.addItem({
+          text: `task request from ${requesterName.toLowerCase()}: ${taskDescription.toLowerCase()}`,
+          type: 'notification',
+          priority: 'high',
+          actionable: true,
+        });
+      }
+    };
+
+    // Session-related notifications
+    const handleSessionMessage = (data: any) => {
+      if (data.type === 'session_waiting') {
+        const sessionName = data.sessionName || 'session';
+        const participantCount = data.participantCount || 1;
+        ticker.addSessionWaiting(sessionName, participantCount);
+      }
+    };
+
+    // Set up event listeners
+    matrix.onMessage(handleMessage);
+    matrix.onGooseMessage(handleGooseMessage);
+    matrix.onSessionMessage(handleSessionMessage);
+    
+    // Listen to Matrix service events directly
+    const unsubscribeConnected = matrix.onMessage('connected', handleConnected);
+    const unsubscribeDisconnected = matrix.onMessage('disconnected', handleDisconnected);
+    const unsubscribeReconnecting = matrix.onMessage('reconnecting', handleReconnecting);
+    const unsubscribeMembership = matrix.onMessage('membershipChange', handleMembershipChange);
+
+    // Check initial connection status
+    if (matrix.isConnected) {
+      ticker.addConnectionStatus('connected');
+    }
+
+    // Check for pending invitations
+    const pendingInvites = matrix.getPendingInvitedRooms();
+    pendingInvites.forEach(invite => {
+      const inviterName = invite.inviterName || invite.inviter;
+      const roomName = invite.roomName || 'session';
+      ticker.addSessionInvitation(roomName, inviterName);
+    });
+
+    return () => {
+      // Cleanup event listeners
+      unsubscribeConnected();
+      unsubscribeDisconnected();
+      unsubscribeReconnecting();
+      unsubscribeMembership();
+    };
+  }, [matrix, ticker]); // Include dependencies
 
   // Add route change notifications
   useEffect(() => {
