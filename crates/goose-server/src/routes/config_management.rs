@@ -13,7 +13,7 @@ use goose::config::{Config, ConfigError};
 use goose::model::ModelConfig;
 use goose::providers::auto_detect::detect_provider_from_api_key;
 use goose::providers::base::{ProviderMetadata, ProviderType};
-use goose::providers::canonical::{get_all_pricing, get_model_pricing, parse_model_id};
+use goose::providers::canonical::{map_to_canonical_model, parse_model_id, CanonicalModelRegistry};
 use goose::providers::create_with_default_model;
 use goose::providers::providers as get_providers;
 use goose::{agents::ExtensionConfig, config::permission::PermissionLevel, slash_commands};
@@ -477,22 +477,28 @@ pub async fn get_pricing(
 ) -> Result<Json<PricingResponse>, StatusCode> {
     let configured_only = query.configured_only;
 
+    let registry = CanonicalModelRegistry::bundled()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
     let mut pricing_data = Vec::new();
 
     if !configured_only {
         // Get ALL pricing data from canonical models
-        let all_pricing = get_all_pricing();
-
-        for (provider, models) in all_pricing {
-            for (model, (input_cost, output_cost, context_length)) in models {
-                pricing_data.push(PricingData {
-                    provider: provider.clone(),
-                    model: model.clone(),
-                    input_token_cost: input_cost,
-                    output_token_cost: output_cost,
-                    currency: "$".to_string(),
-                    context_length,
-                });
+        for canonical_model in registry.all_models() {
+            // Parse canonical ID to get provider and model name
+            if let Some((provider, model_name)) = canonical_model.id.split_once('/') {
+                if let (Some(input_cost), Some(output_cost)) =
+                    (canonical_model.pricing.prompt, canonical_model.pricing.completion)
+                {
+                    pricing_data.push(PricingData {
+                        provider: provider.to_string(),
+                        model: model_name.to_string(),
+                        input_token_cost: input_cost,
+                        output_token_cost: output_cost,
+                        currency: "$".to_string(),
+                        context_length: Some(canonical_model.context_length as u32),
+                    });
+                }
             }
         }
     } else {
@@ -517,20 +523,23 @@ pub async fn get_pricing(
                     (metadata.name.clone(), model_info.name.clone())
                 };
 
-                // Get pricing from canonical models
-                if let Some((input_cost, output_cost, context_length)) =
-                    get_model_pricing(&lookup_provider, &lookup_model)
-                {
-                    pricing_data.push(PricingData {
-                        provider: metadata.name.clone(),
-                        model: model_info.name.clone(),
-                        input_token_cost: input_cost,
-                        output_token_cost: output_cost,
-                        currency: "$".to_string(),
-                        context_length,
-                    });
+                // Get canonical model which handles model name mapping
+                if let Some(canonical_id) = map_to_canonical_model(&lookup_provider, &lookup_model, registry) {
+                    if let Some(canonical_model) = registry.get(&canonical_id) {
+                        if let (Some(input_cost), Some(output_cost)) =
+                            (canonical_model.pricing.prompt, canonical_model.pricing.completion)
+                        {
+                            pricing_data.push(PricingData {
+                                provider: metadata.name.clone(),
+                                model: model_info.name.clone(),
+                                input_token_cost: input_cost,
+                                output_token_cost: output_cost,
+                                currency: "$".to_string(),
+                                context_length: Some(canonical_model.context_length as u32),
+                            });
+                        }
+                    }
                 }
-                // No fallback to hardcoded prices
             }
         }
     }
@@ -541,7 +550,7 @@ pub async fn get_pricing(
         if configured_only {
             " (configured providers only)"
         } else {
-            " (all cached models)"
+            " (all canonical models)"
         }
     );
 

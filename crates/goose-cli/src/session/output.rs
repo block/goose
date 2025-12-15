@@ -5,10 +5,9 @@ use goose::config::Config;
 use goose::conversation::message::{
     ActionRequiredData, Message, MessageContent, ToolRequest, ToolResponse,
 };
-use goose::providers::canonical::{get_model_pricing, parse_model_id};
+use goose::providers::canonical::{map_to_canonical_model, parse_model_id, CanonicalModelRegistry};
 use goose::utils::safe_truncate;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use regex::Regex;
 use rmcp::model::{CallToolRequestParam, JsonObject, PromptArgument};
 use serde_json::Value;
 use std::cell::RefCell;
@@ -794,29 +793,6 @@ pub fn display_context_usage(total_tokens: usize, context_limit: usize) {
     );
 }
 
-fn normalize_model_name(model: &str) -> String {
-    let mut result = model.to_string();
-
-    // Remove "-latest" suffix
-    if result.ends_with("-latest") {
-        result = result.strip_suffix("-latest").unwrap().to_string();
-    }
-
-    // Remove date-like suffixes: -YYYYMMDD
-    let re_date = Regex::new(r"-\d{8}$").unwrap();
-    if re_date.is_match(&result) {
-        result = re_date.replace(&result, "").to_string();
-    }
-
-    // Convert version numbers like -3-7- to -3.7- (e.g., claude-3-7-sonnet -> claude-3.7-sonnet)
-    let re_version = Regex::new(r"-(\d+)-(\d+)-").unwrap();
-    if re_version.is_match(&result) {
-        result = re_version.replace(&result, "-$1.$2-").to_string();
-    }
-
-    result
-}
-
 fn estimate_cost_usd(
     provider: &str,
     model: &str,
@@ -835,18 +811,18 @@ fn estimate_cost_usd(
         None => (provider, model),
     };
 
-    // Use canonical model pricing which handles model name mapping internally
-    let cleaned_model = normalize_model_name(model_to_use);
-    let pricing_info = get_model_pricing(provider_to_use, &cleaned_model);
+    // Get canonical model which handles model name mapping internally
+    let registry = CanonicalModelRegistry::bundled().ok()?;
+    let canonical_id = map_to_canonical_model(provider_to_use, model_to_use, registry)?;
+    let canonical_model = registry.get(&canonical_id)?;
 
-    match pricing_info {
-        Some((input_cost_per_token, output_cost_per_token, _context_length)) => {
-            let input_cost = input_cost_per_token * input_tokens as f64;
-            let output_cost = output_cost_per_token * output_tokens as f64;
-            Some(input_cost + output_cost)
-        }
-        None => None,
-    }
+    // Calculate cost from canonical model pricing
+    let input_cost_per_token = canonical_model.pricing.prompt?;
+    let output_cost_per_token = canonical_model.pricing.completion?;
+
+    let input_cost = input_cost_per_token * input_tokens as f64;
+    let output_cost = output_cost_per_token * output_tokens as f64;
+    Some(input_cost + output_cost)
 }
 
 /// Display cost information, if price data is available.

@@ -6,8 +6,6 @@ pub use model::{CanonicalModel, Pricing};
 pub use name_builder::{canonical_name, map_to_canonical_model, strip_version_suffix};
 pub use registry::CanonicalModelRegistry;
 
-use std::collections::HashMap;
-
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ModelMapping {
     pub provider_model: String,
@@ -21,21 +19,6 @@ impl ModelMapping {
             canonical_model: canonical_model.into(),
         }
     }
-}
-
-/// Get pricing for a specific provider/model combination
-/// Returns (input_cost_per_token, output_cost_per_token, context_length) if found
-pub fn get_model_pricing(provider: &str, model: &str) -> Option<(f64, f64, Option<u32>)> {
-    let registry = CanonicalModelRegistry::bundled().ok()?;
-    registry.get_model_pricing(provider, model)
-}
-
-/// Get all pricing data organized by provider
-/// Returns HashMap<provider, HashMap<model_name, (input_cost, output_cost, context_length)>>
-pub fn get_all_pricing() -> HashMap<String, HashMap<String, (f64, f64, Option<u32>)>> {
-    CanonicalModelRegistry::bundled()
-        .map(|registry| registry.get_all_pricing())
-        .unwrap_or_default()
 }
 
 /// Parse OpenRouter-style model ID into (provider, model) components
