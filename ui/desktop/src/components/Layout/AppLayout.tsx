@@ -494,7 +494,7 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
             {overlayNavigationComponent}
             
             {/* Control Buttons - Fixed position for overlay mode */}
-            <div className="absolute z-[9999] flex gap-2 top-4 right-4">
+            <div className="absolute z-[10002] flex gap-2 top-4 right-4">
               <Button
                 onClick={() => setIsNavExpanded(!isNavExpanded)}
                 className="no-drag hover:!bg-background-medium bg-background-default rounded-xl shadow-sm relative"
@@ -533,7 +533,7 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
             {navigationPosition === 'right' && navigationComponent}
             
             {/* Control Buttons - position based on nav location */}
-            <div className={`absolute z-[9999] flex gap-2 ${
+            <div className={`absolute z-[10002] flex gap-2 ${
               navigationPosition === 'top' ? 'top-4 right-4' :
               navigationPosition === 'bottom' ? 'bottom-4 right-4' :
               navigationPosition === 'left' ? (safeIsMacOS ? 'top-4 left-20' : 'top-4 left-4') :
