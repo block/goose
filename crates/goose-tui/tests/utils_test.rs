@@ -1,10 +1,10 @@
+use goose::conversation::message::Message;
 use goose_tui::hidden_blocks::strip_hidden_blocks;
 use goose_tui::utils::json::has_input_placeholder;
 use goose_tui::utils::layout::centered_rect;
 use goose_tui::utils::message_format::message_to_plain_text;
 use goose_tui::utils::sanitize::{sanitize_line, strip_ansi_codes};
 use goose_tui::utils::styles::{breathing_color, color_to_rgb};
-use goose::conversation::message::Message;
 use ratatui::layout::Rect;
 use ratatui::style::Color;
 use serde_json::json;
@@ -30,7 +30,6 @@ fn message_to_plain_text_formats_simple_text() {
     let text = message_to_plain_text(&msg);
     assert!(text.contains("Hello world"));
 }
-
 
 #[test]
 fn has_input_placeholder_finds_in_strings() {

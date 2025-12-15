@@ -38,47 +38,47 @@ fn make_shell_tool_request(command: &str) -> Message {
 }
 
 #[test]
-fn toggle_input_mode() {
-    let mut state = test_state();
-    assert_eq!(state.input_mode, InputMode::Editing);
+fn toggle_actions_flip_state_correctly() {
+    {
+        let mut state = test_state();
+        assert_eq!(state.input_mode, InputMode::Editing);
+        update(&mut state, Action::ToggleInputMode);
+        assert_eq!(state.input_mode, InputMode::Normal);
+        update(&mut state, Action::ToggleInputMode);
+        assert_eq!(state.input_mode, InputMode::Editing);
+    }
 
-    update(&mut state, Action::ToggleInputMode);
-    assert_eq!(state.input_mode, InputMode::Normal);
+    {
+        let mut state = test_state();
+        update(&mut state, Action::ToggleHelp);
+        assert_eq!(state.active_popup, ActivePopup::Help);
+        update(&mut state, Action::ToggleHelp);
+        assert_eq!(state.active_popup, ActivePopup::None);
+    }
 
-    update(&mut state, Action::ToggleInputMode);
-    assert_eq!(state.input_mode, InputMode::Editing);
-}
+    {
+        let mut state = test_state();
+        update(&mut state, Action::ToggleTodo);
+        assert_eq!(state.active_popup, ActivePopup::Todo);
+        update(&mut state, Action::ToggleTodo);
+        assert_eq!(state.active_popup, ActivePopup::None);
+    }
 
-#[test]
-fn toggle_help_popup() {
-    let mut state = test_state();
-    assert_eq!(state.active_popup, ActivePopup::None);
-
-    update(&mut state, Action::ToggleHelp);
-    assert_eq!(state.active_popup, ActivePopup::Help);
-
-    update(&mut state, Action::ToggleHelp);
-    assert_eq!(state.active_popup, ActivePopup::None);
-}
-
-#[test]
-fn toggle_todo_popup() {
-    let mut state = test_state();
-
-    update(&mut state, Action::ToggleTodo);
-    assert_eq!(state.active_popup, ActivePopup::Todo);
-
-    update(&mut state, Action::ToggleTodo);
-    assert_eq!(state.active_popup, ActivePopup::None);
+    {
+        let mut state = test_state();
+        assert!(!state.copy_mode);
+        update(&mut state, Action::ToggleCopyMode);
+        assert!(state.copy_mode);
+        update(&mut state, Action::ToggleCopyMode);
+        assert!(!state.copy_mode);
+    }
 }
 
 #[test]
 fn close_popup_clears_any_popup() {
     let mut state = test_state();
-
     update(&mut state, Action::OpenConfig);
     assert_eq!(state.active_popup, ActivePopup::Config(0));
-
     update(&mut state, Action::ClosePopup);
     assert_eq!(state.active_popup, ActivePopup::None);
 }
@@ -86,7 +86,6 @@ fn close_popup_clears_any_popup() {
 #[test]
 fn open_message_info_stores_index() {
     let mut state = test_state();
-
     update(&mut state, Action::OpenMessageInfo(5));
     assert_eq!(state.active_popup, ActivePopup::MessageInfo(5));
 }
@@ -95,9 +94,7 @@ fn open_message_info_stores_index() {
 fn clear_chat_resets_state() {
     let mut state = test_state();
     state.has_worked = true;
-
     update(&mut state, Action::ClearChat);
-
     assert!(state.messages.is_empty());
     assert!(state.todos.is_empty());
     assert!(!state.has_worked);
@@ -107,23 +104,9 @@ fn clear_chat_resets_state() {
 fn interrupt_stops_working() {
     let mut state = test_state();
     state.is_working = true;
-
     update(&mut state, Action::Interrupt);
-
     assert!(!state.is_working);
     assert!(state.flash_message.is_some());
-}
-
-#[test]
-fn toggle_copy_mode() {
-    let mut state = test_state();
-    assert!(!state.copy_mode);
-
-    update(&mut state, Action::ToggleCopyMode);
-    assert!(state.copy_mode);
-
-    update(&mut state, Action::ToggleCopyMode);
-    assert!(!state.copy_mode);
 }
 
 #[test]
@@ -330,8 +313,6 @@ fn make_text_message_event(
         token_state: goose::conversation::message::TokenState::default(),
     })
 }
-
-
 
 #[test]
 fn session_resumed_new_session_with_messages_fails_cwd_analysis() {

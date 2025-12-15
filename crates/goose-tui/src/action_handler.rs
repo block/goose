@@ -1,10 +1,10 @@
 use crate::hidden_blocks::CWD_ANALYSIS_TAG;
-use goose_tui::analysis_target::detect_analysis_target;
 use crate::services::events::Event;
 use crate::state::action::Action;
 use crate::state::{AppState, CwdAnalysisState};
 use goose::conversation::message::Message;
 use goose_client::Client;
+use goose_tui::analysis_target::detect_analysis_target;
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
