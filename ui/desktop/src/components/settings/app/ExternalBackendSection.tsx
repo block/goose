@@ -96,9 +96,10 @@ export default function ExternalBackendSection() {
   };
 
   return (
-    <Card className="rounded-lg">
-      <CardHeader className="pb-0">
-        <CardTitle className="mb-1">Goose Server</CardTitle>
+    <section id="external-backend" className="space-y-4 pr-4 mt-1">
+      <Card className="pb-2">
+        <CardHeader className="pb-0">
+          <CardTitle>Goose Server</CardTitle>
         <CardDescription>
           By default goose launches a server for you, use this to connect to an external goose
           server
@@ -174,5 +175,6 @@ export default function ExternalBackendSection() {
         )}
       </CardContent>
     </Card>
+    </section>
   );
 }

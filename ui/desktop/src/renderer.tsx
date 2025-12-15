@@ -13,14 +13,14 @@ const App = lazy(() => import('./App'));
 
   if (!isLauncher) {
     console.log('window created, getting goosed connection info');
-    const baseUrl = await window.electron.getGoosedHostPort();
-    if (baseUrl === null) {
+    const gooseApiHost = await window.electron.getGoosedHostPort();
+    if (gooseApiHost === null) {
       window.alert('failed to start goose backend process');
       return;
     }
-    console.log('connecting at', baseUrl);
+    console.log('connecting at', gooseApiHost);
     client.setConfig({
-      baseUrl,
+      baseUrl: gooseApiHost,
       headers: {
         'Content-Type': 'application/json',
         'X-Secret-Key': await window.electron.getSecretKey(),
