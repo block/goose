@@ -502,7 +502,7 @@ pub async fn summarize_tool_call(
     response.created = matching_messages.last().unwrap().created;
     response.metadata = MessageMetadata::agent_only();
 
-    Ok(response)
+    Ok(response.with_generated_id())
 }
 
 /// if needed, summarize the first applicable tool request reply pair in a task
