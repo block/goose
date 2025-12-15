@@ -55,27 +55,20 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
   useEffect(() => {
     console.log('🎯 AppLayout ticker initialized');
     
-    // Add some test notifications for debugging
+    // Add some test notifications for debugging (with longer delays)
     setTimeout(() => {
       ticker.addItem({
-        text: 'test notification 1: matrix connection established',
+        text: 'matrix connection established successfully',
         type: 'success'
       });
-    }, 2000);
+    }, 3000);
     
     setTimeout(() => {
       ticker.addItem({
-        text: 'test notification 2: new message from alice in dev-team',
+        text: 'new message from alice in dev-team channel',
         type: 'notification'
       });
-    }, 4000);
-    
-    setTimeout(() => {
-      ticker.addItem({
-        text: 'test notification 3: session invitation from bob for project-alpha',
-        type: 'invitation'
-      });
-    }, 6000);
+    }, 8000);
   }, [ticker]);
   const [navigationPosition, setNavigationPosition] = useState<NavigationPosition>(() => {
     const stored = localStorage.getItem('navigation_position');

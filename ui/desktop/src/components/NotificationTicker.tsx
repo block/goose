@@ -46,7 +46,7 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
 
   // Animation loop
   useEffect(() => {
-    if (contentWidth === 0 || containerWidth === 0) return;
+    if (contentWidth === 0 || containerWidth === 0 || items.length === 0) return;
 
     let animationFrame: number;
     let lastTime = 0;
@@ -59,8 +59,9 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
       setTranslateX(prev => {
         const newX = prev - speed * deltaTime;
         // Reset when content has completely scrolled past
-        if (Math.abs(newX) >= contentWidth) {
-          return containerWidth;
+        // Add some buffer to ensure smooth transition
+        if (Math.abs(newX) >= contentWidth + 50) {
+          return containerWidth + 50;
         }
         return newX;
       });
@@ -68,6 +69,8 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
       animationFrame = requestAnimationFrame(animate);
     };
 
+    // Reset position when content changes
+    setTranslateX(containerWidth);
     animationFrame = requestAnimationFrame(animate);
 
     return () => {
@@ -75,7 +78,7 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
         cancelAnimationFrame(animationFrame);
       }
     };
-  }, [speed, contentWidth, containerWidth]);
+  }, [speed, contentWidth, containerWidth, items.length]);
 
   // Handle window resize
   useEffect(() => {
