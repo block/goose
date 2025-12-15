@@ -17,14 +17,7 @@ interface NotificationTickerProps {
   height?: number; // height in pixels
 }
 
-const defaultItems: TickerItem[] = [
-  { id: '1', text: 'matrix: connected', type: 'success', priority: 'high' },
-  { id: '2', text: 'session invitation from alice: project-alpha', type: 'invitation', priority: 'high', actionable: true },
-  { id: '3', text: 'new message from bob in dev-team', type: 'notification', priority: 'medium', actionable: true },
-  { id: '4', text: 'charlie joined project-beta', type: 'success', priority: 'low' },
-  { id: '5', text: 'session waiting: code-review (2 participants)', type: 'invitation', priority: 'high', actionable: true },
-  { id: '6', text: '3 new messages from team in general', type: 'notification', priority: 'medium', actionable: true },
-];
+const defaultItems: TickerItem[] = [];
 
 export const NotificationTicker: React.FC<NotificationTickerProps> = ({
   items = defaultItems,
@@ -151,23 +144,32 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
             transform: `translateX(${translateX}px)`,
           }}
         >
-          {items.map((item, index) => (
-            <React.Fragment key={`${item.id}-${index}`}>
-              <span className={cn('px-3 font-mono text-xs font-medium tracking-wide ticker-pixelated', getTypeColor(item.type))}>
-                {item.text.toLowerCase()}
-              </span>
-              <span className="text-text-default px-2 font-mono text-xs ticker-pixelated">●</span>
-            </React.Fragment>
-          ))}
-          {/* Duplicate content for seamless loop */}
-          {items.map((item, index) => (
-            <React.Fragment key={`${item.id}-duplicate-${index}`}>
-              <span className={cn('px-3 font-mono text-xs font-medium tracking-wide ticker-pixelated', getTypeColor(item.type))}>
-                {item.text.toLowerCase()}
-              </span>
-              <span className="text-text-default px-2 font-mono text-xs ticker-pixelated">●</span>
-            </React.Fragment>
-          ))}
+          {items.length === 0 ? (
+            // Show placeholder when no items
+            <span className="px-3 font-mono text-xs font-medium tracking-wide ticker-pixelated text-text-muted">
+              waiting for notifications...
+            </span>
+          ) : (
+            <>
+              {items.map((item, index) => (
+                <React.Fragment key={`${item.id}-${index}`}>
+                  <span className={cn('px-3 font-mono text-xs font-medium tracking-wide ticker-pixelated', getTypeColor(item.type))}>
+                    {item.text.toLowerCase()}
+                  </span>
+                  <span className="text-text-default px-2 font-mono text-xs ticker-pixelated">●</span>
+                </React.Fragment>
+              ))}
+              {/* Duplicate content for seamless loop */}
+              {items.map((item, index) => (
+                <React.Fragment key={`${item.id}-duplicate-${index}`}>
+                  <span className={cn('px-3 font-mono text-xs font-medium tracking-wide ticker-pixelated', getTypeColor(item.type))}>
+                    {item.text.toLowerCase()}
+                  </span>
+                  <span className="text-text-default px-2 font-mono text-xs ticker-pixelated">●</span>
+                </React.Fragment>
+              ))}
+            </>
+          )}
         </div>
       </div>
 
@@ -204,7 +206,7 @@ export const useNotificationTicker = () => {
   }, []);
 
   const clearItems = useCallback(() => {
-    setItems(defaultItems); // Reset to default items instead of empty
+    setItems([]); // Reset to empty array
   }, []);
 
   const updateSystemStatus = useCallback((status: string, type: TickerItem['type'] = 'info') => {
