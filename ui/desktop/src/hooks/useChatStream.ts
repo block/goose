@@ -212,6 +212,15 @@ export function useChatStream({
     if (cached) {
       setSession(cached.session);
       updateMessages(cached.messages);
+      // Initialize tokenState with accumulated values from cached session
+      setTokenState({
+        inputTokens: cached.session?.input_tokens ?? 0,
+        outputTokens: cached.session?.output_tokens ?? 0,
+        totalTokens: cached.session?.total_tokens ?? 0,
+        accumulatedInputTokens: cached.session?.accumulated_input_tokens ?? 0,
+        accumulatedOutputTokens: cached.session?.accumulated_output_tokens ?? 0,
+        accumulatedTotalTokens: cached.session?.accumulated_total_tokens ?? 0,
+      });
       setChatState(ChatState.Idle);
       return;
     }
@@ -241,6 +250,15 @@ export function useChatStream({
         const session = response.data;
         setSession(session);
         updateMessages(session?.conversation || []);
+        // Initialize tokenState with accumulated values from loaded session
+        setTokenState({
+          inputTokens: session?.input_tokens ?? 0,
+          outputTokens: session?.output_tokens ?? 0,
+          totalTokens: session?.total_tokens ?? 0,
+          accumulatedInputTokens: session?.accumulated_input_tokens ?? 0,
+          accumulatedOutputTokens: session?.accumulated_output_tokens ?? 0,
+          accumulatedTotalTokens: session?.accumulated_total_tokens ?? 0,
+        });
         setChatState(ChatState.Idle);
         onSessionLoaded?.();
       } catch (error) {
