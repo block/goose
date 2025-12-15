@@ -5,7 +5,7 @@ use goose::config::Config;
 use goose::conversation::message::{
     ActionRequiredData, Message, MessageContent, ToolRequest, ToolResponse,
 };
-use goose::providers::canonical::{map_to_canonical_model, parse_model_id, CanonicalModelRegistry};
+use goose::providers::canonical::maybe_get_canonical_model;
 use goose::utils::safe_truncate;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use rmcp::model::{CallToolRequestParam, JsonObject, PromptArgument};
@@ -799,24 +799,11 @@ fn estimate_cost_usd(
     input_tokens: usize,
     output_tokens: usize,
 ) -> Option<f64> {
-    // For OpenRouter, parse the model name to extract real provider/model
-    let openrouter_data = if provider == "openrouter" {
-        parse_model_id(model)
-    } else {
-        None
-    };
+    // Try to get canonical model - returns None if model not found in registry
+    // For OpenRouter, model is already in "provider/model" format and map_to_canonical_model handles it
+    let canonical_model = maybe_get_canonical_model(provider, model)?;
 
-    let (provider_to_use, model_to_use) = match &openrouter_data {
-        Some((real_provider, real_model)) => (real_provider.as_str(), real_model.as_str()),
-        None => (provider, model),
-    };
-
-    // Get canonical model which handles model name mapping internally
-    let registry = CanonicalModelRegistry::bundled().ok()?;
-    let canonical_id = map_to_canonical_model(provider_to_use, model_to_use, registry)?;
-    let canonical_model = registry.get(&canonical_id)?;
-
-    // Calculate cost from canonical model pricing
+    // Extract pricing from canonical model (all canonical models have pricing)
     let input_cost_per_token = canonical_model.pricing.prompt?;
     let output_cost_per_token = canonical_model.pricing.completion?;
 

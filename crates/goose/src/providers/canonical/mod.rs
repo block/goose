@@ -31,3 +31,25 @@ pub fn parse_model_id(model_id: &str) -> Option<(String, String)> {
         None
     }
 }
+
+/// Get a canonical model for a given provider and model name
+/// Returns None if the model cannot be found or if the registry cannot be loaded
+pub fn maybe_get_canonical_model(provider: &str, model: &str) -> Option<CanonicalModel> {
+    let registry = CanonicalModelRegistry::bundled().ok()?;
+    let canonical_id = map_to_canonical_model(provider, model, registry)?;
+    registry.get(&canonical_id).cloned()
+}
+
+/// Get all canonical models from the bundled registry
+/// Returns an empty vector if the registry cannot be loaded
+pub fn all_canonical_models() -> Vec<CanonicalModel> {
+    CanonicalModelRegistry::bundled()
+        .map(|registry| {
+            registry
+                .all_models()
+                .into_iter()
+                .cloned()
+                .collect()
+        })
+        .unwrap_or_default()
+}

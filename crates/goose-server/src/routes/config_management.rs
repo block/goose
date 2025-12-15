@@ -13,7 +13,7 @@ use goose::config::{Config, ConfigError};
 use goose::model::ModelConfig;
 use goose::providers::auto_detect::detect_provider_from_api_key;
 use goose::providers::base::{ProviderMetadata, ProviderType};
-use goose::providers::canonical::{map_to_canonical_model, parse_model_id, CanonicalModelRegistry};
+use goose::providers::canonical::{all_canonical_models, maybe_get_canonical_model};
 use goose::providers::create_with_default_model;
 use goose::providers::providers as get_providers;
 use goose::{agents::ExtensionConfig, config::permission::PermissionLevel, slash_commands};
@@ -477,14 +477,11 @@ pub async fn get_pricing(
 ) -> Result<Json<PricingResponse>, StatusCode> {
     let configured_only = query.configured_only;
 
-    let registry = CanonicalModelRegistry::bundled()
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
     let mut pricing_data = Vec::new();
 
     if !configured_only {
         // Get ALL pricing data from canonical models
-        for canonical_model in registry.all_models() {
+        for canonical_model in all_canonical_models() {
             // Parse canonical ID to get provider and model name
             if let Some((provider, model_name)) = canonical_model.id.split_once('/') {
                 if let (Some(input_cost), Some(output_cost)) =
@@ -509,35 +506,20 @@ pub async fn get_pricing(
             }
 
             for model_info in &metadata.known_models {
-                // Handle OpenRouter models specially - they store full provider/model names
-                let (lookup_provider, lookup_model) = if metadata.name == "openrouter" {
-                    // For OpenRouter, parse the model name to extract real provider/model
-                    if let Some((provider, model)) = parse_model_id(&model_info.name) {
-                        (provider, model)
-                    } else {
-                        // Fallback if parsing fails
-                        (metadata.name.clone(), model_info.name.clone())
-                    }
-                } else {
-                    // For other providers, use names as-is
-                    (metadata.name.clone(), model_info.name.clone())
-                };
-
-                // Get canonical model which handles model name mapping
-                if let Some(canonical_id) = map_to_canonical_model(&lookup_provider, &lookup_model, registry) {
-                    if let Some(canonical_model) = registry.get(&canonical_id) {
-                        if let (Some(input_cost), Some(output_cost)) =
-                            (canonical_model.pricing.prompt, canonical_model.pricing.completion)
-                        {
-                            pricing_data.push(PricingData {
-                                provider: metadata.name.clone(),
-                                model: model_info.name.clone(),
-                                input_token_cost: input_cost,
-                                output_token_cost: output_cost,
-                                currency: "$".to_string(),
-                                context_length: Some(canonical_model.context_length as u32),
-                            });
-                        }
+                // Try to get canonical model - returns None if model not found
+                // For OpenRouter, model is already in "provider/model" format and map_to_canonical_model handles it
+                if let Some(canonical_model) = maybe_get_canonical_model(&metadata.name, &model_info.name) {
+                    if let (Some(input_cost), Some(output_cost)) =
+                        (canonical_model.pricing.prompt, canonical_model.pricing.completion)
+                    {
+                        pricing_data.push(PricingData {
+                            provider: metadata.name.clone(),
+                            model: model_info.name.clone(),
+                            input_token_cost: input_cost,
+                            output_token_cost: output_cost,
+                            currency: "$".to_string(),
+                            context_length: Some(canonical_model.context_length as u32),
+                        });
                     }
                 }
             }
