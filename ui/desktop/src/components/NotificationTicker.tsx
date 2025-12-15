@@ -50,27 +50,24 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
 
     let animationFrame: number;
     let lastTime = 0;
+    let currentPosition = containerWidth; // Start from the right edge
 
     const animate = (currentTime: number) => {
       if (lastTime === 0) lastTime = currentTime;
       const deltaTime = (currentTime - lastTime) / 1000; // Convert to seconds
       lastTime = currentTime;
 
-      setTranslateX(prev => {
-        const newX = prev - speed * deltaTime;
-        // Reset when content has completely scrolled past
-        // Add some buffer to ensure smooth transition
-        if (Math.abs(newX) >= contentWidth + 50) {
-          return containerWidth + 50;
-        }
-        return newX;
-      });
+      currentPosition -= speed * deltaTime;
 
+      // Reset when content has completely scrolled past
+      if (currentPosition <= -(contentWidth + 100)) {
+        currentPosition = containerWidth + 50;
+      }
+
+      setTranslateX(currentPosition);
       animationFrame = requestAnimationFrame(animate);
     };
 
-    // Reset position when content changes
-    setTranslateX(containerWidth);
     animationFrame = requestAnimationFrame(animate);
 
     return () => {
@@ -78,7 +75,7 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
         cancelAnimationFrame(animationFrame);
       }
     };
-  }, [speed, contentWidth, containerWidth, items.length]);
+  }, [speed, contentWidth, containerWidth]);
 
   // Handle window resize
   useEffect(() => {

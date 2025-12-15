@@ -54,22 +54,7 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
   // Debug log to ensure ticker is initialized (only once)
   useEffect(() => {
     console.log('🎯 AppLayout ticker initialized');
-    
-    // Add some test notifications for debugging (with longer delays)
-    setTimeout(() => {
-      ticker.addItem({
-        text: 'matrix connection established successfully',
-        type: 'success'
-      });
-    }, 3000);
-    
-    setTimeout(() => {
-      ticker.addItem({
-        text: 'new message from alice in dev-team channel',
-        type: 'notification'
-      });
-    }, 8000);
-  }, [ticker]);
+  }, []);
   const [navigationPosition, setNavigationPosition] = useState<NavigationPosition>(() => {
     const stored = localStorage.getItem('navigation_position');
     return (stored as NavigationPosition) || 'top';
