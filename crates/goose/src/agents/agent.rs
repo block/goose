@@ -35,9 +35,7 @@ use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, SharedProvider, ToolResultReceiver};
 use crate::config::{get_enabled_extensions, Config, GooseMode};
-use crate::context_mgmt::{
-    check_if_compaction_needed, compact_messages, DEFAULT_COMPACTION_THRESHOLD,
-};
+use crate::context_mgmt::{check_if_compaction_needed, compact_messages, DEFAULT_COMPACTION_THRESHOLD};
 use crate::conversation::message::{
     ActionRequiredData, Message, MessageContent, SystemNotificationType, ToolRequest,
 };
@@ -78,6 +76,7 @@ pub struct ReplyContext {
     pub toolshim_tools: Vec<Tool>,
     pub system_prompt: String,
     pub goose_mode: GooseMode,
+    pub tool_call_cut_off: usize,
     pub initial_messages: Vec<Message>,
 }
 
@@ -279,6 +278,9 @@ impl Agent {
         let (tools, toolshim_tools, system_prompt) =
             self.prepare_tools_and_prompt(working_dir).await?;
         let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
+        let tool_call_cut_off = config
+            .get_param::<usize>("GOOSE_TOOL_CALL_CUTOFF")
+            .unwrap_or(3);
 
         self.tool_inspection_manager
             .update_permission_inspector_mode(goose_mode)
@@ -290,6 +292,7 @@ impl Agent {
             toolshim_tools,
             system_prompt,
             goose_mode,
+            tool_call_cut_off,
             initial_messages,
         })
     }
@@ -959,6 +962,7 @@ impl Agent {
             mut tools,
             mut toolshim_tools,
             mut system_prompt,
+            tool_call_cut_off,
             goose_mode,
             initial_messages,
         } = context;
@@ -1003,6 +1007,12 @@ impl Agent {
                     );
                     break;
                 }
+
+                let tool_pair_summarization_task = crate::context_mgmt::maybe_summarize_tool_pair(
+                    self.provider().await?,
+                    conversation.clone(),
+                    tool_call_cut_off,
+                );
 
                 let conversation_with_moim = super::moim::inject_moim(
                     conversation.clone(),
@@ -1325,6 +1335,28 @@ impl Agent {
                             }
                         }
                     }
+                }
+
+                if let Ok(Some((summary_msg, tool_id))) = tool_pair_summarization_task.await {
+                    let mut updated_messages = conversation.messages().clone();
+                    for msg in updated_messages.iter_mut() {
+                        let has_matching_content = msg.content.iter().any(|c| match c {
+                            MessageContent::ToolRequest(req) => req.id == tool_id,
+                            MessageContent::ToolResponse(resp) => resp.id == tool_id,
+                            _ => false,
+                        });
+
+                        if has_matching_content {
+                            msg.metadata = msg.metadata.with_agent_invisible();
+                            if let Some(id) = &msg.id {
+                                SessionManager::update_message_metadata(&session_config.id, id, |metadata| {
+                                    metadata.with_agent_invisible()
+                                }).await?;
+                            }
+                        }
+                    }
+                    conversation = Conversation::new_unvalidated(updated_messages);
+                    messages_to_add.push(summary_msg);
                 }
 
                 for msg in &messages_to_add {
