@@ -215,6 +215,7 @@ impl<'a> InputComponent<'a> {
             ("/config", false),
             ("/mcp", false),
             ("/session", false),
+            ("/schedule", false),
             ("/alias", false),
             ("/clear", false),
             ("/compact", false),
@@ -398,6 +399,7 @@ impl<'a> InputComponent<'a> {
             "/config" => Some(Action::OpenConfig),
             "/mcp" => Some(Action::OpenMcp),
             "/session" => Some(Action::OpenSessionPicker),
+            "/schedule" | "/schedules" => Some(Action::OpenSchedulePopup),
             "/alias" => Some(Action::StartCommandBuilder),
             "/clear" => Some(Action::ClearChat),
             "/copy" | "/copymode" => Some(Action::ToggleCopyMode),
@@ -611,6 +613,8 @@ impl<'a> Component for InputComponent<'a> {
                                     "/copy",
                                     "/copymode",
                                     "/mode",
+                                    "/schedule",
+                                    "/schedules",
                                 ];
 
                                 if safe_commands.contains(&cmd) {

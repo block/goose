@@ -227,6 +227,10 @@ fn handle_ui(state: &mut AppState, action: &Action) -> bool {
             state.active_popup = ActivePopup::Config(1);
             true
         }
+        Action::OpenSchedulePopup => {
+            state.active_popup = ActivePopup::SchedulePicker;
+            true
+        }
         Action::ClosePopup => {
             state.active_popup = ActivePopup::None;
             true

@@ -54,21 +54,21 @@ pub struct SessionsQuery {
 }
 
 // Struct for the frontend session list
-#[derive(Serialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionDisplayInfo {
-    id: String,
-    name: String,
-    created_at: String,
-    working_dir: String,
-    schedule_id: Option<String>,
-    message_count: usize,
-    total_tokens: Option<i32>,
-    input_tokens: Option<i32>,
-    output_tokens: Option<i32>,
-    accumulated_total_tokens: Option<i32>,
-    accumulated_input_tokens: Option<i32>,
-    accumulated_output_tokens: Option<i32>,
+    pub id: String,
+    pub name: String,
+    pub created_at: String,
+    pub working_dir: String,
+    pub schedule_id: Option<String>,
+    pub message_count: usize,
+    pub total_tokens: Option<i32>,
+    pub input_tokens: Option<i32>,
+    pub output_tokens: Option<i32>,
+    pub accumulated_total_tokens: Option<i32>,
+    pub accumulated_input_tokens: Option<i32>,
+    pub accumulated_output_tokens: Option<i32>,
 }
 
 #[utoipa::path(

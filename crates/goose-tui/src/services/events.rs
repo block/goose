@@ -2,7 +2,7 @@ use crossterm::event::{Event as CrosstermEvent, KeyEvent, KeyEventKind, MouseEve
 use futures::{FutureExt, StreamExt};
 use goose::config::ExtensionEntry;
 use goose::session::Session;
-use goose_client::{ProviderDetails, ToolInfo};
+use goose_client::{ProviderDetails, ScheduledJob, SessionDisplayInfo, ToolInfo};
 use goose_server::routes::reply::MessageEvent;
 use std::sync::Arc;
 use std::time::Duration;
@@ -29,6 +29,13 @@ pub enum Event {
     Error(String),
     Flash(String),
     CwdAnalysisComplete(Option<String>),
+    ScheduleListLoaded(Vec<ScheduledJob>),
+    ScheduleSessionsLoaded {
+        schedule_id: String,
+        sessions: Vec<SessionDisplayInfo>,
+    },
+    ScheduleOperationSuccess(String),
+    ScheduleOperationFailed(String),
 }
 pub struct EventHandler {
     rx: mpsc::UnboundedReceiver<Event>,

@@ -100,6 +100,7 @@ impl Component for HelpPopup {
             help_line("/compact", "Compact conversation history", theme),
             help_line("/config", "Open configuration", theme),
             help_line("/session", "Open session picker", theme),
+            help_line("/schedule", "Manage scheduled recipes", theme),
             help_line("/theme", "Change theme (e.g. /theme light)", theme),
             help_line("/alias", "Create custom command", theme),
             help_line(

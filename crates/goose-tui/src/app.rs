@@ -5,6 +5,7 @@ use crate::components::popups::builder::BuilderPopup;
 use crate::components::popups::config::ConfigPopup;
 use crate::components::popups::help::HelpPopup;
 use crate::components::popups::message::MessagePopup;
+use crate::components::popups::schedule::SchedulePopup;
 use crate::components::popups::session::SessionPopup;
 use crate::components::popups::theme::ThemePopup;
 use crate::components::popups::todo::TodoPopup;
@@ -31,6 +32,7 @@ pub struct App<'a> {
     message_popup: MessagePopup,
     config_popup: ConfigPopup,
     theme_popup: ThemePopup,
+    schedule_popup: SchedulePopup,
 
     pub last_popup_close_time: Option<Instant>,
 }
@@ -55,6 +57,7 @@ impl<'a> App<'a> {
             message_popup: MessagePopup::new(),
             config_popup: ConfigPopup::new(),
             theme_popup: ThemePopup::new(),
+            schedule_popup: SchedulePopup::new(),
 
             last_popup_close_time: None,
         }
@@ -73,6 +76,7 @@ impl<'a> App<'a> {
             ActivePopup::MessageInfo(_) => Some(&mut self.message_popup),
             ActivePopup::Config(_) => Some(&mut self.config_popup),
             ActivePopup::ThemePicker => Some(&mut self.theme_popup),
+            ActivePopup::SchedulePicker => Some(&mut self.schedule_popup),
             ActivePopup::None => None,
         };
 
@@ -152,6 +156,24 @@ impl<'a> Component for App<'a> {
             Event::Resize => return Ok(Some(Action::Resize)),
             Event::CwdAnalysisComplete(result) => {
                 return Ok(Some(Action::CwdAnalysisComplete(result.clone())))
+            }
+            Event::ScheduleListLoaded(jobs) => {
+                return Ok(Some(Action::ScheduleListLoaded(jobs.clone())))
+            }
+            Event::ScheduleSessionsLoaded {
+                schedule_id,
+                sessions,
+            } => {
+                return Ok(Some(Action::ScheduleSessionsLoaded {
+                    schedule_id: schedule_id.clone(),
+                    sessions: sessions.clone(),
+                }))
+            }
+            Event::ScheduleOperationSuccess(msg) => {
+                return Ok(Some(Action::ScheduleOperationSuccess(msg.clone())))
+            }
+            Event::ScheduleOperationFailed(err) => {
+                return Ok(Some(Action::ScheduleOperationFailed(err.clone())))
             }
             _ => {}
         }
@@ -239,6 +261,7 @@ impl<'a> Component for App<'a> {
             ActivePopup::MessageInfo(_) => self.message_popup.render(f, f.area(), state),
             ActivePopup::Config(_) => self.config_popup.render(f, f.area(), state),
             ActivePopup::ThemePicker => self.theme_popup.render(f, f.area(), state),
+            ActivePopup::SchedulePicker => self.schedule_popup.render(f, f.area(), state),
             ActivePopup::None => {}
         }
     }

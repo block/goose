@@ -18,7 +18,7 @@ use types::{
     ExtensionResponse, RemoveExtensionRequest, ResumeAgentRequest, SessionListResponse,
     StartAgentRequest, UpdateProviderRequest, UpsertConfigQuery,
 };
-pub use types::{CallToolResponse, ProviderDetails, ToolInfo};
+pub use types::{CallToolResponse, ProviderDetails, ScheduledJob, SessionDisplayInfo, ToolInfo};
 
 pub struct ClientBuilder {
     host: String,
@@ -148,6 +148,10 @@ impl Client {
 
     fn delete(&self, path: &str) -> Request {
         Request::new(self.http.delete(format!("{}{}", self.base_url, path)))
+    }
+
+    fn put(&self, path: &str) -> Request {
+        Request::new(self.http.put(format!("{}{}", self.base_url, path)))
     }
 
     pub async fn get_providers(&self) -> Result<Vec<ProviderDetails>> {
@@ -407,5 +411,83 @@ impl Client {
             .send()
             .await
             .context("Failed to call tool")
+    }
+
+    pub async fn list_schedules(&self) -> Result<Vec<ScheduledJob>> {
+        #[derive(serde::Deserialize)]
+        struct Response {
+            jobs: Vec<ScheduledJob>,
+        }
+        let resp: Response = self.get("/schedule/list").send().await?;
+        Ok(resp.jobs)
+    }
+
+    pub async fn create_schedule(
+        &self,
+        id: &str,
+        recipe_source: &str,
+        cron: &str,
+    ) -> Result<ScheduledJob> {
+        self.post("/schedule/create")
+            .json(&serde_json::json!({
+                "id": id,
+                "recipe_source": recipe_source,
+                "cron": cron
+            }))
+            .send()
+            .await
+    }
+
+    pub async fn update_schedule_cron(&self, id: &str, cron: &str) -> Result<ScheduledJob> {
+        self.put(&format!("/schedule/{}", id))
+            .json(&serde_json::json!({ "cron": cron }))
+            .send()
+            .await
+    }
+
+    pub async fn delete_schedule(&self, id: &str) -> Result<()> {
+        self.delete(&format!("/schedule/delete/{}", id))
+            .send_empty()
+            .await
+    }
+
+    pub async fn run_schedule_now(&self, id: &str) -> Result<String> {
+        #[derive(serde::Deserialize)]
+        struct Response {
+            session_id: String,
+        }
+        let resp: Response = self
+            .post(&format!("/schedule/{}/run_now", id))
+            .send()
+            .await?;
+        Ok(resp.session_id)
+    }
+
+    pub async fn pause_schedule(&self, id: &str) -> Result<()> {
+        self.post(&format!("/schedule/{}/pause", id))
+            .send_empty()
+            .await
+    }
+
+    pub async fn unpause_schedule(&self, id: &str) -> Result<()> {
+        self.post(&format!("/schedule/{}/unpause", id))
+            .send_empty()
+            .await
+    }
+
+    pub async fn kill_schedule(&self, id: &str) -> Result<()> {
+        self.post(&format!("/schedule/{}/kill", id))
+            .send_empty()
+            .await
+    }
+
+    pub async fn get_schedule_sessions(
+        &self,
+        id: &str,
+        limit: usize,
+    ) -> Result<Vec<SessionDisplayInfo>> {
+        self.get(&format!("/schedule/{}/sessions?limit={}", id, limit))
+            .send()
+            .await
     }
 }

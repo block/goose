@@ -35,6 +35,7 @@ pub enum ActivePopup {
     Config(usize),
     ThemePicker,
     MessageInfo(usize),
+    SchedulePicker,
 }
 
 #[derive(Debug, Clone)]

@@ -1,7 +1,7 @@
 use crate::services::config::CustomCommand;
 use goose::config::ExtensionEntry;
 use goose::session::Session;
-use goose_client::{ProviderDetails, ToolInfo};
+use goose_client::{ProviderDetails, ScheduledJob, SessionDisplayInfo, ToolInfo};
 use goose_server::routes::reply::MessageEvent;
 use std::sync::Arc;
 
@@ -70,4 +70,33 @@ pub enum Action {
         approved: bool,
     },
     CwdAnalysisComplete(Option<String>),
+
+    OpenSchedulePopup,
+    RefreshSchedules,
+    CreateSchedule {
+        id: String,
+        recipe_source: String,
+        cron: String,
+    },
+    UpdateScheduleCron {
+        id: String,
+        cron: String,
+    },
+    DeleteSchedule(String),
+    RunScheduleNow(String),
+    PauseSchedule(String),
+    UnpauseSchedule(String),
+    KillSchedule(String),
+    FetchScheduleSessions(String),
+    #[allow(dead_code)]
+    ScheduleListLoaded(Vec<ScheduledJob>),
+    #[allow(dead_code)]
+    ScheduleSessionsLoaded {
+        schedule_id: String,
+        sessions: Vec<SessionDisplayInfo>,
+    },
+    #[allow(dead_code)]
+    ScheduleOperationSuccess(String),
+    #[allow(dead_code)]
+    ScheduleOperationFailed(String),
 }

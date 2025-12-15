@@ -8,6 +8,7 @@ use goose_tui::analysis_target::detect_analysis_target;
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
+
 const CWD_ANALYSIS_TIMEOUT: Duration = Duration::from_secs(30);
 const CWD_ANALYSIS_GRACE_PERIOD: Duration = Duration::from_secs(2);
 
@@ -54,6 +55,37 @@ pub fn handle_action(
         }
         Action::ConfirmToolCall { id, approved } => {
             handle_confirm_tool_call(id, *approved, state, client, tx);
+        }
+        Action::OpenSchedulePopup | Action::RefreshSchedules => {
+            spawn_schedule_list(client, tx);
+        }
+        Action::CreateSchedule {
+            id,
+            recipe_source,
+            cron,
+        } => {
+            spawn_schedule_create(client, tx, id.clone(), recipe_source.clone(), cron.clone());
+        }
+        Action::UpdateScheduleCron { id, cron } => {
+            spawn_schedule_update(client, tx, id.clone(), cron.clone());
+        }
+        Action::DeleteSchedule(id) => {
+            spawn_schedule_delete(client, tx, id.clone());
+        }
+        Action::RunScheduleNow(id) => {
+            spawn_schedule_run(client, tx, id.clone());
+        }
+        Action::PauseSchedule(id) => {
+            spawn_schedule_pause(client, tx, id.clone());
+        }
+        Action::UnpauseSchedule(id) => {
+            spawn_schedule_unpause(client, tx, id.clone());
+        }
+        Action::KillSchedule(id) => {
+            spawn_schedule_kill(client, tx, id.clone());
+        }
+        Action::FetchScheduleSessions(id) => {
+            spawn_schedule_sessions(client, tx, id.clone());
         }
         Action::Quit => {
             return true;
@@ -598,6 +630,188 @@ fn handle_confirm_tool_call(
             .await
         {
             let _ = tx.send(Event::Error(format!("Failed to confirm tool: {e}")));
+        }
+    });
+}
+
+fn spawn_schedule_list(client: &Client, tx: &mpsc::UnboundedSender<Event>) {
+    let client = client.clone();
+    let tx = tx.clone();
+    tokio::spawn(async move {
+        match client.list_schedules().await {
+            Ok(jobs) => {
+                let _ = tx.send(Event::ScheduleListLoaded(jobs));
+            }
+            Err(e) => {
+                let _ = tx.send(Event::ScheduleOperationFailed(e.to_string()));
+            }
+        }
+    });
+}
+
+fn spawn_schedule_create(
+    client: &Client,
+    tx: &mpsc::UnboundedSender<Event>,
+    id: String,
+    recipe_source: String,
+    cron: String,
+) {
+    let client = client.clone();
+    let tx = tx.clone();
+    tokio::spawn(async move {
+        match client.create_schedule(&id, &recipe_source, &cron).await {
+            Ok(_) => {
+                let _ = tx.send(Event::ScheduleOperationSuccess(format!(
+                    "Created schedule '{}'",
+                    id
+                )));
+                if let Ok(jobs) = client.list_schedules().await {
+                    let _ = tx.send(Event::ScheduleListLoaded(jobs));
+                }
+            }
+            Err(e) => {
+                let _ = tx.send(Event::ScheduleOperationFailed(e.to_string()));
+            }
+        }
+    });
+}
+
+fn spawn_schedule_update(
+    client: &Client,
+    tx: &mpsc::UnboundedSender<Event>,
+    id: String,
+    cron: String,
+) {
+    let client = client.clone();
+    let tx = tx.clone();
+    tokio::spawn(async move {
+        match client.update_schedule_cron(&id, &cron).await {
+            Ok(_) => {
+                let _ = tx.send(Event::ScheduleOperationSuccess(format!(
+                    "Updated schedule '{}'",
+                    id
+                )));
+                if let Ok(jobs) = client.list_schedules().await {
+                    let _ = tx.send(Event::ScheduleListLoaded(jobs));
+                }
+            }
+            Err(e) => {
+                let _ = tx.send(Event::ScheduleOperationFailed(e.to_string()));
+            }
+        }
+    });
+}
+
+fn spawn_schedule_delete(client: &Client, tx: &mpsc::UnboundedSender<Event>, id: String) {
+    let client = client.clone();
+    let tx = tx.clone();
+    tokio::spawn(async move {
+        match client.delete_schedule(&id).await {
+            Ok(_) => {
+                let _ = tx.send(Event::ScheduleOperationSuccess(format!(
+                    "Deleted schedule '{}'",
+                    id
+                )));
+                if let Ok(jobs) = client.list_schedules().await {
+                    let _ = tx.send(Event::ScheduleListLoaded(jobs));
+                }
+            }
+            Err(e) => {
+                let _ = tx.send(Event::ScheduleOperationFailed(e.to_string()));
+            }
+        }
+    });
+}
+
+fn spawn_schedule_run(client: &Client, tx: &mpsc::UnboundedSender<Event>, id: String) {
+    let client = client.clone();
+    let tx = tx.clone();
+    tokio::spawn(async move {
+        match client.run_schedule_now(&id).await {
+            Ok(session_id) => {
+                let _ = tx.send(Event::ScheduleOperationSuccess(format!(
+                    "Started '{}' (session: {})",
+                    id, session_id
+                )));
+                if let Ok(jobs) = client.list_schedules().await {
+                    let _ = tx.send(Event::ScheduleListLoaded(jobs));
+                }
+            }
+            Err(e) => {
+                let _ = tx.send(Event::ScheduleOperationFailed(e.to_string()));
+            }
+        }
+    });
+}
+
+fn spawn_schedule_pause(client: &Client, tx: &mpsc::UnboundedSender<Event>, id: String) {
+    let client = client.clone();
+    let tx = tx.clone();
+    tokio::spawn(async move {
+        match client.pause_schedule(&id).await {
+            Ok(_) => {
+                let _ = tx.send(Event::ScheduleOperationSuccess(format!("Paused '{}'", id)));
+                if let Ok(jobs) = client.list_schedules().await {
+                    let _ = tx.send(Event::ScheduleListLoaded(jobs));
+                }
+            }
+            Err(e) => {
+                let _ = tx.send(Event::ScheduleOperationFailed(e.to_string()));
+            }
+        }
+    });
+}
+
+fn spawn_schedule_unpause(client: &Client, tx: &mpsc::UnboundedSender<Event>, id: String) {
+    let client = client.clone();
+    let tx = tx.clone();
+    tokio::spawn(async move {
+        match client.unpause_schedule(&id).await {
+            Ok(_) => {
+                let _ = tx.send(Event::ScheduleOperationSuccess(format!("Resumed '{}'", id)));
+                if let Ok(jobs) = client.list_schedules().await {
+                    let _ = tx.send(Event::ScheduleListLoaded(jobs));
+                }
+            }
+            Err(e) => {
+                let _ = tx.send(Event::ScheduleOperationFailed(e.to_string()));
+            }
+        }
+    });
+}
+
+fn spawn_schedule_kill(client: &Client, tx: &mpsc::UnboundedSender<Event>, id: String) {
+    let client = client.clone();
+    let tx = tx.clone();
+    tokio::spawn(async move {
+        match client.kill_schedule(&id).await {
+            Ok(_) => {
+                let _ = tx.send(Event::ScheduleOperationSuccess(format!("Killed '{}'", id)));
+                if let Ok(jobs) = client.list_schedules().await {
+                    let _ = tx.send(Event::ScheduleListLoaded(jobs));
+                }
+            }
+            Err(e) => {
+                let _ = tx.send(Event::ScheduleOperationFailed(e.to_string()));
+            }
+        }
+    });
+}
+
+fn spawn_schedule_sessions(client: &Client, tx: &mpsc::UnboundedSender<Event>, id: String) {
+    let client = client.clone();
+    let tx = tx.clone();
+    tokio::spawn(async move {
+        match client.get_schedule_sessions(&id, 50).await {
+            Ok(sessions) => {
+                let _ = tx.send(Event::ScheduleSessionsLoaded {
+                    schedule_id: id,
+                    sessions,
+                });
+            }
+            Err(e) => {
+                let _ = tx.send(Event::ScheduleOperationFailed(e.to_string()));
+            }
         }
     });
 }
