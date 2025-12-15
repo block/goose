@@ -138,15 +138,10 @@ export const NotificationTicker: React.FC<NotificationTickerProps> = ({
         />
       </div>
 
-      {/* Time display - fixed on the left */}
-      <div className="absolute left-0 top-0 h-full flex items-center px-3 bg-background-muted border-r border-border-default z-10 image-rendering-pixelated">
-        <span className="text-text-default font-mono text-xs font-medium tracking-wider ticker-pixelated">
-          {formatTime()}
-        </span>
-      </div>
-
+      {/* Time display - hidden */}
+      
       {/* Scrolling content */}
-      <div className="absolute top-0 h-full flex items-center pl-24 bg-background-default image-rendering-pixelated">
+      <div className="absolute top-0 h-full flex items-center pl-0 bg-background-default image-rendering-pixelated">
         <div
           ref={contentRef}
           className="flex items-center whitespace-nowrap"
