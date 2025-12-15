@@ -475,12 +475,14 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
   return (
     <NavigationContext.Provider value={{ isNavExpanded, setIsNavExpanded, navigationPosition }}>
       <div className="flex flex-col flex-1 w-full h-full bg-background-muted">
-        {/* Notification Ticker - Always at the very top */}
-        <NotificationTicker 
-          items={ticker.items} 
-          height={32} 
-          className="z-[10001]" 
-        />
+        {/* Notification Ticker - Only show when navigation is open */}
+        {isNavExpanded && (
+          <NotificationTicker 
+            items={ticker.items} 
+            height={32} 
+            className="z-[10001]" 
+          />
+        )}
         
         {navigationMode === 'overlay' ? (
           // Overlay Mode - Full screen content with floating navigation
