@@ -565,6 +565,7 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
             <NotificationTicker 
               items={ticker.items} 
               height={32} 
+              speed={20}
               className="z-[10001]" 
             />
           )}
@@ -623,6 +624,7 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
                   <NotificationTicker 
                     items={ticker.items} 
                     height={32} 
+                    speed={20}
                     className="z-[10001]" 
                   />
                 )}
@@ -636,6 +638,7 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
                   <NotificationTicker 
                     items={ticker.items} 
                     height={32} 
+                    speed={20}
                     className="z-[10001]" 
                   />
                 )}
@@ -653,6 +656,7 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
                   <NotificationTicker 
                     items={ticker.items} 
                     height={32} 
+                    speed={20}
                     className="z-[10001]" 
                   />
                 )}
@@ -666,6 +670,7 @@ const AppLayoutContent: React.FC<AppLayoutProps> = ({ setIsGoosehintsModalOpen }
                   <NotificationTicker 
                     items={ticker.items} 
                     height={32} 
+                    speed={20}
                     className="z-[10001]" 
                   />
                 )}
