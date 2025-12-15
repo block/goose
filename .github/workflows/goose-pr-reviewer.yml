@@ -12,11 +12,11 @@
 #   /goose check error handling in src/auth/
 #
 # Required Secrets:
-#   - OPENAI_API_KEY: API key for OpenAI
+#   - ANTHROPIC_API_KEY: API key for Anthropic
 #
 # Optional Variables:
-#   - GOOSE_PROVIDER: LLM provider (default: openai)
-#   - GOOSE_MODEL: Model name (default: gpt-5.1-codex)
+#   - GOOSE_PROVIDER: LLM provider (default: anthropic)
+#   - GOOSE_MODEL: Model name (default: claude-sonnet-4-5)
 #
 # Security: PR content could prompt-inject the agent; only trigger on PRs you trust.
 
@@ -145,9 +145,9 @@ jobs:
       image: ghcr.io/block/goose:latest
       options: --user root
       env:
-        GOOSE_PROVIDER: ${{ vars.GOOSE_PROVIDER || 'openai' }}
-        GOOSE_MODEL: ${{ vars.GOOSE_MODEL || 'gpt-5.1-codex' }}
-        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        GOOSE_PROVIDER: ${{ vars.GOOSE_PROVIDER || 'anthropic' }}
+        GOOSE_MODEL: ${{ vars.GOOSE_MODEL || 'claude-sonnet-4-5' }}
+        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         HOME: /tmp/goose-home
 
     steps:
