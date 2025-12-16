@@ -289,11 +289,11 @@ impl Agent {
     async fn categorize_tools(
         &self,
         response: &Message,
-        _tools: &[rmcp::model::Tool],
+        tools: &[rmcp::model::Tool],
     ) -> ToolCategorizeResult {
         // Categorize tool requests
         let (frontend_requests, remaining_requests, filtered_response) =
-            self.categorize_tool_requests(response).await;
+            self.categorize_tool_requests(response, tools).await;
 
         ToolCategorizeResult {
             frontend_requests,
