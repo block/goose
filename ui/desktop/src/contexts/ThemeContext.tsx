@@ -68,7 +68,6 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
 
     const resolved = resolveTheme(preference);
     setResolvedTheme(resolved);
-    applyThemeToDocument(resolved);
 
     // Broadcast to other windows via Electron
     window.electron?.broadcastThemeChange({
@@ -85,9 +84,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
 
     const handleChange = () => {
-      const resolved = getSystemTheme();
-      setResolvedTheme(resolved);
-      applyThemeToDocument(resolved);
+      setResolvedTheme(getSystemTheme());
     };
 
     mediaQuery.addEventListener('change', handleChange);
@@ -122,10 +119,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
 
       setUserThemePreferenceState(newPreference);
       saveThemePreference(newPreference);
-
-      const resolved = resolveTheme(newPreference);
-      setResolvedTheme(resolved);
-      applyThemeToDocument(resolved);
+      setResolvedTheme(resolveTheme(newPreference));
     };
 
     window.electron.on('theme-changed', handleThemeChanged);
@@ -134,7 +128,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     };
   }, []);
 
-  // Apply theme on initial mount
+  // Apply theme to document whenever resolvedTheme changes
   useEffect(() => {
     applyThemeToDocument(resolvedTheme);
   }, [resolvedTheme]);
