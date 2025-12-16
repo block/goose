@@ -477,15 +477,16 @@ pub async fn get_pricing(
     Json(query): Json<PricingQuery>,
 ) -> Result<Json<PricingResponse>, StatusCode> {
     // Try to get canonical model for the specific provider/model
-    let canonical_model = maybe_get_canonical_model(&query.provider, &query.model)
-        .ok_or(StatusCode::NOT_FOUND)?;
+    let canonical_model =
+        maybe_get_canonical_model(&query.provider, &query.model).ok_or(StatusCode::NOT_FOUND)?;
 
     let mut pricing_data = Vec::new();
 
     // Extract pricing from canonical model
-    if let (Some(input_cost), Some(output_cost)) =
-        (canonical_model.pricing.prompt, canonical_model.pricing.completion)
-    {
+    if let (Some(input_cost), Some(output_cost)) = (
+        canonical_model.pricing.prompt,
+        canonical_model.pricing.completion,
+    ) {
         pricing_data.push(PricingData {
             provider: query.provider.clone(),
             model: query.model.clone(),

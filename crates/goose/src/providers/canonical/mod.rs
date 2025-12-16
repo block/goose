@@ -44,12 +44,6 @@ pub fn maybe_get_canonical_model(provider: &str, model: &str) -> Option<Canonica
 /// Returns an empty vector if the registry cannot be loaded
 pub fn all_canonical_models() -> Vec<CanonicalModel> {
     CanonicalModelRegistry::bundled()
-        .map(|registry| {
-            registry
-                .all_models()
-                .into_iter()
-                .cloned()
-                .collect()
-        })
+        .map(|registry| registry.all_models().into_iter().cloned().collect())
         .unwrap_or_default()
 }

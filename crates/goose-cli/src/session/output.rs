@@ -813,12 +813,7 @@ fn estimate_cost_usd(
 }
 
 /// Display cost information, if price data is available.
-pub fn display_cost_usage(
-    provider: &str,
-    model: &str,
-    input_tokens: usize,
-    output_tokens: usize,
-) {
+pub fn display_cost_usage(provider: &str, model: &str, input_tokens: usize, output_tokens: usize) {
     if let Some(cost) = estimate_cost_usd(provider, model, input_tokens, output_tokens) {
         use console::style;
         eprintln!(
