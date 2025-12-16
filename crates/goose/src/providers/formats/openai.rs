@@ -128,9 +128,10 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                 },
                 MessageContent::ToolResponse(response) => {
                     match &response.tool_result {
-                        Ok(contents) => {
+                        Ok(result) => {
                             // Send only contents with no audience or with Assistant in the audience
-                            let abridged: Vec<_> = contents
+                            let abridged: Vec<_> = result
+                                .content
                                 .iter()
                                 .filter(|content| {
                                     content
@@ -198,9 +199,8 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                         }
                     }
                 }
-                MessageContent::ToolConfirmationRequest(_) => {
-                    // Skip tool confirmation requests
-                }
+                MessageContent::ToolConfirmationRequest(_) => {}
+                MessageContent::ActionRequired(_) => {}
                 MessageContent::Image(image) => {
                     content_array.push(convert_image(image, image_format));
                 }
@@ -705,6 +705,7 @@ pub fn create_request(
 mod tests {
     use super::*;
     use crate::conversation::message::Message;
+    use rmcp::model::CallToolResult;
     use rmcp::object;
     use serde_json::json;
     use tokio::pin;
@@ -863,8 +864,15 @@ mod tests {
             panic!("should be tool request");
         };
 
-        messages
-            .push(Message::user().with_tool_response(tool_id, Ok(vec![Content::text("Result")])));
+        messages.push(Message::user().with_tool_response(
+            tool_id,
+            Ok(CallToolResult {
+                content: vec![Content::text("Result")],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
+        ));
 
         let spec = format_messages(&messages, &ImageFormat::OpenAi);
 
@@ -899,8 +907,15 @@ mod tests {
             panic!("should be tool request");
         };
 
-        messages
-            .push(Message::user().with_tool_response(tool_id, Ok(vec![Content::text("Result")])));
+        messages.push(Message::user().with_tool_response(
+            tool_id,
+            Ok(CallToolResult {
+                content: vec![Content::text("Result")],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
+        ));
 
         let spec = format_messages(&messages, &ImageFormat::OpenAi);
 

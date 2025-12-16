@@ -1,32 +1,47 @@
 [
-  [
-    {
-      "type": "text",
-      "text": "Echo: Hello, world!"
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "Echo: Hello, world!"
+      }
+    ]
+  },
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "The sum of 1 and 2 is 3."
+      }
+    ]
+  },
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "Long running operation completed. Duration: 1 seconds, Steps: 5."
+      }
+    ]
+  },
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"temperature\":22.5,\"conditions\":\"Partly cloudy\",\"humidity\":65}"
+      }
+    ],
+    "structuredContent": {
+      "conditions": "Partly cloudy",
+      "humidity": 65,
+      "temperature": 22.5
     }
-  ],
-  [
-    {
-      "type": "text",
-      "text": "The sum of 1 and 2 is 3."
-    }
-  ],
-  [
-    {
-      "type": "text",
-      "text": "Long running operation completed. Duration: 1 seconds, Steps: 5."
-    }
-  ],
-  [
-    {
-      "type": "text",
-      "text": "{\"temperature\":22.5,\"conditions\":\"Partly cloudy\",\"humidity\":65}"
-    }
-  ],
-  [
-    {
-      "type": "text",
-      "text": "LLM sampling result: \"So we beat on, boats against the current, borne back ceaselessly into the past.\" — F. Scott Fitzgerald, The Great Gatsby (1925)"
-    }
-  ]
+  },
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "LLM sampling result: \"So we beat on, boats against the current, borne back ceaselessly into the past.\" — F. Scott Fitzgerald, The Great Gatsby (1925)"
+      }
+    ]
+  }
 ]

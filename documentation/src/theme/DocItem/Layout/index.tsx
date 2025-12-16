@@ -14,7 +14,7 @@ import DocBreadcrumbs from '@theme/DocBreadcrumbs';
 import ContentVisibility from '@theme/ContentVisibility';
 import Heading from '@theme/Heading';
 import MDXContent from '@theme/MDXContent';
-import {Copy, Check, ChevronDown, FileText, ExternalLink, Eye, Code, FileCode} from 'lucide-react';
+import {Copy, Check, ChevronDown, ExternalLink, FileCode, Bot} from 'lucide-react';
 import layoutStyles from './styles.module.css';
 import TurndownService from 'turndown';
 
@@ -436,6 +436,17 @@ function PageActionsMenu(): ReactNode {
             </div>
             <ExternalLink size={16} className="flex-shrink-0" />
           </button>
+          <a
+            href="/goose/docs/mcp/goose-docs-mcp"
+            className="w-full flex items-center justify-between gap-1.5 px-3 py-1.5 text-sm text-white dark:text-black hover:opacity-90 hover:-translate-y-px active:translate-y-px transition-all duration-200 ease-in-out bg-transparent rounded-b-md no-underline"
+            onClick={() => setDropdownOpen(false)}
+          >
+            <div className="flex items-center gap-1.5 font-normal">
+              <Bot size={16} className="flex-shrink-0" />
+              <span>Install Docs MCP</span>
+            </div>
+            <ExternalLink size={16} className="flex-shrink-0" />
+          </a>
           {/* Future menu items can be added here */}
         </div>
       )}

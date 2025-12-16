@@ -4,6 +4,27 @@ export type ClientOptions = {
     baseUrl: `${string}://${string}` | (string & {});
 };
 
+export type ActionRequired = {
+    data: ActionRequiredData;
+};
+
+export type ActionRequiredData = {
+    actionType: 'toolConfirmation';
+    arguments: JsonObject;
+    id: string;
+    prompt?: string | null;
+    toolName: string;
+} | {
+    actionType: 'elicitation';
+    id: string;
+    message: string;
+    requested_schema: unknown;
+} | {
+    actionType: 'elicitationResponse';
+    id: string;
+    user_data: unknown;
+};
+
 export type AddExtensionRequest = {
     config: ExtensionConfig;
     session_id: string;
@@ -23,6 +44,18 @@ export type Author = {
 export type AuthorRequest = {
     contact?: string | null;
     metadata?: string | null;
+};
+
+export type CallToolRequest = {
+    arguments: unknown;
+    name: string;
+    session_id: string;
+};
+
+export type CallToolResponse = {
+    content: Array<Content>;
+    is_error: boolean;
+    structured_content?: unknown;
 };
 
 export type ChatRequest = {
@@ -76,6 +109,13 @@ export type ConfigResponse = {
     };
 };
 
+export type ConfirmToolActionRequest = {
+    action: string;
+    id: string;
+    principalType?: PrincipalType;
+    sessionId: string;
+};
+
 export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | RawAudioContent | RawResource;
 
 export type Conversation = Array<Message>;
@@ -121,6 +161,15 @@ export type DecodeRecipeResponse = {
 
 export type DeleteRecipeRequest = {
     id: string;
+};
+
+export type DetectProviderRequest = {
+    api_key: string;
+};
+
+export type DetectProviderResponse = {
+    models: Array<string>;
+    provider_name: string;
 };
 
 export type EditMessageRequest = {
@@ -371,6 +420,8 @@ export type MessageContent = (TextContent & {
     type: 'toolResponse';
 }) | (ToolConfirmationRequest & {
     type: 'toolConfirmationRequest';
+}) | (ActionRequired & {
+    type: 'actionRequired';
 }) | (FrontendToolRequest & {
     type: 'frontendToolRequest';
 }) | (ThinkingContent & {
@@ -471,13 +522,6 @@ export type ParseRecipeResponse = {
     recipe: Recipe;
 };
 
-export type PermissionConfirmationRequest = {
-    action: string;
-    id: string;
-    principal_type?: PrincipalType;
-    session_id: string;
-};
-
 /**
  * Enum representing the possible permission levels for a tool.
  */
@@ -569,6 +613,16 @@ export type RawTextContent = {
         [key: string]: unknown;
     };
     text: string;
+};
+
+export type ReadResourceRequest = {
+    extension_name: string;
+    session_id: string;
+    uri: string;
+};
+
+export type ReadResourceResponse = {
+    html: string;
 };
 
 export type Recipe = {
@@ -761,7 +815,7 @@ export type SessionListResponse = {
     sessions: Array<Session>;
 };
 
-export type SessionType = 'user' | 'scheduled' | 'sub_agent' | 'hidden';
+export type SessionType = 'user' | 'scheduled' | 'sub_agent' | 'hidden' | 'terminal';
 
 export type SessionsQuery = {
     limit: number;
@@ -935,6 +989,9 @@ export type UpdateCustomProviderRequest = {
     api_url: string;
     display_name: string;
     engine: string;
+    headers?: {
+        [key: string]: string;
+    } | null;
     models: Array<string>;
     supports_streaming?: boolean | null;
 };
@@ -987,6 +1044,31 @@ export type UpsertPermissionsQuery = {
     tool_permissions: Array<ToolPermission>;
 };
 
+export type ConfirmToolActionData = {
+    body: ConfirmToolActionRequest;
+    path?: never;
+    query?: never;
+    url: '/action-required/tool-confirmation';
+};
+
+export type ConfirmToolActionErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type ConfirmToolActionResponses = {
+    /**
+     * Tool confirmation action is confirmed
+     */
+    200: unknown;
+};
+
 export type AgentAddExtensionData = {
     body: AddExtensionRequest;
     path?: never;
@@ -1017,6 +1099,76 @@ export type AgentAddExtensionResponses = {
 };
 
 export type AgentAddExtensionResponse = AgentAddExtensionResponses[keyof AgentAddExtensionResponses];
+
+export type CallToolData = {
+    body: CallToolRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/call_tool';
+};
+
+export type CallToolErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Resource not found
+     */
+    404: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type CallToolResponses = {
+    /**
+     * Resource read successfully
+     */
+    200: CallToolResponse;
+};
+
+export type CallToolResponse2 = CallToolResponses[keyof CallToolResponses];
+
+export type ReadResourceData = {
+    body: ReadResourceRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/read_resource';
+};
+
+export type ReadResourceErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Resource not found
+     */
+    404: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type ReadResourceResponses = {
+    /**
+     * Resource read successfully
+     */
+    200: ReadResourceResponse;
+};
+
+export type ReadResourceResponse2 = ReadResourceResponses[keyof ReadResourceResponses];
 
 export type AgentRemoveExtensionData = {
     body: RemoveExtensionRequest;
@@ -1402,6 +1554,29 @@ export type UpdateCustomProviderResponses = {
 
 export type UpdateCustomProviderResponse = UpdateCustomProviderResponses[keyof UpdateCustomProviderResponses];
 
+export type DetectProviderData = {
+    body: DetectProviderRequest;
+    path?: never;
+    query?: never;
+    url: '/config/detect-provider';
+};
+
+export type DetectProviderErrors = {
+    /**
+     * No matching provider found
+     */
+    404: unknown;
+};
+
+export type DetectProviderResponses = {
+    /**
+     * Provider detected successfully
+     */
+    200: DetectProviderResponse;
+};
+
+export type DetectProviderResponse2 = DetectProviderResponses[keyof DetectProviderResponses];
+
 export type GetExtensionsData = {
     body?: never;
     path?: never;
@@ -1722,31 +1897,6 @@ export type ValidateConfigResponses = {
 };
 
 export type ValidateConfigResponse = ValidateConfigResponses[keyof ValidateConfigResponses];
-
-export type ConfirmPermissionData = {
-    body: PermissionConfirmationRequest;
-    path?: never;
-    query?: never;
-    url: '/confirm';
-};
-
-export type ConfirmPermissionErrors = {
-    /**
-     * Unauthorized - invalid secret key
-     */
-    401: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type ConfirmPermissionResponses = {
-    /**
-     * Permission action is confirmed
-     */
-    200: unknown;
-};
 
 export type DiagnosticsData = {
     body?: never;

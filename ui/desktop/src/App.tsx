@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { IpcRendererEvent } from 'electron';
 import {
   HashRouter,
@@ -13,8 +13,8 @@ import { type SharedSessionDetails } from './sharedSessions';
 import { ErrorUI } from './components/ErrorBoundary';
 import { ExtensionInstallModal } from './components/ExtensionInstallModal';
 import { ToastContainer } from 'react-toastify';
-import { GoosehintsModal } from './components/GoosehintsModal';
 import AnnouncementModal from './components/AnnouncementModal';
+import TelemetryOptOutModal from './components/TelemetryOptOutModal';
 import ProviderGuard from './components/ProviderGuard';
 import { createSession } from './sessions';
 
@@ -43,34 +43,20 @@ import { useNavigation } from './hooks/useNavigation';
 import { errorMessage } from './utils/conversionUtils';
 
 // Route Components
-const HubRouteWrapper = ({
-  setIsGoosehintsModalOpen,
-  isExtensionsLoading,
-}: {
-  setIsGoosehintsModalOpen: (isOpen: boolean) => void;
-  isExtensionsLoading: boolean;
-}) => {
+const HubRouteWrapper = ({ isExtensionsLoading }: { isExtensionsLoading: boolean }) => {
   const setView = useNavigation();
 
-  return (
-    <Hub
-      setView={setView}
-      setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-      isExtensionsLoading={isExtensionsLoading}
-    />
-  );
+  return <Hub setView={setView} isExtensionsLoading={isExtensionsLoading} />;
 };
 
 const PairRouteWrapper = ({
   chat,
   setChat,
-  setIsGoosehintsModalOpen,
   activeSessionId,
   setActiveSessionId,
 }: {
   chat: ChatType;
   setChat: (chat: ChatType) => void;
-  setIsGoosehintsModalOpen: (isOpen: boolean) => void;
   activeSessionId: string | null;
   setActiveSessionId: (id: string | null) => void;
 }) => {
@@ -178,24 +164,26 @@ const PairRouteWrapper = ({
   }, [sessionId, activeSessionId, setActiveSessionId]);
 
   return (
-    <Pair
-      key={sessionId}
-      setChat={setChat}
-      setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-      sessionId={sessionId}
-      initialMessage={initialMessage}
-    />
+    <Pair key={sessionId} setChat={setChat} sessionId={sessionId} initialMessage={initialMessage} />
   );
 };
 
 const SettingsRoute = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const setView = useNavigation();
 
-  // Get viewOptions from location.state or history.state
+  // Get viewOptions from location.state, history.state, or URL search params
   const viewOptions =
     (location.state as SettingsViewOptions) || (window.history.state as SettingsViewOptions) || {};
+
+  // If section is provided via URL search params, add it to viewOptions
+  const sectionFromUrl = searchParams.get('section');
+  if (sectionFromUrl) {
+    viewOptions.section = sectionFromUrl;
+  }
+
   return <SettingsView onClose={() => navigate('/')} setView={setView} viewOptions={viewOptions} />;
 };
 
@@ -268,14 +256,19 @@ interface WelcomeRouteProps {
 
 const WelcomeRoute = ({ onSelectProvider }: WelcomeRouteProps) => {
   const navigate = useNavigate();
-  const onClose = useCallback(() => {
-    onSelectProvider();
-    navigate('/');
-  }, [navigate, onSelectProvider]);
 
   return (
     <div className="w-screen h-screen bg-background-default">
-      <ProviderSettings onClose={onClose} isOnboarding={true} />
+      <ProviderSettings
+        onClose={() => {
+          navigate('/', { replace: true });
+        }}
+        isOnboarding={true}
+        onProviderLaunched={() => {
+          onSelectProvider();
+          navigate('/', { replace: true });
+        }}
+      />
     </div>
   );
 };
@@ -356,7 +349,6 @@ const ExtensionsRoute = () => {
 
 export function AppInner() {
   const [fatalError, setFatalError] = useState<string | null>(null);
-  const [isGoosehintsModalOpen, setIsGoosehintsModalOpen] = useState(false);
   const [agentWaitingMessage, setAgentWaitingMessage] = useState<string | null>(null);
   const [isLoadingSharedSession, setIsLoadingSharedSession] = useState(false);
   const [sharedSessionError, setSharedSessionError] = useState<string | null>(null);
@@ -652,27 +644,18 @@ export function AppInner() {
                   contextKey="hub"
                   agentWaitingMessage={agentWaitingMessage}
                 >
-                  <AppLayout setIsGoosehintsModalOpen={setIsGoosehintsModalOpen} />
+                  <AppLayout />
                 </ChatProvider>
               </ProviderGuard>
             }
           >
-            <Route
-              index
-              element={
-                <HubRouteWrapper
-                  setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-                  isExtensionsLoading={isExtensionsLoading}
-                />
-              }
-            />
+            <Route index element={<HubRouteWrapper isExtensionsLoading={isExtensionsLoading} />} />
             <Route
               path="pair"
               element={
                 <PairRouteWrapper
                   chat={chat}
                   setChat={setChat}
-                  setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
                   activeSessionId={activeSessionId}
                   setActiveSessionId={setActiveSessionId}
                 />
@@ -709,12 +692,6 @@ export function AppInner() {
           </Route>
         </Routes>
       </div>
-      {isGoosehintsModalOpen && (
-        <GoosehintsModal
-          directory={window.appConfig?.get('GOOSE_WORKING_DIR') as string}
-          setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-        />
-      )}
     </>
   );
 }
@@ -726,6 +703,7 @@ export default function App() {
         <AppInner />
       </HashRouter>
       <AnnouncementModal />
+      <TelemetryOptOutModal controlled={false} />
     </ModelAndProviderProvider>
   );
 }

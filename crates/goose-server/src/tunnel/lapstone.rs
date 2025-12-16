@@ -477,6 +477,8 @@ async fn run_single_connection(
     server_secret: String,
     restart_tx: mpsc::Sender<()>,
 ) {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+
     let worker_url = get_worker_url();
     let ws_url = worker_url
         .replace("https://", "wss://")

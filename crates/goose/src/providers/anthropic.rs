@@ -22,13 +22,22 @@ use crate::providers::retry::ProviderRetry;
 use crate::providers::utils::RequestLog;
 use rmcp::model::Tool;
 
-pub const ANTHROPIC_DEFAULT_MODEL: &str = "claude-sonnet-4-0";
-const ANTHROPIC_DEFAULT_FAST_MODEL: &str = "claude-3-7-sonnet-latest";
+pub const ANTHROPIC_DEFAULT_MODEL: &str = "claude-sonnet-4-5";
+const ANTHROPIC_DEFAULT_FAST_MODEL: &str = "claude-haiku-4-5";
 const ANTHROPIC_KNOWN_MODELS: &[&str] = &[
+    // Claude 4.5 models with aliases
+    "claude-sonnet-4-5",
+    "claude-sonnet-4-5-20250929",
+    "claude-haiku-4-5",
+    "claude-haiku-4-5-20251001",
+    "claude-opus-4-5",
+    "claude-opus-4-5-20251101",
+    // Legacy Claude 4.0 models
     "claude-sonnet-4-0",
     "claude-sonnet-4-20250514",
     "claude-opus-4-0",
     "claude-opus-4-20250514",
+    // Legacy Claude 3.x models
     "claude-3-7-sonnet-latest",
     "claude-3-7-sonnet-20250219",
     "claude-3-opus-latest",
@@ -233,22 +242,14 @@ impl Provider for AnthropicProvider {
         }
 
         let json = response.payload.unwrap_or_default();
-        let arr = match json.get("models").and_then(|v| v.as_array()) {
+        let arr = match json.get("data").and_then(|v| v.as_array()) {
             Some(arr) => arr,
             None => return Ok(None),
         };
 
         let mut models: Vec<String> = arr
             .iter()
-            .filter_map(|m| {
-                if let Some(s) = m.as_str() {
-                    Some(s.to_string())
-                } else if let Some(obj) = m.as_object() {
-                    obj.get("id").and_then(|v| v.as_str()).map(str::to_string)
-                } else {
-                    None
-                }
-            })
+            .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(str::to_string))
             .collect();
         models.sort();
         Ok(Some(models))
