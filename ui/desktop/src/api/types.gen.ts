@@ -14,6 +14,15 @@ export type ActionRequiredData = {
     id: string;
     prompt?: string | null;
     toolName: string;
+} | {
+    actionType: 'elicitation';
+    id: string;
+    message: string;
+    requested_schema: unknown;
+} | {
+    actionType: 'elicitationResponse';
+    id: string;
+    user_data: unknown;
 };
 
 export type AddExtensionRequest = {
@@ -35,6 +44,18 @@ export type Author = {
 export type AuthorRequest = {
     contact?: string | null;
     metadata?: string | null;
+};
+
+export type CallToolRequest = {
+    arguments: unknown;
+    name: string;
+    session_id: string;
+};
+
+export type CallToolResponse = {
+    content: Array<Content>;
+    is_error: boolean;
+    structured_content?: unknown;
 };
 
 export type ChatRequest = {
@@ -140,6 +161,15 @@ export type DecodeRecipeResponse = {
 
 export type DeleteRecipeRequest = {
     id: string;
+};
+
+export type DetectProviderRequest = {
+    api_key: string;
+};
+
+export type DetectProviderResponse = {
+    models: Array<string>;
+    provider_name: string;
 };
 
 export type EditMessageRequest = {
@@ -588,6 +618,16 @@ export type RawTextContent = {
     text: string;
 };
 
+export type ReadResourceRequest = {
+    extension_name: string;
+    session_id: string;
+    uri: string;
+};
+
+export type ReadResourceResponse = {
+    html: string;
+};
+
 export type Recipe = {
     activities?: Array<string> | null;
     author?: Author | null;
@@ -850,6 +890,13 @@ export type SystemNotificationContent = {
 
 export type SystemNotificationType = 'thinkingMessage' | 'inlineMessage';
 
+export type TelemetryEventRequest = {
+    event_name: string;
+    properties?: {
+        [key: string]: unknown;
+    };
+};
+
 export type TextContent = {
     _meta?: {
         [key: string]: unknown;
@@ -1066,6 +1113,76 @@ export type AgentAddExtensionResponses = {
 };
 
 export type AgentAddExtensionResponse = AgentAddExtensionResponses[keyof AgentAddExtensionResponses];
+
+export type CallToolData = {
+    body: CallToolRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/call_tool';
+};
+
+export type CallToolErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Resource not found
+     */
+    404: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type CallToolResponses = {
+    /**
+     * Resource read successfully
+     */
+    200: CallToolResponse;
+};
+
+export type CallToolResponse2 = CallToolResponses[keyof CallToolResponses];
+
+export type ReadResourceData = {
+    body: ReadResourceRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/read_resource';
+};
+
+export type ReadResourceErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Resource not found
+     */
+    404: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type ReadResourceResponses = {
+    /**
+     * Resource read successfully
+     */
+    200: ReadResourceResponse;
+};
+
+export type ReadResourceResponse2 = ReadResourceResponses[keyof ReadResourceResponses];
 
 export type AgentRemoveExtensionData = {
     body: RemoveExtensionRequest;
@@ -1450,6 +1567,29 @@ export type UpdateCustomProviderResponses = {
 };
 
 export type UpdateCustomProviderResponse = UpdateCustomProviderResponses[keyof UpdateCustomProviderResponses];
+
+export type DetectProviderData = {
+    body: DetectProviderRequest;
+    path?: never;
+    query?: never;
+    url: '/config/detect-provider';
+};
+
+export type DetectProviderErrors = {
+    /**
+     * No matching provider found
+     */
+    404: unknown;
+};
+
+export type DetectProviderResponses = {
+    /**
+     * Provider detected successfully
+     */
+    200: DetectProviderResponse;
+};
+
+export type DetectProviderResponse2 = DetectProviderResponses[keyof DetectProviderResponses];
 
 export type GetExtensionsData = {
     body?: never;
@@ -2761,6 +2901,20 @@ export type StatusResponses = {
 };
 
 export type StatusResponse = StatusResponses[keyof StatusResponses];
+
+export type SendTelemetryEventData = {
+    body: TelemetryEventRequest;
+    path?: never;
+    query?: never;
+    url: '/telemetry/event';
+};
+
+export type SendTelemetryEventResponses = {
+    /**
+     * Event accepted for processing
+     */
+    202: unknown;
+};
 
 export type StartTunnelData = {
     body?: never;

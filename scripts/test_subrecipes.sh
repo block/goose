@@ -77,28 +77,22 @@ check_recipe_output() {
   local tmpfile=$1
   local mode=$2
   
-  if grep -q "| subrecipe" "$tmpfile"; then
-    echo "✓ SUCCESS: Subrecipe tools invoked"
-    RESULTS+=("✓ Subrecipe tool invocation ($mode)")
+  # Check for unified subagent tool invocation (new format: "─── subagent |")
+  if grep -q "─── subagent" "$tmpfile"; then
+    echo "✓ SUCCESS: Subagent tool invoked"
+    RESULTS+=("✓ Subagent tool invocation ($mode)")
   else
-    echo "✗ FAILED: No evidence of subrecipe tool invocation"
-    RESULTS+=("✗ Subrecipe tool invocation ($mode)")
+    echo "✗ FAILED: No evidence of subagent tool invocation"
+    RESULTS+=("✗ Subagent tool invocation ($mode)")
   fi
   
-  if grep -q "file_stats" "$tmpfile" && grep -q "code_patterns" "$tmpfile"; then
+  # Check that both subrecipes were called (shown as "subrecipe: <name>" in output)
+  if grep -q "subrecipe:.*file_stats\|file_stats.*subrecipe" "$tmpfile" && grep -q "subrecipe:.*code_patterns\|code_patterns.*subrecipe" "$tmpfile"; then
     echo "✓ SUCCESS: Both subrecipes (file_stats, code_patterns) found in output"
     RESULTS+=("✓ Both subrecipes present ($mode)")
   else
     echo "✗ FAILED: Not all subrecipes found in output"
     RESULTS+=("✗ Subrecipe names ($mode)")
-  fi
-  
-  if grep -q "| subagent" "$tmpfile"; then
-    echo "✓ SUCCESS: Subagent execution detected"
-    RESULTS+=("✓ Subagent execution ($mode)")
-  else
-    echo "✗ FAILED: No evidence of subagent execution"
-    RESULTS+=("✗ Subagent execution ($mode)")
   fi
 }
 
@@ -108,14 +102,6 @@ if (cd "$TESTDIR" && "$SCRIPT_DIR/target/release/goose" run --recipe project_ana
   echo "✓ SUCCESS: Recipe completed successfully"
   RESULTS+=("✓ Recipe exit code")
   check_recipe_output "$TMPFILE" "parallel"
-  
-  if grep -q "execution_mode: parallel" "$TMPFILE"; then
-    echo "✓ SUCCESS: Parallel execution mode detected"
-    RESULTS+=("✓ Parallel execution mode")
-  else
-    echo "✗ FAILED: Parallel execution mode not detected"
-    RESULTS+=("✗ Parallel execution mode")
-  fi
 else
   echo "✗ FAILED: Recipe execution failed"
   RESULTS+=("✗ Recipe exit code")

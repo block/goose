@@ -49,7 +49,7 @@ export interface ProviderModelsResult {
 }
 
 /**
- * Fetches models for all active providers in parallel.
+ * Fetches recommended models for all active providers in parallel.
  * Falls back to known_models if fetching fails or returns no models.
  */
 export async function fetchModelsForProviders(

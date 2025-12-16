@@ -417,3 +417,50 @@ html[data-theme="light"] .hide-in-light {
 .button-grant h2 {
   margin-top: 15px;
 }
+
+/* Prevent horizontal overflow */
+html, body {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
+/* Ensure skip to content link doesn't cause horizontal scroll */
+.skipToContent_fXgn {
+  position: absolute !important;
+  left: -9999px !important;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden !important;
+}
+
+.skipToContent_fXgn:focus {
+  position: fixed !important;
+  left: 10px !important;
+  top: 10px !important;
+  width: auto !important;
+  height: auto !important;
+  overflow: visible !important;
+  z-index: 9999 !important;
+  padding: 10px 20px !important;
+  background: var(--background-prominent) !important;
+  color: var(--text-prominent) !important;
+  border-radius: 4px !important;
+}
+
+/* Ensure all containers respect viewport width */
+.container {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Prevent navbar from causing horizontal overflow */
+.navbar {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Ensure main content doesn't overflow */
+main {
+  max-width: 100%;
+  overflow-x: hidden;
+}

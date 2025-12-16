@@ -25,12 +25,14 @@ use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
     config::permission::PermissionLevel,
 };
-use serde::Deserialize;
+use rmcp::model::{CallToolRequestParam, Content};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use tokio_util::sync::CancellationToken;
 use tracing::{error, warn};
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -92,6 +94,32 @@ pub struct RemoveExtensionRequest {
     session_id: String,
 }
 
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct ReadResourceRequest {
+    session_id: String,
+    extension_name: String,
+    uri: String,
+}
+
+#[derive(Serialize, Deserialize, utoipa::ToSchema)]
+pub struct ReadResourceResponse {
+    html: String,
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct CallToolRequest {
+    session_id: String,
+    name: String,
+    arguments: Value,
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct CallToolResponse {
+    content: Vec<Content>,
+    structured_content: Option<Value>,
+    is_error: bool,
+}
+
 #[utoipa::path(
     post,
     path = "/agent/start",
@@ -107,6 +135,8 @@ async fn start_agent(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<StartAgentRequest>,
 ) -> Result<Json<Session>, ErrorResponse> {
+    goose::posthog::set_session_context("desktop", false);
+
     let StartAgentRequest {
         working_dir,
         recipe,
@@ -199,6 +229,8 @@ async fn resume_agent(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<ResumeAgentRequest>,
 ) -> Result<Json<Session>, ErrorResponse> {
+    goose::posthog::set_session_context("desktop", true);
+
     let session = SessionManager::get_session(&payload.session_id, true)
         .await
         .map_err(|err| {
@@ -500,7 +532,7 @@ async fn update_router_tool_selector(
         .update_router_tool_selector(None, Some(true))
         .await
         .map_err(|e| {
-            tracing::error!("Failed to update tool selection strategy: {}", e);
+            error!("Failed to update tool selection strategy: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
@@ -524,78 +556,6 @@ async fn agent_add_extension(
     State(state): State<Arc<AppState>>,
     Json(request): Json<AddExtensionRequest>,
 ) -> Result<StatusCode, ErrorResponse> {
-    #[cfg(windows)]
-    {
-        use winreg::enums::{HKEY_LOCAL_MACHINE, KEY_READ};
-        use winreg::RegKey;
-
-        if let ExtensionConfig::Stdio { cmd, .. } = &request.config {
-            if cmd.ends_with("npx.cmd") || cmd.ends_with("npx") {
-                let mut node_exists = std::path::Path::new(r"C:\Program Files\nodejs\node.exe")
-                    .exists()
-                    || std::path::Path::new(r"C:\Program Files (x86)\nodejs\node.exe").exists();
-
-                // Also check Windows registry: HKEY_LOCAL_MACHINE\\SOFTWARE\\Node.js InstallPath
-                if !node_exists {
-                    // Try 64-bit view first, then 32-bit. Use open_subkey_with_flags to avoid WOW64 redirection issues.
-                    let install_path_from_reg: Option<String> = (|| {
-                        let hk_local_machine = RegKey::predef(HKEY_LOCAL_MACHINE);
-                        // Common keys to try
-                        let keys = vec!["SOFTWARE\\Node.js", "SOFTWARE\\WOW6432Node\\Node.js"];
-                        for k in keys.iter() {
-                            if let Ok(subkey) = hk_local_machine.open_subkey_with_flags(k, KEY_READ)
-                            {
-                                if let Ok(val) = subkey.get_value::<String, _>("InstallPath") {
-                                    if !val.trim().is_empty() {
-                                        return Some(val);
-                                    }
-                                }
-                            }
-                        }
-                        None
-                    })();
-
-                    if let Some(path_str) = install_path_from_reg {
-                        let node_path = std::path::Path::new(&path_str).join("node.exe");
-                        if node_path.exists() {
-                            node_exists = true;
-                        }
-                    }
-                }
-
-                if !node_exists {
-                    let cmd_path = std::path::Path::new(&cmd);
-                    let script_dir = cmd_path
-                        .parent()
-                        .ok_or_else(|| ErrorResponse::internal("Invalid command path"))?;
-                    let install_script = script_dir.join("install-node.cmd");
-
-                    if install_script.exists() {
-                        eprintln!("Node.js not found on the system, installing Node.js...");
-                        let output = std::process::Command::new(&install_script)
-                            .arg("https://nodejs.org/dist/v23.10.0/node-v23.10.0-x64.msi")
-                            .output()
-                            .map_err(|_e| {
-                                ErrorResponse::internal("Failed to run Node.js installer")
-                            })?;
-
-                        if !output.status.success() {
-                            return Err(ErrorResponse::internal(format!(
-                                "Failed to install Node.js: {}",
-                                String::from_utf8_lossy(&output.stderr)
-                            )));
-                        }
-                    } else {
-                        return Err(ErrorResponse::internal(format!(
-                            "Node.js not found on the system, and no installer script found at: {}",
-                            install_script.display()
-                        )));
-                    }
-                }
-            }
-        }
-    }
-
     let agent = state.get_agent(request.session_id).await?;
     agent
         .add_extension(request.config)
@@ -652,11 +612,94 @@ async fn stop_agent(
     Ok(StatusCode::OK)
 }
 
+#[utoipa::path(
+    post,
+    path = "/agent/read_resource",
+    request_body = ReadResourceRequest,
+    responses(
+        (status = 200, description = "Resource read successfully", body = ReadResourceResponse),
+        (status = 401, description = "Unauthorized - invalid secret key"),
+        (status = 424, description = "Agent not initialized"),
+        (status = 404, description = "Resource not found"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+async fn read_resource(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<ReadResourceRequest>,
+) -> Result<Json<ReadResourceResponse>, StatusCode> {
+    let agent = state
+        .get_agent_for_route(payload.session_id.clone())
+        .await?;
+
+    let html = agent
+        .extension_manager
+        .read_ui_resource(
+            &payload.uri,
+            &payload.extension_name,
+            CancellationToken::default(),
+        )
+        .await
+        .map_err(|_e| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(ReadResourceResponse { html }))
+}
+
+#[utoipa::path(
+    post,
+    path = "/agent/call_tool",
+    request_body = CallToolRequest,
+    responses(
+        (status = 200, description = "Resource read successfully", body = CallToolResponse),
+        (status = 401, description = "Unauthorized - invalid secret key"),
+        (status = 424, description = "Agent not initialized"),
+        (status = 404, description = "Resource not found"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+async fn call_tool(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<CallToolRequest>,
+) -> Result<Json<CallToolResponse>, StatusCode> {
+    let agent = state
+        .get_agent_for_route(payload.session_id.clone())
+        .await?;
+
+    let arguments = match payload.arguments {
+        Value::Object(map) => Some(map),
+        _ => None,
+    };
+
+    let tool_call = CallToolRequestParam {
+        name: payload.name.into(),
+        arguments,
+    };
+
+    let tool_result = agent
+        .extension_manager
+        .dispatch_tool_call(tool_call, CancellationToken::default())
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let result = tool_result
+        .result
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(CallToolResponse {
+        content: result.content,
+        structured_content: result.structured_content,
+        is_error: result.is_error.unwrap_or(false),
+    }))
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/agent/start", post(start_agent))
         .route("/agent/resume", post(resume_agent))
         .route("/agent/tools", get(get_tools))
+        .route("/agent/read_resource", post(read_resource))
+        .route("/agent/call_tool", post(call_tool))
         .route("/agent/update_provider", post(update_agent_provider))
         .route(
             "/agent/update_router_tool_selector",

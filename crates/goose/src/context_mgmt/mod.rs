@@ -1,4 +1,4 @@
-use crate::conversation::message::MessageMetadata;
+use crate::conversation::message::{ActionRequiredData, MessageMetadata};
 use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::{merge_consecutive_messages, Conversation};
 use crate::prompt_template::render_global_file;
@@ -320,8 +320,7 @@ async fn do_compact(
                         continue;
                     } else {
                         return Err(anyhow::anyhow!(
-                            "Failed to compact messages: context length still exceeded after {} attempts with maximum removal",
-                            removal_percentages.len()
+                            "Failed to compact: context limit exceeded even after removing all tool responses"
                         ));
                     }
                 }
@@ -355,8 +354,9 @@ fn format_message_for_compacting(msg: &Message) -> String {
                 }
             }
             MessageContent::ToolResponse(res) => {
-                if let Ok(contents) = &res.tool_result {
-                    let text_items: Vec<String> = contents
+                if let Ok(result) = &res.tool_result {
+                    let text_items: Vec<String> = result
+                        .content
                         .iter()
                         .filter_map(|content| {
                             content.as_text().map(|text_str| text_str.text.clone())
@@ -376,11 +376,14 @@ fn format_message_for_compacting(msg: &Message) -> String {
                 format!("tool_confirmation_request: {}", req.tool_name)
             }
             MessageContent::ActionRequired(action) => match &action.data {
-                crate::conversation::message::ActionRequiredData::ToolConfirmation {
-                    tool_name,
-                    ..
-                } => {
+                ActionRequiredData::ToolConfirmation { tool_name, .. } => {
                     format!("action_required(tool_confirmation): {}", tool_name)
+                }
+                ActionRequiredData::Elicitation { message, .. } => {
+                    format!("action_required(elicitation): {}", message)
+                }
+                ActionRequiredData::ElicitationResponse { id, .. } => {
+                    format!("action_required(elicitation_response): {}", id)
                 }
             },
             MessageContent::FrontendToolRequest(req) => {
@@ -515,7 +518,12 @@ mod tests {
             ),
             Message::user().with_tool_response(
                 "tool_0",
-                Ok(vec![RawContent::text("hello, world").no_annotation()]),
+                Ok(rmcp::model::CallToolResult {
+                    content: vec![RawContent::text("hello, world").no_annotation()],
+                    structured_content: None,
+                    is_error: Some(false),
+                    meta: None,
+                }),
             ),
         ];
 
@@ -548,9 +556,12 @@ mod tests {
             ));
             messages.push(Message::user().with_tool_response(
                 format!("tool_{}", i),
-                Ok(vec![
-                    RawContent::text(format!("response{}", i)).no_annotation(),
-                ]),
+                Ok(rmcp::model::CallToolResult {
+                    content: vec![RawContent::text(format!("response{}", i)).no_annotation()],
+                    structured_content: None,
+                    is_error: Some(false),
+                    meta: None,
+                }),
             ));
         }
 

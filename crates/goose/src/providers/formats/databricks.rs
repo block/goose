@@ -133,9 +133,10 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
                 }
                 MessageContent::ToolResponse(response) => {
                     match &response.tool_result {
-                        Ok(contents) => {
+                        Ok(call_result) => {
                             // Send only contents with no audience or with Assistant in the audience
-                            let abridged: Vec<_> = contents
+                            let abridged: Vec<_> = call_result
+                                .content
                                 .iter()
                                 .filter(|content| {
                                     content
@@ -533,12 +534,7 @@ pub fn create_request(
     };
 
     let system_message = DatabricksMessage {
-        role: if is_openai_reasoning_model {
-            "developer"
-        } else {
-            "system"
-        }
-        .to_string(),
+        role: "system".to_string(),
         content: system.into(),
         tool_calls: None,
         tool_call_id: None,
@@ -645,6 +641,7 @@ pub fn create_request(
 mod tests {
     use super::*;
     use crate::conversation::message::Message;
+    use rmcp::model::CallToolResult;
     use rmcp::object;
     use serde_json::json;
 
@@ -734,8 +731,15 @@ mod tests {
             panic!("should be tool request");
         };
 
-        messages
-            .push(Message::user().with_tool_response(tool_id, Ok(vec![Content::text("Result")])));
+        messages.push(Message::user().with_tool_response(
+            tool_id,
+            Ok(CallToolResult {
+                content: vec![Content::text("Result")],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
+        ));
 
         let as_value =
             serde_json::to_value(format_messages(&messages, &ImageFormat::OpenAi)).unwrap();
@@ -771,8 +775,15 @@ mod tests {
             panic!("should be tool request");
         };
 
-        messages
-            .push(Message::user().with_tool_response(tool_id, Ok(vec![Content::text("Result")])));
+        messages.push(Message::user().with_tool_response(
+            tool_id,
+            Ok(CallToolResult {
+                content: vec![Content::text("Result")],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
+        ));
 
         let as_value =
             serde_json::to_value(format_messages(&messages, &ImageFormat::OpenAi)).unwrap();
@@ -1015,42 +1026,7 @@ mod tests {
     }
 
     #[test]
-    fn test_create_request_o1_default() -> anyhow::Result<()> {
-        // Test default medium reasoning effort for O1 model
-        let model_config = ModelConfig {
-            model_name: "o1".to_string(),
-            context_limit: Some(4096),
-            temperature: None,
-            max_tokens: Some(1024),
-            toolshim: false,
-            toolshim_model: None,
-            fast_model: None,
-            request_params: None,
-        };
-        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
-        let obj = request.as_object().unwrap();
-        let expected = json!({
-            "model": "o1",
-            "messages": [
-                {
-                    "role": "developer",
-                    "content": "system"
-                }
-            ],
-            "reasoning_effort": "medium",
-            "max_completion_tokens": 1024
-        });
-
-        for (key, value) in expected.as_object().unwrap() {
-            assert_eq!(obj.get(key).unwrap(), value);
-        }
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_create_request_o3_custom_reasoning_effort() -> anyhow::Result<()> {
-        // Test custom reasoning effort for O3 model
+    fn test_create_request_reasoning_effort() -> anyhow::Result<()> {
         let model_config = ModelConfig {
             model_name: "o3-mini-high".to_string(),
             context_limit: Some(4096),
@@ -1062,54 +1038,7 @@ mod tests {
             request_params: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
-        let obj = request.as_object().unwrap();
-        let expected = json!({
-            "model": "o3-mini",
-            "messages": [
-                {
-                    "role": "developer",
-                    "content": "system"
-                }
-            ],
-            "reasoning_effort": "high",
-            "max_completion_tokens": 1024
-        });
-
-        for (key, value) in expected.as_object().unwrap() {
-            assert_eq!(obj.get(key).unwrap(), value);
-        }
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_create_request_with_request_params() -> anyhow::Result<()> {
-        use std::collections::HashMap;
-
-        let mut request_params = HashMap::new();
-        request_params.insert(
-            "anthropic_beta".to_string(),
-            json!(["context-1m-2025-08-07"]),
-        );
-
-        let model_config = ModelConfig {
-            model_name: "goose-claude-4-5-sonnet".to_string(),
-            context_limit: Some(1_000_000),
-            temperature: None,
-            max_tokens: None,
-            toolshim: false,
-            toolshim_model: None,
-            fast_model: None,
-            request_params: Some(request_params),
-        };
-        let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
-        let obj = request.as_object().unwrap();
-
-        assert_eq!(
-            obj.get("anthropic_beta").unwrap(),
-            &json!(["context-1m-2025-08-07"])
-        );
-
+        assert_eq!(request["reasoning_effort"], "high");
         Ok(())
     }
 

@@ -6,7 +6,7 @@ description: "Share a goose session setup (including tools, goals, and instructi
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import { PanelLeft, Bot, SquarePen, Link, Calendar } from 'lucide-react';
+import { PanelLeft, Bot, SquarePen, Link, Calendar, Terminal } from 'lucide-react';
 
 Sometimes you finish a task in goose and realize, "Hey, this setup could be useful again." Maybe you have curated a great combination of tools, defined a clear goal, and want to preserve that flow. Or maybe you're trying to help someone else replicate what you just did without walking them through it step by step. 
 
@@ -428,6 +428,55 @@ You can turn your current goose session into a reusable recipe that includes the
    </TabItem>
 </Tabs>
 
+## Custom Recipe Commands
+Create shortcuts to quickly run recipes in any goose chat session. Type a custom command like `/daily-report` to instantly apply that recipe's instructions.
+
+<Tabs groupId="interface">
+  <TabItem value="ui" label="goose Desktop" default>
+   1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+   2. Click `Recipes`
+   3. Find the recipe you want to edit and click the <Terminal className="inline" size={16} /> button
+   4. In the modal that pops up, type your custom command (without the leading `/`) into the text box
+   5. Click `Save`.
+ 
+  Once you assign a custom command, the `Recipes` menu displays that command in purple text under the recipe's creation date. Typing `/` into the goose Desktop chat window shows a popup menu with the available recipe commands.
+
+To run the recipe, type your custom command with a leading slash into any chat session in the desktop app: 
+```
+/run-tests
+```
+
+ </TabItem>
+  <TabItem value="cli" label="goose CLI">
+
+  Custom slash commands are configured in your goose [configuration file](/docs/guides/config-files.md). List the command (without the leading `/`) along with the path to the recipe:
+
+```yaml title="~/.config/goose/config.yaml"
+slash_commands:
+  - command: "run-tests"
+    recipe_path: "/path/to/recipe.yaml"
+  - command: "daily-standup"
+    recipe_path: "/Users/me/.local/share/goose/recipes/standup.yaml"
+  ```
+
+  To run the recipe, type your custom command with a leading slash into any goose chat session: 
+  ```sh
+  Context: ●○○○○○○○○○ 5% (9695/200000 tokens)
+  ( O)> /run-tests
+  ```
+   </TabItem>
+</Tabs>
+
+When you run a recipe using a slash command, the recipe's instructions and prompt fields are sent to your model and loaded into the conversation, but not displayed in chat. The model responds using the recipe's context and instructions just as if you opened it directly. 
+
+:::info
+- Custom Recipe commands don't support parameters or arguments.
+- Command names are case-insensitive (`/Bug` and `/bug` are treated as the same command).
+- Commands must be unique and contain no spaces.
+- You cannot use names that conflict with [built-in CLI slash commands](/docs/guides/goose-cli-commands.md#slash-commands) like `/recipe`, `/compact`, or `/help`. 
+- If the recipe file is missing or invalid, the command will be treated as regular text sent to the model. 
+:::
+
 ## Validate Recipe
 
 <Tabs groupId="interface">
@@ -588,11 +637,11 @@ retry:
    - Recipe execution starts over
 4. Process continues until either success or max retries reached
 
-See the [Recipe Reference Guide](/docs/guides/recipes/recipe-reference#automated-retry-with-success-validation) for complete retry configuration options and examples.
+See the [Recipe Reference Guide](/docs/guides/recipes/recipe-reference#retry) for complete retry configuration options and examples.
 
 ### Structured Output for Automation
 
-Recipes can enforce [structured JSON output](/docs/guides/recipes/recipe-reference#structured-output-with-response), making them ideal for automation workflows that need to parse and process agent responses reliably. Key benefits include:
+Recipes can enforce [structured JSON output](/docs/guides/recipes/recipe-reference#response), making them ideal for automation workflows that need to parse and process agent responses reliably. Key benefits include:
 
 - **Reliable parsing**: Consistent JSON format for scripts, automation, and CI/CD pipelines
 - **Built-in validation**: Ensures output matches your requirements  

@@ -1,5 +1,6 @@
 mod builder;
 mod completion;
+mod elicitation;
 mod export;
 mod input;
 mod output;
@@ -865,6 +866,18 @@ impl CliSession {
                                 }
                             });
 
+                            let elicitation_request = message.content.iter().find_map(|content| {
+                                if let MessageContent::ActionRequired(action) = content {
+                                    if let ActionRequiredData::Elicitation { id, message, requested_schema } = &action.data {
+                                        Some((id.clone(), message.clone(), requested_schema.clone()))
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    None
+                                }
+                            });
+
                             if let Some((id, _tool_name, _arguments, security_prompt)) = tool_call_confirmation {
                                 output::hide_thinking();
 
@@ -922,6 +935,48 @@ impl CliSession {
                                         principal_type: PrincipalType::Tool,
                                         permission,
                                     }).await;
+                                }
+                            }
+                            else if let Some((elicitation_id, elicitation_message, schema)) = elicitation_request {
+                                output::hide_thinking();
+                                let _ = progress_bars.hide();
+
+                                match elicitation::collect_elicitation_input(&elicitation_message, &schema) {
+                                    Ok(Some(user_data)) => {
+                                        let user_data_value = serde_json::to_value(user_data)
+                                            .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
+
+                                        let response_message = Message::user()
+                                            .with_content(MessageContent::action_required_elicitation_response(
+                                                elicitation_id.clone(),
+                                                user_data_value,
+                                            ))
+                                            .with_visibility(false, true);
+
+                                        self.messages.push(response_message.clone());
+                                        // Elicitation responses return an empty stream - the response
+                                        // unblocks the waiting tool call via ActionRequiredManager
+                                        let _ = self
+                                            .agent
+                                            .reply(
+                                                response_message,
+                                                session_config.clone(),
+                                                Some(cancel_token.clone()),
+                                            )
+                                            .await?;
+                                    }
+                                    Ok(None) => {
+                                        output::render_text("Information request cancelled.", Some(Color::Yellow), true);
+                                        cancel_token_clone.cancel();
+                                        drop(stream);
+                                        break;
+                                    }
+                                    Err(e) => {
+                                        output::render_error(&format!("Failed to collect input: {}", e));
+                                        cancel_token_clone.cancel();
+                                        drop(stream);
+                                        break;
+                                    }
                                 }
                             }
                             else {
@@ -1030,8 +1085,12 @@ impl CliSession {
                                                 };
                                                 (formatted, subagent_id.map(str::to_string), notification_type.map(str::to_string))
                                             } else if let Some(Value::String(output)) = o.get("output") {
-                                                // Fallback for other MCP notification types
-                                                (output.to_owned(), None, None)
+                                                // Extract type if present (e.g., "shell_output")
+                                                let notification_type = o.get("type")
+                                                    .and_then(|v| v.as_str())
+                                                    .map(str::to_string);
+
+                                                (output.to_owned(), None, notification_type)
                                             } else if let Some(result) = format_task_execution_notification(data) {
                                                 result
                                             } else {
@@ -1065,6 +1124,14 @@ impl CliSession {
                                             } else if !is_json_mode {
                                                 print!("{}", formatted_message);
                                                 std::io::stdout().flush().unwrap();
+                                            }
+                                        } else if notification_type == "shell_output" {
+                                            // Hide spinner, print shell output, spinner will resume
+                                            if interactive {
+                                                let _ = progress_bars.hide();
+                                            }
+                                            if !is_json_mode {
+                                                println!("{}", formatted_message);
                                             }
                                         }
                                     }

@@ -1,3 +1,4 @@
+pub mod action_required_manager;
 pub mod agents;
 pub mod config;
 pub mod context_mgmt;
@@ -9,6 +10,7 @@ pub mod mcp_utils;
 pub mod model;
 pub mod oauth;
 pub mod permission;
+pub mod posthog;
 pub mod prompt_template;
 pub mod providers;
 pub mod recipe;

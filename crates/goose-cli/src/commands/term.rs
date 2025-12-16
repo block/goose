@@ -72,12 +72,7 @@ goose_preexec() {{
 }}
 
 autoload -Uz add-zsh-hook
-add-zsh-hook preexec goose_preexec
-
-if [[ -z "$GOOSE_PROMPT_INSTALLED" ]]; then
-    export GOOSE_PROMPT_INSTALLED=1
-    PROMPT='%F{{cyan}}🪿%f '$PROMPT
-fi{command_not_found_handler}"#,
+add-zsh-hook preexec goose_preexec{command_not_found_handler}"#,
     command_not_found: Some(
         r#"
 
@@ -268,9 +263,10 @@ pub async fn handle_term_info() -> Result<()> {
     let session = SessionManager::get_session(&session_id, false).await.ok();
     let total_tokens = session.as_ref().and_then(|s| s.total_tokens).unwrap_or(0) as usize;
 
-    let model_name = session
-        .as_ref()
-        .and_then(|s| s.model_config.as_ref().map(|mc| mc.model_name.clone()))
+    let config = goose::config::Config::global();
+    let model_name = config
+        .get_goose_model()
+        .ok()
         .map(|name| {
             let short = name.rsplit('/').next().unwrap_or(&name);
             if let Some(stripped) = short.strip_prefix("goose-") {
@@ -281,9 +277,11 @@ pub async fn handle_term_info() -> Result<()> {
         })
         .unwrap_or_else(|| "?".to_string());
 
-    let context_limit = session
-        .as_ref()
-        .and_then(|s| s.model_config.as_ref().map(|mc| mc.context_limit()))
+    let context_limit = config
+        .get_goose_model()
+        .ok()
+        .and_then(|model_name| goose::model::ModelConfig::new(&model_name).ok())
+        .map(|mc| mc.context_limit())
         .unwrap_or(128_000);
 
     let percentage = if context_limit > 0 {
