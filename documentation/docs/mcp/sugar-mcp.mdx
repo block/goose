@@ -42,8 +42,8 @@ Sugar requires Python 3.11+ and the Sugar CLI installed in your project. Install
       description="Autonomous AI development system - delegate tasks and run 24/7"
       command="npx"
       args={["-y", "sugarai-mcp"]}
-      cliCommand="npx -y sugarai-mcp"
       timeout={300}
+      customStep3="Set SUGAR_PROJECT_ROOT to your project directory (/path/to/your/project), or Sugar will use the current working directory"
       envVars={[
         { name: "SUGAR_PROJECT_ROOT", label: "Project directory (optional, defaults to current)" }
       ]}
@@ -87,7 +87,7 @@ Sugar lets you delegate development tasks to an autonomous AI that works in the 
 
 ### goose Prompt
 
-Create a task to add input validation to the user registration form. Priority 4.
+> Create a task to add input validation to the user registration form. Priority 4.
 
 ### goose Output
 
