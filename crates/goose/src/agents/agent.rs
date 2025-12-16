@@ -6,6 +6,7 @@ use std::sync::Arc;
 use anyhow::{anyhow, Context, Result};
 use futures::stream::BoxStream;
 use futures::{stream, FutureExt, Stream, StreamExt, TryStreamExt};
+use uuid::Uuid;
 
 use super::final_output_tool::FinalOutputTool;
 use super::platform_tools;
@@ -1348,7 +1349,7 @@ impl Agent {
                     let matching: Vec<&mut Message> = updated_messages
                         .iter_mut()
                         .filter(|msg| {
-                            msg.content.iter().any(|c| match c {
+                            msg.id.is_some() && msg.content.iter().any(|c| match c {
                                 MessageContent::ToolRequest(req) => req.id == tool_id,
                                 MessageContent::ToolResponse(resp) => resp.id == tool_id,
                                 _ => false,
@@ -1358,12 +1359,11 @@ impl Agent {
 
                     if matching.len() == 2 {
                         for msg in matching {
+                            let id = msg.id.as_ref().unwrap();
                             msg.metadata = msg.metadata.with_agent_invisible();
-                            if let Some(id) = &msg.id {
-                                SessionManager::update_message_metadata(&session_config.id, id, |metadata| {
-                                    metadata.with_agent_invisible()
-                                }).await?;
-                            }
+                            SessionManager::update_message_metadata(&session_config.id, id, |metadata| {
+                                metadata.with_agent_invisible()
+                            }).await?;
                         }
                         conversation = Conversation::new_unvalidated(updated_messages);
                         messages_to_add.push(summary_msg);
