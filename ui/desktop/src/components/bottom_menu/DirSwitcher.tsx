@@ -1,43 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { FolderDot } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/Tooltip';
-import { updateSessionWorkingDir, restartAgent, getSession } from '../../api';
+import { updateWorkingDir } from '../../api';
+import { setWorkingDir } from '../../store/newChatState';
 import { toast } from 'react-toastify';
-import { setWorkingDir, getWorkingDir } from '../../store/newChatState';
 
 interface DirSwitcherProps {
   className: string;
   sessionId: string | undefined;
+  workingDir: string;
+  onWorkingDirChange?: (newDir: string) => void;
 }
 
-export const DirSwitcher: React.FC<DirSwitcherProps> = ({ className, sessionId }) => {
+export const DirSwitcher: React.FC<DirSwitcherProps> = ({
+  className,
+  sessionId,
+  workingDir,
+  onWorkingDirChange,
+}) => {
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
   const [isDirectoryChooserOpen, setIsDirectoryChooserOpen] = useState(false);
-
-  const [sessionWorkingDir, setSessionWorkingDir] = useState<string | null>(null);
-
-  // Fetch the working directory from the session when sessionId changes
-  useEffect(() => {
-    if (!sessionId) {
-      setSessionWorkingDir(null);
-      return;
-    }
-
-    const fetchSessionWorkingDir = async () => {
-      try {
-        const response = await getSession({ path: { session_id: sessionId } });
-        if (response.data?.working_dir) {
-          setSessionWorkingDir(response.data.working_dir);
-        }
-      } catch (error) {
-        console.error('[DirSwitcher] Failed to fetch session working dir:', error);
-      }
-    };
-
-    fetchSessionWorkingDir();
-  }, [sessionId]);
-
-  const currentDir = sessionWorkingDir ?? getWorkingDir();
 
   const handleDirectoryChange = async () => {
     if (isDirectoryChooserOpen) return;
@@ -55,29 +37,22 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({ className, sessionId }
     }
 
     const newDir = result.filePaths[0];
-    setWorkingDir(newDir);
 
-    await window.electron.addRecentDir(newDir);
+    window.electron.addRecentDir(newDir);
 
     if (sessionId) {
       try {
-        await updateSessionWorkingDir({
-          path: { session_id: sessionId },
-          body: { workingDir: newDir },
+        await updateWorkingDir({
+          body: { session_id: sessionId, working_dir: newDir },
         });
-
-        try {
-          await restartAgent({ body: { session_id: sessionId } });
-        } catch (restartError) {
-          console.error('[DirSwitcher] Failed to restart agent:', restartError);
-          toast.error('Failed to update working directory');
-        }
-
-        setSessionWorkingDir(newDir);
+        onWorkingDirChange?.(newDir);
       } catch (error) {
         console.error('[DirSwitcher] Failed to update working directory:', error);
         toast.error('Failed to update working directory');
       }
+    } else {
+      setWorkingDir(newDir);
+      onWorkingDirChange?.(newDir);
     }
   };
 
@@ -92,7 +67,7 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({ className, sessionId }
     if (isCmdOrCtrlClick) {
       event.preventDefault();
       event.stopPropagation();
-      await window.electron.openDirectoryInExplorer(currentDir);
+      await window.electron.openDirectoryInExplorer(workingDir);
     } else {
       await handleDirectoryChange();
     }
@@ -113,10 +88,10 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({ className, sessionId }
             disabled={isDirectoryChooserOpen}
           >
             <FolderDot className="mr-1" size={16} />
-            <div className="max-w-[200px] truncate [direction:rtl]">{currentDir}</div>
+            <div className="max-w-[200px] truncate [direction:rtl]">{workingDir}</div>
           </button>
         </TooltipTrigger>
-        <TooltipContent side="top">{currentDir}</TooltipContent>
+        <TooltipContent side="top">{workingDir}</TooltipContent>
       </Tooltip>
     </TooltipProvider>
   );

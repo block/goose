@@ -148,7 +148,6 @@ export default function ChatInput({
 
   useEffect(() => {
     if (!sessionId) {
-      setSessionWorkingDir(null);
       return;
     }
 
@@ -1510,8 +1509,12 @@ export default function ChatInput({
 
       {/* Secondary actions and controls row below input */}
       <div className="flex flex-row items-center gap-1 p-2 relative">
-        {/* Directory path */}
-        <DirSwitcher className="mr-0" sessionId={sessionId ?? undefined} />
+        <DirSwitcher
+          className="mr-0"
+          sessionId={sessionId ?? undefined}
+          workingDir={sessionWorkingDir ?? getWorkingDir()}
+          onWorkingDirChange={(newDir) => setSessionWorkingDir(newDir)}
+        />
         <div className="w-px h-4 bg-border-default mx-2" />
         <Tooltip>
           <TooltipTrigger asChild>

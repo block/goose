@@ -1045,6 +1045,11 @@ export type UpdateSessionWorkingDirRequest = {
     workingDir: string;
 };
 
+export type UpdateWorkingDirRequest = {
+    session_id: string;
+    working_dir: string;
+};
+
 export type UpsertConfigQuery = {
     is_secret: boolean;
     key: string;
@@ -1433,6 +1438,39 @@ export type UpdateRouterToolSelectorResponses = {
 };
 
 export type UpdateRouterToolSelectorResponse = UpdateRouterToolSelectorResponses[keyof UpdateRouterToolSelectorResponses];
+
+export type UpdateWorkingDirData = {
+    body: UpdateWorkingDirRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/update_working_dir';
+};
+
+export type UpdateWorkingDirErrors = {
+    /**
+     * Bad request - invalid directory path
+     */
+    400: unknown;
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type UpdateWorkingDirResponses = {
+    /**
+     * Working directory updated and agent restarted successfully
+     */
+    200: unknown;
+};
 
 export type ReadAllConfigData = {
     body?: never;

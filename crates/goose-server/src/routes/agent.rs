@@ -80,6 +80,12 @@ pub struct RestartAgentRequest {
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
+pub struct UpdateWorkingDirRequest {
+    session_id: String,
+    working_dir: String,
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct ResumeAgentRequest {
     session_id: String,
     load_model_and_extensions: bool,
@@ -661,45 +667,23 @@ async fn restore_agent_extensions(
     Ok(())
 }
 
-#[utoipa::path(
-    post,
-    path = "/agent/restart",
-    request_body = RestartAgentRequest,
-    responses(
-        (status = 200, description = "Agent restarted successfully"),
-        (status = 401, description = "Unauthorized - invalid secret key"),
-        (status = 404, description = "Session not found"),
-        (status = 500, description = "Internal server error")
-    )
-)]
-async fn restart_agent(
-    State(state): State<Arc<AppState>>,
-    Json(payload): Json<RestartAgentRequest>,
-) -> Result<StatusCode, ErrorResponse> {
-    let session_id = payload.session_id.clone();
-
+async fn restart_agent_internal(
+    state: &Arc<AppState>,
+    session_id: &str,
+    session: &Session,
+) -> Result<(), ErrorResponse> {
     // Remove existing agent (ignore error if not found)
-    let _ = state.agent_manager.remove_session(&session_id).await;
-
-    let session = SessionManager::get_session(&session_id, false)
-        .await
-        .map_err(|err| {
-            error!("Failed to get session during restart: {}", err);
-            ErrorResponse {
-                message: format!("Failed to get session: {}", err),
-                status: StatusCode::NOT_FOUND,
-            }
-        })?;
+    let _ = state.agent_manager.remove_session(session_id).await;
 
     let agent = state
-        .get_agent_for_route(session_id.clone())
+        .get_agent_for_route(session_id.to_string())
         .await
         .map_err(|code| ErrorResponse {
             message: "Failed to create new agent during restart".into(),
             status: code,
         })?;
 
-    let provider_result = restore_agent_provider(&agent, &session, &session_id);
+    let provider_result = restore_agent_provider(&agent, session, session_id);
     let extensions_result = restore_agent_extensions(agent.clone(), &session.working_dir);
 
     let (provider_result, extensions_result) = tokio::join!(provider_result, extensions_result);
@@ -711,10 +695,10 @@ async fn restart_agent(
         render_global_file("desktop_prompt.md", &context).expect("Prompt should render");
     let mut update_prompt = desktop_prompt;
 
-    if let Some(recipe) = session.recipe {
+    if let Some(ref recipe) = session.recipe {
         match build_recipe_with_parameter_values(
-            &recipe,
-            session.user_recipe_values.unwrap_or_default(),
+            recipe,
+            session.user_recipe_values.clone().unwrap_or_default(),
         )
         .await
         {
@@ -735,6 +719,101 @@ async fn restart_agent(
         }
     }
     agent.extend_system_prompt(update_prompt).await;
+
+    Ok(())
+}
+
+#[utoipa::path(
+    post,
+    path = "/agent/restart",
+    request_body = RestartAgentRequest,
+    responses(
+        (status = 200, description = "Agent restarted successfully"),
+        (status = 401, description = "Unauthorized - invalid secret key"),
+        (status = 404, description = "Session not found"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+async fn restart_agent(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<RestartAgentRequest>,
+) -> Result<StatusCode, ErrorResponse> {
+    let session_id = payload.session_id.clone();
+
+    let session = SessionManager::get_session(&session_id, false)
+        .await
+        .map_err(|err| {
+            error!("Failed to get session during restart: {}", err);
+            ErrorResponse {
+                message: format!("Failed to get session: {}", err),
+                status: StatusCode::NOT_FOUND,
+            }
+        })?;
+
+    restart_agent_internal(&state, &session_id, &session).await?;
+
+    Ok(StatusCode::OK)
+}
+
+#[utoipa::path(
+    post,
+    path = "/agent/update_working_dir",
+    request_body = UpdateWorkingDirRequest,
+    responses(
+        (status = 200, description = "Working directory updated and agent restarted successfully"),
+        (status = 400, description = "Bad request - invalid directory path"),
+        (status = 401, description = "Unauthorized - invalid secret key"),
+        (status = 404, description = "Session not found"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+async fn update_working_dir(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<UpdateWorkingDirRequest>,
+) -> Result<StatusCode, ErrorResponse> {
+    let session_id = payload.session_id.clone();
+    let working_dir = payload.working_dir.trim();
+
+    if working_dir.is_empty() {
+        return Err(ErrorResponse {
+            message: "Working directory cannot be empty".into(),
+            status: StatusCode::BAD_REQUEST,
+        });
+    }
+
+    let path = PathBuf::from(working_dir);
+    if !path.exists() || !path.is_dir() {
+        return Err(ErrorResponse {
+            message: "Invalid directory path".into(),
+            status: StatusCode::BAD_REQUEST,
+        });
+    }
+
+    // Update the session's working directory
+    SessionManager::update_session(&session_id)
+        .working_dir(path)
+        .apply()
+        .await
+        .map_err(|e| {
+            error!("Failed to update session working directory: {}", e);
+            ErrorResponse {
+                message: format!("Failed to update working directory: {}", e),
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+            }
+        })?;
+
+    // Get the updated session and restart the agent
+    let session = SessionManager::get_session(&session_id, false)
+        .await
+        .map_err(|err| {
+            error!("Failed to get session after working dir update: {}", err);
+            ErrorResponse {
+                message: format!("Failed to get session: {}", err),
+                status: StatusCode::NOT_FOUND,
+            }
+        })?;
+
+    restart_agent_internal(&state, &session_id, &session).await?;
 
     Ok(StatusCode::OK)
 }
@@ -825,6 +904,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/agent/start", post(start_agent))
         .route("/agent/resume", post(resume_agent))
         .route("/agent/restart", post(restart_agent))
+        .route("/agent/update_working_dir", post(update_working_dir))
         .route("/agent/tools", get(get_tools))
         .route("/agent/read_resource", post(read_resource))
         .route("/agent/call_tool", post(call_tool))
