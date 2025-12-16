@@ -1,8 +1,3 @@
-//! Utility functions for agent lifecycle management.
-//!
-//! These functions handle restoring agent state (provider, extensions) and are used
-//! by various route handlers that need to initialize or restart agents.
-
 use crate::routes::errors::ErrorResponse;
 use axum::http::StatusCode;
 use goose::agents::Agent;
@@ -13,7 +8,6 @@ use goose::session::Session;
 use std::sync::Arc;
 use tracing::warn;
 
-/// Restore the provider for an agent from session or global config.
 pub async fn restore_agent_provider(
     agent: &Arc<Agent>,
     session: &Session,
@@ -59,10 +53,6 @@ pub async fn restore_agent_provider(
         })
 }
 
-/// Restore extensions for an agent from the global configuration.
-///
-/// Note: This currently loads extensions from the global config, not from the session.
-/// Extensions are loaded in parallel for better performance.
 pub async fn restore_agent_extensions(
     agent: Arc<Agent>,
     working_dir: &std::path::Path,
