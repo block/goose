@@ -830,6 +830,7 @@ impl Config {
     /// Write secrets to file storage (used for fallback)
     fn write_secrets_to_file(&self, values: &HashMap<String, Value>) -> Result<(), ConfigError> {
         let config_dir = Paths::config_dir();
+        std::fs::create_dir_all(&config_dir)?;
         let path = config_dir.join("secrets.yaml");
         let yaml_value = serde_yaml::to_string(values)?;
         std::fs::write(path, yaml_value)?;
@@ -874,7 +875,9 @@ impl Config {
             if self.is_keyring_availability_error(&e.to_string()) {
                 std::env::set_var("GOOSE_DISABLE_KEYRING", "1");
                 if let Some(values) = fallback_values {
-                    let _ = self.write_secrets_to_file(values);
+                    if let Err(write_err) = self.write_secrets_to_file(values) {
+                        return write_err;
+                    }
                     ConfigError::FallbackToFileStorage
                 } else {
                     ConfigError::FallbackToFileStorage
