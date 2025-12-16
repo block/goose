@@ -418,7 +418,7 @@ fn format_message_for_compacting(msg: &Message) -> String {
     }
 }
 
-/// Find the id of a  tool call to summarize. We only do this if we have more than
+/// Find the id of a tool call to summarize. We only do this if we have more than
 /// cutoff tool calls that aren't summarized yet
 pub fn tool_id_to_summarize(conversation: &Conversation, cutoff: usize) -> Option<String> {
     let messages = conversation.messages();
@@ -483,7 +483,7 @@ pub async fn summarize_tool_call(
     let system_prompt = indoc! {r#"
                 Your task is to summarize a tool call & response pair to save tokens
 
-                reply with a single message that described what happened. Typically a toolcall
+                reply with a single message that describe what happened. Typically a toolcall
                 is asks for something using a bunch of parameters and then the result is also some
                 structured output. So the tool might ask to look up something on github and the
                 reply might be a json document. So you could reply with something like:
@@ -502,7 +502,7 @@ pub async fn summarize_tool_call(
     response.created = matching_messages.last().unwrap().created;
     response.metadata = MessageMetadata::agent_only();
 
-    Ok(response)
+    Ok(response.with_generated_id())
 }
 
 /// if needed, summarize the first applicable tool request reply pair in a task
