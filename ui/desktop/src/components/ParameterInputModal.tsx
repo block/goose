@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Parameter } from '../recipe';
 import { Button } from './ui/button';
-import { getWorkingDir } from '../store/newChatState';
+import { getInitialWorkingDir } from '../utils/workingDir';
 
 interface ParameterInputModalProps {
   parameters: Parameter[];
@@ -74,7 +74,7 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
   const handleCancelOption = (option: 'new-chat' | 'back-to-form'): void => {
     if (option === 'new-chat') {
       try {
-        const workingDir = getWorkingDir();
+        const workingDir = getInitialWorkingDir();
         window.electron.createChatWindow(undefined, workingDir);
         window.electron.hideWindow();
       } catch (error) {

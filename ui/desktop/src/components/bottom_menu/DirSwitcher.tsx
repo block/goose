@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { FolderDot } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/Tooltip';
 import { updateWorkingDir } from '../../api';
-import { setWorkingDir } from '../../store/newChatState';
 import { toast } from 'react-toastify';
 
 interface DirSwitcherProps {
@@ -51,7 +50,6 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({
         toast.error('Failed to update working directory');
       }
     } else {
-      setWorkingDir(newDir);
       onWorkingDirChange?.(newDir);
     }
   };

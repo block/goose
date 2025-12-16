@@ -20,6 +20,7 @@ import { ChatState } from '../types/chatState';
 import 'react-toastify/dist/ReactToastify.css';
 import { View, ViewOptions } from '../utils/navigationUtils';
 import { startNewSession } from '../sessions';
+import { getInitialWorkingDir } from '../utils/workingDir';
 
 export default function Hub({
   setView,
@@ -33,7 +34,7 @@ export default function Hub({
     const combinedTextFromInput = customEvent.detail?.value || '';
 
     if (combinedTextFromInput.trim()) {
-      await startNewSession(combinedTextFromInput, setView);
+      await startNewSession(getInitialWorkingDir(), combinedTextFromInput, setView);
       e.preventDefault();
     }
   };

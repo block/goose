@@ -30,7 +30,7 @@ import { DiagnosticsModal } from './ui/DownloadDiagnostics';
 import { getSession, Message } from '../api';
 import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal';
 import CreateEditRecipeModal from './recipes/CreateEditRecipeModal';
-import { getWorkingDir } from '../store/newChatState';
+import { getInitialWorkingDir } from '../utils/workingDir';
 
 interface QueuedMessage {
   id: string;
@@ -1512,7 +1512,7 @@ export default function ChatInput({
         <DirSwitcher
           className="mr-0"
           sessionId={sessionId ?? undefined}
-          workingDir={sessionWorkingDir ?? getWorkingDir()}
+          workingDir={sessionWorkingDir ?? getInitialWorkingDir()}
           onWorkingDirChange={(newDir) => setSessionWorkingDir(newDir)}
         />
         <div className="w-px h-4 bg-border-default mx-2" />
@@ -1628,7 +1628,7 @@ export default function ChatInput({
           onSelectedIndexChange={(index) =>
             setMentionPopover((prev) => ({ ...prev, selectedIndex: index }))
           }
-          workingDir={sessionWorkingDir ?? getWorkingDir()}
+          workingDir={sessionWorkingDir ?? getInitialWorkingDir()}
         />
 
         {sessionId && showCreateRecipeModal && (

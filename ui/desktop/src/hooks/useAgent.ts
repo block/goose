@@ -14,7 +14,7 @@ import {
   validateConfig,
 } from '../api';
 import { COST_TRACKING_ENABLED } from '../updates';
-import { getWorkingDir } from '../store/newChatState';
+import { getInitialWorkingDir } from '../utils/workingDir';
 
 export enum AgentState {
   UNINITIALIZED = 'uninitialized',
@@ -158,7 +158,7 @@ export function useAgent(): UseAgentReturn {
                 })
               : await startAgent({
                   body: {
-                    working_dir: getWorkingDir(),
+                    working_dir: getInitialWorkingDir(),
                     ...buildRecipeInput(
                       initContext.recipe,
                       recipeIdFromConfig.current,
@@ -179,7 +179,7 @@ export function useAgent(): UseAgentReturn {
 
               agentResponse = await startAgent({
                 body: {
-                  working_dir: getWorkingDir(),
+                  working_dir: getInitialWorkingDir(),
                   ...buildRecipeInput(
                     initContext.recipe,
                     recipeIdFromConfig.current,

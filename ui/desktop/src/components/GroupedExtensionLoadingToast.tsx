@@ -5,6 +5,7 @@ import { Button } from './ui/button';
 import { startNewSession } from '../sessions';
 import { useNavigation } from '../hooks/useNavigation';
 import { formatExtensionErrorMessage } from '../utils/extensionErrorUtils';
+import { getInitialWorkingDir } from '../utils/workingDir';
 
 export interface ExtensionLoadingStatus {
   name: string;
@@ -107,7 +108,7 @@ export function GroupedExtensionLoadingToast({
                             size="sm"
                             onClick={(e) => {
                               e.stopPropagation();
-                              startNewSession(ext.recoverHints, setView);
+                              startNewSession(getInitialWorkingDir(), ext.recoverHints, setView);
                             }}
                             className="self-start"
                           >

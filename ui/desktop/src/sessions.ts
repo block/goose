@@ -1,6 +1,5 @@
 import { Session, startAgent, restartAgent } from './api';
 import type { setViewType } from './hooks/useNavigation';
-import { getWorkingDir } from './store/newChatState';
 
 export function resumeSession(session: Session, setView: setViewType) {
   setView('pair', {
@@ -9,20 +8,20 @@ export function resumeSession(session: Session, setView: setViewType) {
   });
 }
 
-export async function createSession(options?: {
-  recipeId?: string;
-  recipeDeeplink?: string;
-}): Promise<Session> {
+export async function createSession(
+  workingDir: string,
+  options?: {
+    recipeId?: string;
+    recipeDeeplink?: string;
+  }
+): Promise<Session> {
   const body: {
     working_dir: string;
     recipe_id?: string;
     recipe_deeplink?: string;
   } = {
-    working_dir: getWorkingDir(),
+    working_dir: workingDir,
   };
-
-  // Note: We intentionally don't clear newChatState here
-  // so that new sessions in the same window continue to use the last selected directory
 
   if (options?.recipeId) {
     body.recipe_id = options.recipeId;
@@ -46,6 +45,7 @@ export async function createSession(options?: {
 }
 
 export async function startNewSession(
+  workingDir: string,
   initialText: string | undefined,
   setView: setViewType,
   options?: {
@@ -53,7 +53,7 @@ export async function startNewSession(
     recipeDeeplink?: string;
   }
 ): Promise<Session> {
-  const session = await createSession(options);
+  const session = await createSession(workingDir, options);
 
   setView('pair', {
     disableAnimation: true,

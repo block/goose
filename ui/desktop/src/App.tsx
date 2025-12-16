@@ -17,7 +17,6 @@ import AnnouncementModal from './components/AnnouncementModal';
 import TelemetryOptOutModal from './components/TelemetryOptOutModal';
 import ProviderGuard from './components/ProviderGuard';
 import { createSession } from './sessions';
-import { getWorkingDir } from './store/newChatState';
 
 import { ChatType } from './types/chat';
 import Hub from './components/Hub';
@@ -42,6 +41,7 @@ import { View, ViewOptions } from './utils/navigationUtils';
 import { NoProviderOrModelError, useAgent } from './hooks/useAgent';
 import { useNavigation } from './hooks/useNavigation';
 import { errorMessage } from './utils/conversionUtils';
+import { getInitialWorkingDir } from './utils/workingDir';
 
 // Route Components
 const HubRouteWrapper = ({ isExtensionsLoading }: { isExtensionsLoading: boolean }) => {
@@ -108,7 +108,7 @@ const PairRouteWrapper = ({
 
       (async () => {
         try {
-          const newSession = await createSession({
+          const newSession = await createSession(getInitialWorkingDir(), {
             recipeId,
             recipeDeeplink: recipeDeeplinkFromConfig,
           });
@@ -445,8 +445,7 @@ export function AppInner() {
       if ((isMac ? event.metaKey : event.ctrlKey) && event.key === 'n') {
         event.preventDefault();
         try {
-          const workingDir = getWorkingDir();
-          window.electron.createChatWindow(undefined, workingDir);
+          window.electron.createChatWindow(undefined, getInitialWorkingDir());
         } catch (error) {
           console.error('Error creating new window:', error);
         }
