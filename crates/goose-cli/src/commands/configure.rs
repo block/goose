@@ -438,15 +438,11 @@ fn store_secret(config: &Config, key: &str, value: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Handle keyring storage failure with user-friendly fallback message
 fn handle_keyring_fallback() -> anyhow::Result<()> {
-    let _ = cliclack::log::warning(
-        "Keyring service unavailable. Falling back to file-based storage for secrets.",
-    );
-    let _ = cliclack::log::info("For better security, consider:");
-    let _ = cliclack::log::info("  - Fixing your system's keyring service");
-    let _ = cliclack::log::info("  - Or using environment variables for sensitive data");
-    let _ = cliclack::log::success("Configuration will continue normally with file-based storage");
+    // Auto-disable keyring for future operations to avoid repeated failures
+    std::env::set_var("GOOSE_DISABLE_KEYRING", "1");
+
+    cliclack::log::warning("Keyring unavailable. Using file storage for secrets.")?;
     Ok(())
 }
 
