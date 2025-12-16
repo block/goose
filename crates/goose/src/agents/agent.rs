@@ -46,7 +46,7 @@ use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
 use crate::scheduler_trait::SchedulerTrait;
 use crate::security::security_inspector::SecurityInspector;
 use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
-use crate::session::{Session, SessionManager};
+use crate::session::{Session, SessionManager, SessionType};
 use crate::tool_inspection::ToolInspectionManager;
 use crate::tool_monitor::RepetitionInspector;
 use crate::utils::is_token_cancelled;
@@ -289,11 +289,11 @@ impl Agent {
     async fn categorize_tools(
         &self,
         response: &Message,
-        _tools: &[rmcp::model::Tool],
+        tools: &[rmcp::model::Tool],
     ) -> ToolCategorizeResult {
         // Categorize tool requests
         let (frontend_requests, remaining_requests, filtered_response) =
-            self.categorize_tool_requests(response).await;
+            self.categorize_tool_requests(response, tools).await;
 
         ToolCategorizeResult {
             frontend_requests,
@@ -433,9 +433,7 @@ impl Agent {
         session: &Session,
     ) -> (String, Result<ToolCallResult, ErrorData>) {
         // Prevent subagents from creating other subagents
-        if session.session_type == crate::session::SessionType::SubAgent
-            && tool_call.name == SUBAGENT_TOOL_NAME
-        {
+        if session.session_type == SessionType::SubAgent && tool_call.name == SUBAGENT_TOOL_NAME {
             return (
                 request_id,
                 Err(ErrorData::new(
@@ -654,6 +652,17 @@ impl Agent {
         {
             return false;
         }
+        if let Some(ref session_id) = self.extension_manager.get_context().await.session_id {
+            if matches!(
+                SessionManager::get_session(session_id, false)
+                    .await
+                    .ok()
+                    .map(|session| session.session_type),
+                Some(SessionType::SubAgent)
+            ) {
+                return false;
+            }
+        }
         !self
             .extension_manager
             .list_extensions()
@@ -772,7 +781,25 @@ impl Agent {
 
         let slash_command_recipe = if message_text.trim().starts_with('/') {
             let command = message_text.split_whitespace().next();
-            command.and_then(crate::slash_commands::resolve_slash_command)
+
+            // Check if it's a builtin command first
+            let is_builtin = command
+                .map(|cmd| MANUAL_COMPACT_TRIGGERS.contains(&cmd))
+                .unwrap_or(false);
+
+            if is_builtin {
+                None
+            } else {
+                // Try to resolve as recipe command
+                let recipe = command.and_then(crate::slash_commands::resolve_slash_command);
+
+                // Track non-builtin slash command usage (don't track command name for privacy)
+                if recipe.is_some() {
+                    crate::posthog::emit_custom_slash_command_used();
+                }
+
+                recipe
+            }
         } else {
             None
         };
@@ -913,6 +940,7 @@ impl Agent {
             let _ = reply_span.enter();
             let mut turns_taken = 0u32;
             let max_turns = session_config.max_turns.unwrap_or(DEFAULT_MAX_TURNS);
+            let mut compaction_attempts = 0;
 
             loop {
                 if is_token_cancelled(&cancel_token) {
@@ -964,6 +992,8 @@ impl Agent {
 
                     match next {
                         Ok((response, usage)) => {
+                            compaction_attempts = 0;
+
                             // Emit model change event if provider is lead-worker
                             let provider = self.provider().await?;
                             if let Some(lead_worker) = provider.as_lead_worker() {
@@ -1175,6 +1205,19 @@ impl Agent {
                         }
                         Err(ref provider_err @ ProviderError::ContextLengthExceeded(_)) => {
                             crate::posthog::emit_error(provider_err.telemetry_type());
+                            compaction_attempts += 1;
+
+                            if compaction_attempts >= 2 {
+                                error!("Context limit exceeded after compaction - prompt too large");
+                                yield AgentEvent::Message(
+                                    Message::assistant().with_system_notification(
+                                        SystemNotificationType::InlineMessage,
+                                        "Unable to continue: Context limit still exceeded after compaction. Try using a shorter message, a model with a larger context window, or start a new session."
+                                    )
+                                );
+                                break;
+                            }
+
                             yield AgentEvent::Message(
                                 Message::assistant().with_system_notification(
                                     SystemNotificationType::InlineMessage,
@@ -1195,15 +1238,10 @@ impl Agent {
                                     conversation = compacted_conversation;
                                     did_recovery_compact_this_iteration = true;
                                     yield AgentEvent::HistoryReplaced(conversation.clone());
-                                    continue;
+                                    break;
                                 }
                                 Err(e) => {
-                                    error!("Error: {}", e);
-                                    yield AgentEvent::Message(
-                                        Message::assistant().with_text(
-                                            format!("Ran into this error trying to compact: {e}.\n\nPlease retry if you think this is a transient or recoverable error.")
-                                        )
-                                    );
+                                    error!("Compaction failed: {}", e);
                                     break;
                                 }
                             }

@@ -179,6 +179,7 @@ impl Provider for LiteLLMProvider {
             messages,
             tools,
             &ImageFormat::OpenAi,
+            false,
         )?;
 
         if self.supports_cache_control().await {

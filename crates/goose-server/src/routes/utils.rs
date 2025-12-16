@@ -99,13 +99,11 @@ pub fn check_provider_configured(metadata: &ProviderMetadata, provider_type: Pro
         return true;
     }
 
-    // TODO(Douwe): if the provider doesn't need an API key, it should be considered configured always
     if provider_type == ProviderType::Custom || provider_type == ProviderType::Declarative {
         if let Ok(loaded_provider) = load_provider(metadata.name.as_str()) {
             return config
                 .get_secret::<String>(&loaded_provider.config.api_key_env)
-                .map(|s| !s.is_empty())
-                .unwrap_or(false);
+                .is_ok();
         }
     }
     // Special case: Zero-config providers (no config keys)

@@ -397,6 +397,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::tunnel::start_tunnel,
         super::routes::tunnel::stop_tunnel,
         super::routes::tunnel::get_tunnel_status,
+        super::routes::telemetry::send_telemetry_event,
     ),
     components(schemas(
         super::routes::config_management::UpsertConfigQuery,
@@ -529,6 +530,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::setup::SetupResponse,
         super::tunnel::TunnelInfo,
         super::tunnel::TunnelState,
+        super::routes::telemetry::TelemetryEventRequest,
     ))
 )]
 pub struct ApiDoc;
