@@ -149,6 +149,8 @@ export function createHostContextChangedNotification(
   };
 }
 
+const MCP_PROTOCOL_VERSION = '2025-06-18';
+
 /**
  * Create an initialize response with host capabilities and context.
  */
@@ -160,7 +162,7 @@ export function createInitializeResponse(
     jsonrpc: '2.0',
     id: requestId,
     result: {
-      protocolVersion: '2025-06-18', // THIS IS THE MCP APP PROTOCOL VERSION GOOSE SUPPORTS
+      protocolVersion: MCP_PROTOCOL_VERSION,
       hostCapabilities: {
         links: true,
         messages: true,
