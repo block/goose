@@ -1159,22 +1159,29 @@ impl Agent {
 
                                 for (idx, request) in frontend_requests.iter().chain(remaining_requests.iter()).enumerate() {
                                     if request.tool_call.is_ok() {
-                                        let mut request_msg = Message::assistant()
+                                        let request_msg = Message::assistant()
                                             .with_id(format!("msg_{}", Uuid::new_v4()))
                                             .with_tool_request(request.id.clone(), request.tool_call.clone());
-                                        let mut final_response = tool_response_messages[idx]
+                                        let final_response = tool_response_messages[idx]
                                                                 .lock().await.clone();
 
                                         // Expand nested tool calls from code_execution into real tool calls
-                                        final_response = Self::expand_nested_tool_calls(
-                                            &mut request_msg,
+                                        let (request_msg, final_response, nested_msgs) = Self::expand_nested_tool_calls(
+                                            request_msg,
                                             final_response,
                                         );
 
-                                        yield AgentEvent::Message(request_msg.clone());
                                         messages_to_add.push(request_msg);
                                         yield AgentEvent::Message(final_response.clone());
                                         messages_to_add.push(final_response);
+
+                                        // If there were nested calls, yield them separately for the UI
+                                        if let Some((nested_req, nested_resp)) = nested_msgs {
+                                            yield AgentEvent::Message(nested_req.clone());
+                                            messages_to_add.push(nested_req);
+                                            yield AgentEvent::Message(nested_resp.clone());
+                                            messages_to_add.push(nested_resp);
+                                        }
                                     }
                                 }
 
@@ -1388,8 +1395,11 @@ impl Agent {
     }
 
     /// Expands nested tool calls from code_execution into real ToolRequest/ToolResponse pairs.
-    /// This makes batched tool calls visible in the UI as individual tool calls.
-    fn expand_nested_tool_calls(request_msg: &mut Message, mut response_msg: Message) -> Message {
+    /// This makes batched tool calls visible in the UI as individual tool calls when in code mode
+    fn expand_nested_tool_calls(
+        request_msg: Message,
+        response_msg: Message,
+    ) -> (Message, Message, Option<(Message, Message)>) {
         // Find tool responses with nested calls in meta
         let nested_calls: Vec<(String, serde_json::Value)> = response_msg
             .content
@@ -1408,6 +1418,14 @@ impl Agent {
             })
             .collect();
 
+        if nested_calls.is_empty() {
+            return (request_msg, response_msg, None);
+        }
+
+        let mut nested_request_msg =
+            Message::assistant().with_id(format!("msg_{}", Uuid::new_v4()));
+        let mut nested_response_msg = Message::user().with_id(format!("msg_{}", Uuid::new_v4()));
+
         for (_parent_id, nested_json) in nested_calls {
             if let Some(calls) = nested_json.as_array() {
                 for call in calls {
@@ -1419,16 +1437,13 @@ impl Agent {
                     // Generate a unique ID for this nested call
                     let nested_id = format!("nested_{}", Uuid::new_v4());
 
-                    // Add ToolRequest to the assistant message
                     let tool_call_param = CallToolRequestParam {
                         name: name.to_string().into(),
                         arguments,
                     };
-                    *request_msg = request_msg
-                        .clone()
+                    nested_request_msg = nested_request_msg
                         .with_tool_request(nested_id.clone(), Ok(tool_call_param));
 
-                    // Build the CallToolResult from the tracked result
                     let tool_result = if let Some(result_obj) = call.get("result") {
                         if result_obj.get("status").and_then(|s| s.as_str()) == Some("success") {
                             let content: Vec<Content> = result_obj
@@ -1466,13 +1481,17 @@ impl Agent {
                         ))
                     };
 
-                    // Add ToolResponse to the user message
-                    response_msg = response_msg.with_tool_response(nested_id, tool_result);
+                    nested_response_msg =
+                        nested_response_msg.with_tool_response(nested_id, tool_result);
                 }
             }
         }
 
-        response_msg
+        (
+            request_msg,
+            response_msg,
+            Some((nested_request_msg, nested_response_msg)),
+        )
     }
 
     pub async fn create_recipe(&self, mut messages: Conversation) -> Result<Recipe> {
