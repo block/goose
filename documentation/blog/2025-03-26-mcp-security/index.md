@@ -58,7 +58,7 @@ A quick glance at an MCP directory like Glama can save you from crying on your o
 <head>
   <meta property="og:title" content="How to Determine If An MCP Server Is Safe" />
   <meta property="og:type" content="article" />
-  <meta property="og:url" content="https://block.github.io/goose/blog/2025/03/21/goose-vscode" />
+  <meta property="og:url" content="https://block.github.io/goose/blog/2025/03/26/mcp-security" />
   <meta property="og:description" content="Before you plug your AI agent into just any MCP server, here's how to check if it's actually safe." />
   <meta property="og:image" content="http://block.github.io/goose/assets/images/mcpsafety-87eb7ace7163a5edbe068ff75b79a199.png" />
   <meta name="twitter:card" content="summary_large_image" />

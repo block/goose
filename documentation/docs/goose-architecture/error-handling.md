@@ -1,10 +1,10 @@
 ---
 title: Error Handling
 ---
-# Error Handling in Goose
+# Error Handling in goose
 
-Error handling is a key performance-driving part of Goose. There are many ways that the non-determinism
-in the LLM can introduce an error that it can in turn recover from. In a typical Goose session, it's expected for there
+Error handling is a key performance-driving part of goose. There are many ways that the non-determinism
+in the LLM can introduce an error that it can in turn recover from. In a typical goose session, it's expected for there
 to be several agent errors that the model can see directly and correct, perhaps entirely behind the scenes.
 
 ## Traditional Errors

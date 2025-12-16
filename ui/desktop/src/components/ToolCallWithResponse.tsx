@@ -4,10 +4,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Button } from './ui/button';
 import { ToolCallArguments, ToolCallArgumentValue } from './ToolCallArguments';
 import MarkdownContent from './MarkdownContent';
-import { ToolRequestMessageContent, ToolResponseMessageContent } from '../types/message';
+import {
+  ToolRequestMessageContent,
+  ToolResponseMessageContent,
+  NotificationEvent,
+} from '../types/message';
 import { cn, snakeToTitleCase } from '../utils';
 import { LoadingStatus } from './ui/Dot';
-import { NotificationEvent } from '../hooks/useMessageStream';
 import { ChevronRight, FlaskConical } from 'lucide-react';
 import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
 import MCPUIResourceRenderer from './MCPUIResourceRenderer';
@@ -158,7 +161,8 @@ interface Progress {
 }
 
 const logToString = (logMessage: NotificationEvent) => {
-  const params = logMessage.message.params;
+  const message = logMessage.message as { method: string; params: unknown };
+  const params = message.params as Record<string, unknown>;
 
   // Special case for the developer system shell logs
   if (
@@ -174,8 +178,10 @@ const logToString = (logMessage: NotificationEvent) => {
   return typeof params.data === 'string' ? params.data : JSON.stringify(params.data);
 };
 
-const notificationToProgress = (notification: NotificationEvent): Progress =>
-  notification.message.params as unknown as Progress;
+const notificationToProgress = (notification: NotificationEvent): Progress => {
+  const message = notification.message as { method: string; params: unknown };
+  return message.params as Progress;
+};
 
 // Helper function to extract extension name for tooltip
 const getExtensionTooltip = (toolCallName: string): string | null => {
@@ -247,32 +253,26 @@ function ToolCallView({
     }
   }, [toolResponse, startTime]);
 
-  const toolResults: { result: Content; isExpandToolResults: boolean }[] =
+  const toolResults: Content[] =
     loadingStatus === 'success' && Array.isArray(toolResponse?.toolResult.value)
-      ? toolResponse!.toolResult.value
-          .filter((item) => {
-            const audience = item.annotations?.audience as string[] | undefined;
-            return !audience || audience.includes('user');
-          })
-          .map((item) => {
-            // Use user preference for detailed/concise, but still respect high priority items
-            const priority = (item.annotations?.priority as number | undefined) ?? -1;
-            const isHighPriority = priority >= 0.5;
-            const shouldExpandBasedOnStyle = responseStyle === 'detailed' || responseStyle === null;
-
-            return {
-              result: item,
-              isExpandToolResults: isHighPriority || shouldExpandBasedOnStyle,
-            };
-          })
+      ? toolResponse!.toolResult.value.filter((item) => {
+          const audience = item.annotations?.audience as string[] | undefined;
+          return !audience || audience.includes('user');
+        })
       : [];
 
   const logs = notifications
-    ?.filter((notification) => notification.message.method === 'notifications/message')
+    ?.filter((notification) => {
+      const message = notification.message as { method?: string };
+      return message.method === 'notifications/message';
+    })
     .map(logToString);
 
   const progress = notifications
-    ?.filter((notification) => notification.message.method === 'notifications/progress')
+    ?.filter((notification) => {
+      const message = notification.message as { method?: string };
+      return message.method === 'notifications/progress';
+    })
     .map(notificationToProgress)
     .reduce((map, item) => {
       const key = item.progressToken;
@@ -289,17 +289,6 @@ function ToolCallView({
 
   const isRenderingProgress =
     loadingStatus === 'loading' && (progressEntries.length > 0 || (logs || []).length > 0);
-
-  // Determine if the main tool call should be expanded
-  const isShouldExpand = (() => {
-    // Always expand if there are high priority results that need to be shown
-    const hasHighPriorityResults = toolResults.some((v) => v.isExpandToolResults);
-
-    // Also expand based on user preference for detailed mode
-    const shouldExpandBasedOnStyle = responseStyle === 'detailed' || responseStyle === null;
-
-    return hasHighPriorityResults || shouldExpandBasedOnStyle;
-  })();
 
   // Function to create a descriptive representation of what the tool is doing
   const getToolDescription = (): string | null => {
@@ -488,7 +477,7 @@ function ToolCallView({
   return (
     <ToolCallExpandable
       isStartExpanded={isRenderingProgress}
-      isForceExpand={isShouldExpand}
+      isForceExpand={false}
       label={
         extensionTooltip ? (
           <TooltipWrapper tooltipContent={extensionTooltip} side="top" align="start">
@@ -529,13 +518,11 @@ function ToolCallView({
       {/* Tool Output */}
       {!isCancelledMessage && (
         <>
-          {toolResults.map(({ result, isExpandToolResults }, index) => {
-            return (
-              <div key={index} className={cn('border-t border-borderSubtle')}>
-                <ToolResultView result={result} isStartExpanded={isExpandToolResults} />
-              </div>
-            );
-          })}
+          {toolResults.map((result, index) => (
+            <div key={index} className={cn('border-t border-borderSubtle')}>
+              <ToolResultView result={result} isStartExpanded={false} />
+            </div>
+          ))}
         </>
       )}
     </ToolCallExpandable>

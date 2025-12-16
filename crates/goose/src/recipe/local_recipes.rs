@@ -15,7 +15,7 @@ pub fn get_recipe_library_dir(is_global: bool) -> PathBuf {
     if is_global {
         Paths::config_dir().join("recipes")
     } else {
-        std::env::current_dir().unwrap().join(".goose/recipes")
+        env::current_dir().unwrap().join(".goose/recipes")
     }
 }
 
@@ -63,7 +63,7 @@ pub fn load_local_recipe_file(recipe_name: &str) -> Result<RecipeFile> {
 
     let search_dirs_str = search_dirs
         .iter()
-        .map(|p| p.to_string_lossy())
+        .map(|p| p.display().to_string())
         .collect::<Vec<_>>()
         .join(":");
     Err(anyhow!(

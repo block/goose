@@ -12,16 +12,6 @@ import {
 } from './utils';
 import type { FixedExtensionEntry } from '../../ConfigContext';
 
-// Mock window.electron
-const mockElectron = {
-  getBinaryPath: vi.fn(),
-};
-
-Object.defineProperty(window, 'electron', {
-  value: mockElectron,
-  writable: true,
-});
-
 describe('Extension Utils', () => {
   beforeEach(() => {
     vi.clearAllMocks();

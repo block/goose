@@ -56,6 +56,20 @@ export function shouldHideMessage(messageIndex: number, chains: number[][]): boo
   return false;
 }
 
+export function shouldHideTimestamp(messageIndex: number, chains: number[][]): boolean {
+  for (const chain of chains) {
+    if (chain.includes(messageIndex)) {
+      // Hide timestamp for all but the last message in the chain
+      return chain[chain.length - 1] !== messageIndex;
+    }
+  }
+  return false;
+}
+
+export function isInChain(messageIndex: number, chains: number[][]): boolean {
+  return chains.some((chain) => chain.includes(messageIndex));
+}
+
 export function getChainForMessage(messageIndex: number, chains: number[][]): number[] | null {
   return chains.find((chain) => chain.includes(messageIndex)) || null;
 }

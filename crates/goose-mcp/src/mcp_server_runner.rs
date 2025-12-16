@@ -1,37 +1,45 @@
-use crate::{
-    AutoVisualiserRouter, ComputerControllerServer, DeveloperServer, MemoryServer, TutorialServer,
-};
-use anyhow::{anyhow, Result};
+use std::str::FromStr;
+
+use anyhow::Result;
 use rmcp::{transport::stdio, ServiceExt};
 
-/// Run an MCP server by name
-///
-/// This function handles the common logic for starting MCP servers.
-/// The caller is responsible for setting up logging before calling this function.
-pub async fn run_mcp_server(name: &str) -> Result<()> {
-    if name == "googledrive" || name == "google_drive" {
-        return Err(anyhow!(
-            "the built-in Google Drive extension has been removed"
-        ));
-    }
+#[derive(Clone, Debug)]
+pub enum McpCommand {
+    AutoVisualiser,
+    ComputerController,
+    Developer,
+    Memory,
+    Tutorial,
+}
 
-    tracing::info!("Starting MCP server");
+impl FromStr for McpCommand {
+    type Err = String;
 
-    match name {
-        "autovisualiser" => serve_and_wait(AutoVisualiserRouter::new()).await,
-        "computercontroller" => serve_and_wait(ComputerControllerServer::new()).await,
-        "developer" => serve_and_wait(DeveloperServer::new()).await,
-        "memory" => serve_and_wait(MemoryServer::new()).await,
-        "tutorial" => serve_and_wait(TutorialServer::new()).await,
-        _ => {
-            tracing::warn!("Unknown MCP server name: {}", name);
-            Err(anyhow!("Unknown MCP server name: {}", name))
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().replace(' ', "").as_str() {
+            "autovisualiser" => Ok(McpCommand::AutoVisualiser),
+            "computercontroller" => Ok(McpCommand::ComputerController),
+            "developer" => Ok(McpCommand::Developer),
+            "memory" => Ok(McpCommand::Memory),
+            "tutorial" => Ok(McpCommand::Tutorial),
+            _ => Err(format!("Invalid command: {}", s)),
         }
     }
 }
 
-/// Helper function to run any MCP server with common error handling
-async fn serve_and_wait<S>(server: S) -> Result<()>
+impl McpCommand {
+    pub fn name(&self) -> &str {
+        match self {
+            McpCommand::AutoVisualiser => "autovisualiser",
+            McpCommand::ComputerController => "computercontroller",
+            McpCommand::Developer => "developer",
+            McpCommand::Memory => "memory",
+            McpCommand::Tutorial => "tutorial",
+        }
+    }
+}
+
+pub async fn serve<S>(server: S) -> Result<()>
 where
     S: rmcp::ServerHandler,
 {

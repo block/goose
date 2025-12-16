@@ -5,4 +5,5 @@ pub mod gcpvertexai;
 pub mod gguf;
 pub mod google;
 pub mod openai;
+pub mod openai_responses;
 pub mod snowflake;

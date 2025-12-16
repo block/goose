@@ -1,6 +1,6 @@
 ---
 title: Kiwi Flight Search Extension
-description: Add Kiwi Flight Search MCP Server as a Goose Extension
+description: Add Kiwi Flight Search MCP Server as a goose Extension
 unlisted: true
 ---
 
@@ -16,7 +16,7 @@ import { PanelLeft } from 'lucide-react';
 
 Server moved: https://apify.com/agentify/kiwi-mcp-server
 
-This tutorial covers how to add the [Kiwi Flight Search MCP Server](https://mcp.kiwi.com) as a Goose extension to enable flight search and price comparison.
+This tutorial covers how to add the [Kiwi Flight Search MCP Server](https://mcp.kiwi.com) as a goose extension to enable flight search and price comparison.
 
 :::tip TLDR
 <Tabs groupId="interface">
@@ -64,13 +64,13 @@ This tutorial covers how to add the [Kiwi Flight Search MCP Server](https://mcp.
 
 Let's search for flights between any two locations on specific dates. You can search by city names or airport codes, and the extension will find available flights with pricing, duration, and booking links.
 
-### Goose Prompt
+### goose Prompt
 
 ```
 Can you help me search for a flight from Paris to Rome for August 9?
 ```
 
-### Goose Output
+### goose Output
 
 ```
 I'd be happy to help you search for flights from Paris to Rome for August 9th! Let me search for available options for you.

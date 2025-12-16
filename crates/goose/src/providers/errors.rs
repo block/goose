@@ -32,10 +32,53 @@ pub enum ProviderError {
     NotImplemented(String),
 }
 
+impl ProviderError {
+    pub fn telemetry_type(&self) -> &'static str {
+        match self {
+            ProviderError::Authentication(_) => "auth",
+            ProviderError::ContextLengthExceeded(_) => "context_length",
+            ProviderError::RateLimitExceeded { .. } => "rate_limit",
+            ProviderError::ServerError(_) => "server",
+            ProviderError::RequestFailed(_) => "request",
+            ProviderError::ExecutionError(_) => "execution",
+            ProviderError::UsageError(_) => "usage",
+            ProviderError::NotImplemented(_) => "not_implemented",
+        }
+    }
+}
+
 impl From<anyhow::Error> for ProviderError {
     fn from(error: anyhow::Error) -> Self {
         if let Some(reqwest_err) = error.downcast_ref::<reqwest::Error>() {
-            return ProviderError::RequestFailed(reqwest_err.to_string());
+            let mut details = vec![];
+
+            if let Some(status) = reqwest_err.status() {
+                details.push(format!("status: {}", status));
+            }
+            if reqwest_err.is_timeout() {
+                details.push("timeout".to_string());
+            }
+            if reqwest_err.is_connect() {
+                if let Some(url) = reqwest_err.url() {
+                    if let Some(host) = url.host_str() {
+                        let port_info = url.port().map(|p| format!(":{}", p)).unwrap_or_default();
+
+                        details.push(format!("failed to connect to {}{}", host, port_info));
+
+                        if url.port().is_some() {
+                            details.push("check that the port is correct".to_string());
+                        }
+                    }
+                } else {
+                    details.push("connection failed".to_string());
+                }
+            }
+            let msg = if details.is_empty() {
+                reqwest_err.to_string()
+            } else {
+                format!("{} ({})", reqwest_err, details.join(", "))
+            };
+            return ProviderError::RequestFailed(msg);
         }
         ProviderError::ExecutionError(error.to_string())
     }
@@ -82,108 +125,5 @@ impl GoogleErrorCode {
             503 => Some(Self::ServiceUnavailable),
             _ => Some(Self::InternalServerError),
         }
-    }
-}
-
-#[derive(serde::Deserialize, Debug)]
-pub struct OpenAIError {
-    #[serde(deserialize_with = "code_as_string")]
-    pub code: Option<String>,
-    pub message: Option<String>,
-    #[serde(rename = "type")]
-    pub error_type: Option<String>,
-}
-
-fn code_as_string<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    use serde::de::{self, Visitor};
-    use std::fmt;
-
-    struct CodeVisitor;
-
-    impl<'de> Visitor<'de> for CodeVisitor {
-        type Value = Option<String>;
-
-        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-            formatter.write_str("a string, a number, null, or none for the code field")
-        }
-
-        fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            Ok(Some(value.to_string()))
-        }
-
-        fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            Ok(Some(value.to_string()))
-        }
-
-        fn visit_none<E>(self) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            Ok(None)
-        }
-
-        fn visit_unit<E>(self) -> Result<Self::Value, E>
-        where
-            E: de::Error,
-        {
-            Ok(None)
-        }
-
-        fn visit_some<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
-        where
-            D: serde::Deserializer<'de>,
-        {
-            deserializer.deserialize_any(CodeVisitor)
-        }
-    }
-
-    deserializer.deserialize_option(CodeVisitor)
-}
-
-impl OpenAIError {
-    pub fn is_context_length_exceeded(&self) -> bool {
-        if let Some(code) = &self.code {
-            code == "context_length_exceeded" || code == "string_above_max_length"
-        } else {
-            false
-        }
-    }
-}
-
-impl std::fmt::Display for OpenAIError {
-    /// Format the error for display.
-    /// E.g. {"message": "Invalid API key", "code": "invalid_api_key", "type": "client_error"}
-    /// would be formatted as "Invalid API key (code: invalid_api_key, type: client_error)"
-    /// and {"message": "Foo"} as just "Foo", etc.
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if let Some(message) = &self.message {
-            write!(f, "{}", message)?;
-        }
-        let mut in_parenthesis = false;
-        if let Some(code) = &self.code {
-            write!(f, " (code: {}", code)?;
-            in_parenthesis = true;
-        }
-        if let Some(typ) = &self.error_type {
-            if in_parenthesis {
-                write!(f, ", type: {}", typ)?;
-            } else {
-                write!(f, " (type: {}", typ)?;
-                in_parenthesis = true;
-            }
-        }
-        if in_parenthesis {
-            write!(f, ")")?;
-        }
-        Ok(())
     }
 }

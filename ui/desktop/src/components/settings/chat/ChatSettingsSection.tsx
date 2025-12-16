@@ -3,6 +3,7 @@ import { ToolSelectionStrategySection } from '../tool_selection_strategy/ToolSel
 import DictationSection from '../dictation/DictationSection';
 import { SecurityToggle } from '../security/SecurityToggle';
 import { ResponseStylesSection } from '../response_styles/ResponseStylesSection';
+import { GoosehintsSection } from './GoosehintsSection';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 
 export default function ChatSettingsSection() {
@@ -41,13 +42,11 @@ export default function ChatSettingsSection() {
       </Card>
 
       <Card className="pb-2 rounded-lg">
-        <CardHeader className="pb-0">
-          <CardTitle className="">Scheduling Engine</CardTitle>
-          <CardDescription>
-            Choose which scheduling backend to use for scheduled recipes and tasks
-          </CardDescription>
-        </CardHeader>
+        <CardContent className="px-2">
+          <GoosehintsSection />
+        </CardContent>
       </Card>
+
       <Card className="pb-2 rounded-lg">
         <CardHeader className="pb-0">
           <CardTitle className="">Tool Selection Strategy (preview)</CardTitle>

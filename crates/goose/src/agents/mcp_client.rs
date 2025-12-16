@@ -1,6 +1,10 @@
+use crate::action_required_manager::ActionRequiredManager;
 use crate::agents::types::SharedProvider;
 use crate::session_context::SESSION_ID_HEADER;
-use rmcp::model::{Content, ErrorCode, JsonObject};
+use rmcp::model::{
+    Content, CreateElicitationRequestParam, CreateElicitationResult, ElicitationAction, ErrorCode,
+    JsonObject,
+};
 /// MCP client implementation for Goose
 use rmcp::{
     model::{
@@ -76,6 +80,10 @@ pub trait McpClientTrait: Send + Sync {
     async fn subscribe(&self) -> mpsc::Receiver<ServerNotification>;
 
     fn get_info(&self) -> Option<&InitializeResult>;
+
+    async fn get_moim(&self) -> Option<String> {
+        None
+    }
 }
 
 pub struct GooseClient {
@@ -214,10 +222,46 @@ impl ClientHandler for GooseClient {
         })
     }
 
+    async fn create_elicitation(
+        &self,
+        request: CreateElicitationRequestParam,
+        _context: RequestContext<RoleClient>,
+    ) -> Result<CreateElicitationResult, ErrorData> {
+        let schema_value = serde_json::to_value(&request.requested_schema).map_err(|e| {
+            ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!("Failed to serialize elicitation schema: {}", e),
+                None,
+            )
+        })?;
+
+        ActionRequiredManager::global()
+            .request_and_wait(
+                request.message.clone(),
+                schema_value,
+                Duration::from_secs(300),
+            )
+            .await
+            .map(|user_data| CreateElicitationResult {
+                action: ElicitationAction::Accept,
+                content: Some(user_data),
+            })
+            .map_err(|e| {
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Elicitation request timed out or failed: {}", e),
+                    None,
+                )
+            })
+    }
+
     fn get_info(&self) -> ClientInfo {
         ClientInfo {
             protocol_version: ProtocolVersion::V_2025_03_26,
-            capabilities: ClientCapabilities::builder().enable_sampling().build(),
+            capabilities: ClientCapabilities::builder()
+                .enable_sampling()
+                .enable_elicitation()
+                .build(),
             client_info: Implementation {
                 name: "goose".to_string(),
                 version: std::env::var("GOOSE_MCP_CLIENT_VERSION")

@@ -8,12 +8,24 @@ interface DirSwitcherProps {
 
 export const DirSwitcher: React.FC<DirSwitcherProps> = ({ className = '' }) => {
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
+  const [isDirectoryChooserOpen, setIsDirectoryChooserOpen] = useState(false);
 
   const handleDirectoryChange = async () => {
-    window.electron.directoryChooser(true);
+    if (isDirectoryChooserOpen) return;
+    setIsDirectoryChooserOpen(true);
+    try {
+      await window.electron.directoryChooser(true);
+    } finally {
+      setIsDirectoryChooserOpen(false);
+    }
   };
 
   const handleDirectoryClick = async (event: React.MouseEvent) => {
+    if (isDirectoryChooserOpen) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
     const isCmdOrCtrlClick = event.metaKey || event.ctrlKey;
 
     if (isCmdOrCtrlClick) {
@@ -28,11 +40,17 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({ className = '' }) => {
 
   return (
     <TooltipProvider>
-      <Tooltip open={isTooltipOpen} onOpenChange={setIsTooltipOpen}>
+      <Tooltip
+        open={isTooltipOpen && !isDirectoryChooserOpen}
+        onOpenChange={(open) => {
+          if (!isDirectoryChooserOpen) setIsTooltipOpen(open);
+        }}
+      >
         <TooltipTrigger asChild>
           <button
-            className={`z-[100] hover:cursor-pointer text-text-default/70 hover:text-text-default text-xs flex items-center transition-colors pl-1 [&>svg]:size-4 ${className}`}
+            className={`z-[100] ${isDirectoryChooserOpen ? 'opacity-50' : 'hover:cursor-pointer hover:text-text-default'} text-text-default/70 text-xs flex items-center transition-colors pl-1 [&>svg]:size-4 ${className}`}
             onClick={handleDirectoryClick}
+            disabled={isDirectoryChooserOpen}
           >
             <FolderDot className="mr-1" size={16} />
             <div className="max-w-[200px] truncate [direction:rtl]">

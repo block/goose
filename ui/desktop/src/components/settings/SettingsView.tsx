@@ -3,6 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { View, ViewOptions } from '../../utils/navigationUtils';
 import ModelsSection from './models/ModelsSection';
 import SessionSharingSection from './sessions/SessionSharingSection';
+import ExternalBackendSection from './app/ExternalBackendSection';
 import AppSettingsSection from './app/AppSettingsSection';
 import ConfigSettings from './config/ConfigSettings';
 import { ExtensionConfig } from '../../api';
@@ -127,7 +128,10 @@ export default function SettingsView({
                   value="sharing"
                   className="mt-0 focus-visible:outline-none focus-visible:ring-0"
                 >
-                  <SessionSharingSection />
+                  <div className="space-y-8">
+                    <SessionSharingSection />
+                    <ExternalBackendSection />
+                  </div>
                 </TabsContent>
 
                 <TabsContent

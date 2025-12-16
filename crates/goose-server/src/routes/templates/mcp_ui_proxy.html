@@ -1,0 +1,143 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <meta name="referrer" content="no-referrer"/>
+    <!-- 
+      Permissive CSP so nested content is not constrained by top-level Goose Desktop CSP
+      - default-src: Fallback for other directives (allows same-origin)
+      - script-src: Allow scripts from any origin, inline, eval, wasm, and blob URLs
+      - style-src: Allow styles from any origin and inline styles
+      - font-src: Allow fonts from any origin
+      - img-src: Allow images from any origin
+      - connect-src: Allow network requests to any origin
+      - frame-src: Allow embedding iframes from any origin (required for proxy functionality)
+      - media-src: Allow audio/video media from any origin
+      - base-uri: Restrict <base> tag to same-origin only
+      - upgrade-insecure-requests: Automatically upgrade HTTP to HTTPS
+    -->
+    <meta 
+      http-equiv="Content-Security-Policy" 
+      content="default-src 'self'; script-src * 'wasm-unsafe-eval' 'unsafe-inline' 'unsafe-eval' blob:; style-src * 'unsafe-inline'; font-src *; img-src *; connect-src *; frame-src *; media-src *; base-uri 'self'; upgrade-insecure-requests"/>
+    <title>MCP-UI Proxy</title>
+    <style>
+      body,
+      html {
+        margin: 0;
+        height: 100vh;
+        width: 100vw;
+      }
+      body {
+        display: flex;
+        flex-direction: column;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      iframe {
+        background-color: transparent;
+        border: 0 none transparent;
+        padding: 0;
+        overflow: hidden;
+        flex-grow: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <script>
+      const params = new URLSearchParams(location.search);
+      const contentType = params.get('contentType');
+      const target = params.get('url');
+
+      // Validate that the URL is a valid HTTP or HTTPS URL
+      function isValidHttpUrl(string) {
+        try {
+          const url = new URL(string);
+          return url.protocol === 'http:' || url.protocol === 'https:';
+        } catch (error) {
+          return false;
+        }
+      }
+
+      if (contentType === 'rawhtml') {
+        // Double-iframe raw HTML mode (HTML sent via postMessage)
+        const inner = document.createElement('iframe');
+        inner.style = 'width:100%; height:100%; border:none;';
+        // sandbox will be set from postMessage payload; default minimal before html arrives
+        inner.setAttribute('sandbox', 'allow-scripts');
+        document
+          .body
+          .appendChild(inner);
+
+        // Wait for HTML content from parent
+        window.addEventListener('message', (event) => {
+          if (event.source === window.parent) {
+            if (event.data && event.data.type === 'ui-html-content') {
+              const payload = event.data.payload || {};
+              const html = payload.html;
+              const sandbox = payload.sandbox;
+              if (typeof sandbox === 'string') {
+                inner.setAttribute('sandbox', sandbox);
+              }
+              if (typeof html === 'string') {
+                inner.srcdoc = html;
+              }
+            } else {
+              if (inner && inner.contentWindow) {
+                inner
+                  .contentWindow
+                  .postMessage(event.data, '*');
+              }
+            }
+          } else if (event.source === inner.contentWindow) {
+            // Relay messages from inner to parent
+            window
+              .parent
+              .postMessage(event.data, '*');
+          }
+        });
+
+        // Notify parent that proxy is ready to receive HTML (distinct event)
+        window
+          .parent
+          .postMessage({
+            type: 'ui-proxy-iframe-ready'
+          }, '*');
+      } else if (target) {
+        if (!isValidHttpUrl(target)) {
+          document.body.textContent = 'Error: invalid URL. Only HTTP and HTTPS URLs are allowed.';
+        } else {
+          const inner = document.createElement('iframe');
+          inner.src = target;
+          inner.style = 'width:100%; height:100%; border:none;';
+          // Default external URL sandbox; can be adjusted later by protocol if needed
+          inner.setAttribute('sandbox', 'allow-same-origin allow-scripts');
+          document
+            .body
+            .appendChild(inner);
+          const urlOrigin = new URL(target).origin;
+
+          window.addEventListener('message', (event) => {
+            if (event.source === window.parent) {
+              // listen for messages from the parent and send them to the iframe
+              if (inner.contentWindow) {
+                inner
+                  .contentWindow
+                  .postMessage(event.data, urlOrigin);
+              } else {
+                console.warn('[MCP-UI Proxy] iframe contentWindow is not available; message not sent');
+              }
+            } else if (event.source === inner.contentWindow) {
+              // listen for messages from the iframe and send them to the parent
+              window
+                .parent
+                .postMessage(event.data, '*');
+            }
+          });
+        }
+      } else {
+        document.body.textContent = 'Error: missing url or html parameter';
+      }
+    </script>
+  </body>
+</html>
