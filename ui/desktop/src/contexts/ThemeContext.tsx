@@ -46,13 +46,9 @@ function saveThemePreference(preference: ThemePreference): void {
 }
 
 function applyThemeToDocument(theme: ResolvedTheme): void {
-  if (theme === 'dark') {
-    document.documentElement.classList.add('dark');
-    document.documentElement.classList.remove('light');
-  } else {
-    document.documentElement.classList.remove('dark');
-    document.documentElement.classList.add('light');
-  }
+  const toRemove = theme === 'dark' ? 'light' : 'dark';
+  document.documentElement.classList.add(theme);
+  document.documentElement.classList.remove(toRemove);
 }
 
 interface ThemeProviderProps {
