@@ -15,7 +15,7 @@ import { ChevronRight, FlaskConical } from 'lucide-react';
 import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
 import MCPUIResourceRenderer from './MCPUIResourceRenderer';
 import { isUIResource } from '@mcp-ui/client';
-import { Content, EmbeddedResource } from '../api';
+import { CallToolResponse, Content, EmbeddedResource } from '../api';
 
 interface ToolCallWithResponseProps {
   isCancelledMessage: boolean;
@@ -30,7 +30,7 @@ function getToolResultContent(toolResult: Record<string, unknown>): Content[] {
   if (toolResult.status !== 'success') {
     return [];
   }
-  const value = toolResult.value as { content: Content[] };
+  const value = toolResult.value as CallToolResponse;
   return value.content.filter((item) => {
     const annotations = (item as { annotations?: { audience?: string[] } }).annotations;
     return !annotations?.audience || annotations.audience.includes('user');
