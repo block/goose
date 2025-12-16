@@ -940,7 +940,7 @@ impl Agent {
             let _ = reply_span.enter();
             let mut turns_taken = 0u32;
             let max_turns = session_config.max_turns.unwrap_or(DEFAULT_MAX_TURNS);
-            let mut consecutive_compactions = 0;
+            let mut compaction_attempts = 0;
 
             loop {
                 if is_token_cancelled(&cancel_token) {
@@ -992,8 +992,7 @@ impl Agent {
 
                     match next {
                         Ok((response, usage)) => {
-                            // Reset counter on successful response
-                            consecutive_compactions = 0;
+                            compaction_attempts = 0;
 
                             // Emit model change event if provider is lead-worker
                             let provider = self.provider().await?;
@@ -1204,24 +1203,24 @@ impl Agent {
                                 no_tools_called = false;
                             }
                         }
+<<<<<<< HEAD
                         Err(ref provider_err @ ProviderError::ContextLengthExceeded(_)) => {
                             crate::posthog::emit_error(provider_err.telemetry_type());
                             consecutive_compactions += 1;
+||||||| merged common ancestors
+                        Err(ProviderError::ContextLengthExceeded(_error_msg)) => {
+                            consecutive_compactions += 1;
+=======
+                        Err(ProviderError::ContextLengthExceeded(_error_msg)) => {
+                            compaction_attempts += 1;
+>>>>>>> 7911c46ac2496c029295f98bfd1e8003dae19e37
 
-                            // Stop after 1 compaction attempt (when counter > 1)
-                            if consecutive_compactions > 1 {
+                            if compaction_attempts >= 2 {
                                 error!("Context limit exceeded after compaction - prompt too large");
                                 yield AgentEvent::Message(
                                     Message::assistant().with_system_notification(
                                         SystemNotificationType::InlineMessage,
-                                        "Unable to continue: Even after compacting the conversation, the context still exceeds the model's limit.
-
-This indicates that your message or the system prompt is too large for the configured model.
-
-Please try:
-- Using a shorter message
-- Configuring a model with a larger context window
-- Starting a new session"
+                                        "Unable to continue: Context limit still exceeded after compaction. Try using a shorter message, a model with a larger context window, or start a new session."
                                     )
                                 );
                                 break;
@@ -1247,10 +1246,9 @@ Please try:
                                     conversation = compacted_conversation;
                                     did_recovery_compact_this_iteration = true;
                                     yield AgentEvent::HistoryReplaced(conversation.clone());
-                                    continue;
+                                    break;
                                 }
                                 Err(e) => {
-                                    // Just log compaction failure - the doom loop check above will catch it on retry
                                     error!("Compaction failed: {}", e);
                                     break;
                                 }
