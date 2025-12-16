@@ -96,24 +96,10 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     if (!window.electron) return;
 
     const handleThemeChanged = (_event: unknown, ...args: unknown[]) => {
-      const themeData = args[0];
-
-      // Validate IPC payload structure
-      if (
-        typeof themeData !== 'object' ||
-        themeData === null ||
-        typeof (themeData as Record<string, unknown>).useSystemTheme !== 'boolean' ||
-        typeof (themeData as Record<string, unknown>).theme !== 'string'
-      ) {
-        console.warn('Invalid theme-changed IPC payload:', themeData);
-        return;
-      }
-
-      const { useSystemTheme, theme } = themeData as { useSystemTheme: boolean; theme: string };
-
-      const newPreference: ThemePreference = useSystemTheme
+      const themeData = args[0] as { useSystemTheme: boolean; theme: string };
+      const newPreference: ThemePreference = themeData.useSystemTheme
         ? 'system'
-        : theme === 'dark'
+        : themeData.theme === 'dark'
           ? 'dark'
           : 'light';
 
