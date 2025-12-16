@@ -257,15 +257,10 @@ fn test_hierarchical_hint_loading() {
             std::fs::write(auth_dir.join("file.py"), "pass").unwrap();
 
             // Load hints from auth directory
-            let gitignore = ignore::gitignore::GitignoreBuilder::new(repo_root)
-                .build()
-                .unwrap();
-
             let result = goose::hints::load_hints_from_directory(
                 &auth_dir,
                 repo_root,
                 &["AGENTS.md".to_string(), ".goosehints".to_string()],
-                &gitignore,
             );
 
             assert!(result.is_some(), "Should load hints");
