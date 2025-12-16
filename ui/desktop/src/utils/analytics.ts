@@ -104,14 +104,8 @@ export type AnalyticsEvent =
       name: 'schedule_created';
       properties: { source_type: 'file' | 'deeplink'; success: boolean; error_details?: string };
     }
-  | { name: 'schedule_updated'; properties: { success: boolean; error_details?: string } }
   | { name: 'schedule_deleted'; properties: { success: boolean; error_details?: string } }
-  | { name: 'schedule_paused'; properties: { success: boolean; error_details?: string } }
-  | { name: 'schedule_unpaused'; properties: { success: boolean; error_details?: string } }
   | { name: 'schedule_run_now'; properties: { success: boolean; error_details?: string } }
-  | { name: 'schedule_killed'; properties: { success: boolean; error_details?: string } }
-  | { name: 'schedule_inspected'; properties: { success: boolean; error_details?: string } }
-  | { name: 'schedule_viewed'; properties: Record<string, never> }
   | { name: 'recipe_created'; properties: { success: boolean; error_details?: string } }
   | { name: 'recipe_imported'; properties: { success: boolean; error_details?: string } }
   | { name: 'recipe_edited'; properties: { success: boolean; error_details?: string } }
@@ -430,30 +424,9 @@ export function trackScheduleCreated(
   });
 }
 
-export function trackScheduleUpdated(success: boolean, errorDetails?: string): void {
-  trackEvent({
-    name: 'schedule_updated',
-    properties: { success, error_details: errorDetails },
-  });
-}
-
 export function trackScheduleDeleted(success: boolean, errorDetails?: string): void {
   trackEvent({
     name: 'schedule_deleted',
-    properties: { success, error_details: errorDetails },
-  });
-}
-
-export function trackSchedulePaused(success: boolean, errorDetails?: string): void {
-  trackEvent({
-    name: 'schedule_paused',
-    properties: { success, error_details: errorDetails },
-  });
-}
-
-export function trackScheduleUnpaused(success: boolean, errorDetails?: string): void {
-  trackEvent({
-    name: 'schedule_unpaused',
     properties: { success, error_details: errorDetails },
   });
 }
@@ -462,27 +435,6 @@ export function trackScheduleRunNow(success: boolean, errorDetails?: string): vo
   trackEvent({
     name: 'schedule_run_now',
     properties: { success, error_details: errorDetails },
-  });
-}
-
-export function trackScheduleKilled(success: boolean, errorDetails?: string): void {
-  trackEvent({
-    name: 'schedule_killed',
-    properties: { success, error_details: errorDetails },
-  });
-}
-
-export function trackScheduleInspected(success: boolean, errorDetails?: string): void {
-  trackEvent({
-    name: 'schedule_inspected',
-    properties: { success, error_details: errorDetails },
-  });
-}
-
-export function trackScheduleViewed(): void {
-  trackEvent({
-    name: 'schedule_viewed',
-    properties: {},
   });
 }
 

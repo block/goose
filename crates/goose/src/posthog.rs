@@ -237,18 +237,7 @@ pub fn emit_error_with_context(error_type: &str, context: ErrorContext) {
     });
 }
 
-/// Type of slash command for analytics tracking
-#[derive(Debug, Clone)]
-pub enum SlashCommandType {
-    /// Builtin command (e.g., /compact) - name is safe to track
-    Builtin(String),
-    /// Recipe command - name is NOT tracked for privacy
-    Recipe,
-    /// Unknown/unrecognized command
-    Unknown,
-}
-
-pub fn emit_slash_command_used(command_type: SlashCommandType) {
+pub fn emit_custom_slash_command_used() {
     if !is_telemetry_enabled() {
         return;
     }
@@ -256,7 +245,7 @@ pub fn emit_slash_command_used(command_type: SlashCommandType) {
     let installation = load_or_create_installation();
 
     tokio::spawn(async move {
-        let _ = send_slash_command_event(&installation, command_type).await;
+        let _ = send_custom_slash_command_event(&installation).await;
     });
 }
 
@@ -300,25 +289,10 @@ async fn send_error_event(
     client.capture(event).await.map_err(|e| format!("{:?}", e))
 }
 
-async fn send_slash_command_event(
-    installation: &InstallationData,
-    command_type: SlashCommandType,
-) -> Result<(), String> {
+async fn send_custom_slash_command_event(installation: &InstallationData) -> Result<(), String> {
     let client = posthog_rs::client(POSTHOG_API_KEY).await;
-    let mut event = posthog_rs::Event::new("slash_command_used", &installation.installation_id);
-
-    // Set success and command_type based on the enum
-    let (success, type_str, command_name) = match &command_type {
-        SlashCommandType::Builtin(name) => (true, "builtin", Some(name.clone())),
-        SlashCommandType::Recipe => (true, "recipe", None),
-        SlashCommandType::Unknown => (false, "unknown", None),
-    };
-
-    event.insert_prop("success", success).ok();
-    event.insert_prop("command_type", type_str).ok();
-    if let Some(name) = command_name {
-        event.insert_prop("command_name", name).ok();
-    }
+    let mut event =
+        posthog_rs::Event::new("custom_slash_command_used", &installation.installation_id);
 
     event.insert_prop("source", "backend").ok();
     event.insert_prop("version", env!("CARGO_PKG_VERSION")).ok();
@@ -328,14 +302,6 @@ async fn send_slash_command_event(
 
     if let Some(platform_version) = get_platform_version() {
         event.insert_prop("platform_version", platform_version).ok();
-    }
-
-    let config = Config::global();
-    if let Ok(provider) = config.get_param::<String>("GOOSE_PROVIDER") {
-        event.insert_prop("provider", provider).ok();
-    }
-    if let Ok(model) = config.get_param::<String>("GOOSE_MODEL") {
-        event.insert_prop("model", model).ok();
     }
 
     client.capture(event).await.map_err(|e| format!("{:?}", e))

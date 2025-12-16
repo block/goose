@@ -21,15 +21,7 @@ import { Loader2, Pause, Play, Edit, Square, Eye } from 'lucide-react';
 import cronstrue from 'cronstrue';
 import { formatToLocalDateWithTimezone } from '../../utils/date';
 import { getSession, Session } from '../../api';
-import {
-  trackScheduleRunNow,
-  trackScheduleUpdated,
-  trackSchedulePaused,
-  trackScheduleUnpaused,
-  trackScheduleKilled,
-  trackScheduleInspected,
-  getErrorType,
-} from '../../utils/analytics';
+import { trackScheduleRunNow, getErrorType } from '../../utils/analytics';
 
 interface ScheduleSessionMeta {
   id: string;
@@ -137,21 +129,14 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
     try {
       if (scheduleDetails.paused) {
         await unpauseSchedule(scheduleId);
-        trackScheduleUnpaused(true);
         toastSuccess({ title: 'Schedule Unpaused', msg: `Unpaused "${scheduleId}"` });
       } else {
         await pauseSchedule(scheduleId);
-        trackSchedulePaused(true);
         toastSuccess({ title: 'Schedule Paused', msg: `Paused "${scheduleId}"` });
       }
       await fetchSchedule(scheduleId);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Operation failed';
-      if (scheduleDetails.paused) {
-        trackScheduleUnpaused(false, getErrorType(err));
-      } else {
-        trackSchedulePaused(false, getErrorType(err));
-      }
       toastError({
         title: 'Pause/Unpause Error',
         msg: errorMsg,
@@ -166,12 +151,10 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
     setIsActionLoading(true);
     try {
       const result = await killRunningJob(scheduleId);
-      trackScheduleKilled(true);
       toastSuccess({ title: 'Job Killed', msg: result.message });
       await fetchSchedule(scheduleId);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to kill job';
-      trackScheduleKilled(false, getErrorType(err));
       toastError({
         title: 'Kill Job Error',
         msg: errorMsg,
@@ -186,7 +169,6 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
     setIsActionLoading(true);
     try {
       const result = await inspectRunningJob(scheduleId);
-      trackScheduleInspected(true);
       if (result.sessionId) {
         const duration = result.runningDurationSeconds
           ? `${Math.floor(result.runningDurationSeconds / 60)}m ${result.runningDurationSeconds % 60}s`
@@ -200,7 +182,6 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to inspect job';
-      trackScheduleInspected(false, getErrorType(err));
       toastError({
         title: 'Inspect Job Error',
         msg: errorMsg,
@@ -215,13 +196,11 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
     setIsActionLoading(true);
     try {
       await updateSchedule(scheduleId, payload as string);
-      trackScheduleUpdated(true);
       toastSuccess({ title: 'Schedule Updated', msg: `Updated "${scheduleId}"` });
       await fetchSchedule(scheduleId);
       setIsModalOpen(false);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to update schedule';
-      trackScheduleUpdated(false, getErrorType(err));
       toastError({
         title: 'Update Schedule Error',
         msg: errorMsg,

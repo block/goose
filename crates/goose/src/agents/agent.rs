@@ -755,25 +755,14 @@ impl Agent {
                 .unwrap_or(false);
 
             if is_builtin {
-                // Track builtin command with name (safe to track)
-                let cmd_name = command.unwrap_or("/unknown").trim_start_matches('/');
-                crate::posthog::emit_slash_command_used(crate::posthog::SlashCommandType::Builtin(
-                    cmd_name.to_string(),
-                ));
                 None
             } else {
                 // Try to resolve as recipe command
                 let recipe = command.and_then(crate::slash_commands::resolve_slash_command);
 
-                // Track slash command usage
+                // Track non-builtin slash command usage (don't track command name for privacy)
                 if recipe.is_some() {
-                    crate::posthog::emit_slash_command_used(
-                        crate::posthog::SlashCommandType::Recipe,
-                    );
-                } else {
-                    crate::posthog::emit_slash_command_used(
-                        crate::posthog::SlashCommandType::Unknown,
-                    );
+                    crate::posthog::emit_custom_slash_command_used();
                 }
 
                 recipe
