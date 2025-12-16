@@ -1203,17 +1203,9 @@ impl Agent {
                                 no_tools_called = false;
                             }
                         }
-<<<<<<< HEAD
                         Err(ref provider_err @ ProviderError::ContextLengthExceeded(_)) => {
                             crate::posthog::emit_error(provider_err.telemetry_type());
-                            consecutive_compactions += 1;
-||||||| merged common ancestors
-                        Err(ProviderError::ContextLengthExceeded(_error_msg)) => {
-                            consecutive_compactions += 1;
-=======
-                        Err(ProviderError::ContextLengthExceeded(_error_msg)) => {
                             compaction_attempts += 1;
->>>>>>> 7911c46ac2496c029295f98bfd1e8003dae19e37
 
                             if compaction_attempts >= 2 {
                                 error!("Context limit exceeded after compaction - prompt too large");
