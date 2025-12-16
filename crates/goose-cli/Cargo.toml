@@ -64,6 +64,9 @@ urlencoding = "2.1"
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }
 
+[features]
+# disables the update command
+disable-update = []
 
 [dev-dependencies]
 tempfile = "3"

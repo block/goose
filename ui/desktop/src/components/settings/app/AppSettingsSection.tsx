@@ -13,6 +13,7 @@ import ThemeSelector from '../../GooseSidebar/ThemeSelector';
 import BlockLogoBlack from './icons/block-lockup_black.png';
 import BlockLogoWhite from './icons/block-lockup_white.png';
 import TelemetrySettings from './TelemetrySettings';
+import { trackSettingToggled } from '../../../utils/analytics';
 
 interface AppSettingsSectionProps {
   scrollToSection?: string;
@@ -170,6 +171,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
     const success = await window.electron.setMenuBarIcon(newState);
     if (success) {
       setMenuBarIconEnabled(newState);
+      trackSettingToggled('menu_bar_icon', newState);
     }
   };
 
@@ -194,6 +196,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
     const success = await window.electron.setDockIcon(newState);
     if (success) {
       setDockIconEnabled(newState);
+      trackSettingToggled('dock_icon', newState);
     }
   };
 
@@ -202,12 +205,14 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
     const success = await window.electron.setWakelock(newState);
     if (success) {
       setWakelockEnabled(newState);
+      trackSettingToggled('prevent_sleep', newState);
     }
   };
 
   const handleShowPricingToggle = (checked: boolean) => {
     setShowPricing(checked);
     localStorage.setItem('show_pricing', String(checked));
+    trackSettingToggled('cost_tracking', checked);
     // Trigger storage event for other components
     window.dispatchEvent(new CustomEvent('storage'));
   };

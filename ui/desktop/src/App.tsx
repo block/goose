@@ -42,6 +42,13 @@ import { NoProviderOrModelError, useAgent } from './hooks/useAgent';
 import { useNavigation } from './hooks/useNavigation';
 import { errorMessage } from './utils/conversionUtils';
 import { getInitialWorkingDir } from './utils/workingDir';
+import { usePageViewTracking } from './hooks/useAnalytics';
+import { trackOnboardingCompleted } from './utils/analytics';
+
+function PageViewTracker() {
+  usePageViewTracking();
+  return null;
+}
 
 // Route Components
 const HubRouteWrapper = ({ isExtensionsLoading }: { isExtensionsLoading: boolean }) => {
@@ -265,7 +272,8 @@ const WelcomeRoute = ({ onSelectProvider }: WelcomeRouteProps) => {
           navigate('/', { replace: true });
         }}
         isOnboarding={true}
-        onProviderLaunched={() => {
+        onProviderLaunched={(model?: string) => {
+          trackOnboardingCompleted('other', model);
           onSelectProvider();
           navigate('/', { replace: true });
         }}
@@ -608,6 +616,7 @@ export function AppInner() {
 
   return (
     <>
+      <PageViewTracker />
       <ToastContainer
         aria-label="Toast notifications"
         toastClassName={() =>

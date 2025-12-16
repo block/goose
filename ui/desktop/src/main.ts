@@ -1873,6 +1873,14 @@ async function appMain() {
     console.error('Error registering launcher hotkey:', e);
   }
 
+  try {
+    globalShortcut.register('CommandOrControl+Alt+G', () => {
+      focusWindow();
+    });
+  } catch (e) {
+    console.error('Error registering focus window hotkey:', e);
+  }
+
   session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
     details.requestHeaders['Origin'] = 'http://localhost:5173';
     callback({ cancel: false, requestHeaders: details.requestHeaders });
@@ -2049,7 +2057,7 @@ async function appMain() {
     fileMenu.submenu.append(
       new MenuItem({
         label: 'Focus Goose Window',
-        accelerator: 'CmdOrCtrl+Alt+Shift+G',
+        accelerator: 'CmdOrCtrl+Alt+G',
         click() {
           focusWindow();
         },

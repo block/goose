@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Tornado } from 'lucide-react';
 import { all_goose_modes, ModeSelectionItem } from '../settings/mode/ModeSelectionItem';
 import { useConfig } from '../ConfigContext';
@@ -8,6 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
+import { trackModeChanged } from '../../utils/analytics';
 
 export const BottomMenuModeSelection = () => {
   const [gooseMode, setGooseMode] = useState('auto');
@@ -36,6 +37,7 @@ export const BottomMenuModeSelection = () => {
     try {
       await upsert('GOOSE_MODE', newMode, false);
       setGooseMode(newMode);
+      trackModeChanged(gooseMode, newMode);
     } catch (error) {
       console.error('Error updating goose mode:', error);
       throw new Error(`Failed to store new goose mode: ${newMode}`);
