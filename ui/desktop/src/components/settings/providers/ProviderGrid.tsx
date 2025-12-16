@@ -59,7 +59,7 @@ function ProviderCards({
   isOnboarding: boolean;
   refreshProviders?: () => void;
   setView?: (view: View) => void;
-  onModelSelected?: () => void;
+  onModelSelected?: (model?: string) => void;
 }) {
   const [configuringProvider, setConfiguringProvider] = useState<ProviderDetails | null>(null);
   const [showCustomProviderModal, setShowCustomProviderModal] = useState(false);
@@ -256,7 +256,7 @@ export default function ProviderGrid({
   isOnboarding: boolean;
   refreshProviders?: () => void;
   setView?: (view: View) => void;
-  onModelSelected?: () => void;
+  onModelSelected?: (model?: string) => void;
 }) {
   return (
     <GridLayout>

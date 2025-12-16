@@ -46,7 +46,7 @@ use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
 use crate::scheduler_trait::SchedulerTrait;
 use crate::security::security_inspector::SecurityInspector;
 use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
-use crate::session::{Session, SessionManager};
+use crate::session::{Session, SessionManager, SessionType};
 use crate::tool_inspection::ToolInspectionManager;
 use crate::tool_monitor::RepetitionInspector;
 use crate::utils::is_token_cancelled;
@@ -289,11 +289,11 @@ impl Agent {
     async fn categorize_tools(
         &self,
         response: &Message,
-        _tools: &[rmcp::model::Tool],
+        tools: &[rmcp::model::Tool],
     ) -> ToolCategorizeResult {
         // Categorize tool requests
         let (frontend_requests, remaining_requests, filtered_response) =
-            self.categorize_tool_requests(response).await;
+            self.categorize_tool_requests(response, tools).await;
 
         ToolCategorizeResult {
             frontend_requests,
@@ -433,9 +433,7 @@ impl Agent {
         session: &Session,
     ) -> (String, Result<ToolCallResult, ErrorData>) {
         // Prevent subagents from creating other subagents
-        if session.session_type == crate::session::SessionType::SubAgent
-            && tool_call.name == SUBAGENT_TOOL_NAME
-        {
+        if session.session_type == SessionType::SubAgent && tool_call.name == SUBAGENT_TOOL_NAME {
             return (
                 request_id,
                 Err(ErrorData::new(
@@ -654,6 +652,17 @@ impl Agent {
         {
             return false;
         }
+        if let Some(ref session_id) = self.extension_manager.get_context().await.session_id {
+            if matches!(
+                SessionManager::get_session(session_id, false)
+                    .await
+                    .ok()
+                    .map(|session| session.session_type),
+                Some(SessionType::SubAgent)
+            ) {
+                return false;
+            }
+        }
         !self
             .extension_manager
             .list_extensions()
@@ -772,7 +781,25 @@ impl Agent {
 
         let slash_command_recipe = if message_text.trim().starts_with('/') {
             let command = message_text.split_whitespace().next();
-            command.and_then(crate::slash_commands::resolve_slash_command)
+
+            // Check if it's a builtin command first
+            let is_builtin = command
+                .map(|cmd| MANUAL_COMPACT_TRIGGERS.contains(&cmd))
+                .unwrap_or(false);
+
+            if is_builtin {
+                None
+            } else {
+                // Try to resolve as recipe command
+                let recipe = command.and_then(crate::slash_commands::resolve_slash_command);
+
+                // Track non-builtin slash command usage (don't track command name for privacy)
+                if recipe.is_some() {
+                    crate::posthog::emit_custom_slash_command_used();
+                }
+
+                recipe
+            }
         } else {
             None
         };

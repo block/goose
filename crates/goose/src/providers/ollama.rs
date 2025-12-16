@@ -247,11 +247,19 @@ impl Provider for OllamaProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
+        let config = crate::config::Config::global();
+        let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
+        let filtered_tools = if goose_mode == GooseMode::Chat {
+            &[]
+        } else {
+            tools
+        };
+
         let payload = create_request(
             &self.model,
             system,
             messages,
-            tools,
+            filtered_tools,
             &super::utils::ImageFormat::OpenAi,
             true,
         )?;
