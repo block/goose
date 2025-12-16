@@ -538,9 +538,7 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
                                 };
 
                                 if key.secret {
-                                    if store_secret(config, &key.name, &value)
-                                        .is_err()
-                                    {
+                                    if store_secret(config, &key.name, &value).is_err() {
                                         return Ok(false);
                                     }
                                 } else {
@@ -1358,14 +1356,14 @@ pub fn configure_keyring_dialog() -> anyhow::Result<()> {
     match storage_option {
         "keyring" => {
             // Set to empty string to enable keyring (absence or empty = enabled)
-            config.set_param("GOOSE_DISABLE_KEYRING", Value::String("".to_string()))?;
+            config.set_param("GOOSE_DISABLE_KEYRING", "")?;
             cliclack::outro("Secret storage set to system keyring (secure)")?;
             let _ =
                 cliclack::log::info("You may need to restart goose for this change to take effect");
         }
         "file" => {
             // Set the disable flag to use file storage
-            config.set_param("GOOSE_DISABLE_KEYRING", Value::String("true".to_string()))?;
+            config.set_param("GOOSE_DISABLE_KEYRING", "true")?;
             cliclack::outro(
                 "Secret storage set to file (~/.config/goose/secrets.yaml). Keep this file secure!",
             )?;
