@@ -86,7 +86,7 @@ impl ToolRequest {
 #[derive(ToSchema)]
 pub struct ToolResponse {
     pub id: String,
-    #[serde(with = "tool_result_serde")]
+    #[serde(with = "tool_result_serde::call_tool_result")]
     #[schema(value_type = Object)]
     pub tool_result: ToolResult<CallToolResult>,
 }
@@ -1302,5 +1302,88 @@ mod tests {
             .with_agent_visible();
         assert!(metadata.user_visible);
         assert!(metadata.agent_visible);
+    }
+
+    #[test]
+    fn test_legacy_tool_response_deserialization() {
+        let legacy_json = r#"{
+            "role": "user",
+            "created": 1640995200,
+            "content": [{
+                "type": "toolResponse",
+                "id": "tool123",
+                "toolResult": {
+                    "status": "success",
+                    "value": [
+                        {
+                            "type": "text",
+                            "text": "Tool output text"
+                        }
+                    ]
+                }
+            }],
+            "metadata": { "agentVisible": true, "userVisible": true }
+        }"#;
+
+        let message: Message = serde_json::from_str(legacy_json).unwrap();
+        assert_eq!(message.content.len(), 1);
+
+        if let MessageContent::ToolResponse(response) = &message.content[0] {
+            assert_eq!(response.id, "tool123");
+            if let Ok(result) = &response.tool_result {
+                assert_eq!(result.content.len(), 1);
+                assert_eq!(
+                    result.content[0].as_text().unwrap().text,
+                    "Tool output text"
+                );
+            } else {
+                panic!("Expected successful tool result");
+            }
+        } else {
+            panic!("Expected ToolResponse content");
+        }
+    }
+
+    #[test]
+    fn test_new_tool_response_deserialization() {
+        let new_json = r#"{
+            "role": "user",
+            "created": 1640995200,
+            "content": [{
+                "type": "toolResponse",
+                "id": "tool456",
+                "toolResult": {
+                    "status": "success",
+                    "value": {
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "New format output"
+                            }
+                        ],
+                        "isError": false
+                    }
+                }
+            }],
+            "metadata": { "agentVisible": true, "userVisible": true }
+        }"#;
+
+        let message: Message = serde_json::from_str(new_json).unwrap();
+        assert_eq!(message.content.len(), 1);
+
+        if let MessageContent::ToolResponse(response) = &message.content[0] {
+            assert_eq!(response.id, "tool456");
+            if let Ok(result) = &response.tool_result {
+                assert_eq!(result.content.len(), 1);
+                assert_eq!(
+                    result.content[0].as_text().unwrap().text,
+                    "New format output"
+                );
+            } else {
+                panic!("Expected successful tool result");
+            }
+        } else {
+            panic!("Expected ToolResponse content");
+        }
     }
 }

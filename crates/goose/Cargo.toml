@@ -107,12 +107,13 @@ oauth2 = "5.0.0"
 schemars = { version = "1.0.4", default-features = false, features = ["derive"] }
 insta = "1.43.2"
 paste = "1.0.0"
+posthog-rs = "0.3.7"
 shellexpand = "3.1.1"
 indexmap = "2.12.0"
 ignore = "0.4.25"
 which = "8.0.0"
-posthog-rs = "0.3.7"
-
+boa_engine = "0.21.0"
+boa_gc = "0.21"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }
