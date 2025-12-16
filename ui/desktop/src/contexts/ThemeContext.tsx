@@ -78,7 +78,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     window.electron?.broadcastThemeChange({
       mode: resolved,
       useSystemTheme: preference === 'system',
-      theme: preference === 'system' ? '' : preference,
+      theme: resolved,
     });
   }, []);
 
@@ -103,11 +103,26 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     if (!window.electron) return;
 
     const handleThemeChanged = (_event: unknown, ...args: unknown[]) => {
-      const themeData = args[0] as { mode: string; useSystemTheme: boolean; theme: string };
+      const themeData = args[0];
 
-      const newPreference: ThemePreference = themeData.useSystemTheme
+      // Validate IPC payload structure
+      if (
+        typeof themeData !== 'object' ||
+        themeData === null ||
+        typeof (themeData as Record<string, unknown>).useSystemTheme !== 'boolean' ||
+        typeof (themeData as Record<string, unknown>).theme !== 'string'
+      ) {
+        console.warn('Invalid theme-changed IPC payload:', themeData);
+        return;
+      }
+
+      const { useSystemTheme, theme } = themeData as { useSystemTheme: boolean; theme: string };
+
+      const newPreference: ThemePreference = useSystemTheme
         ? 'system'
-        : (themeData.theme as 'light' | 'dark');
+        : theme === 'dark'
+          ? 'dark'
+          : 'light';
 
       setUserThemePreferenceState(newPreference);
       saveThemePreference(newPreference);
