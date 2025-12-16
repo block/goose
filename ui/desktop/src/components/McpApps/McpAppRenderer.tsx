@@ -10,8 +10,6 @@ import { useSandboxBridge } from './useSandboxBridge';
 import { McpAppResource, ToolInput, ToolResult } from './types';
 import { cn } from '../../utils';
 
-export type { McpAppResource, ToolInput, ToolResult } from './types';
-
 interface McpAppRendererProps {
   resource: McpAppResource;
   toolInput?: ToolInput;
