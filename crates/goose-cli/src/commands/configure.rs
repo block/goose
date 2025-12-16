@@ -423,28 +423,19 @@ fn select_model_from_list(
 fn store_secret(config: &Config, key: &str, value: &str) -> anyhow::Result<()> {
     match config.set_secret(key, &value.to_string()) {
         Ok(_) => {}
-        Err(ConfigError::FallbackToFileStorage) => {
-            handle_keyring_fallback()?;
-        }
+        Err(ConfigError::FallbackToFileStorage) => {}
         Err(e) => {
             cliclack::outro(
-                style(format!("Failed to store secret: {}", e))
-                    .on_red()
-                    .white(),
-            )?;
+                style(format!(
+                    "Failed to store {} securely: {}. Please ensure your system's secure storage is accessible. Alternatively you can run with GOOSE_DISABLE_KEYRING=true or set the key in your environment variables",
+                    key, e
+                )).on_red().white())?;
             return Err(anyhow::anyhow!("Failed to store secret"));
         }
     }
     Ok(())
 }
 
-fn handle_keyring_fallback() -> anyhow::Result<()> {
-    // Auto-disable keyring for future operations to avoid repeated failures
-    std::env::set_var("GOOSE_DISABLE_KEYRING", "1");
-
-    cliclack::log::warning("Keyring unavailable. Using file storage for secrets.")?;
-    Ok(())
-}
 
 pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
     // Get global config instance
