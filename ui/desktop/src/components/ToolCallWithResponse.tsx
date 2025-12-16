@@ -26,11 +26,43 @@ interface ToolCallWithResponseProps {
   append?: (value: string) => void; // Function to append messages to the chat
 }
 
-function getToolResultValue(toolResult: Record<string, unknown>): Content[] | null {
-  if ('value' in toolResult && Array.isArray(toolResult.value)) {
-    return toolResult.value as Content[];
+/**
+ * Represents the inner value of a successful tool result.
+ * Maps to rmcp::model::CallToolResult which uses camelCase serialization.
+ */
+interface CallToolResultValue {
+  content: Content[];
+  structuredContent?: unknown;
+  isError?: boolean;
+  _meta?: unknown;
+}
+
+/**
+ * Represents the serialized ToolResult<CallToolResult> structure.
+ * On success: { status: "success", value: CallToolResultValue }
+ * On error: { status: "error", error: string }
+ */
+interface ToolResultSuccess {
+  status: 'success';
+  value: CallToolResultValue;
+}
+
+interface ToolResultError {
+  status: 'error';
+  error: string;
+}
+
+type ToolResultData = ToolResultSuccess | ToolResultError;
+
+function getToolResultContent(toolResult: Record<string, unknown>): Content[] {
+  const result = toolResult as unknown as ToolResultData;
+  if (result.status !== 'success') {
+    return [];
   }
-  return null;
+  return result.value.content.filter((item) => {
+    const annotations = (item as { annotations?: { audience?: string[] } }).annotations;
+    return !annotations?.audience || annotations.audience.includes('user');
+  });
 }
 
 function isEmbeddedResource(content: Content): content is EmbeddedResource {
@@ -76,7 +108,7 @@ export default function ToolCallWithResponse({
       </div>
       {/* MCP UI — Inline */}
       {toolResponse?.toolResult &&
-        getToolResultValue(toolResponse.toolResult)?.map((content, index) => {
+        getToolResultContent(toolResponse.toolResult).map((content, index) => {
           const resourceContent = isEmbeddedResource(content)
             ? { ...content, type: 'resource' as const }
             : null;
@@ -253,12 +285,9 @@ function ToolCallView({
     }
   }, [toolResponse, startTime]);
 
-  const toolResults: Content[] =
-    loadingStatus === 'success' && Array.isArray(toolResponse?.toolResult.value)
-      ? toolResponse!.toolResult.value.filter((item) => {
-          const audience = item.annotations?.audience as string[] | undefined;
-          return !audience || audience.includes('user');
-        })
+  const toolResults =
+    loadingStatus === 'success' && toolResponse?.toolResult
+      ? getToolResultContent(toolResponse.toolResult)
       : [];
 
   const logs = notifications
