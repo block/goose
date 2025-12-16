@@ -420,8 +420,7 @@ fn select_model_from_list(
     }
 }
 
-/// Store secret with graceful keyring fallback
-fn store_secret_with_fallback(config: &Config, key: &str, value: &str) -> anyhow::Result<()> {
+fn store_secret(config: &Config, key: &str, value: &str) -> anyhow::Result<()> {
     match config.set_secret(key, &value.to_string()) {
         Ok(_) => {
             let _ = cliclack::log::success("Successfully stored secret in keyring");
@@ -504,7 +503,7 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
                     .interact()?
                 {
                     if key.secret {
-                        if store_secret_with_fallback(config, &key.name, &env_value).is_err() {
+                        if store_secret(config, &key.name, &env_value).is_err() {
                             return Ok(false);
                         }
                     } else {
@@ -546,7 +545,7 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
                                 };
 
                                 if key.secret {
-                                    if store_secret_with_fallback(config, &key.name, &value)
+                                    if store_secret(config, &key.name, &value)
                                         .is_err()
                                     {
                                         return Ok(false);
@@ -581,7 +580,7 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
                             };
 
                             if key.secret {
-                                if store_secret_with_fallback(config, &key.name, &value).is_err() {
+                                if store_secret(config, &key.name, &value).is_err() {
                                     return Ok(false);
                                 }
                             } else {
@@ -859,7 +858,7 @@ pub fn configure_extensions_dialog() -> anyhow::Result<()> {
                         .interact()?;
 
                     let keychain_key = key.to_string();
-                    if store_secret_with_fallback(config, &keychain_key, &value).is_err() {
+                    if store_secret(config, &keychain_key, &value).is_err() {
                         return Ok(());
                     }
                     env_keys.push(keychain_key);
@@ -948,7 +947,7 @@ pub fn configure_extensions_dialog() -> anyhow::Result<()> {
                         .interact()?;
 
                     let keychain_key = key.to_string();
-                    if store_secret_with_fallback(config, &keychain_key, &value).is_err() {
+                    if store_secret(config, &keychain_key, &value).is_err() {
                         return Ok(());
                     }
                     env_keys.push(keychain_key);
@@ -1061,7 +1060,7 @@ pub fn configure_extensions_dialog() -> anyhow::Result<()> {
                         .interact()?;
 
                     let keychain_key = key.to_string();
-                    if store_secret_with_fallback(config, &keychain_key, &value).is_err() {
+                    if store_secret(config, &keychain_key, &value).is_err() {
                         return Ok(());
                     }
                     env_keys.push(keychain_key);
