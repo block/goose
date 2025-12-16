@@ -803,9 +803,25 @@ impl Agent {
                 )
                 .await?;
 
+                // Check if this was a command that modifies conversation history
+                let modifies_history = crate::agents::execute_commands::COMPACT_TRIGGERS
+                    .contains(&message_text.trim())
+                    || message_text.trim() == "/clear";
+
                 return Ok(Box::pin(async_stream::try_stream! {
                     yield AgentEvent::Message(user_message);
                     yield AgentEvent::Message(response);
+
+                    // After commands that modify history, notify UI that history was replaced
+                    if modifies_history {
+                        let updated_session = SessionManager::get_session(&session_config.id, true)
+                            .await
+                            .map_err(|e| anyhow!("Failed to fetch updated session: {}", e))?;
+                        let updated_conversation = updated_session
+                            .conversation
+                            .ok_or_else(|| anyhow!("Session has no conversation after history modification"))?;
+                        yield AgentEvent::HistoryReplaced(updated_conversation);
+                    }
                 }));
             }
             Some(resolved_message) => {
