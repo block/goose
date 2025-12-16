@@ -82,7 +82,6 @@ impl SkillsClient {
         let mut dirs = Vec::new();
 
         if let Some(home) = dirs::home_dir() {
-            // Global skills directories (lowest priority first)
             dirs.push(home.join(".claude/skills"));
             dirs.push(home.join(".config/agent/skills"));
         }
@@ -90,7 +89,6 @@ impl SkillsClient {
         dirs.push(Paths::config_dir().join("skills"));
 
         if let Ok(working_dir) = std::env::current_dir() {
-            // Project skills directories (highest priority last)
             dirs.push(working_dir.join(".claude/skills"));
             dirs.push(working_dir.join(".goose/skills"));
             dirs.push(working_dir.join(".agents/skills"));
