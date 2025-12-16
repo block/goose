@@ -422,12 +422,9 @@ fn select_model_from_list(
 
 fn store_secret(config: &Config, key: &str, value: &str) -> anyhow::Result<()> {
     match config.set_secret(key, &value.to_string()) {
-        Ok(_) => {
-            let _ = cliclack::log::success("Successfully stored secret in keyring");
-        }
+        Ok(_) => {}
         Err(ConfigError::FallbackToFileStorage) => {
             handle_keyring_fallback()?;
-            let _ = cliclack::log::success("Successfully stored secret using file-based storage");
         }
         Err(e) => {
             cliclack::outro(
