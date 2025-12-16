@@ -14,7 +14,7 @@ pub struct ToolPermissionRecord {
     allowed: bool,
     context_hash: String, // Hash of the tool's arguments/context to differentiate similar calls
     #[serde(skip_serializing_if = "Option::is_none")] // Don't serialize if None
-    readable_context: Option<String>, // Add this field
+    readable_context: Option<String>,
     timestamp: i64,
     expiry: Option<i64>, // Optional expiry timestamp
 }

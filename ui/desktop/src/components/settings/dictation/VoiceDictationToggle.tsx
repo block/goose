@@ -8,6 +8,7 @@ import {
 import { useConfig } from '../../ConfigContext';
 import { ProviderSelector } from './ProviderSelector';
 import { VOICE_DICTATION_ELEVENLABS_ENABLED } from '../../../updates';
+import { trackSettingToggled } from '../../../utils/analytics';
 
 export const VoiceDictationToggle = () => {
   const [settings, setSettings] = useState<DictationSettings>({
@@ -56,6 +57,7 @@ export const VoiceDictationToggle = () => {
       enabled,
       provider: settings.provider === null ? 'openai' : settings.provider,
     });
+    trackSettingToggled('voice_dictation', enabled);
   };
 
   const handleProviderChange = (provider: DictationProvider) => {
@@ -77,7 +79,7 @@ export const VoiceDictationToggle = () => {
       </div>
 
       <div
-        className={`overflow-visible transition-all duration-300 ease-in-out ${
+        className={`overflow-hidden transition-all duration-300 ease-in-out ${
           settings.enabled ? 'max-h-96 opacity-100 mt-2' : 'max-h-0 opacity-0 mt-0'
         }`}
       >

@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
-import { Bug, FolderKey, ScrollText } from 'lucide-react';
+import { Bug, ScrollText, ChefHat } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/Tooltip';
 import { Button } from './ui/button';
 import type { View } from '../utils/navigationUtils';
@@ -28,6 +28,15 @@ import MessageQueue from './MessageQueue';
 import { detectInterruption } from '../utils/interruptionDetector';
 import { DiagnosticsModal } from './ui/DownloadDiagnostics';
 import { Message } from '../api';
+import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal';
+import CreateEditRecipeModal from './recipes/CreateEditRecipeModal';
+import {
+  trackFileAttached,
+  trackVoiceDictation,
+  trackDiagnosticsOpened,
+  trackCreateRecipeOpened,
+  trackEditRecipeOpened,
+} from '../utils/analytics';
 
 interface QueuedMessage {
   id: string;
@@ -80,7 +89,6 @@ interface ChatInputProps {
       totalCost: number;
     };
   };
-  setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
   disableAnimation?: boolean;
   recipe?: Recipe | null;
   recipeId?: string | null;
@@ -107,7 +115,6 @@ export default function ChatInput({
   messages = [],
   disableAnimation = false,
   sessionCosts,
-  setIsGoosehintsModalOpen,
   recipe,
   recipeId,
   recipeAccepted,
@@ -140,6 +147,9 @@ export default function ChatInput({
   const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
   const [isTokenLimitLoaded, setIsTokenLimitLoaded] = useState(false);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+  const [showCreateRecipeModal, setShowCreateRecipeModal] = useState(false);
+  const [showEditRecipeModal, setShowEditRecipeModal] = useState(false);
+  const [isFilePickerOpen, setIsFilePickerOpen] = useState(false);
 
   // Save queue state (paused/interrupted) to storage
   useEffect(() => {
@@ -240,6 +250,7 @@ export default function ChatInput({
     estimatedSize,
   } = useWhisper({
     onTranscription: (text) => {
+      trackVoiceDictation('transcribed');
       // Append transcribed text to the current input
       const newValue = displayValue.trim() ? `${displayValue.trim()} ${text}` : text;
       setDisplayValue(newValue);
@@ -247,6 +258,8 @@ export default function ChatInput({
       textAreaRef.current?.focus();
     },
     onError: (error) => {
+      const errorType = error.name || 'DictationError';
+      trackVoiceDictation('error', undefined, errorType);
       toastError({
         title: 'Dictation Error',
         msg: error.message,
@@ -813,8 +826,22 @@ export default function ChatInput({
 
   // Helper function to handle interruption and queue logic when loading
   const handleInterruptionAndQueue = () => {
-    if (!isLoading || !displayValue.trim()) {
-      return false; // Return false if no action was taken
+    if (!isLoading || !hasSubmittableContent) {
+      return false;
+    }
+
+    const validPastedImageFilesPaths = pastedImages
+      .filter((img) => img.filePath && !img.error && !img.isLoading)
+      .map((img) => img.filePath as string);
+    const droppedFilePaths = allDroppedFiles
+      .filter((file) => !file.error && !file.isLoading)
+      .map((file) => file.path);
+
+    let contentToQueue = displayValue.trim();
+    const allFilePaths = [...validPastedImageFilesPaths, ...droppedFilePaths];
+    if (allFilePaths.length > 0) {
+      const pathsString = allFilePaths.join(' ');
+      contentToQueue = contentToQueue ? `${contentToQueue} ${pathsString}` : pathsString;
     }
 
     const interruptionMatch = detectInterruption(displayValue.trim());
@@ -828,7 +855,7 @@ export default function ChatInput({
       // rather than trying to send it immediately while the system is still loading
       const interruptionMessage = {
         id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-        content: displayValue.trim(),
+        content: contentToQueue,
         timestamp: Date.now(),
       };
 
@@ -837,12 +864,19 @@ export default function ChatInput({
 
       setDisplayValue('');
       setValue('');
-      return true; // Return true if interruption was handled
+      setPastedImages([]);
+      if (onFilesProcessed && droppedFiles.length > 0) {
+        onFilesProcessed();
+      }
+      if (localDroppedFiles.length > 0) {
+        setLocalDroppedFiles([]);
+      }
+      return true;
     }
 
     const newMessage = {
       id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-      content: displayValue.trim(),
+      content: contentToQueue,
       timestamp: Date.now(),
     };
     setQueuedMessages((prev) => {
@@ -856,7 +890,14 @@ export default function ChatInput({
     });
     setDisplayValue('');
     setValue('');
-    return true; // Return true if message was queued
+    setPastedImages([]);
+    if (onFilesProcessed && droppedFiles.length > 0) {
+      onFilesProcessed();
+    }
+    if (localDroppedFiles.length > 0) {
+      setLocalDroppedFiles([]);
+    }
+    return true;
   };
 
   const canSubmit =
@@ -1001,6 +1042,10 @@ export default function ChatInput({
 
   const onFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoading && hasSubmittableContent) {
+      handleInterruptionAndQueue();
+      return;
+    }
     const canSubmit =
       !isLoading &&
       (displayValue.trim() ||
@@ -1012,12 +1057,21 @@ export default function ChatInput({
   };
 
   const handleFileSelect = async () => {
-    const path = await window.electron.selectFileOrDirectory();
-    if (path) {
-      const newValue = displayValue.trim() ? `${displayValue.trim()} ${path}` : path;
-      setDisplayValue(newValue);
-      setValue(newValue);
-      textAreaRef.current?.focus();
+    if (isFilePickerOpen) return;
+    setIsFilePickerOpen(true);
+    try {
+      const path = await window.electron.selectFileOrDirectory();
+      if (path) {
+        const isDirectory = !path.includes('.') || path.endsWith('/');
+        trackFileAttached(isDirectory ? 'directory' : 'file');
+
+        const newValue = displayValue.trim() ? `${displayValue.trim()} ${path}` : path;
+        setDisplayValue(newValue);
+        setValue(newValue);
+        textAreaRef.current?.focus();
+      }
+    } finally {
+      setIsFilePickerOpen(false);
     }
   };
 
@@ -1242,8 +1296,10 @@ export default function ChatInput({
                   variant="outline"
                   onClick={() => {
                     if (isRecording) {
+                      trackVoiceDictation('stop', Math.floor(recordingDuration));
                       stopRecording();
                     } else {
+                      trackVoiceDictation('start');
                       startRecording();
                     }
                   }}
@@ -1263,7 +1319,7 @@ export default function ChatInput({
           )}
 
           {/* Send/Stop button */}
-          {isLoading ? (
+          {isLoading && !hasSubmittableContent ? (
             <Button
               type="button"
               onClick={onStop}
@@ -1455,9 +1511,10 @@ export default function ChatInput({
             <Button
               type="button"
               onClick={handleFileSelect}
+              disabled={isFilePickerOpen}
               variant="ghost"
               size="sm"
-              className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors"
+              className={`flex items-center justify-center text-text-default/70 hover:text-text-default text-xs transition-colors ${isFilePickerOpen ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
             >
               <Attach className="w-4 h-4" />
             </Button>
@@ -1486,41 +1543,56 @@ export default function ChatInput({
                 dropdownRef={dropdownRef}
                 setView={setView}
                 alerts={alerts}
-                recipe={recipe}
-                recipeId={recipeId}
-                hasMessages={messages.length > 0}
               />
             </div>
           </Tooltip>
           <div className="w-px h-4 bg-border-default mx-2" />
           <BottomMenuModeSelection />
-          {sessionId && (
+          {sessionId && process.env.ALPHA && (
             <>
               <div className="w-px h-4 bg-border-default mx-2" />
               <BottomMenuExtensionSelection sessionId={sessionId} />
             </>
           )}
-          <div className="flex items-center h-full">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  onClick={() => setIsGoosehintsModalOpen?.(true)}
-                  variant="ghost"
-                  size="sm"
-                  className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer"
-                >
-                  <FolderKey size={16} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Configure goosehints</TooltipContent>
-            </Tooltip>
-          </div>
+          {sessionId && messages.length > 0 && (
+            <>
+              <div className="w-px h-4 bg-border-default mx-2" />
+              <div className="flex items-center h-full">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      onClick={() => {
+                        if (recipe) {
+                          trackEditRecipeOpened();
+                          setShowEditRecipeModal(true);
+                        } else {
+                          trackCreateRecipeOpened();
+                          setShowCreateRecipeModal(true);
+                        }
+                      }}
+                      variant="ghost"
+                      size="sm"
+                      className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer"
+                    >
+                      <ChefHat size={16} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {recipe ? 'View/Edit Recipe' : 'Create Recipe from Session'}
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+            </>
+          )}
           {sessionId && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   type="button"
-                  onClick={() => setDiagnosticsOpen(true)}
+                  onClick={() => {
+                    trackDiagnosticsOpened();
+                    setDiagnosticsOpen(true);
+                  }}
                   variant="ghost"
                   size="sm"
                   className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors"
@@ -1552,6 +1624,23 @@ export default function ChatInput({
             setMentionPopover((prev) => ({ ...prev, selectedIndex: index }))
           }
         />
+
+        {sessionId && showCreateRecipeModal && (
+          <CreateRecipeFromSessionModal
+            isOpen={showCreateRecipeModal}
+            onClose={() => setShowCreateRecipeModal(false)}
+            sessionId={sessionId}
+          />
+        )}
+
+        {recipe && showEditRecipeModal && (
+          <CreateEditRecipeModal
+            isOpen={showEditRecipeModal}
+            onClose={() => setShowEditRecipeModal(false)}
+            recipe={recipe}
+            recipeId={recipeId}
+          />
+        )}
       </div>
     </div>
   );

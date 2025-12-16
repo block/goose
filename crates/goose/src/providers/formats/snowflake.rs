@@ -37,6 +37,7 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                 MessageContent::ToolResponse(tool_response) => {
                     if let Ok(result) = &tool_response.tool_result {
                         let text = result
+                            .content
                             .iter()
                             .filter_map(|c| c.as_text().map(|t| t.text.clone()))
                             .collect::<Vec<_>>()
@@ -50,9 +51,8 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                         }
                     }
                 }
-                MessageContent::ToolConfirmationRequest(_) => {
-                    // Skip tool confirmation requests
-                }
+                MessageContent::ToolConfirmationRequest(_) => {}
+                MessageContent::ActionRequired(_) => {}
                 MessageContent::SystemNotification(_) => {
                     // Skip
                 }

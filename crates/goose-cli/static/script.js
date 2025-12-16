@@ -474,8 +474,7 @@ async function loadSessionIfExists() {
                 resumeDiv.className = 'message system-message';
                 resumeDiv.innerHTML = `<em>Session resumed: ${sessionData.messages.length} messages loaded</em>`;
                 messagesContainer.appendChild(resumeDiv);
-                
-                
+                                
                 // Update page title with session description if available
                 if (sessionData.metadata && sessionData.metadata.description) {
                     document.title = `goose chat - ${sessionData.metadata.description}`;
@@ -509,6 +508,24 @@ messageInput.addEventListener('input', () => {
 
 // Initialize WebSocket connection
 connectWebSocket();
+
+// Read 'q' parameter from URL and set it to the message input
+function getQueryParam() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const queryParam = urlParams.get('q');
+    if (queryParam) {
+        messageInput.value = queryParam;
+        urlParams.delete('q');
+        
+        let newUrl = window.location.pathname;
+        if (urlParams.toString()) {
+            newUrl = `${window.location.pathname}?${urlParams.toString()}`;
+        }
+        window.history.replaceState({}, '', newUrl);
+    }
+}
+
+getQueryParam();
 
 // Focus on input
 messageInput.focus();

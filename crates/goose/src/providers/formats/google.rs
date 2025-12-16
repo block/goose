@@ -19,10 +19,12 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
         .iter()
         .filter(|m| m.is_agent_visible())
         .filter(|message| {
-            message
-                .content
-                .iter()
-                .any(|content| !matches!(content, MessageContent::ToolConfirmationRequest(_)))
+            message.content.iter().any(|content| {
+                !matches!(
+                    content,
+                    MessageContent::ToolConfirmationRequest(_) | MessageContent::ActionRequired(_)
+                )
+            })
         })
         .map(|message| {
             let role = if message.role == Role::User {
@@ -68,9 +70,10 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                     },
                     MessageContent::ToolResponse(response) => {
                         match &response.tool_result {
-                            Ok(contents) => {
+                            Ok(result) => {
                                 // Send only contents with no audience or with Assistant in the audience
-                                let abridged: Vec<_> = contents
+                                let abridged: Vec<_> = result
+                                    .content
                                     .iter()
                                     .filter(|content| {
                                         content.audience().is_none_or(|audience| {
@@ -392,7 +395,7 @@ pub fn create_request(
 mod tests {
     use super::*;
     use crate::conversation::message::Message;
-    use rmcp::model::CallToolRequestParam;
+    use rmcp::model::{CallToolRequestParam, CallToolResult};
     use rmcp::{model::Content, object};
     use serde_json::json;
 
@@ -408,11 +411,11 @@ mod tests {
         )
     }
 
-    fn set_up_tool_confirmation_message(id: &str, tool_call: CallToolRequestParam) -> Message {
+    fn set_up_action_required_message(id: &str, tool_call: CallToolRequestParam) -> Message {
         Message::new(
             Role::User,
             0,
-            vec![MessageContent::tool_confirmation_request(
+            vec![MessageContent::action_required(
                 id.to_string(),
                 tool_call.name.to_string().clone(),
                 tool_call.arguments.unwrap_or_default().clone(),
@@ -427,7 +430,12 @@ mod tests {
             0,
             vec![MessageContent::tool_response(
                 id.to_string(),
-                Ok(tool_response),
+                Ok(CallToolResult {
+                    content: tool_response,
+                    structured_content: None,
+                    is_error: Some(false),
+                    meta: None,
+                }),
             )],
         )
     }
@@ -474,7 +482,7 @@ mod tests {
                     arguments: Some(object(arguments.clone())),
                 },
             ),
-            set_up_tool_confirmation_message(
+            set_up_action_required_message(
                 "id2",
                 CallToolRequestParam {
                     name: "tool_name_2".into(),
