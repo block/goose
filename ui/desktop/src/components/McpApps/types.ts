@@ -114,10 +114,10 @@ export interface ToolInput {
 
 /** Tool result passed to the MCP App (matches MCP CallToolResult) */
 export interface ToolResult {
-  content?: unknown[];
-  structuredContent?: Record<string, unknown>;
-  isError?: boolean;
   _meta?: Record<string, unknown>;
+  content: unknown[];
+  isError?: boolean;
+  structuredContent?: Record<string, unknown>;
 }
 
 // =============================================================================

@@ -59,7 +59,7 @@ export function createToolResultNotification(toolResult: ToolResult): JsonRpcNot
   return {
     jsonrpc: '2.0',
     method: 'ui/notifications/tool-result',
-    params: toolResult as Record<string, unknown>,
+    params: toolResult as unknown as Record<string, unknown>,
   };
 }
 
