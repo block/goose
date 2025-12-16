@@ -19,6 +19,7 @@ import type { View } from '../../../../utils/navigationUtils';
 import Model, { getProviderMetadata, fetchModelsForProviders } from '../modelInterface';
 import { getPredefinedModelsFromEnv, shouldShowPredefinedModels } from '../predefinedModelsUtils';
 import { ProviderType } from '../../../../api';
+import { trackModelChanged } from '../../../../utils/analytics';
 
 const PREFERRED_MODEL_PATTERNS = [
   /claude-sonnet-4/i,
@@ -62,7 +63,7 @@ type SwitchModelModalProps = {
   sessionId: string | null;
   onClose: () => void;
   setView: (view: View) => void;
-  onModelSelected?: () => void;
+  onModelSelected?: (model: string) => void;
   initialProvider?: string | null;
   titleOverride?: string;
 };
@@ -144,8 +145,11 @@ export const SwitchModelModal = ({
       }
 
       await changeModel(sessionId, modelObj);
+
+      trackModelChanged(modelObj.provider || '', modelObj.name);
+
       if (onModelSelected) {
-        onModelSelected();
+        onModelSelected(modelObj.name);
       }
       onClose();
     }

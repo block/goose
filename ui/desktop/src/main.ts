@@ -1189,23 +1189,15 @@ ipcMain.handle('open-external', async (_event, url: string) => {
 });
 
 ipcMain.handle('directory-chooser', async () => {
-  const result = await dialog.showOpenDialog({
-    properties: ['openFile', 'openDirectory', 'createDirectory'],
+  return dialog.showOpenDialog({
+    properties: ['openDirectory', 'createDirectory'],
     defaultPath: os.homedir(),
   });
-  return result;
 });
 
-ipcMain.handle('add-recent-dir', async (_event, dir: string) => {
-  try {
-    if (!dir) {
-      return false;
-    }
+ipcMain.handle('add-recent-dir', (_event, dir: string) => {
+  if (dir) {
     addRecentDir(dir);
-    return true;
-  } catch (error) {
-    console.error('Error adding recent dir:', error);
-    return false;
   }
 });
 
@@ -1881,6 +1873,14 @@ async function appMain() {
     console.error('Error registering launcher hotkey:', e);
   }
 
+  try {
+    globalShortcut.register('CommandOrControl+Alt+G', () => {
+      focusWindow();
+    });
+  } catch (e) {
+    console.error('Error registering focus window hotkey:', e);
+  }
+
   session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
     details.requestHeaders['Origin'] = 'http://localhost:5173';
     callback({ cancel: false, requestHeaders: details.requestHeaders });
@@ -2057,7 +2057,7 @@ async function appMain() {
     fileMenu.submenu.append(
       new MenuItem({
         label: 'Focus Goose Window',
-        accelerator: 'CmdOrCtrl+Alt+Shift+G',
+        accelerator: 'CmdOrCtrl+Alt+G',
         click() {
           focusWindow();
         },

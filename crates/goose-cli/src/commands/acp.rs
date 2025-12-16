@@ -256,7 +256,7 @@ impl GooseAcpAgent {
             set.spawn(async move {
                 (
                     extension.name(),
-                    agent_ptr_clone.add_extension(extension.clone(), None).await,
+                    agent_ptr_clone.add_extension(extension.clone()).await,
                 )
             });
         }

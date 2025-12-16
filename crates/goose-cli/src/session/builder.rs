@@ -4,8 +4,8 @@ use console::style;
 use goose::agents::types::{RetryConfig, SessionConfig};
 use goose::agents::Agent;
 use goose::config::{
-    extensions::{get_extension_by_name, set_extension, ExtensionEntry},
-    get_all_extensions, get_enabled_extensions, Config, ExtensionConfig,
+    extensions::get_extension_by_name, get_all_extensions, get_enabled_extensions, Config,
+    ExtensionConfig,
 };
 use goose::providers::create;
 use goose::recipe::{Response, SubRecipe};
@@ -163,7 +163,7 @@ async fn offer_extension_debugging_help(
     let extensions = get_all_extensions();
     for ext_wrapper in extensions {
         if ext_wrapper.enabled && ext_wrapper.config.name() == "developer" {
-            if let Err(e) = debug_agent.add_extension(ext_wrapper.config, None).await {
+            if let Err(e) = debug_agent.add_extension(ext_wrapper.config).await {
                 // If we can't add developer extension, continue without it
                 eprintln!(
                     "Note: Could not load developer extension for debugging: {}",
@@ -220,7 +220,7 @@ fn check_missing_extensions_or_exit(saved_extensions: &[ExtensionConfig]) {
             .join(", ");
 
         if !cliclack::confirm(format!(
-            "Extension(s) {} from previous session are no longer in config. Re-add them to config?",
+            "Extension(s) {} from previous session are no longer available. Restore for this session?",
             names
         ))
         .initial_value(true)
@@ -230,13 +230,6 @@ fn check_missing_extensions_or_exit(saved_extensions: &[ExtensionConfig]) {
             println!("{}", style("Resume cancelled.").yellow());
             process::exit(0);
         }
-
-        missing.into_iter().for_each(|config| {
-            set_extension(ExtensionEntry {
-                enabled: true,
-                config,
-            });
-        });
     }
 }
 
@@ -430,6 +423,10 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
 
     // Setup extensions for the agent
     // Extensions need to be added after the session is created because we change directory when resuming a session
+    // Set the agent's working directory before adding extensions
+    let working_dir = std::env::current_dir().expect("Could not get working directory");
+    agent.set_working_dir(working_dir).await;
+
     // If we get extensions_override, only run those extensions and none other
     let extensions_to_run: Vec<_> = if let Some(extensions) = session_config.extensions_override {
         agent.disable_router_for_recipe().await;
@@ -462,7 +459,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         set.spawn(async move {
             (
                 extension.name(),
-                agent_ptr.add_extension(extension.clone(), None).await,
+                agent_ptr.add_extension(extension.clone()).await,
             )
         });
     }

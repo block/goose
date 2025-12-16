@@ -896,6 +896,13 @@ export type SystemNotificationContent = {
 
 export type SystemNotificationType = 'thinkingMessage' | 'inlineMessage';
 
+export type TelemetryEventRequest = {
+    event_name: string;
+    properties?: {
+        [key: string]: unknown;
+    };
+};
+
 export type TextContent = {
     _meta?: {
         [key: string]: unknown;
@@ -1048,6 +1055,11 @@ export type UpdateSessionWorkingDirRequest = {
      * New working directory path
      */
     workingDir: string;
+};
+
+export type UpdateWorkingDirRequest = {
+    session_id: string;
+    working_dir: string;
 };
 
 export type UpsertConfigQuery = {
@@ -1438,6 +1450,39 @@ export type UpdateRouterToolSelectorResponses = {
 };
 
 export type UpdateRouterToolSelectorResponse = UpdateRouterToolSelectorResponses[keyof UpdateRouterToolSelectorResponses];
+
+export type UpdateWorkingDirData = {
+    body: UpdateWorkingDirRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/update_working_dir';
+};
+
+export type UpdateWorkingDirErrors = {
+    /**
+     * Bad request - invalid directory path
+     */
+    400: unknown;
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type UpdateWorkingDirResponses = {
+    /**
+     * Working directory updated and agent restarted successfully
+     */
+    200: unknown;
+};
 
 export type ReadAllConfigData = {
     body?: never;
@@ -3006,6 +3051,20 @@ export type StatusResponses = {
 };
 
 export type StatusResponse = StatusResponses[keyof StatusResponses];
+
+export type SendTelemetryEventData = {
+    body: TelemetryEventRequest;
+    path?: never;
+    query?: never;
+    url: '/telemetry/event';
+};
+
+export type SendTelemetryEventResponses = {
+    /**
+     * Event accepted for processing
+     */
+    202: unknown;
+};
 
 export type StartTunnelData = {
     body?: never;

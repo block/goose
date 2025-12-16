@@ -18,6 +18,7 @@ use crate::config::paths::Paths;
 use crate::config::Config;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
+use crate::posthog;
 use crate::providers::create;
 use crate::recipe::Recipe;
 use crate::scheduler_trait::SchedulerTrait;
@@ -694,6 +695,7 @@ impl Scheduler {
     }
 }
 
+#[allow(clippy::too_many_lines)]
 async fn execute_job(
     job: ScheduledJob,
     jobs: Arc<Mutex<JobsMap>>,
@@ -731,7 +733,7 @@ async fn execute_job(
 
     if let Some(ref extensions) = recipe.extensions {
         for ext in extensions {
-            agent.add_extension(ext.clone(), None).await?;
+            agent.add_extension(ext.clone()).await?;
         }
     }
 
@@ -748,6 +750,19 @@ async fn execute_job(
     if let Some((_, job_def)) = jobs_guard.get_mut(job_id.as_str()) {
         job_def.current_session_id = Some(session.id.clone());
     }
+    drop(jobs_guard);
+
+    let start_time = std::time::Instant::now();
+    tokio::spawn(async move {
+        let mut props = HashMap::new();
+        props.insert(
+            "trigger".to_string(),
+            serde_json::Value::String("automated".to_string()),
+        );
+        if let Err(e) = posthog::emit_event("schedule_job_started", props).await {
+            tracing::debug!("Failed to send schedule telemetry: {}", e);
+        }
+    });
 
     let prompt_text = recipe
         .prompt
@@ -799,6 +814,27 @@ async fn execute_job(
         .recipe(Some(recipe))
         .apply()
         .await?;
+
+    let duration_secs = start_time.elapsed().as_secs();
+    tokio::spawn(async move {
+        let mut props = HashMap::new();
+        props.insert(
+            "trigger".to_string(),
+            serde_json::Value::String("automated".to_string()),
+        );
+        props.insert(
+            "status".to_string(),
+            serde_json::Value::String("completed".to_string()),
+        );
+        props.insert(
+            "duration_seconds".to_string(),
+            serde_json::Value::Number(serde_json::Number::from(duration_secs)),
+        );
+        if let Err(e) = posthog::emit_event("schedule_job_completed", props).await {
+            tracing::debug!("Failed to send schedule telemetry: {}", e);
+        }
+    });
+
     Ok(session.id)
 }
 

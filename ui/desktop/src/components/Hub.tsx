@@ -21,6 +21,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import { View, ViewOptions } from '../utils/navigationUtils';
 import { createSession } from '../sessions';
 import { useConfig } from './ConfigContext';
+import { getInitialWorkingDir } from '../utils/workingDir';
 
 export default function Hub({
   setView,
@@ -36,7 +37,9 @@ export default function Hub({
     const combinedTextFromInput = customEvent.detail?.value || '';
 
     if (combinedTextFromInput.trim()) {
-      const session = await createSession({ allExtensions: extensionsList });
+      const session = await createSession(getInitialWorkingDir(), {
+        allExtensions: extensionsList,
+      });
 
       setView('pair', {
         disableAnimation: true,

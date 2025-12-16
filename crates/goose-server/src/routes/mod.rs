@@ -1,5 +1,6 @@
 pub mod action_required;
 pub mod agent;
+pub mod agent_utils;
 pub mod audio;
 pub mod config_management;
 pub mod errors;
@@ -11,6 +12,7 @@ pub mod schedule;
 pub mod session;
 pub mod setup;
 pub mod status;
+pub mod telemetry;
 pub mod tunnel;
 pub mod utils;
 
@@ -31,6 +33,7 @@ pub fn configure(state: Arc<crate::state::AppState>, secret_key: String) -> Rout
         .merge(session::routes(state.clone()))
         .merge(schedule::routes(state.clone()))
         .merge(setup::routes(state.clone()))
+        .merge(telemetry::routes(state.clone()))
         .merge(tunnel::routes(state.clone()))
         .merge(mcp_ui_proxy::routes(secret_key))
 }

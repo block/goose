@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { getWorkingDir } from '../store/newChatState';
+import { getInitialWorkingDir } from '../utils/workingDir';
 
 export default function LauncherView() {
   const [query, setQuery] = useState('');
@@ -8,7 +8,7 @@ export default function LauncherView() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (query.trim()) {
-      window.electron.createChatWindow(query, getWorkingDir());
+      window.electron.createChatWindow(query, getInitialWorkingDir());
       setQuery('');
     }
   };

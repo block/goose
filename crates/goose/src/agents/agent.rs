@@ -46,7 +46,7 @@ use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
 use crate::scheduler_trait::SchedulerTrait;
 use crate::security::security_inspector::SecurityInspector;
 use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
-use crate::session::{Session, SessionManager};
+use crate::session::{Session, SessionManager, SessionType};
 use crate::tool_inspection::ToolInspectionManager;
 use crate::tool_monitor::RepetitionInspector;
 use crate::utils::is_token_cancelled;
@@ -100,6 +100,7 @@ pub struct Agent {
     pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
     pub(super) retry_manager: RetryManager,
     pub(super) tool_inspection_manager: ToolInspectionManager,
+    pub(super) working_dir: Mutex<Option<std::path::PathBuf>>,
 }
 
 #[derive(Clone, Debug)]
@@ -174,7 +175,17 @@ impl Agent {
             scheduler_service: Mutex::new(None),
             retry_manager: RetryManager::new(),
             tool_inspection_manager: Self::create_default_tool_inspection_manager(),
+            working_dir: Mutex::new(None),
         }
+    }
+
+    pub async fn set_working_dir(&self, working_dir: std::path::PathBuf) {
+        let mut wd = self.working_dir.lock().await;
+        *wd = Some(working_dir);
+    }
+
+    pub async fn get_working_dir(&self) -> Option<std::path::PathBuf> {
+        self.working_dir.lock().await.clone()
     }
 
     /// Create a tool inspection manager with default inspectors
@@ -289,11 +300,11 @@ impl Agent {
     async fn categorize_tools(
         &self,
         response: &Message,
-        _tools: &[rmcp::model::Tool],
+        tools: &[rmcp::model::Tool],
     ) -> ToolCategorizeResult {
         // Categorize tool requests
         let (frontend_requests, remaining_requests, filtered_response) =
-            self.categorize_tool_requests(response).await;
+            self.categorize_tool_requests(response, tools).await;
 
         ToolCategorizeResult {
             frontend_requests,
@@ -433,9 +444,7 @@ impl Agent {
         session: &Session,
     ) -> (String, Result<ToolCallResult, ErrorData>) {
         // Prevent subagents from creating other subagents
-        if session.session_type == crate::session::SessionType::SubAgent
-            && tool_call.name == SUBAGENT_TOOL_NAME
-        {
+        if session.session_type == SessionType::SubAgent && tool_call.name == SUBAGENT_TOOL_NAME {
             return (
                 request_id,
                 Err(ErrorData::new(
@@ -581,11 +590,9 @@ impl Agent {
         Ok(())
     }
 
-    pub async fn add_extension(
-        &self,
-        extension: ExtensionConfig,
-        working_dir: Option<std::path::PathBuf>,
-    ) -> ExtensionResult<()> {
+    pub async fn add_extension(&self, extension: ExtensionConfig) -> ExtensionResult<()> {
+        let working_dir = self.get_working_dir().await;
+
         match &extension {
             ExtensionConfig::Frontend {
                 tools,
@@ -657,6 +664,17 @@ impl Agent {
             .unwrap_or(false)
         {
             return false;
+        }
+        if let Some(ref session_id) = self.extension_manager.get_context().await.session_id {
+            if matches!(
+                SessionManager::get_session(session_id, false)
+                    .await
+                    .ok()
+                    .map(|session| session.session_type),
+                Some(SessionType::SubAgent)
+            ) {
+                return false;
+            }
         }
         !self
             .extension_manager
@@ -776,7 +794,25 @@ impl Agent {
 
         let slash_command_recipe = if message_text.trim().starts_with('/') {
             let command = message_text.split_whitespace().next();
-            command.and_then(crate::slash_commands::resolve_slash_command)
+
+            // Check if it's a builtin command first
+            let is_builtin = command
+                .map(|cmd| MANUAL_COMPACT_TRIGGERS.contains(&cmd))
+                .unwrap_or(false);
+
+            if is_builtin {
+                None
+            } else {
+                // Try to resolve as recipe command
+                let recipe = command.and_then(crate::slash_commands::resolve_slash_command);
+
+                // Track non-builtin slash command usage (don't track command name for privacy)
+                if recipe.is_some() {
+                    crate::posthog::emit_custom_slash_command_used();
+                }
+
+                recipe
+            }
         } else {
             None
         };

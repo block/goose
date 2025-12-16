@@ -12,7 +12,7 @@ import {
   setExtensionOverride,
   getExtensionOverride,
   getExtensionOverrides,
-} from '../../store/newChatState';
+} from '../../store/extensionOverrides';
 
 interface BottomMenuExtensionSelectionProps {
   sessionId: string | null;
@@ -53,7 +53,7 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
   const handleToggle = useCallback(
     async (extensionConfig: FixedExtensionEntry) => {
       if (isHubView) {
-        // In hub view, just track the override locally using newChatState
+        // In hub view, just track the override locally using extensionOverrides
         const currentState = getExtensionOverride(extensionConfig.name) ?? extensionConfig.enabled;
         setExtensionOverride(extensionConfig.name, !currentState);
 

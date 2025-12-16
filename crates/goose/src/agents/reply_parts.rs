@@ -16,6 +16,7 @@ use crate::providers::toolshim::{
     modify_system_prompt_for_tool_json, OllamaInterpreter,
 };
 
+use crate::agents::code_execution_extension::EXTENSION_NAME as CODE_EXECUTION_EXTENSION;
 use crate::session::SessionManager;
 #[cfg(test)]
 use crate::session::SessionType;
@@ -129,6 +130,15 @@ impl Agent {
             tools.push(frontend_tool.tool.clone());
         }
 
+        let code_execution_active = self
+            .extension_manager
+            .is_extension_enabled(CODE_EXECUTION_EXTENSION)
+            .await;
+        if code_execution_active {
+            let code_exec_prefix = format!("{CODE_EXECUTION_EXTENSION}__");
+            tools.retain(|tool| tool.name.starts_with(&code_exec_prefix));
+        }
+
         if !router_enabled {
             // Stable tool ordering is important for multi session prompt caching.
             tools.sort_by(|a, b| a.name.cmp(&b.name));
@@ -150,6 +160,7 @@ impl Agent {
             .with_frontend_instructions(self.frontend_instructions.lock().await.clone())
             .with_extension_and_tool_counts(extension_count, tool_count)
             .with_router_enabled(router_enabled)
+            .with_code_execution_mode(code_execution_active)
             .with_hints(working_dir)
             .with_enable_subagents(self.subagents_enabled().await)
             .build();
@@ -259,9 +270,8 @@ impl Agent {
     pub(crate) async fn categorize_tool_requests(
         &self,
         response: &Message,
+        tools: &[Tool],
     ) -> (Vec<ToolRequest>, Vec<ToolRequest>, Message) {
-        let tools = self.list_tools(None).await;
-
         // First collect all tool requests with coercion applied
         let tool_requests: Vec<ToolRequest> = response
             .content
@@ -460,17 +470,14 @@ mod tests {
         ];
 
         agent
-            .add_extension(
-                crate::agents::extension::ExtensionConfig::Frontend {
-                    name: "frontend".to_string(),
-                    description: "desc".to_string(),
-                    tools: frontend_tools,
-                    instructions: None,
-                    bundled: None,
-                    available_tools: vec![],
-                },
-                None,
-            )
+            .add_extension(crate::agents::extension::ExtensionConfig::Frontend {
+                name: "frontend".to_string(),
+                description: "desc".to_string(),
+                tools: frontend_tools,
+                instructions: None,
+                bundled: None,
+                available_tools: vec![],
+            })
             .await
             .unwrap();
 

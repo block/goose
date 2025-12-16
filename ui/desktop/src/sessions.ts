@@ -1,11 +1,10 @@
 import { Session, startAgent, restartAgent, ExtensionConfig } from './api';
 import type { setViewType } from './hooks/useNavigation';
 import {
-  getWorkingDir,
   getExtensionConfigsWithOverrides,
   clearExtensionOverrides,
   hasExtensionOverrides,
-} from './store/newChatState';
+} from './store/extensionOverrides';
 import type { FixedExtensionEntry } from './components/ConfigContext';
 
 export function resumeSession(session: Session, setView: setViewType) {
@@ -15,22 +14,22 @@ export function resumeSession(session: Session, setView: setViewType) {
   });
 }
 
-export async function createSession(options?: {
-  recipeId?: string;
-  recipeDeeplink?: string;
-  allExtensions?: FixedExtensionEntry[];
-}): Promise<Session> {
+export async function createSession(
+  workingDir: string,
+  options?: {
+    recipeId?: string;
+    recipeDeeplink?: string;
+    allExtensions?: FixedExtensionEntry[];
+  }
+): Promise<Session> {
   const body: {
     working_dir: string;
     recipe_id?: string;
     recipe_deeplink?: string;
     extension_overrides?: ExtensionConfig[];
   } = {
-    working_dir: getWorkingDir(),
+    working_dir: workingDir,
   };
-
-  // Note: We intentionally don't clear workingDir from newChatState here
-  // so that new sessions in the same window continue to use the last selected directory
 
   if (options?.recipeId) {
     body.recipe_id = options.recipeId;
@@ -64,14 +63,16 @@ export async function createSession(options?: {
 }
 
 export async function startNewSession(
+  workingDir: string,
   initialText: string | undefined,
   setView: setViewType,
   options?: {
     recipeId?: string;
     recipeDeeplink?: string;
+    allExtensions?: FixedExtensionEntry[];
   }
 ): Promise<Session> {
-  const session = await createSession(options);
+  const session = await createSession(workingDir, options);
 
   setView('pair', {
     disableAnimation: true,

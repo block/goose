@@ -9,7 +9,7 @@ import {
 } from 'react';
 import { ItemIcon } from './ItemIcon';
 import { CommandType, getSlashCommands } from '../api';
-import { getWorkingDir } from '../store/newChatState';
+import { getInitialWorkingDir } from '../utils/workingDir';
 
 type DisplayItemType = CommandType | 'Directory' | 'File';
 
@@ -131,7 +131,7 @@ const MentionPopover = forwardRef<
     const [isLoading, setIsLoading] = useState(false);
     const popoverRef = useRef<HTMLDivElement>(null);
     const listRef = useRef<HTMLDivElement>(null);
-    const currentWorkingDir = workingDir ?? getWorkingDir();
+    const currentWorkingDir = workingDir ?? getInitialWorkingDir();
 
     const scanDirectoryFromRoot = useCallback(
       async (dirPath: string, relativePath = '', depth = 0): Promise<DisplayItem[]> => {

@@ -1,33 +1,17 @@
-// Store for new chat configuration
-// Acts as a cache that can be updated from UI or synced from session
-// Resets on page refresh - defaults to window.appConfig.get('GOOSE_WORKING_DIR')
+// Store for extension overrides when starting a new session from the hub
+// These overrides allow temporarily enabling/disabling extensions before creating a session
+// Resets after session creation
 
 import type { ExtensionConfig } from '../api';
 
 // Map of extension name -> enabled state (overrides from hub view)
 type ExtensionOverrides = Map<string, boolean>;
 
-interface NewChatState {
-  workingDir: string | null;
+const state: {
   extensionOverrides: ExtensionOverrides;
-}
-
-const state: NewChatState = {
-  workingDir: null,
+} = {
   extensionOverrides: new Map(),
 };
-
-export function setWorkingDir(dir: string): void {
-  state.workingDir = dir;
-}
-
-export function getWorkingDir(): string {
-  return state.workingDir ?? (window.appConfig.get('GOOSE_WORKING_DIR') as string);
-}
-
-export function clearWorkingDir(): void {
-  state.workingDir = null;
-}
 
 // Extension override functions
 export function setExtensionOverride(name: string, enabled: boolean): void {
@@ -78,14 +62,4 @@ export function getExtensionConfigsWithOverrides(
       const { enabled: _enabled, ...config } = ext;
       return config as ExtensionConfig;
     });
-}
-
-// Generic getters/setters for future extensibility
-export function getNewChatState(): Readonly<NewChatState> {
-  return { ...state };
-}
-
-export function resetNewChatState(): void {
-  state.workingDir = null;
-  state.extensionOverrides.clear();
 }

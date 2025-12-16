@@ -489,6 +489,41 @@
         }
       }
     },
+    "/agent/update_working_dir": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "update_working_dir",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWorkingDirRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Working directory updated and agent restarted successfully"
+          },
+          "400": {
+            "description": "Bad request - invalid directory path"
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/config": {
       "get": {
         "tags": [
@@ -2505,6 +2540,29 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/telemetry/event": {
+      "post": {
+        "tags": [
+          "super::routes::telemetry"
+        ],
+        "operationId": "send_telemetry_event",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TelemetryEventRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Event accepted for processing"
           }
         }
       }
@@ -5461,6 +5519,21 @@
           "inlineMessage"
         ]
       },
+      "TelemetryEventRequest": {
+        "type": "object",
+        "required": [
+          "event_name"
+        ],
+        "properties": {
+          "event_name": {
+            "type": "string"
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        }
+      },
       "TextContent": {
         "type": "object",
         "required": [
@@ -5880,6 +5953,21 @@
           "workingDir": {
             "type": "string",
             "description": "New working directory path"
+          }
+        }
+      },
+      "UpdateWorkingDirRequest": {
+        "type": "object",
+        "required": [
+          "session_id",
+          "working_dir"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
+          },
+          "working_dir": {
+            "type": "string"
           }
         }
       },

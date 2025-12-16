@@ -33,7 +33,7 @@ async fn main() -> anyhow::Result<()> {
         DEFAULT_EXTENSION_TIMEOUT,
     )
     .with_args(vec!["mcp", "developer"]);
-    agent.add_extension(config, None).await?;
+    agent.add_extension(config).await?;
 
     println!("Extensions:");
     for extension in agent.list_extensions().await {
