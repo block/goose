@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { Puzzle } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import { Input } from '../ui/input';
@@ -22,15 +22,26 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
   const [searchQuery, setSearchQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [sessionExtensions, setSessionExtensions] = useState<ExtensionConfig[]>([]);
-  const [hubUpdateTrigger, setHubUpdateTrigger] = useState(0); // Force re-render for hub updates
+  const [hubUpdateTrigger, setHubUpdateTrigger] = useState(0);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [pendingSort, setPendingSort] = useState(false);
+  const sortTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { extensionsList: allExtensions } = useConfig();
-  const isHubView = !sessionId; // True when in hub/new chat view
+  const isHubView = !sessionId;
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (sortTimeoutRef.current) {
+        clearTimeout(sortTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Fetch session-specific extensions or use global defaults
   useEffect(() => {
     const fetchExtensions = async () => {
       if (!sessionId) {
-        // In hub view, don't fetch, we'll use global + overrides
         return;
       }
 
@@ -48,17 +59,31 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
     };
 
     fetchExtensions();
-  }, [sessionId, isOpen]); // Refetch when dropdown opens
+  }, [sessionId, isOpen]);
 
   const handleToggle = useCallback(
     async (extensionConfig: FixedExtensionEntry) => {
+      // Start transition animation
+      setIsTransitioning(true);
+
       if (isHubView) {
-        // In hub view, just track the override locally using extensionOverrides
         const currentState = getExtensionOverride(extensionConfig.name) ?? extensionConfig.enabled;
         setExtensionOverride(extensionConfig.name, !currentState);
 
-        // Force re-render by incrementing the trigger
-        setHubUpdateTrigger((prev) => prev + 1);
+        // Mark that we need to re-sort after delay
+        setPendingSort(true);
+
+        // Clear any existing timeout
+        if (sortTimeoutRef.current) {
+          clearTimeout(sortTimeoutRef.current);
+        }
+
+        // Delay the re-sort to allow animation
+        sortTimeoutRef.current = setTimeout(() => {
+          setHubUpdateTrigger((prev) => prev + 1);
+          setPendingSort(false);
+          setIsTransitioning(false);
+        }, 800);
 
         toastService.success({
           title: 'Extension Updated',
@@ -68,6 +93,7 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
       }
 
       if (!sessionId) {
+        setIsTransitioning(false);
         toastService.error({
           title: 'Extension Toggle Error',
           msg: 'No active session found. Please start a chat session first.',
@@ -78,22 +104,31 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
 
       try {
         if (extensionConfig.enabled) {
-          // Disable extension - only in session, not global config
           await removeFromAgent(extensionConfig.name, sessionId, true);
         } else {
-          // Enable extension - only in session, not global config
           await addToAgent(extensionConfig, sessionId, true);
         }
 
-        // Refetch extensions after toggle
-        const response = await getSessionExtensions({
-          path: { session_id: sessionId },
-        });
+        setPendingSort(true);
 
-        if (response.data?.extensions) {
-          setSessionExtensions(response.data.extensions);
+        if (sortTimeoutRef.current) {
+          clearTimeout(sortTimeoutRef.current);
         }
+
+        sortTimeoutRef.current = setTimeout(async () => {
+          const response = await getSessionExtensions({
+            path: { session_id: sessionId },
+          });
+
+          if (response.data?.extensions) {
+            setSessionExtensions(response.data.extensions);
+          }
+          setPendingSort(false);
+          setIsTransitioning(false);
+        }, 800);
       } catch (error) {
+        setIsTransitioning(false);
+        setPendingSort(false);
         toastService.error({
           title: 'Extension Error',
           msg: `Failed to ${extensionConfig.enabled ? 'disable' : 'enable'} ${extensionConfig.name}`,
@@ -109,7 +144,6 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
     const hubOverrides = getExtensionOverrides();
 
     if (isHubView) {
-      // In hub view, show global extension states with local overrides
       return allExtensions.map(
         (ext) =>
           ({
@@ -119,7 +153,6 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
       );
     }
 
-    // In session view, show session-specific states
     const sessionExtensionNames = new Set(sessionExtensions.map((ext) => ext.name));
 
     return allExtensions.map(
@@ -143,24 +176,11 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
   }, [extensionsList, searchQuery]);
 
   const sortedExtensions = useMemo(() => {
-    const getTypePriority = (type: string): number => {
-      const priorities: Record<string, number> = {
-        builtin: 0,
-        platform: 1,
-        frontend: 2,
-      };
-      return priorities[type] ?? Number.MAX_SAFE_INTEGER;
-    };
-
     return [...filteredExtensions].sort((a, b) => {
-      // First sort by priority type
-      const typeDiff = getTypePriority(a.type) - getTypePriority(b.type);
-      if (typeDiff !== 0) return typeDiff;
-
-      // Then sort by enabled status (enabled first)
+      // Primary sort: enabled first
       if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
 
-      // Finally sort alphabetically
+      // Secondary sort: alphabetically by name
       return a.name.localeCompare(b.name);
     });
   }, [filteredExtensions]);
@@ -175,7 +195,12 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
       onOpenChange={(open) => {
         setIsOpen(open);
         if (!open) {
-          setSearchQuery(''); // Reset search when closing
+          setSearchQuery('');
+          if (sortTimeoutRef.current) {
+            clearTimeout(sortTimeoutRef.current);
+          }
+          setIsTransitioning(false);
+          setPendingSort(false);
         }
       }}
     >
@@ -202,7 +227,11 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
             {isHubView ? 'Extensions for new chats' : 'Extensions for this chat session'}
           </p>
         </div>
-        <div className="max-h-[400px] overflow-y-auto">
+        <div
+          className={`max-h-[400px] overflow-y-auto transition-opacity duration-300 ${
+            isTransitioning && pendingSort ? 'opacity-50' : 'opacity-100'
+          }`}
+        >
           {sortedExtensions.length === 0 ? (
             <div className="px-2 py-4 text-center text-sm text-text-default/70">
               {searchQuery ? 'no extensions found' : 'no extensions available'}
@@ -211,7 +240,7 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
             sortedExtensions.map((ext) => (
               <div
                 key={ext.name}
-                className="flex items-center justify-between px-2 py-2 hover:bg-background-hover cursor-pointer"
+                className="flex items-center justify-between px-2 py-2 hover:bg-background-hover cursor-pointer transition-all duration-300"
                 onClick={() => handleToggle(ext)}
                 title={ext.description || ext.name}
               >

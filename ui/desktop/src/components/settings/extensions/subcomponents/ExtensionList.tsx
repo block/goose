@@ -55,7 +55,7 @@ export default function ExtensionList({
         <div>
           <h2 className="text-lg font-medium text-text-default mb-4 flex items-center gap-2">
             <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-            Enabled Extensions ({sortedEnabledExtensions.length})
+            Default Extensions ({sortedEnabledExtensions.length})
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2">
             {sortedEnabledExtensions.map((extension) => (
