@@ -38,16 +38,17 @@ import {
 // Helper to extract extension names from session's extension_data
 function getSessionExtensionNames(extensionData: ExtensionData): string[] {
   try {
-    // extension_data structure: { "enabled_extensions": { "v0": { "extensions": [...] } } }
-    const enabledExtensions = extensionData?.['enabled_extensions'] as
-      | Record<string, { extensions?: ExtensionConfig[] }>
+    // extension_data structure: { "enabled_extensions.v0": { "extensions": [...] } }
+    const v0Data = extensionData?.['enabled_extensions.v0'] as
+      | { extensions?: ExtensionConfig[] }
       | undefined;
-    if (!enabledExtensions) return [];
-
-    const v0Data = enabledExtensions['v0'];
     if (!v0Data?.extensions) return [];
 
-    return v0Data.extensions.map((ext) => ext.name);
+    return v0Data.extensions.map((ext) => {
+      // display_name exists on some ExtensionConfig variants but not all
+      const displayName = (ext as { display_name?: string }).display_name;
+      return displayName || ext.name;
+    });
   } catch {
     return [];
   }
