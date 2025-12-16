@@ -821,6 +821,9 @@ impl Config {
         // Automatically disable keyring for future operations
         std::env::set_var("GOOSE_DISABLE_KEYRING", "1");
 
+        // Warn user once about keyring unavailability
+        tracing::warn!("Keyring unavailable. Using file storage for secrets.");
+
         // Fallback to file-based storage
         let config_dir = Paths::config_dir();
         let path = config_dir.join("secrets.yaml");
