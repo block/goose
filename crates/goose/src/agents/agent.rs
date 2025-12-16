@@ -1159,12 +1159,20 @@ impl Agent {
 
                                 for (idx, request) in frontend_requests.iter().chain(remaining_requests.iter()).enumerate() {
                                     if request.tool_call.is_ok() {
-                                        let request_msg = Message::assistant()
+                                        let mut request_msg = Message::assistant()
                                             .with_id(format!("msg_{}", Uuid::new_v4()))
                                             .with_tool_request(request.id.clone(), request.tool_call.clone());
-                                        messages_to_add.push(request_msg);
-                                        let final_response = tool_response_messages[idx]
+                                        let mut final_response = tool_response_messages[idx]
                                                                 .lock().await.clone();
+
+                                        // Expand nested tool calls from code_execution into real tool calls
+                                        final_response = Self::expand_nested_tool_calls(
+                                            &mut request_msg,
+                                            final_response,
+                                        );
+
+                                        yield AgentEvent::Message(request_msg.clone());
+                                        messages_to_add.push(request_msg);
                                         yield AgentEvent::Message(final_response.clone());
                                         messages_to_add.push(final_response);
                                     }
@@ -1377,6 +1385,94 @@ impl Agent {
         if let Err(e) = self.tool_result_tx.send((id, result)).await {
             error!("Failed to send tool result: {}", e);
         }
+    }
+
+    /// Expands nested tool calls from code_execution into real ToolRequest/ToolResponse pairs.
+    /// This makes batched tool calls visible in the UI as individual tool calls.
+    fn expand_nested_tool_calls(request_msg: &mut Message, mut response_msg: Message) -> Message {
+        // Find tool responses with nested calls in meta
+        let nested_calls: Vec<(String, serde_json::Value)> = response_msg
+            .content
+            .iter()
+            .filter_map(|c| {
+                if let MessageContent::ToolResponse(ref tr) = c {
+                    if let Ok(ref result) = tr.tool_result {
+                        if let Some(ref meta) = result.meta {
+                            if let Some(nested) = meta.0.get("nestedToolCalls") {
+                                return Some((tr.id.clone(), nested.clone()));
+                            }
+                        }
+                    }
+                }
+                None
+            })
+            .collect();
+
+        for (_parent_id, nested_json) in nested_calls {
+            if let Some(calls) = nested_json.as_array() {
+                for call in calls {
+                    let Some(name) = call.get("name").and_then(|n| n.as_str()) else {
+                        continue;
+                    };
+                    let arguments = call.get("arguments").and_then(|a| a.as_object()).cloned();
+
+                    // Generate a unique ID for this nested call
+                    let nested_id = format!("nested_{}", Uuid::new_v4());
+
+                    // Add ToolRequest to the assistant message
+                    let tool_call_param = CallToolRequestParam {
+                        name: name.to_string().into(),
+                        arguments,
+                    };
+                    *request_msg = request_msg
+                        .clone()
+                        .with_tool_request(nested_id.clone(), Ok(tool_call_param));
+
+                    // Build the CallToolResult from the tracked result
+                    let tool_result = if let Some(result_obj) = call.get("result") {
+                        if result_obj.get("status").and_then(|s| s.as_str()) == Some("success") {
+                            let content: Vec<Content> = result_obj
+                                .get("content")
+                                .and_then(|c| c.as_array())
+                                .map(|arr| {
+                                    arr.iter()
+                                        .filter_map(|item| {
+                                            item.get("text")
+                                                .and_then(|t| t.as_str())
+                                                .map(|text| Content::text(text.to_string()))
+                                        })
+                                        .collect()
+                                })
+                                .unwrap_or_default();
+                            Ok(CallToolResult {
+                                content,
+                                is_error: Some(false),
+                                structured_content: None,
+                                meta: None,
+                            })
+                        } else {
+                            let message = result_obj
+                                .get("message")
+                                .and_then(|m| m.as_str())
+                                .unwrap_or("Unknown error")
+                                .to_string();
+                            Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, message, None))
+                        }
+                    } else {
+                        Err(ErrorData::new(
+                            ErrorCode::INTERNAL_ERROR,
+                            "Missing result".to_string(),
+                            None,
+                        ))
+                    };
+
+                    // Add ToolResponse to the user message
+                    response_msg = response_msg.with_tool_response(nested_id, tool_result);
+                }
+            }
+        }
+
+        response_msg
     }
 
     pub async fn create_recipe(&self, mut messages: Conversation) -> Result<Recipe> {

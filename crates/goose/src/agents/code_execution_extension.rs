@@ -31,6 +31,27 @@ type ToolCallRequest = (
     tokio::sync::oneshot::Sender<Result<String, String>>,
 );
 
+/// Represents a tool call made during code execution, capturing both request and response
+#[derive(Debug, Clone, Serialize)]
+pub struct TrackedToolCall {
+    pub name: String,
+    pub arguments: Option<serde_json::Map<String, serde_json::Value>>,
+    pub result: TrackedToolResult,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "status", rename_all = "lowercase")]
+pub enum TrackedToolResult {
+    Success { content: Vec<TrackedContent> },
+    Error { message: String },
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum TrackedContent {
+    Text { text: String },
+}
+
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 struct ExecuteCodeParams {
     /// JavaScript code with ES6 imports for MCP tools.
@@ -336,7 +357,7 @@ impl CodeExecutionClient {
     async fn handle_execute_code(
         &self,
         arguments: Option<JsonObject>,
-    ) -> Result<Vec<Content>, String> {
+    ) -> Result<(Vec<Content>, Vec<TrackedToolCall>), String> {
         let code = arguments
             .as_ref()
             .and_then(|a| a.get("code"))
@@ -346,9 +367,13 @@ impl CodeExecutionClient {
 
         let tools = self.get_tool_infos().await;
         let (call_tx, call_rx) = mpsc::unbounded_channel();
+        let tracked_calls = std::sync::Arc::new(tokio::sync::Mutex::new(Vec::new()));
+        let tracked_calls_clone = tracked_calls.clone();
+
         let tool_handler = tokio::spawn(Self::run_tool_handler(
             call_rx,
             self.context.extension_manager.clone(),
+            tracked_calls_clone,
         ));
 
         let js_result = tokio::task::spawn_blocking(move || run_js_module(&code, &tools, call_tx))
@@ -356,7 +381,9 @@ impl CodeExecutionClient {
             .map_err(|e| format!("JS execution task failed: {e}"))?;
 
         tool_handler.abort();
-        js_result.map(|r| vec![Content::text(format!("Result: {r}"))])
+
+        let calls = tracked_calls.lock().await.clone();
+        js_result.map(|r| (vec![Content::text(format!("Result: {r}"))], calls))
     }
 
     async fn handle_read_module(
@@ -514,35 +541,67 @@ impl CodeExecutionClient {
     async fn run_tool_handler(
         mut call_rx: mpsc::UnboundedReceiver<ToolCallRequest>,
         extension_manager: Option<std::sync::Weak<crate::agents::ExtensionManager>>,
+        tracked_calls: std::sync::Arc<tokio::sync::Mutex<Vec<TrackedToolCall>>>,
     ) {
         while let Some((tool_name, arguments, response_tx)) = call_rx.recv().await {
-            let result = match extension_manager.as_ref().and_then(|w| w.upgrade()) {
-                Some(manager) => {
-                    let tool_call = CallToolRequestParam {
-                        name: tool_name.into(),
-                        arguments: serde_json::from_str(&arguments).ok(),
-                    };
-                    match manager
-                        .dispatch_tool_call(tool_call, CancellationToken::new())
-                        .await
-                    {
-                        Ok(dispatch_result) => match dispatch_result.result.await {
-                            Ok(result) => Ok(result
-                                .content
-                                .iter()
-                                .filter_map(|c| match &c.raw {
-                                    RawContent::Text(t) => Some(t.text.clone()),
-                                    _ => None,
-                                })
-                                .collect::<Vec<_>>()
-                                .join("\n")),
-                            Err(e) => Err(format!("Tool error: {}", e.message)),
-                        },
-                        Err(e) => Err(format!("Dispatch error: {e}")),
+            let parsed_args: Option<serde_json::Map<String, serde_json::Value>> =
+                serde_json::from_str(&arguments).ok();
+
+            let (result, tracked_result) =
+                match extension_manager.as_ref().and_then(|w| w.upgrade()) {
+                    Some(manager) => {
+                        let tool_call = CallToolRequestParam {
+                            name: tool_name.clone().into(),
+                            arguments: parsed_args.clone(),
+                        };
+                        match manager
+                            .dispatch_tool_call(tool_call, CancellationToken::new())
+                            .await
+                        {
+                            Ok(dispatch_result) => match dispatch_result.result.await {
+                                Ok(call_result) => {
+                                    let text_content: Vec<String> = call_result
+                                        .content
+                                        .iter()
+                                        .filter_map(|c| match &c.raw {
+                                            RawContent::Text(t) => Some(t.text.clone()),
+                                            _ => None,
+                                        })
+                                        .collect();
+                                    let tracked = TrackedToolResult::Success {
+                                        content: text_content
+                                            .iter()
+                                            .map(|t| TrackedContent::Text { text: t.clone() })
+                                            .collect(),
+                                    };
+                                    (Ok(text_content.join("\n")), tracked)
+                                }
+                                Err(e) => {
+                                    let msg = format!("Tool error: {}", e.message);
+                                    (Err(msg.clone()), TrackedToolResult::Error { message: msg })
+                                }
+                            },
+                            Err(e) => {
+                                let msg = format!("Dispatch error: {e}");
+                                (Err(msg.clone()), TrackedToolResult::Error { message: msg })
+                            }
+                        }
                     }
-                }
-                None => Err("Extension manager not available".to_string()),
-            };
+                    None => {
+                        let msg = "Extension manager not available".to_string();
+                        (Err(msg.clone()), TrackedToolResult::Error { message: msg })
+                    }
+                };
+
+            {
+                let mut calls = tracked_calls.lock().await;
+                calls.push(TrackedToolCall {
+                    name: tool_name,
+                    arguments: parsed_args,
+                    result: tracked_result,
+                });
+            }
+
             let _ = response_tx.send(result);
         }
     }
@@ -684,17 +743,37 @@ impl McpClientTrait for CodeExecutionClient {
         arguments: Option<JsonObject>,
         _cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
-        let content = match name {
-            "execute_code" => self.handle_execute_code(arguments).await,
-            "read_module" => self.handle_read_module(arguments).await,
-            "search_modules" => self.handle_search_modules(arguments).await,
-            _ => Err(format!("Unknown tool: {name}")),
-        };
-
-        match content {
-            Ok(content) => Ok(CallToolResult::success(content)),
-            Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
-                "Error: {error}"
+        match name {
+            "execute_code" => match self.handle_execute_code(arguments).await {
+                Ok((content, tracked_calls)) => {
+                    let mut result = CallToolResult::success(content);
+                    if !tracked_calls.is_empty() {
+                        let nested_json = serde_json::to_value(&tracked_calls)
+                            .unwrap_or(serde_json::Value::Array(vec![]));
+                        let mut meta_map = serde_json::Map::new();
+                        meta_map.insert("nestedToolCalls".to_string(), nested_json);
+                        result.meta = Some(rmcp::model::Meta(meta_map));
+                    }
+                    Ok(result)
+                }
+                Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
+                    "Error: {error}"
+                ))])),
+            },
+            "read_module" => match self.handle_read_module(arguments).await {
+                Ok(content) => Ok(CallToolResult::success(content)),
+                Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
+                    "Error: {error}"
+                ))])),
+            },
+            "search_modules" => match self.handle_search_modules(arguments).await {
+                Ok(content) => Ok(CallToolResult::success(content)),
+                Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
+                    "Error: {error}"
+                ))])),
+            },
+            _ => Ok(CallToolResult::error(vec![Content::text(format!(
+                "Unknown tool: {name}"
             ))])),
         }
     }
