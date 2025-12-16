@@ -42,7 +42,6 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
     fetchMcpAppProxyUrl(resourceCsp).then(setProxyUrl);
   }, [resourceCsp]);
 
-  // Reset state when resource changes
   useEffect(() => {
     setIsSandboxReady(false);
     setIsGuestInitialized(false);
