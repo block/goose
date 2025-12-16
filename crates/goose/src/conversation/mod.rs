@@ -202,6 +202,7 @@ pub fn fix_conversation(conversation: Conversation) -> (Conversation, Vec<String
 fn fix_messages(messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
     [
         merge_text_content_items,
+        trim_assistant_text_whitespace,
         remove_empty_messages,
         fix_tool_calling,
         merge_consecutive_messages,
@@ -255,6 +256,32 @@ fn merge_text_content_items(messages: Vec<Message>) -> (Vec<Message>, Vec<String
             (messages, issues)
         },
     )
+}
+
+fn trim_assistant_text_whitespace(messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
+    let mut issues = Vec::new();
+
+    let fixed_messages = messages
+        .into_iter()
+        .map(|mut message| {
+            if message.role == Role::Assistant {
+                for content in &mut message.content {
+                    if let MessageContent::Text(text) = content {
+                        let trimmed = text.text.trim_end();
+                        if trimmed.len() != text.text.len() {
+                            issues.push(
+                                "Trimmed trailing whitespace from assistant message".to_string(),
+                            );
+                            text.text = trimmed.to_string();
+                        }
+                    }
+                }
+            }
+            message
+        })
+        .collect();
+
+    (fixed_messages, issues)
 }
 
 fn remove_empty_messages(messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
@@ -528,7 +555,15 @@ mod tests {
                         arguments: Some(object!({"query": "rust programming"})),
                     }),
                 ),
-            Message::user().with_tool_response("search_1", Ok(vec![])),
+            Message::user().with_tool_response(
+                "search_1",
+                Ok(rmcp::model::CallToolResult {
+                    content: vec![],
+                    structured_content: None,
+                    is_error: Some(false),
+                    meta: None,
+                }),
+            ),
             Message::assistant().with_text("Based on the search results, here's what I found..."),
         ];
 
@@ -565,7 +600,15 @@ mod tests {
             Message::user().with_text("Another user message"),
             Message::assistant()
                 .with_text("Response")
-                .with_tool_response("orphan_1", Ok(vec![])), // Wrong role
+                .with_tool_response(
+                    "orphan_1",
+                    Ok(rmcp::model::CallToolResult {
+                        content: vec![],
+                        structured_content: None,
+                        is_error: Some(false),
+                        meta: None,
+                    }),
+                ), // Wrong role
             Message::assistant().with_thinking("Let me think", "sig"),
             Message::user()
                 .with_tool_request(
@@ -615,7 +658,15 @@ mod tests {
                     }),
                 ),
             Message::user(),
-            Message::user().with_tool_response("wrong_id", Ok(vec![])),
+            Message::user().with_tool_response(
+                "wrong_id",
+                Ok(rmcp::model::CallToolResult {
+                    content: vec![],
+                    structured_content: None,
+                    is_error: Some(false),
+                    meta: None,
+                }),
+            ),
             Message::assistant().with_tool_request(
                 "search_2",
                 Ok(CallToolRequestParam {
@@ -660,7 +711,12 @@ mod tests {
                 .with_tool_request("toolu_bdrk_01KgDYHs4fAodi22NqxRzmwx", Ok(CallToolRequestParam { name: "developer__shell".into(), arguments: Some(object!({"command": "wc slack.yaml"})) })),
 
             Message::user()
-                .with_tool_response("toolu_bdrk_01KgDYHs4fAodi22NqxRzmwx", Ok(vec![])),
+                .with_tool_response("toolu_bdrk_01KgDYHs4fAodi22NqxRzmwx", Ok(rmcp::model::CallToolResult {
+                    content: vec![],
+                    structured_content: None,
+                    is_error: Some(false),
+                    meta: None,
+                })),
 
             Message::assistant()
                 .with_text("I ran `ls -la` in the current directory and found several files. Looking at the file sizes, I can see that both `slack.yaml` and `subrecipes.yaml` are 0 bytes (the smallest files). I ran a word count on `slack.yaml` which shows: **0 lines**, **0 words**, **0 characters**"),
@@ -691,7 +747,15 @@ mod tests {
                         arguments: Some(object!({})),
                     }),
                 ),
-            Message::user().with_tool_response("search_1", Ok(vec![])),
+            Message::user().with_tool_response(
+                "search_1",
+                Ok(rmcp::model::CallToolResult {
+                    content: vec![],
+                    structured_content: None,
+                    is_error: Some(false),
+                    meta: None,
+                }),
+            ),
             Message::user().with_text("Thanks!"),
         ];
 

@@ -1,19 +1,19 @@
 ---
 sidebar_position: 90
-title: Goose Extension Allowlist
+title: goose Extension Allowlist
 sidebar_label: Extension Allowlist
 ---
 
-Goose is an extensible framework that, by default, allows you to install any MCP server. However, you may want stricter controls on which MCP servers can be installed as extensions (e.g. in a corporate setting). 
+goose is an extensible framework that, by default, allows you to install any MCP server. However, you may want stricter controls on which MCP servers can be installed as extensions (e.g. in a corporate setting). 
 
-This guide explains how you can create an **allowlist** of safe extensions that work with Goose Desktop and CLI. An allowlist lets administrators control which MCP servers can be installed as Goose extensions. When enabled, Goose will only install extensions that are on the list, and will block installation of any others.
+This guide explains how you can create an **allowlist** of safe extensions that work with goose Desktop and CLI. An allowlist lets administrators control which MCP servers can be installed as goose extensions. When enabled, goose will only install extensions that are on the list, and will block installation of any others.
 
 ## How It Works
 
 1. The allowlist is a YAML file that contains a list of allowed extension commands.
-2. Goose fetches the allowlist from a URL specified by the `GOOSE_ALLOWLIST` environment variable.
-3. The allowlist is fetched when first needed and is cached. It is refetched on every restart of Goose.
-4. When a user attempts to install an extension, Goose checks the MCP server's installation command against the allowlist.
+2. goose fetches the allowlist from a URL specified by the `GOOSE_ALLOWLIST` environment variable.
+3. The allowlist is fetched when first needed and is cached. It is refetched on every restart of goose.
+4. When a user attempts to install an extension, goose checks the MCP server's installation command against the allowlist.
 5. If the command is not in the allowlist, the extension installation is rejected.
 
 ## Configuration

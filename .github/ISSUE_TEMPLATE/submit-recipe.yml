@@ -16,9 +16,7 @@ body:
 
         🪄 **What Happens After?**
         - If accepted, we'll publish your recipe to the [goose recipes cookbook](https://block.github.io/goose/recipes)
-        - You'll receive OpenRouter **LLM API credits** as a thank you!
         - Your GitHub handle will be displayed and linked on the recipe card
-        - If you provide an email below, we'll email you your credits when your recipe is approved and merged.
         - If the YAML has any issues, goose will comment with validation errors so you can fix and resubmit.
 
         🧪 **Pro Tip:** You can test your recipe locally in your terminal with:  
@@ -85,15 +83,6 @@ body:
           - Document flag removal
     validations:
       required: true
-
-  - type: input
-    id: email
-    attributes:
-      label: Your Email (optional)
-      description: If your recipe is approved, we'll email your LLM API credits here.
-      placeholder: yourname@example.com
-    validations:
-      required: false
 
   - type: markdown
     attributes:

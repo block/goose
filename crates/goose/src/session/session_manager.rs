@@ -1,6 +1,7 @@
 use crate::config::paths::Paths;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
+use crate::model::ModelConfig;
 use crate::providers::base::{Provider, MSG_COUNT_FOR_SESSION_NAME_GENERATION};
 use crate::recipe::Recipe;
 use crate::session::extension_data::ExtensionData;
@@ -18,7 +19,7 @@ use tokio::sync::OnceCell;
 use tracing::{info, warn};
 use utoipa::ToSchema;
 
-const CURRENT_SCHEMA_VERSION: i32 = 5;
+pub const CURRENT_SCHEMA_VERSION: i32 = 6;
 pub const SESSIONS_FOLDER: &str = "sessions";
 pub const DB_NAME: &str = "sessions.db";
 
@@ -29,6 +30,7 @@ pub enum SessionType {
     Scheduled,
     SubAgent,
     Hidden,
+    Terminal,
 }
 
 impl Default for SessionType {
@@ -44,6 +46,7 @@ impl std::fmt::Display for SessionType {
             SessionType::SubAgent => write!(f, "sub_agent"),
             SessionType::Hidden => write!(f, "hidden"),
             SessionType::Scheduled => write!(f, "scheduled"),
+            SessionType::Terminal => write!(f, "terminal"),
         }
     }
 }
@@ -57,6 +60,7 @@ impl std::str::FromStr for SessionType {
             "sub_agent" => Ok(SessionType::SubAgent),
             "hidden" => Ok(SessionType::Hidden),
             "scheduled" => Ok(SessionType::Scheduled),
+            "terminal" => Ok(SessionType::Terminal),
             _ => Err(anyhow::anyhow!("Invalid session type: {}", s)),
         }
     }
@@ -89,6 +93,8 @@ pub struct Session {
     pub user_recipe_values: Option<HashMap<String, String>>,
     pub conversation: Option<Conversation>,
     pub message_count: usize,
+    pub provider_name: Option<String>,
+    pub model_config: Option<ModelConfig>,
 }
 
 pub struct SessionUpdateBuilder {
@@ -107,13 +113,15 @@ pub struct SessionUpdateBuilder {
     schedule_id: Option<Option<String>>,
     recipe: Option<Option<Recipe>>,
     user_recipe_values: Option<Option<HashMap<String, String>>>,
+    provider_name: Option<Option<String>>,
+    model_config: Option<Option<ModelConfig>>,
 }
 
 #[derive(Serialize, ToSchema, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionInsights {
-    total_sessions: usize,
-    total_tokens: i64,
+    pub total_sessions: usize,
+    pub total_tokens: i64,
 }
 
 impl SessionUpdateBuilder {
@@ -134,6 +142,8 @@ impl SessionUpdateBuilder {
             schedule_id: None,
             recipe: None,
             user_recipe_values: None,
+            provider_name: None,
+            model_config: None,
         }
     }
 
@@ -218,6 +228,16 @@ impl SessionUpdateBuilder {
         self
     }
 
+    pub fn provider_name(mut self, provider_name: impl Into<String>) -> Self {
+        self.provider_name = Some(Some(provider_name.into()));
+        self
+    }
+
+    pub fn model_config(mut self, model_config: ModelConfig) -> Self {
+        self.model_config = Some(Some(model_config));
+        self
+    }
+
     pub async fn apply(self) -> Result<()> {
         SessionManager::apply_update(self).await
     }
@@ -274,6 +294,10 @@ impl SessionManager {
         Self::instance().await?.list_sessions().await
     }
 
+    pub async fn list_sessions_by_types(types: &[SessionType]) -> Result<Vec<Session>> {
+        Self::instance().await?.list_sessions_by_types(types).await
+    }
+
     pub async fn delete_session(id: &str) -> Result<()> {
         Self::instance().await?.delete_session(id).await
     }
@@ -288,6 +312,20 @@ impl SessionManager {
 
     pub async fn import_session(json: &str) -> Result<Session> {
         Self::instance().await?.import_session(json).await
+    }
+
+    pub async fn copy_session(session_id: &str, new_name: String) -> Result<Session> {
+        Self::instance()
+            .await?
+            .copy_session(session_id, new_name)
+            .await
+    }
+
+    pub async fn truncate_conversation(session_id: &str, timestamp: i64) -> Result<()> {
+        Self::instance()
+            .await?
+            .truncate_conversation(session_id, timestamp)
+            .await
     }
 
     pub async fn maybe_update_name(id: &str, provider: Arc<dyn Provider>) -> Result<()> {
@@ -375,6 +413,8 @@ impl Default for Session {
             user_recipe_values: None,
             conversation: None,
             message_count: 0,
+            provider_name: None,
+            model_config: None,
         }
     }
 }
@@ -396,6 +436,9 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
         let user_recipe_values_json: Option<String> = row.try_get("user_recipe_values_json")?;
         let user_recipe_values =
             user_recipe_values_json.and_then(|json| serde_json::from_str(&json).ok());
+
+        let model_config_json: Option<String> = row.try_get("model_config_json").ok().flatten();
+        let model_config = model_config_json.and_then(|json| serde_json::from_str(&json).ok());
 
         let name: String = {
             let name_val: String = row.try_get("name").unwrap_or_default();
@@ -434,6 +477,8 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
             user_recipe_values,
             conversation: None,
             message_count: row.try_get("message_count").unwrap_or(0) as usize,
+            provider_name: row.try_get("provider_name").ok().flatten(),
+            model_config,
         })
     }
 }
@@ -462,7 +507,8 @@ impl SessionStorage {
         let options = SqliteConnectOptions::new()
             .filename(db_path)
             .create_if_missing(create_if_missing)
-            .busy_timeout(std::time::Duration::from_secs(5));
+            .busy_timeout(std::time::Duration::from_secs(5))
+            .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal);
 
         sqlx::SqlitePool::connect_with(options).await.map_err(|e| {
             anyhow::anyhow!(
@@ -520,7 +566,9 @@ impl SessionStorage {
                 accumulated_output_tokens INTEGER,
                 schedule_id TEXT,
                 recipe_json TEXT,
-                user_recipe_values_json TEXT
+                user_recipe_values_json TEXT,
+                provider_name TEXT,
+                model_config_json TEXT
             )
         "#,
         )
@@ -605,6 +653,8 @@ impl SessionStorage {
     }
 
     async fn import_legacy_session(&self, session: &Session) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
+
         let recipe_json = match &session.recipe {
             Some(recipe) => Some(serde_json::to_string(recipe)?),
             None => None,
@@ -615,14 +665,20 @@ impl SessionStorage {
             None => None,
         };
 
+        let model_config_json = match &session.model_config {
+            Some(model_config) => Some(serde_json::to_string(model_config)?),
+            None => None,
+        };
+
         sqlx::query(
             r#"
         INSERT INTO sessions (
             id, name, user_set_name, session_type, working_dir, created_at, updated_at, extension_data,
             total_tokens, input_tokens, output_tokens,
             accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
-            schedule_id, recipe_json, user_recipe_values_json
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            schedule_id, recipe_json, user_recipe_values_json,
+            provider_name, model_config_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         "#,
         )
             .bind(&session.id)
@@ -642,8 +698,12 @@ impl SessionStorage {
             .bind(&session.schedule_id)
             .bind(recipe_json)
             .bind(user_recipe_values_json)
-            .execute(&self.pool)
+            .bind(&session.provider_name)
+            .bind(model_config_json)
+            .execute(&mut *tx)
             .await?;
+
+        tx.commit().await?;
 
         if let Some(conversation) = &session.conversation {
             self.replace_conversation(&session.id, conversation).await?;
@@ -766,6 +826,23 @@ impl SessionStorage {
                     .execute(&self.pool)
                     .await?;
             }
+            6 => {
+                sqlx::query(
+                    r#"
+                    ALTER TABLE sessions ADD COLUMN provider_name TEXT
+                "#,
+                )
+                .execute(&self.pool)
+                .await?;
+
+                sqlx::query(
+                    r#"
+                    ALTER TABLE sessions ADD COLUMN model_config_json TEXT
+                "#,
+                )
+                .execute(&self.pool)
+                .await?;
+            }
             _ => {
                 anyhow::bail!("Unknown migration version: {}", version);
             }
@@ -780,8 +857,10 @@ impl SessionStorage {
         name: String,
         session_type: SessionType,
     ) -> Result<Session> {
+        let mut tx = self.pool.begin().await?;
+
         let today = chrono::Utc::now().format("%Y%m%d").to_string();
-        Ok(sqlx::query_as(
+        let session = sqlx::query_as(
             r#"
                 INSERT INTO sessions (id, name, user_set_name, session_type, working_dir, extension_data)
                 VALUES (
@@ -804,8 +883,12 @@ impl SessionStorage {
             .bind(&name)
             .bind(session_type.to_string())
             .bind(working_dir.to_string_lossy().as_ref())
-            .fetch_one(&self.pool)
-            .await?)
+            .fetch_one(&mut *tx)
+            .await?;
+
+        tx.commit().await?;
+        crate::posthog::emit_session_started();
+        Ok(session)
     }
 
     async fn get_session(&self, id: &str, include_messages: bool) -> Result<Session> {
@@ -814,7 +897,8 @@ impl SessionStorage {
         SELECT id, working_dir, name, description, user_set_name, session_type, created_at, updated_at, extension_data,
                total_tokens, input_tokens, output_tokens,
                accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
-               schedule_id, recipe_json, user_recipe_values_json
+               schedule_id, recipe_json, user_recipe_values_json,
+               provider_name, model_config_json
         FROM sessions
         WHERE id = ?
     "#,
@@ -840,6 +924,7 @@ impl SessionStorage {
         Ok(session)
     }
 
+    #[allow(clippy::too_many_lines)]
     async fn apply_update(&self, builder: SessionUpdateBuilder) -> Result<()> {
         let mut updates = Vec::new();
         let mut query = String::from("UPDATE sessions SET ");
@@ -874,6 +959,8 @@ impl SessionStorage {
         add_update!(builder.schedule_id, "schedule_id");
         add_update!(builder.recipe, "recipe_json");
         add_update!(builder.user_recipe_values, "user_recipe_values_json");
+        add_update!(builder.provider_name, "provider_name");
+        add_update!(builder.model_config, "model_config_json");
 
         if updates.is_empty() {
             return Ok(());
@@ -930,10 +1017,21 @@ impl SessionStorage {
                 .transpose()?;
             q = q.bind(user_recipe_values_json);
         }
+        if let Some(provider_name) = builder.provider_name {
+            q = q.bind(provider_name);
+        }
+        if let Some(model_config) = builder.model_config {
+            let model_config_json = model_config
+                .map(|mc| serde_json::to_string(&mc))
+                .transpose()?;
+            q = q.bind(model_config_json);
+        }
 
+        let mut tx = self.pool.begin().await?;
         q = q.bind(&builder.session_id);
-        q.execute(&self.pool).await?;
+        q.execute(&mut *tx).await?;
 
+        tx.commit().await?;
         Ok(())
     }
 
@@ -1031,24 +1129,40 @@ impl SessionStorage {
         Ok(())
     }
 
-    async fn list_sessions(&self) -> Result<Vec<Session>> {
-        sqlx::query_as::<_, Session>(
+    async fn list_sessions_by_types(&self, types: &[SessionType]) -> Result<Vec<Session>> {
+        if types.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let placeholders: String = types.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+        let query = format!(
             r#"
-        SELECT s.id, s.working_dir, s.name, s.description, s.user_set_name, s.session_type, s.created_at, s.updated_at, s.extension_data,
-               s.total_tokens, s.input_tokens, s.output_tokens,
-               s.accumulated_total_tokens, s.accumulated_input_tokens, s.accumulated_output_tokens,
-               s.schedule_id, s.recipe_json, s.user_recipe_values_json,
-               COUNT(m.id) as message_count
-        FROM sessions s
-        INNER JOIN messages m ON s.id = m.session_id
-        WHERE s.session_type = 'user' OR s.session_type = 'scheduled'
-        GROUP BY s.id
-        ORDER BY s.updated_at DESC
-    "#,
-        )
-            .fetch_all(&self.pool)
+            SELECT s.id, s.working_dir, s.name, s.description, s.user_set_name, s.session_type, s.created_at, s.updated_at, s.extension_data,
+                   s.total_tokens, s.input_tokens, s.output_tokens,
+                   s.accumulated_total_tokens, s.accumulated_input_tokens, s.accumulated_output_tokens,
+                   s.schedule_id, s.recipe_json, s.user_recipe_values_json,
+                   s.provider_name, s.model_config_json,
+                   COUNT(m.id) as message_count
+            FROM sessions s
+            INNER JOIN messages m ON s.id = m.session_id
+            WHERE s.session_type IN ({})
+            GROUP BY s.id
+            ORDER BY s.updated_at DESC
+            "#,
+            placeholders
+        );
+
+        let mut q = sqlx::query_as::<_, Session>(&query);
+        for t in types {
+            q = q.bind(t.to_string());
+        }
+
+        q.fetch_all(&self.pool).await.map_err(Into::into)
+    }
+
+    async fn list_sessions(&self) -> Result<Vec<Session>> {
+        self.list_sessions_by_types(&[SessionType::User, SessionType::Scheduled])
             .await
-            .map_err(Into::into)
     }
 
     async fn delete_session(&self, session_id: &str) -> Result<()> {
@@ -1135,6 +1249,43 @@ impl SessionStorage {
         }
 
         self.get_session(&session.id, true).await
+    }
+
+    async fn copy_session(&self, session_id: &str, new_name: String) -> Result<Session> {
+        let original_session = self.get_session(session_id, true).await?;
+
+        let new_session = self
+            .create_session(
+                original_session.working_dir.clone(),
+                new_name,
+                original_session.session_type,
+            )
+            .await?;
+
+        let builder = SessionUpdateBuilder::new(new_session.id.clone())
+            .extension_data(original_session.extension_data)
+            .schedule_id(original_session.schedule_id)
+            .recipe(original_session.recipe)
+            .user_recipe_values(original_session.user_recipe_values);
+
+        self.apply_update(builder).await?;
+
+        if let Some(conversation) = original_session.conversation {
+            self.replace_conversation(&new_session.id, &conversation)
+                .await?;
+        }
+
+        self.get_session(&new_session.id, true).await
+    }
+
+    async fn truncate_conversation(&self, session_id: &str, timestamp: i64) -> Result<()> {
+        sqlx::query("DELETE FROM messages WHERE session_id = ? AND created_timestamp >= ?")
+            .bind(session_id)
+            .bind(timestamp)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
     }
 
     async fn search_chat_history(

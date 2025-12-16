@@ -13,6 +13,7 @@ use rmcp::transport::{
 };
 use std::collections::HashMap;
 use std::option::Option;
+use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Duration;
@@ -40,8 +41,8 @@ use crate::oauth::oauth_flow;
 use crate::prompt_template;
 use crate::subprocess::configure_command_no_window;
 use rmcp::model::{
-    CallToolRequestParam, Content, ErrorCode, ErrorData, GetPromptResult, Prompt, ResourceContents,
-    ServerInfo, Tool,
+    CallToolRequestParam, Content, ErrorCode, ErrorData, GetPromptResult, Prompt, RawContent,
+    Resource, ResourceContents, ServerInfo, Tool,
 };
 use rmcp::transport::auth::AuthClient;
 use schemars::_private::NoSerialize;
@@ -142,6 +143,16 @@ fn normalize(input: String) -> String {
         });
     }
     result.to_lowercase()
+}
+
+fn resolve_command(cmd: &str) -> PathBuf {
+    SearchPaths::builder()
+        .with_npm()
+        .resolve(cmd)
+        .unwrap_or_else(|_| {
+            // let the OS raise the error
+            PathBuf::from(cmd)
+        })
 }
 
 fn require_str_parameter<'a>(v: &'a serde_json::Value, name: &str) -> Result<&'a str, ErrorData> {
@@ -474,12 +485,15 @@ impl ExtensionManager {
                 ..
             } => {
                 let all_envs = merge_environments(envs, env_keys, &sanitized_name).await?;
-                let command = Command::new(cmd).configure(|command| {
-                    command.args(args).envs(all_envs);
-                });
 
                 // Check for malicious packages before launching the process
                 extension_malware_check::deny_if_malicious_cmd_args(cmd, args).await?;
+
+                let cmd = resolve_command(cmd);
+
+                let command = Command::new(cmd).configure(|command| {
+                    command.args(args).envs(all_envs);
+                });
 
                 let client = child_process_client(command, timeout, self.provider.clone()).await?;
                 Box::new(client)
@@ -584,7 +598,7 @@ impl ExtensionManager {
             .insert(name, Extension::new(config, client, info, temp_dir));
     }
 
-    /// Get extensions info
+    /// Get extensions info for building the system prompt
     pub async fn get_extensions_info(&self) -> Vec<ExtensionInfo> {
         self.extensions
             .lock()
@@ -623,6 +637,10 @@ impl ExtensionManager {
         Ok(self.extensions.lock().await.keys().cloned().collect())
     }
 
+    pub async fn is_extension_enabled(&self, name: &str) -> bool {
+        self.extensions.lock().await.contains_key(name)
+    }
+
     pub async fn get_extension_configs(&self) -> Vec<ExtensionConfig> {
         self.extensions
             .lock()
@@ -637,6 +655,14 @@ impl ExtensionManager {
         &self,
         extension_name: Option<String>,
     ) -> ExtensionResult<Vec<Tool>> {
+        self.get_prefixed_tools_impl(extension_name, None).await
+    }
+
+    async fn get_prefixed_tools_impl(
+        &self,
+        extension_name: Option<String>,
+        exclude: Option<&str>,
+    ) -> ExtensionResult<Vec<Tool>> {
         // Filter clients based on the provided extension_name or include all if None
         let filtered_clients: Vec<_> = self
             .extensions
@@ -644,6 +670,12 @@ impl ExtensionManager {
             .await
             .iter()
             .filter(|(name, _ext)| {
+                if let Some(excluded) = exclude {
+                    if name.as_str() == excluded {
+                        return false;
+                    }
+                }
+
                 if let Some(ref name_filter) = extension_name {
                     *name == name_filter
                 } else {
@@ -674,6 +706,7 @@ impl ExtensionManager {
                                 output_schema: tool.output_schema,
                                 icons: None,
                                 title: None,
+                                meta: None,
                             });
                         }
                     }
@@ -706,6 +739,10 @@ impl ExtensionManager {
         }
 
         Ok(tools)
+    }
+
+    pub async fn get_prefixed_tools_excluding(&self, exclude: &str) -> ExtensionResult<Vec<Tool>> {
+        self.get_prefixed_tools_impl(None, Some(exclude)).await
     }
 
     /// Get the extension prompt including client instructions
@@ -743,6 +780,7 @@ impl ExtensionManager {
                     uri,
                     extension_name.unwrap(),
                     cancellation_token.clone(),
+                    true,
                 )
                 .await?;
             return Ok(result);
@@ -758,7 +796,12 @@ impl ExtensionManager {
 
         for extension_name in extension_names {
             let result = self
-                .read_resource_from_extension(uri, &extension_name, cancellation_token.clone())
+                .read_resource_from_extension(
+                    uri,
+                    &extension_name,
+                    cancellation_token.clone(),
+                    true,
+                )
                 .await;
             match result {
                 Ok(result) => return Ok(result),
@@ -792,6 +835,7 @@ impl ExtensionManager {
         uri: &str,
         extension_name: &str,
         cancellation_token: CancellationToken,
+        format_with_uri: bool,
     ) -> Result<Vec<Content>, ErrorData> {
         let available_extensions = self
             .extensions
@@ -825,14 +869,76 @@ impl ExtensionManager {
 
         let mut result = Vec::new();
         for content in read_result.contents {
-            // Only reading the text resource content; skipping the blob content cause it's too long
             if let ResourceContents::TextResourceContents { text, .. } = content {
-                let content_str = format!("{}\n\n{}", uri, text);
+                let content_str = if format_with_uri {
+                    format!("{}\n\n{}", uri, text)
+                } else {
+                    text
+                };
                 result.push(Content::text(content_str));
             }
         }
 
         Ok(result)
+    }
+
+    pub async fn get_ui_resources(&self) -> Result<Vec<(String, Resource)>, ErrorData> {
+        let mut ui_resources = Vec::new();
+
+        let extensions_to_check: Vec<(String, McpClientBox)> = {
+            let extensions = self.extensions.lock().await;
+            extensions
+                .iter()
+                .map(|(name, ext)| (name.clone(), ext.get_client()))
+                .collect()
+        };
+
+        for (extension_name, client) in extensions_to_check {
+            let client_guard = client.lock().await;
+
+            match client_guard
+                .list_resources(None, CancellationToken::default())
+                .await
+            {
+                Ok(list_response) => {
+                    for resource in list_response.resources {
+                        if resource.uri.starts_with("ui://") {
+                            ui_resources.push((extension_name.clone(), resource));
+                        }
+                    }
+                }
+                Err(e) => {
+                    warn!("Failed to list resources for {}: {:?}", extension_name, e);
+                }
+            }
+        }
+
+        Ok(ui_resources)
+    }
+
+    pub async fn read_ui_resource(
+        &self,
+        uri: &str,
+        extension_name: &str,
+        cancellation_token: CancellationToken,
+    ) -> Result<String, ErrorData> {
+        let contents = self
+            .read_resource_from_extension(uri, extension_name, cancellation_token, false)
+            .await?;
+
+        contents
+            .into_iter()
+            .find_map(|c| match c.raw {
+                RawContent::Text(text_content) => Some(text_content.text),
+                _ => None,
+            })
+            .ok_or_else(|| {
+                ErrorData::new(
+                    ErrorCode::RESOURCE_NOT_FOUND,
+                    format!("No text content in resource '{}'", uri),
+                    None,
+                )
+            })
     }
 
     async fn list_resources_from_extension(
@@ -921,7 +1027,6 @@ impl ExtensionManager {
                     }
                 }
 
-                // Log any errors that occurred
                 if !errors.is_empty() {
                     tracing::error!(
                         errors = ?errors
@@ -983,7 +1088,6 @@ impl ExtensionManager {
             client_guard
                 .call_tool(&tool_name, arguments, cancellation_token)
                 .await
-                .map(|call| call.content)
                 .map_err(|e| match e {
                     ServiceError::McpError(error_data) => error_data,
                     _ => {
@@ -1062,7 +1166,6 @@ impl ExtensionManager {
             }
         }
 
-        // Log any errors that occurred
         if !errors.is_empty() {
             tracing::debug!(
                 errors = ?errors
@@ -1166,18 +1269,28 @@ impl ExtensionManager {
 
     pub async fn collect_moim(&self) -> Option<String> {
         let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-        let mut content = format!("<info-msg>\nDatetime: {}\n", timestamp);
+        let mut content = format!("<info-msg>\nIt is currently {}\n", timestamp);
 
-        let extensions = self.extensions.lock().await;
-        for (name, extension) in extensions.iter() {
-            if let ExtensionConfig::Platform { .. } = &extension.config {
-                let client = extension.get_client();
-                let client_guard = client.lock().await;
-                if let Some(moim_content) = client_guard.get_moim().await {
-                    tracing::debug!("MOIM content from {}: {} chars", name, moim_content.len());
-                    content.push('\n');
-                    content.push_str(&moim_content);
-                }
+        let platform_clients: Vec<(String, McpClientBox)> = {
+            let extensions = self.extensions.lock().await;
+            extensions
+                .iter()
+                .filter_map(|(name, extension)| {
+                    if let ExtensionConfig::Platform { .. } = &extension.config {
+                        Some((name.clone(), extension.get_client()))
+                    } else {
+                        None
+                    }
+                })
+                .collect()
+        };
+
+        for (name, client) in platform_clients {
+            let client_guard = client.lock().await;
+            if let Some(moim_content) = client_guard.get_moim().await {
+                tracing::debug!("MOIM content from {}: {} chars", name, moim_content.len());
+                content.push('\n');
+                content.push_str(&moim_content);
             }
         }
 

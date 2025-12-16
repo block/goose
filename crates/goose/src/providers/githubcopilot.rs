@@ -428,7 +428,7 @@ impl Provider for GithubCopilotProvider {
         ProviderMetadata::new(
             "github_copilot",
             "GitHub Copilot",
-            "GitHub Copilot and associated models",
+            "GitHub Copilot. Run `goose configure` and select copilot to set up.",
             GITHUB_COPILOT_DEFAULT_MODEL,
             GITHUB_COPILOT_KNOWN_MODELS.to_vec(),
             GITHUB_COPILOT_DOC_URL,
@@ -460,7 +460,14 @@ impl Provider for GithubCopilotProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = create_request(model_config, system, messages, tools, &ImageFormat::OpenAi)?;
+        let payload = create_request(
+            model_config,
+            system,
+            messages,
+            tools,
+            &ImageFormat::OpenAi,
+            false,
+        )?;
         let mut log = RequestLog::start(model_config, &payload)?;
 
         // Make request with retry

@@ -2,6 +2,7 @@ use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
+use crate::providers::utils::{convert_image, ImageFormat};
 use anyhow::{anyhow, Result};
 use rmcp::model::{object, CallToolRequestParam, ErrorCode, ErrorData, JsonObject, Role, Tool};
 use rmcp::object as json_object;
@@ -67,6 +68,7 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                 MessageContent::ToolResponse(tool_response) => match &tool_response.tool_result {
                     Ok(result) => {
                         let text = result
+                            .content
                             .iter()
                             .filter_map(|c| c.as_text().map(|t| t.text.clone()))
                             .collect::<Vec<_>>()
@@ -90,6 +92,9 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                 MessageContent::ToolConfirmationRequest(_tool_confirmation_request) => {
                     // Skip tool confirmation requests
                 }
+                MessageContent::ActionRequired(_action_required) => {
+                    // Skip action required messages - they're for UI only
+                }
                 MessageContent::SystemNotification(_) => {
                     // Skip
                 }
@@ -106,7 +111,9 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                         DATA_FIELD: redacted.data
                     }));
                 }
-                MessageContent::Image(_) => continue, // Anthropic doesn't support image content yet
+                MessageContent::Image(image) => {
+                    content.push(convert_image(image, &ImageFormat::Anthropic));
+                }
                 MessageContent::FrontendToolRequest(tool_request) => {
                     if let Ok(tool_call) = &tool_request.tool_call {
                         content.push(json!({
