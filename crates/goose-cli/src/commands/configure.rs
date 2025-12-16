@@ -436,7 +436,6 @@ fn store_secret(config: &Config, key: &str, value: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-
 pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
     // Get global config instance
     let config = Config::global();

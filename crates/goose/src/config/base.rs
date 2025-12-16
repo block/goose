@@ -818,12 +818,6 @@ impl Config {
 
     /// Perform fallback to file storage when keyring is unavailable
     fn fallback_to_file_storage(&self) -> Result<HashMap<String, Value>, ConfigError> {
-        // Automatically disable keyring for future operations
-        std::env::set_var("GOOSE_DISABLE_KEYRING", "1");
-
-        // Warn user once about keyring unavailability
-        tracing::warn!("Keyring unavailable. Using file storage for secrets.");
-
         // Fallback to file-based storage
         let config_dir = Paths::config_dir();
         let path = config_dir.join("secrets.yaml");
@@ -856,7 +850,6 @@ impl Config {
         let entry_result = Entry::new(service, KEYRING_USERNAME);
         entry_result.map_err(|e| {
             if self.is_keyring_availability_error(&e.to_string()) {
-                std::env::set_var("GOOSE_DISABLE_KEYRING", "1");
                 ConfigError::FallbackToFileStorage
             } else {
                 ConfigError::KeyringError(e.to_string())
@@ -877,6 +870,8 @@ impl Config {
         result.map_err(|e| {
             if self.is_keyring_availability_error(&e.to_string()) {
                 std::env::set_var("GOOSE_DISABLE_KEYRING", "1");
+                tracing::warn!("Keyring unavailable. Using file storage for secrets.");
+
                 if let Some(values) = fallback_values {
                     if let Err(write_err) = self.write_secrets_to_file(values) {
                         return write_err;
