@@ -30,6 +30,13 @@ import { DiagnosticsModal } from './ui/DownloadDiagnostics';
 import { Message } from '../api';
 import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal';
 import CreateEditRecipeModal from './recipes/CreateEditRecipeModal';
+import {
+  trackFileAttached,
+  trackVoiceDictation,
+  trackDiagnosticsOpened,
+  trackCreateRecipeOpened,
+  trackEditRecipeOpened,
+} from '../utils/analytics';
 
 interface QueuedMessage {
   id: string;
@@ -243,6 +250,7 @@ export default function ChatInput({
     estimatedSize,
   } = useWhisper({
     onTranscription: (text) => {
+      trackVoiceDictation('transcribed');
       // Append transcribed text to the current input
       const newValue = displayValue.trim() ? `${displayValue.trim()} ${text}` : text;
       setDisplayValue(newValue);
@@ -250,6 +258,8 @@ export default function ChatInput({
       textAreaRef.current?.focus();
     },
     onError: (error) => {
+      const errorType = error.name || 'DictationError';
+      trackVoiceDictation('error', undefined, errorType);
       toastError({
         title: 'Dictation Error',
         msg: error.message,
@@ -1052,6 +1062,9 @@ export default function ChatInput({
     try {
       const path = await window.electron.selectFileOrDirectory();
       if (path) {
+        const isDirectory = !path.includes('.') || path.endsWith('/');
+        trackFileAttached(isDirectory ? 'directory' : 'file');
+
         const newValue = displayValue.trim() ? `${displayValue.trim()} ${path}` : path;
         setDisplayValue(newValue);
         setValue(newValue);
@@ -1283,8 +1296,10 @@ export default function ChatInput({
                   variant="outline"
                   onClick={() => {
                     if (isRecording) {
+                      trackVoiceDictation('stop', Math.floor(recordingDuration));
                       stopRecording();
                     } else {
+                      trackVoiceDictation('start');
                       startRecording();
                     }
                   }}
@@ -1548,8 +1563,10 @@ export default function ChatInput({
                     <Button
                       onClick={() => {
                         if (recipe) {
+                          trackEditRecipeOpened();
                           setShowEditRecipeModal(true);
                         } else {
+                          trackCreateRecipeOpened();
                           setShowCreateRecipeModal(true);
                         }
                       }}
@@ -1572,7 +1589,10 @@ export default function ChatInput({
               <TooltipTrigger asChild>
                 <Button
                   type="button"
-                  onClick={() => setDiagnosticsOpen(true)}
+                  onClick={() => {
+                    trackDiagnosticsOpened();
+                    setDiagnosticsOpen(true);
+                  }}
                   variant="ghost"
                   size="sm"
                   className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors"

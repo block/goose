@@ -2381,6 +2381,29 @@
         }
       }
     },
+    "/telemetry/event": {
+      "post": {
+        "tags": [
+          "super::routes::telemetry"
+        ],
+        "operationId": "send_telemetry_event",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TelemetryEventRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Event accepted for processing"
+          }
+        }
+      }
+    },
     "/tunnel/start": {
       "post": {
         "tags": [
@@ -5300,6 +5323,21 @@
           "thinkingMessage",
           "inlineMessage"
         ]
+      },
+      "TelemetryEventRequest": {
+        "type": "object",
+        "required": [
+          "event_name"
+        ],
+        "properties": {
+          "event_name": {
+            "type": "string"
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        }
       },
       "TextContent": {
         "type": "object",

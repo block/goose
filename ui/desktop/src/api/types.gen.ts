@@ -887,6 +887,13 @@ export type SystemNotificationContent = {
 
 export type SystemNotificationType = 'thinkingMessage' | 'inlineMessage';
 
+export type TelemetryEventRequest = {
+    event_name: string;
+    properties?: {
+        [key: string]: unknown;
+    };
+};
+
 export type TextContent = {
     _meta?: {
         [key: string]: unknown;
@@ -2887,6 +2894,20 @@ export type StatusResponses = {
 };
 
 export type StatusResponse = StatusResponses[keyof StatusResponses];
+
+export type SendTelemetryEventData = {
+    body: TelemetryEventRequest;
+    path?: never;
+    query?: never;
+    url: '/telemetry/event';
+};
+
+export type SendTelemetryEventResponses = {
+    /**
+     * Event accepted for processing
+     */
+    202: unknown;
+};
 
 export type StartTunnelData = {
     body?: never;

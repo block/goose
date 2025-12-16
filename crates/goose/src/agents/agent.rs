@@ -772,7 +772,25 @@ impl Agent {
 
         let slash_command_recipe = if message_text.trim().starts_with('/') {
             let command = message_text.split_whitespace().next();
-            command.and_then(crate::slash_commands::resolve_slash_command)
+
+            // Check if it's a builtin command first
+            let is_builtin = command
+                .map(|cmd| MANUAL_COMPACT_TRIGGERS.contains(&cmd))
+                .unwrap_or(false);
+
+            if is_builtin {
+                None
+            } else {
+                // Try to resolve as recipe command
+                let recipe = command.and_then(crate::slash_commands::resolve_slash_command);
+
+                // Track non-builtin slash command usage (don't track command name for privacy)
+                if recipe.is_some() {
+                    crate::posthog::emit_custom_slash_command_used();
+                }
+
+                recipe
+            }
         } else {
             None
         };
