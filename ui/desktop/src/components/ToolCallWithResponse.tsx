@@ -26,40 +26,12 @@ interface ToolCallWithResponseProps {
   append?: (value: string) => void; // Function to append messages to the chat
 }
 
-/**
- * Represents the inner value of a successful tool result.
- * Maps to rmcp::model::CallToolResult which uses camelCase serialization.
- */
-interface CallToolResultValue {
-  content: Content[];
-  structuredContent?: unknown;
-  isError?: boolean;
-  _meta?: unknown;
-}
-
-/**
- * Represents the serialized ToolResult<CallToolResult> structure.
- * On success: { status: "success", value: CallToolResultValue }
- * On error: { status: "error", error: string }
- */
-interface ToolResultSuccess {
-  status: 'success';
-  value: CallToolResultValue;
-}
-
-interface ToolResultError {
-  status: 'error';
-  error: string;
-}
-
-type ToolResultData = ToolResultSuccess | ToolResultError;
-
 function getToolResultContent(toolResult: Record<string, unknown>): Content[] {
-  const result = toolResult as unknown as ToolResultData;
-  if (result.status !== 'success') {
+  if (toolResult.status !== 'success') {
     return [];
   }
-  return result.value.content.filter((item) => {
+  const value = toolResult.value as { content: Content[] };
+  return value.content.filter((item) => {
     const annotations = (item as { annotations?: { audience?: string[] } }).annotations;
     return !annotations?.audience || annotations.audience.includes('user');
   });
