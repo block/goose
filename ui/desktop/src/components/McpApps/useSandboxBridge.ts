@@ -37,10 +37,10 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
   const [isSandboxReady, setIsSandboxReady] = useState(false);
   const [isGuestInitialized, setIsGuestInitialized] = useState(false);
 
-  // Fetch proxy URL on mount
+  // Fetch proxy URL when CSP changes (includes CSP domains in URL for outer sandbox)
   useEffect(() => {
-    fetchMcpAppProxyUrl().then(setProxyUrl);
-  }, []);
+    fetchMcpAppProxyUrl(resourceCsp).then(setProxyUrl);
+  }, [resourceCsp]);
 
   // Reset state when resource changes
   useEffect(() => {

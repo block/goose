@@ -2,14 +2,37 @@ import { JsonRpcNotification, JsonRpcResponse, ToolInput, ToolResult } from './t
 import packageJson from '../../../package.json';
 
 /**
- * Fetch the MCP App proxy URL from the Electron backend.
+ * CSP metadata for MCP Apps.
  */
-export async function fetchMcpAppProxyUrl(): Promise<string | null> {
+export interface CspMetadata {
+  connectDomains?: string[];
+  resourceDomains?: string[];
+}
+
+/**
+ * Fetch the MCP App proxy URL from the Electron backend.
+ *
+ * @param csp - Optional CSP metadata to include in the URL. The outer sandbox
+ *              CSP will be templated to allow these domains, acting as a ceiling
+ *              for what the inner guest UI CSP can permit.
+ */
+export async function fetchMcpAppProxyUrl(csp?: CspMetadata | null): Promise<string | null> {
   try {
     const baseUrl = await window.electron.getGoosedHostPort();
     const secretKey = await window.electron.getSecretKey();
     if (baseUrl && secretKey) {
-      return `${baseUrl}/mcp-app-proxy?secret=${encodeURIComponent(secretKey)}`;
+      const params = new URLSearchParams();
+      params.set('secret', secretKey);
+
+      // Include CSP domains if provided
+      if (csp?.connectDomains?.length) {
+        params.set('connect_domains', csp.connectDomains.join(','));
+      }
+      if (csp?.resourceDomains?.length) {
+        params.set('resource_domains', csp.resourceDomains.join(','));
+      }
+
+      return `${baseUrl}/mcp-app-proxy?${params.toString()}`;
     }
     console.error('Failed to get goosed host/port or secret key');
     return null;
