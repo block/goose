@@ -100,6 +100,7 @@ pub struct Agent {
     pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
     pub(super) retry_manager: RetryManager,
     pub(super) tool_inspection_manager: ToolInspectionManager,
+    pub(super) working_dir: Mutex<Option<std::path::PathBuf>>,
 }
 
 #[derive(Clone, Debug)]
@@ -174,7 +175,17 @@ impl Agent {
             scheduler_service: Mutex::new(None),
             retry_manager: RetryManager::new(),
             tool_inspection_manager: Self::create_default_tool_inspection_manager(),
+            working_dir: Mutex::new(None),
         }
+    }
+
+    pub async fn set_working_dir(&self, working_dir: std::path::PathBuf) {
+        let mut wd = self.working_dir.lock().await;
+        *wd = Some(working_dir);
+    }
+
+    pub async fn get_working_dir(&self) -> Option<std::path::PathBuf> {
+        self.working_dir.lock().await.clone()
     }
 
     /// Create a tool inspection manager with default inspectors
@@ -581,11 +592,9 @@ impl Agent {
         Ok(())
     }
 
-    pub async fn add_extension(
-        &self,
-        extension: ExtensionConfig,
-        working_dir: Option<std::path::PathBuf>,
-    ) -> ExtensionResult<()> {
+    pub async fn add_extension(&self, extension: ExtensionConfig) -> ExtensionResult<()> {
+        let working_dir = self.get_working_dir().await;
+
         match &extension {
             ExtensionConfig::Frontend {
                 tools,

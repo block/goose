@@ -731,7 +731,7 @@ async fn execute_job(
 
     if let Some(ref extensions) = recipe.extensions {
         for ext in extensions {
-            agent.add_extension(ext.clone(), None).await?;
+            agent.add_extension(ext.clone()).await?;
         }
     }
 

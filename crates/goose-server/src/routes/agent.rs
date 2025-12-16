@@ -539,8 +539,12 @@ async fn agent_add_extension(
         })?;
 
     let agent = state.get_agent(request.session_id).await?;
+
+    // Set the agent's working directory from the session before adding the extension
+    agent.set_working_dir(session.working_dir).await;
+
     agent
-        .add_extension(request.config, Some(session.working_dir))
+        .add_extension(request.config)
         .await
         .map_err(|e| ErrorResponse::internal(format!("Failed to add extension: {}", e)))?;
     Ok(StatusCode::OK)

@@ -57,20 +57,18 @@ pub async fn restore_agent_extensions(
     agent: Arc<Agent>,
     working_dir: &std::path::Path,
 ) -> Result<(), ErrorResponse> {
-    let working_dir_buf = working_dir.to_path_buf();
+    // Set the agent's working directory before adding extensions
+    agent.set_working_dir(working_dir.to_path_buf()).await;
+
     let enabled_configs = goose::config::get_enabled_extensions();
     let extension_futures = enabled_configs
         .into_iter()
         .map(|config| {
             let config_clone = config.clone();
             let agent_ref = agent.clone();
-            let wd = working_dir_buf.clone();
 
             async move {
-                if let Err(e) = agent_ref
-                    .add_extension(config_clone.clone(), Some(wd))
-                    .await
-                {
+                if let Err(e) = agent_ref.add_extension(config_clone.clone()).await {
                     warn!("Failed to load extension {}: {}", config_clone.name(), e);
                 }
                 Ok::<_, ErrorResponse>(())

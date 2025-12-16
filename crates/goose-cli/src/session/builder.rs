@@ -163,7 +163,7 @@ async fn offer_extension_debugging_help(
     let extensions = get_all_extensions();
     for ext_wrapper in extensions {
         if ext_wrapper.enabled && ext_wrapper.config.name() == "developer" {
-            if let Err(e) = debug_agent.add_extension(ext_wrapper.config, None).await {
+            if let Err(e) = debug_agent.add_extension(ext_wrapper.config).await {
                 // If we can't add developer extension, continue without it
                 eprintln!(
                     "Note: Could not load developer extension for debugging: {}",
@@ -430,6 +430,10 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
 
     // Setup extensions for the agent
     // Extensions need to be added after the session is created because we change directory when resuming a session
+    // Set the agent's working directory before adding extensions
+    let working_dir = std::env::current_dir().expect("Could not get working directory");
+    agent.set_working_dir(working_dir).await;
+
     // If we get extensions_override, only run those extensions and none other
     let extensions_to_run: Vec<_> = if let Some(extensions) = session_config.extensions_override {
         agent.disable_router_for_recipe().await;
@@ -462,7 +466,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         set.spawn(async move {
             (
                 extension.name(),
-                agent_ptr.add_extension(extension.clone(), None).await,
+                agent_ptr.add_extension(extension.clone()).await,
             )
         });
     }
