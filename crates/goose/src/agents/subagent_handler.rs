@@ -121,8 +121,7 @@ fn get_agent_messages(
         let user_task = recipe
             .prompt
             .clone()
-            .or(recipe.instructions.clone())
-            .ok_or_else(|| anyhow!("Recipe has no instructions or prompt"))?;
+            .unwrap_or_else(|| "Begin.".to_string());
 
         let agent_manager = AgentManager::instance()
             .await
