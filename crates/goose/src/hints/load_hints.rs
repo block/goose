@@ -7,10 +7,31 @@ use std::{
 use crate::config::paths::Paths;
 use crate::hints::import_files::read_referenced_files;
 
+/// Build a gitignore matcher for the given directory
+pub fn build_gitignore(working_dir: &Path) -> Gitignore {
+    let builder = ignore::gitignore::GitignoreBuilder::new(working_dir);
+    builder.build().unwrap_or_else(|_| Gitignore::empty())
+}
+
+/// Get configured hint filenames or defaults
+pub fn get_context_filenames() -> Vec<String> {
+    use crate::config::Config;
+
+    Config::global()
+        .get_param::<Vec<String>>("CONTEXT_FILE_NAMES")
+        .unwrap_or_else(|_| {
+            vec![
+                GOOSE_HINTS_FILENAME.to_string(),
+                AGENTS_MD_FILENAME.to_string(),
+            ]
+        })
+}
+
 pub const GOOSE_HINTS_FILENAME: &str = ".goosehints";
 pub const AGENTS_MD_FILENAME: &str = "AGENTS.md";
+pub const DYNAMIC_SUBDIRECTORY_HINT_LOADING_ENV: &str = "GOOSE_DYNAMIC_SUBDIRECTORY_HINT_LOADING";
 
-fn find_git_root(start_dir: &Path) -> Option<&Path> {
+pub fn find_git_root(start_dir: &Path) -> Option<&Path> {
     let mut check_dir = start_dir;
 
     loop {
@@ -30,20 +51,11 @@ fn find_git_root(start_dir: &Path) -> Option<&Path> {
 fn get_local_directories(git_root: Option<&Path>, cwd: &Path) -> Vec<PathBuf> {
     match git_root {
         Some(git_root) => {
-            let mut directories = Vec::new();
-            let mut current_dir = cwd;
-
-            loop {
-                directories.push(current_dir.to_path_buf());
-                if current_dir == git_root {
-                    break;
-                }
-                if let Some(parent) = current_dir.parent() {
-                    current_dir = parent;
-                } else {
-                    break;
-                }
-            }
+            let mut directories: Vec<_> = cwd
+                .ancestors()
+                .take_while(|d| d.starts_with(git_root))
+                .map(|d| d.to_path_buf())
+                .collect();
             directories.reverse();
             directories
         }
@@ -117,6 +129,78 @@ pub fn load_hint_files(
     }
 
     hints
+}
+
+/// Load hint files from a directory hierarchy up to the working directory
+///
+/// This is used for dynamic loading when accessing files in new directories.
+/// Loads hints from all directories from the working directory down to the target directory,
+/// similar to how startup loading works from git root to working directory.
+///
+/// Returns Some(content) if hint files exist and can be read, None otherwise.
+pub fn load_hints_from_directory(
+    directory: &Path,
+    working_dir: &Path,
+    hints_filenames: &[String],
+    gitignore: &Gitignore,
+) -> Option<String> {
+    // Only proceed if dynamic loading is enabled (default: true)
+    let enabled = std::env::var(DYNAMIC_SUBDIRECTORY_HINT_LOADING_ENV)
+        .map(|v| v != "0" && !v.eq_ignore_ascii_case("false"))
+        .unwrap_or(true);
+
+    if !enabled {
+        return None;
+    }
+
+    // Check if directory exists
+    if !directory.is_dir() {
+        return None;
+    }
+
+    // Build path from working_dir to directory
+    let mut directories: Vec<_> = directory
+        .ancestors()
+        .take_while(|d| d.starts_with(working_dir))
+        .filter(|d| *d != working_dir)  // Exclude working_dir itself as its hints are loaded at startup
+        .map(|d| d.to_path_buf())
+        .collect();
+
+    // Reverse so we load from working_dir down to directory
+    directories.reverse();
+
+    let mut contents = Vec::new();
+    let git_root = find_git_root(working_dir);
+    let import_boundary = git_root.unwrap_or(working_dir);
+
+    // Load hints from each directory in the path
+    for dir in &directories {
+        let mut visited = HashSet::new();
+
+        for hints_filename in hints_filenames {
+            let hints_path = dir.join(hints_filename);
+
+            // Check if file exists and is not ignored
+            if hints_path.is_file() && !gitignore.matched(&hints_path, false).is_ignore() {
+                let expanded_content =
+                    read_referenced_files(&hints_path, import_boundary, &mut visited, 0, gitignore);
+
+                if !expanded_content.is_empty() {
+                    contents.push(expanded_content);
+                }
+            }
+        }
+    }
+
+    if contents.is_empty() {
+        None
+    } else {
+        Some(format!(
+            "### Directory-Specific Hints: {}\n\n{}",
+            directory.display(),
+            contents.join("\n")
+        ))
+    }
 }
 
 #[cfg(test)]
@@ -465,5 +549,151 @@ End of hints"#;
 
         assert!(hints.contains("Root file content"));
         assert!(hints.contains("--- Content from ../root_file.md ---"));
+    }
+
+    #[test]
+    fn test_load_hints_from_directory_enabled_by_default() {
+        temp_env::with_var_unset(DYNAMIC_SUBDIRECTORY_HINT_LOADING_ENV, || {
+            let temp_dir = tempfile::tempdir().unwrap();
+            let subdir = temp_dir.path().join("subdir");
+            std::fs::create_dir(&subdir).unwrap();
+            let agents_path = subdir.join("AGENTS.md");
+            std::fs::write(&agents_path, "Test content").unwrap();
+
+            let gitignore = create_dummy_gitignore();
+
+            // Should be enabled by default when env var not set
+            let result = load_hints_from_directory(
+                &subdir,
+                temp_dir.path(),
+                &[AGENTS_MD_FILENAME.to_string()],
+                &gitignore,
+            );
+            assert!(result.is_some());
+        });
+    }
+
+    #[test]
+    fn test_load_hints_from_directory_can_be_disabled() {
+        temp_env::with_var(DYNAMIC_SUBDIRECTORY_HINT_LOADING_ENV, Some("false"), || {
+            let temp_dir = tempfile::tempdir().unwrap();
+            let subdir = temp_dir.path().join("subdir");
+            std::fs::create_dir(&subdir).unwrap();
+            let agents_path = subdir.join("AGENTS.md");
+            std::fs::write(&agents_path, "Test content").unwrap();
+
+            let gitignore = create_dummy_gitignore();
+
+            // Should be disabled when explicitly set to false
+            let result = load_hints_from_directory(
+                &subdir,
+                temp_dir.path(),
+                &[AGENTS_MD_FILENAME.to_string()],
+                &gitignore,
+            );
+            assert!(result.is_none());
+        });
+    }
+
+    #[test]
+    fn test_load_hints_from_directory_enabled() {
+        temp_env::with_var(DYNAMIC_SUBDIRECTORY_HINT_LOADING_ENV, Some("true"), || {
+            let temp_dir = tempfile::tempdir().unwrap();
+            let subdir = temp_dir.path().join("subdir");
+            std::fs::create_dir(&subdir).unwrap();
+            let agents_path = subdir.join("AGENTS.md");
+            std::fs::write(&agents_path, "Test content").unwrap();
+
+            let gitignore = create_dummy_gitignore();
+
+            let result = load_hints_from_directory(
+                &subdir,
+                temp_dir.path(),
+                &[AGENTS_MD_FILENAME.to_string()],
+                &gitignore,
+            );
+
+            assert!(result.is_some());
+            let content = result.unwrap();
+            assert!(content.contains("Test content"));
+            assert!(content.contains("### Directory-Specific Hints:"));
+        });
+    }
+
+    #[test]
+    fn test_load_hints_from_directory_no_file() {
+        temp_env::with_var(DYNAMIC_SUBDIRECTORY_HINT_LOADING_ENV, Some("true"), || {
+            let temp_dir = tempfile::tempdir().unwrap();
+            let subdir = temp_dir.path().join("subdir");
+            std::fs::create_dir(&subdir).unwrap();
+            let gitignore = create_dummy_gitignore();
+
+            let result = load_hints_from_directory(
+                &subdir,
+                temp_dir.path(),
+                &[AGENTS_MD_FILENAME.to_string()],
+                &gitignore,
+            );
+
+            assert!(result.is_none());
+        });
+    }
+
+    #[test]
+    fn test_load_hints_from_directory_respects_gitignore() {
+        temp_env::with_var(DYNAMIC_SUBDIRECTORY_HINT_LOADING_ENV, Some("true"), || {
+            let temp_dir = tempfile::tempdir().unwrap();
+            let subdir = temp_dir.path().join("subdir");
+            std::fs::create_dir(&subdir).unwrap();
+            let agents_path = subdir.join("AGENTS.md");
+            std::fs::write(&agents_path, "Test content").unwrap();
+
+            let gitignore_path = temp_dir.path().join(".gooseignore");
+            std::fs::write(&gitignore_path, "subdir/AGENTS.md").unwrap();
+
+            let mut builder = ignore::gitignore::GitignoreBuilder::new(temp_dir.path());
+            builder.add(&gitignore_path);
+            let gitignore = builder.build().unwrap();
+
+            let result = load_hints_from_directory(
+                &subdir,
+                temp_dir.path(),
+                &[AGENTS_MD_FILENAME.to_string()],
+                &gitignore,
+            );
+
+            assert!(result.is_none());
+        });
+    }
+
+    #[test]
+    fn test_load_hints_from_directory_with_imports() {
+        temp_env::with_var(DYNAMIC_SUBDIRECTORY_HINT_LOADING_ENV, Some("true"), || {
+            let temp_dir = tempfile::tempdir().unwrap();
+            let subdir = temp_dir.path().join("subdir");
+            std::fs::create_dir(&subdir).unwrap();
+
+            // Create an included file in root (to verify we can import from parent)
+            let included_path = temp_dir.path().join("included.md");
+            std::fs::write(&included_path, "Included content").unwrap();
+
+            // Create agents.md with import in subdir
+            let agents_path = subdir.join("AGENTS.md");
+            std::fs::write(&agents_path, "Main content\n@../included.md\n").unwrap();
+
+            let gitignore = create_dummy_gitignore();
+
+            let result = load_hints_from_directory(
+                &subdir,
+                temp_dir.path(),
+                &[AGENTS_MD_FILENAME.to_string()],
+                &gitignore,
+            );
+
+            assert!(result.is_some());
+            let content = result.unwrap();
+            assert!(content.contains("Main content"));
+            assert!(content.contains("Included content"));
+        });
     }
 }
