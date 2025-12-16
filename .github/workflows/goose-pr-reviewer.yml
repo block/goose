@@ -2,9 +2,7 @@
 #
 # Automated PR review using goose AI agent.
 #
-# Triggers:
-#   - Comment "/goose [optional instructions]" on a PR (OWNER/MEMBER only)
-#   - Manual workflow_dispatch with PR number
+# Trigger: Comment "/goose [optional instructions]" on a PR (OWNER/MEMBER only)
 #
 # Examples:
 #   /goose
@@ -18,19 +16,15 @@
 #   - GOOSE_PROVIDER: LLM provider (default: anthropic)
 #   - GOOSE_MODEL: Model name (default: claude-sonnet-4-5)
 #
-# Security: PR content could prompt-inject the agent; only trigger on PRs you trust.
+# Security:
+#   - PR content could prompt-inject the agent; only trigger on PRs you trust.
+#   - Do not add workflow_dispatch: API calls fetch mutable data, enabling TOCTOU attacks.
 
 name: goose PR Reviewer
 
 on:
   issue_comment:
     types: [created]
-  workflow_dispatch:
-    inputs:
-      pr_number:
-        description: 'PR number to review'
-        required: true
-        type: string
 
 env:
   GOOSE_RECIPE: |
@@ -127,16 +121,15 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: goose-pr-review-${{ github.event.issue.number || github.event.inputs.pr_number }}-${{ startsWith(github.event.comment.body || '', '/goose') }}
+  group: goose-pr-review-${{ github.event.issue.number }}
   cancel-in-progress: true
 
 jobs:
   review-pr:
     if: |
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.issue.pull_request &&
-       startsWith(github.event.comment.body, '/goose') &&
-       contains(fromJSON('["OWNER", "MEMBER"]'), github.event.comment.author_association))
+      github.event.issue.pull_request &&
+      startsWith(github.event.comment.body, '/goose') &&
+      contains(fromJSON('["OWNER", "MEMBER"]'), github.event.comment.author_association)
 
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -151,43 +144,34 @@ jobs:
         HOME: /tmp/goose-home
 
     steps:
+      - name: Acknowledge trigger
+        run: |
+          curl -sL -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" \
+            -d '{"content":"eyes"}'
+
       - name: Checkout PR
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
         with:
-          ref: refs/pull/${{ github.event.issue.number || github.event.inputs.pr_number }}/head
+          ref: refs/pull/${{ github.event.issue.number }}/head
           fetch-depth: 1
 
       - name: Install tools
         run: |
           apt-get update
-          apt-get install -y jq gettext curl
+          apt-get install -y gettext curl
           curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
           echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null
           apt-get update
           apt-get install -y gh
 
-      - name: Acknowledge trigger
-        if: github.event.comment.id
+      - name: Get PR diff
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh api --method POST /repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions -f content=eyes
-
-      - name: Get PR details
-        id: pr
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          PR_NUM="${{ github.event.issue.number || github.event.inputs.pr_number }}"
-          
-          gh api /repos/${{ github.repository }}/pulls/$PR_NUM > /tmp/pr.json
-          gh pr diff $PR_NUM --repo ${{ github.repository }} > /tmp/pr.diff
-          
-          echo "number=$PR_NUM" >> $GITHUB_OUTPUT
-          
-          echo "title<<TITLE_EOF" >> $GITHUB_OUTPUT
-          jq -r '.title' /tmp/pr.json >> $GITHUB_OUTPUT
-          echo "TITLE_EOF" >> $GITHUB_OUTPUT
+          gh pr diff ${{ github.event.issue.number }} --repo ${{ github.repository }} > /tmp/pr.diff
 
       - name: Extract review instructions
         id: instructions
@@ -195,7 +179,6 @@ jobs:
           COMMENT_BODY: ${{ github.event.comment.body }}
         run: |
           if [ -n "$COMMENT_BODY" ]; then
-            # Extract everything after "/goose" and trim whitespace
             INSTRUCTIONS=$(echo "$COMMENT_BODY" | sed 's|^/goose||' | sed 's|^[[:space:]]*||' | sed 's|[[:space:]]*$||')
           fi
           
@@ -210,15 +193,20 @@ jobs:
       - name: Run goose review
         id: goose
         env:
-          PR_NUMBER: ${{ steps.pr.outputs.number }}
-          PR_TITLE: ${{ steps.pr.outputs.title }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+          PR_TITLE: ${{ github.event.issue.title }}
+          PR_BODY: ${{ github.event.issue.body }}
           REVIEW_INSTRUCTIONS: ${{ steps.instructions.outputs.instructions }}
         run: |
           mkdir -p $HOME/.local/share/goose/sessions
           mkdir -p $HOME/.config/goose
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-          echo "$GOOSE_RECIPE" | envsubst '$PR_NUMBER $PR_TITLE $REVIEW_INSTRUCTIONS' > /tmp/recipe.yaml
+          cat > /tmp/pr.json << 'PRJSON'
+          ${{ toJson(github.event.issue) }}
+          PRJSON
+
+          echo "$GOOSE_RECIPE" | envsubst '$PR_NUMBER $PR_TITLE $PR_BODY $REVIEW_INSTRUCTIONS' > /tmp/recipe.yaml
 
           goose run --recipe /tmp/recipe.yaml
 
@@ -232,14 +220,12 @@ jobs:
         if: steps.goose.outputs.has_review == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUM: ${{ steps.pr.outputs.number }}
         run: |
-          gh pr comment "$PR_NUM" --repo ${{ github.repository }} --body-file /tmp/pr_review.md
+          gh pr comment ${{ github.event.issue.number }} --repo ${{ github.repository }} --body-file /tmp/pr_review.md
 
       - name: Post failure comment
         if: failure() || steps.goose.outputs.has_review != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUM: ${{ steps.pr.outputs.number || github.event.issue.number || github.event.inputs.pr_number }}
         run: |
-          gh pr comment "$PR_NUM" --repo ${{ github.repository }} --body "⚠️ goose PR review could not be completed. Check the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details."
+          gh pr comment ${{ github.event.issue.number }} --repo ${{ github.repository }} --body "⚠️ goose PR review could not be completed. Check the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details."
