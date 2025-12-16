@@ -1,30 +1,10 @@
-type UIResourceUri = `ui://${string}`;
-type UIResourceMimeType = `text/html;profile=mcp-app`;
-
-interface UIResourceMeta {
-  csp?: {
-    connectDomains?: string[];
-    resourceDomains?: string[];
-  };
-  domain?: `https://${string}`;
-  prefersBorder?: boolean;
-}
+import { McpAppResource } from './types';
 
 interface MockResourceListItem {
-  uri: UIResourceUri;
-  name: string;
-  description: string;
-  mimeType: UIResourceMimeType;
-}
-
-interface MockReadResourceItem {
-  uri: UIResourceUri;
-  description?: string;
-  mimeType: UIResourceMimeType;
-  text?: string;
-  _meta?: {
-    ui?: UIResourceMeta;
-  };
+  uri: McpAppResource['uri'];
+  name: McpAppResource['name'];
+  description: McpAppResource['description'];
+  mimeType: McpAppResource['mimeType'];
 }
 
 interface MockListedResources {
@@ -32,7 +12,7 @@ interface MockListedResources {
 }
 
 interface MockReadResources {
-  contents: MockReadResourceItem[];
+  contents: McpAppResource[];
 }
 
 const UI_RESOURCE_URI = 'ui://weather-server/dashboard-template' as const;
@@ -506,6 +486,7 @@ export const mockResourceReadResult: MockReadResources = {
   contents: [
     {
       uri: UI_RESOURCE_URI,
+      name: 'Demo MCP App',
       mimeType: 'text/html;profile=mcp-app',
       text: mockAppHtml,
       _meta: {

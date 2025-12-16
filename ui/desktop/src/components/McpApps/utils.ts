@@ -1,13 +1,12 @@
-import { JsonRpcNotification, JsonRpcResponse, ToolInput, ToolResult } from './types';
+import {
+  CspMetadata,
+  HostContext,
+  JsonRpcNotification,
+  JsonRpcResponse,
+  ToolInput,
+  ToolResult,
+} from './types';
 import packageJson from '../../../package.json';
-
-/**
- * CSP metadata for MCP Apps.
- */
-export interface CspMetadata {
-  connectDomains?: string[];
-  resourceDomains?: string[];
-}
 
 /**
  * Fetch the MCP App proxy URL from the Electron backend.
@@ -78,53 +77,6 @@ export function createSandboxResourceReadyMessage(
   };
 }
 
-export interface HostContext {
-  /** Metadata of the tool call that instantiated the App */
-  toolInfo?: {
-    /** JSON-RPC id of the tools/call request */
-    id?: string | number;
-    /** Contains name, inputSchema, etc… */
-    tool: {
-      name: string;
-      description?: string;
-      inputSchema?: Record<string, unknown>;
-    };
-  };
-  /** Current color theme preference */
-  theme?: 'light' | 'dark';
-  /** How the UI is currently displayed */
-  displayMode?: 'inline' | 'fullscreen' | 'pip';
-  /** Display modes the host supports */
-  availableDisplayModes?: string[];
-  /** Current and maximum dimensions available to the UI */
-  viewport?: {
-    width: number;
-    height: number;
-    maxHeight?: number;
-    maxWidth?: number;
-  };
-  /** User's language/region preference (BCP 47, e.g., "en-US") */
-  locale?: string;
-  /** User's timezone (IANA, e.g., "America/New_York") */
-  timeZone?: string;
-  /** Host application identifier */
-  userAgent?: string;
-  /** Platform type for responsive design */
-  platform?: 'web' | 'desktop' | 'mobile';
-  /** Device capabilities such as touch */
-  deviceCapabilities?: {
-    touch?: boolean;
-    hover?: boolean;
-  };
-  /** Safe area boundaries in pixels */
-  safeAreaInsets?: {
-    top: number;
-    right: number;
-    bottom: number;
-    left: number;
-  };
-}
-
 /**
  * Get the current theme from localStorage.
  */
@@ -137,15 +89,16 @@ export function getCurrentTheme(): 'light' | 'dark' {
 }
 
 /**
- * Create a host-context-changed notification.
+ * Create a host-context-changed notification for incremental updates.
+ * Only the changed fields need to be provided.
  */
 export function createHostContextChangedNotification(
-  hostContext: HostContext
+  hostContext: Partial<HostContext>
 ): JsonRpcNotification {
   return {
     jsonrpc: '2.0',
     method: 'ui/notifications/host-context-changed',
-    params: hostContext as Record<string, unknown>,
+    params: hostContext,
   };
 }
 
@@ -156,7 +109,7 @@ const MCP_PROTOCOL_VERSION = '2025-06-18';
  */
 export function createInitializeResponse(
   requestId: string | number,
-  hostContext?: HostContext
+  hostContext: HostContext
 ): JsonRpcResponse {
   return {
     jsonrpc: '2.0',
@@ -171,7 +124,7 @@ export function createInitializeResponse(
         name: packageJson.productName,
         version: packageJson.version,
       },
-      hostContext: hostContext || {},
+      hostContext,
     },
   };
 }

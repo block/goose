@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { JsonRpcMessage, JsonRpcRequest, ToolInput, ToolResult } from './types';
+import { JsonRpcMessage, IncomingGuestMessage, ToolInput, ToolResult, HostContext } from './types';
 import {
   fetchMcpAppProxyUrl,
   createSandboxResourceReadyMessage,
@@ -8,7 +8,6 @@ import {
   createToolInputNotification,
   createToolResultNotification,
   getCurrentTheme,
-  HostContext,
 } from './utils';
 
 interface SandboxBridgeOptions {
@@ -37,7 +36,6 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
   const [isSandboxReady, setIsSandboxReady] = useState(false);
   const [isGuestInitialized, setIsGuestInitialized] = useState(false);
 
-  // Fetch proxy URL when CSP changes (includes CSP domains in URL for outer sandbox)
   useEffect(() => {
     fetchMcpAppProxyUrl(resourceCsp).then(setProxyUrl);
   }, [resourceCsp]);
@@ -61,22 +59,19 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
   }, [sendToSandbox]);
 
   const handleMessage = useCallback(
-    (data: JsonRpcMessage) => {
-      const method = 'method' in data ? data.method : undefined;
+    (data: unknown) => {
+      if (!data || typeof data !== 'object' || !('method' in data)) return;
+      const msg = data as IncomingGuestMessage;
 
-      switch (method) {
+      switch (msg.method) {
         case 'ui/notifications/sandbox-ready':
-          console.log('🐛 McpAppRenderer: Sandbox ready');
+          console.log('[Sandbox Bridge] Sandbox ready');
           setIsSandboxReady(true);
           sendToSandbox(createSandboxResourceReadyMessage(resourceHtml, resourceCsp));
           return;
 
         case 'ui/initialize': {
-          if (!('id' in data) || data.id === undefined) return;
-          console.log('🐛 McpAppRenderer: Guest UI requesting initialization');
-          const request = data as JsonRpcRequest;
-
-          // Build host context with all fields from spec
+          console.log('[Sandbox Bridge] Guest UI requesting initialization');
           const iframe = iframeRef.current;
           const hostContext: HostContext = {
             // TODO: Populate toolInfo when we have tool call context
@@ -84,14 +79,12 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
             theme: getCurrentTheme(),
             displayMode: 'inline',
             availableDisplayModes: ['inline'],
-            viewport: iframe
-              ? {
-                  width: iframe.clientWidth,
-                  height: iframe.clientHeight,
-                  maxWidth: window.innerWidth,
-                  maxHeight: window.innerHeight,
-                }
-              : undefined,
+            viewport: {
+              width: iframe?.clientWidth ?? 0,
+              height: iframe?.clientHeight ?? 0,
+              maxWidth: window.innerWidth,
+              maxHeight: window.innerHeight,
+            },
             locale: navigator.language,
             timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
             userAgent: navigator.userAgent,
@@ -107,97 +100,67 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
               left: 0,
             },
           };
-
-          sendToSandbox(createInitializeResponse(request.id, hostContext));
+          sendToSandbox(createInitializeResponse(msg.id, hostContext));
           return;
         }
 
         case 'ui/notifications/initialized':
-          console.log('🐛 McpAppRenderer: Guest UI initialized');
+          console.log('[Sandbox Bridge] Guest UI initialized');
           setIsGuestInitialized(true);
           flushPendingMessages();
           return;
 
         case 'ui/notifications/size-changed': {
-          const params = 'params' in data ? data.params : undefined;
-          if (params && typeof params === 'object' && 'height' in params) {
-            const height = params.height;
-            if (typeof height === 'number') {
-              const newHeight = Math.max(200, height);
-              setIframeHeight(newHeight);
+          const newHeight = Math.max(200, msg.params.height);
+          setIframeHeight(newHeight);
 
-              // Send updated viewport dimensions to guest
-              const iframe = iframeRef.current;
-              if (iframe) {
-                sendToSandbox(
-                  createHostContextChangedNotification({
-                    viewport: {
-                      width: iframe.clientWidth,
-                      height: newHeight,
-                      maxWidth: window.innerWidth,
-                      maxHeight: window.innerHeight,
-                    },
-                  })
-                );
-              }
-            }
+          const iframe = iframeRef.current;
+          if (iframe) {
+            sendToSandbox(
+              createHostContextChangedNotification({
+                viewport: {
+                  width: iframe.clientWidth,
+                  height: newHeight,
+                  maxWidth: window.innerWidth,
+                  maxHeight: window.innerHeight,
+                },
+              })
+            );
           }
           return;
         }
 
         case 'ui/open-link': {
-          const params = 'params' in data ? data.params : undefined;
-          if (params && typeof params === 'object' && 'url' in params) {
-            const url = params.url;
-            if (typeof url === 'string') {
-              window.electron.openExternal(url).catch(console.error);
-            }
-          }
+          window.electron.openExternal(msg.params.url).catch(console.error);
           return;
         }
 
         case 'ui/message': {
-          const params = 'params' in data ? data.params : undefined;
-          if (params && typeof params === 'object' && 'content' in params) {
-            const content = params.content as { type?: string; text?: string };
-            if (content.type === 'text' && typeof content.text === 'string') {
-              if (appendMessage) {
-                appendMessage(content.text);
-                window.dispatchEvent(new CustomEvent('scroll-chat-to-bottom'));
-                // Send success response if this is a request (has id)
-                if ('id' in data && data.id !== undefined) {
-                  sendToSandbox({
-                    jsonrpc: '2.0',
-                    id: data.id,
-                    result: {},
-                  });
-                }
-              } else {
-                // Send error response if this is a request
-                if ('id' in data && data.id !== undefined) {
-                  sendToSandbox({
-                    jsonrpc: '2.0',
-                    id: data.id,
-                    error: {
-                      code: -32603,
-                      message: 'Message handling not available',
-                    },
-                  });
-                }
+          const { content } = msg.params;
+          if (content.type === 'text' && typeof content.text === 'string') {
+            if (appendMessage) {
+              appendMessage(content.text);
+              window.dispatchEvent(new CustomEvent('scroll-chat-to-bottom'));
+              if (msg.id !== undefined) {
+                sendToSandbox({
+                  jsonrpc: '2.0',
+                  id: msg.id,
+                  result: {},
+                });
               }
+            } else if (msg.id !== undefined) {
+              sendToSandbox({
+                jsonrpc: '2.0',
+                id: msg.id,
+                error: {
+                  code: -32603,
+                  message: 'Message handling not available',
+                },
+              });
             }
           }
           return;
         }
-
-        default:
-          // Forward non-UI methods to MCP server
-          if (method && !method.startsWith('ui/')) {
-            // TODO: Forward to MCP Apps server
-            console.log('🐛 McpAppRenderer: Forward to MCP server', data);
-            return;
-          }
-          console.log('🐛 McpAppRenderer: Unhandled message', data);
       }
     },
     [resourceHtml, resourceCsp, sendToSandbox, flushPendingMessages, appendMessage]
@@ -209,13 +172,7 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
       if (!iframe || event.source !== iframe.contentWindow) {
         return;
       }
-
-      const data = event.data as JsonRpcMessage;
-      if (!data || typeof data !== 'object') {
-        return;
-      }
-
-      handleMessage(data);
+      handleMessage(event.data);
     };
 
     window.addEventListener('message', onMessage);
@@ -225,14 +182,14 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
   // Send tool input when guest is initialized
   useEffect(() => {
     if (!isGuestInitialized || !toolInput) return;
-    console.log('🐛 McpAppRenderer: Sending tool input', toolInput);
+    console.log('[Sandbox Bridge] Sending tool input', toolInput);
     sendToSandbox(createToolInputNotification(toolInput));
   }, [isGuestInitialized, toolInput, sendToSandbox]);
 
   // Send tool result when guest is initialized and result is available
   useEffect(() => {
     if (!isGuestInitialized || !toolResult) return;
-    console.log('🐛 McpAppRenderer: Sending tool result', toolResult);
+    console.log('[Sandbox Bridge] Sending tool result', toolResult);
     sendToSandbox(createToolResultNotification(toolResult));
   }, [isGuestInitialized, toolResult, sendToSandbox]);
 
