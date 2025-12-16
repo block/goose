@@ -799,11 +799,8 @@ fn estimate_cost_usd(
     input_tokens: usize,
     output_tokens: usize,
 ) -> Option<f64> {
-    // Try to get canonical model - returns None if model not found in registry
-    // For OpenRouter, model is already in "provider/model" format and map_to_canonical_model handles it
     let canonical_model = maybe_get_canonical_model(provider, model)?;
 
-    // Extract pricing from canonical model (all canonical models have pricing)
     let input_cost_per_token = canonical_model.pricing.prompt?;
     let output_cost_per_token = canonical_model.pricing.completion?;
 

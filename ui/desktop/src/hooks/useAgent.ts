@@ -233,8 +233,6 @@ export function useAgent(): UseAgentReturn {
             recipe: recipeForInit,
           });
 
-          // Cost tracking enabled - no initialization needed
-
           const recipe = initContext.recipe || agentSession.recipe;
           const conversation = agentSession.conversation || [];
           // If we're loading a recipe from initContext (new recipe load), start with empty messages

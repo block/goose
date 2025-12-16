@@ -1403,8 +1403,6 @@ impl CliSession {
             .get_goose_provider()
             .unwrap_or_else(|_| "unknown".to_string());
 
-        // Do not get costing information if show cost is disabled
-        // This will prevent the API call to openrouter.ai
         match self.get_session().await {
             Ok(metadata) => {
                 let total_tokens = metadata.total_tokens.unwrap_or(0) as usize;
