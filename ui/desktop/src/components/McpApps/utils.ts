@@ -78,17 +78,6 @@ export function createSandboxResourceReadyMessage(
 }
 
 /**
- * Get the current theme from localStorage.
- */
-export function getCurrentTheme(): 'light' | 'dark' {
-  const useSystemTheme = localStorage.getItem('use_system_theme') === 'true';
-  if (useSystemTheme) {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  }
-  return localStorage.getItem('theme') === 'dark' ? 'dark' : 'light';
-}
-
-/**
  * Create a host-context-changed notification for incremental updates.
  * Only the changed fields need to be provided.
  */

@@ -7,8 +7,8 @@ import {
   createHostContextChangedNotification,
   createToolInputNotification,
   createToolResultNotification,
-  getCurrentTheme,
 } from './utils';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface SandboxBridgeOptions {
   resourceHtml: string;
@@ -27,6 +27,8 @@ interface SandboxBridgeResult {
 
 export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeResult {
   const { resourceHtml, resourceCsp, resourceUri, toolInput, toolResult, appendMessage } = options;
+
+  const { resolvedTheme } = useTheme();
 
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const pendingMessagesRef = useRef<JsonRpcMessage[]>([]);
@@ -76,7 +78,7 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
           const hostContext: HostContext = {
             // TODO: Populate toolInfo when we have tool call context
             toolInfo: undefined,
-            theme: getCurrentTheme(),
+            theme: resolvedTheme,
             displayMode: 'inline',
             availableDisplayModes: ['inline'],
             viewport: {
@@ -163,7 +165,7 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
         }
       }
     },
-    [resourceHtml, resourceCsp, sendToSandbox, flushPendingMessages, appendMessage]
+    [resourceHtml, resourceCsp, resolvedTheme, sendToSandbox, flushPendingMessages, appendMessage]
   );
 
   useEffect(() => {
@@ -193,43 +195,11 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
     sendToSandbox(createToolResultNotification(toolResult));
   }, [isGuestInitialized, toolResult, sendToSandbox]);
 
-  // Watch for theme changes via localStorage
+  // Send theme changes to sandbox when resolvedTheme changes
   useEffect(() => {
     if (!isGuestInitialized) return;
-
-    let lastTheme = getCurrentTheme();
-
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'theme' || e.key === 'use_system_theme') {
-        const newTheme = getCurrentTheme();
-        if (newTheme !== lastTheme) {
-          lastTheme = newTheme;
-          sendToSandbox(createHostContextChangedNotification({ theme: newTheme }));
-        }
-      }
-    };
-
-    // Also handle system theme changes when using system theme
-    const handleSystemThemeChange = () => {
-      if (localStorage.getItem('use_system_theme') === 'true') {
-        const newTheme = getCurrentTheme();
-        if (newTheme !== lastTheme) {
-          lastTheme = newTheme;
-          sendToSandbox(createHostContextChangedNotification({ theme: newTheme }));
-        }
-      }
-    };
-
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-
-    window.addEventListener('storage', handleStorageChange);
-    mediaQuery.addEventListener('change', handleSystemThemeChange);
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      mediaQuery.removeEventListener('change', handleSystemThemeChange);
-    };
-  }, [isGuestInitialized, sendToSandbox]);
+    sendToSandbox(createHostContextChangedNotification({ theme: resolvedTheme }));
+  }, [isGuestInitialized, resolvedTheme, sendToSandbox]);
 
   // Watch for viewport size changes
   useEffect(() => {
