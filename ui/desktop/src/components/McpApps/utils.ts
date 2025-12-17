@@ -201,7 +201,7 @@ export function createResourceTeardownRequest(reason: string): {
  */
 export function createSandboxResourceReadyMessage(
   html: string,
-  csp: Record<string, string[]> | null
+  csp: CspMetadata | null
 ): JsonRpcNotification {
   return {
     jsonrpc: '2.0',
