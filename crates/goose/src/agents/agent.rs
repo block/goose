@@ -1458,7 +1458,7 @@ impl Agent {
         session_config: &SessionConfig,
         current_turn: u32,
     ) -> Result<bool> {
-        use crate::hints::{build_gitignore, get_context_filenames, load_hints_from_directory};
+        use crate::hints::{get_context_filenames, load_hints_from_directory};
         use crate::session::extension_data::{
             get_or_create_loaded_agents_state, save_loaded_agents_state,
         };
@@ -1475,7 +1475,10 @@ impl Agent {
 
         // Only process absolute paths
         if !directory.is_absolute() {
-            debug!("Skipping hint loading for relative path: {}", directory.display());
+            debug!(
+                "Skipping hint loading for relative path: {}",
+                directory.display()
+            );
             return Ok(false);
         }
 
@@ -1501,11 +1504,11 @@ impl Agent {
             save_needed = true;
         } else if !loaded_state.is_loaded(directory) {
             // Try to load hints
-            // We build a gitignore matcher to respect project ignore rules when loading hints
-            let gitignore = build_gitignore(&working_dir);
             let hints_filenames = get_context_filenames();
 
-            if let Some(content) = load_hints_from_directory(directory, &working_dir, &hints_filenames, &gitignore) {
+            if let Some(content) =
+                load_hints_from_directory(directory, &working_dir, &hints_filenames)
+            {
                 let tag = loaded_state.mark_loaded(directory, current_turn);
 
                 // Extend system prompt
@@ -1523,7 +1526,10 @@ impl Agent {
                 debug!("No hint files found in directory: {}", directory.display());
             }
         } else {
-            debug!("Directory hints already loaded for: {}", directory.display());
+            debug!(
+                "Directory hints already loaded for: {}",
+                directory.display()
+            );
         }
 
         if save_needed {
@@ -1590,7 +1596,9 @@ impl Agent {
     ) -> Result<usize> {
         let mut session = SessionManager::get_session(&session_config.id, false).await?;
 
-        let count = self.prune_stale_hints_internal(&mut session.extension_data, current_turn).await?;
+        let count = self
+            .prune_stale_hints_internal(&mut session.extension_data, current_turn)
+            .await?;
 
         if count > 0 {
             Self::update_session_extension_data(&session_config.id, session.extension_data).await?;

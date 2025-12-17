@@ -126,7 +126,10 @@ async fn test_hint_loading_security_guards() -> anyhow::Result<()> {
     let loaded = agent
         .maybe_load_directory_hints(&outside_dir.join("file.py"), &session_config, 1)
         .await?;
-    assert!(!loaded, "Should not load hints from outside working directory");
+    assert!(
+        !loaded,
+        "Should not load hints from outside working directory"
+    );
 
     // Verify hints NOT loaded
     let session_data = SessionManager::get_session(&session.id, false).await?;
@@ -143,7 +146,7 @@ async fn test_hint_loading_filesystem_updates() -> anyhow::Result<()> {
     let temp_dir = tempfile::TempDir::new()?;
     let repo_root = temp_dir.path();
     std::fs::create_dir(repo_root.join(".git"))?;
-    
+
     let src_dir = repo_root.join("src");
     std::fs::create_dir(&src_dir)?;
     let file_path = src_dir.join("main.rs");
@@ -270,7 +273,10 @@ fn test_hierarchical_hint_loading() {
 
             // Should contain hints from features and auth (hierarchical loading)
             // Should NOT contain root hints (they are loaded at startup)
-            assert!(!content.contains("Root hints"), "Should NOT load from root (avoid dupes)");
+            assert!(
+                !content.contains("Root hints"),
+                "Should NOT load from root (avoid dupes)"
+            );
             assert!(
                 content.contains("Features hints"),
                 "Should load from features/"

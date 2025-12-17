@@ -178,11 +178,7 @@ impl LoadedAgentsState {
 
     /// Prune directories that haven't been accessed in N turns
     /// Returns a list of (path, tag) for pruned directories
-    pub fn prune_stale(
-        &mut self,
-        current_turn: u32,
-        max_idle_turns: u32,
-    ) -> Vec<(String, String)> {
+    pub fn prune_stale(&mut self, current_turn: u32, max_idle_turns: u32) -> Vec<(String, String)> {
         let mut pruned = Vec::new();
 
         self.loaded_directories.retain(|path, context| {
@@ -366,16 +362,16 @@ mod tests {
         let path = Path::new("/repo/features/auth");
 
         state.mark_loaded(path, 1);
-        
+
         // Same turn - should return false
         assert!(!state.mark_accessed(path, 1));
-        
+
         // New turn - should return true and update
         assert!(state.mark_accessed(path, 5));
 
         let context = state.loaded_directories.get("/repo/features/auth").unwrap();
         assert_eq!(context.access_turn, 5);
-        
+
         // Same turn again - should return false
         assert!(!state.mark_accessed(path, 5));
     }
@@ -402,7 +398,7 @@ mod tests {
         // With max_idle_turns=11:
         let pruned = state.prune_stale(20, 11);
         assert_eq!(pruned.len(), 2); // auth is stale (idle 12), payments is stale (idle 18), api is not stale (idle 10)
-        
+
         assert!(!state.is_loaded(Path::new("/repo/auth")));
         assert!(!state.is_loaded(Path::new("/repo/payments")));
         assert!(state.is_loaded(Path::new("/repo/api")));

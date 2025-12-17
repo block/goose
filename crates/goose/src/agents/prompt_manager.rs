@@ -7,7 +7,7 @@ use std::collections::HashMap;
 
 use crate::agents::extension::ExtensionInfo;
 use crate::agents::router_tools::llm_search_tool_prompt;
-use crate::hints::{build_gitignore, get_context_filenames, load_hint_files};
+use crate::hints::{get_context_filenames, load_hint_files};
 use crate::{
     config::{Config, GooseMode},
     prompt_template,
@@ -104,7 +104,14 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
 
     pub fn with_hints(mut self, working_dir: &Path) -> Self {
         let hints_filenames = get_context_filenames();
-        let ignore_patterns = build_gitignore(working_dir);
+        let ignore_patterns = {
+            let builder = ignore::gitignore::GitignoreBuilder::new(working_dir);
+            builder.build().unwrap_or_else(|_| {
+                ignore::gitignore::GitignoreBuilder::new(working_dir)
+                    .build()
+                    .expect("Failed to build default gitignore")
+            })
+        };
 
         let hints = load_hint_files(working_dir, &hints_filenames, &ignore_patterns);
 
