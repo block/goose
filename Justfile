@@ -302,7 +302,14 @@ prepare-release version:
     @cargo update --workspace
     @just set-openapi-version {{ version }}
     @cargo run --bin build_canonical_models
-    @git add Cargo.toml Cargo.lock ui/desktop/package.json ui/desktop/package-lock.json ui/desktop/openapi.json crates/goose/src/providers/canonical/data/canonical_models.json crates/goose/src/providers/canonical/data/canonical_mapping_report.json
+    @git add \
+        Cargo.toml \
+        Cargo.lock \
+        ui/desktop/package.json \
+        ui/desktop/package-lock.json \
+        ui/desktop/openapi.json \
+        crates/goose/src/providers/canonical/data/canonical_models.json \
+        crates/goose/src/providers/canonical/data/canonical_mapping_report.json
     @git commit --message "chore(release): release version {{ version }}"
 
 set-openapi-version version:
