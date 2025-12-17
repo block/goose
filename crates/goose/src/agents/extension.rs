@@ -5,7 +5,6 @@ use crate::agents::skills_extension;
 use crate::agents::subagent_client;
 use crate::agents::todo_extension;
 use crate::recipe::SubRecipe;
-use crate::session::session_manager::SessionType;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -127,7 +126,6 @@ pub struct PlatformExtensionContext {
         Option<std::sync::Weak<crate::agents::extension_manager::ExtensionManager>>,
     pub tool_route_manager:
         Option<std::sync::Weak<crate::agents::tool_route_manager::ToolRouteManager>>,
-    pub session_type: Option<SessionType>,
     pub working_dir: Option<PathBuf>,
     pub sub_recipes: Option<Arc<RwLock<HashMap<String, SubRecipe>>>>,
 }

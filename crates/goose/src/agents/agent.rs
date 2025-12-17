@@ -264,7 +264,9 @@ impl Agent {
         let initial_messages = conversation.messages().clone();
         let config = Config::global();
 
-        let _ = self.enable_subagent_extension().await;
+        if let Err(e) = self.enable_subagent_extension().await {
+            warn!("Failed to enable subagent extension: {}", e);
+        }
 
         let (tools, toolshim_tools, system_prompt) =
             self.prepare_tools_and_prompt(working_dir).await?;

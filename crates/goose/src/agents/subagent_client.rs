@@ -5,7 +5,6 @@ use crate::agents::subagent_tool::{
     create_subagent_tool, handle_subagent_tool, SUBAGENT_TOOL_NAME,
 };
 use crate::config::get_enabled_extensions;
-use crate::session::session_manager::SessionType;
 use anyhow::Result;
 use async_trait::async_trait;
 use rmcp::model::{
@@ -56,13 +55,22 @@ impl SubagentClient {
         })
     }
 
-    fn is_subagent_session(&self) -> bool {
-        matches!(self.context.session_type, Some(SessionType::SubAgent))
-    }
-
     async fn get_provider(&self) -> Option<std::sync::Arc<dyn crate::providers::base::Provider>> {
         let em = self.context.extension_manager.as_ref()?.upgrade()?;
         em.get_provider().await
+    }
+
+    async fn get_extensions(&self) -> Vec<crate::agents::ExtensionConfig> {
+        if let Some(em) = self
+            .context
+            .extension_manager
+            .as_ref()
+            .and_then(|w| w.upgrade())
+        {
+            em.get_extension_configs().await
+        } else {
+            get_enabled_extensions()
+        }
     }
 
     async fn get_sub_recipes(&self) -> std::collections::HashMap<String, crate::recipe::SubRecipe> {
@@ -109,13 +117,6 @@ impl McpClientTrait for SubagentClient {
         _next_cursor: Option<String>,
         _cancellation_token: CancellationToken,
     ) -> Result<ListToolsResult, Error> {
-        if self.is_subagent_session() {
-            return Ok(ListToolsResult {
-                tools: Vec::new(),
-                next_cursor: None,
-            });
-        }
-
         Ok(ListToolsResult {
             tools: vec![self.build_tool().await],
             next_cursor: None,
@@ -135,22 +136,16 @@ impl McpClientTrait for SubagentClient {
             ))]));
         }
 
-        if self.is_subagent_session() {
-            return Ok(CallToolResult::error(vec![Content::text(
-                "Subagents cannot spawn other subagents",
-            )]));
-        }
-
         let Some(provider) = self.get_provider().await else {
             return Ok(CallToolResult::error(vec![Content::text(
                 "No provider configured",
             )]));
         };
 
-        let extensions = get_enabled_extensions();
+        let extensions = self.get_extensions().await;
         let working_dir = self.get_working_dir();
         let sub_recipes = self.get_sub_recipes().await;
-        let task_config = TaskConfig::new_minimal(provider, extensions);
+        let task_config = TaskConfig::new(provider, extensions);
 
         let arguments_value = arguments
             .map(Value::Object)

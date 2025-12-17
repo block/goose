@@ -262,7 +262,6 @@ impl ExtensionManager {
                 session_id: None,
                 extension_manager: None,
                 tool_route_manager: None,
-                session_type: None,
                 working_dir: None,
                 sub_recipes: None,
             }),
