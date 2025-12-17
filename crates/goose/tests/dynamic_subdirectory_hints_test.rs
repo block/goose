@@ -5,6 +5,7 @@ use goose::session::extension_data::{
     save_conversation_turn_state, ConversationTurnState, ExtensionData,
 };
 use goose::session::{SessionManager, SessionType};
+use serial_test::serial;
 
 #[tokio::test]
 async fn test_hint_loading_and_pruning_integration() -> anyhow::Result<()> {
@@ -96,6 +97,7 @@ async fn test_hint_loading_and_pruning_integration() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_hint_loading_security_guards() -> anyhow::Result<()> {
     // Setup
     let temp_dir = tempfile::TempDir::new()?;
@@ -142,6 +144,7 @@ async fn test_hint_loading_security_guards() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_hint_loading_filesystem_updates() -> anyhow::Result<()> {
     let temp_dir = tempfile::TempDir::new()?;
     let repo_root = temp_dir.path();
