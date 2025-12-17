@@ -258,7 +258,7 @@ pub async fn reply(
             }
         };
 
-        let session = match SessionManager::get_session(&session_id, false).await {
+        let session = match SessionManager::get_session(&session_id, true).await {
             Ok(metadata) => metadata,
             Err(e) => {
                 tracing::error!("Failed to read session for {}: {}", session_id, e);
@@ -281,18 +281,21 @@ pub async fn reply(
             retry_config: None,
         };
 
-        if let Some(history) = conversation_so_far {
-            let history_conversation = Conversation::new_unvalidated(history);
-            if let Err(e) =
-                SessionManager::replace_conversation(&session_id, &history_conversation).await
-            {
-                tracing::warn!(
-                    "Failed to replace session conversation for {}: {}",
-                    session_id,
-                    e
-                );
+        let mut all_messages = match conversation_so_far {
+            Some(history) => {
+                let conv = Conversation::new_unvalidated(history);
+                if let Err(e) = SessionManager::replace_conversation(&session_id, &conv).await {
+                    tracing::warn!(
+                        "Failed to replace session conversation for {}: {}",
+                        session_id,
+                        e
+                    );
+                }
+                conv
             }
-        }
+            None => session.conversation.unwrap_or_default(),
+        };
+        all_messages.push(user_message.clone());
 
         let mut stream = match agent
             .reply(
@@ -316,8 +319,6 @@ pub async fn reply(
                 return;
             }
         };
-
-        let mut all_messages = Conversation::new_unvalidated(vec![user_message.clone()]);
 
         let mut heartbeat_interval = tokio::time::interval(Duration::from_millis(500));
         loop {
