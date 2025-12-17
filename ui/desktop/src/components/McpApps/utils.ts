@@ -39,9 +39,9 @@ export const JsonRpcErrorCode = {
 export function createSuccessResponse(
   id: string | number | undefined,
   result: unknown = {}
-): JsonRpcResponse {
+): JsonRpcResponse | null {
   if (id === undefined) {
-    return null as unknown as JsonRpcResponse;
+    return null;
   }
 
   return {
@@ -59,9 +59,9 @@ export function createErrorResponse(
   code: number,
   message: string,
   data?: unknown
-): JsonRpcResponse {
+): JsonRpcResponse | null {
   if (id === undefined) {
-    return null as unknown as JsonRpcResponse;
+    return null;
   }
 
   return {
