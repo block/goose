@@ -117,7 +117,6 @@ impl EnabledExtensionsState {
 /// Metadata for a loaded directory context
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct DirectoryContext {
-    /// Turn number when this directory was last accessed
     pub access_turn: u32,
     /// Unique tag for identifying this context in system prompt extras
     pub tag: String,
@@ -142,7 +141,6 @@ impl LoadedAgentsState {
         }
     }
 
-    /// Check if a directory has already been loaded
     pub fn is_loaded(&self, directory: &Path) -> bool {
         self.loaded_directories
             .contains_key(&directory.to_string_lossy().to_string())
@@ -200,12 +198,10 @@ impl Default for LoadedAgentsState {
     }
 }
 
-/// Helper function to get or create LoadedAgentsState from session
 pub fn get_or_create_loaded_agents_state(extension_data: &ExtensionData) -> LoadedAgentsState {
-    LoadedAgentsState::from_extension_data(extension_data).unwrap_or_else(LoadedAgentsState::new)
+    LoadedAgentsState::from_extension_data(extension_data).unwrap_or_default()
 }
 
-/// Helper function to save LoadedAgentsState to session
 pub fn save_loaded_agents_state(
     extension_data: &mut ExtensionData,
     state: &LoadedAgentsState,
@@ -242,15 +238,12 @@ impl Default for ConversationTurnState {
     }
 }
 
-/// Helper to get or create conversation turn state
 pub fn get_or_create_conversation_turn_state(
     extension_data: &ExtensionData,
 ) -> ConversationTurnState {
-    ConversationTurnState::from_extension_data(extension_data)
-        .unwrap_or_else(ConversationTurnState::new)
+    ConversationTurnState::from_extension_data(extension_data).unwrap_or_default()
 }
 
-/// Helper to save conversation turn state
 pub fn save_conversation_turn_state(
     extension_data: &mut ExtensionData,
     state: &ConversationTurnState,
