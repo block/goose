@@ -86,6 +86,7 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
 
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const pendingMessagesRef = useRef<JsonRpcMessage[]>([]);
+  const isGuestInitializedRef = useRef(false);
 
   const [proxyUrl, setProxyUrl] = useState<string | null>(null);
   const [isGuestInitialized, setIsGuestInitialized] = useState(false);
@@ -96,6 +97,7 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
 
   useEffect(() => {
     setIsGuestInitialized(false);
+    isGuestInitializedRef.current = false;
     pendingMessagesRef.current = [];
   }, [resourceUri]);
 
@@ -159,6 +161,7 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
 
         case 'ui/notifications/initialized': {
           setIsGuestInitialized(true);
+          isGuestInitializedRef.current = true;
           flushPendingMessages();
           return;
         }
@@ -327,16 +330,13 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
 
   // Send resource teardown request when component unmounts
   useEffect(() => {
-    const currentSendToSandbox = sendToSandbox;
-    const checkInitialized = () => isGuestInitialized;
-
     return () => {
-      if (checkInitialized()) {
+      if (isGuestInitializedRef.current) {
         const { message } = createResourceTeardownRequest('Component unmounting');
-        currentSendToSandbox(message);
+        sendToSandbox(message);
       }
     };
-  }, [sendToSandbox, isGuestInitialized]);
+  }, [sendToSandbox]);
 
   return {
     iframeRef,
