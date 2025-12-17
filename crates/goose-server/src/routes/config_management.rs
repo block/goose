@@ -16,7 +16,10 @@ use goose::providers::base::{ProviderMetadata, ProviderType};
 use goose::providers::canonical::maybe_get_canonical_model;
 use goose::providers::create_with_default_model;
 use goose::providers::providers as get_providers;
-use goose::{agents::ExtensionConfig, config::permission::PermissionLevel, slash_commands};
+use goose::{
+    agents::execute_commands, agents::ExtensionConfig, config::permission::PermissionLevel,
+    slash_commands,
+};
 use http::StatusCode;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -435,11 +438,15 @@ pub async fn get_slash_commands() -> Result<Json<SlashCommandsResponse>, StatusC
             command_type: CommandType::Recipe,
         })
         .collect();
-    commands.push(SlashCommand {
-        command: "compact".to_string(),
-        help: "Compact the current conversation to save tokens".to_string(),
-        command_type: CommandType::Builtin,
-    });
+
+    for cmd_def in execute_commands::list_commands() {
+        commands.push(SlashCommand {
+            command: cmd_def.name.to_string(),
+            help: cmd_def.description.to_string(),
+            command_type: CommandType::Builtin,
+        });
+    }
+
     Ok(Json(SlashCommandsResponse { commands }))
 }
 

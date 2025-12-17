@@ -31,7 +31,7 @@ use anyhow::{Context, Result};
 use completion::GooseCompleter;
 use goose::agents::extension::{Envs, ExtensionConfig, PLATFORM_EXTENSIONS};
 use goose::agents::types::RetryConfig;
-use goose::agents::{Agent, SessionConfig, MANUAL_COMPACT_TRIGGERS};
+use goose::agents::{Agent, SessionConfig, COMPACT_TRIGGERS};
 use goose::config::{Config, GooseMode};
 use goose::session::SessionManager;
 use input::InputResult;
@@ -703,7 +703,7 @@ impl CliSession {
                         };
 
                     if should_summarize {
-                        self.push_message(Message::user().with_text(MANUAL_COMPACT_TRIGGERS[0]));
+                        self.push_message(Message::user().with_text(COMPACT_TRIGGERS[0]));
                         output::show_thinking();
                         self.process_agent_response(true, CancellationToken::default())
                             .await?;
@@ -1084,8 +1084,12 @@ impl CliSession {
                                                 };
                                                 (formatted, subagent_id.map(str::to_string), notification_type.map(str::to_string))
                                             } else if let Some(Value::String(output)) = o.get("output") {
-                                                // Fallback for other MCP notification types
-                                                (output.to_owned(), None, None)
+                                                // Extract type if present (e.g., "shell_output")
+                                                let notification_type = o.get("type")
+                                                    .and_then(|v| v.as_str())
+                                                    .map(str::to_string);
+
+                                                (output.to_owned(), None, notification_type)
                                             } else if let Some(result) = format_task_execution_notification(data) {
                                                 result
                                             } else {
@@ -1119,6 +1123,14 @@ impl CliSession {
                                             } else if !is_json_mode {
                                                 print!("{}", formatted_message);
                                                 std::io::stdout().flush().unwrap();
+                                            }
+                                        } else if notification_type == "shell_output" {
+                                            // Hide spinner, print shell output, spinner will resume
+                                            if interactive {
+                                                let _ = progress_bars.hide();
+                                            }
+                                            if !is_json_mode {
+                                                println!("{}", formatted_message);
                                             }
                                         }
                                     }

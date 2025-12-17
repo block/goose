@@ -10,7 +10,7 @@ import { createNavigationHandler } from '../../../utils/navigationUtils';
 interface ProviderSettingsProps {
   onClose: () => void;
   isOnboarding: boolean;
-  onProviderLaunched?: () => void;
+  onProviderLaunched?: (model?: string) => void;
 }
 
 export default function ProviderSettings({

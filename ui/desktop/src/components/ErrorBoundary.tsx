@@ -2,10 +2,21 @@ import React from 'react';
 import { Button } from './ui/button';
 import { AlertTriangle } from 'lucide-react';
 import { errorMessage } from '../utils/conversionUtils';
+import { trackErrorWithContext, trackEvent, getErrorType } from '../utils/analytics';
+
+function getCurrentPage(): string {
+  return window.location.hash.replace('#', '') || '/';
+}
 
 // Capture unhandled promise rejections
 window.addEventListener('unhandledrejection', (event) => {
   window.electron.logInfo(`[UNHANDLED REJECTION] ${event.reason}`);
+  trackErrorWithContext(event.reason, {
+    component: 'global',
+    page: getCurrentPage(),
+    action: 'async_operation',
+    recoverable: false,
+  });
 });
 
 // Capture global errors
@@ -13,9 +24,23 @@ window.addEventListener('error', (event) => {
   window.electron.logInfo(
     `[GLOBAL ERROR] ${event.message} at ${event.filename}:${event.lineno}:${event.colno}`
   );
+  trackErrorWithContext(event.error || event.message, {
+    component: event.filename ? event.filename.split('/').pop() : 'unknown',
+    page: getCurrentPage(),
+    action: 'script_execution',
+    recoverable: false,
+  });
 });
 
 export function ErrorUI({ error }: { error: string }) {
+  const handleReload = () => {
+    trackEvent({
+      name: 'app_reloaded',
+      properties: { reason: 'error_recovery' },
+    });
+    window.electron.reloadApp();
+  };
+
   return (
     <div className="fixed inset-0 w-full h-full flex flex-col items-center justify-center gap-6 bg-background">
       <div className="flex flex-col items-center gap-4 max-w-[600px] text-center px-6">
@@ -39,7 +64,7 @@ export function ErrorUI({ error }: { error: string }) {
           {error}
         </pre>
 
-        <Button onClick={() => window.electron.reloadApp()}>Reload</Button>
+        <Button onClick={handleReload}>Reload</Button>
       </div>
     </div>
   );
@@ -61,6 +86,18 @@ export class ErrorBoundary extends React.Component<
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     // Send error to main process
     window.electron.logInfo(`[ERROR] ${error.toString()}\n${errorInfo.componentStack}`);
+
+    const componentMatch = errorInfo.componentStack?.match(/^\s*at\s+(\w+)/);
+    const componentName = componentMatch ? componentMatch[1] : undefined;
+
+    trackEvent({
+      name: 'app_crashed',
+      properties: {
+        error_type: getErrorType(error),
+        component: componentName,
+        page: getCurrentPage(),
+      },
+    });
   }
 
   render() {

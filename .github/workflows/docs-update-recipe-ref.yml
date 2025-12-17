@@ -24,9 +24,8 @@ on:
         type: boolean
         default: true
       
-  # Uncomment to enable automatic triggering on releases
-  # release:
-  #   types: [published]
+  release:
+    types: [published]
 
 permissions:
   contents: write       # Create branches and commit files

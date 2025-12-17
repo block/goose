@@ -304,5 +304,5 @@ Congrats, you've successfully used goose to develop a web app! 🎉
 Here are some ideas for next steps:
 * Continue your session with goose and improve your game (styling, functionality, etc).
 * Browse other available [extensions](/extensions) and install more to enhance goose's functionality even further.
-* Provide goose with a [set of hints](/docs/guides/using-goosehints) to use within your sessions.
+* Provide goose with a [set of hints](/docs/guides/context-engineering/using-goosehints) to use within your sessions.
 * See how you can set up [access controls](/docs/mcp/developer-mcp#configuring-access-controls) if you don't want goose to work autonomously.

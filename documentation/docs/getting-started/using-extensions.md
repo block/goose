@@ -37,6 +37,7 @@ Platform extensions are built-in extensions that provide global features like co
 
 - [Chat Recall](/docs/mcp/chatrecall-mcp): Search conversation content across all your session history
 - [Extension Manager](/docs/mcp/extension-manager-mcp): Discover, enable, and disable extensions dynamically during sessions
+- [Skills](/docs/mcp/skills-mcp): Load and use skills from the `.claude/skills` or `.goose/skills` directories
 - [Todo](/docs/mcp/todo-mcp): Manage task lists and track progress across sessions
 
 ### Toggling Built-in Extensions
