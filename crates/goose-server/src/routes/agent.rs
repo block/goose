@@ -283,7 +283,7 @@ async fn resume_agent(
                     })?;
 
             agent
-                .update_provider(provider, &payload.session_id)
+                .load_provider(provider)
                 .await
                 .map_err(|e| ErrorResponse {
                     message: format!("Could not configure agent: {}", e),

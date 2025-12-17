@@ -1326,6 +1326,14 @@ impl Agent {
             .context("Failed to persist provider config to session")
     }
 
+    pub async fn load_provider(&self, provider: Arc<dyn Provider>) -> Result<()> {
+        let mut current_provider = self.provider.lock().await;
+        *current_provider = Some(provider.clone());
+
+        self.update_router_tool_selector(Some(provider.clone()), None)
+            .await
+    }
+
     pub async fn update_router_tool_selector(
         &self,
         provider: Option<Arc<dyn Provider>>,
