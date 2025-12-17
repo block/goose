@@ -26,7 +26,7 @@ const CRON_PRESETS: [(&str, &str, &str); 5] = [
 ];
 
 #[derive(Default, Debug, PartialEq)]
-enum View {
+pub enum View {
     #[default]
     List,
     Create,
@@ -36,7 +36,7 @@ enum View {
 }
 
 #[derive(Default)]
-enum FormField {
+pub enum FormField {
     #[default]
     RecipePath,
     JobId,
@@ -44,24 +44,22 @@ enum FormField {
 }
 
 pub struct SchedulePopup {
-    view: View,
-    jobs: Vec<ScheduledJob>,
-    sessions: Vec<SessionDisplayInfo>,
-    list_state: ListState,
-    scroll_state: ScrollbarState,
-    history_list_state: ListState,
-    form_field: FormField,
-    recipe_input: TextArea<'static>,
-    job_id_input: TextArea<'static>,
-    cron_input: TextArea<'static>,
-    editing_job_id: Option<String>,
-    error_message: Option<String>,
-    pending_delete_id: Option<String>,
-    // File completion state
-    file_completions: Vec<(String, bool)>,
-    completion_selected: usize,
-    // Track if job ID was auto-generated (so we update it when recipe changes)
-    job_id_auto_generated: bool,
+    pub view: View,
+    pub jobs: Vec<ScheduledJob>,
+    pub sessions: Vec<SessionDisplayInfo>,
+    pub list_state: ListState,
+    pub scroll_state: ScrollbarState,
+    pub history_list_state: ListState,
+    pub form_field: FormField,
+    pub recipe_input: TextArea<'static>,
+    pub job_id_input: TextArea<'static>,
+    pub cron_input: TextArea<'static>,
+    pub editing_job_id: Option<String>,
+    pub error_message: Option<String>,
+    pub pending_delete_id: Option<String>,
+    pub file_completions: Vec<(String, bool)>,
+    pub completion_selected: usize,
+    pub job_id_auto_generated: bool,
 }
 
 impl Default for SchedulePopup {
@@ -149,7 +147,7 @@ impl SchedulePopup {
         }
     }
 
-    fn get_input_text(input: &TextArea) -> String {
+    pub fn get_input_text(input: &TextArea) -> String {
         input
             .lines()
             .first()
@@ -157,7 +155,7 @@ impl SchedulePopup {
             .unwrap_or_default()
     }
 
-    fn handle_list_key(&mut self, key: KeyEvent) -> Option<Action> {
+    pub fn handle_list_key(&mut self, key: KeyEvent) -> Option<Action> {
         match key.code {
             KeyCode::Char('j') | KeyCode::Down => {
                 if let Some(next) = navigate_list(self.list_state.selected(), 1, self.jobs.len()) {
@@ -224,7 +222,7 @@ impl SchedulePopup {
         }
     }
 
-    fn handle_create_key(&mut self, key: KeyEvent) -> Option<Action> {
+    pub fn handle_create_key(&mut self, key: KeyEvent) -> Option<Action> {
         match key.code {
             KeyCode::Esc => {
                 self.reset();
@@ -374,7 +372,7 @@ impl SchedulePopup {
         }
     }
 
-    fn handle_confirm_delete_key(&mut self, key: KeyEvent) -> Option<Action> {
+    pub fn handle_confirm_delete_key(&mut self, key: KeyEvent) -> Option<Action> {
         match key.code {
             KeyCode::Char('y') | KeyCode::Char('Y') => {
                 let id = self.pending_delete_id.take()?;
@@ -818,142 +816,5 @@ impl Component for SchedulePopup {
         }
 
         self.render_footer(f, hints_area, state);
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crossterm::event::KeyModifiers;
-
-    fn make_key(code: KeyCode) -> KeyEvent {
-        KeyEvent::new(code, KeyModifiers::empty())
-    }
-
-    fn make_test_job(id: &str, paused: bool, currently_running: bool) -> ScheduledJob {
-        ScheduledJob {
-            id: id.to_string(),
-            source: format!("/path/{}.yaml", id),
-            cron: "0 9 * * *".to_string(),
-            paused,
-            currently_running,
-            last_run: None,
-            current_session_id: None,
-            process_start_time: None,
-        }
-    }
-
-    #[test]
-    fn test_list_navigation_wraps() {
-        let mut popup = SchedulePopup::new();
-        popup.jobs = vec![
-            make_test_job("job1", false, false),
-            make_test_job("job2", false, false),
-            make_test_job("job3", false, false),
-        ];
-        popup.list_state.select(Some(2));
-
-        popup.handle_list_key(make_key(KeyCode::Char('j')));
-        assert_eq!(popup.list_state.selected(), Some(0));
-
-        popup.handle_list_key(make_key(KeyCode::Char('k')));
-        assert_eq!(popup.list_state.selected(), Some(2));
-    }
-
-    #[test]
-    fn test_create_validates_empty_fields() {
-        let mut popup = SchedulePopup::new();
-        popup.view = View::Create;
-
-        let action = popup.handle_create_key(make_key(KeyCode::Enter));
-        assert!(action.is_none());
-        assert!(popup.error_message.is_some());
-    }
-
-    #[test]
-    fn test_pause_toggle_returns_correct_action() {
-        let mut popup = SchedulePopup::new();
-        popup.jobs = vec![make_test_job("job1", false, false)];
-        popup.list_state.select(Some(0));
-
-        let action = popup.handle_list_key(make_key(KeyCode::Char('p')));
-        assert!(matches!(action, Some(Action::PauseSchedule(_))));
-
-        popup.jobs = vec![make_test_job("job1", true, false)];
-        let action = popup.handle_list_key(make_key(KeyCode::Char('p')));
-        assert!(matches!(action, Some(Action::UnpauseSchedule(_))));
-    }
-
-    #[test]
-    fn test_kill_only_works_on_running_jobs() {
-        let mut popup = SchedulePopup::new();
-        popup.jobs = vec![make_test_job("job1", false, false)];
-        popup.list_state.select(Some(0));
-
-        let action = popup.handle_list_key(make_key(KeyCode::Char('K')));
-        assert!(action.is_none());
-
-        popup.jobs = vec![make_test_job("job1", false, true)];
-        let action = popup.handle_list_key(make_key(KeyCode::Char('K')));
-        assert!(action.is_some());
-    }
-
-    #[test]
-    fn test_cron_preset_applies() {
-        let mut popup = SchedulePopup::new();
-        popup.view = View::Create;
-        popup.form_field = FormField::Cron;
-        popup.handle_create_key(make_key(KeyCode::Char('2')));
-
-        assert_eq!(
-            SchedulePopup::get_input_text(&popup.cron_input),
-            "0 9 * * *"
-        );
-    }
-
-    #[test]
-    fn test_close_popup_returns_action() {
-        let mut popup = SchedulePopup::new();
-        let action = popup.handle_list_key(make_key(KeyCode::Esc));
-        assert!(matches!(action, Some(Action::ClosePopup)));
-
-        let action = popup.handle_list_key(make_key(KeyCode::Char('q')));
-        assert!(matches!(action, Some(Action::ClosePopup)));
-    }
-
-    #[test]
-    fn test_run_now_returns_action() {
-        let mut popup = SchedulePopup::new();
-        popup.jobs = vec![make_test_job("job1", false, false)];
-        popup.list_state.select(Some(0));
-
-        let action = popup.handle_list_key(make_key(KeyCode::Char('r')));
-        assert!(matches!(action, Some(Action::RunScheduleNow(id)) if id == "job1"));
-    }
-
-    #[test]
-    fn test_delete_confirmation_flow() {
-        let mut popup = SchedulePopup::new();
-        popup.jobs = vec![make_test_job("job1", false, false)];
-        popup.list_state.select(Some(0));
-
-        popup.handle_list_key(make_key(KeyCode::Char('d')));
-        assert_eq!(popup.view, View::ConfirmDelete);
-        assert_eq!(popup.pending_delete_id, Some("job1".to_string()));
-
-        let action = popup.handle_confirm_delete_key(make_key(KeyCode::Char('n')));
-        assert!(action.is_none());
-        assert_eq!(popup.view, View::List);
-        assert!(popup.pending_delete_id.is_none());
-    }
-
-    #[test]
-    fn test_delete_confirmed() {
-        let mut popup = SchedulePopup::new();
-        popup.view = View::ConfirmDelete;
-        popup.pending_delete_id = Some("job1".to_string());
-
-        let action = popup.handle_confirm_delete_key(make_key(KeyCode::Char('y')));
-        assert!(matches!(action, Some(Action::DeleteSchedule(id)) if id == "job1"));
     }
 }
