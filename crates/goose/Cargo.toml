@@ -138,4 +138,4 @@ path = "examples/databricks_oauth.rs"
 
 [[bin]]
 name = "build_canonical_models"
-path = "src/bin/build_canonical_models.rs"
+path = "src/providers/canonical/build_canonical_models.rs"
