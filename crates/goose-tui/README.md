@@ -102,6 +102,23 @@ A lightweight fallback when the full TUI isn't suitable:
 goose-tui --cli
 ```
 
+### Server Mode
+
+Run a standalone goose server (the same server that powers the desktop app):
+
+```bash
+# Start server on default port 3000
+goose-tui server
+
+# Start server on custom port
+goose-tui server --port 8080
+```
+
+The server provides the HTTP API for agent management, sessions, and configuration. Useful for:
+- Running goose as a background service
+- Connecting external clients to a persistent server
+- Development and testing
+
 CLI mode provides the same functionality with simple line-by-line output. Use it when:
 - Your terminal has compatibility issues with the TUI
 - You need to pipe or capture output

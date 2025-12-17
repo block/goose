@@ -10,6 +10,7 @@ cargo run -p goose-tui -- --session <ID>
 cargo run -p goose-tui -- --recipe <FILE>
 cargo run -p goose-tui -- --recipe <FILE> --headless
 cargo run -p goose-tui -- --cli
+cargo run -p goose-tui -- server --port 3000
 ```
 
 ## Structure

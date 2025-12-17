@@ -8,6 +8,22 @@ The TUI embeds a goose-server instance and communicates with it via HTTP using t
 
 For environments where the full TUI isn't suitable, a lightweight `--cli` mode provides the same functionality with simple line-by-line output. See `cli.rs`.
 
+## Execution Modes
+
+goose-tui supports multiple execution modes:
+
+| Mode | Command | Description |
+|------|---------|-------------|
+| Interactive | `goose-tui` | Full TUI with embedded server |
+| Recipe | `goose-tui --recipe file.yaml` | Run recipe with TUI progress |
+| Headless | `goose-tui --recipe file.yaml --headless` | Non-interactive recipe execution |
+| CLI | `goose-tui --cli` | Lightweight REPL fallback |
+| Server | `goose-tui server --port 3000` | Standalone server (no TUI) |
+
+In **interactive**, **recipe**, **headless**, and **CLI** modes, goose-tui embeds a goose-server on a random port and communicates via HTTP.
+
+In **server** mode, goose-tui simply starts goose-server as a standalone process on the specified port (default 3000), without any TUI. This is the same server that powers the desktop app.
+
 ## System Architecture
 
 ```
