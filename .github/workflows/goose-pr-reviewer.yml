@@ -14,7 +14,7 @@
 #
 # Optional Variables:
 #   - GOOSE_PROVIDER: LLM provider (default: anthropic)
-#   - GOOSE_MODEL: Model name (default: claude-sonnet-4-5)
+#   - GOOSE_MODEL: Model name (default: claude-opus-4-5)
 #
 # Security:
 #   - PR content could prompt-inject the agent; only trigger on PRs you trust.
@@ -42,18 +42,26 @@ env:
       You are a code reviewer. Your job is to evaluate code, not implement changes.
 
       Principles:
+      - Understand before you critique - explain the author's intent before finding fault
       - Be constructive and specific in feedback
       - Reference exact files and line numbers (format: path/file.rs:42)
-      - Categorize issues by severity
+      - Verify claims with code evidence before stating them
       - Respect project conventions (AGENTS.md)
       - Never modify code - this is a read-only review
-      - Your context degrades. The TODO is your memory. Update it after each step.
 
-      Issue Categories:
-      - 🔴 BLOCKING: Must fix before merge (bugs, security, breaking changes)
-      - 🟡 WARNING: Should fix (performance, conventions, missing tests)
-      - 🟢 SUGGESTION: Nice to have (style, refactoring opportunities)
-      - ✅ HIGHLIGHT: Good practices to acknowledge
+      YOUR MEMORY DEGRADES. The TODO is your memory. Write to it immediately and update after EVERY step.
+
+      Issue Categories & Confidence Requirements:
+      - 🔴 BLOCKING: Must fix before merge. REQUIRES HIGH confidence with code evidence.
+      - 🟡 WARNING: Should fix (performance, conventions, missing tests). MEDIUM+ confidence.
+      - 🟢 SUGGESTION: Nice to have (style, refactoring). Can be speculative but label it.
+      - ✅ HIGHLIGHT: Good practices to acknowledge.
+
+      Anti-hallucination rules:
+      - Before claiming something is "missing", search for it with rg
+      - Before claiming UI/frontend changes are needed, trace the actual data flow
+      - If you cannot verify a claim, say "I couldn't verify this" not "this is wrong"
+      - 2 verified issues are better than 10 speculative ones
 
     prompt: |
       Review PR #${PR_NUMBER}: ${PR_TITLE}
@@ -67,47 +75,64 @@ env:
       Reviewer instructions from trigger:
       ${REVIEW_INSTRUCTIONS}
 
-      Write this to your TODO immediately and update as you progress:
+      FIRST ACTION: Call todo_write with this entire checklist. Your memory degrades - the TODO is your only reliable memory. Update it after EVERY step.
+
+      ## PR Understanding
+      - Intent: [fill after Phase 1]
+      - Approach: [fill after Phase 1]
+      - Author's reasoning: [fill after Phase 2 - why this approach vs alternatives]
 
       ## Phase 1: Understand
       - [ ] Read /tmp/pr.json for PR description and context
       - [ ] Read /tmp/pr.diff for the actual changes
       - [ ] Read AGENTS.md if it exists
-      - [ ] Note the reviewer instructions above - prioritize any specific requests
-      - [ ] Identify the intent and scope of the PR
+      - [ ] Note reviewer instructions: ${REVIEW_INSTRUCTIONS}
+      - [ ] Update TODO with intent and approach above
 
-      ## Phase 2: Analyze Code
-      - [ ] Explore the codebase to understand context (use analyze, rg, read files)
+      ## Phase 2: Steel Man the Implementation
+      - [ ] Trace the data/control flow through the changes
+      - [ ] Why did the author choose this approach?
+      - [ ] What alternatives exist and why might they be worse?
+      - [ ] Update TODO with author's reasoning above
+
+      ## Phase 3: Analyze Code (only after Phase 2 complete)
+      - [ ] Explore codebase for context (use analyze, rg, read files)
       - [ ] Review for correctness and logic errors
       - [ ] Check for security vulnerabilities
       - [ ] Assess error handling
       - [ ] Look for performance issues
       - [ ] Verify code follows project patterns
+      - [ ] For each issue, add to Issues Found below with confidence level
 
       Note: Do NOT run cargo check, cargo test, cargo fmt, or other build commands.
       CI pipelines already validate those automatically. Focus on code review only.
 
-      ## Phase 3: Write Review
-      - [ ] Write detailed review to /tmp/pr_review.md
-      - [ ] Include specific file:line references
-      - [ ] Categorize all issues by severity
-      - [ ] Provide actionable suggestions
+      ## Phase 4: Write Review
+      - [ ] Verify all 🔴 BLOCKING issues have HIGH confidence + code evidence
+      - [ ] Write review to /tmp/pr_review.md
+      - [ ] Be concise - quality over quantity
+
+      ## Issues Found
+      [Add issues here as you find them, format: [HIGH/MED/LOW] [file:line] description - evidence]
+
+      ---
 
       Format your review in /tmp/pr_review.md as:
 
-      ## Summary
-      [1-2 sentence overview of the PR and your assessment]
+      **Summary**: [1-2 sentence overview of what this PR does and your assessment]
 
-      ## 🔴 Blocking Issues
-      [Issues that must be fixed before merge, or "None found"]
+      Only include sections below if they have content. Omit empty sections entirely.
 
-      ## 🟡 Warnings
-      [Issues that should be addressed, or "None found"]
+      **🔴 Blocking Issues**
+      [Issues that must be fixed before merge. Each must have file:line and evidence.]
 
-      ## 🟢 Suggestions
-      [Optional improvements, or "None"]
+      **🟡 Warnings**
+      [Issues that should be addressed]
 
-      ## ✅ Highlights
+      **🟢 Suggestions**
+      [Optional improvements]
+
+      **✅ Highlights**
       [Good practices observed in this PR]
 
       ---
@@ -139,7 +164,7 @@ jobs:
       options: --user root
       env:
         GOOSE_PROVIDER: ${{ vars.GOOSE_PROVIDER || 'anthropic' }}
-        GOOSE_MODEL: ${{ vars.GOOSE_MODEL || 'claude-sonnet-4-5' }}
+        GOOSE_MODEL: ${{ vars.GOOSE_MODEL || 'claude-opus-4-5' }}
         ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         HOME: /tmp/goose-home
 
@@ -161,7 +186,7 @@ jobs:
       - name: Install tools
         run: |
           apt-get update
-          apt-get install -y gettext curl
+          apt-get install -y gettext curl ripgrep
           curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
           echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null
           apt-get update
