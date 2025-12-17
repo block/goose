@@ -18,6 +18,7 @@ import type {
   ReadResourceRequest,
   ListPromptsRequest,
   PingRequest,
+  CspMetadata,
 } from './types';
 import {
   fetchMcpAppProxyUrl,
@@ -37,7 +38,7 @@ type MessageHandler<T> = (msg: T) => JsonRpcResponse | null;
 
 interface SandboxBridgeOptions {
   resourceHtml: string;
-  resourceCsp: Record<string, string[]> | null;
+  resourceCsp: CspMetadata | null;
   resourceUri: string;
   iframeHeight: number;
   toolInput?: ToolInput;
