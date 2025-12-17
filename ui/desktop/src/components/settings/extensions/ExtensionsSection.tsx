@@ -12,11 +12,10 @@ import {
   getDefaultFormData,
 } from './utils';
 
-import { activateExtension, deleteExtension, toggleExtension, updateExtension } from './index';
+import { activateExtensionDefault, deleteExtension, toggleExtensionDefault } from './index';
 import { ExtensionConfig } from '../../../api/types.gen';
 
 interface ExtensionSectionProps {
-  sessionId: string; // Add required sessionId prop
   deepLinkConfig?: ExtensionConfig;
   showEnvVars?: boolean;
   hideButtons?: boolean;
@@ -28,7 +27,6 @@ interface ExtensionSectionProps {
 }
 
 export default function ExtensionsSection({
-  sessionId,
   deepLinkConfig,
   showEnvVars,
   hideButtons,
@@ -102,15 +100,12 @@ export default function ExtensionsSection({
       return true;
     }
 
-    // If extension is enabled, we are trying to toggle if off, otherwise on
     const toggleDirection = extensionConfig.enabled ? 'toggleOff' : 'toggleOn';
 
-    await toggleExtension({
+    await toggleExtensionDefault({
       toggle: toggleDirection,
       extensionConfig: extensionConfig,
       addToConfig: addExtension,
-      toastOptions: { silent: false },
-      sessionId: sessionId,
     });
 
     setPendingActivationExtensions((prev) => {
@@ -134,10 +129,9 @@ export default function ExtensionsSection({
 
     const extensionConfig = createExtensionConfig(formData);
     try {
-      await activateExtension({
+      await activateExtensionDefault({
         addToConfig: addExtension,
         extensionConfig: extensionConfig,
-        sessionId: sessionId,
       });
       setPendingActivationExtensions((prev) => {
         const updated = new Set(prev);
@@ -177,42 +171,28 @@ export default function ExtensionsSection({
     const originalName = selectedExtension.name;
 
     try {
-      await updateExtension({
-        enabled: formData.enabled,
-        extensionConfig: extensionConfig,
-        addToConfig: addExtension,
-        removeFromConfig: removeExtension,
-        originalName: originalName,
-        sessionId: sessionId,
-      });
+      if (originalName !== extensionConfig.name) {
+        await removeExtension(originalName);
+      }
+      await addExtension(extensionConfig.name, extensionConfig, formData.enabled);
     } catch (error) {
       console.error('Failed to update extension:', error);
-      // We don't reopen the modal on failure
     } finally {
-      // Refresh the extensions list regardless of success or failure
       await fetchExtensions();
     }
   };
 
   const handleDeleteExtension = async (name: string) => {
-    // Capture the selected extension before closing the modal
-    const extensionToDelete = selectedExtension;
-
-    // Close the modal immediately
     handleModalClose();
 
     try {
       await deleteExtension({
         name,
         removeFromConfig: removeExtension,
-        sessionId: sessionId,
-        extensionConfig: extensionToDelete ?? undefined,
       });
     } catch (error) {
       console.error('Failed to delete extension:', error);
-      // We don't reopen the modal on failure
     } finally {
-      // Refresh the extensions list regardless of success or failure
       await fetchExtensions();
     }
   };

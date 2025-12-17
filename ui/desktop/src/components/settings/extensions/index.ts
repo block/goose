@@ -4,9 +4,11 @@ export { DEFAULT_EXTENSION_TIMEOUT, nameToKey } from './utils';
 // Export extension management functions
 export {
   activateExtension,
+  activateExtensionDefault,
   addToAgentOnStartup,
   updateExtension,
   toggleExtension,
+  toggleExtensionDefault,
   deleteExtension,
 } from './extension-manager';
 

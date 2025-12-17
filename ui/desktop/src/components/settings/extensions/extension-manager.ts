@@ -135,12 +135,9 @@ interface UpdateExtensionProps {
   removeFromConfig: (name: string) => Promise<void>;
   extensionConfig: ExtensionConfig;
   originalName?: string;
-  sessionId: string;
+  sessionId?: string;
 }
 
-/**
- * Updates an extension configuration, handling name changes
- */
 export async function updateExtension({
   enabled,
   addToConfig,
@@ -149,40 +146,33 @@ export async function updateExtension({
   originalName,
   sessionId,
 }: UpdateExtensionProps) {
-  // Sanitize the new name to match the behavior when adding extensions
   const sanitizedNewName = sanitizeName(extensionConfig.name);
   const sanitizedOriginalName = originalName ? sanitizeName(originalName) : undefined;
-
-  // Check if the sanitized name has changed
   const nameChanged = sanitizedOriginalName && sanitizedOriginalName !== sanitizedNewName;
 
   if (nameChanged) {
-    // Handle name change: remove old extension and add new one
-
-    // First remove the old extension from agent (using original name)
-    try {
-      await removeFromAgent(originalName!, sessionId, false);
-    } catch (error) {
-      console.error('Failed to remove old extension from agent during rename:', error);
-      // Continue with the process even if agent removal fails
+    if (sessionId) {
+      try {
+        await removeFromAgent(originalName!, sessionId, false);
+      } catch (error) {
+        console.error('Failed to remove old extension from agent during rename:', error);
+        // Continue with the process even if agent removal fails
+      }
     }
 
-    // Remove old extension from config (using original name)
     try {
-      await removeFromConfig(originalName!); // We know originalName is not undefined here because nameChanged is true
+      await removeFromConfig(originalName!);
     } catch (error) {
       console.error('Failed to remove old extension from config during rename:', error);
-      throw error; // This is more critical, so we throw
+      throw error;
     }
 
-    // Create a copy of the extension config with the sanitized name
     const sanitizedExtensionConfig = {
       ...extensionConfig,
       name: sanitizedNewName,
     };
 
-    // Add new extension with sanitized name
-    if (enabled) {
+    if (enabled && sessionId) {
       try {
         await addToAgent(sanitizedExtensionConfig, sessionId, false);
       } catch (error) {
@@ -191,7 +181,6 @@ export async function updateExtension({
       }
     }
 
-    // Add to config with sanitized name
     try {
       await addToConfig(sanitizedNewName, sanitizedExtensionConfig, enabled);
     } catch (error) {
@@ -205,18 +194,16 @@ export async function updateExtension({
       msg: `Successfully updated ${sanitizedNewName} extension`,
     });
   } else {
-    // Create a copy of the extension config with the sanitized name
     const sanitizedExtensionConfig = {
       ...extensionConfig,
       name: sanitizedNewName,
     };
 
-    if (enabled) {
+    if (enabled && sessionId) {
       try {
         await addToAgent(sanitizedExtensionConfig, sessionId, false);
       } catch (error) {
         console.error('[updateExtension]: Failed to add extension to agent during update:', error);
-        // Failed to add to agent -- show that error to user and do not update the config file
         throw error;
       }
 
@@ -228,7 +215,6 @@ export async function updateExtension({
         throw error;
       }
 
-      // show a toast that it was successfully updated
       toastService.success({
         title: `Update extension`,
         msg: `Successfully updated ${sanitizedNewName} extension`,
@@ -237,11 +223,10 @@ export async function updateExtension({
       try {
         await addToConfig(sanitizedNewName, sanitizedExtensionConfig, enabled);
       } catch (error) {
-        console.error('[updateExtension]: Failed to update disabled extension in config:', error);
+        console.error('[updateExtension]: Failed to update extension in config:', error);
         throw error;
       }
 
-      // show a toast that it was successfully updated
       toastService.success({
         title: `Update extension`,
         msg: `Successfully updated ${sanitizedNewName} extension`,
@@ -347,7 +332,7 @@ export async function toggleExtension({
 interface DeleteExtensionProps {
   name: string;
   removeFromConfig: (name: string) => Promise<void>;
-  sessionId: string;
+  sessionId?: string;
   extensionConfig?: ExtensionConfig;
 }
 
@@ -363,11 +348,13 @@ export async function deleteExtension({
   const isBuiltin = extensionConfig ? isBuiltinExtension(extensionConfig) : false;
 
   let agentRemoveError = null;
-  try {
-    await removeFromAgent(name, sessionId, true);
-  } catch (error) {
-    console.error('Failed to remove extension from agent during deletion:', error);
-    agentRemoveError = error;
+  if (sessionId) {
+    try {
+      await removeFromAgent(name, sessionId, true);
+    } catch (error) {
+      console.error('Failed to remove extension from agent during deletion:', error);
+      agentRemoveError = error;
+    }
   }
 
   try {
@@ -388,5 +375,74 @@ export async function deleteExtension({
 
   if (agentRemoveError) {
     throw agentRemoveError;
+  }
+}
+
+interface ToggleExtensionDefaultProps {
+  toggle: 'toggleOn' | 'toggleOff';
+  extensionConfig: ExtensionConfig;
+  addToConfig: (name: string, extensionConfig: ExtensionConfig, enabled: boolean) => Promise<void>;
+}
+
+export async function toggleExtensionDefault({
+  toggle,
+  extensionConfig,
+  addToConfig,
+}: ToggleExtensionDefaultProps) {
+  const isBuiltin = isBuiltinExtension(extensionConfig);
+  const enabled = toggle === 'toggleOn';
+
+  try {
+    await addToConfig(extensionConfig.name, extensionConfig, enabled);
+    if (enabled) {
+      trackExtensionEnabled(extensionConfig.name, true, undefined, isBuiltin);
+    } else {
+      trackExtensionDisabled(extensionConfig.name, true, undefined, isBuiltin);
+    }
+    toastService.success({
+      title: extensionConfig.name,
+      msg: enabled ? 'Extension enabled as default' : 'Extension disabled as default',
+    });
+  } catch (error) {
+    console.error('Failed to update extension default in config:', error);
+    if (enabled) {
+      trackExtensionEnabled(extensionConfig.name, false, getErrorType(error), isBuiltin);
+    } else {
+      trackExtensionDisabled(extensionConfig.name, false, getErrorType(error), isBuiltin);
+    }
+    toastService.error({
+      title: extensionConfig.name,
+      msg: 'Failed to update extension default',
+    });
+    throw error;
+  }
+}
+
+interface ActivateExtensionDefaultProps {
+  addToConfig: (name: string, extensionConfig: ExtensionConfig, enabled: boolean) => Promise<void>;
+  extensionConfig: ExtensionConfig;
+}
+
+export async function activateExtensionDefault({
+  addToConfig,
+  extensionConfig,
+}: ActivateExtensionDefaultProps): Promise<void> {
+  const isBuiltin = isBuiltinExtension(extensionConfig);
+
+  try {
+    await addToConfig(extensionConfig.name, extensionConfig, true);
+    trackExtensionAdded(extensionConfig.name, true, undefined, isBuiltin);
+    toastService.success({
+      title: extensionConfig.name,
+      msg: 'Extension added as default',
+    });
+  } catch (error) {
+    console.error('Failed to add extension to config:', error);
+    trackExtensionAdded(extensionConfig.name, false, getErrorType(error), isBuiltin);
+    toastService.error({
+      title: extensionConfig.name,
+      msg: 'Failed to add extension',
+    });
+    throw error;
   }
 }
