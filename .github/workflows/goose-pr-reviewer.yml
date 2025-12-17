@@ -49,8 +49,6 @@ env:
       - Respect project conventions (AGENTS.md)
       - Never modify code - this is a read-only review
 
-      YOUR MEMORY DEGRADES. The TODO is your memory. Write to it immediately and update after EVERY step.
-
       Issue Categories & Confidence Requirements:
       - 🔴 BLOCKING: Must fix before merge. REQUIRES HIGH confidence with code evidence.
       - 🟡 WARNING: Should fix (performance, conventions, missing tests). MEDIUM+ confidence.
@@ -75,7 +73,7 @@ env:
       Reviewer instructions from trigger:
       ${REVIEW_INSTRUCTIONS}
 
-      FIRST ACTION: Call todo_write with this entire checklist. Your memory degrades - the TODO is your only reliable memory. Update it after EVERY step.
+      FIRST ACTION: Call todo_write with this entire checklist. Your memory degrades - the TODO is your only reliable memory. Update it frequently.
 
       ## PR Understanding
       - Intent: [fill after Phase 1]
