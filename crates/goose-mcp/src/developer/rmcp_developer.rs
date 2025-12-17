@@ -1,5 +1,6 @@
 use anyhow::anyhow;
 use base64::Engine;
+use etcetera::AppStrategy;
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use include_dir::{include_dir, Dir};
 use indoc::{formatdoc, indoc};
@@ -1284,17 +1285,46 @@ impl DeveloperServer {
     fn build_ignore_patterns(cwd: &PathBuf) -> Gitignore {
         let mut builder = GitignoreBuilder::new(cwd);
         let local_ignore_path = cwd.join(".gooseignore");
-        let mut has_ignore_file = false;
 
-        if local_ignore_path.is_file() {
-            let _ = builder.add(local_ignore_path);
-            has_ignore_file = true;
+        // Get the global config directory for .gooseignore
+        // Check GOOSE_PATH_ROOT first (used for testing), then fall back to etcetera
+        let global_ignore_path = if let Ok(test_root) = std::env::var("GOOSE_PATH_ROOT") {
+            // For testing: GOOSE_PATH_ROOT/config/.gooseignore
+            Some(std::path::PathBuf::from(test_root).join("config").join(".gooseignore"))
+        } else {
+            etcetera::choose_app_strategy(etcetera::AppStrategyArgs {
+                top_level_domain: "Block".to_string(),
+                author: "Block".to_string(),
+                app_name: "goose".to_string(),
+            })
+            .ok()
+            .map(|strategy| strategy.config_dir().join(".gooseignore"))
+        };
+
+        let has_local_ignore = local_ignore_path.is_file();
+        let has_global_ignore = global_ignore_path
+            .as_ref()
+            .map(|p| p.is_file())
+            .unwrap_or(false);
+
+        // 1. Always add default patterns first (lowest priority)
+        //    This allows them to be negated by global or local .gooseignore files
+        let _ = builder.add_line(None, "**/.env");
+        let _ = builder.add_line(None, "**/.env.*");
+        let _ = builder.add_line(None, "**/secrets.*");
+
+        // 2. Add global .gooseignore patterns (medium priority)
+        //    These can override defaults but are overridden by local patterns
+        if let Some(ref global_path) = global_ignore_path {
+            if has_global_ignore {
+                let _ = builder.add(global_path);
+            }
         }
 
-        if !has_ignore_file {
-            let _ = builder.add_line(None, "**/.env");
-            let _ = builder.add_line(None, "**/.env.*");
-            let _ = builder.add_line(None, "**/secrets.*");
+        // 3. Add local .gooseignore patterns (highest priority)
+        //    These can override both defaults and global patterns
+        if has_local_ignore {
+            let _ = builder.add(&local_ignore_path);
         }
 
         builder.build().expect("Failed to build ignore patterns")
@@ -3234,6 +3264,104 @@ mod tests {
         assert!(
             !server.is_ignored(Path::new("normal.txt")),
             "normal.txt should not be ignored"
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_global_gooseignore_negation_pattern() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create a mock global config directory
+        let global_config_dir = temp_dir.path().join("config");
+        fs::create_dir_all(&global_config_dir).unwrap();
+
+        // Set GOOSE_PATH_ROOT to use our test directory as the config root
+        // This makes etcetera return our test directory for config_dir()
+        std::env::set_var("GOOSE_PATH_ROOT", temp_dir.path());
+
+        // Create global .gooseignore with negation pattern for .env.example
+        let global_ignore_path = global_config_dir.join(".gooseignore");
+        fs::write(&global_ignore_path, "!.env.example\n").unwrap();
+
+        let server = create_test_server();
+
+        // .env should still be ignored by default patterns
+        assert!(
+            server.is_ignored(Path::new(".env")),
+            ".env should still be ignored by default patterns"
+        );
+
+        // .env.local should still be ignored by default patterns
+        assert!(
+            server.is_ignored(Path::new(".env.local")),
+            ".env.local should still be ignored by default patterns"
+        );
+
+        // .env.example should NOT be ignored due to negation in global .gooseignore
+        assert!(
+            !server.is_ignored(Path::new(".env.example")),
+            ".env.example should NOT be ignored due to negation pattern in global .gooseignore"
+        );
+
+        // Clean up env var
+        std::env::remove_var("GOOSE_PATH_ROOT");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_local_gooseignore_overrides_global() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create a mock global config directory
+        let global_config_dir = temp_dir.path().join("config");
+        fs::create_dir_all(&global_config_dir).unwrap();
+
+        // Set GOOSE_PATH_ROOT to use our test directory as the config root
+        std::env::set_var("GOOSE_PATH_ROOT", temp_dir.path());
+
+        // Create global .gooseignore with negation pattern for .env.example
+        let global_ignore_path = global_config_dir.join(".gooseignore");
+        fs::write(&global_ignore_path, "!.env.example\n").unwrap();
+
+        // Create local .gooseignore that re-ignores .env.example
+        fs::write(".gooseignore", ".env.example\n").unwrap();
+
+        let server = create_test_server();
+
+        // .env.example should be ignored because local .gooseignore overrides global
+        assert!(
+            server.is_ignored(Path::new(".env.example")),
+            ".env.example should be ignored because local .gooseignore overrides global negation"
+        );
+
+        // Clean up env var
+        std::env::remove_var("GOOSE_PATH_ROOT");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_local_gooseignore_negation_overrides_defaults() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(&temp_dir).unwrap();
+
+        // Create local .gooseignore with negation pattern
+        fs::write(".gooseignore", "!.env.example\n").unwrap();
+
+        let server = create_test_server();
+
+        // .env should still be ignored by default patterns
+        assert!(
+            server.is_ignored(Path::new(".env")),
+            ".env should still be ignored by default patterns"
+        );
+
+        // .env.example should NOT be ignored due to negation in local .gooseignore
+        assert!(
+            !server.is_ignored(Path::new(".env.example")),
+            ".env.example should NOT be ignored due to negation pattern in local .gooseignore"
         );
     }
 
