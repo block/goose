@@ -1290,7 +1290,11 @@ impl DeveloperServer {
         // Check GOOSE_PATH_ROOT first (used for testing), then fall back to etcetera
         let global_ignore_path = if let Ok(test_root) = std::env::var("GOOSE_PATH_ROOT") {
             // For testing: GOOSE_PATH_ROOT/config/.gooseignore
-            Some(std::path::PathBuf::from(test_root).join("config").join(".gooseignore"))
+            Some(
+                std::path::PathBuf::from(test_root)
+                    .join("config")
+                    .join(".gooseignore"),
+            )
         } else {
             etcetera::choose_app_strategy(etcetera::AppStrategyArgs {
                 top_level_domain: "Block".to_string(),
