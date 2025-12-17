@@ -255,25 +255,36 @@ const mockAppHtml = `<!DOCTYPE html>
       <button class="action-btn" id="btn-message">
         Send Message <code>ui/message</code>
       </button>
+      <button class="action-btn" id="btn-size-change">
+        Size Change <code>ui/notifications/size-changed</code>
+      </button>
     </div>
   </div>
   <div class="actions">
     <h2 class="actions-heading">MCP Passthrough (forwarded to MCP server)</h2>
     <div class="actions-buttons">
-      <button class="action-btn" disabled>
-          Call Tool <code>tools/call</code>
+      <button class="action-btn" id="btn-tools-call">
+        Call Tool <code>tools/call</code>
       </button>
-      <button class="action-btn" disabled>
+      <button class="action-btn" id="btn-resources-list">
+        List Resources <code>resources/list</code>
+      </button>
+      <button class="action-btn" id="btn-resources-templates-list">
+        List Templates <code>resources/templates/list</code>
+      </button>
+      <button class="action-btn" id="btn-resources-read">
         Read Resource <code>resources/read</code>
       </button>
-      <button class="action-btn" disabled>
+      <button class="action-btn" id="btn-prompts-list">
+        List Prompts <code>prompts/list</code>
+      </button>
+      <button class="action-btn" id="btn-notifications-message">
         Log Message <code>notifications/message</code>
       </button>
-      <button class="action-btn" disabled>
+      <button class="action-btn" id="btn-ping">
         Ping <code>ping</code>
       </button>
     </div>
-    <p class="actions-note">Not implemented yet</p>
   </div>
   <div class="terminal">
     <div class="terminal-grid">
@@ -454,6 +465,10 @@ const mockAppHtml = `<!DOCTYPE html>
       document.getElementById('btn-open-link').addEventListener('click', function() {
         sendRequest('ui/open-link', {
           url: 'https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/draft/apps.mdx'
+        }).then(function(result) {
+          console.log('[MockApp] ui/open-link response:', result);
+        }).catch(function(error) {
+          console.error('[MockApp] ui/open-link error:', error);
         });
       });
 
@@ -465,6 +480,85 @@ const mockAppHtml = `<!DOCTYPE html>
             type: 'text',
             text: 'Hello from MCP App Demo! This message was sent via ui/message.'
           }
+        }).then(function(result) {
+          console.log('[MockApp] ui/message response:', result);
+        }).catch(function(error) {
+          console.error('[MockApp] ui/message error:', error);
+        });
+      });
+
+      // Action button: Size Change (reports actual body size)
+      document.getElementById('btn-size-change').addEventListener('click', function() {
+        sendSizeChanged();
+        console.log('[MockApp] ui/notifications/size-changed sent (no response expected)');
+      });
+
+      // Action button: Call Tool
+      document.getElementById('btn-tools-call').addEventListener('click', function() {
+        sendRequest('tools/call', {
+          name: 'example_tool',
+          arguments: { param1: 'value1', param2: 42 }
+        }).then(function(result) {
+          console.log('[MockApp] tools/call response:', result);
+        }).catch(function(error) {
+          console.error('[MockApp] tools/call error:', error);
+        });
+      });
+
+      // Action button: List Resources
+      document.getElementById('btn-resources-list').addEventListener('click', function() {
+        sendRequest('resources/list', {}).then(function(result) {
+          console.log('[MockApp] resources/list response:', result);
+        }).catch(function(error) {
+          console.error('[MockApp] resources/list error:', error);
+        });
+      });
+
+      // Action button: List Resource Templates
+      document.getElementById('btn-resources-templates-list').addEventListener('click', function() {
+        sendRequest('resources/templates/list', {}).then(function(result) {
+          console.log('[MockApp] resources/templates/list response:', result);
+        }).catch(function(error) {
+          console.error('[MockApp] resources/templates/list error:', error);
+        });
+      });
+
+      // Action button: Read Resource
+      document.getElementById('btn-resources-read').addEventListener('click', function() {
+        sendRequest('resources/read', {
+          uri: 'resource://example/demo-resource'
+        }).then(function(result) {
+          console.log('[MockApp] resources/read response:', result);
+        }).catch(function(error) {
+          console.error('[MockApp] resources/read error:', error);
+        });
+      });
+
+      // Action button: List Prompts
+      document.getElementById('btn-prompts-list').addEventListener('click', function() {
+        sendRequest('prompts/list', {}).then(function(result) {
+          console.log('[MockApp] prompts/list response:', result);
+        }).catch(function(error) {
+          console.error('[MockApp] prompts/list error:', error);
+        });
+      });
+
+      // Action button: Log Message (notification)
+      document.getElementById('btn-notifications-message').addEventListener('click', function() {
+        sendNotification('notifications/message', {
+          level: 'info',
+          data: 'This is a log message from the MCP App Demo!',
+          logger: 'MockMcpApp'
+        });
+        console.log('[MockApp] notifications/message sent (no response expected)');
+      });
+
+      // Action button: Ping
+      document.getElementById('btn-ping').addEventListener('click', function() {
+        sendRequest('ping', {}).then(function(result) {
+          console.log('[MockApp] ping response:', result);
+        }).catch(function(error) {
+          console.error('[MockApp] ping error:', error);
         });
       });
 

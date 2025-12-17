@@ -67,9 +67,88 @@ export interface MessageRequest {
   params: {
     content: {
       type: string;
-      text?: string;
+      text: string;
     };
   };
+}
+
+type LoggingLevel =
+  | 'debug'
+  | 'info'
+  | 'notice'
+  | 'warning'
+  | 'error'
+  | 'critical'
+  | 'alert'
+  | 'emergency';
+export interface LoggingMessageRequest {
+  jsonrpc: '2.0';
+  method: 'notifications/message';
+  params: {
+    _meta?: { [key: string]: unknown };
+    data: string;
+    level: LoggingLevel;
+    logger?: string;
+  };
+}
+
+type ProgressToken = string | number;
+interface TaskMetadata {
+  ttl?: number;
+}
+
+export interface CallToolRequest {
+  jsonrpc: '2.0';
+  id?: string | number;
+  method: 'tools/call';
+  params: {
+    _meta?: { progressToken?: ProgressToken; [key: string]: unknown };
+    arguments?: { [key: string]: unknown };
+    name: string;
+    task?: TaskMetadata;
+  };
+}
+
+interface PaginatedRequestParams {
+  cursor?: string;
+}
+
+export interface ListResourcesRequest {
+  id?: string | number;
+  jsonrpc: '2.0';
+  method: 'resources/list';
+  params?: PaginatedRequestParams;
+}
+
+export interface ListResourceTemplatesRequest {
+  id?: string | number;
+  jsonrpc: '2.0';
+  method: 'resources/templates/list';
+  params?: PaginatedRequestParams;
+}
+
+export interface ReadResourceRequest {
+  id?: string | number;
+  jsonrpc: '2.0';
+  method: 'resources/read';
+  params: {
+    _meta?: { progressToken?: ProgressToken; [key: string]: unknown };
+    uri: string;
+  };
+}
+
+export interface ListPromptsRequest {
+  id?: string | number;
+  jsonrpc: '2.0';
+  method: 'prompts/list';
+  params?: PaginatedRequestParams;
+}
+
+export interface PingRequest {
+  id?: string | number;
+  jsonrpc: '2.0';
+  method: 'ping';
+  params?: Record<string, unknown>;
 }
 
 export type IncomingGuestMessage =
@@ -78,7 +157,14 @@ export type IncomingGuestMessage =
   | InitializedNotification
   | SizeChangedNotification
   | OpenLinkRequest
-  | MessageRequest;
+  | MessageRequest
+  | LoggingMessageRequest
+  | CallToolRequest
+  | ListResourcesRequest
+  | ListResourceTemplatesRequest
+  | ReadResourceRequest
+  | ListPromptsRequest
+  | PingRequest;
 
 // =============================================================================
 // MCP App Resource Type

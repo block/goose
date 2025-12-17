@@ -6,42 +6,57 @@
  * @see SEP-1865 https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/draft/apps.mdx
  */
 
+import { useState } from 'react';
 import { useSandboxBridge } from './useSandboxBridge';
 import { McpAppResource, ToolInput, ToolResult } from './types';
 import { cn } from '../../utils';
+import {
+  handleMessage,
+  handleOpenLink,
+  handleNotificationMessage,
+  handleResourcesList,
+  handleResourceTemplatesList,
+  handleResourcesRead,
+  handlePromptsList,
+  handlePing,
+  handleSizeChanged,
+  handleToolsCall,
+} from './utils';
+
+const DEFAULT_IFRAME_HEIGHT = 200;
 
 interface McpAppRendererProps {
   resource: McpAppResource;
   toolInput?: ToolInput;
   toolResult?: ToolResult;
-  appendMessage?: (value: string) => void;
 }
 
-export default function McpAppRenderer({
-  resource,
-  toolInput,
-  toolResult,
-  appendMessage,
-}: McpAppRendererProps) {
+export default function McpAppRenderer({ resource, toolInput, toolResult }: McpAppRendererProps) {
   const prefersBorder = resource._meta?.ui?.prefersBorder ?? true;
+  const [iframeHeight, setIframeHeight] = useState(DEFAULT_IFRAME_HEIGHT);
 
-  const { iframeRef, proxyUrl, iframeHeight } = useSandboxBridge({
+  // Note: when @mcp-ui/client SDK provides AppRenderer we will be able to supply these as props to the renderer component
+  const { iframeRef, proxyUrl } = useSandboxBridge({
     resourceHtml: resource.text || '',
     resourceCsp: resource._meta?.ui?.csp || null,
     resourceUri: resource.uri,
+    iframeHeight,
     toolInput,
     toolResult,
-    appendMessage,
+    onMessage: handleMessage,
+    onOpenLink: handleOpenLink,
+    onNotificationMessage: handleNotificationMessage,
+    onResourcesList: handleResourcesList,
+    onResourceTemplatesList: handleResourceTemplatesList,
+    onResourcesRead: handleResourcesRead,
+    onPromptsList: handlePromptsList,
+    onPing: handlePing,
+    onSizeChanged: handleSizeChanged(setIframeHeight),
+    onToolsCall: handleToolsCall,
   });
 
   if (!resource) {
     return null;
-  }
-
-  const debug = true;
-  if (debug) {
-    console.log('🐛 McpAppRenderer Debug ===================');
-    console.log({ resource, prefersBorder, proxyUrl, iframeHeight });
   }
 
   return (

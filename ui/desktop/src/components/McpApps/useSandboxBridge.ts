@@ -1,5 +1,22 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { JsonRpcMessage, IncomingGuestMessage, ToolInput, ToolResult, HostContext } from './types';
+import type {
+  JsonRpcMessage,
+  JsonRpcResponse,
+  IncomingGuestMessage,
+  ToolInput,
+  ToolResult,
+  HostContext,
+  SizeChangedNotification,
+  MessageRequest,
+  OpenLinkRequest,
+  LoggingMessageRequest,
+  CallToolRequest,
+  ListResourcesRequest,
+  ListResourceTemplatesRequest,
+  ReadResourceRequest,
+  ListPromptsRequest,
+  PingRequest,
+} from './types';
 import {
   fetchMcpAppProxyUrl,
   createSandboxResourceReadyMessage,
@@ -10,23 +27,52 @@ import {
 } from './utils';
 import { useTheme } from '../../contexts/ThemeContext';
 
+/** Handler function type that may return a response to send back to the guest */
+type MessageHandler<T> = (msg: T) => JsonRpcResponse | null;
+
 interface SandboxBridgeOptions {
   resourceHtml: string;
   resourceCsp: Record<string, string[]> | null;
   resourceUri: string;
+  iframeHeight: number;
   toolInput?: ToolInput;
   toolResult?: ToolResult;
-  appendMessage?: (value: string) => void;
+  onMessage?: MessageHandler<MessageRequest>;
+  onOpenLink?: MessageHandler<OpenLinkRequest>;
+  onNotificationMessage?: (msg: LoggingMessageRequest) => null;
+  onToolsCall?: MessageHandler<CallToolRequest>;
+  onResourcesList?: MessageHandler<ListResourcesRequest>;
+  onResourceTemplatesList?: MessageHandler<ListResourceTemplatesRequest>;
+  onResourcesRead?: MessageHandler<ReadResourceRequest>;
+  onPromptsList?: MessageHandler<ListPromptsRequest>;
+  onPing?: MessageHandler<PingRequest>;
+  onSizeChanged?: (msg: SizeChangedNotification) => null;
 }
 
 interface SandboxBridgeResult {
   iframeRef: React.RefObject<HTMLIFrameElement | null>;
   proxyUrl: string | null;
-  iframeHeight: number;
 }
 
 export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeResult {
-  const { resourceHtml, resourceCsp, resourceUri, toolInput, toolResult, appendMessage } = options;
+  const {
+    resourceHtml,
+    resourceCsp,
+    resourceUri,
+    iframeHeight,
+    toolInput,
+    toolResult,
+    onMessage,
+    onOpenLink,
+    onNotificationMessage,
+    onToolsCall,
+    onResourcesList,
+    onResourceTemplatesList,
+    onResourcesRead,
+    onPromptsList,
+    onPing,
+    onSizeChanged,
+  } = options;
 
   const { resolvedTheme } = useTheme();
 
@@ -34,7 +80,6 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
   const pendingMessagesRef = useRef<JsonRpcMessage[]>([]);
 
   const [proxyUrl, setProxyUrl] = useState<string | null>(null);
-  const [iframeHeight, setIframeHeight] = useState(200);
   const [isSandboxReady, setIsSandboxReady] = useState(false);
   const [isGuestInitialized, setIsGuestInitialized] = useState(false);
 
@@ -60,20 +105,21 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
     pendingMessagesRef.current = [];
   }, [sendToSandbox]);
 
-  const handleMessage = useCallback(
+  const handleJsonRpcMessage = useCallback(
     (data: unknown) => {
       if (!data || typeof data !== 'object' || !('method' in data)) return;
       const msg = data as IncomingGuestMessage;
 
+      console.log(`[Sandbox Bridge] Incoming message: ${msg.method}`, { msg });
+
       switch (msg.method) {
-        case 'ui/notifications/sandbox-ready':
-          console.log('[Sandbox Bridge] Sandbox ready');
+        case 'ui/notifications/sandbox-ready': {
           setIsSandboxReady(true);
           sendToSandbox(createSandboxResourceReadyMessage(resourceHtml, resourceCsp));
           return;
+        }
 
         case 'ui/initialize': {
-          console.log('[Sandbox Bridge] Guest UI requesting initialization');
           const iframe = iframeRef.current;
           const hostContext: HostContext = {
             // TODO: Populate toolInfo when we have tool call context
@@ -106,66 +152,88 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
           return;
         }
 
-        case 'ui/notifications/initialized':
-          console.log('[Sandbox Bridge] Guest UI initialized');
+        case 'ui/notifications/initialized': {
           setIsGuestInitialized(true);
           flushPendingMessages();
           return;
+        }
 
         case 'ui/notifications/size-changed': {
-          const newHeight = Math.max(200, msg.params.height);
-          setIframeHeight(newHeight);
-
-          const iframe = iframeRef.current;
-          if (iframe) {
-            sendToSandbox(
-              createHostContextChangedNotification({
-                viewport: {
-                  width: iframe.clientWidth,
-                  height: newHeight,
-                  maxWidth: window.innerWidth,
-                  maxHeight: window.innerHeight,
-                },
-              })
-            );
-          }
+          onSizeChanged?.(msg);
           return;
         }
 
         case 'ui/open-link': {
-          window.electron.openExternal(msg.params.url).catch(console.error);
+          const response = onOpenLink?.(msg);
+          if (response) sendToSandbox(response);
           return;
         }
 
         case 'ui/message': {
-          const { content } = msg.params;
-          if (content.type === 'text' && typeof content.text === 'string') {
-            if (appendMessage) {
-              appendMessage(content.text);
-              window.dispatchEvent(new CustomEvent('scroll-chat-to-bottom'));
-              if (msg.id !== undefined) {
-                sendToSandbox({
-                  jsonrpc: '2.0',
-                  id: msg.id,
-                  result: {},
-                });
-              }
-            } else if (msg.id !== undefined) {
-              sendToSandbox({
-                jsonrpc: '2.0',
-                id: msg.id,
-                error: {
-                  code: -32603,
-                  message: 'Message handling not available',
-                },
-              });
-            }
-          }
+          const response = onMessage?.(msg);
+          if (response) sendToSandbox(response);
+          return;
+        }
+
+        case 'notifications/message': {
+          onNotificationMessage?.(msg);
+          return;
+        }
+
+        case 'tools/call': {
+          const response = onToolsCall?.(msg);
+          if (response) sendToSandbox(response);
+          return;
+        }
+
+        case 'resources/list': {
+          const response = onResourcesList?.(msg);
+          if (response) sendToSandbox(response);
+          return;
+        }
+
+        case 'resources/templates/list': {
+          const response = onResourceTemplatesList?.(msg);
+          if (response) sendToSandbox(response);
+          return;
+        }
+
+        case 'resources/read': {
+          const response = onResourcesRead?.(msg);
+          if (response) sendToSandbox(response);
+          return;
+        }
+
+        case 'prompts/list': {
+          const response = onPromptsList?.(msg);
+          if (response) sendToSandbox(response);
+          return;
+        }
+
+        case 'ping': {
+          const response = onPing?.(msg);
+          if (response) sendToSandbox(response);
           return;
         }
       }
     },
-    [resourceHtml, resourceCsp, resolvedTheme, sendToSandbox, flushPendingMessages, appendMessage]
+    [
+      resourceHtml,
+      resourceCsp,
+      resolvedTheme,
+      sendToSandbox,
+      flushPendingMessages,
+      onToolsCall,
+      onNotificationMessage,
+      onOpenLink,
+      onMessage,
+      onResourcesList,
+      onResourceTemplatesList,
+      onResourcesRead,
+      onPromptsList,
+      onPing,
+      onSizeChanged,
+    ]
   );
 
   useEffect(() => {
@@ -174,24 +242,22 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
       if (!iframe || event.source !== iframe.contentWindow) {
         return;
       }
-      handleMessage(event.data);
+      handleJsonRpcMessage(event.data);
     };
 
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [handleMessage]);
+  }, [handleJsonRpcMessage]);
 
   // Send tool input when guest is initialized
   useEffect(() => {
     if (!isGuestInitialized || !toolInput) return;
-    console.log('[Sandbox Bridge] Sending tool input', toolInput);
     sendToSandbox(createToolInputNotification(toolInput));
   }, [isGuestInitialized, toolInput, sendToSandbox]);
 
   // Send tool result when guest is initialized and result is available
   useEffect(() => {
     if (!isGuestInitialized || !toolResult) return;
-    console.log('[Sandbox Bridge] Sending tool result', toolResult);
     sendToSandbox(createToolResultNotification(toolResult));
   }, [isGuestInitialized, toolResult, sendToSandbox]);
 
@@ -242,10 +308,10 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
   }, [isGuestInitialized, sendToSandbox]);
 
   void isSandboxReady;
+  void iframeHeight;
 
   return {
     iframeRef,
     proxyUrl,
-    iframeHeight,
   };
 }
