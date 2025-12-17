@@ -662,8 +662,7 @@ fn spawn_schedule_create(
         match client.create_schedule(&id, &recipe_source, &cron).await {
             Ok(_) => {
                 let _ = tx.send(Event::ScheduleOperationSuccess(format!(
-                    "Created schedule '{}'",
-                    id
+                    "Created schedule '{id}'"
                 )));
                 if let Ok(jobs) = client.list_schedules().await {
                     let _ = tx.send(Event::ScheduleListLoaded(jobs));
@@ -688,8 +687,7 @@ fn spawn_schedule_update(
         match client.update_schedule_cron(&id, &cron).await {
             Ok(_) => {
                 let _ = tx.send(Event::ScheduleOperationSuccess(format!(
-                    "Updated schedule '{}'",
-                    id
+                    "Updated schedule '{id}'"
                 )));
                 if let Ok(jobs) = client.list_schedules().await {
                     let _ = tx.send(Event::ScheduleListLoaded(jobs));
@@ -709,8 +707,7 @@ fn spawn_schedule_delete(client: &Client, tx: &mpsc::UnboundedSender<Event>, id:
         match client.delete_schedule(&id).await {
             Ok(_) => {
                 let _ = tx.send(Event::ScheduleOperationSuccess(format!(
-                    "Deleted schedule '{}'",
-                    id
+                    "Deleted schedule '{id}'"
                 )));
                 if let Ok(jobs) = client.list_schedules().await {
                     let _ = tx.send(Event::ScheduleListLoaded(jobs));
@@ -730,8 +727,7 @@ fn spawn_schedule_run(client: &Client, tx: &mpsc::UnboundedSender<Event>, id: St
         match client.run_schedule_now(&id).await {
             Ok(session_id) => {
                 let _ = tx.send(Event::ScheduleOperationSuccess(format!(
-                    "Started '{}' (session: {})",
-                    id, session_id
+                    "Started '{id}' (session: {session_id})"
                 )));
                 if let Ok(jobs) = client.list_schedules().await {
                     let _ = tx.send(Event::ScheduleListLoaded(jobs));
@@ -750,7 +746,7 @@ fn spawn_schedule_pause(client: &Client, tx: &mpsc::UnboundedSender<Event>, id: 
     tokio::spawn(async move {
         match client.pause_schedule(&id).await {
             Ok(_) => {
-                let _ = tx.send(Event::ScheduleOperationSuccess(format!("Paused '{}'", id)));
+                let _ = tx.send(Event::ScheduleOperationSuccess(format!("Paused '{id}'")));
                 if let Ok(jobs) = client.list_schedules().await {
                     let _ = tx.send(Event::ScheduleListLoaded(jobs));
                 }
@@ -768,7 +764,7 @@ fn spawn_schedule_unpause(client: &Client, tx: &mpsc::UnboundedSender<Event>, id
     tokio::spawn(async move {
         match client.unpause_schedule(&id).await {
             Ok(_) => {
-                let _ = tx.send(Event::ScheduleOperationSuccess(format!("Resumed '{}'", id)));
+                let _ = tx.send(Event::ScheduleOperationSuccess(format!("Resumed '{id}'")));
                 if let Ok(jobs) = client.list_schedules().await {
                     let _ = tx.send(Event::ScheduleListLoaded(jobs));
                 }
@@ -786,7 +782,7 @@ fn spawn_schedule_kill(client: &Client, tx: &mpsc::UnboundedSender<Event>, id: S
     tokio::spawn(async move {
         match client.kill_schedule(&id).await {
             Ok(_) => {
-                let _ = tx.send(Event::ScheduleOperationSuccess(format!("Killed '{}'", id)));
+                let _ = tx.send(Event::ScheduleOperationSuccess(format!("Killed '{id}'")));
                 if let Ok(jobs) = client.list_schedules().await {
                     let _ = tx.send(Event::ScheduleListLoaded(jobs));
                 }

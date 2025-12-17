@@ -436,7 +436,7 @@ impl SchedulePopup {
                     "Idle"
                 };
                 ListItem::new(Line::from(vec![
-                    Span::styled(format!("{} ", icon), Style::default().fg(color)),
+                    Span::styled(format!("{icon} "), Style::default().fg(color)),
                     Span::styled(
                         format!("{:<20} ", job.id),
                         Style::default().fg(theme.base.foreground),
@@ -528,7 +528,7 @@ impl SchedulePopup {
 
         let presets: String = CRON_PRESETS
             .iter()
-            .map(|(k, _, d)| format!("[{}]{} ", k, d))
+            .map(|(k, _, d)| format!("[{k}]{d} "))
             .collect();
         f.render_widget(
             Paragraph::new(presets).style(Style::default().fg(theme.base.border)),
@@ -579,7 +579,7 @@ impl SchedulePopup {
 
         let presets: String = CRON_PRESETS
             .iter()
-            .map(|(k, _, d)| format!("[{}]{} ", k, d))
+            .map(|(k, _, d)| format!("[{k}]{d} "))
             .collect();
         f.render_widget(
             Paragraph::new(presets).style(Style::default().fg(theme.base.border)),
@@ -643,7 +643,7 @@ impl SchedulePopup {
     fn render_confirm_delete(&self, f: &mut Frame, area: Rect, state: &AppState) {
         let theme = &state.config.theme;
         let id = self.pending_delete_id.as_deref().unwrap_or("");
-        let text = format!("Delete schedule '{}'?\n\n[y]es  [n]o", id);
+        let text = format!("Delete schedule '{id}'?\n\n[y]es  [n]o");
         let block = Block::default()
             .borders(Borders::ALL)
             .title(" Confirm Delete ");

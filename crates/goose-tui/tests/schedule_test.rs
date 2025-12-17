@@ -10,7 +10,7 @@ fn make_key(code: KeyCode) -> KeyEvent {
 fn make_test_job(id: &str, paused: bool, currently_running: bool) -> ScheduledJob {
     ScheduledJob {
         id: id.to_string(),
-        source: format!("/path/{}.yaml", id),
+        source: format!("/path/{id}.yaml"),
         cron: "0 9 * * *".to_string(),
         paused,
         currently_running,

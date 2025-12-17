@@ -439,14 +439,14 @@ impl Client {
     }
 
     pub async fn update_schedule_cron(&self, id: &str, cron: &str) -> Result<ScheduledJob> {
-        self.put(&format!("/schedule/{}", id))
+        self.put(&format!("/schedule/{id}"))
             .json(&serde_json::json!({ "cron": cron }))
             .send()
             .await
     }
 
     pub async fn delete_schedule(&self, id: &str) -> Result<()> {
-        self.delete(&format!("/schedule/delete/{}", id))
+        self.delete(&format!("/schedule/delete/{id}"))
             .send_empty()
             .await
     }
@@ -456,27 +456,24 @@ impl Client {
         struct Response {
             session_id: String,
         }
-        let resp: Response = self
-            .post(&format!("/schedule/{}/run_now", id))
-            .send()
-            .await?;
+        let resp: Response = self.post(&format!("/schedule/{id}/run_now")).send().await?;
         Ok(resp.session_id)
     }
 
     pub async fn pause_schedule(&self, id: &str) -> Result<()> {
-        self.post(&format!("/schedule/{}/pause", id))
+        self.post(&format!("/schedule/{id}/pause"))
             .send_empty()
             .await
     }
 
     pub async fn unpause_schedule(&self, id: &str) -> Result<()> {
-        self.post(&format!("/schedule/{}/unpause", id))
+        self.post(&format!("/schedule/{id}/unpause"))
             .send_empty()
             .await
     }
 
     pub async fn kill_schedule(&self, id: &str) -> Result<()> {
-        self.post(&format!("/schedule/{}/kill", id))
+        self.post(&format!("/schedule/{id}/kill"))
             .send_empty()
             .await
     }
@@ -486,7 +483,7 @@ impl Client {
         id: &str,
         limit: usize,
     ) -> Result<Vec<SessionDisplayInfo>> {
-        self.get(&format!("/schedule/{}/sessions?limit={}", id, limit))
+        self.get(&format!("/schedule/{id}/sessions?limit={limit}"))
             .send()
             .await
     }
