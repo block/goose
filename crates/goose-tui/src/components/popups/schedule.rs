@@ -3,6 +3,7 @@ use crate::components::Component;
 use crate::services::events::Event;
 use crate::state::action::Action;
 use crate::state::{ActivePopup, AppState};
+use crate::utils::file_completion::{complete_path, derive_job_id_from_path};
 use crate::utils::layout::centered_rect;
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEventKind};
@@ -11,7 +12,7 @@ use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{
-    Block, Borders, Clear, List, ListItem, ListState, Paragraph, ScrollbarState,
+    Block, BorderType, Borders, Clear, List, ListItem, ListState, Paragraph, ScrollbarState,
 };
 use ratatui::Frame;
 use tui_textarea::TextArea;
@@ -56,6 +57,11 @@ pub struct SchedulePopup {
     editing_job_id: Option<String>,
     error_message: Option<String>,
     pending_delete_id: Option<String>,
+    // File completion state
+    file_completions: Vec<(String, bool)>,
+    completion_selected: usize,
+    // Track if job ID was auto-generated (so we update it when recipe changes)
+    job_id_auto_generated: bool,
 }
 
 impl Default for SchedulePopup {
@@ -74,6 +80,9 @@ impl Default for SchedulePopup {
             editing_job_id: None,
             error_message: None,
             pending_delete_id: None,
+            file_completions: Vec::new(),
+            completion_selected: 0,
+            job_id_auto_generated: true,
         }
     }
 }
@@ -94,6 +103,39 @@ impl SchedulePopup {
         self.pending_delete_id = None;
         self.sessions.clear();
         self.history_list_state = ListState::default();
+        self.file_completions.clear();
+        self.completion_selected = 0;
+        self.job_id_auto_generated = true;
+    }
+
+    fn update_job_id_from_recipe(&mut self) {
+        if self.job_id_auto_generated {
+            let recipe_path = Self::get_input_text(&self.recipe_input);
+            let derived_id = derive_job_id_from_path(&recipe_path);
+            self.job_id_input = TextArea::default();
+            if !derived_id.is_empty() {
+                self.job_id_input.insert_str(&derived_id);
+            }
+        }
+    }
+
+    fn handle_paste(&mut self, text: &str) {
+        if self.view != View::Create && self.view != View::Edit {
+            return;
+        }
+        let text = text.replace("\r\n", "\n").replace('\r', "\n");
+        let input = match self.form_field {
+            FormField::RecipePath => &mut self.recipe_input,
+            FormField::JobId => {
+                self.job_id_auto_generated = false;
+                &mut self.job_id_input
+            }
+            FormField::Cron => &mut self.cron_input,
+        };
+        input.insert_str(text);
+        if matches!(self.form_field, FormField::RecipePath) {
+            self.update_job_id_from_recipe();
+        }
     }
 
     fn selected_job(&self) -> Option<&ScheduledJob> {
@@ -188,12 +230,28 @@ impl SchedulePopup {
                 self.reset();
                 None
             }
-            KeyCode::Tab | KeyCode::Down => {
+            KeyCode::Tab | KeyCode::Down if self.file_completions.is_empty() => {
                 self.form_field = match self.form_field {
                     FormField::RecipePath => FormField::JobId,
                     FormField::JobId => FormField::Cron,
                     FormField::Cron => FormField::RecipePath,
                 };
+                None
+            }
+            KeyCode::Tab if !self.file_completions.is_empty() => {
+                self.apply_file_completion();
+                None
+            }
+            KeyCode::Down if !self.file_completions.is_empty() => {
+                self.completion_selected =
+                    (self.completion_selected + 1) % self.file_completions.len();
+                None
+            }
+            KeyCode::Up if !self.file_completions.is_empty() => {
+                self.completion_selected = self
+                    .completion_selected
+                    .checked_sub(1)
+                    .unwrap_or(self.file_completions.len() - 1);
                 None
             }
             KeyCode::BackTab => {
@@ -212,8 +270,12 @@ impl SchedulePopup {
                 };
                 None
             }
-            KeyCode::Char(c @ '1'..='5') => {
+            KeyCode::Char(c @ '1'..='5') if matches!(self.form_field, FormField::Cron) => {
                 self.apply_preset(c);
+                None
+            }
+            KeyCode::Enter if !self.file_completions.is_empty() => {
+                self.apply_file_completion();
                 None
             }
             KeyCode::Enter => {
@@ -232,14 +294,60 @@ impl SchedulePopup {
                 })
             }
             _ => {
-                let input = match self.form_field {
-                    FormField::RecipePath => &mut self.recipe_input,
-                    FormField::JobId => &mut self.job_id_input,
-                    FormField::Cron => &mut self.cron_input,
-                };
-                input.input(key);
+                match self.form_field {
+                    FormField::RecipePath => {
+                        self.recipe_input.input(key);
+                        self.update_job_id_from_recipe();
+                        self.update_file_completions();
+                    }
+                    FormField::JobId => {
+                        self.job_id_auto_generated = false;
+                        self.job_id_input.input(key);
+                    }
+                    FormField::Cron => {
+                        self.cron_input.input(key);
+                    }
+                }
                 None
             }
+        }
+    }
+
+    fn update_file_completions(&mut self) {
+        if !matches!(self.form_field, FormField::RecipePath) {
+            self.file_completions.clear();
+            self.completion_selected = 0;
+            return;
+        }
+        let partial = Self::get_input_text(&self.recipe_input);
+        if partial.is_empty() {
+            self.file_completions.clear();
+            self.completion_selected = 0;
+            return;
+        }
+        let cwd = std::env::current_dir().unwrap_or_default();
+        self.file_completions = complete_path(&partial, &cwd);
+        if self.completion_selected >= self.file_completions.len() {
+            self.completion_selected = 0;
+        }
+    }
+
+    fn apply_file_completion(&mut self) {
+        if let Some((name, is_dir)) = self.file_completions.get(self.completion_selected).cloned() {
+            let current = Self::get_input_text(&self.recipe_input);
+            let new_path = if let Some(last_slash) = current.rfind('/') {
+                format!("{}/{}", &current[..last_slash], name)
+            } else {
+                name.clone()
+            };
+            self.recipe_input = TextArea::default();
+            self.recipe_input.insert_str(&new_path);
+            if is_dir {
+                self.recipe_input.insert_char('/');
+            }
+            self.file_completions.clear();
+            self.completion_selected = 0;
+            self.update_job_id_from_recipe();
         }
     }
 
@@ -549,6 +657,61 @@ impl SchedulePopup {
         );
     }
 
+    fn render_file_completions(&self, f: &mut Frame, area: Rect, state: &AppState) {
+        if self.file_completions.is_empty() || !matches!(self.form_field, FormField::RecipePath) {
+            return;
+        }
+
+        let theme = &state.config.theme;
+        let max_height = (area.height / 3).max(5);
+        let content_height = (self.file_completions.len() as u16 + 2).min(max_height);
+        let width = 50.min(area.width.saturating_sub(4));
+
+        // Position below the recipe input field (first field, ~3 lines down)
+        let popup_y = area.y + 4;
+        let popup_area = Rect::new(area.x + 1, popup_y, width, content_height);
+
+        f.render_widget(Clear, popup_area);
+
+        let items: Vec<ListItem> = self
+            .file_completions
+            .iter()
+            .enumerate()
+            .map(|(i, (name, is_dir))| {
+                let is_selected = i == self.completion_selected;
+                let display = if *is_dir {
+                    format!("{name}/")
+                } else {
+                    name.clone()
+                };
+                let prefix = if is_selected { "▶ " } else { "  " };
+                let color = if is_selected {
+                    theme.status.thinking
+                } else if *is_dir {
+                    theme.status.info
+                } else {
+                    theme.base.foreground
+                };
+                ListItem::new(Span::styled(
+                    format!("{prefix}{display}"),
+                    Style::default().fg(color),
+                ))
+            })
+            .collect();
+
+        let list = List::new(items)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .title(" Files ")
+                    .border_style(Style::default().fg(theme.base.border)),
+            )
+            .style(Style::default().bg(theme.base.background));
+
+        f.render_widget(list, popup_area);
+    }
+
     fn render_footer(&self, f: &mut Frame, area: Rect, state: &AppState) {
         let theme = &state.config.theme;
         let help = match self.view {
@@ -577,17 +740,26 @@ impl Component for SchedulePopup {
                 }
                 self.error_message = None;
             }
-            Event::ScheduleSessionsLoaded { sessions, .. } => {
-                self.sessions = sessions.clone();
-                if !self.sessions.is_empty() {
-                    self.history_list_state.select(Some(0));
+            Event::ScheduleSessionsLoaded {
+                schedule_id,
+                sessions,
+            } => {
+                if self.editing_job_id.as_ref() == Some(schedule_id) {
+                    self.sessions = sessions.clone();
+                    if !self.sessions.is_empty() {
+                        self.history_list_state.select(Some(0));
+                    }
                 }
             }
-            Event::ScheduleOperationSuccess(_) => {
+            Event::ScheduleOperationSuccess(msg) => {
                 self.error_message = None;
+                return Ok(Some(Action::ShowFlash(msg.clone())));
             }
             Event::ScheduleOperationFailed(err) => {
                 self.error_message = Some(err.clone());
+            }
+            Event::Paste(text) => {
+                self.handle_paste(text);
             }
             Event::Input(key) => {
                 return Ok(match self.view {
@@ -636,7 +808,10 @@ impl Component for SchedulePopup {
 
         match self.view {
             View::List => self.render_list(f, content_area, state),
-            View::Create => self.render_create(f, content_area, state),
+            View::Create => {
+                self.render_create(f, content_area, state);
+                self.render_file_completions(f, content_area, state);
+            }
             View::Edit => self.render_edit(f, content_area, state),
             View::History => self.render_history(f, content_area, state),
             View::ConfirmDelete => self.render_confirm_delete(f, content_area, state),
@@ -727,6 +902,7 @@ mod tests {
     fn test_cron_preset_applies() {
         let mut popup = SchedulePopup::new();
         popup.view = View::Create;
+        popup.form_field = FormField::Cron;
         popup.handle_create_key(make_key(KeyCode::Char('2')));
 
         assert_eq!(

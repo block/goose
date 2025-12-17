@@ -157,23 +157,12 @@ impl<'a> Component for App<'a> {
             Event::CwdAnalysisComplete(result) => {
                 return Ok(Some(Action::CwdAnalysisComplete(result.clone())))
             }
-            Event::ScheduleListLoaded(jobs) => {
-                return Ok(Some(Action::ScheduleListLoaded(jobs.clone())))
-            }
-            Event::ScheduleSessionsLoaded {
-                schedule_id,
-                sessions,
-            } => {
-                return Ok(Some(Action::ScheduleSessionsLoaded {
-                    schedule_id: schedule_id.clone(),
-                    sessions: sessions.clone(),
-                }))
-            }
-            Event::ScheduleOperationSuccess(msg) => {
-                return Ok(Some(Action::ScheduleOperationSuccess(msg.clone())))
-            }
-            Event::ScheduleOperationFailed(err) => {
-                return Ok(Some(Action::ScheduleOperationFailed(err.clone())))
+
+            Event::ScheduleListLoaded(_)
+            | Event::ScheduleSessionsLoaded { .. }
+            | Event::ScheduleOperationSuccess(_)
+            | Event::ScheduleOperationFailed(_) => {
+                // Pass through to popup handler
             }
             _ => {}
         }
