@@ -548,6 +548,7 @@ End of hints"#;
 End of hints"#;
         fs::write(subdir.join(GOOSE_HINTS_FILENAME), hints_content).unwrap();
         let gitignore = create_dummy_gitignore();
+
         let hints = load_hint_files(&subdir, &[GOOSE_HINTS_FILENAME.to_string()], &gitignore);
 
         assert!(hints.contains("Local file content"));
