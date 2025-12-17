@@ -29,9 +29,15 @@ interface McpAppRendererProps {
   resource: McpAppResource;
   toolInput?: ToolInput;
   toolResult?: ToolResult;
+  append?: (text: string) => void;
 }
 
-export default function McpAppRenderer({ resource, toolInput, toolResult }: McpAppRendererProps) {
+export default function McpAppRenderer({
+  resource,
+  toolInput,
+  toolResult,
+  append,
+}: McpAppRendererProps) {
   const prefersBorder = resource._meta?.ui?.prefersBorder ?? true;
   const [iframeHeight, setIframeHeight] = useState(DEFAULT_IFRAME_HEIGHT);
 
@@ -43,7 +49,7 @@ export default function McpAppRenderer({ resource, toolInput, toolResult }: McpA
     iframeHeight,
     toolInput,
     toolResult,
-    onMessage: handleMessage,
+    onMessage: handleMessage(append),
     onOpenLink: handleOpenLink,
     onNotificationMessage: handleNotificationMessage,
     onResourcesList: handleResourcesList,

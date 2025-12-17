@@ -39,7 +39,7 @@ interface SandboxBridgeOptions {
   toolResult?: ToolResult;
   onMessage?: MessageHandler<MessageRequest>;
   onOpenLink?: MessageHandler<OpenLinkRequest>;
-  onNotificationMessage?: (msg: LoggingMessageRequest) => null;
+  onNotificationMessage?: MessageHandler<LoggingMessageRequest>;
   onToolsCall?: MessageHandler<CallToolRequest>;
   onResourcesList?: MessageHandler<ListResourcesRequest>;
   onResourceTemplatesList?: MessageHandler<ListResourceTemplatesRequest>;
@@ -176,7 +176,8 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
         }
 
         case 'notifications/message': {
-          onNotificationMessage?.(msg);
+          const response = onNotificationMessage?.(msg);
+          if (response) sendToSandbox(response);
           return;
         }
 

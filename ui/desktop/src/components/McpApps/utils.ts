@@ -34,7 +34,14 @@ export const JsonRpcErrorCode = {
 /**
  * Create a successful JSON-RPC response.
  */
-export function createSuccessResponse(id: string | number, result: unknown = {}): JsonRpcResponse {
+export function createSuccessResponse(
+  id: string | number | undefined,
+  result: unknown = {}
+): JsonRpcResponse {
+  if (id === undefined) {
+    return null as unknown as JsonRpcResponse;
+  }
+
   return {
     jsonrpc: '2.0',
     id,
@@ -46,11 +53,15 @@ export function createSuccessResponse(id: string | number, result: unknown = {})
  * Create an error JSON-RPC response.
  */
 export function createErrorResponse(
-  id: string | number,
+  id: string | number | undefined,
   code: number,
   message: string,
   data?: unknown
 ): JsonRpcResponse {
+  if (id === undefined) {
+    return null as unknown as JsonRpcResponse;
+  }
+
   return {
     jsonrpc: '2.0',
     id,
@@ -62,15 +73,21 @@ export function createErrorResponse(
   };
 }
 
+/** Message type that may have an id (for requests that can return responses) */
+type MessageWithOptionalId = { id?: string | number; method: string };
+
 /**
  * Create a "method not implemented" error response.
  */
-export function createNotImplementedResponse(id: string | number, method: string): JsonRpcResponse {
-  return createErrorResponse(
-    id,
-    JsonRpcErrorCode.MethodNotFound,
-    `Method not implemented: ${method}`
-  );
+export function createNotImplementedResponse(msg: MessageWithOptionalId): JsonRpcResponse | null {
+  if (msg.id !== undefined) {
+    return createErrorResponse(
+      msg.id,
+      JsonRpcErrorCode.MethodNotFound,
+      `Method not implemented: ${msg.method}`
+    );
+  }
+  return null;
 }
 
 /**
@@ -194,17 +211,40 @@ export function createInitializeResponse(
  * Handle ui/message requests from the guest UI.
  * Per spec: Host SHOULD add the message to the conversation context, preserving the specified role.
  * Host MAY request user consent.
+ * Returns a factory function that accepts an appendMessage callback.
  */
-export function handleMessage(msg: MessageRequest): JsonRpcResponse | null {
-  console.warn(
-    '[MCP Apps] TODO ui/message: Should add message to chat conversation with specified role.',
-    'Host MAY request user consent before adding.',
-    { role: msg.params.content?.type, text: msg.params.content?.text }
-  );
-  if (msg.id !== undefined) {
-    return createNotImplementedResponse(msg.id, msg.method);
-  }
-  return null;
+export function handleMessage(appendMessage?: (text: string) => void) {
+  return (msg: MessageRequest): JsonRpcResponse | null => {
+    const text = msg.params.content?.text;
+
+    if (!appendMessage) {
+      return createErrorResponse(
+        msg.id,
+        JsonRpcErrorCode.InternalError,
+        'Message handler not available in this context'
+      );
+    }
+
+    if (!text) {
+      return createErrorResponse(msg.id, JsonRpcErrorCode.InvalidParams, 'Missing message text');
+    }
+
+    try {
+      appendMessage(text);
+      window.dispatchEvent(new CustomEvent('scroll-chat-to-bottom'));
+      return createSuccessResponse(msg.id, {
+        status: 'success',
+        message: 'Message appended successfully',
+      });
+    } catch (error) {
+      return createErrorResponse(
+        msg.id,
+        JsonRpcErrorCode.InternalError,
+        'Error appending message',
+        error
+      );
+    }
+  };
 }
 
 /**
@@ -212,12 +252,16 @@ export function handleMessage(msg: MessageRequest): JsonRpcResponse | null {
  * Per spec: Host SHOULD open the URL in the user's default browser or a new tab.
  */
 export function handleOpenLink(msg: OpenLinkRequest): JsonRpcResponse | null {
-  const { url } = msg.params;
-  window.electron.openExternal(url).catch(console.error);
-  if (msg.id !== undefined) {
-    return createSuccessResponse(msg.id, {});
+  try {
+    window.electron.openExternal(msg.params.url).catch(console.error);
+    return createSuccessResponse(msg.id, {
+      status: 'success',
+      message: 'Link opened successfully',
+    });
+  } catch (error) {
+    console.error('Error opening link:', error);
+    return createErrorResponse(msg.id, JsonRpcErrorCode.InternalError, 'Error opening link');
   }
-  return null;
 }
 
 /**
@@ -225,14 +269,14 @@ export function handleOpenLink(msg: OpenLinkRequest): JsonRpcResponse | null {
  * Per spec: Log messages to host. This is a standard MCP logging notification.
  * Host should forward to the MCP server.
  */
-export function handleNotificationMessage(msg: LoggingMessageRequest): null {
+export function handleNotificationMessage(msg: LoggingMessageRequest): JsonRpcResponse | null {
   // TODO: Forward to MCP server
   console.warn('[MCP Apps] TODO notifications/message: Should forward to MCP server.', {
     level: msg.params.level,
     data: msg.params.data,
     logger: msg.params.logger,
   });
-  return null;
+  return createNotImplementedResponse(msg);
 }
 
 /**
@@ -241,15 +285,8 @@ export function handleNotificationMessage(msg: LoggingMessageRequest): null {
  * that owns this App. Host MUST reject requests for tools that don't include "app" in visibility.
  */
 export function handleToolsCall(msg: CallToolRequest): JsonRpcResponse | null {
-  console.warn(
-    '[MCP Apps] tools/call: Should forward to MCP server to execute tool.',
-    'Host MUST reject if tool visibility does not include "app".',
-    { tool: msg.params.name, arguments: msg.params.arguments }
-  );
-  if (msg.id !== undefined) {
-    return createNotImplementedResponse(msg.id, msg.method);
-  }
-  return null;
+  console.warn('[MCP Apps] tools/call: Should forward to MCP server to execute tool.');
+  return createNotImplementedResponse(msg);
 }
 
 /**
@@ -259,13 +296,9 @@ export function handleToolsCall(msg: CallToolRequest): JsonRpcResponse | null {
  */
 export function handleResourcesList(msg: ListResourcesRequest): JsonRpcResponse | null {
   console.warn(
-    '[MCP Apps] TODO resources/list: Should return list of available resources from MCP server.',
-    { cursor: msg.params?.cursor }
+    '[MCP Apps] TODO resources/list: Should return list of available resources from MCP server.'
   );
-  if (msg.id !== undefined) {
-    return createNotImplementedResponse(msg.id, msg.method);
-  }
-  return null;
+  return createNotImplementedResponse(msg);
 }
 
 /**
@@ -276,13 +309,9 @@ export function handleResourceTemplatesList(
   msg: ListResourceTemplatesRequest
 ): JsonRpcResponse | null {
   console.warn(
-    '[MCP Apps] TODO resources/templates/list: Should return list of resource templates from MCP server.',
-    { cursor: msg.params?.cursor }
+    '[MCP Apps] TODO resources/templates/list: Should return list of resource templates from MCP server.'
   );
-  if (msg.id !== undefined) {
-    return createNotImplementedResponse(msg.id, msg.method);
-  }
-  return null;
+  return createNotImplementedResponse(msg);
 }
 
 /**
@@ -291,13 +320,8 @@ export function handleResourceTemplatesList(
  * This is how Apps fetch data or additional UI resources.
  */
 export function handleResourcesRead(msg: ReadResourceRequest): JsonRpcResponse | null {
-  console.warn('[MCP Apps] TODO resources/read: Should fetch resource content from MCP server.', {
-    uri: msg.params.uri,
-  });
-  if (msg.id !== undefined) {
-    return createNotImplementedResponse(msg.id, msg.method);
-  }
-  return null;
+  console.warn('[MCP Apps] TODO resources/read: Should fetch resource content from MCP server.');
+  return createNotImplementedResponse(msg);
 }
 
 /**
@@ -309,10 +333,8 @@ export function handlePromptsList(msg: ListPromptsRequest): JsonRpcResponse | nu
     '[MCP Apps] TODO prompts/list: Should return list of available prompts from MCP server.',
     { cursor: msg.params?.cursor }
   );
-  if (msg.id !== undefined) {
-    return createNotImplementedResponse(msg.id, msg.method);
-  }
-  return null;
+
+  return createNotImplementedResponse(msg);
 }
 
 /**
@@ -322,10 +344,7 @@ export function handlePromptsList(msg: ListPromptsRequest): JsonRpcResponse | nu
 export function handlePing(msg: PingRequest): JsonRpcResponse | null {
   // TODO: Forward ping to MCP server and return its response
   console.warn('[MCP Apps] TODO ping: Should forward to MCP server and return its response.');
-  if (msg.id !== undefined) {
-    return createNotImplementedResponse(msg.id, msg.method);
-  }
-  return null;
+  return createNotImplementedResponse(msg);
 }
 
 const DEFAULT_IFRAME_HEIGHT = 200;

@@ -113,6 +113,7 @@ export default function ToolCallWithResponse({
               key={content.uri}
               toolInput={{ arguments: toolCall.arguments }}
               toolResult={toolResponse.toolResult.value as unknown as ToolResult}
+              append={append}
             />
           );
         })}
