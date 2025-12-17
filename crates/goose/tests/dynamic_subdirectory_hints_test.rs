@@ -8,6 +8,7 @@ use goose::session::{SessionManager, SessionType};
 use serial_test::serial;
 
 #[tokio::test]
+#[serial]
 async fn test_hint_loading_and_pruning_integration() -> anyhow::Result<()> {
     // This test directly calls the pub(crate) methods to verify integration
     // Tests: loading, state tracking, access time updates, and pruning
