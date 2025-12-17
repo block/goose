@@ -21,7 +21,6 @@ fn test_loaded_agents_state_mark_loaded() {
     assert_eq!(tag, "agents_md:/repo/features/auth");
     assert!(state.is_loaded(path));
 
-    // Verify context details
     let context = state.loaded_directories.get("/repo/features/auth").unwrap();
     assert_eq!(context.access_turn, 1);
 }
@@ -50,12 +49,10 @@ fn test_loaded_agents_state_mark_accessed() {
 fn test_prune_stale() {
     let mut state = LoadedAgentsState::new();
 
-    // Load directories at different turns
     state.mark_loaded(Path::new("/repo/auth"), 1);
     state.mark_loaded(Path::new("/repo/payments"), 2);
     state.mark_loaded(Path::new("/repo/api"), 10);
 
-    // Access auth at turn 8
     state.mark_accessed(Path::new("/repo/auth"), 8);
 
     // At turn 20, with max_idle_turns=10:

@@ -75,7 +75,6 @@ fn test_load_hints_from_directory_with_imports() {
         let included_path = temp_dir.path().join("included.md");
         std::fs::write(&included_path, "Included content").unwrap();
 
-        // Create agents.md with import in subdir
         let agents_path = subdir.join("AGENTS.md");
         std::fs::write(&agents_path, "Main content\n@../included.md\n").unwrap();
 
