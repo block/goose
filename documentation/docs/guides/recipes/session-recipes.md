@@ -194,7 +194,7 @@ You can turn your current goose session into a reusable recipe that includes the
   <TabItem value="ui" label="goose Desktop" default>
 
    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-   2. Click `Recipes`
+   2. Click `Recipes` in the sidebar
    3. Find the recipe you want to edit and click the <SquarePen className="inline" size={16} /> button
    4. In the dialog that appears, edit any of the following:
       <RecipeFields />
@@ -431,7 +431,7 @@ Create shortcuts to quickly run recipes in any goose chat session. Type a custom
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-   2. Click `Recipes`
+   2. Click `Recipes` in the sidebar
    3. Find the recipe you want to edit and click the <Terminal className="inline" size={16} /> button
    4. In the modal that pops up, type your custom command (without the leading `/`) into the text box
    5. Click `Save`.
@@ -549,7 +549,7 @@ Automate goose recipes by running them on a schedule. When creating a schedule, 
 **Schedule from Recipe Library:**
 
    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-   2. Click `Recipes`
+   2. Click `Recipes` in the sidebar
    3. Find the recipe you want to schedule and click the <Clock className="inline" size={16} /> button
    4. Click `Create Schedule`
    5. In the dialog that appears, configure the schedule. For **Source**, your recipe link is already provided.
