@@ -3351,6 +3351,9 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         std::env::set_current_dir(&temp_dir).unwrap();
 
+        // Set GOOSE_PATH_ROOT to isolate test from user's real global config
+        std::env::set_var("GOOSE_PATH_ROOT", temp_dir.path());
+
         // Create local .gooseignore with negation pattern
         fs::write(".gooseignore", "!.env.example\n").unwrap();
 
@@ -3367,6 +3370,9 @@ mod tests {
             !server.is_ignored(Path::new(".env.example")),
             ".env.example should NOT be ignored due to negation pattern in local .gooseignore"
         );
+
+        // Clean up env var
+        std::env::remove_var("GOOSE_PATH_ROOT");
     }
 
     #[test]
