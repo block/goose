@@ -7,16 +7,7 @@ description: "Share a goose session setup (including tools, goals, and instructi
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import { PanelLeft, ChefHat, SquarePen, Link, Clock, Terminal } from 'lucide-react';
-export const RecipeFields = () => (
-  <ul>
-    <li><strong>Title</strong> and <strong>description</strong></li>
-    <li><strong>Instructions</strong> that tell goose what to do</li>
-    <li><strong>Initial prompt</strong> to pre-fill the chat input</li>
-    <li><strong>Message</strong> to display at the top of the recipe and <strong>activity buttons</strong> for users to click</li>
-    <li><strong>Parameters</strong> to accept dynamic values</li>
-    <li><strong>Response JSON schema</strong> for <a href="#structured-output-for-automation">structured output in automations</a></li>
-  </ul>
-);
+import RecipeFields from '@site/src/components/RecipeFields';
 
 Sometimes you finish a task in goose and realize, "Hey, this setup could be useful again." Maybe you have curated a great combination of tools, defined a clear goal, and want to preserve that flow. Or maybe you're trying to help someone else replicate what you just did without walking them through it step by step. 
 

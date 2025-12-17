@@ -51,7 +51,7 @@ Before saving recipes, it's important to understand where they can be stored and
 
 If you're already using a recipe and want to save a modified version:
 1. Click the <ChefHat className="inline" size={16}/> button at the bottom of the app, which appears after sending your first message
-2. Make any desired edits to the instructions, prompts, or other fields
+2. Make any desired edits to the instructions, prompt, or other fields
 3. Click `Save Recipe`
 
 :::info
