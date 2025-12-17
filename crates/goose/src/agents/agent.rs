@@ -1564,27 +1564,6 @@ impl Agent {
         Ok(stale_dirs.len())
     }
 
-    /// Prune stale directory hints that haven't been accessed recently
-    ///
-    /// Note: This method is public for testing purposes only.
-    pub async fn prune_stale_directory_hints(
-        &self,
-        session_config: &SessionConfig,
-        current_turn: u32,
-    ) -> Result<usize> {
-        let mut session = SessionManager::get_session(&session_config.id, false).await?;
-
-        let count = self
-            .prune_stale_hints_internal(&mut session.extension_data, current_turn)
-            .await?;
-
-        if count > 0 {
-            Self::update_session_extension_data(&session_config.id, session.extension_data).await?;
-        }
-
-        Ok(count)
-    }
-
     pub async fn update_provider(
         &self,
         provider: Arc<dyn Provider>,

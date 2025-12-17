@@ -2,7 +2,7 @@ use goose::agents::types::SessionConfig;
 use goose::agents::Agent;
 use goose::session::extension_data::{
     get_or_create_conversation_turn_state, get_or_create_loaded_agents_state,
-    save_conversation_turn_state, ConversationTurnState, ExtensionData,
+    save_conversation_turn_state, save_loaded_agents_state, ConversationTurnState, ExtensionData,
 };
 use goose::session::{SessionManager, SessionType};
 use serial_test::serial;
@@ -77,10 +77,20 @@ async fn test_hint_loading_and_pruning_integration() -> anyhow::Result<()> {
     }
 
     // Turn 5: Prune (last access was turn 2, so 3 turns idle)
-    let pruned = agent
-        .prune_stale_directory_hints(&session_config, 5)
-        .await?;
-    assert_eq!(pruned, 1, "Should prune 1 directory");
+    // Test pruning via LoadedAgentsState.prune_stale directly
+    {
+        let mut session = SessionManager::get_session(&session.id, false).await?;
+        let mut loaded_state = get_or_create_loaded_agents_state(&session.extension_data);
+
+        let pruned = loaded_state.prune_stale(5, 3);
+        assert_eq!(pruned.len(), 1, "Should prune 1 directory");
+
+        save_loaded_agents_state(&mut session.extension_data, &loaded_state)?;
+        SessionManager::update_session(&session.id)
+            .extension_data(session.extension_data)
+            .apply()
+            .await?;
+    }
 
     {
         let session = SessionManager::get_session(&session.id, false).await?;
