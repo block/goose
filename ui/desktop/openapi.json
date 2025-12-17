@@ -854,6 +854,36 @@
         }
       }
     },
+    "/config/pricing": {
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "get_pricing",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PricingQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Model pricing data retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PricingResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/config/providers": {
       "get": {
         "tags": [
@@ -4222,6 +4252,74 @@
           "ask_before",
           "never_allow"
         ]
+      },
+      "PricingData": {
+        "type": "object",
+        "required": [
+          "provider",
+          "model",
+          "input_token_cost",
+          "output_token_cost",
+          "currency"
+        ],
+        "properties": {
+          "context_length": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true,
+            "minimum": 0
+          },
+          "currency": {
+            "type": "string"
+          },
+          "input_token_cost": {
+            "type": "number",
+            "format": "double"
+          },
+          "model": {
+            "type": "string"
+          },
+          "output_token_cost": {
+            "type": "number",
+            "format": "double"
+          },
+          "provider": {
+            "type": "string"
+          }
+        }
+      },
+      "PricingQuery": {
+        "type": "object",
+        "required": [
+          "provider",
+          "model"
+        ],
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          }
+        }
+      },
+      "PricingResponse": {
+        "type": "object",
+        "required": [
+          "pricing",
+          "source"
+        ],
+        "properties": {
+          "pricing": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PricingData"
+            }
+          },
+          "source": {
+            "type": "string"
+          }
+        }
       },
       "PrincipalType": {
         "type": "string",

@@ -1,9 +1,10 @@
-import { getApiUrl } from '../config';
+import { getPricing, PricingData } from '../api';
 
 export interface ModelCostInfo {
   input_token_cost: number;
   output_token_cost: number;
   currency: string;
+  context_length?: number;
 }
 
 /**
@@ -20,36 +21,28 @@ export async function fetchModelPricing(
       input_token_cost: 0,
       output_token_cost: 0,
       currency: '$',
+      context_length: undefined,
     };
   }
 
   try {
-    const apiUrl = getApiUrl('/config/pricing');
-    const secretKey = await window.electron.getSecretKey();
-
-    const headers: HeadersInit = { 'Content-Type': 'application/json' };
-    if (secretKey) {
-      headers['X-Secret-Key'] = secretKey;
-    }
-
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ provider, model }),
+    const response = await getPricing({
+      body: { provider, model },
+      throwOnError: false,
     });
 
-    if (!response.ok) {
+    if (!response.data) {
       return null;
     }
 
-    const data = await response.json();
-    const pricing = data.pricing?.[0];
+    const pricing: PricingData | undefined = response.data.pricing?.[0];
 
     if (pricing) {
       return {
         input_token_cost: pricing.input_token_cost,
         output_token_cost: pricing.output_token_cost,
-        currency: pricing.currency || '$',
+        currency: pricing.currency,
+        context_length: pricing.context_length ?? undefined,
       };
     }
 
