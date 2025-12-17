@@ -985,7 +985,6 @@ impl Agent {
                     break;
                 }
 
-                // This happens on every agent iteration (tool calls, responses, etc.)
                 let conversation_turn = {
                     use crate::session::extension_data::{
                         get_or_create_conversation_turn_state, save_conversation_turn_state,
@@ -1420,8 +1419,6 @@ impl Agent {
         prompt_manager.add_system_prompt_extra(instruction);
     }
 
-    /// Extract file path from tool call arguments if present
-    ///
     /// Only checks "path" parameter (used by text_editor)
     fn extract_file_path_from_args(
         arguments: &Option<serde_json::Map<String, serde_json::Value>>,
@@ -1499,7 +1496,6 @@ impl Agent {
             {
                 let tag = loaded_state.mark_loaded(directory, current_turn);
 
-                // Extend system prompt
                 let mut prompt_manager = self.prompt_manager.lock().await;
                 prompt_manager.add_system_prompt_extra_with_tag(content, tag);
 
@@ -1528,7 +1524,6 @@ impl Agent {
         Ok(hints_loaded)
     }
 
-    /// Helper to update session extension data
     async fn update_session_extension_data(
         session_id: &str,
         extension_data: crate::session::extension_data::ExtensionData,

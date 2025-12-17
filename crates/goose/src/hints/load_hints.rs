@@ -45,11 +45,20 @@ pub fn find_git_root(start_dir: &Path) -> Option<&Path> {
 fn get_local_directories(git_root: Option<&Path>, cwd: &Path) -> Vec<PathBuf> {
     match git_root {
         Some(git_root) => {
-            let mut directories: Vec<_> = cwd
-                .ancestors()
-                .take_while(|d| d.starts_with(git_root))
-                .map(|d| d.to_path_buf())
-                .collect();
+            let mut directories = Vec::new();
+            let mut current_dir = cwd;
+
+            loop {
+                directories.push(current_dir.to_path_buf());
+                if current_dir == git_root {
+                    break;
+                }
+                if let Some(parent) = current_dir.parent() {
+                    current_dir = parent;
+                } else {
+                    break;
+                }
+            }
             directories.reverse();
             directories
         }
@@ -146,7 +155,6 @@ pub fn load_hints_from_directory(
         return None;
     }
 
-    // Check if directory exists
     if !directory.is_dir() {
         return None;
     }
@@ -175,7 +183,6 @@ pub fn load_hints_from_directory(
         for hints_filename in hints_filenames {
             let hints_path = dir.join(hints_filename);
 
-            // Check if file exists
             if hints_path.is_file() {
                 let expanded_content = read_referenced_files(
                     &hints_path,
@@ -539,9 +546,8 @@ End of hints"#;
 @local_file.md
 @../root_file.md
 End of hints"#;
-        fs::write(subdir.join(GOOSE_HINTS_FILENAME), hints_content).unwrap();
-
         let gitignore = create_dummy_gitignore();
+        fs::write(subdir.join(GOOSE_HINTS_FILENAME), hints_content).unwrap();
         let hints = load_hint_files(&subdir, &[GOOSE_HINTS_FILENAME.to_string()], &gitignore);
 
         assert!(hints.contains("Local file content"));
