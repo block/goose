@@ -178,8 +178,7 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
             "You are a general-purpose AI agent called goose, created by Block".to_string()
         });
 
-        // Extras are additional instructions appended to the system prompt
-        // They can be tagged for later removal (e.g., dynamic directory hints)
+        // System prompt extras can be tagged for later removal (e.g., dynamic directory hints)
         // Hints from .goosehints/AGENTS.md files are also added as extras (but untagged)
         let mut sanitized_system_prompt_extras: Vec<String> = self
             .manager
@@ -188,7 +187,6 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
             .map(|extra| sanitize_unicode_tags(&extra.content))
             .collect();
 
-        // Add hints if provided (from .goosehints/AGENTS.md files)
         if let Some(hints) = self.hints {
             sanitized_system_prompt_extras.push(sanitize_unicode_tags(&hints));
         }
@@ -473,7 +471,7 @@ mod tests {
             "test_dir".to_string(),
         );
 
-        let builder = manager.builder("test-model");
+        let builder = manager.builder();
         let prompt = builder.build();
 
         // Verify the content appears in the prompt
