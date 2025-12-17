@@ -64,6 +64,12 @@ pub enum Action {
 
     ToggleCopyMode,
     CopyToClipboard(String),
+    YankVisualSelection {
+        text: String,
+        count: usize,
+    },
+    EnterVisualMode,
+    ExitVisualMode,
     ForkFromMessage(usize),
     SetGooseMode(String),
     ConfirmToolCall {

@@ -53,6 +53,15 @@ pub fn handle_action(
         Action::CopyToClipboard(text) => {
             handle_copy_to_clipboard(text, tx);
         }
+        Action::YankVisualSelection { text, count } => {
+            handle_copy_to_clipboard(text, tx);
+            let msg = if *count == 1 {
+                "Copied 1 message".to_string()
+            } else {
+                format!("Copied {} messages", count)
+            };
+            let _ = tx.send(Event::Flash(msg));
+        }
         Action::SetGooseMode(mode) => {
             handle_set_goose_mode(mode, client, tx);
         }

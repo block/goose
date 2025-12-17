@@ -492,7 +492,7 @@ impl<'a> Component for InputComponent<'a> {
 
         if let Event::Input(key) = event {
             match state.input_mode {
-                InputMode::Normal => match key.code {
+                InputMode::Normal | InputMode::Visual => match key.code {
                     KeyCode::Char('i') | KeyCode::Char('e') => {
                         return Ok(Some(Action::ToggleInputMode))
                     }
@@ -661,7 +661,7 @@ impl<'a> Component for InputComponent<'a> {
         } else {
             match state.input_mode {
                 InputMode::Editing => theme.base.border_active,
-                InputMode::Normal => theme.base.border,
+                InputMode::Normal | InputMode::Visual => theme.base.border,
             }
         };
 

@@ -194,7 +194,7 @@ fn handle_ui(state: &mut AppState, action: &Action) -> bool {
     match action {
         Action::ToggleInputMode => {
             state.input_mode = match state.input_mode {
-                InputMode::Normal => InputMode::Editing,
+                InputMode::Normal | InputMode::Visual => InputMode::Editing,
                 InputMode::Editing => InputMode::Normal,
             };
             true
@@ -250,6 +250,14 @@ fn handle_ui(state: &mut AppState, action: &Action) -> bool {
         Action::ToggleCopyMode => {
             state.copy_mode = !state.copy_mode;
             state.needs_refresh = true;
+            true
+        }
+        Action::EnterVisualMode => {
+            state.input_mode = InputMode::Visual;
+            true
+        }
+        Action::YankVisualSelection { .. } | Action::ExitVisualMode => {
+            state.input_mode = InputMode::Normal;
             true
         }
         _ => false,

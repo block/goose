@@ -108,12 +108,16 @@ impl StatusComponent {
             match state.input_mode {
                 InputMode::Normal => theme.base.selection,
                 InputMode::Editing => theme.base.border_active,
+                InputMode::Visual => theme.status.warning,
             }
         };
         let mode_fg = if state.is_working {
             Color::Black
         } else {
-            theme.base.background
+            match state.input_mode {
+                InputMode::Visual => Color::Black,
+                _ => theme.base.background,
+            }
         };
         let mode_text = if state.is_working {
             " WORKING "
@@ -121,6 +125,7 @@ impl StatusComponent {
             match state.input_mode {
                 InputMode::Normal => " NORMAL ",
                 InputMode::Editing => " EDITING ",
+                InputMode::Visual => " VISUAL ",
             }
         };
 

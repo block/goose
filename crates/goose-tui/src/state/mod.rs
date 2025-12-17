@@ -12,6 +12,7 @@ use std::time::Instant;
 pub enum InputMode {
     Normal,
     Editing,
+    Visual,
 }
 
 #[derive(Debug, Clone)]

@@ -32,6 +32,8 @@ pub struct ChatComponent {
     last_width: u16,
     last_height: u16,
     last_theme_name: String,
+    visual_anchor: Option<usize>,
+    pending_g: bool,
 }
 
 impl Default for ChatComponent {
@@ -56,6 +58,115 @@ impl ChatComponent {
             last_width: 0,
             last_height: 0,
             last_theme_name: String::new(),
+            visual_anchor: None,
+            pending_g: false,
+        }
+    }
+
+    fn current_message_index(&self) -> usize {
+        let display_idx = self.list_state.selected().unwrap_or(0);
+        self.display_mapping.get(display_idx).copied().unwrap_or(0)
+    }
+
+    fn find_display_index_for_message(&self, msg_idx: usize) -> Option<usize> {
+        self.display_mapping.iter().position(|&m| m == msg_idx)
+    }
+
+    fn selection_range(&self) -> Option<std::ops::RangeInclusive<usize>> {
+        let anchor = self.visual_anchor?;
+        let cursor = self.current_message_index();
+        Some(anchor.min(cursor)..=anchor.max(cursor))
+    }
+
+    fn selection_count(&self) -> usize {
+        self.selection_range()
+            .map(|r| r.end() - r.start() + 1)
+            .unwrap_or(0)
+    }
+
+    fn build_selection_text(&self, state: &AppState) -> String {
+        self.selection_range()
+            .map(|range| {
+                range
+                    .filter_map(|i| state.messages.get(i))
+                    .map(crate::utils::message_format::message_to_plain_text)
+                    .collect::<Vec<_>>()
+                    .join("\n\n")
+            })
+            .unwrap_or_default()
+    }
+
+    fn swap_anchor_cursor(&mut self) {
+        if let Some(old_anchor) = self.visual_anchor {
+            let current = self.current_message_index();
+            if old_anchor != current {
+                self.visual_anchor = Some(current);
+                if let Some(display_idx) = self.find_display_index_for_message(old_anchor) {
+                    self.list_state.select(Some(display_idx));
+                }
+            }
+        }
+    }
+
+    fn exit_visual_mode(&mut self) {
+        self.visual_anchor = None;
+        self.pending_g = false;
+    }
+
+    fn handle_visual_mode(&mut self, key: KeyCode, state: &AppState) -> Result<Option<Action>> {
+        if key != KeyCode::Char('g') {
+            self.pending_g = false;
+        }
+
+        match key {
+            KeyCode::Char('y') | KeyCode::Char('c') => {
+                let text = self.build_selection_text(state);
+                let count = self.selection_count();
+                self.exit_visual_mode();
+                Ok(Some(Action::YankVisualSelection { text, count }))
+            }
+            KeyCode::Char('o') => {
+                self.swap_anchor_cursor();
+                Ok(None)
+            }
+            KeyCode::Char('g') => {
+                if self.pending_g {
+                    self.pending_g = false;
+                    self.stick_to_bottom = false;
+                    self.list_state.select(Some(0));
+                } else {
+                    self.pending_g = true;
+                }
+                Ok(None)
+            }
+            KeyCode::Char('G') => {
+                self.stick_to_bottom = true;
+                if self.last_item_count > 0 {
+                    self.list_state
+                        .select(Some(self.last_item_count.saturating_sub(1)));
+                }
+                Ok(None)
+            }
+            KeyCode::Char('j') | KeyCode::Down => {
+                let cur = self.list_state.selected().unwrap_or(0);
+                let next = cur + 1;
+                self.list_state.select(Some(next));
+                if next >= self.last_item_count.saturating_sub(1) {
+                    self.stick_to_bottom = true;
+                }
+                Ok(None)
+            }
+            KeyCode::Char('k') | KeyCode::Up => {
+                self.stick_to_bottom = false;
+                let cur = self.list_state.selected().unwrap_or(0);
+                self.list_state.select(Some(cur.saturating_sub(1)));
+                Ok(None)
+            }
+            KeyCode::Esc | KeyCode::Char('V') => {
+                self.exit_visual_mode();
+                Ok(Some(Action::ExitVisualMode))
+            }
+            _ => Ok(None),
         }
     }
 
@@ -477,7 +588,7 @@ impl ChatComponent {
         } else {
             match state.input_mode {
                 InputMode::Editing => theme.base.border_active,
-                InputMode::Normal => theme.base.border,
+                InputMode::Normal | InputMode::Visual => theme.base.border,
             }
         };
         let end_color = theme.status.thinking;
@@ -606,13 +717,21 @@ impl Component for ChatComponent {
                         self.stick_to_bottom = true;
                     }
                 }
-
                 _ => {}
             },
             Event::Input(key) => {
+                if state.input_mode == InputMode::Visual {
+                    return self.handle_visual_mode(key.code, state);
+                }
+
                 if state.input_mode == InputMode::Normal {
                     if let Some(action) = self.check_confirmation_keys(key.code, state) {
                         return Ok(Some(action));
+                    }
+
+                    if key.code == KeyCode::Char('V') && !state.messages.is_empty() {
+                        self.visual_anchor = Some(self.current_message_index());
+                        return Ok(Some(Action::EnterVisualMode));
                     }
 
                     let page_size = self.last_height.saturating_sub(4) as usize;
