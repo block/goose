@@ -1,8 +1,8 @@
 use anyhow::Result;
 use axum::http::{HeaderMap, HeaderName};
 use chrono::{DateTime, Utc};
+use futures::future;
 use futures::stream::{FuturesUnordered, StreamExt};
-use futures::{future, FutureExt};
 use rmcp::service::{ClientInitializeError, ServiceError};
 use rmcp::transport::streamable_http_client::{
     AuthRequiredError, StreamableHttpClientTransportConfig, StreamableHttpError,
@@ -1086,26 +1086,24 @@ impl ExtensionManager {
         }
 
         let arguments = tool_call.arguments.clone();
-        let client = client.clone();
         let notifications_receiver = client.lock().await.subscribe().await;
 
-        let fut = async move {
-            let client_guard = client.lock().await;
-            client_guard
-                .call_tool(&tool_name, arguments, cancellation_token)
-                .await
-                .map_err(|e| match e {
-                    ServiceError::McpError(error_data) => error_data,
-                    _ => {
-                        ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), e.maybe_to_value())
-                    }
-                })
-        };
+        let mut result = client
+            .lock()
+            .await
+            .call_tool_deferred(&tool_name, arguments, cancellation_token)
+            .await
+            .map_err(|e| match e {
+                ServiceError::McpError(error_data) => error_data,
+                _ => ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), e.maybe_to_value()),
+            })?;
 
-        Ok(ToolCallResult {
-            result: Box::new(fut.boxed()),
-            notification_stream: Some(Box::new(ReceiverStream::new(notifications_receiver))),
-        })
+        if result.notification_stream.is_none() {
+            result.notification_stream =
+                Some(Box::new(ReceiverStream::new(notifications_receiver)));
+        }
+
+        Ok(result)
     }
 
     pub async fn list_prompts_from_extension(

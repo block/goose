@@ -1,4 +1,5 @@
 use crate::action_required_manager::ActionRequiredManager;
+use crate::agents::tool_execution::ToolCallResult;
 use crate::agents::types::SharedProvider;
 use crate::session_context::SESSION_ID_HEADER;
 use rmcp::model::{
@@ -63,6 +64,25 @@ pub trait McpClientTrait: Send + Sync {
         arguments: Option<JsonObject>,
         cancel_token: CancellationToken,
     ) -> Result<CallToolResult, Error>;
+
+    /// Returns a deferred tool call result that can be awaited later.
+    /// This enables parallel execution of multiple tool calls.
+    /// Default implementation wraps call_tool for backward compatibility.
+    async fn call_tool_deferred(
+        &self,
+        name: &str,
+        arguments: Option<JsonObject>,
+        cancel_token: CancellationToken,
+    ) -> Result<ToolCallResult, Error> {
+        let result = self.call_tool(name, arguments, cancel_token).await;
+        Ok(ToolCallResult {
+            result: Box::new(futures::future::ready(result.map_err(|e| match e {
+                ServiceError::McpError(error_data) => error_data,
+                _ => ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None),
+            }))),
+            notification_stream: None,
+        })
+    }
 
     async fn list_prompts(
         &self,

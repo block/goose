@@ -4,6 +4,7 @@ use crate::agents::subagent_task_config::TaskConfig;
 use crate::agents::subagent_tool::{
     create_subagent_tool, handle_subagent_tool, SUBAGENT_TOOL_NAME,
 };
+use crate::agents::tool_execution::ToolCallResult;
 use crate::config::get_enabled_extensions;
 use anyhow::Result;
 use async_trait::async_trait;
@@ -126,8 +127,8 @@ impl McpClientTrait for SubagentClient {
     async fn call_tool(
         &self,
         name: &str,
-        arguments: Option<JsonObject>,
-        cancellation_token: CancellationToken,
+        _arguments: Option<JsonObject>,
+        _cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         if name != SUBAGENT_TOOL_NAME {
             return Ok(CallToolResult::error(vec![Content::text(format!(
@@ -135,36 +136,44 @@ impl McpClientTrait for SubagentClient {
                 name
             ))]));
         }
+        Ok(CallToolResult::error(vec![Content::text(
+            "Subagent tool must be called via call_tool_deferred",
+        )]))
+    }
+
+    async fn call_tool_deferred(
+        &self,
+        name: &str,
+        arguments: Option<JsonObject>,
+        cancellation_token: CancellationToken,
+    ) -> Result<ToolCallResult, Error> {
+        if name != SUBAGENT_TOOL_NAME {
+            return Ok(ToolCallResult::from(Ok(CallToolResult::error(vec![
+                Content::text(format!("Unknown tool: {}", name)),
+            ]))));
+        }
 
         let Some(provider) = self.get_provider().await else {
-            return Ok(CallToolResult::error(vec![Content::text(
-                "No provider configured",
-            )]));
+            return Ok(ToolCallResult::from(Ok(CallToolResult::error(vec![
+                Content::text("No provider configured"),
+            ]))));
         };
 
         let extensions = self.get_extensions().await;
         let working_dir = self.get_working_dir();
         let sub_recipes = self.get_sub_recipes().await;
         let task_config = TaskConfig::new(provider, extensions);
-
         let arguments_value = arguments
             .map(Value::Object)
             .unwrap_or(Value::Object(serde_json::Map::new()));
 
-        let result = handle_subagent_tool(
+        Ok(handle_subagent_tool(
             arguments_value,
             task_config,
             sub_recipes,
             working_dir,
             Some(cancellation_token),
-        );
-
-        match result.result.await {
-            Ok(call_result) => Ok(call_result),
-            Err(error_data) => Ok(CallToolResult::error(vec![Content::text(
-                error_data.message.to_string(),
-            )])),
-        }
+        ))
     }
 
     async fn list_prompts(
