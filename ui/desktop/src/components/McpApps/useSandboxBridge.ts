@@ -4,7 +4,9 @@ import type {
   JsonRpcResponse,
   IncomingGuestMessage,
   ToolInput,
+  ToolInputPartial,
   ToolResult,
+  ToolCancelled,
   HostContext,
   SizeChangedNotification,
   MessageRequest,
@@ -23,7 +25,10 @@ import {
   createInitializeResponse,
   createHostContextChangedNotification,
   createToolInputNotification,
+  createToolInputPartialNotification,
   createToolResultNotification,
+  createToolCancelledNotification,
+  createResourceTeardownRequest,
 } from './utils';
 import { useTheme } from '../../contexts/ThemeContext';
 
@@ -36,7 +41,9 @@ interface SandboxBridgeOptions {
   resourceUri: string;
   iframeHeight: number;
   toolInput?: ToolInput;
+  toolInputPartial?: ToolInputPartial;
   toolResult?: ToolResult;
+  toolCancelled?: ToolCancelled;
   onMessage?: MessageHandler<MessageRequest>;
   onOpenLink?: MessageHandler<OpenLinkRequest>;
   onNotificationMessage?: MessageHandler<LoggingMessageRequest>;
@@ -61,7 +68,9 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
     resourceUri,
     iframeHeight,
     toolInput,
+    toolInputPartial,
     toolResult,
+    toolCancelled,
     onMessage,
     onOpenLink,
     onNotificationMessage,
@@ -256,11 +265,23 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
     sendToSandbox(createToolInputNotification(toolInput));
   }, [isGuestInitialized, toolInput, sendToSandbox]);
 
+  // Send partial tool input (streaming) when guest is initialized
+  useEffect(() => {
+    if (!isGuestInitialized || !toolInputPartial) return;
+    sendToSandbox(createToolInputPartialNotification(toolInputPartial));
+  }, [isGuestInitialized, toolInputPartial, sendToSandbox]);
+
   // Send tool result when guest is initialized and result is available
   useEffect(() => {
     if (!isGuestInitialized || !toolResult) return;
     sendToSandbox(createToolResultNotification(toolResult));
   }, [isGuestInitialized, toolResult, sendToSandbox]);
+
+  // Send tool cancelled notification when toolCancelled changes
+  useEffect(() => {
+    if (!isGuestInitialized || !toolCancelled) return;
+    sendToSandbox(createToolCancelledNotification(toolCancelled));
+  }, [isGuestInitialized, toolCancelled, sendToSandbox]);
 
   // Send theme changes to sandbox when resolvedTheme changes
   useEffect(() => {
@@ -307,6 +328,19 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
       resizeObserver.disconnect();
     };
   }, [isGuestInitialized, sendToSandbox]);
+
+  // Send resource teardown request when component unmounts
+  useEffect(() => {
+    const currentSendToSandbox = sendToSandbox;
+    const checkInitialized = () => isGuestInitialized;
+
+    return () => {
+      if (checkInitialized()) {
+        const { message } = createResourceTeardownRequest('Component unmounting');
+        currentSendToSandbox(message);
+      }
+    };
+  }, [sendToSandbox, isGuestInitialized]);
 
   void isSandboxReady;
   void iframeHeight;

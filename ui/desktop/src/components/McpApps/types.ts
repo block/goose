@@ -198,12 +198,22 @@ export interface ToolInput {
   arguments: Record<string, unknown>;
 }
 
+/** Partial/streaming tool input passed to the MCP App */
+export interface ToolInputPartial {
+  arguments: Record<string, unknown>;
+}
+
 /** Tool result passed to the MCP App (matches MCP CallToolResult) */
 export interface ToolResult {
   _meta?: Record<string, unknown>;
   content: unknown[];
   isError?: boolean;
   structuredContent?: Record<string, unknown>;
+}
+
+/** Tool cancellation notification */
+export interface ToolCancelled {
+  reason?: string;
 }
 
 // =============================================================================

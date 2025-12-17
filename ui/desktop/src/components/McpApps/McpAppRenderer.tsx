@@ -8,7 +8,7 @@
 
 import { useState } from 'react';
 import { useSandboxBridge } from './useSandboxBridge';
-import { McpAppResource, ToolInput, ToolResult } from './types';
+import { McpAppResource, ToolInput, ToolInputPartial, ToolResult, ToolCancelled } from './types';
 import { cn } from '../../utils';
 import {
   handleMessage,
@@ -28,14 +28,18 @@ const DEFAULT_IFRAME_HEIGHT = 200;
 interface McpAppRendererProps {
   resource: McpAppResource;
   toolInput?: ToolInput;
+  toolInputPartial?: ToolInputPartial;
   toolResult?: ToolResult;
+  toolCancelled?: ToolCancelled;
   append?: (text: string) => void;
 }
 
 export default function McpAppRenderer({
   resource,
   toolInput,
+  toolInputPartial,
   toolResult,
+  toolCancelled,
   append,
 }: McpAppRendererProps) {
   const prefersBorder = resource._meta?.ui?.prefersBorder ?? true;
@@ -48,7 +52,9 @@ export default function McpAppRenderer({
     resourceUri: resource.uri,
     iframeHeight,
     toolInput,
+    toolInputPartial,
     toolResult,
+    toolCancelled,
     onMessage: handleMessage(append),
     onOpenLink: handleOpenLink,
     onNotificationMessage: handleNotificationMessage,

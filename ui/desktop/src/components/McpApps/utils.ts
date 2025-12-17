@@ -4,7 +4,9 @@ import {
   JsonRpcNotification,
   JsonRpcResponse,
   ToolInput,
+  ToolInputPartial,
   ToolResult,
+  ToolCancelled,
   SizeChangedNotification,
   OpenLinkRequest,
   MessageRequest,
@@ -142,6 +144,55 @@ export function createToolResultNotification(toolResult: ToolResult): JsonRpcNot
     jsonrpc: '2.0',
     method: 'ui/notifications/tool-result',
     params: toolResult as unknown as Record<string, unknown>,
+  };
+}
+
+/**
+ * Create a tool-input-partial notification for streaming/partial tool inputs.
+ * Per spec: Used to send incremental updates of tool arguments as they become available.
+ */
+export function createToolInputPartialNotification(
+  toolInputPartial: ToolInputPartial
+): JsonRpcNotification {
+  return {
+    jsonrpc: '2.0',
+    method: 'ui/notifications/tool-input-partial',
+    params: { arguments: toolInputPartial.arguments },
+  };
+}
+
+/**
+ * Create a tool-cancelled notification when a tool call is cancelled.
+ * Per spec: Notifies the guest UI that the tool call has been cancelled.
+ */
+export function createToolCancelledNotification(toolCancelled: ToolCancelled): JsonRpcNotification {
+  return {
+    jsonrpc: '2.0',
+    method: 'ui/notifications/tool-cancelled',
+    params: toolCancelled.reason ? { reason: toolCancelled.reason } : {},
+  };
+}
+
+let resourceTeardownRequestId = 1;
+
+/**
+ * Create a resource-teardown request to notify the guest UI before removal.
+ * Per spec: Host sends this to allow the guest UI to clean up before being removed.
+ * Returns a request (with id) that expects a response from the guest.
+ */
+export function createResourceTeardownRequest(reason: string): {
+  id: number;
+  message: JsonRpcNotification & { id: number };
+} {
+  const id = resourceTeardownRequestId++;
+  return {
+    id,
+    message: {
+      jsonrpc: '2.0',
+      id,
+      method: 'ui/resource-teardown',
+      params: { reason },
+    },
   };
 }
 
