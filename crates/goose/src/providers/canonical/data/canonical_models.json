@@ -374,7 +374,7 @@
     ],
     "supports_tools": true,
     "pricing": {
-      "prompt": 2.5e-7,
+      "prompt": 2.4e-7,
       "completion": 3.8e-7,
       "request": 0.0,
       "image": 0.0
@@ -682,6 +682,29 @@
       "completion": 0.00001,
       "request": 0.0,
       "image": 0.00516
+    }
+  },
+  {
+    "id": "google/gemini-3-flash",
+    "name": "Google: Gemini 3 Flash Preview",
+    "context_length": 1048576,
+    "max_completion_tokens": 65535,
+    "input_modalities": [
+      "text",
+      "image",
+      "file",
+      "audio",
+      "video"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 5e-7,
+      "completion": 3e-6,
+      "request": 0.0,
+      "image": 0.0
     }
   },
   {
@@ -1439,6 +1462,24 @@
     "pricing": {
       "prompt": 6e-8,
       "completion": 1.8e-7,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
+    "id": "mistralai/mistral-small-creative",
+    "name": "Mistral: Mistral Small Creative",
+    "context_length": 32768,
+    "input_modalities": [
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 1e-7,
+      "completion": 3e-7,
       "request": 0.0,
       "image": 0.0
     }
@@ -3078,6 +3119,25 @@
     "pricing": {
       "prompt": 1.6e-7,
       "completion": 8e-7,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
+    "id": "qwen/qwen3-vl-32b-instruct",
+    "name": "Qwen: Qwen3 VL 32B Instruct",
+    "context_length": 262144,
+    "input_modalities": [
+      "text",
+      "image"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": false,
+    "pricing": {
+      "prompt": 5e-7,
+      "completion": 1.5e-6,
       "request": 0.0,
       "image": 0.0
     }
