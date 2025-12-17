@@ -178,24 +178,29 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
             "You are a general-purpose AI agent called goose, created by Block".to_string()
         });
 
-        // System prompt extras can be tagged for later removal (e.g., dynamic directory hints)
-        // Hints from .goosehints/AGENTS.md files are also added as extras (but untagged)
-        let mut sanitized_system_prompt_extras: Vec<String> = self
+        let mut system_prompt_extras: Vec<String> = self
             .manager
             .system_prompt_extras
             .iter()
-            .map(|extra| sanitize_unicode_tags(&extra.content))
+            .map(|extra| extra.content.clone())
             .collect();
 
+        // Add hints if provided
         if let Some(hints) = self.hints {
-            sanitized_system_prompt_extras.push(sanitize_unicode_tags(&hints));
+            system_prompt_extras.push(hints);
         }
 
         if goose_mode == GooseMode::Chat {
-            sanitized_system_prompt_extras.push(sanitize_unicode_tags(
-                "Right now you are in the chat only mode, no access to any tool use and system.",
-            ));
+            system_prompt_extras.push(
+                "Right now you are in the chat only mode, no access to any tool use and system."
+                    .to_string(),
+            );
         }
+
+        let sanitized_system_prompt_extras: Vec<String> = system_prompt_extras
+            .into_iter()
+            .map(|extra| sanitize_unicode_tags(&extra))
+            .collect();
 
         if sanitized_system_prompt_extras.is_empty() {
             base_prompt
