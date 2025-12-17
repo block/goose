@@ -25,7 +25,7 @@ pub const GOOSE_HINTS_FILENAME: &str = ".goosehints";
 pub const AGENTS_MD_FILENAME: &str = "AGENTS.md";
 pub const DYNAMIC_SUBDIRECTORY_HINT_LOADING_ENV: &str = "GOOSE_DYNAMIC_SUBDIRECTORY_HINT_LOADING";
 
-pub fn find_git_root(start_dir: &Path) -> Option<&Path> {
+fn find_git_root(start_dir: &Path) -> Option<&Path> {
     let mut check_dir = start_dir;
 
     loop {
