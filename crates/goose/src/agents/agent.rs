@@ -70,6 +70,68 @@ const MAX_IDLE_TURNS_BEFORE_PRUNING_HINT: u32 = 3;
 /// Tool names that trigger directory hint loading
 const TOOLS_THAT_TRIGGER_HINT_LOADING: &[&str] = &["developer__text_editor"];
 
+#[derive(Debug, Clone)]
+struct DirectoryContext {
+    access_turn: u32,
+    tag: String,
+}
+
+#[derive(Debug, Default)]
+struct DynamicHintsState {
+    current_turn: u32,
+    loaded_directories: HashMap<std::path::PathBuf, DirectoryContext>,
+}
+
+impl DynamicHintsState {
+    fn is_loaded(&self, directory: &std::path::Path) -> bool {
+        self.loaded_directories.contains_key(directory)
+    }
+
+    /// Update last access time for a directory. Returns true if updated.
+    fn mark_accessed(&mut self, directory: &std::path::Path, turn: u32) -> bool {
+        if let Some(context) = self.loaded_directories.get_mut(directory) {
+            if context.access_turn != turn {
+                context.access_turn = turn;
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Mark a directory as loaded at a specific turn and return its tag.
+    fn mark_loaded(&mut self, directory: &std::path::Path, turn: u32) -> String {
+        let tag = format!("agents_md:{}", directory.display());
+        self.loaded_directories.insert(
+            directory.to_path_buf(),
+            DirectoryContext {
+                access_turn: turn,
+                tag: tag.clone(),
+            },
+        );
+        tag
+    }
+
+    /// Prune directories that haven't been accessed in N turns.
+    /// Returns tags to remove from the prompt.
+    fn prune_stale(&mut self, current_turn: u32, max_idle_turns: u32) -> Vec<String> {
+        let mut pruned_tags = Vec::new();
+        self.loaded_directories.retain(|path, context| {
+            if current_turn.saturating_sub(context.access_turn) >= max_idle_turns {
+                pruned_tags.push(context.tag.clone());
+                debug!(
+                    "Pruned stale directory hints: {} (idle for {} turns)",
+                    path.display(),
+                    max_idle_turns
+                );
+                false
+            } else {
+                true
+            }
+        });
+        pruned_tags
+    }
+}
+
 /// Context needed for the reply function
 pub struct ReplyContext {
     pub conversation: Conversation,
@@ -96,6 +158,7 @@ pub struct Agent {
     pub(super) frontend_tools: Mutex<HashMap<String, FrontendTool>>,
     pub(super) frontend_instructions: Mutex<Option<String>>,
     pub(super) prompt_manager: Mutex<PromptManager>,
+    dynamic_hints_state: Mutex<DynamicHintsState>,
     pub(super) confirmation_tx: mpsc::Sender<(String, PermissionConfirmation)>,
     pub(super) confirmation_rx: Mutex<mpsc::Receiver<(String, PermissionConfirmation)>>,
     pub(super) tool_result_tx: mpsc::Sender<(String, ToolResult<CallToolResult>)>,
@@ -171,6 +234,7 @@ impl Agent {
             frontend_tools: Mutex::new(HashMap::new()),
             frontend_instructions: Mutex::new(None),
             prompt_manager: Mutex::new(PromptManager::new()),
+            dynamic_hints_state: Mutex::new(DynamicHintsState::default()),
             confirmation_tx: confirm_tx,
             confirmation_rx: Mutex::new(confirm_rx),
             tool_result_tx: tool_tx,
@@ -986,33 +1050,30 @@ impl Agent {
                 }
 
                 let conversation_turn = {
-                    use crate::session::extension_data::{
-                        get_or_create_conversation_turn_state, save_conversation_turn_state,
+                    let (current_turn, pruned_tags) = {
+                        let mut state = self.dynamic_hints_state.lock().await;
+                        state.current_turn = state.current_turn.saturating_add(1);
+                        let current_turn = state.current_turn;
+                        let pruned_tags =
+                            state.prune_stale(current_turn, MAX_IDLE_TURNS_BEFORE_PRUNING_HINT);
+                        (current_turn, pruned_tags)
                     };
 
-                    let mut session = SessionManager::get_session(&session_config.id, false).await?;
-
-                    let mut turn_state = get_or_create_conversation_turn_state(&session.extension_data);
-                    let current_turn = turn_state.increment();
-                    save_conversation_turn_state(&mut session.extension_data, &turn_state)?;
-
-                    // Avoid fetching/saving session twice per loop
-                    match self.prune_stale_hints_internal(&mut session.extension_data, current_turn).await {
-                        Ok(count) => {
-                            if count > 0 {
-                                debug!("Pruned {} stale directory hints, rebuilding system prompt", count);
-                                let prepared = self.prepare_tools_and_prompt(&working_dir).await?;
-                                tools = prepared.0;
-                                toolshim_tools = prepared.1;
-                                system_prompt = prepared.2;
-                            }
+                    if !pruned_tags.is_empty() {
+                        let mut prompt_manager = self.prompt_manager.lock().await;
+                        for tag in &pruned_tags {
+                            prompt_manager.remove_system_prompt_extras_by_tag(tag);
                         }
-                        Err(e) => {
-                            warn!("Failed to prune stale directory hints: {}", e);
-                        }
+
+                        debug!(
+                            "Pruned {} stale directory hints, rebuilding system prompt",
+                            pruned_tags.len()
+                        );
+                        let prepared = self.prepare_tools_and_prompt(&working_dir).await?;
+                        tools = prepared.0;
+                        toolshim_tools = prepared.1;
+                        system_prompt = prepared.2;
                     }
-
-                    Self::update_session_extension_data(&session_config.id, session.extension_data).await?;
 
                     current_turn
                 };
@@ -1232,7 +1293,7 @@ impl Agent {
                                                 }
 
                                                 if let Some(file_path) = text_editor_file_paths_by_request_id.get(&request_id) {
-                                                    match self.maybe_load_directory_hints(file_path, &session_config, conversation_turn).await {
+                                                    match self.maybe_load_directory_hints(file_path, &working_dir, conversation_turn).await {
                                                         Ok(true) => {
                                                             tools_updated = true;
                                                             debug!("Directory hints loaded, will rebuild system prompt");
@@ -1440,16 +1501,13 @@ impl Agent {
     /// to prevent loading untrusted hints from arbitrary paths.
     ///
     /// Note: This method is public for testing purposes only.
-    pub async fn maybe_load_directory_hints(
+    async fn maybe_load_directory_hints(
         &self,
         file_path: &std::path::Path,
-        session_config: &SessionConfig,
+        working_dir: &std::path::Path,
         current_turn: u32,
     ) -> Result<bool> {
         use crate::hints::{get_context_filenames, load_hints_from_directory};
-        use crate::session::extension_data::{
-            get_or_create_loaded_agents_state, save_loaded_agents_state,
-        };
 
         let directory = if file_path.is_dir() {
             file_path
@@ -1469,10 +1527,7 @@ impl Agent {
         }
 
         // Security check: Verify directory is within working directory
-        let mut session = SessionManager::get_session(&session_config.id, false).await?;
-        let working_dir = session.working_dir.clone();
-
-        if !directory.starts_with(&working_dir) {
+        if !directory.starts_with(working_dir) {
             debug!(
                 "Skipping hint loading for {} - outside working directory ({})",
                 directory.display(),
@@ -1481,44 +1536,46 @@ impl Agent {
             return Ok(false);
         }
 
-        let mut loaded_state = get_or_create_loaded_agents_state(&session.extension_data);
-        let mut save_needed = false;
         let mut hints_loaded = false;
 
-        if loaded_state.mark_accessed(directory, current_turn) {
-            debug!("Updated access time for directory: {}", directory.display());
-            save_needed = true;
-        } else if !loaded_state.is_loaded(directory) {
-            let hints_filenames = get_context_filenames();
-
-            if let Some(content) =
-                load_hints_from_directory(directory, &working_dir, &hints_filenames)
-            {
-                let tag = loaded_state.mark_loaded(directory, current_turn);
-
-                let mut prompt_manager = self.prompt_manager.lock().await;
-                prompt_manager.add_system_prompt_extra_with_tag(content, tag);
-
-                debug!(
-                    "Loaded directory hints from {} (turn {})",
-                    directory.display(),
-                    current_turn
-                );
-                save_needed = true;
-                hints_loaded = true;
-            } else {
-                debug!("No hint files found in directory: {}", directory.display());
+        {
+            let mut state = self.dynamic_hints_state.lock().await;
+            if state.is_loaded(directory) && state.mark_accessed(directory, current_turn) {
+                debug!("Updated access time for directory: {}", directory.display());
             }
-        } else {
-            debug!(
-                "Directory hints already loaded for: {}",
-                directory.display()
-            );
+            if state.is_loaded(directory) {
+                debug!(
+                    "Directory hints already loaded for: {}",
+                    directory.display()
+                );
+                return Ok(false);
+            }
         }
 
-        if save_needed {
-            save_loaded_agents_state(&mut session.extension_data, &loaded_state)?;
-            Self::update_session_extension_data(&session_config.id, session.extension_data).await?;
+        // Only attempt to load if not already loaded.
+        let hints_filenames = get_context_filenames();
+
+        if let Some(content) = load_hints_from_directory(directory, working_dir, &hints_filenames) {
+            let tag = {
+                let mut state = self.dynamic_hints_state.lock().await;
+                if state.is_loaded(directory) {
+                    state.mark_accessed(directory, current_turn);
+                    return Ok(false);
+                }
+                state.mark_loaded(directory, current_turn)
+            };
+
+            let mut prompt_manager = self.prompt_manager.lock().await;
+            prompt_manager.add_system_prompt_extra_with_tag(content, tag);
+
+            debug!(
+                "Loaded directory hints from {} (turn {})",
+                directory.display(),
+                current_turn
+            );
+            hints_loaded = true;
+        } else {
+            debug!("No hint files found in directory: {}", directory.display());
         }
 
         Ok(hints_loaded)
@@ -1532,36 +1589,6 @@ impl Agent {
             .extension_data(extension_data)
             .apply()
             .await
-    }
-
-    /// Internal helper to prune stale hints given extension data
-    async fn prune_stale_hints_internal(
-        &self,
-        extension_data: &mut crate::session::extension_data::ExtensionData,
-        current_turn: u32,
-    ) -> Result<usize> {
-        use crate::session::extension_data::{
-            get_or_create_loaded_agents_state, save_loaded_agents_state,
-        };
-
-        let mut loaded_state = get_or_create_loaded_agents_state(extension_data);
-        let stale_dirs = loaded_state.prune_stale(current_turn, MAX_IDLE_TURNS_BEFORE_PRUNING_HINT);
-
-        if stale_dirs.is_empty() {
-            return Ok(0);
-        }
-
-        let mut prompt_manager = self.prompt_manager.lock().await;
-        for (path, tag) in &stale_dirs {
-            prompt_manager.remove_system_prompt_extras_by_tag(tag);
-            debug!(
-                "Pruned stale directory hints: {} (idle for {} turns)",
-                path, MAX_IDLE_TURNS_BEFORE_PRUNING_HINT
-            );
-        }
-
-        save_loaded_agents_state(extension_data, &loaded_state)?;
-        Ok(stale_dirs.len())
     }
 
     pub async fn update_provider(
