@@ -52,7 +52,7 @@ pub fn extract_recipe_info_from_cli(
     }
     let input_config = InputConfig {
         contents: recipe.prompt.filter(|s| !s.trim().is_empty()),
-        extensions_override: recipe.extensions.or(Some(vec![])),
+        extensions_override: recipe.extensions,
         additional_system_prompt: recipe.instructions,
     };
 
@@ -109,8 +109,7 @@ mod tests {
             input_config.additional_system_prompt,
             Some("test_instructions my_value".to_string())
         );
-        assert!(input_config.extensions_override.is_some());
-        assert!(input_config.extensions_override.unwrap().is_empty());
+        assert!(input_config.extensions_override.is_none());
 
         assert!(settings.is_some());
         let settings = settings.unwrap();
@@ -175,8 +174,7 @@ mod tests {
             input_config.additional_system_prompt,
             Some("test_instructions my_value".to_string())
         );
-        assert!(input_config.extensions_override.is_some());
-        assert!(input_config.extensions_override.unwrap().is_empty());
+        assert!(input_config.extensions_override.is_none());
 
         assert!(settings.is_some());
         let settings = settings.unwrap();

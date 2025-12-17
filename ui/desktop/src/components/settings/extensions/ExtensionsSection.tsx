@@ -195,11 +195,19 @@ export default function ExtensionsSection({
   };
 
   const handleDeleteExtension = async (name: string) => {
+    // Capture the selected extension before closing the modal
+    const extensionToDelete = selectedExtension;
+
     // Close the modal immediately
     handleModalClose();
 
     try {
-      await deleteExtension({ name, removeFromConfig: removeExtension, sessionId: sessionId });
+      await deleteExtension({
+        name,
+        removeFromConfig: removeExtension,
+        sessionId: sessionId,
+        extensionConfig: extensionToDelete ?? undefined,
+      });
     } catch (error) {
       console.error('Failed to delete extension:', error);
       // We don't reopen the modal on failure

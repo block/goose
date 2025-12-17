@@ -19,7 +19,7 @@ use tokio::sync::OnceCell;
 use tracing::{info, warn};
 use utoipa::ToSchema;
 
-const CURRENT_SCHEMA_VERSION: i32 = 6;
+pub const CURRENT_SCHEMA_VERSION: i32 = 6;
 pub const SESSIONS_FOLDER: &str = "sessions";
 pub const DB_NAME: &str = "sessions.db";
 
@@ -30,6 +30,7 @@ pub enum SessionType {
     Scheduled,
     SubAgent,
     Hidden,
+    Terminal,
 }
 
 impl Default for SessionType {
@@ -45,6 +46,7 @@ impl std::fmt::Display for SessionType {
             SessionType::SubAgent => write!(f, "sub_agent"),
             SessionType::Hidden => write!(f, "hidden"),
             SessionType::Scheduled => write!(f, "scheduled"),
+            SessionType::Terminal => write!(f, "terminal"),
         }
     }
 }
@@ -58,6 +60,7 @@ impl std::str::FromStr for SessionType {
             "sub_agent" => Ok(SessionType::SubAgent),
             "hidden" => Ok(SessionType::Hidden),
             "scheduled" => Ok(SessionType::Scheduled),
+            "terminal" => Ok(SessionType::Terminal),
             _ => Err(anyhow::anyhow!("Invalid session type: {}", s)),
         }
     }
@@ -117,8 +120,8 @@ pub struct SessionUpdateBuilder {
 #[derive(Serialize, ToSchema, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionInsights {
-    total_sessions: usize,
-    total_tokens: i64,
+    pub total_sessions: usize,
+    pub total_tokens: i64,
 }
 
 impl SessionUpdateBuilder {
@@ -291,6 +294,10 @@ impl SessionManager {
         Self::instance().await?.list_sessions().await
     }
 
+    pub async fn list_sessions_by_types(types: &[SessionType]) -> Result<Vec<Session>> {
+        Self::instance().await?.list_sessions_by_types(types).await
+    }
+
     pub async fn delete_session(id: &str) -> Result<()> {
         Self::instance().await?.delete_session(id).await
     }
@@ -305,6 +312,20 @@ impl SessionManager {
 
     pub async fn import_session(json: &str) -> Result<Session> {
         Self::instance().await?.import_session(json).await
+    }
+
+    pub async fn copy_session(session_id: &str, new_name: String) -> Result<Session> {
+        Self::instance()
+            .await?
+            .copy_session(session_id, new_name)
+            .await
+    }
+
+    pub async fn truncate_conversation(session_id: &str, timestamp: i64) -> Result<()> {
+        Self::instance()
+            .await?
+            .truncate_conversation(session_id, timestamp)
+            .await
     }
 
     pub async fn maybe_update_name(id: &str, provider: Arc<dyn Provider>) -> Result<()> {
@@ -866,6 +887,7 @@ impl SessionStorage {
             .await?;
 
         tx.commit().await?;
+        crate::posthog::emit_session_started();
         Ok(session)
     }
 
@@ -1107,25 +1129,40 @@ impl SessionStorage {
         Ok(())
     }
 
-    async fn list_sessions(&self) -> Result<Vec<Session>> {
-        sqlx::query_as::<_, Session>(
+    async fn list_sessions_by_types(&self, types: &[SessionType]) -> Result<Vec<Session>> {
+        if types.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let placeholders: String = types.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+        let query = format!(
             r#"
-        SELECT s.id, s.working_dir, s.name, s.description, s.user_set_name, s.session_type, s.created_at, s.updated_at, s.extension_data,
-               s.total_tokens, s.input_tokens, s.output_tokens,
-               s.accumulated_total_tokens, s.accumulated_input_tokens, s.accumulated_output_tokens,
-               s.schedule_id, s.recipe_json, s.user_recipe_values_json,
-               s.provider_name, s.model_config_json,
-               COUNT(m.id) as message_count
-        FROM sessions s
-        INNER JOIN messages m ON s.id = m.session_id
-        WHERE s.session_type = 'user' OR s.session_type = 'scheduled'
-        GROUP BY s.id
-        ORDER BY s.updated_at DESC
-    "#,
-        )
-            .fetch_all(&self.pool)
+            SELECT s.id, s.working_dir, s.name, s.description, s.user_set_name, s.session_type, s.created_at, s.updated_at, s.extension_data,
+                   s.total_tokens, s.input_tokens, s.output_tokens,
+                   s.accumulated_total_tokens, s.accumulated_input_tokens, s.accumulated_output_tokens,
+                   s.schedule_id, s.recipe_json, s.user_recipe_values_json,
+                   s.provider_name, s.model_config_json,
+                   COUNT(m.id) as message_count
+            FROM sessions s
+            INNER JOIN messages m ON s.id = m.session_id
+            WHERE s.session_type IN ({})
+            GROUP BY s.id
+            ORDER BY s.updated_at DESC
+            "#,
+            placeholders
+        );
+
+        let mut q = sqlx::query_as::<_, Session>(&query);
+        for t in types {
+            q = q.bind(t.to_string());
+        }
+
+        q.fetch_all(&self.pool).await.map_err(Into::into)
+    }
+
+    async fn list_sessions(&self) -> Result<Vec<Session>> {
+        self.list_sessions_by_types(&[SessionType::User, SessionType::Scheduled])
             .await
-            .map_err(Into::into)
     }
 
     async fn delete_session(&self, session_id: &str) -> Result<()> {
@@ -1212,6 +1249,43 @@ impl SessionStorage {
         }
 
         self.get_session(&session.id, true).await
+    }
+
+    async fn copy_session(&self, session_id: &str, new_name: String) -> Result<Session> {
+        let original_session = self.get_session(session_id, true).await?;
+
+        let new_session = self
+            .create_session(
+                original_session.working_dir.clone(),
+                new_name,
+                original_session.session_type,
+            )
+            .await?;
+
+        let builder = SessionUpdateBuilder::new(new_session.id.clone())
+            .extension_data(original_session.extension_data)
+            .schedule_id(original_session.schedule_id)
+            .recipe(original_session.recipe)
+            .user_recipe_values(original_session.user_recipe_values);
+
+        self.apply_update(builder).await?;
+
+        if let Some(conversation) = original_session.conversation {
+            self.replace_conversation(&new_session.id, &conversation)
+                .await?;
+        }
+
+        self.get_session(&new_session.id, true).await
+    }
+
+    async fn truncate_conversation(&self, session_id: &str, timestamp: i64) -> Result<()> {
+        sqlx::query("DELETE FROM messages WHERE session_id = ? AND created_timestamp >= ?")
+            .bind(session_id)
+            .bind(timestamp)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
     }
 
     async fn search_chat_history(

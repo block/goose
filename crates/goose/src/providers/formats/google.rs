@@ -9,9 +9,24 @@ use rmcp::model::{
 };
 use std::borrow::Cow;
 
-use crate::conversation::message::{Message, MessageContent};
+use crate::conversation::message::{Message, MessageContent, ProviderMetadata};
 use serde_json::{json, Map, Value};
 use std::ops::Deref;
+
+pub const THOUGHT_SIGNATURE_KEY: &str = "thoughtSignature";
+
+pub fn metadata_with_signature(signature: &str) -> ProviderMetadata {
+    let mut map = ProviderMetadata::new();
+    map.insert(THOUGHT_SIGNATURE_KEY.to_string(), json!(signature));
+    map
+}
+
+pub fn get_thought_signature(metadata: &Option<ProviderMetadata>) -> Option<&str> {
+    metadata
+        .as_ref()
+        .and_then(|m| m.get(THOUGHT_SIGNATURE_KEY))
+        .and_then(|v| v.as_str())
+}
 
 /// Convert internal Message format to Google's API message specification
 pub fn format_messages(messages: &[Message]) -> Vec<Value> {
@@ -19,10 +34,12 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
         .iter()
         .filter(|m| m.is_agent_visible())
         .filter(|message| {
-            message
-                .content
-                .iter()
-                .any(|content| !matches!(content, MessageContent::ToolConfirmationRequest(_)))
+            message.content.iter().any(|content| {
+                !matches!(
+                    content,
+                    MessageContent::ToolConfirmationRequest(_) | MessageContent::ActionRequired(_)
+                )
+            })
         })
         .map(|message| {
             let role = if message.role == Role::User {
@@ -56,8 +73,8 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                             let mut part = Map::new();
                             part.insert("functionCall".to_string(), json!(function_call_part));
 
-                            if let Some(signature) = &request.thought_signature {
-                                part.insert("thoughtSignature".to_string(), json!(signature));
+                            if let Some(signature) = get_thought_signature(&request.metadata) {
+                                part.insert(THOUGHT_SIGNATURE_KEY.to_string(), json!(signature));
                             }
 
                             parts.push(json!(part));
@@ -68,9 +85,10 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                     },
                     MessageContent::ToolResponse(response) => {
                         match &response.tool_result {
-                            Ok(contents) => {
+                            Ok(result) => {
                                 // Send only contents with no audience or with Assistant in the audience
-                                let abridged: Vec<_> = contents
+                                let abridged: Vec<_> = result
+                                    .content
                                     .iter()
                                     .filter(|content| {
                                         content.audience().is_none_or(|audience| {
@@ -114,15 +132,44 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                                 if text.is_empty() {
                                     text = "Tool call is done.".to_string();
                                 }
-                                parts.push(json!({
-                                    "functionResponse": {
-                                        "name": response.id,
-                                        "response": {"content": {"text": text}},
-                                    }}
-                                ));
+                                let mut part = Map::new();
+                                let mut function_response = Map::new();
+                                function_response.insert("name".to_string(), json!(response.id));
+                                function_response.insert(
+                                    "response".to_string(),
+                                    json!({"content": {"text": text}}),
+                                );
+                                part.insert(
+                                    "functionResponse".to_string(),
+                                    json!(function_response),
+                                );
+                                if let Some(signature) = get_thought_signature(&response.metadata) {
+                                    part.insert(
+                                        THOUGHT_SIGNATURE_KEY.to_string(),
+                                        json!(signature),
+                                    );
+                                }
+                                parts.push(json!(part));
                             }
                             Err(e) => {
-                                parts.push(json!({"text":format!("Error: {}", e)}));
+                                let mut part = Map::new();
+                                let mut function_response = Map::new();
+                                function_response.insert("name".to_string(), json!(response.id));
+                                function_response.insert(
+                                    "response".to_string(),
+                                    json!({"content": {"text": format!("Error: {}", e)}}),
+                                );
+                                part.insert(
+                                    "functionResponse".to_string(),
+                                    json!(function_response),
+                                );
+                                if let Some(signature) = get_thought_signature(&response.metadata) {
+                                    part.insert(
+                                        THOUGHT_SIGNATURE_KEY.to_string(),
+                                        json!(signature),
+                                    );
+                                }
+                                parts.push(json!(part));
                             }
                         }
                     }
@@ -279,15 +326,30 @@ pub fn response_to_message(response: Value) -> Result<Message> {
         .and_then(|parts| parts.as_array())
         .unwrap_or(&binding);
 
+    // Track the last seen thought signature to use as fallback for function calls without one
+    // This handles cases where Google's API returns multiple function calls but only includes
+    // thoughtSignature on some of them
+    let mut last_signature: Option<String> = None;
+
+    let has_function_calls = parts.iter().any(|p| p.get("functionCall").is_some());
+
     for part in parts {
-        let thought_signature = part
-            .get("thoughtSignature")
+        let signature = part
+            .get(THOUGHT_SIGNATURE_KEY)
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
 
+        if signature.is_some() {
+            last_signature = signature.clone();
+        }
+
         if let Some(text) = part.get("text").and_then(|v| v.as_str()) {
-            if let Some(sig) = thought_signature {
-                content.push(MessageContent::thinking(text.to_string(), sig));
+            // Text is "thinking" only if:
+            // 1. It has a signature AND
+            // 2. The response also contains function calls (meaning this is reasoning before acting)
+            // If there are no function calls, this is the final response and should be shown
+            if let (Some(sig), true) = (&signature, has_function_calls) {
+                content.push(MessageContent::thinking(text.to_string(), sig.clone()));
             } else {
                 content.push(MessageContent::text(text.to_string()));
             }
@@ -313,16 +375,17 @@ pub fn response_to_message(response: Value) -> Result<Message> {
                 content.push(MessageContent::tool_request(id, Err(error)));
             } else {
                 let parameters = function_call.get("args");
-                if let Some(params) = parameters {
-                    content.push(MessageContent::tool_request_with_signature(
-                        id,
-                        Ok(CallToolRequestParam {
-                            name: name.into(),
-                            arguments: Some(object(params.clone())),
-                        }),
-                        thought_signature,
-                    ));
-                }
+                let arguments = parameters.map(|params| object(params.clone()));
+                let effective_signature = signature.as_deref().or(last_signature.as_deref());
+                let metadata = effective_signature.map(metadata_with_signature);
+                content.push(MessageContent::tool_request_with_metadata(
+                    id,
+                    Ok(CallToolRequestParam {
+                        name: name.into(),
+                        arguments,
+                    }),
+                    metadata.as_ref(),
+                ));
             }
         }
     }
@@ -392,7 +455,7 @@ pub fn create_request(
 mod tests {
     use super::*;
     use crate::conversation::message::Message;
-    use rmcp::model::CallToolRequestParam;
+    use rmcp::model::{CallToolRequestParam, CallToolResult};
     use rmcp::{model::Content, object};
     use serde_json::json;
 
@@ -408,11 +471,11 @@ mod tests {
         )
     }
 
-    fn set_up_tool_confirmation_message(id: &str, tool_call: CallToolRequestParam) -> Message {
+    fn set_up_action_required_message(id: &str, tool_call: CallToolRequestParam) -> Message {
         Message::new(
             Role::User,
             0,
-            vec![MessageContent::tool_confirmation_request(
+            vec![MessageContent::action_required(
                 id.to_string(),
                 tool_call.name.to_string().clone(),
                 tool_call.arguments.unwrap_or_default().clone(),
@@ -427,7 +490,12 @@ mod tests {
             0,
             vec![MessageContent::tool_response(
                 id.to_string(),
-                Ok(tool_response),
+                Ok(CallToolResult {
+                    content: tool_response,
+                    structured_content: None,
+                    is_error: Some(false),
+                    meta: None,
+                }),
             )],
         )
     }
@@ -474,7 +542,7 @@ mod tests {
                     arguments: Some(object(arguments.clone())),
                 },
             ),
-            set_up_tool_confirmation_message(
+            set_up_action_required_message(
                 "id2",
                 CallToolRequestParam {
                     name: "tool_name_2".into(),
@@ -910,5 +978,67 @@ mod tests {
         let regular_field = &result[0]["parameters"]["properties"]["regular_field"];
         assert_eq!(regular_field["type"], "number");
         assert_eq!(regular_field["description"], "A regular number field");
+    }
+
+    fn google_response(parts: Vec<Value>) -> Value {
+        json!({"candidates": [{"content": {"role": "model", "parts": parts}}]})
+    }
+
+    fn tool_result(text: &str) -> CallToolResult {
+        CallToolResult {
+            content: vec![Content::text(text)],
+            structured_content: None,
+            is_error: Some(false),
+            meta: None,
+        }
+    }
+
+    #[test]
+    fn test_thought_signature_roundtrip() {
+        const SIG: &str = "thought_sig_abc";
+
+        let response_with_tools = google_response(vec![
+            json!({"text": "Let me think...", "thoughtSignature": SIG}),
+            json!({"functionCall": {"name": "shell", "args": {"cmd": "ls"}}, "thoughtSignature": SIG}),
+            json!({"functionCall": {"name": "read", "args": {}}}),
+        ]);
+
+        let native = response_to_message(response_with_tools).unwrap();
+        assert_eq!(native.content.len(), 3, "Expected thinking + 2 tool calls");
+
+        let thinking = native.content[0]
+            .as_thinking()
+            .expect("Text with function calls should be Thinking");
+        assert_eq!(thinking.signature, SIG);
+
+        let req1 = native.content[1]
+            .as_tool_request()
+            .expect("Second part should be ToolRequest");
+        let req2 = native.content[2]
+            .as_tool_request()
+            .expect("Third part should be ToolRequest");
+        assert_eq!(get_thought_signature(&req1.metadata), Some(SIG));
+        assert_eq!(
+            get_thought_signature(&req2.metadata),
+            Some(SIG),
+            "Should inherit"
+        );
+
+        let tool_response = Message::user().with_tool_response_with_metadata(
+            req1.id.clone(),
+            Ok(tool_result("output")),
+            req1.metadata.as_ref(),
+        );
+        let google_out = format_messages(&[native, tool_response]);
+        assert_eq!(google_out[0]["parts"][0]["thoughtSignature"], SIG);
+        assert_eq!(google_out[1]["parts"][0]["thoughtSignature"], SIG);
+
+        let final_response =
+            google_response(vec![json!({"text": "Done!", "thoughtSignature": SIG})]);
+        let final_native = response_to_message(final_response).unwrap();
+        assert!(
+            final_native.content[0].as_text().is_some(),
+            "Text-only = final answer"
+        );
     }
 }

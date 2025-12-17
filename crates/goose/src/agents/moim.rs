@@ -26,9 +26,10 @@ pub async fn inject_moim(
 
         let (fixed, issues) = fix_conversation(Conversation::new_unvalidated(messages));
 
-        let has_unexpected_issues = issues
-            .iter()
-            .any(|issue| !issue.contains("Merged consecutive user messages"));
+        let has_unexpected_issues = issues.iter().any(|issue| {
+            !issue.contains("Merged consecutive user messages")
+                && !issue.contains("Merged consecutive assistant messages")
+        });
 
         if has_unexpected_issues {
             tracing::warn!("MOIM injection caused unexpected issues: {:?}", issues);
@@ -105,7 +106,15 @@ mod tests {
                         arguments: None,
                     }),
                 ),
-            Message::user().with_tool_response("search_1", Ok(vec![])),
+            Message::user().with_tool_response(
+                "search_1",
+                Ok(rmcp::model::CallToolResult {
+                    content: vec![],
+                    structured_content: None,
+                    is_error: Some(false),
+                    meta: None,
+                }),
+            ),
             Message::assistant()
                 .with_text("I need to search more")
                 .with_tool_request(
@@ -115,7 +124,15 @@ mod tests {
                         arguments: None,
                     }),
                 ),
-            Message::user().with_tool_response("search_2", Ok(vec![])),
+            Message::user().with_tool_response(
+                "search_2",
+                Ok(rmcp::model::CallToolResult {
+                    content: vec![],
+                    structured_content: None,
+                    is_error: Some(false),
+                    meta: None,
+                }),
+            ),
         ]);
 
         let result = inject_moim(conv, &em).await;

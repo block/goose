@@ -11,6 +11,7 @@ pub async fn generate_diagnostics(session_id: &str) -> anyhow::Result<Vec<u8>> {
     let logs_dir = Paths::in_state_dir("logs");
     let config_dir = Paths::config_dir();
     let config_path = config_dir.join("config.yaml");
+    let data_dir = Paths::data_dir();
 
     let system_info = format!(
         "App Version: {}\n\
@@ -55,6 +56,31 @@ pub async fn generate_diagnostics(session_id: &str) -> anyhow::Result<Vec<u8>> {
 
         zip.start_file("system.txt", options)?;
         zip.write_all(system_info.as_bytes())?;
+
+        let schedule_json = data_dir.join("schedule.json");
+        if schedule_json.exists() {
+            zip.start_file("schedule.json", options)?;
+            zip.write_all(&fs::read(&schedule_json)?)?;
+        }
+
+        let schedules_json = data_dir.join("schedules.json");
+        if schedules_json.exists() {
+            zip.start_file("schedules.json", options)?;
+            zip.write_all(&fs::read(&schedules_json)?)?;
+        }
+
+        let scheduled_recipes_dir = data_dir.join("scheduled_recipes");
+        if scheduled_recipes_dir.exists() && scheduled_recipes_dir.is_dir() {
+            for entry in fs::read_dir(&scheduled_recipes_dir)? {
+                let entry = entry?;
+                let path = entry.path();
+                if path.is_file() {
+                    let name = path.file_name().unwrap().to_str().unwrap();
+                    zip.start_file(format!("scheduled_recipes/{}", name), options)?;
+                    zip.write_all(&fs::read(&path)?)?;
+                }
+            }
+        }
 
         zip.finish()?;
     }

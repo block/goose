@@ -538,6 +538,21 @@ While the web interface provides most core features, be aware of these limitatio
 
 ---
 
+### Terminal Integration
+
+#### @goose / @g
+Ask goose questions directly from your shell prompt, with command history included in the context. These aliases are created when you set up [terminal integration](/docs/guides/terminal-integration.md).
+
+**Examples:**
+```bash
+# Ask questions with command history context
+@goose create a python script to process these files
+@goose create a PR description summarizing these changes
+@g how do I fix these permission denied errors?
+```
+
+---
+
 ## Interactive Session Features
 
 ### Slash Commands
@@ -556,7 +571,7 @@ Once you're in an interactive session (via `goose session` or `goose run --inter
 - **`/prompt <n> [--info] [key=value...]`** - Get prompt info or execute a prompt
 - **`/prompts [--extension <name>]`** - List all available prompts, optionally filtered by extension
 - **`/recipe [filepath]`** - Generate a recipe from the current conversation and save it to the specified filepath (must end with .yaml). If no filepath is provided, it will be saved to ./recipe.yaml
-- **`/summarize`** - Summarize the current conversation to reduce context length while preserving key information
+- **`/compact`** - Compact and summarize the current conversation to reduce context length while preserving key information
 - **`/t`** - Toggle between `light`, `dark`, and `ansi` themes. [More info](#themes).
 - **`/t <name>`** - Set theme directly (light, dark, ansi)
 
@@ -577,6 +592,7 @@ Once you're in an interactive session (via `goose session` or `goose run --inter
 # Clear the current conversation history
 /clear
 ```
+You can also create [custom slash commands for running recipes](/docs/guides/recipes/session-recipes.md#custom-recipe-commands) in goose Desktop or the CLI. 
 
 ---
 

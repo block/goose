@@ -1,6 +1,7 @@
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::Agent;
 use crate::config::paths::Paths;
+use crate::config::Config;
 use crate::scheduler::Scheduler;
 use crate::scheduler_trait::SchedulerTrait;
 use anyhow::Result;
@@ -52,7 +53,10 @@ impl AgentManager {
     pub async fn instance() -> Result<Arc<Self>> {
         AGENT_MANAGER
             .get_or_try_init(|| async {
-                let manager = Self::new(Some(DEFAULT_MAX_SESSION)).await?;
+                let max_sessions = Config::global()
+                    .get_goose_max_active_agents()
+                    .unwrap_or(DEFAULT_MAX_SESSION);
+                let manager = Self::new(Some(max_sessions)).await?;
                 Ok(Arc::new(manager))
             })
             .await

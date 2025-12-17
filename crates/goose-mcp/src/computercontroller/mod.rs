@@ -492,13 +492,19 @@ impl ComputerControllerServer {
         let save_as = params.save_as;
 
         // Fetch the content
-        let response = self.http_client.get(url).send().await.map_err(|e| {
-            ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!("Failed to fetch URL: {}", e),
-                None,
-            )
-        })?;
+        let response = self
+            .http_client
+            .get(url)
+            .header("Accept", "text/markdown, */*")
+            .send()
+            .await
+            .map_err(|e| {
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Failed to fetch URL: {}", e),
+                    None,
+                )
+            })?;
 
         let status = response.status();
         if !status.is_success() {
@@ -1116,7 +1122,7 @@ impl ComputerControllerServer {
         let json_params = params
             .params
             .as_ref()
-            .map(|p| serde_json::to_value(p).unwrap_or_else(|_| serde_json::Value::Null));
+            .map(|p| serde_json::to_value(p).unwrap_or(serde_json::Value::Null));
 
         let result = crate::computercontroller::docx_tool::docx_tool(
             path,

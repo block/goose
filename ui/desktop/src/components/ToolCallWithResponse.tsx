@@ -4,15 +4,18 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Button } from './ui/button';
 import { ToolCallArguments, ToolCallArgumentValue } from './ToolCallArguments';
 import MarkdownContent from './MarkdownContent';
-import { ToolRequestMessageContent, ToolResponseMessageContent } from '../types/message';
+import {
+  ToolRequestMessageContent,
+  ToolResponseMessageContent,
+  NotificationEvent,
+} from '../types/message';
 import { cn, snakeToTitleCase } from '../utils';
 import { LoadingStatus } from './ui/Dot';
-import { NotificationEvent } from '../hooks/useMessageStream';
 import { ChevronRight, FlaskConical } from 'lucide-react';
 import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
 import MCPUIResourceRenderer from './MCPUIResourceRenderer';
 import { isUIResource } from '@mcp-ui/client';
-import { Content, EmbeddedResource } from '../api';
+import { CallToolResponse, Content, EmbeddedResource } from '../api';
 
 interface ToolCallWithResponseProps {
   isCancelledMessage: boolean;
@@ -23,11 +26,15 @@ interface ToolCallWithResponseProps {
   append?: (value: string) => void; // Function to append messages to the chat
 }
 
-function getToolResultValue(toolResult: Record<string, unknown>): Content[] | null {
-  if ('value' in toolResult && Array.isArray(toolResult.value)) {
-    return toolResult.value as Content[];
+function getToolResultContent(toolResult: Record<string, unknown>): Content[] {
+  if (toolResult.status !== 'success') {
+    return [];
   }
-  return null;
+  const value = toolResult.value as CallToolResponse;
+  return value.content.filter((item) => {
+    const annotations = (item as { annotations?: { audience?: string[] } }).annotations;
+    return !annotations?.audience || annotations.audience.includes('user');
+  });
 }
 
 function isEmbeddedResource(content: Content): content is EmbeddedResource {
@@ -73,7 +80,7 @@ export default function ToolCallWithResponse({
       </div>
       {/* MCP UI — Inline */}
       {toolResponse?.toolResult &&
-        getToolResultValue(toolResponse.toolResult)?.map((content, index) => {
+        getToolResultContent(toolResponse.toolResult).map((content, index) => {
           const resourceContent = isEmbeddedResource(content)
             ? { ...content, type: 'resource' as const }
             : null;
@@ -158,7 +165,8 @@ interface Progress {
 }
 
 const logToString = (logMessage: NotificationEvent) => {
-  const params = logMessage.message.params;
+  const message = logMessage.message as { method: string; params: unknown };
+  const params = message.params as Record<string, unknown>;
 
   // Special case for the developer system shell logs
   if (
@@ -174,8 +182,10 @@ const logToString = (logMessage: NotificationEvent) => {
   return typeof params.data === 'string' ? params.data : JSON.stringify(params.data);
 };
 
-const notificationToProgress = (notification: NotificationEvent): Progress =>
-  notification.message.params as unknown as Progress;
+const notificationToProgress = (notification: NotificationEvent): Progress => {
+  const message = notification.message as { method: string; params: unknown };
+  return message.params as Progress;
+};
 
 // Helper function to extract extension name for tooltip
 const getExtensionTooltip = (toolCallName: string): string | null => {
@@ -247,20 +257,23 @@ function ToolCallView({
     }
   }, [toolResponse, startTime]);
 
-  const toolResults: Content[] =
-    loadingStatus === 'success' && Array.isArray(toolResponse?.toolResult.value)
-      ? toolResponse!.toolResult.value.filter((item) => {
-          const audience = item.annotations?.audience as string[] | undefined;
-          return !audience || audience.includes('user');
-        })
+  const toolResults =
+    loadingStatus === 'success' && toolResponse?.toolResult
+      ? getToolResultContent(toolResponse.toolResult)
       : [];
 
   const logs = notifications
-    ?.filter((notification) => notification.message.method === 'notifications/message')
+    ?.filter((notification) => {
+      const message = notification.message as { method?: string };
+      return message.method === 'notifications/message';
+    })
     .map(logToString);
 
   const progress = notifications
-    ?.filter((notification) => notification.message.method === 'notifications/progress')
+    ?.filter((notification) => {
+      const message = notification.message as { method?: string };
+      return message.method === 'notifications/progress';
+    })
     .map(notificationToProgress)
     .reduce((map, item) => {
       const key = item.progressToken;

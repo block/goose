@@ -305,7 +305,6 @@ export default function CreateEditRecipeModal({
         undefined,
         undefined,
         undefined,
-        undefined,
         saved_recipe_id
       );
 
