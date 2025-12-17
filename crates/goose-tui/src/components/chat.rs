@@ -662,6 +662,19 @@ impl Component for ChatComponent {
                                 }
                             }
                         }
+                        KeyCode::Char('c') => {
+                            if let Some(idx) = self.list_state.selected() {
+                                if let Some(&msg_idx) = self.display_mapping.get(idx) {
+                                    if let Some(message) = state.messages.get(msg_idx) {
+                                        let text =
+                                            crate::utils::message_format::message_to_plain_text(
+                                                message,
+                                            );
+                                        return Ok(Some(Action::CopyToClipboard(text)));
+                                    }
+                                }
+                            }
+                        }
                         KeyCode::Esc => return Ok(Some(Action::ToggleInputMode)),
                         _ => {}
                     }

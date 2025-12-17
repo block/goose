@@ -179,14 +179,6 @@ impl MessagePopup {
             )));
         }
     }
-
-    fn copy_to_clipboard(&self) -> Result<(), String> {
-        let mut clipboard =
-            arboard::Clipboard::new().map_err(|e| format!("Clipboard error: {e}"))?;
-        clipboard
-            .set_text(&self.cached_plain_text)
-            .map_err(|e| format!("Clipboard error: {e}"))
-    }
 }
 
 impl Component for MessagePopup {
@@ -215,10 +207,9 @@ impl Component for MessagePopup {
                     }
                 }
                 KeyCode::Char('c') => {
-                    return match self.copy_to_clipboard() {
-                        Ok(()) => Ok(Some(Action::ShowFlash("Copied to clipboard".to_string()))),
-                        Err(e) => Ok(Some(Action::ShowFlash(e))),
-                    };
+                    return Ok(Some(Action::CopyToClipboard(
+                        self.cached_plain_text.clone(),
+                    )));
                 }
                 KeyCode::Char('f') => {
                     if let Some(idx) = self.cached_message_idx {

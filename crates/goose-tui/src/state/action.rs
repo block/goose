@@ -63,6 +63,7 @@ pub enum Action {
     SubmitCommandBuilder(CustomCommand, String),
 
     ToggleCopyMode,
+    CopyToClipboard(String),
     ForkFromMessage(usize),
     SetGooseMode(String),
     ConfirmToolCall {

@@ -50,6 +50,9 @@ pub fn handle_action(
         Action::ForkFromMessage(msg_idx) => {
             handle_fork_from_message(*msg_idx, state, client, tx);
         }
+        Action::CopyToClipboard(text) => {
+            handle_copy_to_clipboard(text, tx);
+        }
         Action::SetGooseMode(mode) => {
             handle_set_goose_mode(mode, client, tx);
         }
@@ -607,6 +610,17 @@ fn handle_set_goose_mode(mode: &str, client: &Client, tx: &mpsc::UnboundedSender
             let _ = tx.send(Event::Error(
                 "Invalid mode. Use: auto, approve, chat, smart_approve".to_string(),
             ));
+        }
+    }
+}
+
+fn handle_copy_to_clipboard(text: &str, tx: &mpsc::UnboundedSender<Event>) {
+    match arboard::Clipboard::new().and_then(|mut cb| cb.set_text(text)) {
+        Ok(()) => {
+            let _ = tx.send(Event::Flash("Copied to clipboard".to_string()));
+        }
+        Err(e) => {
+            let _ = tx.send(Event::Flash(format!("Clipboard error: {e}")));
         }
     }
 }
