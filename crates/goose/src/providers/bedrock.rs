@@ -150,7 +150,6 @@ impl BedrockProvider {
 
         let enable_caching = self.should_enable_caching(model_name);
 
-        // Build system content blocks with optional cache point
         let system_blocks = if enable_caching {
             vec![
                 bedrock::SystemContentBlock::Text(system.to_string()),
@@ -171,7 +170,6 @@ impl BedrockProvider {
             vec![bedrock::SystemContentBlock::Text(system.to_string())]
         };
 
-        // Filter agent-visible messages first
         let visible_messages: Vec<&Message> =
             messages.iter().filter(|m| m.is_agent_visible()).collect();
 
@@ -373,11 +371,9 @@ mod tests {
 
     #[test]
     fn test_cache_point_allocation_without_tools() {
-        // Test the logic for allocating cache points when there are no tools
         let provider = create_mock_provider("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
         let enable_caching = provider.should_enable_caching("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
 
-        // Simulate 5 messages with no tools
         let total_messages = 5;
         let tools_present = false;
 
@@ -399,7 +395,6 @@ mod tests {
 
     #[test]
     fn test_cache_point_allocation_with_tools() {
-        // Test the logic for allocating cache points when tools are present
         let provider = create_mock_provider("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
         let enable_caching = provider.should_enable_caching("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
 
@@ -425,7 +420,6 @@ mod tests {
 
     #[test]
     fn test_cache_point_limit_respected_with_few_messages() {
-        // Test that all messages are cached when total count is within budget
         let provider = create_mock_provider("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
         let enable_caching = provider.should_enable_caching("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
 
@@ -451,7 +445,6 @@ mod tests {
 
     #[test]
     fn test_max_four_cache_points_respected() {
-        // Verify that we never exceed 4 total cache points
         let _provider = create_mock_provider("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
 
         // Test with many messages and no tools: 1 system + 3 messages = 4 total
@@ -472,7 +465,6 @@ mod tests {
 
     #[test]
     fn test_system_prompt_cache_point_structure() {
-        // Verify that system prompt gets a cache point when caching is enabled
         let provider = create_mock_provider("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
         let enable_caching = provider.should_enable_caching("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
 
