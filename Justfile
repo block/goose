@@ -301,8 +301,7 @@ prepare-release version:
     # used to update Cargo.lock after we've bumped versions in Cargo.toml
     @cargo update --workspace
     @just set-openapi-version {{ version }}
-    @cargo run --example build_canonical_models
-    @cargo run --example canonical_model_checker
+    @cargo run --bin build_canonical_models
     @git add Cargo.toml Cargo.lock ui/desktop/package.json ui/desktop/package-lock.json ui/desktop/openapi.json crates/goose/src/providers/canonical/data/canonical_models.json crates/goose/src/providers/canonical/data/canonical_mapping_report.json
     @git commit --message "chore(release): release version {{ version }}"
 

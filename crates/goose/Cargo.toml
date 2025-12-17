@@ -135,3 +135,7 @@ path = "examples/agent.rs"
 [[example]]
 name = "databricks_oauth"
 path = "examples/databricks_oauth.rs"
+
+[[bin]]
+name = "build_canonical_models"
+path = "src/bin/build_canonical_models.rs"
