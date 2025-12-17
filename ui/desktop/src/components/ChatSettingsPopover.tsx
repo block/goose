@@ -10,6 +10,7 @@ import { AlertType } from './alerts';
 import type { View } from '../utils/navigationUtils';
 import { Recipe } from '../recipe';
 import { COST_TRACKING_ENABLED } from '../updates';
+import { FineTunedModelInfo } from '../types/chat';
 
 interface ChatSettingsPopoverProps {
   sessionId: string | null;
@@ -28,6 +29,7 @@ interface ChatSettingsPopoverProps {
     };
   };
   setIsGoosehintsModalOpen?: (isOpen: boolean) => void;
+  fineTunedModel?: FineTunedModelInfo | null;
 }
 
 export function ChatSettingsPopover({
@@ -41,6 +43,7 @@ export function ChatSettingsPopover({
   outputTokens,
   sessionCosts,
   setIsGoosehintsModalOpen,
+  fineTunedModel,
 }: ChatSettingsPopoverProps) {
   const [isOpen, setIsOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -109,6 +112,7 @@ export function ChatSettingsPopover({
                 recipeConfig={recipeConfig}
                 hasMessages={hasMessages}
                 shouldShowIconOnly={false}
+                fineTunedModel={fineTunedModel}
               />
             </div>
 

@@ -667,6 +667,7 @@ function BaseChatContent({
               recipeConfig={recipeConfig}
               recipeAccepted={recipeAccepted}
               initialPrompt={initialPrompt}
+              fineTunedModel={chat.fineTunedModel}
               toolCount={toolCount || 0}
               autoSubmit={autoSubmit}
               append={append}

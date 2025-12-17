@@ -21,6 +21,10 @@ pub mod token_counter;
 pub mod tool_inspection;
 pub mod tool_monitor;
 pub mod tracing;
+// Enable training data only (collect ratings/feedback); defer training pipelines for later
+pub mod training_data;
+pub mod model_training;
+// pub mod adaptive_learning;
 pub mod utils;
 
 #[cfg(test)]

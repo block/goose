@@ -9,6 +9,13 @@ export interface MatrixChatContext {
   isMatrixMode: boolean;
 }
 
+export interface FineTunedModelInfo {
+  jobId: string;
+  name: string;
+  baseModel: string;
+  adapterPath: string;
+}
+
 export interface ChatType {
   sessionId: string;
   title: string;
@@ -18,4 +25,5 @@ export interface ChatType {
   recipeParameters?: Record<string, string> | null; // Add recipe parameters to chat state
   matrixContext?: MatrixChatContext | null; // Add Matrix chat context
   aiEnabled?: boolean; // Whether AI responses are enabled for this chat (default: true for regular chats, false for Matrix DMs)
+  fineTunedModel?: FineTunedModelInfo | null; // Fine-tuned model info for this session
 }

@@ -17,6 +17,12 @@ import { sessionMappingService } from '../services/SessionMappingService';
 export interface PairRouteState {
   resumeSessionId?: string;
   initialMessage?: string;
+  fineTunedModel?: {
+    jobId: string;
+    name: string;
+    baseModel: string;
+    adapterPath: string;
+  };
 }
 
 interface PairProps {
@@ -50,6 +56,114 @@ export default function Pair({
   const [messageToSubmit, setMessageToSubmit] = useState<string | null>(null);
   const [isTransitioningFromHub, setIsTransitioningFromHub] = useState(false);
   const [loadingChat, setLoadingChat] = useState(false);
+  
+  // Extract fine-tuned model info from route state
+  const fineTunedModelFromState = (location.state as PairRouteState)?.fineTunedModel;
+  
+  console.log('🎯 Fine-tuned model from route state:', fineTunedModelFromState);
+  
+  // Track inference server state for fine-tuned models
+  const [inferenceServerPort, setInferenceServerPort] = useState<number | null>(null);
+  const [inferenceServerStatus, setInferenceServerStatus] = useState<'starting' | 'running' | 'stopped' | 'error' | null>(null);
+  
+  // Apply fine-tuned model to chat state if provided
+  useEffect(() => {
+    if (fineTunedModelFromState && chat.sessionId) {
+      console.log('🎯 Setting fine-tuned model in chat state:', fineTunedModelFromState);
+      setChat(prevChat => ({
+        ...prevChat,
+        fineTunedModel: fineTunedModelFromState,
+        title: `Chat with ${fineTunedModelFromState.name}`,
+      }));
+    }
+  }, [fineTunedModelFromState, chat.sessionId, setChat]);
+  
+  // Auto-start inference server for fine-tuned models
+  useEffect(() => {
+    const startInferenceServer = async () => {
+      const fineTunedModel = chat.fineTunedModel;
+      
+      if (!fineTunedModel) {
+        console.log('🔧 No fine-tuned model in chat state, skipping inference server start');
+        return;
+      }
+      
+      if (inferenceServerStatus === 'running' || inferenceServerStatus === 'starting') {
+        console.log('🔧 Inference server already starting/running, skipping');
+        return;
+      }
+      
+      console.log('🚀 Starting inference server for fine-tuned model:', fineTunedModel);
+      setInferenceServerStatus('starting');
+      
+      try {
+        const response = await fetch('http://localhost:3000/inference/start', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            job_id: fineTunedModel.jobId,
+            base_model: fineTunedModel.baseModel,
+            adapter_path: fineTunedModel.adapterPath,
+          }),
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to start inference server');
+        }
+        
+        const data = await response.json();
+        console.log('✅ Inference server started successfully:', data);
+        
+        setInferenceServerPort(data.status.port);
+        setInferenceServerStatus('running');
+        
+        // TODO: Configure the session to use this inference server
+        // This would involve updating the provider configuration to point to
+        // http://localhost:{port} for this specific session
+        
+      } catch (error) {
+        console.error('❌ Failed to start inference server:', error);
+        setInferenceServerStatus('error');
+        // Don't set fatal error - user can still use the app with global model
+      }
+    };
+    
+    startInferenceServer();
+  }, [chat.fineTunedModel, inferenceServerStatus]);
+  
+  // Auto-stop inference server when component unmounts or fine-tuned model changes
+  useEffect(() => {
+    return () => {
+      const stopInferenceServer = async () => {
+        const fineTunedModel = chat.fineTunedModel;
+        
+        if (!fineTunedModel || inferenceServerStatus !== 'running') {
+          return;
+        }
+        
+        console.log('🛑 Stopping inference server for job:', fineTunedModel.jobId);
+        
+        try {
+          const response = await fetch(`http://localhost:3000/inference/stop/${fineTunedModel.jobId}`, {
+            method: 'POST',
+          });
+          
+          if (!response.ok) {
+            console.error('❌ Failed to stop inference server');
+          } else {
+            console.log('✅ Inference server stopped successfully');
+          }
+        } catch (error) {
+          console.error('❌ Error stopping inference server:', error);
+        }
+      };
+      
+      stopInferenceServer();
+    };
+  }, [chat.fineTunedModel, inferenceServerStatus]);
   
   // Check if we're in Matrix mode using URL parameters
   const [searchParams, setSearchParams] = useSearchParams();

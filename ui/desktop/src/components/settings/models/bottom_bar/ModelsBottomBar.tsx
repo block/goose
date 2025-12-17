@@ -20,6 +20,7 @@ import { Recipe } from '../../../../recipe';
 import { saveRecipe, generateRecipeFilename } from '../../../../recipe/recipeStorage';
 import { toastSuccess, toastError } from '../../../../toasts';
 import ViewRecipeModal from '../../../recipes/ViewRecipeModal';
+import { FineTunedModelInfo } from '../../../../types/chat';
 
 interface ModelsBottomBarProps {
   sessionId: string | null;
@@ -29,6 +30,7 @@ interface ModelsBottomBarProps {
   recipeConfig?: Recipe | null;
   hasMessages?: boolean; // Add prop to know if there are messages to create a recipe from
   shouldShowIconOnly?: boolean;
+  fineTunedModel?: FineTunedModelInfo | null; // Fine-tuned model info for this session
 }
 
 export default function ModelsBottomBar({
@@ -39,6 +41,7 @@ export default function ModelsBottomBar({
   recipeConfig,
   hasMessages = false,
   shouldShowIconOnly = false,
+  fineTunedModel = null,
 }: ModelsBottomBarProps) {
   const {
     currentModel,
@@ -125,9 +128,10 @@ export default function ModelsBottomBar({
       : 'worker'
     : undefined;
 
-  // Determine which model to display - activeModel takes priority when lead/worker is active
-  const displayModel =
-    isLeadWorkerActive && currentModelInfo?.model
+  // Determine which model to display - fine-tuned model takes highest priority
+  const displayModel = fineTunedModel
+    ? fineTunedModel.name
+    : isLeadWorkerActive && currentModelInfo?.model
       ? currentModelInfo.model
       : currentModel || providerDefaultModel || displayModelName;
 
@@ -242,10 +246,23 @@ export default function ModelsBottomBar({
           </div>
         </DropdownMenuTrigger>
         <DropdownMenuContent side="top" align="center" className="w-64 text-sm">
-          <h6 className="text-xs text-textProminent mt-2 ml-2">Current model</h6>
+          <h6 className="text-xs text-textProminent mt-2 ml-2">
+            {fineTunedModel ? 'Fine-tuned model' : 'Current model'}
+          </h6>
           <p className="flex items-center justify-between text-sm mx-2 pb-2 border-b mb-2">
-            {displayModelName}
-            {displayProvider && ` — ${displayProvider}`}
+            {fineTunedModel ? (
+              <>
+                <span className="font-medium">{fineTunedModel.name}</span>
+                <span className="text-xs text-textSubtle ml-2">
+                  (based on {fineTunedModel.baseModel})
+                </span>
+              </>
+            ) : (
+              <>
+                {displayModelName}
+                {displayProvider && ` — ${displayProvider}`}
+              </>
+            )}
           </p>
           <DropdownMenuItem onClick={() => setIsAddModelModalOpen(true)}>
             <span>Change Model</span>

@@ -11,6 +11,9 @@ pub mod schedule;
 pub mod session;
 pub mod setup;
 pub mod utils;
+pub mod training;
+pub mod training_data;
+pub mod inference;
 use std::sync::Arc;
 
 use axum::Router;
@@ -29,4 +32,7 @@ pub fn configure(state: Arc<crate::state::AppState>) -> Router {
         .merge(session::routes(state.clone()))
         .merge(schedule::routes(state.clone()))
         .merge(setup::routes(state.clone()))
+        .merge(training::routes(state.clone()))
+        .merge(training_data::routes(state.clone()))
+        .nest("/inference", inference::router().with_state(state.clone()))
 }

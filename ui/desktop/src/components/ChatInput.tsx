@@ -105,6 +105,7 @@ interface ChatInputProps {
   autoSubmit: boolean;
   append?: (message: Message) => void;
   isExtensionsLoading?: boolean;
+  fineTunedModel?: import('../types/chat').FineTunedModelInfo | null;
   gooseEnabled?: boolean;
 }
 
@@ -134,6 +135,7 @@ export default function ChatInput({
   append,
   isExtensionsLoading = false,
   gooseEnabled = true,
+  fineTunedModel = null,
 }: ChatInputProps) {
   // Track the available width for responsive layout
   const [availableWidth, setAvailableWidth] = useState(window.innerWidth);
@@ -2302,6 +2304,7 @@ export default function ChatInput({
           outputTokens={outputTokens}
           sessionCosts={sessionCosts}
           setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+          fineTunedModel={fineTunedModel}
         />
 
         <EnhancedMentionPopover
