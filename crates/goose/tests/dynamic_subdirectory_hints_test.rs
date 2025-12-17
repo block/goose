@@ -47,7 +47,6 @@ async fn test_hint_loading_and_pruning_integration() -> anyhow::Result<()> {
         .await?;
     assert!(loaded, "Should load hints on first access");
 
-    // Verify state after loading
     {
         let session = SessionManager::get_session(&session.id, false).await?;
         let loaded_state = get_or_create_loaded_agents_state(&session.extension_data);
@@ -83,14 +82,12 @@ async fn test_hint_loading_and_pruning_integration() -> anyhow::Result<()> {
         .await?;
     assert_eq!(pruned, 1, "Should prune 1 directory");
 
-    // Verify hints were removed
     {
         let session = SessionManager::get_session(&session.id, false).await?;
         let loaded_state = get_or_create_loaded_agents_state(&session.extension_data);
         assert!(!loaded_state.is_loaded(&auth_dir), "Should be pruned");
     }
 
-    // Cleanup
     SessionManager::delete_session(&session.id).await?;
 
     Ok(())
@@ -133,12 +130,10 @@ async fn test_hint_loading_security_guards() -> anyhow::Result<()> {
         "Should not load hints from outside working directory"
     );
 
-    // Verify hints NOT loaded
     let session_data = SessionManager::get_session(&session.id, false).await?;
     let loaded_state = get_or_create_loaded_agents_state(&session_data.extension_data);
     assert!(loaded_state.loaded_directories.is_empty());
 
-    // Cleanup
     SessionManager::delete_session(&session.id).await?;
     Ok(())
 }
@@ -191,7 +186,6 @@ async fn test_hint_loading_filesystem_updates() -> anyhow::Result<()> {
         .await?;
     assert!(loaded, "Should load newly created hints file");
 
-    // Verify loaded
     {
         let session_data = SessionManager::get_session(&session.id, false).await?;
         let loaded_state = get_or_create_loaded_agents_state(&session_data.extension_data);
