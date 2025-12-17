@@ -9,9 +9,10 @@ import ConfigSettings from './config/ConfigSettings';
 import { ExtensionConfig } from '../../api';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
 import { Bot, Share2, Monitor, MessageSquare } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import ChatSettingsSection from './chat/ChatSettingsSection';
 import { CONFIGURATION_ENABLED } from '../../updates';
+import { trackSettingsTabViewed } from '../../utils/analytics';
 
 export type SettingsViewOptions = {
   deepLinkConfig?: ExtensionConfig;
@@ -29,6 +30,12 @@ export default function SettingsView({
   viewOptions: SettingsViewOptions;
 }) {
   const [activeTab, setActiveTab] = useState('models');
+  const hasTrackedInitialTab = useRef(false);
+
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    trackSettingsTabViewed(tab);
+  };
 
   // Determine initial tab based on section prop
   useEffect(() => {
@@ -51,6 +58,13 @@ export default function SettingsView({
       }
     }
   }, [viewOptions.section]);
+
+  useEffect(() => {
+    if (!hasTrackedInitialTab.current) {
+      trackSettingsTabViewed(activeTab);
+      hasTrackedInitialTab.current = true;
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -79,7 +93,11 @@ export default function SettingsView({
           </div>
 
           <div className="flex-1 min-h-0 relative px-6">
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
+            <Tabs
+              value={activeTab}
+              onValueChange={handleTabChange}
+              className="h-full flex flex-col"
+            >
               <div className="px-1">
                 <TabsList className="w-full mb-2 justify-start">
                   <TabsTrigger

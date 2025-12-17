@@ -15,7 +15,7 @@ import { ChevronRight, FlaskConical } from 'lucide-react';
 import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
 import MCPUIResourceRenderer from './MCPUIResourceRenderer';
 import { isUIResource } from '@mcp-ui/client';
-import { Content, EmbeddedResource } from '../api';
+import { CallToolResponse, Content, EmbeddedResource } from '../api';
 import McpAppRenderer from './McpApps/McpAppRenderer';
 import { mockResourceReadResult } from './McpApps/mockAppData';
 import type { ToolResult } from './McpApps/types';
@@ -29,11 +29,15 @@ interface ToolCallWithResponseProps {
   append?: (value: string) => void; // Function to append messages to the chat
 }
 
-function getToolResultValue(toolResult: Record<string, unknown>): Content[] | null {
-  if ('value' in toolResult && Array.isArray(toolResult.value)) {
-    return toolResult.value as Content[];
+function getToolResultContent(toolResult: Record<string, unknown>): Content[] {
+  if (toolResult.status !== 'success') {
+    return [];
   }
-  return null;
+  const value = toolResult.value as CallToolResponse;
+  return value.content.filter((item) => {
+    const annotations = (item as { annotations?: { audience?: string[] } }).annotations;
+    return !annotations?.audience || annotations.audience.includes('user');
+  });
 }
 
 function isEmbeddedResource(content: Content): content is EmbeddedResource {
@@ -79,7 +83,7 @@ export default function ToolCallWithResponse({
       </div>
       {/* MCP UI — Inline */}
       {toolResponse?.toolResult &&
-        getToolResultValue(toolResponse.toolResult)?.map((content, index) => {
+        getToolResultContent(toolResponse.toolResult).map((content, index) => {
           const resourceContent = isEmbeddedResource(content)
             ? { ...content, type: 'resource' as const }
             : null;
@@ -270,12 +274,9 @@ function ToolCallView({
     }
   }, [toolResponse, startTime]);
 
-  const toolResults: Content[] =
-    loadingStatus === 'success' && Array.isArray(toolResponse?.toolResult.value)
-      ? toolResponse!.toolResult.value.filter((item) => {
-          const audience = item.annotations?.audience as string[] | undefined;
-          return !audience || audience.includes('user');
-        })
+  const toolResults =
+    loadingStatus === 'success' && toolResponse?.toolResult
+      ? getToolResultContent(toolResponse.toolResult)
       : [];
 
   const logs = notifications
