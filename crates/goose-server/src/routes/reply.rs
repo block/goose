@@ -75,7 +75,9 @@ fn track_tool_telemetry(content: &MessageContent, all_messages: &[Message]) {
 
 #[derive(Debug, Deserialize, Serialize, utoipa::ToSchema)]
 pub struct ChatRequest {
-    messages: Vec<Message>,
+    user_message: Message,
+    #[serde(default)]
+    conversation_so_far: Option<Vec<Message>>,
     session_id: String,
     recipe_name: Option<String>,
     recipe_version: Option<String>,
@@ -233,7 +235,8 @@ pub async fn reply(
     let stream = ReceiverStream::new(rx);
     let cancel_token = CancellationToken::new();
 
-    let messages = Conversation::new_unvalidated(request.messages);
+    let user_message = request.user_message;
+    let conversation_so_far = request.conversation_so_far;
 
     let task_cancel = cancel_token.clone();
     let task_tx = tx.clone();
@@ -278,51 +281,18 @@ pub async fn reply(
             retry_config: None,
         };
 
-        // If multiple messages are provided, replace the session conversation
-        // with all messages except the last one, then use the last message as
-        // the new user input. This supports external integrations (like Slack bots)
-        // that need to provide full conversation context.
-        let user_message = match messages.len() {
-            0 => {
-                let _ = stream_event(
-                    MessageEvent::Error {
-                        error: "Reply started with empty messages".to_string(),
-                    },
-                    &task_tx,
-                    &task_cancel,
-                )
-                .await;
-                return;
+        if let Some(history) = conversation_so_far {
+            let history_conversation = Conversation::new_unvalidated(history);
+            if let Err(e) =
+                SessionManager::replace_conversation(&session_id, &history_conversation).await
+            {
+                tracing::warn!(
+                    "Failed to replace session conversation for {}: {}",
+                    session_id,
+                    e
+                );
             }
-            1 => {
-                // Single message - use it directly (original behavior)
-                messages.messages()[0].clone()
-            }
-            _ => {
-                // Multiple messages - replace session conversation with history,
-                // then use the last message as the new user input
-                let all_msgs = messages.messages();
-                let history_msgs = &all_msgs[..all_msgs.len() - 1];
-                let history_conversation = Conversation::new_unvalidated(history_msgs.to_vec());
-
-                if let Err(e) =
-                    SessionManager::replace_conversation(&session_id, &history_conversation).await
-                {
-                    tracing::warn!(
-                        "Failed to replace session conversation for {}: {}. Falling back to last message only.",
-                        session_id, e
-                    );
-                } else {
-                    tracing::info!(
-                        "Replaced session {} conversation with {} history messages",
-                        session_id,
-                        history_msgs.len()
-                    );
-                }
-
-                all_msgs.last().unwrap().clone()
-            }
-        };
+        }
 
         let mut stream = match agent
             .reply(
@@ -347,7 +317,7 @@ pub async fn reply(
             }
         };
 
-        let mut all_messages = messages.clone();
+        let mut all_messages = Conversation::new_unvalidated(vec![user_message.clone()]);
 
         let mut heartbeat_interval = tokio::time::interval(Duration::from_millis(500));
         loop {
@@ -509,7 +479,8 @@ mod tests {
                 .header("x-secret-key", "test-secret")
                 .body(Body::from(
                     serde_json::to_string(&ChatRequest {
-                        messages: vec![Message::user().with_text("test message")],
+                        user_message: Message::user().with_text("test message"),
+                        conversation_so_far: None,
                         session_id: "test-session".to_string(),
                         recipe_name: None,
                         recipe_version: None,

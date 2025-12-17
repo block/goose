@@ -2685,15 +2685,16 @@
       "ChatRequest": {
         "type": "object",
         "required": [
-          "messages",
+          "user_message",
           "session_id"
         ],
         "properties": {
-          "messages": {
+          "conversation_so_far": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Message"
-            }
+            },
+            "nullable": true
           },
           "recipe_name": {
             "type": "string",
@@ -2705,6 +2706,9 @@
           },
           "session_id": {
             "type": "string"
+          },
+          "user_message": {
+            "$ref": "#/components/schemas/Message"
           }
         }
       },
