@@ -247,7 +247,7 @@ const mockAppHtml = `<!DOCTYPE html>
   <p class="host-info-subtitle" id="host-info-subtitle">Connecting...</p>
   <h1>MCP App Demo</h1>
   <div class="actions">
-    <h2 class="actions-heading">Action Requests</h2>
+    <h2 class="actions-heading">Host Requests</h2>
     <div class="actions-buttons">
       <button class="action-btn" id="btn-open-link">
         Open Link <code>ui/open-link</code>
@@ -261,7 +261,7 @@ const mockAppHtml = `<!DOCTYPE html>
     </div>
   </div>
   <div class="actions">
-    <h2 class="actions-heading">MCP Passthrough (forwarded to MCP server)</h2>
+    <h2 class="actions-heading">Server Requests</h2>
     <div class="actions-buttons">
       <button class="action-btn" id="btn-tools-call">
         Call Tool <code>tools/call</code>
@@ -289,22 +289,12 @@ const mockAppHtml = `<!DOCTYPE html>
   <div class="terminal">
     <div class="terminal-grid">
       <div class="terminal-section">
-        <h2>Tool Input</h2>
-        <pre class="language-json"><code class="language-json" id="tool-input-content">Waiting...</code></pre>
+        <h2>Host Data</h2>
+        <pre class="language-json"><code class="language-json" id="host-info-content">Initializing...</code></pre>
       </div>
       <div class="terminal-section">
-        <h2>Tool Result</h2>
-        <pre class="language-json"><code class="language-json" id="tool-result-content">Waiting...</code></pre>
-      </div>
-    </div>
-    <div class="terminal-grid" style="border-top: 1px solid var(--border);">
-      <div class="terminal-section">
-        <h2>Host Context</h2>
-        <pre class="language-json"><code class="language-json" id="context-content">Initializing...</code></pre>
-      </div>
-      <div class="terminal-section">
-        <h2>Host Info</h2>
-        <pre class="language-json"><code class="language-json" id="host-support-content">...</code></pre>
+        <h2>Tool Data</h2>
+        <pre class="language-json"><code class="language-json" id="tool-data-content">Waiting...</code></pre>
       </div>
     </div>
   </div>
@@ -312,7 +302,13 @@ const mockAppHtml = `<!DOCTYPE html>
     (function() {
       let requestId = 1;
       const pendingRequests = new Map();
-      let currentHostContext = null;
+      let currentHostInfo = null;
+      let currentToolData = {
+        toolInput: null,
+        toolInputPartial: null,
+        toolResult: null,
+        toolCancelled: null
+      };
 
       function setTheme(theme) {
         document.body.classList.remove('theme-light', 'theme-dark');
@@ -371,7 +367,17 @@ const mockAppHtml = `<!DOCTYPE html>
         }
       }
 
-      function renderAllCards(result) {
+      function renderHostInfo() {
+        renderJson('host-info-content', currentHostInfo);
+        sendSizeChanged();
+      }
+
+      function renderToolData() {
+        renderJson('tool-data-content', currentToolData);
+        sendSizeChanged();
+      }
+
+      function initializeHostInfo(result) {
         // Update subtitle with host info
         const subtitle = document.getElementById('host-info-subtitle');
         if (subtitle && result.hostInfo) {
@@ -380,19 +386,20 @@ const mockAppHtml = `<!DOCTYPE html>
           subtitle.textContent = version ? name + ' v' + version : name;
         }
 
-        const hostSupport = {
+        currentHostInfo = {
           protocolVersion: result.protocolVersion,
           hostInfo: result.hostInfo,
           hostCapabilities: result.hostCapabilities,
+          hostContext: result.hostContext || {},
         };
-        renderJson('host-support-content', hostSupport);
-        renderJson('context-content', result.hostContext);
-        sendSizeChanged();
+        renderHostInfo();
       }
 
-      function renderHostContext(hostContext) {
-        renderJson('context-content', hostContext);
-        sendSizeChanged();
+      function updateHostContext(params) {
+        if (currentHostInfo && currentHostInfo.hostContext) {
+          Object.assign(currentHostInfo.hostContext, params);
+          renderHostInfo();
+        }
       }
 
       function handleMessage(event) {
@@ -416,22 +423,44 @@ const mockAppHtml = `<!DOCTYPE html>
           if (data.params && data.params.theme) {
             setTheme(data.params.theme);
           }
-          if (currentHostContext) {
-            Object.assign(currentHostContext, data.params);
-            renderHostContext(currentHostContext);
-          }
+          updateHostContext(data.params);
         }
 
         // Handle tool-input notification
         if (data.method === 'ui/notifications/tool-input') {
-          renderJson('tool-input-content', data.params);
-          sendSizeChanged();
+          currentToolData.toolInput = data.params;
+          renderToolData();
         }
 
         // Handle tool-result notification
         if (data.method === 'ui/notifications/tool-result') {
-          renderJson('tool-result-content', data.params);
-          sendSizeChanged();
+          currentToolData.toolResult = data.params;
+          renderToolData();
+        }
+
+        // Handle tool-input-partial notification
+        if (data.method === 'ui/notifications/tool-input-partial') {
+          currentToolData.toolInputPartial = data.params;
+          renderToolData();
+        }
+
+        // Handle tool-cancelled notification
+        if (data.method === 'ui/notifications/tool-cancelled') {
+          currentToolData.toolCancelled = data.params;
+          renderToolData();
+        }
+
+        // Handle resource-teardown request
+        if (data.method === 'ui/resource-teardown') {
+          console.log('[MockApp] ui/resource-teardown received:', data.params);
+          // Send response back to host
+          if ('id' in data) {
+            window.parent.postMessage({
+              jsonrpc: '2.0',
+              id: data.id,
+              result: {}
+            }, '*');
+          }
         }
       }
 
@@ -443,19 +472,17 @@ const mockAppHtml = `<!DOCTYPE html>
             clientInfo: { name: 'MockMcpApp', version: '1.0.0' }
           });
           
-          currentHostContext = result.hostContext || {};
-          
           // Apply initial theme
-          if (currentHostContext.theme) {
-            setTheme(currentHostContext.theme);
+          if (result.hostContext && result.hostContext.theme) {
+            setTheme(result.hostContext.theme);
           }
           
-          renderAllCards(result);
+          initializeHostInfo(result);
           
           // Send initialized notification
           sendNotification('ui/notifications/initialized');
         } catch (error) {
-          document.getElementById('context-content').textContent = 'Error: ' + error.message;
+          document.getElementById('host-info-content').textContent = 'Error: ' + error.message;
         }
       }
 

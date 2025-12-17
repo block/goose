@@ -336,7 +336,7 @@ export function handleNotificationMessage(msg: LoggingMessageRequest): JsonRpcRe
  * that owns this App. Host MUST reject requests for tools that don't include "app" in visibility.
  */
 export function handleToolsCall(msg: CallToolRequest): JsonRpcResponse | null {
-  console.warn('[MCP Apps] tools/call: Should forward to MCP server to execute tool.');
+  console.warn('[MCP Apps] TODO tools/call: Should forward to MCP server to execute tool.');
   return createNotImplementedResponse(msg);
 }
 
