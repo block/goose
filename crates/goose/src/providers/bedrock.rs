@@ -372,7 +372,8 @@ mod tests {
     #[test]
     fn test_cache_point_allocation_without_tools() {
         let provider = create_mock_provider("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
-        let enable_caching = provider.should_enable_caching("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
+        let enable_caching =
+            provider.should_enable_caching("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
 
         let total_messages = 5;
         let tools_present = false;
@@ -396,7 +397,8 @@ mod tests {
     #[test]
     fn test_cache_point_allocation_with_tools() {
         let provider = create_mock_provider("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
-        let enable_caching = provider.should_enable_caching("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
+        let enable_caching =
+            provider.should_enable_caching("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
 
         // Simulate 5 messages with tools
         let total_messages = 5;
@@ -421,7 +423,8 @@ mod tests {
     #[test]
     fn test_cache_point_limit_respected_with_few_messages() {
         let provider = create_mock_provider("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
-        let enable_caching = provider.should_enable_caching("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
+        let enable_caching =
+            provider.should_enable_caching("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
 
         // Simulate 2 messages with no tools
         let total_messages = 2;
@@ -454,21 +457,31 @@ mod tests {
 
         // Count total cache points: 1 (system) + message_cache_budget
         let total_cache_points = 1 + message_cache_budget;
-        assert_eq!(total_cache_points, 4, "Total cache points should not exceed 4");
+        assert_eq!(
+            total_cache_points, 4,
+            "Total cache points should not exceed 4"
+        );
 
         // Test with many messages and tools: 1 system + 1 tools + 2 messages = 4 total
         let tools_present = true;
         let message_cache_budget = if tools_present { 2 } else { 3 };
         let total_cache_points = 1 + 1 + message_cache_budget; // system + tools + messages
-        assert_eq!(total_cache_points, 4, "Total cache points with tools should not exceed 4");
+        assert_eq!(
+            total_cache_points, 4,
+            "Total cache points with tools should not exceed 4"
+        );
     }
 
     #[test]
     fn test_system_prompt_cache_point_structure() {
         let provider = create_mock_provider("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
-        let enable_caching = provider.should_enable_caching("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
+        let enable_caching =
+            provider.should_enable_caching("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
 
-        assert!(enable_caching, "Caching should be enabled for Claude models");
+        assert!(
+            enable_caching,
+            "Caching should be enabled for Claude models"
+        );
 
         // When caching is enabled, system blocks should have:
         // 1. Text block with system prompt
