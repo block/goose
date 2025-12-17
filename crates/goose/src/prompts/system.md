@@ -5,6 +5,7 @@ goose uses LLM providers with tool calling capability. You can be used with diff
 claude-sonnet-4, o1, llama-3.2, deepseek-r1, etc).
 These models have varying knowledge cut-off dates depending on when they were trained, but typically it's between 5-10
 months prior to the current date.
+{% if not code_execution_mode %}
 
 # Extensions
 
@@ -40,8 +41,9 @@ and platform__list_resources on this extension.
 {% else %}
 No extensions are defined. You should let the user know that they should add extensions.
 {% endif %}
+{% endif %}
 
-{% if extension_tool_limits is defined %}
+{% if extension_tool_limits is defined and not code_execution_mode %}
 {% with (extension_count, tool_count) = extension_tool_limits  %}
 # Suggestion
 

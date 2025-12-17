@@ -354,6 +354,8 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::agent::start_agent,
         super::routes::agent::resume_agent,
         super::routes::agent::get_tools,
+        super::routes::agent::read_resource,
+        super::routes::agent::call_tool,
         super::routes::agent::update_from_session,
         super::routes::agent::agent_add_extension,
         super::routes::agent::agent_remove_extension,
@@ -395,6 +397,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::tunnel::start_tunnel,
         super::routes::tunnel::stop_tunnel,
         super::routes::tunnel::get_tunnel_status,
+        super::routes::telemetry::send_telemetry_event,
     ),
     components(schemas(
         super::routes::config_management::UpsertConfigQuery,
@@ -514,6 +517,10 @@ derive_utoipa!(Icon as IconSchema);
         goose::agents::types::SuccessCheck,
         super::routes::agent::UpdateProviderRequest,
         super::routes::agent::GetToolsQuery,
+        super::routes::agent::ReadResourceRequest,
+        super::routes::agent::ReadResourceResponse,
+        super::routes::agent::CallToolRequest,
+        super::routes::agent::CallToolResponse,
         super::routes::agent::UpdateRouterToolSelectorRequest,
         super::routes::agent::StartAgentRequest,
         super::routes::agent::ResumeAgentRequest,
@@ -523,6 +530,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::setup::SetupResponse,
         super::tunnel::TunnelInfo,
         super::tunnel::TunnelState,
+        super::routes::telemetry::TelemetryEventRequest,
     ))
 )]
 pub struct ApiDoc;

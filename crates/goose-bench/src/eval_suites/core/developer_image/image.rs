@@ -68,7 +68,7 @@ impl Evaluation for DeveloperImage {
                     if let MessageContent::ToolResponse(tool_resp) = content {
                         if let Ok(result) = &tool_resp.tool_result {
                             // Check each item in the result list
-                            for item in result {
+                            for item in &result.content {
                                 if let Some(image) = item.as_image() {
                                     // Image content already contains mime_type and data
                                     if image.mime_type.starts_with("image/")

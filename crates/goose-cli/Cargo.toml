@@ -19,7 +19,7 @@ goose = { path = "../goose" }
 goose-bench = { path = "../goose-bench" }
 goose-mcp = { path = "../goose-mcp" }
 rmcp = { workspace = true }
-agent-client-protocol = "0.4.0"
+agent-client-protocol = "0.9.0"
 clap = { version = "4.4", features = ["derive"] }
 cliclack = "0.3.5"
 console = "0.15.8"
@@ -64,6 +64,9 @@ urlencoding = "2.1"
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }
 
+[features]
+# disables the update command
+disable-update = []
 
 [dev-dependencies]
 tempfile = "3"

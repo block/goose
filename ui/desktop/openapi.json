@@ -86,6 +86,90 @@
         }
       }
     },
+    "/agent/call_tool": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "call_tool",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CallToolRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Resource read successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CallToolResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "424": {
+            "description": "Agent not initialized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/agent/read_resource": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "read_resource",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReadResourceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Resource read successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadResourceResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "424": {
+            "description": "Agent not initialized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/agent/remove_extension": {
       "post": {
         "tags": [
@@ -2297,6 +2381,29 @@
         }
       }
     },
+    "/telemetry/event": {
+      "post": {
+        "tags": [
+          "super::routes::telemetry"
+        ],
+        "operationId": "send_telemetry_event",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TelemetryEventRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Event accepted for processing"
+          }
+        }
+      }
+    },
     "/tunnel/start": {
       "post": {
         "tags": [
@@ -2533,6 +2640,44 @@
           },
           "metadata": {
             "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "CallToolRequest": {
+        "type": "object",
+        "required": [
+          "session_id",
+          "name",
+          "arguments"
+        ],
+        "properties": {
+          "arguments": {},
+          "name": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          }
+        }
+      },
+      "CallToolResponse": {
+        "type": "object",
+        "required": [
+          "content",
+          "is_error"
+        ],
+        "properties": {
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Content"
+            }
+          },
+          "is_error": {
+            "type": "boolean"
+          },
+          "structured_content": {
             "nullable": true
           }
         }
@@ -4286,6 +4431,36 @@
           }
         }
       },
+      "ReadResourceRequest": {
+        "type": "object",
+        "required": [
+          "session_id",
+          "extension_name",
+          "uri"
+        ],
+        "properties": {
+          "extension_name": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "uri": {
+            "type": "string"
+          }
+        }
+      },
+      "ReadResourceResponse": {
+        "type": "object",
+        "required": [
+          "html"
+        ],
+        "properties": {
+          "html": {
+            "type": "string"
+          }
+        }
+      },
       "Recipe": {
         "type": "object",
         "required": [
@@ -5149,6 +5324,21 @@
           "inlineMessage"
         ]
       },
+      "TelemetryEventRequest": {
+        "type": "object",
+        "required": [
+          "event_name"
+        ],
+        "properties": {
+          "event_name": {
+            "type": "string"
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        }
+      },
       "TextContent": {
         "type": "object",
         "required": [
@@ -5371,9 +5561,8 @@
           "id": {
             "type": "string"
           },
-          "thoughtSignature": {
-            "type": "string",
-            "nullable": true
+          "metadata": {
+            "type": "object"
           },
           "toolCall": {
             "type": "object"
@@ -5389,6 +5578,9 @@
         "properties": {
           "id": {
             "type": "string"
+          },
+          "metadata": {
+            "type": "object"
           },
           "toolResult": {
             "type": "object"

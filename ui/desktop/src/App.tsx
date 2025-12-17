@@ -33,6 +33,7 @@ import LauncherView from './components/LauncherView';
 import 'react-toastify/dist/ReactToastify.css';
 import { useConfig } from './components/ConfigContext';
 import { ModelAndProviderProvider } from './components/ModelAndProviderContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 import PermissionSettingsView from './components/settings/permission/PermissionSetting';
 
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
@@ -41,6 +42,13 @@ import { View, ViewOptions } from './utils/navigationUtils';
 import { NoProviderOrModelError, useAgent } from './hooks/useAgent';
 import { useNavigation } from './hooks/useNavigation';
 import { errorMessage } from './utils/conversionUtils';
+import { usePageViewTracking } from './hooks/useAnalytics';
+import { trackOnboardingCompleted } from './utils/analytics';
+
+function PageViewTracker() {
+  usePageViewTracking();
+  return null;
+}
 
 // Route Components
 const HubRouteWrapper = ({ isExtensionsLoading }: { isExtensionsLoading: boolean }) => {
@@ -264,7 +272,8 @@ const WelcomeRoute = ({ onSelectProvider }: WelcomeRouteProps) => {
           navigate('/', { replace: true });
         }}
         isOnboarding={true}
-        onProviderLaunched={() => {
+        onProviderLaunched={(model?: string) => {
+          trackOnboardingCompleted('other', model);
           onSelectProvider();
           navigate('/', { replace: true });
         }}
@@ -547,47 +556,6 @@ export function AppInner() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!window.electron) return;
-
-    const handleThemeChanged = (_event: unknown, ...args: unknown[]) => {
-      const themeData = args[0] as { mode: string; useSystemTheme: boolean; theme: string };
-
-      if (themeData.useSystemTheme) {
-        localStorage.setItem('use_system_theme', 'true');
-      } else {
-        localStorage.setItem('use_system_theme', 'false');
-        localStorage.setItem('theme', themeData.theme);
-      }
-
-      const isDark = themeData.useSystemTheme
-        ? window.matchMedia('(prefers-color-scheme: dark)').matches
-        : themeData.mode === 'dark';
-
-      if (isDark) {
-        document.documentElement.classList.add('dark');
-        document.documentElement.classList.remove('light');
-      } else {
-        document.documentElement.classList.remove('dark');
-        document.documentElement.classList.add('light');
-      }
-
-      const storageEvent = new Event('storage') as Event & {
-        key: string | null;
-        newValue: string | null;
-      };
-      storageEvent.key = themeData.useSystemTheme ? 'use_system_theme' : 'theme';
-      storageEvent.newValue = themeData.useSystemTheme ? 'true' : themeData.theme;
-      window.dispatchEvent(storageEvent);
-    };
-
-    window.electron.on('theme-changed', handleThemeChanged);
-
-    return () => {
-      window.electron.off('theme-changed', handleThemeChanged);
-    };
-  }, []);
-
   // Handle initial message from launcher
   useEffect(() => {
     const handleSetInitialMessage = (_event: IpcRendererEvent, ...args: unknown[]) => {
@@ -609,6 +577,7 @@ export function AppInner() {
 
   return (
     <>
+      <PageViewTracker />
       <ToastContainer
         aria-label="Toast notifications"
         toastClassName={() =>
@@ -698,12 +667,14 @@ export function AppInner() {
 
 export default function App() {
   return (
-    <ModelAndProviderProvider>
-      <HashRouter>
-        <AppInner />
-      </HashRouter>
-      <AnnouncementModal />
-      <TelemetryOptOutModal controlled={false} />
-    </ModelAndProviderProvider>
+    <ThemeProvider>
+      <ModelAndProviderProvider>
+        <HashRouter>
+          <AppInner />
+        </HashRouter>
+        <AnnouncementModal />
+        <TelemetryOptOutModal controlled={false} />
+      </ModelAndProviderProvider>
+    </ThemeProvider>
   );
 }
