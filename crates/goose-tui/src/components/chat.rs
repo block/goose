@@ -606,13 +606,7 @@ impl Component for ChatComponent {
                         self.stick_to_bottom = true;
                     }
                 }
-                MouseEventKind::Down(crossterm::event::MouseButton::Left) => {
-                    if let Some(idx) = self.list_state.selected() {
-                        if let Some(&msg_idx) = self.display_mapping.get(idx) {
-                            return Ok(Some(Action::OpenMessageInfo(msg_idx)));
-                        }
-                    }
-                }
+
                 _ => {}
             },
             Event::Input(key) => {
