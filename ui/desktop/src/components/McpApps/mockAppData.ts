@@ -117,7 +117,6 @@ const mockAppHtml = `<!DOCTYPE html>
     .actions-note {
       color: var(--text-secondary);
       font-size: 1.2rem;
-      // margin: -0.5rem 0 0.75rem 0;
     }
     .actions-buttons {
       display: flex;
