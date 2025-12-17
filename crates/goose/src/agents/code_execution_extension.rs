@@ -758,12 +758,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_execute_code_simple() {
-        let context = PlatformExtensionContext {
-            session_id: None,
-            extension_manager: None,
-            tool_route_manager: None,
-        };
-        let client = CodeExecutionClient::new(context).unwrap();
+        let client = CodeExecutionClient::new(PlatformExtensionContext::default()).unwrap();
 
         let mut args = JsonObject::new();
         args.insert("code".to_string(), Value::String("2 + 2".to_string()));
@@ -783,12 +778,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_read_module_not_found() {
-        let context = PlatformExtensionContext {
-            session_id: None,
-            extension_manager: None,
-            tool_route_manager: None,
-        };
-        let client = CodeExecutionClient::new(context).unwrap();
+        let client = CodeExecutionClient::new(PlatformExtensionContext::default()).unwrap();
 
         let mut args = JsonObject::new();
         args.insert("path".to_string(), Value::String("nonexistent".to_string()));

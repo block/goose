@@ -262,6 +262,9 @@ impl ExtensionManager {
                 session_id: None,
                 extension_manager: None,
                 tool_route_manager: None,
+                session_type: None,
+                working_dir: None,
+                sub_recipes: None,
             }),
             provider,
         }
@@ -278,6 +281,10 @@ impl ExtensionManager {
 
     pub async fn get_context(&self) -> PlatformExtensionContext {
         self.context.lock().await.clone()
+    }
+
+    pub async fn get_provider(&self) -> Option<Arc<dyn crate::providers::base::Provider>> {
+        self.provider.lock().await.clone()
     }
 
     pub async fn supports_resources(&self) -> bool {

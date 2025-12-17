@@ -2,8 +2,14 @@ use crate::agents::chatrecall_extension;
 use crate::agents::code_execution_extension;
 use crate::agents::extension_manager_extension;
 use crate::agents::skills_extension;
+use crate::agents::subagent_client;
 use crate::agents::todo_extension;
+use crate::recipe::SubRecipe;
+use crate::session::session_manager::SessionType;
 use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
 use crate::agents::mcp_client::McpClientTrait;
 use crate::config;
@@ -100,17 +106,30 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
             },
         );
 
+        map.insert(
+            subagent_client::EXTENSION_NAME,
+            PlatformExtensionDef {
+                name: subagent_client::EXTENSION_NAME,
+                description: "Delegate tasks to independent subagents",
+                default_enabled: false,
+                client_factory: |ctx| Box::new(subagent_client::SubagentClient::new(ctx).unwrap()),
+            },
+        );
+
         map
     },
 );
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct PlatformExtensionContext {
     pub session_id: Option<String>,
     pub extension_manager:
         Option<std::sync::Weak<crate::agents::extension_manager::ExtensionManager>>,
     pub tool_route_manager:
         Option<std::sync::Weak<crate::agents::tool_route_manager::ToolRouteManager>>,
+    pub session_type: Option<SessionType>,
+    pub working_dir: Option<PathBuf>,
+    pub sub_recipes: Option<Arc<RwLock<HashMap<String, SubRecipe>>>>,
 }
 
 #[derive(Debug, Clone)]
