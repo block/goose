@@ -40,7 +40,6 @@ interface SandboxBridgeOptions {
   resourceHtml: string;
   resourceCsp: CspMetadata | null;
   resourceUri: string;
-  iframeHeight: number;
   toolInput?: ToolInput;
   toolInputPartial?: ToolInputPartial;
   toolResult?: ToolResult;
@@ -67,7 +66,6 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
     resourceHtml,
     resourceCsp,
     resourceUri,
-    iframeHeight,
     toolInput,
     toolInputPartial,
     toolResult,
@@ -90,7 +88,6 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
   const pendingMessagesRef = useRef<JsonRpcMessage[]>([]);
 
   const [proxyUrl, setProxyUrl] = useState<string | null>(null);
-  const [isSandboxReady, setIsSandboxReady] = useState(false);
   const [isGuestInitialized, setIsGuestInitialized] = useState(false);
 
   useEffect(() => {
@@ -98,7 +95,6 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
   }, [resourceCsp]);
 
   useEffect(() => {
-    setIsSandboxReady(false);
     setIsGuestInitialized(false);
     pendingMessagesRef.current = [];
   }, [resourceUri]);
@@ -124,7 +120,6 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
 
       switch (msg.method) {
         case 'ui/notifications/sandbox-ready': {
-          setIsSandboxReady(true);
           sendToSandbox(createSandboxResourceReadyMessage(resourceHtml, resourceCsp));
           return;
         }
@@ -342,9 +337,6 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
       }
     };
   }, [sendToSandbox, isGuestInitialized]);
-
-  void isSandboxReady;
-  void iframeHeight;
 
   return {
     iframeRef,

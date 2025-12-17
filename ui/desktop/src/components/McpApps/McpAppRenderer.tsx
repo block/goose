@@ -50,7 +50,6 @@ export default function McpAppRenderer({
     resourceHtml: resource.text || '',
     resourceCsp: resource._meta?.ui?.csp || null,
     resourceUri: resource.uri,
-    iframeHeight,
     toolInput,
     toolInputPartial,
     toolResult,
