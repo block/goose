@@ -65,9 +65,6 @@ pub trait McpClientTrait: Send + Sync {
         cancel_token: CancellationToken,
     ) -> Result<CallToolResult, Error>;
 
-    /// Returns a deferred tool call result that can be awaited later.
-    /// This enables parallel execution of multiple tool calls.
-    /// Default implementation wraps call_tool for backward compatibility.
     async fn call_tool_deferred(
         &self,
         name: &str,

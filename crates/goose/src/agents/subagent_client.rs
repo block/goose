@@ -153,6 +153,18 @@ impl McpClientTrait for SubagentClient {
             ]))));
         }
 
+        if let Some(session_id) = &self.context.session_id {
+            if let Ok(session) =
+                crate::session::SessionManager::get_session(session_id, false).await
+            {
+                if session.session_type == crate::session::SessionType::SubAgent {
+                    return Ok(ToolCallResult::from(Ok(CallToolResult::error(vec![
+                        Content::text("Subagents cannot create other subagents"),
+                    ]))));
+                }
+            }
+        }
+
         let Some(provider) = self.get_provider().await else {
             return Ok(ToolCallResult::from(Ok(CallToolResult::error(vec![
                 Content::text("No provider configured"),
