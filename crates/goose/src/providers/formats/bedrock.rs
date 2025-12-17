@@ -18,15 +18,33 @@ use super::super::base::Usage;
 use crate::conversation::message::{Message, MessageContent};
 
 pub fn to_bedrock_message(message: &Message) -> Result<bedrock::Message> {
+    to_bedrock_message_with_caching(message, false)
+}
+
+pub fn to_bedrock_message_with_caching(
+    message: &Message,
+    enable_caching: bool,
+) -> Result<bedrock::Message> {
+    let mut content_blocks: Vec<bedrock::ContentBlock> = message
+        .content
+        .iter()
+        .map(to_bedrock_message_content)
+        .collect::<Result<_>>()?;
+
+    // Add cache point after the last content block if caching is enabled
+    // This allows AWS Bedrock to cache the entire message content
+    if enable_caching && !content_blocks.is_empty() {
+        content_blocks.push(bedrock::ContentBlock::CachePoint(
+            bedrock::CachePointBlock::builder()
+                .r#type(bedrock::CachePointType::Default)
+                .build()
+                .map_err(|e| anyhow!("Failed to build cache point for message: {}", e))?,
+        ));
+    }
+
     bedrock::Message::builder()
         .role(to_bedrock_role(&message.role))
-        .set_content(Some(
-            message
-                .content
-                .iter()
-                .map(to_bedrock_message_content)
-                .collect::<Result<_>>()?,
-        ))
+        .set_content(Some(content_blocks))
         .build()
         .map_err(|err| anyhow!("Failed to construct Bedrock message: {}", err))
 }
@@ -327,6 +345,13 @@ pub fn from_bedrock_content_block(block: &bedrock::ContentBlock) -> Result<Messa
                     })
             },
         ),
+        bedrock::ContentBlock::CachePoint(_) => {
+            // CachePoint is metadata used by AWS for prompt caching optimization.
+            // It doesn't represent actual content, so we skip it when converting back.
+            // This is safe because cache points are only used for request optimization,
+            // not for conveying information to the user.
+            bail!("CachePoint blocks should be filtered out during message processing")
+        }
         _ => bail!("Unsupported content block type from Bedrock"),
     })
 }
@@ -475,6 +500,164 @@ mod tests {
 
         // Verify the wrapper correctly converts Content::Image to ToolResultContentBlock::Image
         assert!(matches!(result, bedrock::ToolResultContentBlock::Image(_)));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_to_bedrock_message_without_caching() -> Result<()> {
+        use chrono::Utc;
+        use rmcp::model::Role;
+
+        // Create a simple message with text content
+        let message = Message::new(
+            Role::User,
+            Utc::now().timestamp(),
+            vec![MessageContent::text("Hello, world!")],
+        );
+
+        let bedrock_message = to_bedrock_message(&message)?;
+
+        // Verify the message has exactly one content block (no cache point)
+        assert_eq!(bedrock_message.content.len(), 1);
+        assert!(matches!(
+            bedrock_message.content[0],
+            bedrock::ContentBlock::Text(_)
+        ));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_to_bedrock_message_with_caching() -> Result<()> {
+        use chrono::Utc;
+        use rmcp::model::Role;
+
+        // Create a message with text content
+        let message = Message::new(
+            Role::User,
+            Utc::now().timestamp(),
+            vec![MessageContent::text("Hello, world!")],
+        );
+
+        let bedrock_message = to_bedrock_message_with_caching(&message, true)?;
+
+        // Verify the message has two content blocks: text + cache point
+        assert_eq!(bedrock_message.content.len(), 2);
+        assert!(matches!(
+            bedrock_message.content[0],
+            bedrock::ContentBlock::Text(_)
+        ));
+        assert!(matches!(
+            bedrock_message.content[1],
+            bedrock::ContentBlock::CachePoint(_)
+        ));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_to_bedrock_message_with_caching_multiple_content() -> Result<()> {
+        use chrono::Utc;
+        use rmcp::model::Role;
+
+        // Create a message with multiple content blocks
+        let message = Message::new(
+            Role::User,
+            Utc::now().timestamp(),
+            vec![
+                MessageContent::text("First text"),
+                MessageContent::text("Second text"),
+            ],
+        );
+
+        let bedrock_message = to_bedrock_message_with_caching(&message, true)?;
+
+        // Verify cache point is added after all content
+        assert_eq!(bedrock_message.content.len(), 3);
+        assert!(matches!(
+            bedrock_message.content[0],
+            bedrock::ContentBlock::Text(_)
+        ));
+        assert!(matches!(
+            bedrock_message.content[1],
+            bedrock::ContentBlock::Text(_)
+        ));
+        assert!(matches!(
+            bedrock_message.content[2],
+            bedrock::ContentBlock::CachePoint(_)
+        ));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_to_bedrock_message_with_caching_empty_content() -> Result<()> {
+        use chrono::Utc;
+        use rmcp::model::Role;
+
+        // Create a message with no content
+        let message = Message::new(Role::User, Utc::now().timestamp(), vec![]);
+
+        let bedrock_message = to_bedrock_message_with_caching(&message, true)?;
+
+        // Verify no cache point is added for empty messages
+        assert_eq!(bedrock_message.content.len(), 0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_from_bedrock_content_block_cache_point() {
+        // Create a cache point block with the required type field
+        let cache_point = bedrock::CachePointBlock::builder()
+            .r#type(bedrock::CachePointType::Default)
+            .build()
+            .unwrap();
+        let content_block = bedrock::ContentBlock::CachePoint(cache_point);
+
+        // Verify that converting a cache point results in an error
+        let result = from_bedrock_content_block(&content_block);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("CachePoint blocks should be filtered out"));
+    }
+
+    #[test]
+    fn test_to_bedrock_message_with_caching_preserves_order() -> Result<()> {
+        use chrono::Utc;
+        use rmcp::model::Role;
+
+        // Create message with specific content order
+        let message = Message::new(
+            Role::Assistant,
+            Utc::now().timestamp(),
+            vec![
+                MessageContent::text("Response text"),
+                MessageContent::text("More response"),
+            ],
+        );
+
+        let bedrock_message = to_bedrock_message_with_caching(&message, true)?;
+
+        // Verify content order is preserved and cache point is at the end
+        assert_eq!(bedrock_message.content.len(), 3);
+        if let bedrock::ContentBlock::Text(text) = &bedrock_message.content[0] {
+            assert_eq!(text, "Response text");
+        } else {
+            panic!("Expected text content block");
+        }
+        if let bedrock::ContentBlock::Text(text) = &bedrock_message.content[1] {
+            assert_eq!(text, "More response");
+        } else {
+            panic!("Expected text content block");
+        }
+        assert!(matches!(
+            bedrock_message.content[2],
+            bedrock::ContentBlock::CachePoint(_)
+        ));
 
         Ok(())
     }
