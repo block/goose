@@ -6,7 +6,7 @@ description: "Share a goose session setup (including tools, goals, and instructi
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import { PanelLeft, ChefHat, SquarePen, Link, Calendar, Terminal } from 'lucide-react';
+import { PanelLeft, ChefHat, SquarePen, Link, Clock, Terminal } from 'lucide-react';
 export const RecipeFields = () => (
   <ul>
     <li><strong>Title</strong> and <strong>description</strong></li>
@@ -550,7 +550,7 @@ Automate goose recipes by running them on a schedule. When creating a schedule, 
 
    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
    2. Click `Recipes`
-   3. Find the recipe you want to schedule and click the <Calendar className="inline" size={16} /> button
+   3. Find the recipe you want to schedule and click the <Clock className="inline" size={16} /> button
    4. Click `Create Schedule`
    5. In the dialog that appears, configure the schedule. For **Source**, your recipe link is already provided.
    6. Click `Create Schedule`
