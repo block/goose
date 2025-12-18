@@ -794,7 +794,6 @@ impl Agent {
 
         match command_result {
             Err(e) => {
-                // Return error directly without adding to conversation
                 let error_message = Message::assistant()
                     .with_text(&e.to_string())
                     .with_visibility(true, false);
