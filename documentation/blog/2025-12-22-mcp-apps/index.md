@@ -11,7 +11,7 @@ The MCP ecosystem is standardizing how servers deliver interactive UIs to hosts,
 
 <!-- truncate -->
 
-## What's shipping
+## What's Shipping
 
 This release brings a minimal-but-functional implementation of MCP Apps:
 
@@ -29,7 +29,7 @@ It's a draft specification ([SEP-1865](https://github.com/modelcontextprotocol/m
 
 goose has been part of this from early on. We've [shipped MCP-UI support](/blog/2025/08/11/mcp-ui-post-browser-world), participated in spec conversations, and are now implementing MCP Apps so extension authors have a real host to build against while the standard matures.
 
-## This is experimental
+## This is Experimental
 
 MCP Apps is still a draft. Our implementation is intentionally minimal and subject to change. Expect sharp edges and breaking changes. We're shipping now so authors can try it, give feedback, and help the community converge on the right primitives.
 
@@ -38,7 +38,7 @@ MCP Apps is still a draft. Our implementation is intentionally minimal and subje
 - Advanced capabilities (camera, sensors)
 - Persistent app windows outside of conversations
 
-## The MCP-UI transition
+## The MCP-UI Transition
 
 MCP-UI isn't going away overnight. We'll keep supporting it while the community finalizes MCP Apps, and there's an [adapter path](https://mcpui.dev/guide/mcp-apps) to ease migration. We'll share a deprecation timeline once the MCP Apps extension is formally accepted.
 
