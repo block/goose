@@ -31,8 +31,6 @@ pub fn to_bedrock_message_with_caching(
         .map(to_bedrock_message_content)
         .collect::<Result<_>>()?;
 
-    // Add cache point after the last content block if caching is enabled
-    // This allows AWS Bedrock to cache the entire message content
     if enable_caching && !content_blocks.is_empty() {
         content_blocks.push(bedrock::ContentBlock::CachePoint(
             bedrock::CachePointBlock::builder()
