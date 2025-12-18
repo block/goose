@@ -97,12 +97,16 @@ export default function ExtensionList({
 }
 
 // Helper functions
-export function getFriendlyTitle(extension: FixedExtensionEntry): string {
-  const name = (extension.type === 'builtin' && extension.display_name) || extension.name;
+export function formatExtensionName(name: string): string {
   return name
     .split(/[-_]/) // Split on hyphens and underscores
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
+}
+
+export function getFriendlyTitle(extension: FixedExtensionEntry): string {
+  const name = (extension.type === 'builtin' && extension.display_name) || extension.name;
+  return formatExtensionName(name);
 }
 
 function normalizeExtensionName(name: string): string {

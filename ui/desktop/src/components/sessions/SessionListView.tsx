@@ -34,19 +34,16 @@ import {
   ExtensionConfig,
   ExtensionData,
 } from '../../api';
+import { formatExtensionName } from '../settings/extensions/subcomponents/ExtensionList';
 
 function getSessionExtensionNames(extensionData: ExtensionData): string[] {
   try {
-    const v0Data = extensionData?.['enabled_extensions.v0'] as
+    const enabledExtensionData = extensionData?.['enabled_extensions.v0'] as
       | { extensions?: ExtensionConfig[] }
       | undefined;
-    if (!v0Data?.extensions) return [];
+    if (!enabledExtensionData?.extensions) return [];
 
-    return v0Data.extensions.map((ext) => {
-      // display_name exists on some ExtensionConfig variants but not all
-      const displayName = (ext as { display_name?: string }).display_name;
-      return displayName || ext.name;
-    });
+    return enabledExtensionData.extensions.map((ext) => formatExtensionName(ext.name));
   } catch {
     return [];
   }
@@ -638,10 +635,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <div
-                        className="flex items-center cursor-help"
-                        onClick={(e) => e.stopPropagation()}
-                      >
+                      <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
                         <Puzzle className="w-3 h-3 mr-1" />
                         <span className="font-mono">{extensionNames.length}</span>
                       </div>

@@ -5,7 +5,7 @@ import { Input } from '../ui/input';
 import { Switch } from '../ui/switch';
 import { FixedExtensionEntry, useConfig } from '../ConfigContext';
 import { toastService } from '../../toasts';
-import { getFriendlyTitle } from '../settings/extensions/subcomponents/ExtensionList';
+import { formatExtensionName } from '../settings/extensions/subcomponents/ExtensionList';
 import { ExtensionConfig, getSessionExtensions } from '../../api';
 import { addToAgent, removeFromAgent } from '../settings/extensions/agent-api';
 import {
@@ -95,7 +95,7 @@ export const BottomMenuExtensionSelection = ({
 
         toastService.success({
           title: 'Extension Updated',
-          msg: `${extensionConfig.name} will be ${!currentState ? 'enabled' : 'disabled'} in new chats`,
+          msg: `${formatExtensionName(extensionConfig.name)} will be ${!currentState ? 'enabled' : 'disabled'} in new chats`,
         });
         return;
       }
@@ -267,7 +267,7 @@ export const BottomMenuExtensionSelection = ({
                   title={ext.description || ext.name}
                 >
                   <div className="text-sm font-medium text-text-default">
-                    {getFriendlyTitle(ext)}
+                    {formatExtensionName(ext.name)}
                   </div>
                   <div onClick={(e) => e.stopPropagation()}>
                     <Switch
