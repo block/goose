@@ -131,13 +131,12 @@ impl BedrockProvider {
 
     fn should_enable_caching(&self, model_name: &str) -> bool {
         let config = crate::config::Config::global();
-        if let Ok(enabled) = config.get_param::<bool>("BEDROCK_ENABLE_CACHING") {
-            if !enabled {
-                return false;
-            }
-        }
 
-        model_name.contains("anthropic.claude")
+        // Default: caching disabled
+        let enabled = config
+            .get_param::<bool>("BEDROCK_ENABLE_CACHING")
+            .unwrap_or(false);
+        enabled && model_name.contains("anthropic.claude")
     }
 
     async fn converse(
@@ -259,14 +258,14 @@ impl Provider for BedrockProvider {
         ProviderMetadata::new(
             "aws_bedrock",
             "Amazon Bedrock",
-            "Run models through Amazon Bedrock. Supports AWS SSO profiles - run 'aws sso login --profile <profile-name>' before using. Configure with AWS_PROFILE and AWS_REGION, or use environment variables/credentials. Prompt caching is automatically enabled for Anthropic Claude models (system prompt + messages) to reduce costs and improve latency.",
+            "Run models through Amazon Bedrock. Supports AWS SSO profiles - run 'aws sso login --profile <profile-name>' before using. Configure with AWS_PROFILE and AWS_REGION, or use environment variables/credentials. Prompt caching can be enabled for Anthropic Claude models (system prompt + messages) by setting BEDROCK_ENABLE_CACHING=true to reduce costs and improve latency.",
             BEDROCK_DEFAULT_MODEL,
             BEDROCK_KNOWN_MODELS.to_vec(),
             BEDROCK_DOC_LINK,
             vec![
                 ConfigKey::new("AWS_PROFILE", true, false, Some("default")),
                 ConfigKey::new("AWS_REGION", true, false, None),
-                ConfigKey::new("BEDROCK_ENABLE_CACHING", false, false, Some("true")),
+                ConfigKey::new("BEDROCK_ENABLE_CACHING", false, false, Some("false")),
             ],
         )
     }
@@ -352,11 +351,11 @@ mod tests {
     }
 
     #[test]
-    fn test_caching_enabled_for_claude_models_by_default() {
+    fn test_caching_disabled_by_default() {
         let provider = create_mock_provider("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
         assert!(
-            provider.should_enable_caching("us.anthropic.claude-sonnet-4-5-20250929-v1:0"),
-            "Caching should be enabled for Claude models by default"
+            !provider.should_enable_caching("us.anthropic.claude-sonnet-4-5-20250929-v1:0"),
+            "Caching should be disabled by default"
         );
     }
 
@@ -389,9 +388,8 @@ mod tests {
             vec![]
         };
 
-        // With no tools: 1 system + 3 messages = 4 cache points total
-        // Should cache last 3 messages (indices 2, 3, 4)
-        assert_eq!(cache_point_indices, vec![2, 3, 4]);
+        // Since caching is disabled by default, no cache points should be allocated
+        assert_eq!(cache_point_indices, Vec::<usize>::new());
     }
 
     #[test]
@@ -415,9 +413,8 @@ mod tests {
             vec![]
         };
 
-        // With tools: 1 system + 1 tools + 2 messages = 4 cache points total
-        // Should cache last 2 messages (indices 3, 4)
-        assert_eq!(cache_point_indices, vec![3, 4]);
+        // Since caching is disabled by default, no cache points should be allocated
+        assert_eq!(cache_point_indices, Vec::<usize>::new());
     }
 
     #[test]
@@ -441,9 +438,8 @@ mod tests {
             vec![]
         };
 
-        // With 2 messages: 1 system + 2 messages = 3 cache points (within limit)
-        // Should cache all messages (indices 0, 1)
-        assert_eq!(cache_point_indices, vec![0, 1]);
+        // Since caching is disabled by default, no cache points should be allocated
+        assert_eq!(cache_point_indices, Vec::<usize>::new());
     }
 
     #[test]
@@ -478,12 +474,11 @@ mod tests {
         let enable_caching =
             provider.should_enable_caching("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
 
-        assert!(
-            enable_caching,
-            "Caching should be enabled for Claude models"
-        );
+        assert!(!enable_caching, "Caching should be disabled by default");
 
-        // When caching is enabled, system blocks should have:
+        // When caching is disabled, system blocks should only have:
+        // 1. Text block with system prompt
+        // When caching is enabled (via config), system blocks should have:
         // 1. Text block with system prompt
         // 2. CachePoint block
         // This is tested in the actual converse() method implementation
@@ -491,17 +486,17 @@ mod tests {
 
     #[test]
     fn test_caching_respects_config_override() {
-        // Test that BEDROCK_ENABLE_CACHING=false disables caching
+        // Test that BEDROCK_ENABLE_CACHING defaults to false
         // Note: This test assumes the config can be set. In practice, you'd need to
         // set the config value before calling should_enable_caching
         let provider = create_mock_provider("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
 
         // The should_enable_caching method checks config first
-        // If BEDROCK_ENABLE_CACHING is set to false, it returns false
+        // Without BEDROCK_ENABLE_CACHING set, it defaults to false
         // regardless of model type
         assert!(
-            provider.should_enable_caching("us.anthropic.claude-sonnet-4-5-20250929-v1:0"),
-            "Without config override, caching should be enabled for Claude models"
+            !provider.should_enable_caching("us.anthropic.claude-sonnet-4-5-20250929-v1:0"),
+            "Without config override, caching should be disabled by default"
         );
     }
 }
