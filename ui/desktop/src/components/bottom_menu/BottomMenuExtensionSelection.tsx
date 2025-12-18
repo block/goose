@@ -36,7 +36,6 @@ export const BottomMenuExtensionSelection = ({
   const { extensionsList: allExtensions } = useConfig();
   const isHubView = !sessionId;
 
-  // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
       if (sortTimeoutRef.current) {
