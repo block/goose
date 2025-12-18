@@ -23,7 +23,7 @@ Extension authors can now build MCP Apps that work across goose and any host tha
 
 ## What is MCP Apps?
 
-MCP Apps lets MCP servers present interactive HTML UIs (forms, dashboards, visualizations) directly inside a host like goose, Claude, or ChatGPT. Build once, run everywhere.
+MCP Apps lets MCP servers present interactive HTML UIs (forms, dashboards, visualizations) directly inside a host. Build once, run everywhere.
 
 It's a draft specification ([SEP-1865](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/1865)) that builds on [MCP-UI](https://mcpui.dev) and the [OpenAI Apps SDK](https://developers.openai.com/apps-sdk/), led by [Ido Salomon](https://x.com/idosal1) and [Liad Yosef](https://x.com/liadyosef) with contributions from Anthropic and OpenAI.
 
