@@ -25,6 +25,11 @@ The list of experimental features may change as goose development progresses. So
       link="/docs/experimental/ollama"
     />
     <Card 
+      title="Mobile Access via Secure Tunneling"
+      description="Enable remote access via secure tunneling from the Goose AI mobile app to goose Desktop."
+      link="/docs/experimental/mobile-access"
+    />
+    <Card 
       title="goose Mobile"
       description="An experimental Android automation app that acts as an open agent running on your phone, providing maximal automation of everyday tasks."
       link="/docs/experimental/goose-mobile"
