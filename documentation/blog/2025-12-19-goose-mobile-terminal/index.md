@@ -17,10 +17,6 @@ We're excited to announce two new ways to interact with goose: a <a href="https:
 
 goose is now available on the App Store! The iOS app connects to your desktop goose instance via a secure tunnel, letting you interact with your agent from anywhere.
 
-<a href="https://apps.apple.com/au/app/goose-ai/id6752889295">
-  <img src="https://tools.applemediaservices.com/api/badges/download-on-the-app-store/black/en-us?size=250x83" alt="Download on the App Store" />
-</a>
-
 ### Getting Started with Mobile
 
 1. **Install the app** - Download [goose from the App Store](https://apps.apple.com/au/app/goose-ai/id6752889295)
