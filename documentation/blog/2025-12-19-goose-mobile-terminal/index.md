@@ -51,7 +51,7 @@ It doesn't matter how you use goose. Your sessions are yours, and you can use an
 Try them out and let us know what you think in our [Discord](https://discord.gg/goose-oss)!
 
 <head>
-  <meta property="og:title" content="goose mobile access and native terminal support" />
+  <meta property="og:title" content="goose Mobile Access and Native Terminal Support" />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025/12/19/goose-mobile-terminal" />
   <meta property="og:description" content="2 new ways to use goose" />
