@@ -30,7 +30,7 @@ use super::extension::{
     ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult, PlatformExtensionContext,
     ToolInfo, PLATFORM_EXTENSIONS,
 };
-use super::tool_execution::ToolCallResult;
+use super::tool_execution::DeferredToolCall;
 use super::types::SharedProvider;
 use crate::agents::extension::{Envs, ProcessExit};
 use crate::agents::extension_malware_check;
@@ -1051,7 +1051,7 @@ impl ExtensionManager {
         &self,
         tool_call: CallToolRequestParam,
         cancellation_token: CancellationToken,
-    ) -> Result<ToolCallResult> {
+    ) -> Result<DeferredToolCall> {
         // Dispatch tool call based on the prefix naming convention
         let (client_name, client) =
             self.get_client_for_tool(&tool_call.name)

@@ -4,14 +4,14 @@ use crate::agents::subagent_task_config::TaskConfig;
 use crate::agents::subagent_tool::{
     create_subagent_tool, handle_subagent_tool, SUBAGENT_TOOL_NAME,
 };
-use crate::agents::tool_execution::ToolCallResult;
+use crate::agents::tool_execution::DeferredToolCall;
 use crate::config::get_enabled_extensions;
 use anyhow::Result;
 use async_trait::async_trait;
 use rmcp::model::{
     CallToolResult, Content, GetPromptResult, Implementation, InitializeResult, JsonObject,
     ListPromptsResult, ListResourcesResult, ListToolsResult, ProtocolVersion, ReadResourceResult,
-    ServerCapabilities, ServerNotification, Tool, ToolsCapability,
+    ServerCapabilities, ServerNotification, Tool,
 };
 use serde_json::Value;
 use tokio::sync::mpsc;
@@ -30,16 +30,7 @@ impl SubagentClient {
             context,
             info: InitializeResult {
                 protocol_version: ProtocolVersion::V_2025_03_26,
-                capabilities: ServerCapabilities {
-                    tools: Some(ToolsCapability {
-                        list_changed: Some(false),
-                    }),
-                    resources: None,
-                    prompts: None,
-                    completions: None,
-                    experimental: None,
-                    logging: None,
-                },
+                capabilities: ServerCapabilities::builder().enable_tools().build(),
                 server_info: Implementation {
                     name: EXTENSION_NAME.to_string(),
                     title: Some("Subagent".to_string()),
@@ -138,15 +129,15 @@ impl McpClientTrait for SubagentClient {
         name: &str,
         arguments: Option<JsonObject>,
         cancellation_token: CancellationToken,
-    ) -> Result<ToolCallResult, Error> {
+    ) -> Result<DeferredToolCall, Error> {
         if name != SUBAGENT_TOOL_NAME {
-            return Ok(ToolCallResult::from(Ok(CallToolResult::error(vec![
+            return Ok(DeferredToolCall::from(Ok(CallToolResult::error(vec![
                 Content::text(format!("Unknown tool: {}", name)),
             ]))));
         }
 
         let Some(provider) = self.get_provider().await else {
-            return Ok(ToolCallResult::from(Ok(CallToolResult::error(vec![
+            return Ok(DeferredToolCall::from(Ok(CallToolResult::error(vec![
                 Content::text("No provider configured"),
             ]))));
         };

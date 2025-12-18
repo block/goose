@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use super::final_output_tool::FinalOutputTool;
 use super::platform_tools;
-use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
+use super::tool_execution::{DeferredToolCall, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::action_required_manager::ActionRequiredManager;
 use crate::agents::extension::{ExtensionConfig, ExtensionError, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
@@ -307,7 +307,6 @@ impl Agent {
         permission_check_result: &PermissionCheckResult,
         request_to_response_map: &HashMap<String, Arc<Mutex<Message>>>,
         cancel_token: Option<tokio_util::sync::CancellationToken>,
-        session: &Session,
     ) -> Result<Vec<(String, ToolStream)>> {
         let mut tool_futures: Vec<(String, ToolStream)> = Vec::new();
 
@@ -315,12 +314,7 @@ impl Agent {
         for request in &permission_check_result.approved {
             if let Ok(tool_call) = request.tool_call.clone() {
                 let (req_id, tool_result) = self
-                    .dispatch_tool_call(
-                        tool_call,
-                        request.id.clone(),
-                        cancel_token.clone(),
-                        session,
-                    )
+                    .dispatch_tool_call(tool_call, request.id.clone(), cancel_token.clone())
                     .await;
 
                 tool_futures.push((
@@ -435,8 +429,7 @@ impl Agent {
         tool_call: CallToolRequestParam,
         request_id: String,
         cancellation_token: Option<CancellationToken>,
-        _session: &Session,
-    ) -> (String, Result<ToolCallResult, ErrorData>) {
+    ) -> (String, Result<DeferredToolCall, ErrorData>) {
         if tool_call.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME {
             let arguments = tool_call
                 .arguments
@@ -451,7 +444,7 @@ impl Agent {
                 is_error: Some(false),
                 meta: None,
             });
-            return (request_id, Ok(ToolCallResult::from(wrapped_result)));
+            return (request_id, Ok(DeferredToolCall::from(wrapped_result)));
         }
 
         if tool_call.name == FINAL_OUTPUT_TOOL_NAME {
@@ -471,9 +464,8 @@ impl Agent {
         }
 
         debug!("WAITING_TOOL_START: {}", tool_call.name);
-        let result: ToolCallResult = if self.is_frontend_tool(&tool_call.name).await {
-            // For frontend tools, return an error indicating we need frontend execution
-            ToolCallResult::from(Err(ErrorData::new(
+        let result: DeferredToolCall = if self.is_frontend_tool(&tool_call.name).await {
+            DeferredToolCall::from(Err(ErrorData::new(
                 ErrorCode::INTERNAL_ERROR,
                 "Frontend tool execution required".to_string(),
                 None,
@@ -488,13 +480,12 @@ impl Agent {
                 Err(e) => return (request_id, Err(e)),
             }
         } else {
-            // Clone the result to ensure no references to extension_manager are returned
             let result = self
                 .extension_manager
                 .dispatch_tool_call(tool_call.clone(), cancellation_token.unwrap_or_default())
                 .await;
             result.unwrap_or_else(|e| {
-                ToolCallResult::from(Err(ErrorData::new(
+                DeferredToolCall::from(Err(ErrorData::new(
                     ErrorCode::INTERNAL_ERROR,
                     e.to_string(),
                     None,
@@ -506,7 +497,7 @@ impl Agent {
 
         (
             request_id,
-            Ok(ToolCallResult {
+            Ok(DeferredToolCall {
                 notification_stream: result.notification_stream,
                 result: Box::new(
                     result
@@ -1106,7 +1097,6 @@ impl Agent {
                                         &permission_check_result,
                                         &request_to_response_map,
                                         cancel_token.clone(),
-                                        &session,
                                     ).await?;
 
                                     let tool_futures_arc = Arc::new(Mutex::new(tool_futures));
@@ -1116,7 +1106,6 @@ impl Agent {
                                         tool_futures_arc.clone(),
                                         &request_to_response_map,
                                         cancel_token.clone(),
-                                        &session,
                                         &inspection_results,
                                     );
 
