@@ -365,7 +365,7 @@
     "id": "deepseek/deepseek",
     "name": "DeepSeek: DeepSeek V3.2",
     "context_length": 163840,
-    "max_completion_tokens": 163840,
+    "max_completion_tokens": 65536,
     "input_modalities": [
       "text"
     ],
@@ -374,7 +374,7 @@
     ],
     "supports_tools": true,
     "pricing": {
-      "prompt": 2.4e-7,
+      "prompt": 2.6e-7,
       "completion": 3.8e-7,
       "request": 0.0,
       "image": 0.0
