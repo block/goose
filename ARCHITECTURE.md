@@ -1,6 +1,6 @@
 # Architecture
 
-Goose is an AI agent framework. The `goose` crate contains all core logic; `goose-cli` and `goose-server` are thin interface layers that call into it.
+goose is an AI agent framework. The `goose` crate contains all core logic; `goose-cli` and `goose-server` are thin interface layers that call into it.
 
 ## Where Things Live
 
