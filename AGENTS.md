@@ -54,7 +54,6 @@ crates/
 ├── mcp-core          # MCP shared
 └── mcp-server        # MCP server
 
-temporal-service/     # Go scheduler
 ui/desktop/           # Electron app
 ```
 
