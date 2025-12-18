@@ -1,5 +1,5 @@
 ---
-title: "Goose mobile access and native terminal support"
+title: "goose Mobile Access and Native Terminal Support"
 description: "2 new ways to use goose"
 authors: 
     - mic
