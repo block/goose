@@ -7,6 +7,8 @@ use crate::utils::layout::centered_rect;
 use crate::utils::message_format::message_to_plain_text;
 use crate::utils::sanitize::sanitize_line;
 use crate::utils::styles::Theme;
+use crate::utils::syntax::highlight_code;
+use crate::utils::termimad_renderer::MarkdownRenderer;
 use anyhow::Result;
 use crossterm::event::{KeyCode, MouseEventKind};
 use goose::conversation::message::MessageContent;
@@ -41,11 +43,12 @@ impl MessagePopup {
         &self,
         message: &goose::conversation::message::Message,
         theme: &Theme,
+        width: usize,
     ) -> Vec<Line<'static>> {
         let mut lines = Vec::new();
         for content in &message.content {
             match content {
-                MessageContent::Text(t) => Self::render_text_content(&mut lines, t, theme),
+                MessageContent::Text(t) => Self::render_text_content(&mut lines, t, theme, width),
                 MessageContent::ToolRequest(req) => {
                     Self::render_tool_request(&mut lines, req, theme)
                 }
@@ -66,13 +69,10 @@ impl MessagePopup {
         lines: &mut Vec<Line<'static>>,
         t: &rmcp::model::TextContent,
         theme: &Theme,
+        width: usize,
     ) {
-        for line in t.text.lines() {
-            lines.push(Line::from(Span::styled(
-                line.to_string(),
-                Style::default().fg(theme.base.foreground),
-            )));
-        }
+        let renderer = MarkdownRenderer::new(theme, None);
+        lines.extend(renderer.render_lines(&t.text, width));
     }
 
     fn render_tool_request(
@@ -92,7 +92,7 @@ impl MessagePopup {
                 Style::default().fg(theme.status.info),
             )));
             if let Some(args) = &call.arguments {
-                Self::render_json_lines(lines, args, theme);
+                Self::render_json_lines(lines, args, theme.is_dark());
             }
         }
     }
@@ -163,21 +163,16 @@ impl MessagePopup {
             "Arguments:",
             Style::default().fg(theme.base.foreground),
         )));
-        Self::render_json_lines(lines, &req.arguments, theme);
+        Self::render_json_lines(lines, &req.arguments, theme.is_dark());
     }
 
     fn render_json_lines<T: serde::Serialize>(
         lines: &mut Vec<Line<'static>>,
         value: &T,
-        theme: &Theme,
+        dark_mode: bool,
     ) {
         let json_str = serde_json::to_string_pretty(value).unwrap_or_default();
-        for line in json_str.lines() {
-            lines.push(Line::from(Span::styled(
-                line.to_string(),
-                Style::default().fg(theme.base.foreground),
-            )));
-        }
+        lines.extend(highlight_code(&json_str, "json", dark_mode));
     }
 }
 
@@ -260,7 +255,8 @@ impl Component for MessagePopup {
 
         f.render_widget(block, area);
 
-        let lines = self.render_content(message, theme);
+        let content_width = content_area.width.saturating_sub(2) as usize;
+        let lines = self.render_content(message, theme, content_width);
 
         let p = Paragraph::new(Text::from(lines)).wrap(Wrap { trim: false });
 

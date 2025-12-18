@@ -30,13 +30,19 @@ pub fn highlight_code(code: &str, lang: &str, dark_mode: bool) -> Vec<Line<'stat
 
     code.lines()
         .map(|line| {
+            let line_with_newline = format!(
+                "{}
+",
+                line
+            );
             highlighter
-                .highlight_line(line, &SYNTAX_SET)
+                .highlight_line(&line_with_newline, &SYNTAX_SET)
                 .map(|ranges| {
                     Line::from(
                         ranges
                             .into_iter()
                             .map(|(style, text)| {
+                                let text = text.trim_end_matches('\n');
                                 Span::styled(text.to_string(), syntect_to_ratatui_style(style))
                             })
                             .collect::<Vec<_>>(),

@@ -57,6 +57,12 @@ pub struct Theme {
     pub status: StatusColors,
 }
 
+impl Theme {
+    pub fn is_dark(&self) -> bool {
+        !self.name.to_lowercase().contains("light")
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct BaseColors {
     pub background: Color,
