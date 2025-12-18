@@ -99,7 +99,7 @@ import { PanelLeft } from 'lucide-react';
           4. Launch goose from the app menu
 
           :::tip Updating goose
-          It's best to keep goose updated by periodically running the installation steps again.
+          It's best to periodically [update goose](/docs/guides/updating-goose).
           :::
         </div>
       </TabItem>
@@ -142,7 +142,7 @@ import { PanelLeft } from 'lucide-react';
           2. Run the executable file to launch the goose Desktop application.
 
           :::tip Updating goose
-          It's best to keep goose updated by periodically running the installation steps again.
+          It's best to periodically [update goose](/docs/guides/updating-goose).
           :::
         </div>
       </TabItem>
