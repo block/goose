@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useConfig } from './ConfigContext';
 import { SetupModal } from './SetupModal';
@@ -11,6 +11,13 @@ import ApiKeyTester from './ApiKeyTester';
 import { SwitchModelModal } from './settings/models/subcomponents/SwitchModelModal';
 import { createNavigationHandler } from '../utils/navigationUtils';
 import TelemetrySettings from './settings/app/TelemetrySettings';
+import {
+  trackOnboardingStarted,
+  trackOnboardingProviderSelected,
+  trackOnboardingCompleted,
+  trackOnboardingAbandoned,
+  trackOnboardingSetupFailed,
+} from '../utils/analytics';
 
 import { Goose, OpenRouter, Tetrate } from './icons';
 
@@ -29,6 +36,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
   const [userInActiveSetup, setUserInActiveSetup] = useState(false);
   const [showSwitchModelModal, setShowSwitchModelModal] = useState(false);
   const [switchModelProvider, setSwitchModelProvider] = useState<string | null>(null);
+  const onboardingTracked = useRef(false);
 
   const setView = useMemo(() => createNavigationHandler(navigate), [navigate]);
 
@@ -49,12 +57,14 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
   } | null>(null);
 
   const handleTetrateSetup = async () => {
+    trackOnboardingProviderSelected('tetrate');
     try {
       const result = await startTetrateSetup();
       if (result.success) {
         setSwitchModelProvider('tetrate');
         setShowSwitchModelModal(true);
       } else {
+        trackOnboardingSetupFailed('tetrate', result.message);
         setTetrateSetupState({
           show: true,
           title: 'Setup Failed',
@@ -64,6 +74,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
       }
     } catch (error) {
       console.error('Tetrate setup error:', error);
+      trackOnboardingSetupFailed('tetrate', 'unexpected_error');
       setTetrateSetupState({
         show: true,
         title: 'Setup Error',
@@ -74,6 +85,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
   };
 
   const handleApiKeySuccess = async (provider: string, _model: string, apiKey: string) => {
+    trackOnboardingProviderSelected('api_key');
     const keyName = `${provider.toUpperCase()}_API_KEY`;
     await upsert(keyName, apiKey, true);
     await upsert('GOOSE_PROVIDER', provider, false);
@@ -82,7 +94,10 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
     setShowSwitchModelModal(true);
   };
 
-  const handleModelSelected = () => {
+  const handleModelSelected = (model: string) => {
+    if (switchModelProvider) {
+      trackOnboardingCompleted(switchModelProvider, model);
+    }
     setShowSwitchModelModal(false);
     setUserInActiveSetup(false);
     setShowFirstTimeSetup(false);
@@ -95,12 +110,14 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
   };
 
   const handleOpenRouterSetup = async () => {
+    trackOnboardingProviderSelected('openrouter');
     try {
       const result = await startOpenRouterSetup();
       if (result.success) {
         setSwitchModelProvider('openrouter');
         setShowSwitchModelModal(true);
       } else {
+        trackOnboardingSetupFailed('openrouter', result.message);
         setOpenRouterSetupState({
           show: true,
           title: 'Setup Failed',
@@ -110,6 +127,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
       }
     } catch (error) {
       console.error('OpenRouter setup error:', error);
+      trackOnboardingSetupFailed('openrouter', 'unexpected_error');
       setOpenRouterSetupState({
         show: true,
         title: 'Setup Error',
@@ -120,6 +138,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
   };
 
   const handleOllamaComplete = () => {
+    trackOnboardingCompleted('ollama');
     setShowOllamaSetup(false);
     setShowFirstTimeSetup(false);
     setHasProvider(true);
@@ -127,6 +146,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
   };
 
   const handleOllamaCancel = () => {
+    trackOnboardingAbandoned('ollama_setup');
     setShowOllamaSetup(false);
   };
 
@@ -181,6 +201,13 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
 
     checkProvider();
   }, [read, didSelectProvider, userInActiveSetup]);
+
+  useEffect(() => {
+    if (!isChecking && !hasProvider && showFirstTimeSetup && !onboardingTracked.current) {
+      trackOnboardingStarted();
+      onboardingTracked.current = true;
+    }
+  }, [isChecking, hasProvider, showFirstTimeSetup]);
 
   if (isChecking) {
     return (

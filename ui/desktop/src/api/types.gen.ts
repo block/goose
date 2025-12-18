@@ -528,6 +528,25 @@ export type ParseRecipeResponse = {
  */
 export type PermissionLevel = 'always_allow' | 'ask_before' | 'never_allow';
 
+export type PricingData = {
+    context_length?: number | null;
+    currency: string;
+    input_token_cost: number;
+    model: string;
+    output_token_cost: number;
+    provider: string;
+};
+
+export type PricingQuery = {
+    model: string;
+    provider: string;
+};
+
+export type PricingResponse = {
+    pricing: Array<PricingData>;
+    source: string;
+};
+
 export type PrincipalType = 'Extension' | 'Tool';
 
 export type ProviderDetails = {
@@ -888,6 +907,13 @@ export type SystemNotificationContent = {
 
 export type SystemNotificationType = 'thinkingMessage' | 'inlineMessage';
 
+export type TelemetryEventRequest = {
+    event_name: string;
+    properties?: {
+        [key: string]: unknown;
+    };
+};
+
 export type TextContent = {
     _meta?: {
         [key: string]: unknown;
@@ -963,7 +989,9 @@ export type ToolPermission = {
 
 export type ToolRequest = {
     id: string;
-    thoughtSignature?: string | null;
+    metadata?: {
+        [key: string]: unknown;
+    };
     toolCall: {
         [key: string]: unknown;
     };
@@ -971,6 +999,9 @@ export type ToolRequest = {
 
 export type ToolResponse = {
     id: string;
+    metadata?: {
+        [key: string]: unknown;
+    };
     toolResult: {
         [key: string]: unknown;
     };
@@ -1702,6 +1733,22 @@ export type UpsertPermissionsResponses = {
 };
 
 export type UpsertPermissionsResponse = UpsertPermissionsResponses[keyof UpsertPermissionsResponses];
+
+export type GetPricingData = {
+    body: PricingQuery;
+    path?: never;
+    query?: never;
+    url: '/config/pricing';
+};
+
+export type GetPricingResponses = {
+    /**
+     * Model pricing data retrieved successfully
+     */
+    200: PricingResponse;
+};
+
+export type GetPricingResponse = GetPricingResponses[keyof GetPricingResponses];
 
 export type ProvidersData = {
     body?: never;
@@ -2884,6 +2931,20 @@ export type StatusResponses = {
 };
 
 export type StatusResponse = StatusResponses[keyof StatusResponses];
+
+export type SendTelemetryEventData = {
+    body: TelemetryEventRequest;
+    path?: never;
+    query?: never;
+    url: '/telemetry/event';
+};
+
+export type SendTelemetryEventResponses = {
+    /**
+     * Event accepted for processing
+     */
+    202: unknown;
+};
 
 export type StartTunnelData = {
     body?: never;

@@ -4,8 +4,8 @@ use console::style;
 use goose::agents::types::{RetryConfig, SessionConfig};
 use goose::agents::Agent;
 use goose::config::{
-    extensions::{get_extension_by_name, set_extension, ExtensionEntry},
-    get_all_extensions, get_enabled_extensions, Config, ExtensionConfig,
+    extensions::get_extension_by_name, get_all_extensions, get_enabled_extensions, Config,
+    ExtensionConfig,
 };
 use goose::providers::create;
 use goose::recipe::{Response, SubRecipe};
@@ -220,7 +220,7 @@ fn check_missing_extensions_or_exit(saved_extensions: &[ExtensionConfig]) {
             .join(", ");
 
         if !cliclack::confirm(format!(
-            "Extension(s) {} from previous session are no longer in config. Re-add them to config?",
+            "Extension(s) {} from previous session are no longer available. Restore for this session?",
             names
         ))
         .initial_value(true)
@@ -230,13 +230,6 @@ fn check_missing_extensions_or_exit(saved_extensions: &[ExtensionConfig]) {
             println!("{}", style("Resume cancelled.").yellow());
             process::exit(0);
         }
-
-        missing.into_iter().for_each(|config| {
-            set_extension(ExtensionEntry {
-                enabled: true,
-                config,
-            });
-        });
     }
 }
 

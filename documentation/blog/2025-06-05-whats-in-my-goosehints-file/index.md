@@ -29,7 +29,7 @@ Let's explore how to strike that balance.
 
 `.goosehints` is a configuration file that lives in your Goose directory (usually `~/.config/goose/`). It can contain any information that you want Goose to process every time you interact with Goose, providing a foundation for how it interacts with you.
 
-You can read more about `.goosehints` in the [Goose documentation](/docs/guides/using-goosehints).
+You can read more about `.goosehints` in the [Goose documentation](/docs/guides/context-engineering/using-goosehints).
 
 ### What is the Memory Extension?
 

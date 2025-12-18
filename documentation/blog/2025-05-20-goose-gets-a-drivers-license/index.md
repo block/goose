@@ -133,7 +133,7 @@ Finally, the rover includes an ultrasonic distance sensor, which look like "eyes
 
 ## Goose changes for the video
 
-I grew up with Pinky and the Brain, and I wanted to have some fun with the mbot2 extension. I decided to add a few "Evil AI" commands to Goose to make it seem like it was trying to "take over the world." I added the following instructions to my [.goosehints](/docs/guides/using-goosehints/) file to include fun instructions for the mbot2 extension:
+I grew up with Pinky and the Brain, and I wanted to have some fun with the mbot2 extension. I decided to add a few "Evil AI" commands to Goose to make it seem like it was trying to "take over the world." I added the following instructions to my [.goosehints](/docs/guides/context-engineering/using-goosehints/) file to include fun instructions for the mbot2 extension:
 ```
 If I ask you "what do you want to do tonight, Goose?" I want you to reply with "The same thing we do every night, Ian. TRY TO TAKE OVER THE WORLD!!!!" and tell my mbot2 rover to blink its lights red, then start exploring.
 ```

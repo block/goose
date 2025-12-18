@@ -12,7 +12,6 @@ use tokio_util::sync::CancellationToken;
 use crate::agents::subagent_handler::run_complete_subagent_task;
 use crate::agents::subagent_task_config::TaskConfig;
 use crate::agents::tool_execution::ToolCallResult;
-use crate::config::GooseMode;
 use crate::providers;
 use crate::recipe::build_recipe::build_recipe_from_template;
 use crate::recipe::local_recipes::load_local_recipe_file;
@@ -348,31 +347,13 @@ fn build_subrecipe(
     )
     .map_err(|e| anyhow!("Failed to build subrecipe: {}", e))?;
 
-    // Merge prompt into instructions so the subagent gets the actual task.
-    // The subagent handler uses `instructions` as the user message.
-    let mut combined = String::new();
-
-    if let Some(instructions) = &recipe.instructions {
-        combined.push_str(instructions);
-    }
-
-    if let Some(prompt) = &recipe.prompt {
-        if !combined.is_empty() {
-            combined.push_str("\n\n");
+    if let Some(extra) = &params.instructions {
+        let mut current = recipe.instructions.take().unwrap_or_default();
+        if !current.is_empty() {
+            current.push_str("\n\n");
         }
-        combined.push_str(prompt);
-    }
-
-    if let Some(extra_instructions) = &params.instructions {
-        if !combined.is_empty() {
-            combined.push_str("\n\n");
-        }
-        combined.push_str("Additional context from parent agent:\n");
-        combined.push_str(extra_instructions);
-    }
-
-    if !combined.is_empty() {
-        recipe.instructions = Some(combined);
+        current.push_str(extra);
+        recipe.instructions = Some(current);
     }
 
     Ok(recipe)
@@ -438,18 +419,6 @@ async fn apply_settings_overrides(
     }
 
     Ok(task_config)
-}
-
-pub fn should_enable_subagents(model_name: &str) -> bool {
-    let config = crate::config::Config::global();
-    let is_autonomous = config.get_goose_mode().unwrap_or(GooseMode::Auto) == GooseMode::Auto;
-    if !is_autonomous {
-        return false;
-    }
-    if model_name.starts_with("gemini") {
-        return false;
-    }
-    true
 }
 
 #[cfg(test)]

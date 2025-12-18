@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.16.0"
+    "version": "1.17.0"
   },
   "paths": {
     "/action-required/tool-confirmation": {
@@ -847,6 +847,36 @@
           },
           "400": {
             "description": "Invalid request"
+          }
+        }
+      }
+    },
+    "/config/pricing": {
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "get_pricing",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PricingQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Model pricing data retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PricingResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -2374,6 +2404,29 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/telemetry/event": {
+      "post": {
+        "tags": [
+          "super::routes::telemetry"
+        ],
+        "operationId": "send_telemetry_event",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TelemetryEventRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Event accepted for processing"
           }
         }
       }
@@ -4193,6 +4246,74 @@
           "never_allow"
         ]
       },
+      "PricingData": {
+        "type": "object",
+        "required": [
+          "provider",
+          "model",
+          "input_token_cost",
+          "output_token_cost",
+          "currency"
+        ],
+        "properties": {
+          "context_length": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true,
+            "minimum": 0
+          },
+          "currency": {
+            "type": "string"
+          },
+          "input_token_cost": {
+            "type": "number",
+            "format": "double"
+          },
+          "model": {
+            "type": "string"
+          },
+          "output_token_cost": {
+            "type": "number",
+            "format": "double"
+          },
+          "provider": {
+            "type": "string"
+          }
+        }
+      },
+      "PricingQuery": {
+        "type": "object",
+        "required": [
+          "provider",
+          "model"
+        ],
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          }
+        }
+      },
+      "PricingResponse": {
+        "type": "object",
+        "required": [
+          "pricing",
+          "source"
+        ],
+        "properties": {
+          "pricing": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PricingData"
+            }
+          },
+          "source": {
+            "type": "string"
+          }
+        }
+      },
       "PrincipalType": {
         "type": "string",
         "enum": [
@@ -5294,6 +5415,21 @@
           "inlineMessage"
         ]
       },
+      "TelemetryEventRequest": {
+        "type": "object",
+        "required": [
+          "event_name"
+        ],
+        "properties": {
+          "event_name": {
+            "type": "string"
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        }
+      },
       "TextContent": {
         "type": "object",
         "required": [
@@ -5516,9 +5652,8 @@
           "id": {
             "type": "string"
           },
-          "thoughtSignature": {
-            "type": "string",
-            "nullable": true
+          "metadata": {
+            "type": "object"
           },
           "toolCall": {
             "type": "object"
@@ -5534,6 +5669,9 @@
         "properties": {
           "id": {
             "type": "string"
+          },
+          "metadata": {
+            "type": "object"
           },
           "toolResult": {
             "type": "object"

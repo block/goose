@@ -351,6 +351,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::config_management::remove_custom_provider,
         super::routes::config_management::check_provider,
         super::routes::config_management::set_config_provider,
+        super::routes::config_management::get_pricing,
         super::routes::agent::start_agent,
         super::routes::agent::resume_agent,
         super::routes::agent::get_tools,
@@ -397,6 +398,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::tunnel::start_tunnel,
         super::routes::tunnel::stop_tunnel,
         super::routes::tunnel::get_tunnel_status,
+        super::routes::telemetry::send_telemetry_event,
     ),
     components(schemas(
         super::routes::config_management::UpsertConfigQuery,
@@ -416,6 +418,9 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::config_management::UpdateCustomProviderRequest,
         super::routes::config_management::CheckProviderRequest,
         super::routes::config_management::SetProviderRequest,
+        super::routes::config_management::PricingQuery,
+        super::routes::config_management::PricingResponse,
+        super::routes::config_management::PricingData,
         super::routes::action_required::ConfirmToolActionRequest,
         super::routes::reply::ChatRequest,
         super::routes::session::ImportSessionRequest,
@@ -529,6 +534,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::setup::SetupResponse,
         super::tunnel::TunnelInfo,
         super::tunnel::TunnelState,
+        super::routes::telemetry::TelemetryEventRequest,
     ))
 )]
 pub struct ApiDoc;
