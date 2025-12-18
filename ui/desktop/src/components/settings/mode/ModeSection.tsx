@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { all_goose_modes, ModeSelectionItem } from './ModeSelectionItem';
 import { useConfig } from '../../ConfigContext';
 import { ConversationLimitsDropdown } from './ConversationLimitsDropdown';
+import { toast } from 'react-toastify';
 
 export const ModeSection = () => {
   const [currentMode, setCurrentMode] = useState('auto');
@@ -9,9 +10,24 @@ export const ModeSection = () => {
   const { read, upsert } = useConfig();
 
   const handleModeChange = async (newMode: string) => {
+    if (currentMode === newMode) {
+      return;
+    }
+
     try {
       await upsert('GOOSE_MODE', newMode, false);
       setCurrentMode(newMode);
+
+      toast.info(
+        'Mode changed. Any active sessions should be restarted for the change to take effect.',
+        {
+          position: 'top-right',
+          autoClose: 5000,
+          hideProgressBar: true,
+          closeOnClick: true,
+          pauseOnHover: true,
+        }
+      );
     } catch (error) {
       console.error('Error updating goose mode:', error);
       throw new Error(`Failed to store new goose mode: ${newMode}`);

@@ -9,8 +9,13 @@ import {
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
 import { trackModeChanged } from '../../utils/analytics';
+import { toast } from 'react-toastify';
 
-export const BottomMenuModeSelection = () => {
+interface BottomMenuModeSelectionProps {
+  hasActiveSession?: boolean;
+}
+
+export const BottomMenuModeSelection = ({ hasActiveSession }: BottomMenuModeSelectionProps) => {
   const [gooseMode, setGooseMode] = useState('auto');
   const { read, upsert } = useConfig();
 
@@ -38,6 +43,16 @@ export const BottomMenuModeSelection = () => {
       await upsert('GOOSE_MODE', newMode, false);
       setGooseMode(newMode);
       trackModeChanged(gooseMode, newMode);
+
+      if (hasActiveSession) {
+        toast.info('Mode changed. Restart this session for the change to take effect.', {
+          position: 'top-right',
+          autoClose: 5000,
+          hideProgressBar: true,
+          closeOnClick: true,
+          pauseOnHover: true,
+        });
+      }
     } catch (error) {
       console.error('Error updating goose mode:', error);
       throw new Error(`Failed to store new goose mode: ${newMode}`);

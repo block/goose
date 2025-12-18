@@ -1547,7 +1547,7 @@ export default function ChatInput({
             </div>
           </Tooltip>
           <div className="w-px h-4 bg-border-default mx-2" />
-          <BottomMenuModeSelection />
+          <BottomMenuModeSelection hasActiveSession={messages.length > 0} />
           {sessionId && process.env.ALPHA && (
             <>
               <div className="w-px h-4 bg-border-default mx-2" />
