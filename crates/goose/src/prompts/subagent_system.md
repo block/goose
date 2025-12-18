@@ -13,8 +13,10 @@ The maximum number of turns to respond is {{max_turns}}.
 **Subagent ID**: {{subagent_id}}
 {% endif %}
 
+{% if task_instructions %}
 # Task Instructions
 {{task_instructions}}
+{% endif %}
 
 # Tool Usage Guidelines
 **CRITICAL**: Be efficient with tool usage. Use tools only when absolutely necessary to complete your task. Here are the available tools you have access to:

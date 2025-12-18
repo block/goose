@@ -270,9 +270,8 @@ impl Agent {
     pub(crate) async fn categorize_tool_requests(
         &self,
         response: &Message,
+        tools: &[Tool],
     ) -> (Vec<ToolRequest>, Vec<ToolRequest>, Message) {
-        let tools = self.list_tools(None).await;
-
         // First collect all tool requests with coercion applied
         let tool_requests: Vec<ToolRequest> = response
             .content

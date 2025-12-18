@@ -5,6 +5,10 @@ import { useConfig } from '../../ConfigContext';
 import { TELEMETRY_UI_ENABLED } from '../../../updates';
 import TelemetryOptOutModal from '../../TelemetryOptOutModal';
 import { toastService } from '../../../toasts';
+import {
+  setTelemetryEnabled as setAnalyticsTelemetryEnabled,
+  trackTelemetryPreference,
+} from '../../../utils/analytics';
 
 const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
 
@@ -42,6 +46,8 @@ export default function TelemetrySettings({ isWelcome = false }: TelemetrySettin
     try {
       await upsert(TELEMETRY_CONFIG_KEY, checked, false);
       setTelemetryEnabled(checked);
+      setAnalyticsTelemetryEnabled(checked);
+      trackTelemetryPreference(checked, isWelcome ? 'onboarding' : 'settings');
     } catch (error) {
       console.error('Failed to update telemetry status:', error);
       toastService.error({
