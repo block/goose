@@ -748,12 +748,9 @@ impl ChatComponent {
                     let buf = f.buffer_mut();
                     for x in inner_area.x..inner_area.x + inner_area.width {
                         if let Some(cell) = buf.cell_mut((x, y)) {
-                            let sym = cell.symbol();
-                            if !sym.chars().all(|c| c.is_whitespace()) {
-                                let mut style = cell.style();
-                                style.bg = Some(theme.base.selection);
-                                cell.set_style(style);
-                            }
+                            let mut style = cell.style();
+                            style.bg = Some(theme.base.selection);
+                            cell.set_style(style);
                         }
                     }
                 }
