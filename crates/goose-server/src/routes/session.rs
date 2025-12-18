@@ -44,7 +44,6 @@ pub struct UpdateSessionUserRecipeValuesRequest {
 #[derive(Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateSessionWorkingDirRequest {
-    /// New working directory path
     working_dir: String,
 }
 

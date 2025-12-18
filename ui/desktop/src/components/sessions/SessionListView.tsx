@@ -35,10 +35,8 @@ import {
   ExtensionData,
 } from '../../api';
 
-// Helper to extract extension names from session's extension_data
 function getSessionExtensionNames(extensionData: ExtensionData): string[] {
   try {
-    // extension_data structure: { "enabled_extensions.v0": { "extensions": [...] } }
     const v0Data = extensionData?.['enabled_extensions.v0'] as
       | { extensions?: ExtensionConfig[] }
       | undefined;
@@ -71,7 +69,6 @@ const EditSessionModal = React.memo<EditSessionModalProps>(
       if (session && isOpen) {
         setDescription(session.name);
       } else if (!isOpen) {
-        // Reset state when modal closes
         setDescription('');
         setIsUpdating(false);
       }
@@ -94,8 +91,6 @@ const EditSessionModal = React.memo<EditSessionModalProps>(
           throwOnError: true,
         });
         await onSave(session.id, trimmedDescription);
-
-        // Close modal, then show success toast on a timeout to let the UI update complete.
         onClose();
         setTimeout(() => {
           toast.success('Session description updated successfully');

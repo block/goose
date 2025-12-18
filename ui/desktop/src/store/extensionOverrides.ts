@@ -13,7 +13,6 @@ const state: {
   extensionOverrides: new Map(),
 };
 
-// Extension override functions
 export function setExtensionOverride(name: string, enabled: boolean): void {
   state.extensionOverrides.set(name, enabled);
 }
@@ -34,12 +33,10 @@ export function clearExtensionOverrides(): void {
   state.extensionOverrides.clear();
 }
 
-// Get extension configs with overrides applied
 export function getExtensionConfigsWithOverrides(
   allExtensions: Array<{ name: string; enabled: boolean } & Omit<ExtensionConfig, 'name'>>
 ): ExtensionConfig[] {
   if (state.extensionOverrides.size === 0) {
-    // No overrides, return global enabled extensions
     return allExtensions
       .filter((ext) => ext.enabled)
       .map((ext) => {
@@ -48,14 +45,11 @@ export function getExtensionConfigsWithOverrides(
       });
   }
 
-  // Apply overrides
   return allExtensions
     .filter((ext) => {
-      // Check if we have an override for this extension
       if (state.extensionOverrides.has(ext.name)) {
         return state.extensionOverrides.get(ext.name);
       }
-      // Otherwise use the global enabled state
       return ext.enabled;
     })
     .map((ext) => {
