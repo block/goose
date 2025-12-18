@@ -171,7 +171,6 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
                                 }
                             });
 
-                            // Include all metadata fields in the tool call (e.g., thoughtSignature, extra_content)
                             if let Some(metadata) = &request.metadata {
                                 for (key, value) in metadata {
                                     tool_call_json[key] = value.clone();
@@ -1397,7 +1396,6 @@ mod tests {
 
     #[test]
     fn test_format_messages_with_thought_signature_metadata() -> anyhow::Result<()> {
-        // Test that thoughtSignature in metadata is included in formatted tool calls
         let mut metadata = serde_json::Map::new();
         metadata.insert(
             "thoughtSignature".to_string(),
@@ -1406,11 +1404,14 @@ mod tests {
 
         let message = Message::assistant().with_tool_request_with_metadata(
             "tool1",
-            Ok(CallToolRequestParam {
+            Ok(CallToolRequestParams {
+                meta: None,
+                task: None,
                 name: "test_tool".into(),
                 arguments: Some(object!({"param": "value"})),
             }),
             Some(&metadata),
+            None,
         );
 
         let spec = format_messages(&[message], &ImageFormat::OpenAi);
@@ -1421,7 +1422,6 @@ mod tests {
         let tool_call = &spec_array[0]["tool_calls"][0];
         assert_eq!(tool_call["id"], "tool1");
         assert_eq!(tool_call["function"]["name"], "test_tool");
-        // Verify thoughtSignature is included at top level of tool_call
         assert_eq!(tool_call["thoughtSignature"], "sig_abc123_test_signature");
 
         Ok(())
@@ -1525,12 +1525,8 @@ mod tests {
 
     #[test]
     fn test_format_messages_with_multiple_metadata_fields() -> anyhow::Result<()> {
-        // Test that multiple metadata fields are all preserved
         let mut metadata = serde_json::Map::new();
-        metadata.insert(
-            "thoughtSignature".to_string(),
-            json!("sig_top_level"),
-        );
+        metadata.insert("thoughtSignature".to_string(), json!("sig_top_level"));
         metadata.insert(
             "extra_content".to_string(),
             json!({
@@ -1539,18 +1535,18 @@ mod tests {
                 }
             }),
         );
-        metadata.insert(
-            "custom_field".to_string(),
-            json!("custom_value"),
-        );
+        metadata.insert("custom_field".to_string(), json!("custom_value"));
 
         let message = Message::assistant().with_tool_request_with_metadata(
             "tool1",
-            Ok(CallToolRequestParam {
+            Ok(CallToolRequestParams {
+                meta: None,
+                task: None,
                 name: "test_tool".into(),
                 arguments: None,
             }),
             Some(&metadata),
+            None,
         );
 
         let spec = format_messages(&[message], &ImageFormat::OpenAi);
@@ -1558,7 +1554,6 @@ mod tests {
         let spec_array = as_value.as_array().unwrap();
 
         let tool_call = &spec_array[0]["tool_calls"][0];
-        // All metadata fields should be present
         assert_eq!(tool_call["thoughtSignature"], "sig_top_level");
         assert_eq!(
             tool_call["extra_content"]["google"]["thought_signature"],

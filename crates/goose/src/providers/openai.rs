@@ -322,8 +322,14 @@ impl Provider for OpenAiProvider {
             log.write(&json_response, Some(&usage))?;
             Ok((message, ProviderUsage::new(model, usage)))
         } else {
-            let payload =
-                create_request(model_config, system, messages, tools, &ImageFormat::OpenAi, false)?;
+            let payload = create_request(
+                model_config,
+                system,
+                messages,
+                tools,
+                &ImageFormat::OpenAi,
+                false,
+            )?;
 
             let mut log = RequestLog::start(&self.model, &payload)?;
             let json_response = self
@@ -438,8 +444,14 @@ impl Provider for OpenAiProvider {
                 }
             }))
         } else {
-            let payload =
-                create_request(&self.model, system, messages, tools, &ImageFormat::OpenAi, true)?;
+            let payload = create_request(
+                &self.model,
+                system,
+                messages,
+                tools,
+                &ImageFormat::OpenAi,
+                true,
+            )?;
             let mut log = RequestLog::start(&self.model, &payload)?;
 
             let response = self
