@@ -9,7 +9,7 @@ authors:
 
 # 2 new ways to use goose
 
-We're excited to announce two new ways to interact with goose: a native iOS app for mobile access and native terminal integration. Both give you more flexibility in how and where you use your AI agent.
+We're excited to announce two new ways to interact with goose: a <a href="https://apps.apple.com/au/app/goose-ai/id6752889295">native iOS app</a> for mobile access and native terminal integration. Both give you more flexibility in how and where you use your AI agent.
 
 <!-- truncate -->
 
