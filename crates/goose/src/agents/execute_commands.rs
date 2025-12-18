@@ -41,7 +41,7 @@ pub fn list_commands() -> &'static [CommandDef] {
 }
 
 impl Agent {
-    pub async fn execute_command(&self, message_text: &str, session_id: &str) -> Option<Message> {
+    pub async fn execute_command(&self, message_text: &str, session_id: &str) -> Result<Option<Message>> {
         let mut trimmed = message_text.trim().to_string();
 
         if COMPACT_TRIGGERS.contains(&trimmed.as_str()) {
@@ -49,7 +49,7 @@ impl Agent {
         }
 
         if !trimmed.starts_with('/') {
-            return None;
+            return Ok(None);
         }
 
         let command_str = trimmed.strip_prefix('/').unwrap_or(&trimmed);
@@ -64,7 +64,7 @@ impl Agent {
             params_str.split_whitespace().collect()
         };
 
-        let result = match command {
+        match command {
             "prompts" => self.handle_prompts_command(&params, session_id).await,
             "prompt" => self.handle_prompt_command(&params, session_id).await,
             "compact" => self.handle_compact_command(session_id).await,
@@ -72,13 +72,6 @@ impl Agent {
             _ => {
                 self.handle_recipe_command(command, params_str, session_id)
                     .await
-            }
-        };
-
-        match result {
-            Ok(msg) => msg,
-            Err(e) => {
-                Some(Message::assistant().with_text(format!("Error executing /{}: {}", command, e)))
             }
         }
     }
@@ -316,14 +309,26 @@ impl Agent {
                     })
                     .unwrap_or_default();
 
-                return Ok(Some(Message::user().with_text(format!(
-                    "This recipe requires {} parameters ({}). Custom slash commands only support single-parameter recipes with spaces. Please explain to the user that they should use the CLI instead:\n\n'goose run --recipe {} --params {}=\"...\" --params {}=\"...\"'\n\nOr they can launch the recipe from the recipes sidebar in Goose Desktop, which will prompt for each parameter.",
-                    params_without_default,
-                    param_names.join(", "),
+                let error_message = format!(
+                    "The /{} recipe requires {} parameters: {}.\n\n\
+                    Slash command recipes only support 1 parameter.\n\n\
+                    **To use this recipe:**\n\
+                    • **CLI:** `goose run --recipe {} {}`\n\
+                    • **Desktop:** Launch from the recipes sidebar to fill in parameters",
                     command,
-                    param_names.get(0).unwrap_or(&"param1".to_string()),
-                    param_names.get(1).unwrap_or(&"param2".to_string())
-                ))));
+                    params_without_default,
+                    param_names.iter()
+                        .map(|name| format!("**{}**", name))
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                    command,
+                    param_names.iter()
+                        .map(|name| format!("--params {}=\"...\"", name))
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                );
+
+                return Err(anyhow!(error_message));
             }
         };
 
