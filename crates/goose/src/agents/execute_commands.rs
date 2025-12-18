@@ -301,9 +301,7 @@ impl Agent {
                 .map(|params| params.iter().filter(|p| p.default.is_none()).count())
                 .unwrap_or(0);
 
-            if params_without_default == 1 {
-                vec![params_str.to_string()]
-            } else if params_without_default == 0 {
+            if params_without_default <= 1 {
                 vec![params_str.to_string()]
             } else {
                 let param_names: Vec<String> = validation_result
@@ -318,10 +316,13 @@ impl Agent {
                     })
                     .unwrap_or_default();
 
-                return Ok(Some(Message::assistant().with_text(format!(
-                    "Recipe has {} required parameters ({}), but slash commands only support single-parameter recipes with spaces. Please use 'goose run --recipe' with --params instead or launch from the recipes sidebar.",
+                return Ok(Some(Message::user().with_text(format!(
+                    "This recipe requires {} parameters ({}). Custom slash commands only support single-parameter recipes with spaces. Please explain to the user that they should use the CLI instead:\n\n'goose run --recipe {} --params {}=\"...\" --params {}=\"...\"'\n\nOr they can launch the recipe from the recipes sidebar in Goose Desktop, which will prompt for each parameter.",
                     params_without_default,
-                    param_names.join(", ")
+                    param_names.join(", "),
+                    command,
+                    param_names.get(0).unwrap_or(&"param1".to_string()),
+                    param_names.get(1).unwrap_or(&"param2".to_string())
                 ))));
             }
         };
