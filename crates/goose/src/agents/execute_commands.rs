@@ -319,7 +319,7 @@ impl Agent {
                     .unwrap_or_default();
 
                 return Ok(Some(Message::assistant().with_text(format!(
-                    "Recipe has {} required parameters ({}), but slash commands only support single-parameter recipes with spaces. Please use 'goose run --recipe' with --params instead.",
+                    "Recipe has {} required parameters ({}), but slash commands only support single-parameter recipes with spaces. Please use 'goose run --recipe' with --params instead or launch from the recipes sidebar.",
                     params_without_default,
                     param_names.join(", ")
                 ))));
