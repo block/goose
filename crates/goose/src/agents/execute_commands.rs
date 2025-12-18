@@ -332,10 +332,12 @@ impl Agent {
             }
         };
 
+        let param_values_len = param_values.len();
+        
         let recipe = match build_recipe_from_template_with_positional_params(
             recipe_content,
             recipe_dir,
-            param_values.clone(),
+            param_values,
             None::<fn(&str, &str) -> Result<String>>,
         ) {
             Ok(recipe) => recipe,
@@ -344,7 +346,7 @@ impl Agent {
                     "Recipe requires {} parameter(s): {}. Provided: {}",
                     parameters.len(),
                     parameters.join(", "),
-                    param_values.len()
+                    param_values_len
                 ))));
             }
             Err(e) => return Err(anyhow!("Failed to build recipe: {}", e)),
