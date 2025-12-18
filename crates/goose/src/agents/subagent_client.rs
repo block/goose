@@ -6,6 +6,7 @@ use crate::agents::subagent_tool::{
 };
 use crate::agents::tool_execution::DeferredToolCall;
 use crate::config::get_enabled_extensions;
+use crate::session::{SessionManager, SessionType};
 use anyhow::Result;
 use async_trait::async_trait;
 use rmcp::model::{
@@ -52,7 +53,7 @@ impl SubagentClient {
     }
 
     async fn get_extensions(&self) -> Vec<crate::agents::ExtensionConfig> {
-        if let Some(em) = self
+        let extensions = if let Some(em) = self
             .context
             .extension_manager
             .as_ref()
@@ -61,7 +62,11 @@ impl SubagentClient {
             em.get_extension_configs().await
         } else {
             get_enabled_extensions()
-        }
+        };
+        extensions
+            .into_iter()
+            .filter(|ext| ext.name() != EXTENSION_NAME)
+            .collect()
     }
 
     async fn get_sub_recipes(&self) -> std::collections::HashMap<String, crate::recipe::SubRecipe> {
@@ -136,15 +141,24 @@ impl McpClientTrait for SubagentClient {
             ]))));
         }
 
+        if let Some(ref session_id) = self.context.session_id {
+            if let Ok(session) = SessionManager::get_session(session_id, false).await {
+                if session.session_type == SessionType::SubAgent {
+                    return Ok(DeferredToolCall::from(Ok(CallToolResult::error(vec![
+                        Content::text("Subagents cannot spawn subagents."),
+                    ]))));
+                }
+            }
+        }
+
         let Some(provider) = self.get_provider().await else {
             return Ok(DeferredToolCall::from(Ok(CallToolResult::error(vec![
                 Content::text("No provider configured"),
             ]))));
         };
 
-        // Get working_dir from parent session, fall back to current dir
         let working_dir = match &self.context.session_id {
-            Some(session_id) => crate::session::SessionManager::get_session(session_id, false)
+            Some(session_id) => SessionManager::get_session(session_id, false)
                 .await
                 .map(|s| s.working_dir)
                 .unwrap_or_else(|_| std::env::current_dir().unwrap_or_else(|_| ".".into())),
