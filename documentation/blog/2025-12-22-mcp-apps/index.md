@@ -46,6 +46,6 @@ MCP-UI isn't going away overnight. We'll keep supporting it while the community 
 
 - **Get started:** Update goose and point it at an MCP server that returns App resources
 - **Read the spec:** [github.com/modelcontextprotocol/ext-apps](https://github.com/modelcontextprotocol/ext-apps)
-- **Join the conversation:** [goose discussion](https://github.com/block/goose/discussions/6069) · [MCP-UI Discord](https://discord.gg/CEAG4KW7ZH)
+- **Join the conversation:** [GitHub discussion](https://github.com/block/goose/discussions/6069) · [MCP-UI Discord](https://discord.gg/CEAG4KW7ZH)
 
 If you build or port an app, we want to hear from you. File issues, share demos, tell us what's broken. Early feedback shapes what comes next.
