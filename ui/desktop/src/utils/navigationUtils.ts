@@ -1,5 +1,5 @@
 import { NavigateFunction } from 'react-router-dom';
-import { ExtensionConfig, Recipe } from '../api/types.gen';
+import { Recipe } from '../api/types.gen';
 
 export type View =
   | 'welcome'
@@ -19,9 +19,7 @@ export type View =
   | 'recipes'
   | 'permission';
 
-// TODO(Douwe): check these for usage, especially key: string for resetChat
 export type ViewOptions = {
-  extensionId?: string;
   showEnvVars?: boolean;
   deepLinkConfig?: unknown;
   sessionDetails?: unknown;
@@ -32,13 +30,9 @@ export type ViewOptions = {
   parentViewOptions?: ViewOptions;
   disableAnimation?: boolean;
   initialMessage?: string;
-  resetChat?: boolean;
   shareToken?: string;
   resumeSessionId?: string;
   pendingScheduleDeepLink?: string;
-  extensionConfigs?: ExtensionConfig[];
-  workingDir?: string;
-  navigationId?: string; // Unique ID for each navigation to prevent duplicate session creation
 };
 
 export const createNavigationHandler = (navigate: NavigateFunction) => {
