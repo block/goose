@@ -34,7 +34,7 @@ export function formatExtensionErrorMessage(
 
 /**
  * Shows toast notifications for extension load results.
- * Uses grouped toast for multiple failures, individual toast for single failure.
+ * Uses grouped toast for multiple extensions, individual error toast for single failed extension.
  * @param results - Array of extension load results from the backend
  */
 export function showExtensionLoadResults(results: ExtensionLoadResult[] | null | undefined): void {
@@ -44,11 +44,7 @@ export function showExtensionLoadResults(results: ExtensionLoadResult[] | null |
 
   const failedExtensions = results.filter((r) => !r.success);
 
-  if (failedExtensions.length === 0) {
-    return;
-  }
-
-  if (failedExtensions.length === 1) {
+  if (results.length === 1 && failedExtensions.length === 1) {
     const failed = failedExtensions[0];
     const errorMsg = failed.error || 'Unknown error';
     const recoverHints = createExtensionRecoverHints(errorMsg);
