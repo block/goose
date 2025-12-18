@@ -2,6 +2,8 @@
 
 goose is an AI agent framework in Rust with CLI and Electron desktop interfaces.
 
+ARCHITECTURE.md is the conceptual map—how the pieces fit together. Read it first, update it when adding or changing abstractions.
+
 ## Setup
 ```bash
 source bin/activate-hermit
