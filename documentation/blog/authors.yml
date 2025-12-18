@@ -170,3 +170,13 @@ alexhancock:
   socials:
     linkedin: alexjhancock
     github: alexhancock
+
+aharvard:
+  name: Andrew Harvard
+  title: Design Engineer
+  image_url: https://avatars.githubusercontent.com/u/10472610?v=4
+  page: true
+  socials:
+    github: aharvard
+    x: aharvard
+    linkedin: aharvard

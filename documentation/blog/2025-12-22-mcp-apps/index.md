@@ -1,0 +1,51 @@
+---
+title: "goose Lands MCP Apps"
+description: "Goose ships early support for the draft MCP Apps specification, aligning with the emerging standard for interactive UIs in MCP."
+authors:
+  - aharvard
+---
+
+![MCP Apps in Goose](header-image.png)
+
+The MCP ecosystem is standardizing how servers deliver interactive UIs to hosts, and Goose is an early adopter. Today we're shipping support for the draft MCP Apps specification ([SEP-1865](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/draft/apps.mdx)), bringing Goose in line with the emerging standard as other hosts like Claude and ChatGPT move toward adoption.
+
+<!-- truncate -->
+
+## What's shipping
+
+This release brings a minimal-but-functional implementation of MCP Apps:
+
+- Discovery of MCP App resources connected to tools
+- HTML content rendering in sandboxed iframes
+- Basic message relay between the UI and the MCP server
+
+Extension authors can now build MCP Apps that work across Goose and any host that adopts the standard.
+
+## What is MCP Apps?
+
+MCP Apps lets MCP servers present interactive HTML UIs (forms, dashboards, visualizations) directly inside a host like Goose, Claude, or ChatGPT. Build once, run everywhere.
+
+It's a draft specification ([SEP-1865](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/1865)) that builds on [MCP-UI](https://mcpui.dev) and the [OpenAI Apps SDK](https://developers.openai.com/apps-sdk/), led by [Ido Salomon](https://x.com/idosal1) and [Liad Yosef](https://x.com/liadyosef) with contributions from Anthropic and OpenAI.
+
+Goose has been part of this from early on. We've [shipped MCP-UI support](/blog/2025/08/11/mcp-ui-post-browser-world), participated in spec conversations, and are now implementing MCP Apps so extension authors have a real host to build against while the standard matures.
+
+## This is experimental
+
+MCP Apps is still a draft. Our implementation is intentionally minimal and subject to change. Expect sharp edges and breaking changes. We're shipping now so authors can try it, give feedback, and help the community converge on the right primitives.
+
+**What's not included yet:**
+- Full parity with every feature in the draft spec
+- Advanced capabilities (camera, sensors)
+- Persistent app windows outside of conversations
+
+## The MCP-UI transition
+
+MCP-UI isn't going away overnight. We'll keep supporting it while the community finalizes MCP Apps, and there's an [adapter path](https://mcpui.dev/guide/mcp-apps) to ease migration. We'll share a deprecation timeline once the MCP Apps extension is formally accepted.
+
+## Try it
+
+- **Get started:** Update Goose and point it at an MCP server that returns App resources
+- **Read the spec:** [github.com/modelcontextprotocol/ext-apps](https://github.com/modelcontextprotocol/ext-apps)
+- **Join the conversation:** [Goose discussion](https://github.com/block/goose/discussions/6069) · [MCP-UI Discord](https://discord.gg/CEAG4KW7ZH)
+
+If you build or port an app, we want to hear from you. File issues, share demos, tell us what's broken. Early feedback shapes what comes next.
