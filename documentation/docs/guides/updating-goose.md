@@ -71,10 +71,9 @@ The goose CLI and desktop apps are under active and continuous development. To g
         1. <LinuxDesktopInstallButtons/>
 
         #### For Debian/Ubuntu-based distributions
-        2. Download the DEB file
-        3. Navigate to the directory where it is saved in a terminal
-        4. Run `sudo dpkg -i (filename).deb`
-        5. Launch goose from the app menu
+        2. In a terminal, navigate to the downloaded DEB file
+        3. Run `sudo dpkg -i (filename).deb`
+        4. Launch goose from the app menu
       </TabItem>
       <TabItem value="cli" label="goose CLI">
         You can update goose by running:
