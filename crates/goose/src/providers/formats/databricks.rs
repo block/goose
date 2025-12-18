@@ -1376,6 +1376,7 @@ mod tests {
                 arguments: Some(object!({"param": "value"})),
             }),
             Some(&metadata),
+            None,
         );
 
         let spec = format_messages(&[message], &ImageFormat::OpenAi);
@@ -1490,10 +1491,7 @@ mod tests {
     fn test_format_messages_with_multiple_metadata_fields() -> anyhow::Result<()> {
         // Test that multiple metadata fields are all preserved
         let mut metadata = serde_json::Map::new();
-        metadata.insert(
-            "thoughtSignature".to_string(),
-            json!("sig_top_level"),
-        );
+        metadata.insert("thoughtSignature".to_string(), json!("sig_top_level"));
         metadata.insert(
             "extra_content".to_string(),
             json!({
@@ -1502,10 +1500,7 @@ mod tests {
                 }
             }),
         );
-        metadata.insert(
-            "custom_field".to_string(),
-            json!("custom_value"),
-        );
+        metadata.insert("custom_field".to_string(), json!("custom_value"));
 
         let message = Message::assistant().with_tool_request_with_metadata(
             "tool1",
@@ -1514,6 +1509,7 @@ mod tests {
                 arguments: None,
             }),
             Some(&metadata),
+            None,
         );
 
         let spec = format_messages(&[message], &ImageFormat::OpenAi);

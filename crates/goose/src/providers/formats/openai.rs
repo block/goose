@@ -16,7 +16,19 @@ use rmcp::model::{
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::ops::Deref;
+
+/// Type alias for tool call data: (id, name, arguments, extra_fields)
+type ToolCallData = HashMap<
+    i32,
+    (
+        String,
+        String,
+        String,
+        Option<serde_json::Map<String, Value>>,
+    ),
+>;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct DeltaToolCallFunction {
@@ -510,7 +522,7 @@ where
                 yield (None, usage)
             } else if chunk.choices[0].delta.tool_calls.as_ref().is_some_and(|tc| !tc.is_empty()) {
                 // (id, name, arguments, extra_fields) - extra_fields captures all non-standard fields
-                let mut tool_call_data: std::collections::HashMap<i32, (String, String, String, Option<serde_json::Map<String, Value>>)> = std::collections::HashMap::new();
+                let mut tool_call_data: ToolCallData = HashMap::new();
 
                 if let Some(tool_calls) = &chunk.choices[0].delta.tool_calls {
                     for tool_call in tool_calls {
