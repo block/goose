@@ -103,7 +103,7 @@ const PairRouteWrapper = ({
     if (sessionId && sessionId !== resumeSessionId) {
       navigate(`/pair?resumeSessionId=${sessionId}`, {
         replace: true,
-        state: { resumeSessionId: sessionIdFromState, initialMessage }, // Preserve state
+        state: { resumeSessionId: sessionIdFromState, initialMessage },
       });
     }
   }, [sessionId, resumeSessionId, navigate, sessionIdFromState, initialMessage]);
