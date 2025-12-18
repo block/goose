@@ -13,14 +13,12 @@ use crate::mcp_utils::ToolResult;
 use crate::permission::Permission;
 use rmcp::model::{Content, ServerNotification};
 
-// ToolCallResult combines the result of a tool call with an optional notification stream that
-// can be used to receive notifications from the tool.
-pub struct ToolCallResult {
+pub struct DeferredToolCall {
     pub result: Box<dyn Future<Output = ToolResult<rmcp::model::CallToolResult>> + Send + Unpin>,
     pub notification_stream: Option<Box<dyn Stream<Item = ServerNotification> + Send + Unpin>>,
 }
 
-impl From<ToolResult<rmcp::model::CallToolResult>> for ToolCallResult {
+impl From<ToolResult<rmcp::model::CallToolResult>> for DeferredToolCall {
     fn from(result: ToolResult<rmcp::model::CallToolResult>) -> Self {
         Self {
             result: Box::new(futures::future::ready(result)),
@@ -32,7 +30,6 @@ impl From<ToolResult<rmcp::model::CallToolResult>> for ToolCallResult {
 use super::agent::{tool_stream, ToolStream};
 use crate::agents::Agent;
 use crate::conversation::message::{Message, ToolRequest};
-use crate::session::Session;
 use crate::tool_inspection::get_security_finding_id_from_results;
 
 pub const DECLINED_RESPONSE: &str = "The user has declined to run this tool. \
@@ -55,7 +52,6 @@ impl Agent {
         tool_futures: Arc<Mutex<Vec<(String, ToolStream)>>>,
         request_to_response_map: &'a HashMap<String, Arc<Mutex<Message>>>,
         cancellation_token: Option<CancellationToken>,
-        session: &'a Session,
         inspection_results: &'a [crate::tool_inspection::InspectionResult],
     ) -> BoxStream<'a, anyhow::Result<Message>> {
         try_stream! {
@@ -96,7 +92,7 @@ impl Agent {
                         }
 
                         if confirmation.permission == Permission::AllowOnce || confirmation.permission == Permission::AlwaysAllow {
-                            let (req_id, tool_result) = self.dispatch_tool_call(tool_call.clone(), request.id.clone(), cancellation_token.clone(), session).await;
+                            let (req_id, tool_result) = self.dispatch_tool_call(tool_call.clone(), request.id.clone(), cancellation_token.clone()).await;
                             let mut futures = tool_futures.lock().await;
 
                             futures.push((req_id, match tool_result {

@@ -387,6 +387,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             session_id: Some(session_id.clone()),
             extension_manager: Some(Arc::downgrade(&agent.extension_manager)),
             tool_route_manager: Some(Arc::downgrade(&agent.tool_route_manager)),
+            sub_recipes: Some(agent.sub_recipes()),
         })
         .await;
 
@@ -495,6 +496,8 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             eprintln!("Note: Could not start debugging session: {}", debug_err);
         }
     }
+
+    agent_ptr.ensure_subagent_for_recipes().await;
 
     // Determine editor mode
     let edit_mode = config

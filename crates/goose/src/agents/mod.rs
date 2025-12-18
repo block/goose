@@ -18,6 +18,7 @@ mod router_tool_selector;
 mod router_tools;
 mod schedule_tool;
 pub(crate) mod skills_extension;
+pub(crate) mod subagent_client;
 pub mod subagent_execution_tool;
 pub mod subagent_handler;
 mod subagent_task_config;

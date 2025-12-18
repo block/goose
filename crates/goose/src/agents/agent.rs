@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use super::final_output_tool::FinalOutputTool;
 use super::platform_tools;
-use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
+use super::tool_execution::{DeferredToolCall, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::action_required_manager::ActionRequiredManager;
 use crate::agents::extension::{ExtensionConfig, ExtensionError, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
@@ -20,10 +20,7 @@ use crate::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::retry::{RetryManager, RetryResult};
 use crate::agents::router_tools::ROUTER_LLM_SEARCH_TOOL_NAME;
-use crate::agents::subagent_task_config::TaskConfig;
-use crate::agents::subagent_tool::{
-    create_subagent_tool, handle_subagent_tool, SUBAGENT_TOOL_NAME,
-};
+use crate::agents::subagent_client;
 use crate::agents::tool_route_manager::ToolRouteManager;
 use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::types::SessionConfig;
@@ -85,7 +82,7 @@ pub struct Agent {
     pub(super) provider: SharedProvider,
 
     pub extension_manager: Arc<ExtensionManager>,
-    pub(super) sub_recipes: Mutex<HashMap<String, SubRecipe>>,
+    pub(super) sub_recipes: Arc<tokio::sync::RwLock<HashMap<String, SubRecipe>>>,
     pub(super) final_output_tool: Arc<Mutex<Option<FinalOutputTool>>>,
     pub(super) frontend_tools: Mutex<HashMap<String, FrontendTool>>,
     pub(super) frontend_instructions: Mutex<Option<String>>,
@@ -160,7 +157,7 @@ impl Agent {
         Self {
             provider: provider.clone(),
             extension_manager: Arc::new(ExtensionManager::new(provider.clone())),
-            sub_recipes: Mutex::new(HashMap::new()),
+            sub_recipes: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
             final_output_tool: Arc::new(Mutex::new(None)),
             frontend_tools: Mutex::new(HashMap::new()),
             frontend_instructions: Mutex::new(None),
@@ -306,7 +303,6 @@ impl Agent {
         permission_check_result: &PermissionCheckResult,
         request_to_response_map: &HashMap<String, Arc<Mutex<Message>>>,
         cancel_token: Option<tokio_util::sync::CancellationToken>,
-        session: &Session,
     ) -> Result<Vec<(String, ToolStream)>> {
         let mut tool_futures: Vec<(String, ToolStream)> = Vec::new();
 
@@ -314,12 +310,7 @@ impl Agent {
         for request in &permission_check_result.approved {
             if let Ok(tool_call) = request.tool_call.clone() {
                 let (req_id, tool_result) = self
-                    .dispatch_tool_call(
-                        tool_call,
-                        request.id.clone(),
-                        cancel_token.clone(),
-                        session,
-                    )
+                    .dispatch_tool_call(tool_call, request.id.clone(), cancel_token.clone())
                     .await;
 
                 tool_futures.push((
@@ -399,8 +390,12 @@ impl Agent {
         self.extend_system_prompt(final_output_system_prompt).await;
     }
 
+    pub fn sub_recipes(&self) -> Arc<tokio::sync::RwLock<HashMap<String, SubRecipe>>> {
+        self.sub_recipes.clone()
+    }
+
     pub async fn add_sub_recipes(&self, sub_recipes_to_add: Vec<SubRecipe>) {
-        let mut sub_recipes = self.sub_recipes.lock().await;
+        let mut sub_recipes = self.sub_recipes.write().await;
         for sr in sub_recipes_to_add {
             sub_recipes.insert(sr.name.clone(), sr);
         }
@@ -412,13 +407,22 @@ impl Agent {
         response: Option<Response>,
         include_final_output: bool,
     ) {
-        if let Some(sub_recipes) = sub_recipes {
-            self.add_sub_recipes(sub_recipes).await;
+        if let Some(ref sub_recipes) = sub_recipes {
+            self.add_sub_recipes(sub_recipes.clone()).await;
         }
 
         if include_final_output {
             if let Some(response) = response {
                 self.add_final_output_tool(response).await;
+            }
+        }
+    }
+
+    pub async fn ensure_subagent_for_recipes(&self) {
+        let has_sub_recipes = !self.sub_recipes.read().await.is_empty();
+        if has_sub_recipes {
+            if let Err(e) = self.enable_subagent_extension().await {
+                warn!("Failed to enable subagent extension for recipe: {}", e);
             }
         }
     }
@@ -430,20 +434,7 @@ impl Agent {
         tool_call: CallToolRequestParam,
         request_id: String,
         cancellation_token: Option<CancellationToken>,
-        session: &Session,
-    ) -> (String, Result<ToolCallResult, ErrorData>) {
-        // Prevent subagents from creating other subagents
-        if session.session_type == SessionType::SubAgent && tool_call.name == SUBAGENT_TOOL_NAME {
-            return (
-                request_id,
-                Err(ErrorData::new(
-                    ErrorCode::INVALID_REQUEST,
-                    "Subagents cannot create other subagents".to_string(),
-                    None,
-                )),
-            );
-        }
-
+    ) -> (String, Result<DeferredToolCall, ErrorData>) {
         if tool_call.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME {
             let arguments = tool_call
                 .arguments
@@ -458,7 +449,7 @@ impl Agent {
                 is_error: Some(false),
                 meta: None,
             });
-            return (request_id, Ok(ToolCallResult::from(wrapped_result)));
+            return (request_id, Ok(DeferredToolCall::from(wrapped_result)));
         }
 
         if tool_call.name == FINAL_OUTPUT_TOOL_NAME {
@@ -478,42 +469,8 @@ impl Agent {
         }
 
         debug!("WAITING_TOOL_START: {}", tool_call.name);
-        let result: ToolCallResult = if tool_call.name == SUBAGENT_TOOL_NAME {
-            let provider = match self.provider().await {
-                Ok(p) => p,
-                Err(_) => {
-                    return (
-                        request_id,
-                        Err(ErrorData::new(
-                            ErrorCode::INTERNAL_ERROR,
-                            "Provider is required".to_string(),
-                            None,
-                        )),
-                    );
-                }
-            };
-
-            let extensions = self.get_extension_configs().await;
-            let task_config =
-                TaskConfig::new(provider, &session.id, &session.working_dir, extensions);
-            let sub_recipes = self.sub_recipes.lock().await.clone();
-
-            let arguments = tool_call
-                .arguments
-                .clone()
-                .map(Value::Object)
-                .unwrap_or(Value::Object(serde_json::Map::new()));
-
-            handle_subagent_tool(
-                arguments,
-                task_config,
-                sub_recipes,
-                session.working_dir.clone(),
-                cancellation_token,
-            )
-        } else if self.is_frontend_tool(&tool_call.name).await {
-            // For frontend tools, return an error indicating we need frontend execution
-            ToolCallResult::from(Err(ErrorData::new(
+        let result: DeferredToolCall = if self.is_frontend_tool(&tool_call.name).await {
+            DeferredToolCall::from(Err(ErrorData::new(
                 ErrorCode::INTERNAL_ERROR,
                 "Frontend tool execution required".to_string(),
                 None,
@@ -528,13 +485,12 @@ impl Agent {
                 Err(e) => return (request_id, Err(e)),
             }
         } else {
-            // Clone the result to ensure no references to extension_manager are returned
             let result = self
                 .extension_manager
                 .dispatch_tool_call(tool_call.clone(), cancellation_token.unwrap_or_default())
                 .await;
             result.unwrap_or_else(|e| {
-                ToolCallResult::from(Err(ErrorData::new(
+                DeferredToolCall::from(Err(ErrorData::new(
                     ErrorCode::INTERNAL_ERROR,
                     e.to_string(),
                     None,
@@ -546,7 +502,7 @@ impl Agent {
 
         (
             request_id,
-            Ok(ToolCallResult {
+            Ok(DeferredToolCall {
                 notification_stream: result.notification_stream,
                 result: Box::new(
                     result
@@ -678,7 +634,6 @@ impl Agent {
             .await
             .unwrap_or_default();
 
-        let subagents_enabled = self.subagents_enabled().await;
         if extension_name.is_none() || extension_name.as_deref() == Some("platform") {
             prefixed_tools.push(platform_tools::manage_schedule_tool());
         }
@@ -687,15 +642,30 @@ impl Agent {
             if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
                 prefixed_tools.push(final_output_tool.tool());
             }
-
-            if subagents_enabled {
-                let sub_recipes = self.sub_recipes.lock().await;
-                let sub_recipes_vec: Vec<_> = sub_recipes.values().cloned().collect();
-                prefixed_tools.push(create_subagent_tool(&sub_recipes_vec));
-            }
         }
 
         prefixed_tools
+    }
+
+    pub async fn enable_subagent_extension(&self) -> ExtensionResult<()> {
+        if !self.subagents_enabled().await {
+            return Ok(());
+        }
+        if self
+            .extension_manager
+            .is_extension_enabled(subagent_client::EXTENSION_NAME)
+            .await
+        {
+            return Ok(());
+        }
+        self.extension_manager
+            .add_extension(ExtensionConfig::Platform {
+                name: subagent_client::EXTENSION_NAME.to_string(),
+                description: "Delegate tasks to independent subagents".to_string(),
+                bundled: Some(true),
+                available_tools: vec![],
+            })
+            .await
     }
 
     pub async fn list_tools_for_router(&self) -> Vec<Tool> {
@@ -1132,7 +1102,6 @@ impl Agent {
                                         &permission_check_result,
                                         &request_to_response_map,
                                         cancel_token.clone(),
-                                        &session,
                                     ).await?;
 
                                     let tool_futures_arc = Arc::new(Mutex::new(tool_futures));
@@ -1142,7 +1111,6 @@ impl Agent {
                                         tool_futures_arc.clone(),
                                         &request_to_response_map,
                                         cancel_token.clone(),
-                                        &session,
                                         &inspection_results,
                                     );
 

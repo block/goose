@@ -1,7 +1,7 @@
 use crate::agents::extension_manager::ExtensionManager;
 use crate::agents::router_tool_selector::{create_tool_selector, RouterToolSelector};
 use crate::agents::router_tools::{self};
-use crate::agents::tool_execution::ToolCallResult;
+use crate::agents::tool_execution::DeferredToolCall;
 use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::config::Config;
 use crate::conversation::message::ToolRequest;
@@ -52,11 +52,11 @@ impl ToolRouteManager {
     pub async fn dispatch_route_search_tool(
         &self,
         arguments: JsonObject,
-    ) -> Result<ToolCallResult, ErrorData> {
+    ) -> Result<DeferredToolCall, ErrorData> {
         let selector = self.router_tool_selector.lock().await.clone();
         match selector.as_ref() {
             Some(selector) => match selector.select_tools(arguments).await {
-                Ok(content) => Ok(ToolCallResult::from(Ok(rmcp::model::CallToolResult {
+                Ok(content) => Ok(DeferredToolCall::from(Ok(rmcp::model::CallToolResult {
                     content,
                     structured_content: None,
                     is_error: Some(false),

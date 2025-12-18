@@ -1,4 +1,4 @@
-use crate::agents::tool_execution::ToolCallResult;
+use crate::agents::tool_execution::DeferredToolCall;
 use crate::recipe::Response;
 use indoc::formatdoc;
 use rmcp::model::{CallToolRequestParam, Content, ErrorCode, ErrorData, Tool, ToolAnnotations};
@@ -116,14 +116,14 @@ impl FinalOutputTool {
         }
     }
 
-    pub async fn execute_tool_call(&mut self, tool_call: CallToolRequestParam) -> ToolCallResult {
+    pub async fn execute_tool_call(&mut self, tool_call: CallToolRequestParam) -> DeferredToolCall {
         match tool_call.name.to_string().as_str() {
             FINAL_OUTPUT_TOOL_NAME => {
                 let result = self.validate_json_output(&tool_call.arguments.into()).await;
                 match result {
                     Ok(parsed_value) => {
                         self.final_output = Some(Self::parsed_final_output_string(parsed_value));
-                        ToolCallResult::from(Ok(rmcp::model::CallToolResult {
+                        DeferredToolCall::from(Ok(rmcp::model::CallToolResult {
                             content: vec![Content::text(
                                 "Final output successfully collected.".to_string(),
                             )],
@@ -132,14 +132,14 @@ impl FinalOutputTool {
                             meta: None,
                         }))
                     }
-                    Err(error) => ToolCallResult::from(Err(ErrorData {
+                    Err(error) => DeferredToolCall::from(Err(ErrorData {
                         code: ErrorCode::INVALID_PARAMS,
                         message: Cow::from(error),
                         data: None,
                     })),
                 }
             }
-            _ => ToolCallResult::from(Err(ErrorData {
+            _ => DeferredToolCall::from(Err(ErrorData {
                 code: ErrorCode::INVALID_REQUEST,
                 message: Cow::from(format!("Unknown tool: {}", tool_call.name)),
                 data: None,
