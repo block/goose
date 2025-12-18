@@ -795,7 +795,7 @@ impl Agent {
         match command_result {
             Err(e) => {
                 let error_message = Message::assistant()
-                    .with_text(&e.to_string())
+                    .with_text(e.to_string())
                     .with_visibility(true, false);
                 return Ok(Box::pin(stream::once(async move {
                     Ok(AgentEvent::Message(error_message))
