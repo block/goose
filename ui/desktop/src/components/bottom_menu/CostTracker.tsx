@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useModelAndProvider } from '../ModelAndProviderContext';
 import { CoinIcon } from '../icons';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/Tooltip';
-import { fetchModelPricing, ModelCostInfo } from '../../utils/pricing';
+import { fetchModelPricing } from '../../utils/pricing';
+import { PricingData } from '../../api';
 
 interface CostTrackerProps {
   inputTokens?: number;
@@ -18,7 +19,7 @@ interface CostTrackerProps {
 
 export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }: CostTrackerProps) {
   const { currentModel, currentProvider } = useModelAndProvider();
-  const [costInfo, setCostInfo] = useState<ModelCostInfo | null>(null);
+  const [costInfo, setCostInfo] = useState<PricingData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showPricing, setShowPricing] = useState(true);
   const [pricingFailed, setPricingFailed] = useState(false);
