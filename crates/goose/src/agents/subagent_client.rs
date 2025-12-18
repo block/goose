@@ -153,26 +153,22 @@ impl McpClientTrait for SubagentClient {
             ]))));
         }
 
-        if let Some(session_id) = &self.context.session_id {
-            if let Ok(session) =
-                crate::session::SessionManager::get_session(session_id, false).await
-            {
-                if session.session_type == crate::session::SessionType::SubAgent {
-                    return Ok(ToolCallResult::from(Ok(CallToolResult::error(vec![
-                        Content::text("Subagents cannot create other subagents"),
-                    ]))));
-                }
-            }
-        }
-
         let Some(provider) = self.get_provider().await else {
             return Ok(ToolCallResult::from(Ok(CallToolResult::error(vec![
                 Content::text("No provider configured"),
             ]))));
         };
 
+        // Get working_dir from parent session if available
+        let working_dir = match &self.context.session_id {
+            Some(session_id) => crate::session::SessionManager::get_session(session_id, false)
+                .await
+                .map(|s| s.working_dir)
+                .unwrap_or_else(|_| self.get_working_dir()),
+            None => self.get_working_dir(),
+        };
+
         let extensions = self.get_extensions().await;
-        let working_dir = self.get_working_dir();
         let sub_recipes = self.get_sub_recipes().await;
         let task_config = TaskConfig::new(provider, extensions);
         let arguments_value = arguments
