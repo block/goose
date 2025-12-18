@@ -21,7 +21,7 @@ export const RateLimits = () => {
       <a href="/goose/docs/guides/handling-llm-rate-limits-with-goose" target="_blank">
         Handling Rate Limits
       </a>{" "}
-      guide to learn how to efficiently manage these limits while using Goose.
+      guide to learn how to efficiently manage these limits while using goose.
     </Admonition>
   );
 };
