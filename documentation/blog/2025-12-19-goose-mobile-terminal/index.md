@@ -26,7 +26,7 @@ Goose AI is now available on the App Store! The iOS app connects to your desktop
 1. **Install the app** - Download [goose from the App Store](https://apps.apple.com/au/app/goose-ai/id6752889295)
 2. **Enable remote access** - In the Goose desktop app, go to App Settings and turn on "Remote Access"
 3. **Scan the QR code** - Use the iOS app to scan the QR code displayed in your desktop app
-4. **Start working** - You're connected! Your mobile app now tunnels to your desktop goose instance
+4. **Start working** - You're connected! Your mobile app now tunnels to your goose desktop instance
 
 This means you get the full power of your desktop goose setup—all your extensions and configurations—accessible from your phone. Whether you're on the train, grabbing coffee, or just away from your desk, you can still ask goose to help with tasks or check on long running things. Throw an idea out there for it to go to work on and pick it up later.
 
