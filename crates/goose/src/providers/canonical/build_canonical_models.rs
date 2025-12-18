@@ -1,12 +1,14 @@
 /// Build canonical models from OpenRouter API
 ///
 /// This script fetches models from OpenRouter and converts them to canonical format.
-/// It also checks which models from top providers are properly mapped.
+/// By default, it also checks which models from top providers are properly mapped.
 ///
 /// Usage:
-///   cargo run --bin build_canonical_models
+///   cargo run --bin build_canonical_models              # Build and check (default)
+///   cargo run --bin build_canonical_models --no-check   # Build only, skip checker
 ///
 use anyhow::{Context, Result};
+use clap::Parser;
 use goose::providers::canonical::{
     canonical_name, CanonicalModel, CanonicalModelRegistry, Pricing,
 };
@@ -29,6 +31,14 @@ const ALLOWED_PROVIDERS: &[&str] = &[
     "ai21",
     "qwen",
 ];
+
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// Skip the canonical model checker (only build models)
+    #[arg(long)]
+    no_check: bool,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 struct ProviderModelPair {
@@ -596,11 +606,15 @@ async fn check_canonical_mappings() -> Result<()> {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let args = Args::parse();
+
     // Build canonical models
     build_canonical_models().await?;
 
-    // Run the checker
-    check_canonical_mappings().await?;
+    // Run the checker unless --no-check is passed
+    if !args.no_check {
+        check_canonical_mappings().await?;
+    }
 
     Ok(())
 }

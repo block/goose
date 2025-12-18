@@ -2682,6 +2682,7 @@ dependencies = [
  "base64 0.21.7",
  "blake3",
  "chrono",
+ "clap",
  "criterion",
  "ctor",
  "dashmap",
