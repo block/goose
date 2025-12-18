@@ -414,6 +414,7 @@ async fn edit_message(
                 .await
                 .map_err(|e| {
                     tracing::error!("Failed to copy session: {}", e);
+                    goose::posthog::emit_error("session_copy_failed", &e.to_string());
                     StatusCode::INTERNAL_SERVER_ERROR
                 })?;
 
@@ -421,6 +422,7 @@ async fn edit_message(
                 .await
                 .map_err(|e| {
                     tracing::error!("Failed to truncate conversation: {}", e);
+                    goose::posthog::emit_error("session_truncate_failed", &e.to_string());
                     StatusCode::INTERNAL_SERVER_ERROR
                 })?;
 
@@ -433,6 +435,7 @@ async fn edit_message(
                 .await
                 .map_err(|e| {
                     tracing::error!("Failed to truncate conversation: {}", e);
+                    goose::posthog::emit_error("session_truncate_failed", &e.to_string());
                     StatusCode::INTERNAL_SERVER_ERROR
                 })?;
 

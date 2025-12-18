@@ -545,6 +545,10 @@ impl Agent {
                 .dispatch_tool_call(tool_call.clone(), cancellation_token.unwrap_or_default())
                 .await;
             result.unwrap_or_else(|e| {
+                crate::posthog::emit_error(
+                    "tool_execution_failed",
+                    &format!("{}: {}", tool_call.name, e),
+                );
                 ToolCallResult::from(Err(ErrorData::new(
                     ErrorCode::INTERNAL_ERROR,
                     e.to_string(),
@@ -1256,7 +1260,7 @@ impl Agent {
                             }
                         }
                         Err(ref provider_err @ ProviderError::ContextLengthExceeded(_)) => {
-                            crate::posthog::emit_error(provider_err.telemetry_type());
+                            crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             compaction_attempts += 1;
 
                             if compaction_attempts >= 2 {
@@ -1293,13 +1297,14 @@ impl Agent {
                                     break;
                                 }
                                 Err(e) => {
+                                    crate::posthog::emit_error("compaction_failed", &e.to_string());
                                     error!("Compaction failed: {}", e);
                                     break;
                                 }
                             }
                         }
                         Err(ref provider_err) => {
-                            crate::posthog::emit_error(provider_err.telemetry_type());
+                            crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
                             yield AgentEvent::Message(
                                 Message::assistant().with_text(
