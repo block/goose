@@ -1,6 +1,6 @@
 use crate::routes::errors::ErrorResponse;
 use axum::http::StatusCode;
-use goose::agents::Agent;
+use goose::agents::{normalize, Agent};
 use goose::config::Config;
 use goose::model::ModelConfig;
 use goose::providers::create;
@@ -87,6 +87,21 @@ pub async fn restore_agent_extensions(
 
             async move {
                 let name = config_clone.name().to_string();
+                let normalized_name = normalize(&name);
+
+                if agent_ref
+                    .extension_manager
+                    .is_extension_enabled(&normalized_name)
+                    .await
+                {
+                    tracing::debug!("Extension {} already loaded, skipping", name);
+                    return ExtensionLoadResult {
+                        name,
+                        success: true,
+                        error: None,
+                    };
+                }
+
                 match agent_ref.add_extension(config_clone).await {
                     Ok(_) => ExtensionLoadResult {
                         name,

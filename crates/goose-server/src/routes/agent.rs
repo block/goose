@@ -159,6 +159,7 @@ pub struct RestartAgentResponse {
         (status = 500, description = "Internal server error", body = ErrorResponse)
     )
 )]
+#[allow(clippy::too_many_lines)]
 async fn start_agent(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<StartAgentRequest>,
@@ -262,6 +263,41 @@ async fn start_agent(
             }
         })?;
 
+    // Eagerly start loading extensions in the background
+    let session_for_spawn = session.clone();
+    let state_for_spawn = state.clone();
+    let session_id_for_task = session.id.clone();
+    let task = tokio::spawn(async move {
+        match state_for_spawn
+            .get_agent(session_for_spawn.id.clone())
+            .await
+        {
+            Ok(agent) => {
+                agent
+                    .set_working_dir(session_for_spawn.working_dir.clone())
+                    .await;
+
+                let results = restore_agent_extensions(agent, &session_for_spawn).await;
+                tracing::debug!(
+                    "Background extension loading completed for session {}",
+                    session_for_spawn.id
+                );
+                results
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "Failed to create agent for background extension loading: {}",
+                    e
+                );
+                vec![]
+            }
+        }
+    });
+
+    state
+        .set_extension_loading_task(session_id_for_task, task)
+        .await;
+
     Ok(Json(session))
 }
 
@@ -301,11 +337,26 @@ async fn resume_agent(
                 status: code,
             })?;
 
-        let provider_result = restore_agent_provider(&agent, &session, &payload.session_id);
-        let extensions_future = restore_agent_extensions(agent.clone(), &session);
+        restore_agent_provider(&agent, &session, &payload.session_id).await?;
 
-        let (provider_result, extension_results) = tokio::join!(provider_result, extensions_future);
-        provider_result?;
+        let extension_results =
+            if let Some(results) = state.take_extension_loading_task(&payload.session_id).await {
+                tracing::debug!(
+                    "Using background extension loading results for session {}",
+                    payload.session_id
+                );
+                state
+                    .remove_extension_loading_task(&payload.session_id)
+                    .await;
+                results
+            } else {
+                tracing::debug!(
+                    "No background task found, loading extensions for session {}",
+                    payload.session_id
+                );
+                restore_agent_extensions(agent.clone(), &session).await
+            };
+
         Some(extension_results)
     } else {
         None

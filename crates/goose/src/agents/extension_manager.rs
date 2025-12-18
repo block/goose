@@ -133,7 +133,7 @@ impl ResourceItem {
 
 /// Sanitizes a string by replacing invalid characters with underscores.
 /// Valid characters match [a-zA-Z0-9_-]
-fn normalize(input: String) -> String {
+pub fn normalize(input: &str) -> String {
     let mut result = String::with_capacity(input.len());
     for c in input.chars() {
         result.push(match c {
@@ -316,7 +316,7 @@ impl ExtensionManager {
         working_dir: Option<PathBuf>,
     ) -> ExtensionResult<()> {
         let config_name = config.key().to_string();
-        let sanitized_name = normalize(config_name.clone());
+        let sanitized_name = normalize(&config_name);
         let mut temp_dir = None;
 
         /// Helper function to merge environment variables from direct envs and keychain-stored env_keys
@@ -567,7 +567,7 @@ impl ExtensionManager {
             }
             ExtensionConfig::Platform { name, .. } => {
                 // Normalize the name to match the key used in PLATFORM_EXTENSIONS
-                let normalized_key = normalize(name.clone());
+                let normalized_key = normalize(name);
                 let def = PLATFORM_EXTENSIONS
                     .get(normalized_key.as_str())
                     .ok_or_else(|| {
@@ -660,7 +660,7 @@ impl ExtensionManager {
 
     /// Get aggregated usage statistics
     pub async fn remove_extension(&self, name: &str) -> ExtensionResult<()> {
-        let sanitized_name = normalize(name.to_string());
+        let sanitized_name = normalize(name);
         self.extensions.lock().await.remove(&sanitized_name);
         Ok(())
     }
@@ -1375,7 +1375,7 @@ mod tests {
             client: McpClientBox,
             available_tools: Vec<String>,
         ) {
-            let sanitized_name = normalize(name.clone());
+            let sanitized_name = normalize(&name);
             let config = ExtensionConfig::Builtin {
                 name: name.clone(),
                 display_name: Some(name.clone()),
