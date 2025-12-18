@@ -15,7 +15,7 @@ Mobile access is a preview feature in active development. Behavior and configura
 
 ## How Mobile Access Works
 
-Mobile access connects your iOS device to goose Desktop through a secure tunnel. After you install and configure the **Goose AI** app, you can access goose from anywhere.
+Mobile access connects your iOS device to goose Desktop through a secure tunnel. After you install and configure the **goose AI** app, you can access goose from anywhere.
 
 **Key details:**
 - Uses [Lapstone](https://github.com/michaelneale/lapstone-tunnel), a public HTTPS tunnel service provided by Mic Neale
@@ -27,7 +27,7 @@ Mobile access connects your iOS device to goose Desktop through a secure tunnel.
 ## Setup
 
 ### Install the App
-1. Install the **Goose AI** app on your iOS mobile device from the [App Store](https://apps.apple.com/app/goose-ai/id6752889295)
+1. Install the **goose AI** app on your iOS mobile device from the [App Store](https://apps.apple.com/app/goose-ai/id6752889295)
 
 ### Start the Tunnel
 1. Open goose Desktop
@@ -43,7 +43,7 @@ Click `Stop Tunnel` at any time to close the connection.
 :::
 
 ### Connect the App
-1. Open the **Goose AI** app on your iOS mobile device
+1. Open the **goose AI** app on your iOS mobile device
 2. Scan the `Remote Access Connection` QR code displayed in goose Desktop
 3. The app will automatically configure the connection
 
@@ -55,3 +55,22 @@ The mobile app gives you full access to goose:
 - Start new conversations or continue existing sessions
 - Use all your goose extensions and configurations
 - Work from anywhere while your computer handles the processing
+
+## Additional Resources
+
+import ContentCardCarousel from '@site/src/components/ContentCardCarousel';
+import mobileShots from '@site/blog/2025-12-19-goose-mobile-terminal/mobile_shots.png';
+
+<ContentCardCarousel
+  items={[
+    {
+      type: 'blog',
+      title: 'goose Mobile Access and Native Terminal Support',
+      description: 'Learn about two new ways to use goose: iOS app for mobile access and native terminal support with seamless session continuity.',
+      thumbnailUrl: mobileShots,
+      linkUrl: '/goose/blog/2025/12/19/goose-mobile-terminal',
+      date: '2025-12-19',
+      duration: '4 min read'
+    }
+  ]}
+/>

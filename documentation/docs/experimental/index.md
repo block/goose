@@ -30,11 +30,6 @@ The list of experimental features may change as goose development progresses. So
       link="/docs/experimental/mobile-access"
     />
     <Card 
-      title="goose Mobile"
-      description="An experimental Android automation app that acts as an open agent running on your phone, providing maximal automation of everyday tasks."
-      link="/docs/experimental/goose-mobile"
-    />
-    <Card 
       title="Using goose in ACP Clients"
       description="Interact with goose natively in ACP-compatible clients like Zed."
       link="/docs/guides/acp-clients"

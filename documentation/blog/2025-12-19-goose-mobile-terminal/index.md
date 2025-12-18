@@ -9,7 +9,7 @@ authors:
 
 # 2 new ways to use goose
 
-We're excited to announce two new ways to interact with goose: a <a href="https://apps.apple.com/au/app/goose-ai/id6752889295">native iOS app</a> for mobile access and native terminal integration. Both give you more flexibility in how and where you use your AI agent.
+We're excited to announce two new ways to interact with goose: a <a href="https://apps.apple.com/app/goose-ai/id6752889295">native iOS app</a> for mobile access and native terminal integration. Both give you more flexibility in how and where you use your AI agent.
 
 <!-- truncate -->
 
@@ -19,10 +19,12 @@ goose is now available on the App Store! The iOS app connects to your desktop go
 
 ### Getting Started with Mobile
 
-1. **Install the app** - Download [goose from the App Store](https://apps.apple.com/au/app/goose-ai/id6752889295)
+1. **Install the app** - Download [goose from the App Store](https://apps.apple.com/app/goose-ai/id6752889295)
 2. **Enable remote access** - In the goose desktop app, go to App Settings and turn on "Remote Access"
 3. **Scan the QR code** - Use the iOS app to scan the QR code displayed in your desktop app
 4. **Start working** - You're connected! Your mobile app now tunnels to your goose desktop instance
+
+See the [Mobile Access guide](/docs/experimental/mobile-access) for detailed steps.
 
 This means you get the full power of your desktop goose setup—all your extensions and configurations—accessible from your phone. Whether you're on the train, grabbing coffee, or just away from your desk, you can still ask goose to help with tasks or check on long-running things. Throw an idea out there for it to go to work on and pick it up later.
 
