@@ -31,6 +31,9 @@ struct DeltaToolCall {
     function: DeltaToolCallFunction,
     index: Option<i32>,
     r#type: Option<String>,
+    /// Captures all non-standard fields (e.g., thoughtSignature, extra_content)
+    #[serde(flatten)]
+    extra: Option<serde_json::Map<String, Value>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -115,14 +118,23 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                             .entry("tool_calls")
                             .or_insert(json!([]));
 
-                        tool_calls.as_array_mut().unwrap().push(json!({
+                        let mut tool_call_json = json!({
                             "id": request.id,
                             "type": "function",
                             "function": {
                                 "name": sanitized_name,
                                 "arguments": arguments_str,
                             }
-                        }));
+                        });
+
+                        // Include all metadata fields in the tool call (e.g., thoughtSignature, extra_content)
+                        if let Some(metadata) = &request.metadata {
+                            for (key, value) in metadata {
+                                tool_call_json[key] = value.clone();
+                            }
+                        }
+
+                        tool_calls.as_array_mut().unwrap().push(tool_call_json);
                     }
                     Err(e) => {
                         output.push(json!({
@@ -337,6 +349,18 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                     arguments_str
                 };
 
+                // Extract all extra fields (non-standard fields like thoughtSignature, extra_content, etc.)
+                let standard_fields = ["id", "function", "type", "index"];
+                let metadata: Option<serde_json::Map<String, Value>> = tool_call
+                    .as_object()
+                    .map(|obj| {
+                        obj.iter()
+                            .filter(|(k, _)| !standard_fields.contains(&k.as_str()))
+                            .map(|(k, v)| (k.clone(), v.clone()))
+                            .collect()
+                    })
+                    .filter(|m: &serde_json::Map<String, Value>| !m.is_empty());
+
                 if !is_valid_function_name(&function_name) {
                     let error = ErrorData {
                         code: ErrorCode::INVALID_REQUEST,
@@ -346,11 +370,15 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                         )),
                         data: None,
                     };
-                    content.push(MessageContent::tool_request(id, Err(error)));
+                    content.push(MessageContent::tool_request_with_metadata(
+                        id,
+                        Err(error),
+                        metadata.as_ref(),
+                    ));
                 } else {
                     match safely_parse_json(&arguments_str) {
                         Ok(params) => {
-                            content.push(MessageContent::tool_request(
+                            content.push(MessageContent::tool_request_with_metadata(
                                 id,
                                 Ok(CallToolRequestParams {
                                     meta: None,
@@ -358,6 +386,7 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                                     name: function_name.into(),
                                     arguments: Some(object(params)),
                                 }),
+                                metadata.as_ref(),
                             ));
                         }
                         Err(e) => {
@@ -369,7 +398,11 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                                 )),
                                 data: None,
                             };
-                            content.push(MessageContent::tool_request(id, Err(error)));
+                            content.push(MessageContent::tool_request_with_metadata(
+                                id,
+                                Err(error),
+                                metadata.as_ref(),
+                            ));
                         }
                     }
                 }
@@ -507,12 +540,13 @@ where
             if chunk.choices.is_empty() {
                 yield (None, usage)
             } else if chunk.choices[0].delta.tool_calls.as_ref().is_some_and(|tc| !tc.is_empty()) {
-                let mut tool_call_data: std::collections::HashMap<i32, (String, String, String)> = std::collections::HashMap::new();
+                // (id, name, arguments, extra_fields) - extra_fields captures all non-standard fields
+                let mut tool_call_data: std::collections::HashMap<i32, (String, String, String, Option<serde_json::Map<String, Value>>)> = std::collections::HashMap::new();
 
                 if let Some(tool_calls) = &chunk.choices[0].delta.tool_calls {
                     for tool_call in tool_calls {
                         if let (Some(index), Some(id), Some(name)) = (tool_call.index, &tool_call.id, &tool_call.function.name) {
-                            tool_call_data.insert(index, (id.clone(), name.clone(), tool_call.function.arguments.clone()));
+                            tool_call_data.insert(index, (id.clone(), name.clone(), tool_call.function.arguments.clone(), tool_call.extra.clone()));
                         }
                     }
                 }
@@ -543,10 +577,19 @@ where
                                     if let Some(delta_tool_calls) = &tool_chunk.choices[0].delta.tool_calls {
                                         for delta_call in delta_tool_calls {
                                             if let Some(index) = delta_call.index {
-                                                if let Some((_, _, ref mut args)) = tool_call_data.get_mut(&index) {
+                                                if let Some((_, _, ref mut args, ref mut extra)) = tool_call_data.get_mut(&index) {
                                                     args.push_str(&delta_call.function.arguments);
+                                                    // Merge extra fields if this chunk has any and we don't have them yet
+                                                    if extra.is_none() && delta_call.extra.is_some() {
+                                                        *extra = delta_call.extra.clone();
+                                                    } else if let (Some(existing), Some(new_extra)) = (extra.as_mut(), &delta_call.extra) {
+                                                        // Merge new extra fields into existing (don't overwrite existing keys)
+                                                        for (key, value) in new_extra {
+                                                            existing.entry(key.clone()).or_insert(value.clone());
+                                                        }
+                                                    }
                                                 } else if let (Some(id), Some(name)) = (&delta_call.id, &delta_call.function.name) {
-                                                    tool_call_data.insert(index, (id.clone(), name.clone(), delta_call.function.arguments.clone()));
+                                                    tool_call_data.insert(index, (id.clone(), name.clone(), delta_call.function.arguments.clone(), delta_call.extra.clone()));
                                                 }
                                             }
                                         }
@@ -577,21 +620,25 @@ where
                 sorted_indices.sort();
 
                 for index in sorted_indices {
-                    if let Some((id, function_name, arguments)) = tool_call_data.get(&index) {
+                    if let Some((id, function_name, arguments, extra_fields)) = tool_call_data.get(&index) {
                         let parsed = if arguments.is_empty() {
                             Ok(json!({}))
                         } else {
                             serde_json::from_str::<Value>(arguments)
                         };
 
+                        // Use extra fields directly as metadata (contains thoughtSignature, extra_content, etc.)
+                        let metadata = extra_fields.as_ref().filter(|m| !m.is_empty());
+
                         let content = match parsed {
                             Ok(params) => {
                                 MessageContent::tool_request_with_metadata(
                                     id.clone(),
                                     Ok(CallToolRequestParams {
-                                        meta: None, task: None,
+                                        meta: None,
+                                        task: None,
                                         name: function_name.clone().into(),
-                                        arguments: Some(object(params))
+                                        arguments: Some(object(params)),
                                     }),
                                     metadata.as_ref(),
                                 )
@@ -1669,5 +1716,124 @@ data: [DONE]
         assert_usage_yielded_once(&result, 12376, 79, 12455);
 
         Ok(())
+    }
+
+    #[test]
+    fn test_response_to_message_with_nested_extra_content() -> anyhow::Result<()> {
+        // Test that nested extra_content.google.thought_signature is captured
+        let response = json!({
+            "choices": [{
+                "message": {
+                    "role": "assistant",
+                    "tool_calls": [{
+                        "id": "call_456",
+                        "type": "function",
+                        "function": {
+                            "name": "test_tool",
+                            "arguments": "{}"
+                        },
+                        "extra_content": {
+                            "google": {
+                                "thought_signature": "nested_sig_xyz789"
+                            }
+                        }
+                    }]
+                }
+            }]
+        });
+
+        let message = response_to_message(&response)?;
+        assert_eq!(message.content.len(), 1);
+
+        if let MessageContent::ToolRequest(request) = &message.content[0] {
+            assert!(request.tool_call.is_ok());
+            // Verify metadata contains extra_content with nested structure
+            assert!(request.metadata.is_some());
+            let metadata = request.metadata.as_ref().unwrap();
+            let extra_content = metadata.get("extra_content").unwrap();
+            assert_eq!(
+                extra_content["google"]["thought_signature"],
+                "nested_sig_xyz789"
+            );
+        } else {
+            panic!("Expected ToolRequest content");
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_response_to_message_with_multiple_extra_fields() -> anyhow::Result<()> {
+        // Test that multiple extra fields are all captured
+        let response = json!({
+            "choices": [{
+                "message": {
+                    "role": "assistant",
+                    "tool_calls": [{
+                        "id": "call_789",
+                        "type": "function",
+                        "function": {
+                            "name": "test_tool",
+                            "arguments": "{}"
+                        },
+                        "thoughtSignature": "sig_top_level",
+                        "extra_content": {
+                            "google": {
+                                "thought_signature": "sig_nested"
+                            }
+                        },
+                        "custom_field": "custom_value"
+                    }]
+                }
+            }]
+        });
+
+        let message = response_to_message(&response)?;
+
+        if let MessageContent::ToolRequest(request) = &message.content[0] {
+            let metadata = request.metadata.as_ref().unwrap();
+            // All extra fields should be present
+            assert_eq!(metadata.get("thoughtSignature").unwrap(), "sig_top_level");
+            assert_eq!(
+                metadata.get("extra_content").unwrap()["google"]["thought_signature"],
+                "sig_nested"
+            );
+            assert_eq!(metadata.get("custom_field").unwrap(), "custom_value");
+        } else {
+            panic!("Expected ToolRequest content");
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_streaming_response_with_nested_extra_content() -> anyhow::Result<()> {
+        // Test that nested extra_content is captured from streaming response
+        let response_lines = r#"data: {"model":"test-model","choices":[{"delta":{"role":"assistant","tool_calls":[{"extra_content":{"google":{"thought_signature":"nested_stream_sig"}},"id":"call_nested","function":{"name":"test_tool","arguments":"{}"},"type":"function","index":0}]},"index":0,"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":100,"completion_tokens":10,"total_tokens":110},"object":"chat.completion.chunk","id":"test-id","created":1234567890}
+data: [DONE]"#;
+
+        let response_stream =
+            tokio_stream::iter(response_lines.lines().map(|line| Ok(line.to_string())));
+        let messages = response_to_streaming_message(response_stream);
+        pin!(messages);
+
+        while let Some(Ok((message, _usage))) = messages.next().await {
+            if let Some(msg) = message {
+                if let MessageContent::ToolRequest(request) = &msg.content[0] {
+                    assert!(request.tool_call.is_ok());
+                    // Verify metadata contains nested extra_content
+                    assert!(request.metadata.is_some());
+                    let metadata = request.metadata.as_ref().unwrap();
+                    let extra_content = metadata.get("extra_content").unwrap();
+                    assert_eq!(
+                        extra_content["google"]["thought_signature"],
+                        "nested_stream_sig"
+                    );
+                    return Ok(());
+                }
+            }
+        }
+
+        panic!("Expected tool call message with nested extra_content metadata");
     }
 }
