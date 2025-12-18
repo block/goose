@@ -58,7 +58,7 @@ Try them out and let us know what you think in our [Discord](https://discord.gg/
   <meta property="og:image" content="https://block.github.io/goose/blog/2025/12/19/goose-mobile-terminal/mobile_shots.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
-  <meta name="twitter:title" content="goose Mobile Access and Native Terminal Support" />
+  <meta name="twitter:title" content="goose mobile access and native terminal support" />
   <meta name="twitter:description" content="Two new ways to use goose" />
   <meta name="twitter:image" content="https://block.github.io/goose/blog/2025/12/19/goose-mobile-terminal/mobile_shots.png" />
 </head>
