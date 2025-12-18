@@ -608,7 +608,7 @@ impl McpClientTrait for CodeExecutionClient {
                         - Import: import { tool1, tool2 } from "serverName";
                         - Call: toolName({ param1: value, param2: value })
                         - All calls are synchronous, return strings
-                        - Last expression is the result
+                        - To capture output: const r = <expression>; r
                         - No comments in code
 
                         BEFORE CALLING: Use read_module("server") to check required parameters.
