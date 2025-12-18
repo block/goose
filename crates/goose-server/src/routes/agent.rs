@@ -610,7 +610,6 @@ async fn agent_add_extension(
         ErrorResponse::internal(format!("Failed to add extension: {}", e))
     })?;
 
-    // Persist the updated extension state to the session
     persist_session_extensions(&agent, &request.session_id).await?;
     Ok(StatusCode::OK)
 }
@@ -633,7 +632,6 @@ async fn agent_remove_extension(
     let agent = state.get_agent(request.session_id.clone()).await?;
     agent.remove_extension(&request.name).await?;
 
-    // Persist the updated extension state to the session
     persist_session_extensions(&agent, &request.session_id).await?;
 
     Ok(StatusCode::OK)
