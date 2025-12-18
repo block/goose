@@ -2675,17 +2675,15 @@
         "type": "object",
         "required": [
           "session_id",
-          "tool_name"
+          "name",
+          "arguments"
         ],
         "properties": {
-          "arguments": {
-            "type": "object",
-            "nullable": true
-          },
-          "session_id": {
+          "arguments": {},
+          "name": {
             "type": "string"
           },
-          "tool_name": {
+          "session_id": {
             "type": "string"
           }
         }
@@ -2693,15 +2691,21 @@
       "CallToolResponse": {
         "type": "object",
         "required": [
-          "output",
+          "content",
           "is_error"
         ],
         "properties": {
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Content"
+            }
+          },
           "is_error": {
             "type": "boolean"
           },
-          "output": {
-            "type": "string"
+          "structured_content": {
+            "nullable": true
           }
         }
       },

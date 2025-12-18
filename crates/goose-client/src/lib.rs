@@ -415,8 +415,8 @@ impl Client {
         self.post("/agent/call_tool")
             .json(&CallToolRequest {
                 session_id: session_id.to_string(),
-                tool_name: tool_name.to_string(),
-                arguments,
+                name: tool_name.to_string(),
+                arguments: arguments.unwrap_or(serde_json::Value::Null),
             })
             .send()
             .await

@@ -47,16 +47,15 @@ export type AuthorRequest = {
 };
 
 export type CallToolRequest = {
-    arguments?: {
-        [key: string]: unknown;
-    } | null;
+    arguments: unknown;
+    name: string;
     session_id: string;
-    tool_name: string;
 };
 
 export type CallToolResponse = {
+    content: Array<Content>;
     is_error: boolean;
-    output: string;
+    structured_content?: unknown;
 };
 
 export type ChatRequest = {

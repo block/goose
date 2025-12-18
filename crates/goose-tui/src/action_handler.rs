@@ -149,19 +149,35 @@ async fn fetch_cwd_analysis(client: &Client, session_id: &str) -> Option<String>
     let elapsed = start.elapsed();
 
     match result {
-        Ok(Ok(response)) if !response.is_error && !response.output.is_empty() => {
+        Ok(Ok(response)) if !response.is_error && !response.content.is_empty() => {
+            let output: String = response
+                .content
+                .iter()
+                .filter_map(|c| c.as_text().map(|t| t.text.to_string()))
+                .collect::<Vec<_>>()
+                .join("\n");
+            if output.is_empty() {
+                tracing::debug!("Smart context: empty text in {:.2}s", elapsed.as_secs_f64());
+                return None;
+            }
             tracing::info!(
                 "Smart context: completed in {:.2}s ({} chars)",
                 elapsed.as_secs_f64(),
-                response.output.len()
+                output.len()
             );
-            Some(response.output)
+            Some(output)
         }
         Ok(Ok(response)) if response.is_error => {
+            let error_msg: String = response
+                .content
+                .iter()
+                .filter_map(|c| c.as_text().map(|t| t.text.to_string()))
+                .collect::<Vec<_>>()
+                .join("\n");
             tracing::warn!(
                 "Smart context: failed in {:.2}s: {}",
                 elapsed.as_secs_f64(),
-                response.output
+                error_msg
             );
             None
         }

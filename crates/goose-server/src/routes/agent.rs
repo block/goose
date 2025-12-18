@@ -11,7 +11,6 @@ use axum::{
     Json, Router,
 };
 use goose::config::PermissionManager;
-use uuid::Uuid;
 
 use goose::agents::ExtensionConfig;
 use goose::config::{Config, GooseMode};
@@ -581,15 +580,22 @@ async fn stop_agent(
 #[derive(Deserialize, Serialize, utoipa::ToSchema)]
 pub struct CallToolRequest {
     pub session_id: String,
-    pub tool_name: String,
-    #[schema(value_type = Option<Object>)]
-    pub arguments: Option<Value>,
+    pub name: String,
+    pub arguments: Value,
 }
 
 #[derive(Deserialize, Serialize, utoipa::ToSchema)]
 pub struct CallToolResponse {
-    pub output: String,
+    #[schema(schema_with = content_schema)]
+    pub content: Vec<rmcp::model::Content>,
+    pub structured_content: Option<Value>,
     pub is_error: bool,
+}
+
+fn content_schema() -> utoipa::openapi::schema::Array {
+    utoipa::openapi::schema::ArrayBuilder::new()
+        .items(utoipa::openapi::Ref::from_schema_name("Content"))
+        .build()
 }
 
 #[utoipa::path(
@@ -638,61 +644,38 @@ async fn read_resource(
 )]
 async fn call_tool(
     State(state): State<Arc<AppState>>,
-    Json(request): Json<CallToolRequest>,
-) -> Result<Json<CallToolResponse>, ErrorResponse> {
+    Json(payload): Json<CallToolRequest>,
+) -> Result<Json<CallToolResponse>, StatusCode> {
     let agent = state
-        .get_agent_for_route(request.session_id.clone())
-        .await
-        .map_err(|status| ErrorResponse {
-            message: "Agent not initialized for this session".into(),
-            status,
-        })?;
+        .get_agent_for_route(payload.session_id.clone())
+        .await?;
 
-    let session = SessionManager::get_session(&request.session_id, false)
-        .await
-        .map_err(|e| ErrorResponse {
-            message: format!("Session not found: {}", e),
-            status: StatusCode::NOT_FOUND,
-        })?;
-
-    let tool_call = rmcp::model::CallToolRequestParam {
-        name: request.tool_name.clone().into(),
-        arguments: request.arguments.and_then(|v| v.as_object().cloned()),
+    let arguments = match payload.arguments {
+        Value::Object(map) => Some(map),
+        _ => None,
     };
 
-    let request_id = Uuid::new_v4().to_string();
+    let tool_call = rmcp::model::CallToolRequestParam {
+        name: payload.name.into(),
+        arguments,
+    };
 
-    let (_req_id, result) = agent
-        .dispatch_tool_call(tool_call, request_id, None, &session)
-        .await;
+    let tool_result = agent
+        .extension_manager
+        .dispatch_tool_call(tool_call, CancellationToken::default())
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    match result {
-        Ok(tool_result) => {
-            let content_result = tool_result.result.await;
-            match content_result {
-                Ok(call_tool_result) => {
-                    let output = call_tool_result
-                        .content
-                        .iter()
-                        .filter_map(|c| c.as_text().map(|t| t.text.to_string()))
-                        .collect::<Vec<_>>()
-                        .join("\n");
-                    Ok(Json(CallToolResponse {
-                        output,
-                        is_error: call_tool_result.is_error.unwrap_or(false),
-                    }))
-                }
-                Err(error_data) => Ok(Json(CallToolResponse {
-                    output: error_data.message.to_string(),
-                    is_error: true,
-                })),
-            }
-        }
-        Err(error_data) => Ok(Json(CallToolResponse {
-            output: error_data.message.to_string(),
-            is_error: true,
-        })),
-    }
+    let result = tool_result
+        .result
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(CallToolResponse {
+        content: result.content,
+        structured_content: result.structured_content,
+        is_error: result.is_error.unwrap_or(false),
+    }))
 }
 
 pub fn routes(state: Arc<AppState>) -> Router {
