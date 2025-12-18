@@ -60,10 +60,11 @@ export type CallToolResponse = {
 };
 
 export type ChatRequest = {
-    messages: Array<Message>;
+    conversation_so_far?: Array<Message> | null;
     recipe_name?: string | null;
     recipe_version?: string | null;
     session_id: string;
+    user_message: Message;
 };
 
 export type CheckProviderRequest = {
