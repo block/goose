@@ -100,6 +100,10 @@ pub async fn restore_agent_extensions(
                         success: true,
                         error: None,
                     };
+                    goose::posthog::emit_error(
+                        "extension_load_failed",
+                        &format!("{}: {}", config_clone.name(), e),
+                    );
                 }
 
                 match agent_ref.add_extension(config_clone).await {

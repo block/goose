@@ -44,7 +44,7 @@ import { useNavigation } from './hooks/useNavigation';
 import { errorMessage } from './utils/conversionUtils';
 import { getInitialWorkingDir } from './utils/workingDir';
 import { usePageViewTracking } from './hooks/useAnalytics';
-import { trackOnboardingCompleted } from './utils/analytics';
+import { trackOnboardingCompleted, trackErrorWithContext } from './utils/analytics';
 
 function PageViewTracker() {
   usePageViewTracking();
@@ -366,6 +366,11 @@ export function AppInner() {
         });
       } catch (error) {
         console.error('Unexpected error opening shared session:', error);
+        trackErrorWithContext(error, {
+          component: 'AppInner',
+          action: 'open_shared_session',
+          recoverable: true,
+        });
         // Navigate to shared session view with error
         const shareToken = link.replace('goose://sessions/', '');
         const options = {

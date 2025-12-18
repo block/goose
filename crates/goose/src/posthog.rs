@@ -218,10 +218,17 @@ pub fn emit_session_started() {
 pub struct ErrorContext {
     pub component: Option<String>,
     pub action: Option<String>,
+    pub error_message: Option<String>,
 }
 
-pub fn emit_error(error_type: &str) {
-    emit_error_with_context(error_type, ErrorContext::default());
+pub fn emit_error(error_type: &str, error_message: &str) {
+    emit_error_with_context(
+        error_type,
+        ErrorContext {
+            error_message: Some(error_message.to_string()),
+            ..Default::default()
+        },
+    );
 }
 
 pub fn emit_error_with_context(error_type: &str, context: ErrorContext) {
@@ -272,6 +279,10 @@ async fn send_error_event(
     }
     if let Some(action) = &context.action {
         event.insert_prop("action", action.as_str()).ok();
+    }
+    if let Some(error_message) = &context.error_message {
+        let sanitized = sanitize_string(error_message);
+        event.insert_prop("error_message", sanitized).ok();
     }
 
     if let Some(platform_version) = get_platform_version() {
