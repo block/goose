@@ -347,31 +347,13 @@ fn build_subrecipe(
     )
     .map_err(|e| anyhow!("Failed to build subrecipe: {}", e))?;
 
-    // Merge prompt into instructions so the subagent gets the actual task.
-    // The subagent handler uses `instructions` as the user message.
-    let mut combined = String::new();
-
-    if let Some(instructions) = &recipe.instructions {
-        combined.push_str(instructions);
-    }
-
-    if let Some(prompt) = &recipe.prompt {
-        if !combined.is_empty() {
-            combined.push_str("\n\n");
+    if let Some(extra) = &params.instructions {
+        let mut current = recipe.instructions.take().unwrap_or_default();
+        if !current.is_empty() {
+            current.push_str("\n\n");
         }
-        combined.push_str(prompt);
-    }
-
-    if let Some(extra_instructions) = &params.instructions {
-        if !combined.is_empty() {
-            combined.push_str("\n\n");
-        }
-        combined.push_str("Additional context from parent agent:\n");
-        combined.push_str(extra_instructions);
-    }
-
-    if !combined.is_empty() {
-        recipe.instructions = Some(combined);
+        current.push_str(extra);
+        recipe.instructions = Some(current);
     }
 
     Ok(recipe)

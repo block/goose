@@ -36,7 +36,7 @@ Before starting a complex task, ask goose about its current capabilities. A simp
 ## 3. Teach goose with .goosehints Files
 
 
-One of goose's most powerful features is its ability to understand context through [.goosehints](/docs/guides/using-goosehints) files, acting like a "README for AI". These hints can be set at both the project and global levels to guide goose’s responses.
+One of goose's most powerful features is its ability to understand context through [.goosehints](/docs/guides/context-engineering/using-goosehints) files, acting like a "README for AI". These hints can be set at both the project and global levels to guide goose’s responses.
 
 At the project level, placing .goosehints files in your directory helps goose understand your structure, conventions, and special considerations. You can even use multiple files - one at the root for overall guidance and others in specific directories for more granular instructions (e.g., frontend styling conventions).
 

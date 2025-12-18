@@ -2,7 +2,6 @@ import { useCallback, useRef, useState } from 'react';
 import { useConfig } from '../components/ConfigContext';
 import { ChatType } from '../types/chat';
 import { initializeSystem } from '../utils/providerUtils';
-import { initializeCostDatabase } from '../utils/costDatabase';
 import {
   backupConfig,
   initConfig,
@@ -13,7 +12,6 @@ import {
   startAgent,
   validateConfig,
 } from '../api';
-import { COST_TRACKING_ENABLED } from '../updates';
 import { getInitialWorkingDir } from '../utils/workingDir';
 
 export enum AgentState {
@@ -235,14 +233,6 @@ export function useAgent(): UseAgentReturn {
             recipeParameters: agentSession.user_recipe_values,
             recipe: recipeForInit,
           });
-
-          if (COST_TRACKING_ENABLED) {
-            try {
-              await initializeCostDatabase();
-            } catch (error) {
-              console.error('Failed to initialize cost database:', error);
-            }
-          }
 
           const recipe = initContext.recipe || agentSession.recipe;
           const conversation = agentSession.conversation || [];

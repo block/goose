@@ -113,7 +113,7 @@ mod tests {
                 name: "shell".into(),
                 arguments: Some(object!({"command": "rm -rf /"})),
             }),
-            thought_signature: None,
+            metadata: None,
         }];
 
         let results = inspector.inspect(&tool_requests, &[]).await.unwrap();

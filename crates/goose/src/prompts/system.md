@@ -43,7 +43,7 @@ No extensions are defined. You should let the user know that they should add ext
 {% endif %}
 {% endif %}
 
-{% if extension_tool_limits is defined %}
+{% if extension_tool_limits is defined and not code_execution_mode %}
 {% with (extension_count, tool_count) = extension_tool_limits  %}
 # Suggestion
 
