@@ -73,6 +73,7 @@ interface ChatInputProps {
   sessionId: string | null;
   handleSubmit: (e: React.FormEvent) => void;
   chatState: ChatState;
+  setChatState?: (state: ChatState) => void;
   onStop?: () => void;
   commandHistory?: string[];
   initialValue?: string;
@@ -104,6 +105,7 @@ export default function ChatInput({
   sessionId,
   handleSubmit,
   chatState = ChatState.Idle,
+  setChatState,
   onStop,
   commandHistory = [],
   initialValue = '',
@@ -152,7 +154,6 @@ export default function ChatInput({
   const [showEditRecipeModal, setShowEditRecipeModal] = useState(false);
   const [isFilePickerOpen, setIsFilePickerOpen] = useState(false);
   const [sessionWorkingDir, setSessionWorkingDir] = useState<string | null>(null);
-  const [isRestartingAgent, setIsRestartingAgent] = useState(false);
 
   useEffect(() => {
     if (!sessionId) {
@@ -1132,7 +1133,7 @@ export default function ChatInput({
     isAnyDroppedFileLoading ||
     isRecording ||
     isTranscribing ||
-    isRestartingAgent;
+    chatState === ChatState.RestartingAgent;
 
   // Queue management functions - no storage persistence, only in-memory
   const handleRemoveQueuedMessage = (messageId: string) => {
@@ -1383,7 +1384,7 @@ export default function ChatInput({
                         ? 'Recording...'
                         : isTranscribing
                           ? 'Transcribing...'
-                          : isRestartingAgent
+                          : chatState === ChatState.RestartingAgent
                             ? 'Restarting agent...'
                             : 'Send'}
                 </p>
@@ -1408,15 +1409,6 @@ export default function ChatInput({
                   {estimatedSize > 20 && <span className="text-xs">(near 25MB limit)</span>}
                 </span>
               )}
-            </div>
-          )}
-
-          {isRestartingAgent && !isRecording && !isTranscribing && (
-            <div className="absolute right-0 -top-8 bg-background-default px-2 py-1 rounded text-xs whitespace-nowrap shadow-md border border-borderSubtle">
-              <span className="text-textSubtle flex items-center gap-1">
-                <span className="inline-block w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
-                Restarting agent...
-              </span>
             </div>
           )}
         </div>
@@ -1544,8 +1536,8 @@ export default function ChatInput({
               onWorkingDirChange(newDir);
             }
           }}
-          onRestartStart={() => setIsRestartingAgent(true)}
-          onRestartEnd={() => setIsRestartingAgent(false)}
+          onRestartStart={() => setChatState?.(ChatState.RestartingAgent)}
+          onRestartEnd={() => setChatState?.(ChatState.Idle)}
         />
         <div className="w-px h-4 bg-border-default mx-2" />
         <Tooltip>
@@ -1593,8 +1585,8 @@ export default function ChatInput({
           <div className="w-px h-4 bg-border-default mx-2" />
           <BottomMenuExtensionSelection
             sessionId={sessionId}
-            onRestartStart={() => setIsRestartingAgent(true)}
-            onRestartEnd={() => setIsRestartingAgent(false)}
+            onRestartStart={() => setChatState?.(ChatState.RestartingAgent)}
+            onRestartEnd={() => setChatState?.(ChatState.Idle)}
           />
           {sessionId && messages.length > 0 && (
             <>

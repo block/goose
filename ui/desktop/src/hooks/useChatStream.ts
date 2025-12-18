@@ -34,6 +34,7 @@ interface UseChatStreamReturn {
   session?: Session;
   messages: Message[];
   chatState: ChatState;
+  setChatState: (state: ChatState) => void;
   handleSubmit: (userMessage: string) => Promise<void>;
   submitElicitationResponse: (
     elicitationId: string,
@@ -512,6 +513,7 @@ export function useChatStream({
     messages: maybe_cached_messages,
     session: maybe_cached_session,
     chatState,
+    setChatState,
     handleSubmit,
     submitElicitationResponse,
     stopStreaming,

@@ -95,6 +95,7 @@ function BaseChatContent({
     session,
     messages,
     chatState,
+    setChatState,
     handleSubmit,
     submitElicitationResponse,
     stopStreaming,
@@ -409,6 +410,7 @@ function BaseChatContent({
             sessionId={sessionId}
             handleSubmit={handleFormSubmit}
             chatState={chatState}
+            setChatState={setChatState}
             onStop={stopStreaming}
             commandHistory={commandHistory}
             initialValue={initialPrompt}
