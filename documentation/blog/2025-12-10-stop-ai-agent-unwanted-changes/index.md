@@ -26,7 +26,7 @@ Always start on a new feature branch. Never let an agent commit directly to main
 
 ### 3. Set Rules in a Context File
 
-This is the key. I use a [`.goosehints`](/docs/guides/using-goosehints) or [`AGENTS.md`](/docs/guides/using-goosehints#custom-context-files) file with one critical instruction: 
+This is the key. I use a [`.goosehints`](/docs/guides/context-engineering/using-goosehints) or [`AGENTS.md`](/docs/guides/context-engineering/using-goosehints#custom-context-files) file with one critical instruction: 
 
 > "Every time you make a change, make a commit with a clear message." 
 

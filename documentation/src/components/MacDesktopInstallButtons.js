@@ -4,7 +4,7 @@ import { IconDownload } from "@site/src/components/icons/download";
 const DesktopInstallButtons = () => {
   return (
     <div>
-      <p>To download Goose Desktop for macOS, click one of the buttons below:</p>
+      <p>Click one of the buttons below to download goose Desktop for macOS:</p>
       <div className="pill-button">
         <Link
           className="button button--primary button--lg"

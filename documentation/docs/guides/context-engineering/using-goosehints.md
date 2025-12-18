@@ -1,12 +1,12 @@
 ---
 title: Providing Hints to goose
-sidebar_position: 40
+sidebar_position: 1
 sidebar_label: Using goosehints
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import { FolderKey } from 'lucide-react';
+import { PanelLeft } from 'lucide-react';
 
 `.goosehints` is a text file used to provide additional context about your project and improve the communication with goose. The use of `.goosehints` ensures that goose understands your requirements better and can execute tasks more effectively.
 
@@ -46,21 +46,20 @@ You can use other agent rule files with goose by using the [`CONTEXT_FILE_NAMES`
     <TabItem value="ui" label="goose Desktop" default>
 
     #### Global hints file
-    1. Create a `.goosehints` file in `~/.config/goose`.
+    1. Create a `.goosehints` file in `~/.config/goose`
 
     #### Local hints file
 
-    1. Change the directory to where you'd like to set up the file. You can do this by clicking the directory path on the bottom of the goose window.
-    2. Click the <FolderKey size={16} /> icon on the bottom right of the goose window.
-    4. Enter your local tips into the text area.
-    5. Click `Save`.
-    6. Restart your session so goose can read the updated `.goosehints`.
+    1. Click the directory path at the bottom of the app and open the directory where you want to create the file
+    2. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+    3. Click `Settings` in the sidebar
+    4. Click `Chat`
+    5. Scroll down to the `Project Hints (.goosehints)` section and click `Configure`
+    6. Enter your local hints in the text area
+    7. Click `Save`
+    8. Restart your session so goose can read the updated `.goosehints`
 
-    If a `.goosehints` file already exists in the given directory, you can edit or add to it from this screen.
-
-    :::tip
-    You may have to scroll or adjust the screen size to fully see the `Save` and `Cancel` buttons.
-    :::
+    If a `.goosehints` file already exists in the given directory, you can edit your existing hints.
 
     </TabItem>
     <TabItem value="manual" label="Manual">
