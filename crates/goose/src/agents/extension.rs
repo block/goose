@@ -6,7 +6,6 @@ use crate::agents::subagent_client;
 use crate::agents::todo_extension;
 use crate::recipe::SubRecipe;
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -126,7 +125,6 @@ pub struct PlatformExtensionContext {
         Option<std::sync::Weak<crate::agents::extension_manager::ExtensionManager>>,
     pub tool_route_manager:
         Option<std::sync::Weak<crate::agents::tool_route_manager::ToolRouteManager>>,
-    pub working_dir: Option<PathBuf>,
     pub sub_recipes: Option<Arc<RwLock<HashMap<String, SubRecipe>>>>,
 }
 

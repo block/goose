@@ -14,7 +14,6 @@ use rmcp::model::{
     ServerCapabilities, ServerNotification, Tool, ToolsCapability,
 };
 use serde_json::Value;
-use std::path::PathBuf;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
@@ -79,13 +78,6 @@ impl SubagentClient {
             Some(recipes) => recipes.read().await.clone(),
             None => std::collections::HashMap::new(),
         }
-    }
-
-    fn get_working_dir(&self) -> PathBuf {
-        self.context
-            .working_dir
-            .clone()
-            .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
     }
 
     async fn build_tool(&self) -> Tool {
@@ -159,13 +151,13 @@ impl McpClientTrait for SubagentClient {
             ]))));
         };
 
-        // Get working_dir from parent session if available
+        // Get working_dir from parent session, fall back to current dir
         let working_dir = match &self.context.session_id {
             Some(session_id) => crate::session::SessionManager::get_session(session_id, false)
                 .await
                 .map(|s| s.working_dir)
-                .unwrap_or_else(|_| self.get_working_dir()),
-            None => self.get_working_dir(),
+                .unwrap_or_else(|_| std::env::current_dir().unwrap_or_else(|_| ".".into())),
+            None => std::env::current_dir().unwrap_or_else(|_| ".".into()),
         };
 
         let extensions = self.get_extensions().await;
