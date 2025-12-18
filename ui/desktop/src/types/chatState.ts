@@ -5,4 +5,5 @@ export enum ChatState {
   WaitingForUserInput = 'waitingForUserInput',
   Compacting = 'compacting',
   LoadingConversation = 'loadingConversation',
+  RestartingAgent = 'restartingAgent',
 }

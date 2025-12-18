@@ -1,5 +1,11 @@
-import { Session, startAgent, restartAgent } from './api';
+import { Session, startAgent, ExtensionConfig } from './api';
 import type { setViewType } from './hooks/useNavigation';
+import {
+  getExtensionConfigsWithOverrides,
+  clearExtensionOverrides,
+  hasExtensionOverrides,
+} from './store/extensionOverrides';
+import type { FixedExtensionEntry } from './components/ConfigContext';
 
 export function resumeSession(session: Session, setView: setViewType) {
   setView('pair', {
@@ -13,12 +19,15 @@ export async function createSession(
   options?: {
     recipeId?: string;
     recipeDeeplink?: string;
+    extensionConfigs?: ExtensionConfig[];
+    allExtensions?: FixedExtensionEntry[];
   }
 ): Promise<Session> {
   const body: {
     working_dir: string;
     recipe_id?: string;
     recipe_deeplink?: string;
+    extension_overrides?: ExtensionConfig[];
   } = {
     working_dir: workingDir,
   };
@@ -29,19 +38,24 @@ export async function createSession(
     body.recipe_deeplink = options.recipeDeeplink;
   }
 
+  if (options?.extensionConfigs && options.extensionConfigs.length > 0) {
+    body.extension_overrides = options.extensionConfigs;
+  } else if (options?.allExtensions) {
+    const extensionConfigs = getExtensionConfigsWithOverrides(options.allExtensions);
+    if (extensionConfigs.length > 0) {
+      body.extension_overrides = extensionConfigs;
+    }
+    if (hasExtensionOverrides()) {
+      clearExtensionOverrides();
+    }
+  }
+
   const newAgent = await startAgent({
     body,
     throwOnError: true,
   });
 
-  const session = newAgent.data;
-
-  // Restart agent to ensure it picks up the session's working dir
-  await restartAgent({
-    body: { session_id: session.id },
-  });
-
-  return session;
+  return newAgent.data;
 }
 
 export async function startNewSession(
@@ -51,6 +65,7 @@ export async function startNewSession(
   options?: {
     recipeId?: string;
     recipeDeeplink?: string;
+    allExtensions?: FixedExtensionEntry[];
   }
 ): Promise<Session> {
   const session = await createSession(workingDir, options);

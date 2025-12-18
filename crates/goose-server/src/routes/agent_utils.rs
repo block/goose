@@ -1,12 +1,22 @@
 use crate::routes::errors::ErrorResponse;
 use axum::http::StatusCode;
-use goose::agents::Agent;
+use goose::agents::{normalize, Agent};
 use goose::config::Config;
 use goose::model::ModelConfig;
 use goose::providers::create;
-use goose::session::Session;
+use goose::session::extension_data::ExtensionState;
+use goose::session::{EnabledExtensionsState, Session, SessionManager};
+use serde::Serialize;
 use std::sync::Arc;
-use tracing::warn;
+use tracing::{error, warn};
+
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
+pub struct ExtensionLoadResult {
+    pub name: String,
+    pub success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
 
 pub async fn restore_agent_provider(
     agent: &Arc<Agent>,
@@ -55,12 +65,20 @@ pub async fn restore_agent_provider(
 
 pub async fn restore_agent_extensions(
     agent: Arc<Agent>,
-    working_dir: &std::path::Path,
-) -> Result<(), ErrorResponse> {
+    session: &Session,
+) -> Vec<ExtensionLoadResult> {
     // Set the agent's working directory before adding extensions
-    agent.set_working_dir(working_dir.to_path_buf()).await;
+    agent.set_working_dir(session.working_dir.clone()).await;
 
-    let enabled_configs = goose::config::get_enabled_extensions();
+    // Try to load session-specific extensions first, fall back to global config
+    let session_extensions = EnabledExtensionsState::from_extension_data(&session.extension_data);
+    let enabled_configs = session_extensions
+        .map(|state| state.extensions)
+        .unwrap_or_else(|| {
+            tracing::info!("restore_agent_extensions: falling back to global config");
+            goose::config::get_enabled_extensions()
+        });
+
     let extension_futures = enabled_configs
         .into_iter()
         .map(|config| {
@@ -68,18 +86,85 @@ pub async fn restore_agent_extensions(
             let agent_ref = agent.clone();
 
             async move {
-                if let Err(e) = agent_ref.add_extension(config_clone.clone()).await {
-                    warn!("Failed to load extension {}: {}", config_clone.name(), e);
-                    goose::posthog::emit_error(
-                        "extension_load_failed",
-                        &format!("{}: {}", config_clone.name(), e),
-                    );
+                let name = config_clone.name().to_string();
+                let normalized_name = normalize(&name);
+
+                if agent_ref
+                    .extension_manager
+                    .is_extension_enabled(&normalized_name)
+                    .await
+                {
+                    tracing::debug!("Extension {} already loaded, skipping", name);
+                    return ExtensionLoadResult {
+                        name,
+                        success: true,
+                        error: None,
+                    };
                 }
-                Ok::<_, ErrorResponse>(())
+
+                match agent_ref.add_extension(config_clone).await {
+                    Ok(_) => ExtensionLoadResult {
+                        name,
+                        success: true,
+                        error: None,
+                    },
+                    Err(e) => {
+                        let error_msg = e.to_string();
+                        warn!("Failed to load extension {}: {}", name, error_msg);
+                        ExtensionLoadResult {
+                            name,
+                            success: false,
+                            error: Some(error_msg),
+                        }
+                    }
+                }
             }
         })
         .collect::<Vec<_>>();
 
-    futures::future::join_all(extension_futures).await;
+    futures::future::join_all(extension_futures).await
+}
+
+pub async fn persist_session_extensions(
+    agent: &Arc<Agent>,
+    session_id: &str,
+) -> Result<(), ErrorResponse> {
+    let current_extensions = agent.extension_manager.get_extension_configs().await;
+    let extensions_state = EnabledExtensionsState::new(current_extensions);
+
+    // Get the current session to access its extension_data
+    let session = SessionManager::get_session(session_id, false)
+        .await
+        .map_err(|e| {
+            error!("Failed to get session for persisting extensions: {}", e);
+            ErrorResponse {
+                message: format!("Failed to get session: {}", e),
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+            }
+        })?;
+
+    let mut extension_data = session.extension_data.clone();
+    extensions_state
+        .to_extension_data(&mut extension_data)
+        .map_err(|e| {
+            error!("Failed to serialize extension state: {}", e);
+            ErrorResponse {
+                message: format!("Failed to serialize extension state: {}", e),
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+            }
+        })?;
+
+    SessionManager::update_session(session_id)
+        .extension_data(extension_data)
+        .apply()
+        .await
+        .map_err(|e| {
+            error!("Failed to persist extension state: {}", e);
+            ErrorResponse {
+                message: format!("Failed to persist extension state: {}", e),
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+            }
+        })?;
+
     Ok(())
 }
