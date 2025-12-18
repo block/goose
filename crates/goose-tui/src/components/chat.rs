@@ -22,7 +22,9 @@ pub struct ChatComponent {
     list_state: ListState,
     cached_items: Vec<ListItem<'static>>,
     cached_mapping: Vec<usize>,
+    cached_line_text: Vec<String>,
     display_mapping: Vec<usize>,
+    display_line_text: Vec<String>,
     sealed_count: usize,
     last_tool_context: HashMap<String, (String, String)>,
     stick_to_bottom: bool,
@@ -48,7 +50,9 @@ impl ChatComponent {
             list_state: ListState::default(),
             cached_items: Vec::new(),
             cached_mapping: Vec::new(),
+            cached_line_text: Vec::new(),
             display_mapping: Vec::new(),
+            display_line_text: Vec::new(),
             sealed_count: 0,
             last_tool_context: HashMap::new(),
             stick_to_bottom: true,
@@ -63,47 +67,47 @@ impl ChatComponent {
         }
     }
 
-    fn current_message_index(&self) -> usize {
-        let display_idx = self.list_state.selected().unwrap_or(0);
-        self.display_mapping.get(display_idx).copied().unwrap_or(0)
-    }
-
-    fn find_display_index_for_message(&self, msg_idx: usize) -> Option<usize> {
-        self.display_mapping.iter().position(|&m| m == msg_idx)
+    fn current_display_index(&self) -> usize {
+        self.list_state.selected().unwrap_or(0)
     }
 
     fn selection_range(&self) -> Option<std::ops::RangeInclusive<usize>> {
         let anchor = self.visual_anchor?;
-        let cursor = self.current_message_index();
+        let cursor = self.current_display_index();
         Some(anchor.min(cursor)..=anchor.max(cursor))
     }
 
-    fn selection_count(&self) -> usize {
-        self.selection_range()
-            .map(|r| r.end() - r.start() + 1)
-            .unwrap_or(0)
-    }
-
-    fn build_selection_text(&self, state: &AppState) -> String {
+    fn selected_message_indices(&self) -> Vec<usize> {
         self.selection_range()
             .map(|range| {
                 range
-                    .filter_map(|i| state.messages.get(i))
-                    .map(crate::utils::message_format::message_to_plain_text)
+                    .filter_map(|i| self.display_mapping.get(i).copied())
+                    .collect::<std::collections::BTreeSet<_>>()
+                    .into_iter()
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    fn build_selection_text(&self) -> String {
+        self.selection_range()
+            .map(|range| {
+                range
+                    .filter_map(|i| self.display_line_text.get(i))
+                    .filter(|s| !s.is_empty())
+                    .cloned()
                     .collect::<Vec<_>>()
-                    .join("\n\n")
+                    .join("\n")
             })
             .unwrap_or_default()
     }
 
     fn swap_anchor_cursor(&mut self) {
         if let Some(old_anchor) = self.visual_anchor {
-            let current = self.current_message_index();
+            let current = self.current_display_index();
             if old_anchor != current {
                 self.visual_anchor = Some(current);
-                if let Some(display_idx) = self.find_display_index_for_message(old_anchor) {
-                    self.list_state.select(Some(display_idx));
-                }
+                self.list_state.select(Some(old_anchor));
             }
         }
     }
@@ -113,15 +117,15 @@ impl ChatComponent {
         self.pending_g = false;
     }
 
-    fn handle_visual_mode(&mut self, key: KeyCode, state: &AppState) -> Result<Option<Action>> {
+    fn handle_visual_mode(&mut self, key: KeyCode, _state: &AppState) -> Result<Option<Action>> {
         if key != KeyCode::Char('g') {
             self.pending_g = false;
         }
 
         match key {
             KeyCode::Char('y') | KeyCode::Char('c') => {
-                let text = self.build_selection_text(state);
-                let count = self.selection_count();
+                let text = self.build_selection_text();
+                let count = self.selected_message_indices().len();
                 self.exit_visual_mode();
                 Ok(Some(Action::YankVisualSelection { text, count }))
             }
@@ -170,6 +174,10 @@ impl ChatComponent {
         }
     }
 
+    fn line_to_plain_text(line: &Line) -> String {
+        line.spans.iter().map(|s| s.content.as_ref()).collect()
+    }
+
     fn render_message(
         msg_idx: usize,
         message: &goose::conversation::message::Message,
@@ -177,7 +185,7 @@ impl ChatComponent {
         theme: &Theme,
         last_tool_context: &mut HashMap<String, (String, String)>,
         pending_confirmation: Option<&PendingToolConfirmation>,
-    ) -> (Vec<ListItem<'static>>, Vec<usize>) {
+    ) -> (Vec<ListItem<'static>>, Vec<usize>, Vec<String>) {
         match message.role {
             rmcp::model::Role::User => {
                 Self::render_user_message(msg_idx, message, width, theme, last_tool_context)
@@ -199,15 +207,16 @@ impl ChatComponent {
         width: usize,
         theme: &Theme,
         last_tool_context: &mut HashMap<String, (String, String)>,
-    ) -> (Vec<ListItem<'static>>, Vec<usize>) {
+    ) -> (Vec<ListItem<'static>>, Vec<usize>, Vec<String>) {
         let mut items = Vec::new();
         let mut map = Vec::new();
+        let mut texts = Vec::new();
 
         for content in &message.content {
             match content {
-                MessageContent::Text(t) => {
-                    Self::render_user_text(t, msg_idx, width, theme, &mut items, &mut map)
-                }
+                MessageContent::Text(t) => Self::render_user_text(
+                    t, msg_idx, width, theme, &mut items, &mut map, &mut texts,
+                ),
                 MessageContent::ToolResponse(resp) => Self::render_tool_response(
                     resp,
                     msg_idx,
@@ -216,13 +225,15 @@ impl ChatComponent {
                     last_tool_context,
                     &mut items,
                     &mut map,
+                    &mut texts,
                 ),
                 _ => {}
             }
         }
         items.push(ListItem::new(Line::from("")));
         map.push(msg_idx);
-        (items, map)
+        texts.push(String::new());
+        (items, map, texts)
     }
 
     fn render_user_text(
@@ -232,6 +243,7 @@ impl ChatComponent {
         theme: &Theme,
         items: &mut Vec<ListItem<'static>>,
         map: &mut Vec<usize>,
+        texts: &mut Vec<String>,
     ) {
         let display_text = strip_hidden_blocks(&t.text, msg_idx == 0);
 
@@ -248,13 +260,16 @@ impl ChatComponent {
         }
 
         for line in rendered_lines {
+            let plain = Self::line_to_plain_text(&line);
             let mut spans = vec![Span::styled("│ ", Style::default().fg(Color::DarkGray))];
             spans.extend(line.spans);
             items.push(ListItem::new(Line::from(spans)));
             map.push(msg_idx);
+            texts.push(plain);
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn render_tool_response(
         resp: &goose::conversation::message::ToolResponse,
         msg_idx: usize,
@@ -263,6 +278,7 @@ impl ChatComponent {
         last_tool_context: &mut HashMap<String, (String, String)>,
         items: &mut Vec<ListItem<'static>>,
         map: &mut Vec<usize>,
+        texts: &mut Vec<String>,
     ) {
         let (tool_name, tool_args) = last_tool_context
             .get(&resp.id)
@@ -275,11 +291,18 @@ impl ChatComponent {
         };
 
         Self::render_tool_response_header(
-            &tool_name, &tool_args, width, color, items, map, msg_idx,
+            &tool_name, &tool_args, width, color, items, map, texts, msg_idx,
         );
 
         if let Ok(call_tool_result) = &resp.tool_result {
-            Self::render_tool_response_body(&call_tool_result.content, width, items, map, msg_idx);
+            Self::render_tool_response_body(
+                &call_tool_result.content,
+                width,
+                items,
+                map,
+                texts,
+                msg_idx,
+            );
         }
 
         let footer = format!("╰{:─<width$}╯", "", width = width.saturating_sub(2));
@@ -288,8 +311,10 @@ impl ChatComponent {
             Style::default().fg(Color::DarkGray),
         ))));
         map.push(msg_idx);
+        texts.push(String::new());
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn render_tool_response_header(
         tool_name: &str,
         tool_args: &str,
@@ -297,6 +322,7 @@ impl ChatComponent {
         color: Color,
         items: &mut Vec<ListItem<'static>>,
         map: &mut Vec<usize>,
+        texts: &mut Vec<String>,
         msg_idx: usize,
     ) {
         let max_args = 50;
@@ -329,8 +355,10 @@ impl ChatComponent {
                 Style::default().fg(Color::DarkGray),
             ),
         ]);
+        let plain = format!("{} {}", tool_name, display_args);
         items.push(ListItem::new(header_line));
         map.push(msg_idx);
+        texts.push(plain);
     }
 
     fn render_tool_response_body(
@@ -338,6 +366,7 @@ impl ChatComponent {
         width: usize,
         items: &mut Vec<ListItem<'static>>,
         map: &mut Vec<usize>,
+        texts: &mut Vec<String>,
         msg_idx: usize,
     ) {
         let max_lines = 10;
@@ -373,6 +402,7 @@ impl ChatComponent {
                         Style::default().fg(Color::Gray),
                     ))));
                     map.push(msg_idx);
+                    texts.push(line.to_string());
                     line_count += 1;
                 }
             }
@@ -385,6 +415,7 @@ impl ChatComponent {
                 Style::default().fg(Color::DarkGray),
             ))));
             map.push(msg_idx);
+            texts.push("... (truncated)".to_string());
         }
     }
 
@@ -416,9 +447,10 @@ impl ChatComponent {
         theme: &Theme,
         last_tool_context: &mut HashMap<String, (String, String)>,
         pending_confirmation: Option<&PendingToolConfirmation>,
-    ) -> (Vec<ListItem<'static>>, Vec<usize>) {
+    ) -> (Vec<ListItem<'static>>, Vec<usize>, Vec<String>) {
         let mut items = Vec::new();
         let mut map = Vec::new();
+        let mut texts = Vec::new();
 
         for content in &message.content {
             match content {
@@ -426,8 +458,10 @@ impl ChatComponent {
                     let renderer = MarkdownRenderer::new(theme, None);
                     let rendered_lines = renderer.render_lines(&t.text, width);
                     for line in rendered_lines {
+                        let plain = Self::line_to_plain_text(&line);
                         items.push(ListItem::new(line));
                         map.push(msg_idx);
+                        texts.push(plain);
                     }
                 }
                 MessageContent::ToolRequest(req) => {
@@ -447,18 +481,21 @@ impl ChatComponent {
                                 Style::default().fg(theme.base.foreground),
                             ),
                         ]);
+                        let plain = format!("Tool: {name}");
                         items.push(ListItem::new(line));
                         map.push(msg_idx);
+                        texts.push(plain);
                     }
                 }
                 MessageContent::ToolConfirmationRequest(req) => {
                     let is_pending = pending_confirmation
                         .map(|p| p.id == req.id)
                         .unwrap_or(false);
-                    let (conf_items, conf_map) =
+                    let (conf_items, conf_map, conf_texts) =
                         Self::render_tool_confirmation(msg_idx, req, width, theme, is_pending);
                     items.extend(conf_items);
                     map.extend(conf_map);
+                    texts.extend(conf_texts);
                 }
                 MessageContent::Thinking(t) => {
                     items.push(ListItem::new(Line::from(vec![
@@ -471,13 +508,15 @@ impl ChatComponent {
                         ),
                     ])));
                     map.push(msg_idx);
+                    texts.push(t.thinking.clone());
                 }
                 _ => {}
             }
         }
         items.push(ListItem::new(Line::from("")));
         map.push(msg_idx);
-        (items, map)
+        texts.push(String::new());
+        (items, map, texts)
     }
 
     fn render_tool_confirmation(
@@ -486,9 +525,10 @@ impl ChatComponent {
         width: usize,
         theme: &Theme,
         is_pending: bool,
-    ) -> (Vec<ListItem<'static>>, Vec<usize>) {
+    ) -> (Vec<ListItem<'static>>, Vec<usize>, Vec<String>) {
         let mut items = Vec::new();
         let mut map = Vec::new();
+        let mut texts = Vec::new();
 
         let border_color = if is_pending {
             theme.status.warning
@@ -508,6 +548,7 @@ impl ChatComponent {
             ]);
             items.push(ListItem::new(warning_line));
             map.push(msg_idx);
+            texts.push(format!("Security: {}", warning));
         }
 
         let status = if is_pending {
@@ -521,7 +562,7 @@ impl ChatComponent {
 
         items.push(ListItem::new(Line::from(vec![
             Span::styled(
-                header_text,
+                header_text.clone(),
                 Style::default()
                     .fg(border_color)
                     .add_modifier(Modifier::BOLD),
@@ -532,19 +573,21 @@ impl ChatComponent {
             ),
         ])));
         map.push(msg_idx);
+        texts.push(format!("{} - {}", req.tool_name, status));
 
         let args_str = serde_json::to_string(&req.arguments).unwrap_or_default();
         let preview = if args_str.len() > 60 {
             format!("{}...", &args_str[..57])
         } else {
-            args_str
+            args_str.clone()
         };
 
         items.push(ListItem::new(Line::from(vec![
             Span::styled("│ ", Style::default().fg(border_color)),
-            Span::styled(preview, Style::default().fg(Color::Gray)),
+            Span::styled(preview.clone(), Style::default().fg(Color::Gray)),
         ])));
         map.push(msg_idx);
+        texts.push(preview);
 
         if is_pending {
             items.push(ListItem::new(Line::from(vec![
@@ -555,6 +598,7 @@ impl ChatComponent {
                 ),
             ])));
             map.push(msg_idx);
+            texts.push("Press Y to allow, N to deny".to_string());
         }
 
         items.push(ListItem::new(Line::from(Span::styled(
@@ -562,8 +606,9 @@ impl ChatComponent {
             Style::default().fg(border_color),
         ))));
         map.push(msg_idx);
+        texts.push(String::new());
 
-        (items, map)
+        (items, map, texts)
     }
 
     fn check_confirmation_keys(&self, key: KeyCode, state: &AppState) -> Option<Action> {
@@ -666,7 +711,7 @@ impl ChatComponent {
         let items_len = display_items.len();
 
         let list = List::new(display_items)
-            .block(block)
+            .block(block.clone())
             .style(
                 Style::default()
                     .bg(theme.base.background)
@@ -679,6 +724,41 @@ impl ChatComponent {
             );
 
         f.render_stateful_widget(list, area, &mut self.list_state);
+
+        if state.input_mode == InputMode::Visual {
+            if let Some(range) = self.selection_range() {
+                let inner_area = block.inner(area);
+                let scroll_offset = self.list_state.offset();
+                let selected_idx = self.list_state.selected().unwrap_or(0);
+
+                for display_idx in range {
+                    if display_idx == selected_idx {
+                        continue;
+                    }
+                    if display_idx < scroll_offset {
+                        continue;
+                    }
+
+                    let visible_row = display_idx - scroll_offset;
+                    if visible_row >= inner_area.height as usize {
+                        continue;
+                    }
+
+                    let y = inner_area.y + visible_row as u16;
+                    let buf = f.buffer_mut();
+                    for x in inner_area.x..inner_area.x + inner_area.width {
+                        if let Some(cell) = buf.cell_mut((x, y)) {
+                            let sym = cell.symbol();
+                            if !sym.chars().all(|c| c.is_whitespace()) {
+                                let mut style = cell.style();
+                                style.bg = Some(theme.base.selection);
+                                cell.set_style(style);
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         if !state.copy_mode && !self.stick_to_bottom && items_len > 0 {
             use ratatui::widgets::{Scrollbar, ScrollbarOrientation, ScrollbarState};
@@ -730,7 +810,7 @@ impl Component for ChatComponent {
                     }
 
                     if key.code == KeyCode::Char('V') && !state.messages.is_empty() {
-                        self.visual_anchor = Some(self.current_message_index());
+                        self.visual_anchor = Some(self.current_display_index());
                         return Ok(Some(Action::EnterVisualMode));
                     }
 
@@ -815,6 +895,7 @@ impl Component for ChatComponent {
         if area.width != self.last_width {
             self.cached_items.clear();
             self.cached_mapping.clear();
+            self.cached_line_text.clear();
             self.sealed_count = 0;
             self.last_tool_context.clear();
             self.last_width = area.width;
@@ -824,6 +905,7 @@ impl Component for ChatComponent {
         if state.config.theme.name != self.last_theme_name {
             self.cached_items.clear();
             self.cached_mapping.clear();
+            self.cached_line_text.clear();
             self.sealed_count = 0;
             self.last_tool_context.clear();
             self.last_theme_name = state.config.theme.name.clone();
@@ -833,6 +915,7 @@ impl Component for ChatComponent {
         if state.messages.len() < self.sealed_count {
             self.cached_items.clear();
             self.cached_mapping.clear();
+            self.cached_line_text.clear();
             self.sealed_count = 0;
             self.last_tool_context.clear();
             self.list_state = ListState::default();
@@ -854,7 +937,7 @@ impl Component for ChatComponent {
                 if !state.messages[i].is_user_visible() {
                     continue;
                 }
-                let (items, map) = Self::render_message(
+                let (items, map, texts) = Self::render_message(
                     i,
                     &state.messages[i],
                     width,
@@ -864,12 +947,14 @@ impl Component for ChatComponent {
                 );
                 self.cached_items.extend(items);
                 self.cached_mapping.extend(map);
+                self.cached_line_text.extend(texts);
             }
             self.sealed_count = new_sealed_count;
         }
 
         let mut display_items = self.cached_items.clone();
         self.display_mapping = self.cached_mapping.clone();
+        self.display_line_text = self.cached_line_text.clone();
 
         if state.is_working && !state.messages.is_empty() {
             let last_idx = state.messages.len() - 1;
@@ -877,7 +962,7 @@ impl Component for ChatComponent {
                 let theme = &state.config.theme;
                 let width = area.width.saturating_sub(2) as usize;
                 let mut ctx = self.last_tool_context.clone();
-                let (items, map) = Self::render_message(
+                let (items, map, texts) = Self::render_message(
                     last_idx,
                     &state.messages[last_idx],
                     width,
@@ -887,6 +972,7 @@ impl Component for ChatComponent {
                 );
                 display_items.extend(items);
                 self.display_mapping.extend(map);
+                self.display_line_text.extend(texts);
             }
         }
 
