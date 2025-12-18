@@ -355,7 +355,7 @@ impl ChatComponent {
                 Style::default().fg(Color::DarkGray),
             ),
         ]);
-        let plain = format!("{} {}", tool_name, display_args);
+        let plain = format!("{tool_name} {display_args}");
         items.push(ListItem::new(header_line));
         map.push(msg_idx);
         texts.push(plain);
@@ -548,7 +548,7 @@ impl ChatComponent {
             ]);
             items.push(ListItem::new(warning_line));
             map.push(msg_idx);
-            texts.push(format!("Security: {}", warning));
+            texts.push(format!("Security: {warning}"));
         }
 
         let status = if is_pending {

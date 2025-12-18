@@ -58,7 +58,7 @@ pub fn handle_action(
             let msg = if *count == 1 {
                 "Copied 1 message".to_string()
             } else {
-                format!("Copied {} messages", count)
+                format!("Copied {count} messages")
             };
             let _ = tx.send(Event::Flash(msg));
         }
