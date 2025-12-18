@@ -365,9 +365,9 @@ impl CodeExecutionClient {
     ) -> Result<Vec<Content>, String> {
         let path = arguments
             .as_ref()
-            .and_then(|a| a.get("path"))
+            .and_then(|a| a.get("module_path"))
             .and_then(|v| v.as_str())
-            .ok_or("Missing required parameter: path")?;
+            .ok_or("Missing required parameter: module_path")?;
 
         let tools = self.get_tool_infos().await;
         let parts: Vec<&str> = path.trim_start_matches('/').split('/').collect();
@@ -781,7 +781,10 @@ mod tests {
         let client = CodeExecutionClient::new(PlatformExtensionContext::default()).unwrap();
 
         let mut args = JsonObject::new();
-        args.insert("path".to_string(), Value::String("nonexistent".to_string()));
+        args.insert(
+            "module_path".to_string(),
+            Value::String("nonexistent".to_string()),
+        );
 
         let result = client.handle_read_module(Some(args)).await;
         assert!(result.is_err());
