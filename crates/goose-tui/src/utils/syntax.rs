@@ -30,11 +30,7 @@ pub fn highlight_code(code: &str, lang: &str, dark_mode: bool) -> Vec<Line<'stat
 
     code.lines()
         .map(|line| {
-            let line_with_newline = format!(
-                "{}
-",
-                line
-            );
+            let line_with_newline = format!("{line}\n");
             highlighter
                 .highlight_line(&line_with_newline, &SYNTAX_SET)
                 .map(|ranges| {
