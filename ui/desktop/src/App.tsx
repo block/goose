@@ -94,6 +94,11 @@ const PairRouteWrapper = ({
           });
         } catch (error) {
           console.error('Failed to create session for recipe:', error);
+          trackErrorWithContext(error, {
+            component: 'PairRouteWrapper',
+            action: 'create_session',
+            recoverable: true,
+          });
         }
       })();
     }
