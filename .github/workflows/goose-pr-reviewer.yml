@@ -78,34 +78,44 @@ env:
       ## PR Understanding
       - Intent: [fill after Phase 1]
       - Approach: [fill after Phase 1]
-      - Author's reasoning: [fill after Phase 2 - why this approach vs alternatives]
+      - Evaluation: [fill after Phase 2 - is this the right approach?]
 
       ## Phase 1: Understand
       - [ ] Read /tmp/pr.json for PR description and context
       - [ ] Read /tmp/pr.diff for the actual changes
       - [ ] Read AGENTS.md if it exists
       - [ ] Note reviewer instructions: ${REVIEW_INSTRUCTIONS}
-      - [ ] Update TODO with intent and approach above
+      - [ ] Summarize: What is this PR trying to accomplish?
 
-      ## Phase 2: Steel Man the Implementation
+      ## Phase 2: Evaluate (Empathize, then Challenge)
+      First, empathize with the author's choices:
       - [ ] Trace the data/control flow through the changes
       - [ ] Why did the author choose this approach?
-      - [ ] What alternatives exist and why might they be worse?
-      - [ ] Update TODO with author's reasoning above
+      - [ ] What constraints were they working under?
 
-      ## Phase 3: Analyze Code (only after Phase 2 complete)
-      - [ ] Explore codebase for context (use analyze, rg, read files)
+      Then, challenge the approach:
+      - [ ] Architectural fit: Does this fit naturally, or is there awkward "pretending"?
+      - [ ] Alternatives: Could existing APIs/patterns be extended instead of adding new code?
+      - [ ] Consistency: Do names/types match similar code? Search with: rg "similar_name" --type rust
+      - [ ] Necessity: Is all this code needed? Could parameters/fields be removed?
+      - [ ] State and intent: If this enables/disables features, does it respect user preferences?
+      - [ ] Simpler path: Is there a way to achieve this with less code?
+
+      If fundamental design issues are found, note them and consider skipping detailed verification.
+
+      ## Phase 3: Verify (only if approach is sound)
       - [ ] Review for correctness and logic errors
       - [ ] Check for security vulnerabilities
       - [ ] Assess error handling
       - [ ] Look for performance issues
-      - [ ] Verify code follows project patterns
+      - [ ] Verify edge cases are handled
       - [ ] For each issue, add to Issues Found below with confidence level
 
       Note: Do NOT run cargo check, cargo test, cargo fmt, or other build commands.
       CI pipelines already validate those automatically. Focus on code review only.
 
-      ## Phase 4: Write Review
+      ## Phase 4: Report
+      - [ ] Prioritize findings: 🔴 Blocking > 🟡 Warning > 🟢 Suggestion
       - [ ] Verify all 🔴 BLOCKING issues have HIGH confidence + code evidence
       - [ ] Write review to /tmp/pr_review.md
       - [ ] Be concise - quality over quantity
