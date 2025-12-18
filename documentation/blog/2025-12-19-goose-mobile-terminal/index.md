@@ -32,7 +32,7 @@ The goose iOS app also runs natively on macOS (Apple Silicon Macs), giving you a
 
 At the other end of things, there is a brand new way to use goose natively in your favoured terminal.
 No need to switch to another terminal or app or TUI, you can use goose right where you are in your terminal.
-See the [Terminal Integration guide](/docs/guides/terminal-integration) for guide on how to setup.
+See the [Terminal Integration guide](/docs/guides/terminal-integration) for a guide on how to set it up.
 
 Once set up, you can call `@goose` from anywhere in your terminal. It automatically manages sessions for you and keeps context with what you've been working on—even when goose isn't running. When you ask it something, it jumps right in and helps with full awareness of your recent work.
 
