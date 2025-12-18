@@ -41,7 +41,11 @@ pub fn list_commands() -> &'static [CommandDef] {
 }
 
 impl Agent {
-    pub async fn execute_command(&self, message_text: &str, session_id: &str) -> Result<Option<Message>> {
+    pub async fn execute_command(
+        &self,
+        message_text: &str,
+        session_id: &str,
+    ) -> Result<Option<Message>> {
         let mut trimmed = message_text.trim().to_string();
 
         if COMPACT_TRIGGERS.contains(&trimmed.as_str()) {
@@ -317,12 +321,14 @@ impl Agent {
                     • **Desktop:** Launch from the recipes sidebar to fill in parameters",
                     command,
                     params_without_default,
-                    param_names.iter()
+                    param_names
+                        .iter()
                         .map(|name| format!("**{}**", name))
                         .collect::<Vec<_>>()
                         .join(", "),
                     command,
-                    param_names.iter()
+                    param_names
+                        .iter()
                         .map(|name| format!("--params {}=\"...\"", name))
                         .collect::<Vec<_>>()
                         .join(" ")
@@ -333,7 +339,7 @@ impl Agent {
         };
 
         let param_values_len = param_values.len();
-        
+
         let recipe = match build_recipe_from_template_with_positional_params(
             recipe_content,
             recipe_dir,
