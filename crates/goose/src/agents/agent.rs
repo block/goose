@@ -407,13 +407,22 @@ impl Agent {
         response: Option<Response>,
         include_final_output: bool,
     ) {
-        if let Some(sub_recipes) = sub_recipes {
-            self.add_sub_recipes(sub_recipes).await;
+        if let Some(ref sub_recipes) = sub_recipes {
+            self.add_sub_recipes(sub_recipes.clone()).await;
         }
 
         if include_final_output {
             if let Some(response) = response {
                 self.add_final_output_tool(response).await;
+            }
+        }
+    }
+
+    pub async fn ensure_subagent_for_recipes(&self) {
+        let has_sub_recipes = !self.sub_recipes.read().await.is_empty();
+        if has_sub_recipes {
+            if let Err(e) = self.enable_subagent_extension().await {
+                warn!("Failed to enable subagent extension for recipe: {}", e);
             }
         }
     }

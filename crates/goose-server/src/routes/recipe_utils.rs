@@ -170,6 +170,8 @@ pub async fn apply_recipe_to_agent(
         )
         .await;
 
+    agent.ensure_subagent_for_recipes().await;
+
     recipe.instructions.as_ref().map(|instructions| {
         let mut context: HashMap<&str, Value> = HashMap::new();
         context.insert("recipe_instructions", Value::String(instructions.clone()));

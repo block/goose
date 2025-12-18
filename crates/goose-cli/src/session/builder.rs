@@ -497,6 +497,8 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         }
     }
 
+    agent_ptr.ensure_subagent_for_recipes().await;
+
     // Determine editor mode
     let edit_mode = config
         .get_param::<String>("EDIT_MODE")
