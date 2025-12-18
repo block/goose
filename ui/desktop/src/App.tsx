@@ -65,17 +65,17 @@ const PairRouteWrapper = ({
 }) => {
   const { extensionsList } = useConfig();
   const location = useLocation();
+  const navigate = useNavigate();
   const routeState = (location.state as PairRouteState) || {};
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [initialMessage] = useState(routeState.initialMessage);
+  const [searchParams] = useSearchParams();
   const resumeSessionId = searchParams.get('resumeSessionId') ?? undefined;
   const recipeId = searchParams.get('recipeId') ?? undefined;
   const recipeDeeplinkFromConfig = window.appConfig?.get('recipeDeeplink') as string | undefined;
 
-  // Session ID comes from URL (set by Hub before navigating, or from session list/recipe deeplink)
-  const [sessionId, setSessionId] = useState(
-    routeState.resumeSessionId || resumeSessionId || chat.sessionId || undefined
-  );
+  // Session ID and initialMessage come from route state (Hub, fork) or URL params (refresh, deeplink)
+  const sessionIdFromState = routeState.resumeSessionId;
+  const initialMessage = routeState.initialMessage;
+  const sessionId = sessionIdFromState || resumeSessionId || chat.sessionId || undefined;
 
   // Handle recipe deeplinks - create session if needed
   useEffect(() => {
@@ -87,34 +87,26 @@ const PairRouteWrapper = ({
             recipeDeeplink: recipeDeeplinkFromConfig,
             allExtensions: extensionsList,
           });
-          setSessionId(newSession.id);
-          setSearchParams(
-            (prev) => {
-              prev.set('resumeSessionId', newSession.id);
-              prev.delete('recipeId');
-              return prev;
-            },
-            { replace: true }
-          );
+          navigate(`/pair?resumeSessionId=${newSession.id}`, {
+            replace: true,
+            state: { resumeSessionId: newSession.id },
+          });
         } catch (error) {
           console.error('Failed to create session for recipe:', error);
         }
       })();
     }
-  }, [recipeId, recipeDeeplinkFromConfig, sessionId, extensionsList, setSearchParams]);
+  }, [recipeId, recipeDeeplinkFromConfig, sessionId, extensionsList, navigate]);
 
-  // Sync URL with session ID for refresh support
+  // Sync URL with session ID for refresh support (only if not already in URL)
   useEffect(() => {
     if (sessionId && sessionId !== resumeSessionId) {
-      setSearchParams(
-        (prev) => {
-          prev.set('resumeSessionId', sessionId);
-          return prev;
-        },
-        { replace: true }
-      );
+      navigate(`/pair?resumeSessionId=${sessionId}`, {
+        replace: true,
+        state: { resumeSessionId: sessionIdFromState, initialMessage }, // Preserve state
+      });
     }
-  }, [sessionId, resumeSessionId, setSearchParams]);
+  }, [sessionId, resumeSessionId, navigate, sessionIdFromState, initialMessage]);
 
   return (
     <Pair
