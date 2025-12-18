@@ -1,3 +1,15 @@
+use anyhow::Result;
+use async_stream::try_stream;
+use async_trait::async_trait;
+use futures::{StreamExt, TryStreamExt};
+use reqwest::StatusCode;
+use serde_json::Value;
+use std::collections::HashMap;
+use std::io;
+use tokio::pin;
+use tokio_util::codec::{FramedRead, LinesCodec};
+use tokio_util::io::StreamReader;
+
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{ConfigKey, ModelInfo, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::embedding::{EmbeddingCapable, EmbeddingRequest, EmbeddingResponse};
@@ -14,17 +26,6 @@ use super::utils::{
 };
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
-use anyhow::Result;
-use async_stream::try_stream;
-use async_trait::async_trait;
-use futures::{StreamExt, TryStreamExt};
-use reqwest::StatusCode;
-use serde_json::Value;
-use std::collections::HashMap;
-use std::io;
-use tokio::pin;
-use tokio_util::codec::{FramedRead, LinesCodec};
-use tokio_util::io::StreamReader;
 
 use crate::model::ModelConfig;
 use crate::providers::base::MessageStream;
@@ -283,14 +284,8 @@ impl Provider for OpenAiProvider {
             log.write(&json_response, Some(&usage))?;
             Ok((message, ProviderUsage::new(model, usage)))
         } else {
-            let payload = create_request(
-                model_config,
-                system,
-                messages,
-                tools,
-                &ImageFormat::OpenAi,
-                false,
-            )?;
+            let payload =
+                create_request(model_config, system, messages, tools, &ImageFormat::OpenAi, false)?;
 
             let mut log = RequestLog::start(&self.model, &payload)?;
             let json_response = self
@@ -407,14 +402,8 @@ impl Provider for OpenAiProvider {
                 }
             }))
         } else {
-            let payload = create_request(
-                &self.model,
-                system,
-                messages,
-                tools,
-                &ImageFormat::OpenAi,
-                true,
-            )?;
+            let payload =
+                create_request(&self.model, system, messages, tools, &ImageFormat::OpenAi, true)?;
             let mut log = RequestLog::start(&self.model, &payload)?;
 
             let response = self
