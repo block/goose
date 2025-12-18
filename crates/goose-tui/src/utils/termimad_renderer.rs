@@ -1,5 +1,6 @@
 use crate::utils::sanitize::strip_ansi_codes;
 use crate::utils::styles::Theme;
+use crate::utils::syntax::{highlight_code, CodeBlockIterator, TextSegment};
 use ansi_to_tui::IntoText;
 use ratatui::style::{Color, Style};
 use ratatui::text::Line;
@@ -7,6 +8,7 @@ use termimad::MadSkin;
 
 pub struct MarkdownRenderer {
     skin: MadSkin,
+    dark_mode: bool,
 }
 
 impl MarkdownRenderer {
@@ -44,14 +46,24 @@ impl MarkdownRenderer {
         skin.code_block
             .set_bg(to_crossterm_color(theme.base.selection));
 
-        Self { skin }
+        Self {
+            skin,
+            dark_mode: is_dark_theme(theme),
+        }
     }
 
     pub fn render_lines(&self, text: &str, width: usize) -> Vec<Line<'static>> {
+        if !text.contains("```") {
+            return self.render_markdown(text, width);
+        }
+        self.render_with_syntax_highlighting(text, width)
+    }
+
+    fn render_markdown(&self, text: &str, width: usize) -> Vec<Line<'static>> {
         let fmt_text = self.skin.text(text, Some(width));
         let rendered = format!("{fmt_text}");
 
-        let mut lines: Vec<Line<'static>> = Vec::new();
+        let mut lines = Vec::new();
         let mut last_was_empty = false;
 
         for line in rendered.lines() {
@@ -70,6 +82,28 @@ impl MarkdownRenderer {
 
         lines
     }
+
+    fn render_with_syntax_highlighting(&self, text: &str, width: usize) -> Vec<Line<'static>> {
+        let mut result = Vec::new();
+
+        for segment in CodeBlockIterator::new(text) {
+            match segment {
+                TextSegment::Text(t) if !t.is_empty() => {
+                    result.extend(self.render_markdown(t, width));
+                }
+                TextSegment::CodeBlock { lang, code } => {
+                    result.extend(highlight_code(code, lang, self.dark_mode));
+                }
+                _ => {}
+            }
+        }
+
+        result
+    }
+}
+
+fn is_dark_theme(theme: &Theme) -> bool {
+    !theme.name.to_lowercase().contains("light")
 }
 
 fn to_crossterm_color(color: Color) -> termimad::crossterm::style::Color {

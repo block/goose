@@ -37,6 +37,7 @@ ansi-to-tui = "7.0.0"
 git2 = { version = "0.18", default-features = false }
 rustyline = "15"
 dirs = "6.0.0"
+syntect = { version = "5.3.0", default-features = false, features = ["default-syntaxes", "default-themes", "parsing", "regex-fancy"] }
 
 [dev-dependencies]
 chrono = "0.4.42"
