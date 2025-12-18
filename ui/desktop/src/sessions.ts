@@ -1,4 +1,4 @@
-import { Session, startAgent, restartAgent, ExtensionConfig } from './api';
+import { Session, startAgent, ExtensionConfig } from './api';
 import type { setViewType } from './hooks/useNavigation';
 import {
   getExtensionConfigsWithOverrides,
@@ -19,6 +19,7 @@ export async function createSession(
   options?: {
     recipeId?: string;
     recipeDeeplink?: string;
+    extensionConfigs?: ExtensionConfig[];
     allExtensions?: FixedExtensionEntry[];
   }
 ): Promise<Session> {
@@ -37,14 +38,16 @@ export async function createSession(
     body.recipe_deeplink = options.recipeDeeplink;
   }
 
-  // Get extension configs with any overrides applied
-  if (options?.allExtensions && hasExtensionOverrides()) {
+  if (options?.extensionConfigs && options.extensionConfigs.length > 0) {
+    body.extension_overrides = options.extensionConfigs;
+  } else if (options?.allExtensions) {
     const extensionConfigs = getExtensionConfigsWithOverrides(options.allExtensions);
     if (extensionConfigs.length > 0) {
       body.extension_overrides = extensionConfigs;
     }
-    // Clear the overrides after using them
-    clearExtensionOverrides();
+    if (hasExtensionOverrides()) {
+      clearExtensionOverrides();
+    }
   }
 
   const newAgent = await startAgent({
@@ -52,14 +55,7 @@ export async function createSession(
     throwOnError: true,
   });
 
-  const session = newAgent.data;
-
-  // Restart agent to ensure it picks up the session's working dir
-  await restartAgent({
-    body: { session_id: session.id },
-  });
-
-  return session;
+  return newAgent.data;
 }
 
 export async function startNewSession(

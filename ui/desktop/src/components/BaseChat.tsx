@@ -131,11 +131,9 @@ function BaseChatContent({
     const shouldStartAgent = searchParams.get('shouldStartAgent') === 'true';
 
     if (initialMessage) {
-      // Submit the initial message (e.g., from fork)
       hasAutoSubmittedRef.current = true;
       handleSubmit(initialMessage);
     } else if (shouldStartAgent) {
-      // Trigger agent to continue with existing conversation
       hasAutoSubmittedRef.current = true;
       handleSubmit('');
     }
@@ -300,8 +298,7 @@ function BaseChatContent({
       : recipe.prompt;
   }
 
-  const initialPrompt =
-    (initialMessage && !hasAutoSubmittedRef.current ? initialMessage : '') || recipePrompt;
+  const initialPrompt = recipePrompt;
 
   if (sessionLoadError) {
     return (

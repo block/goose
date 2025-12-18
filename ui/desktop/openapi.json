@@ -227,7 +227,14 @@
         },
         "responses": {
           "200": {
-            "description": "Agent restarted successfully"
+            "description": "Agent restarted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestartAgentResponse"
+                }
+              }
+            }
           },
           "401": {
             "description": "Unauthorized - invalid secret key"
@@ -263,7 +270,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Session"
+                  "$ref": "#/components/schemas/ResumeAgentResponse"
                 }
               }
             }
@@ -3664,6 +3671,25 @@
           }
         ]
       },
+      "ExtensionLoadResult": {
+        "type": "object",
+        "required": [
+          "name",
+          "success"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          }
+        }
+      },
       "ExtensionQuery": {
         "type": "object",
         "required": [
@@ -4887,6 +4913,20 @@
           }
         }
       },
+      "RestartAgentResponse": {
+        "type": "object",
+        "required": [
+          "extension_results"
+        ],
+        "properties": {
+          "extension_results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExtensionLoadResult"
+            }
+          }
+        }
+      },
       "ResumeAgentRequest": {
         "type": "object",
         "required": [
@@ -4899,6 +4939,24 @@
           },
           "session_id": {
             "type": "string"
+          }
+        }
+      },
+      "ResumeAgentResponse": {
+        "type": "object",
+        "required": [
+          "session"
+        ],
+        "properties": {
+          "extension_results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExtensionLoadResult"
+            },
+            "nullable": true
+          },
+          "session": {
+            "$ref": "#/components/schemas/Session"
           }
         }
       },

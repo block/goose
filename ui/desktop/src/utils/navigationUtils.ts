@@ -1,5 +1,5 @@
 import { NavigateFunction } from 'react-router-dom';
-import { Recipe } from '../api/types.gen';
+import { ExtensionConfig, Recipe } from '../api/types.gen';
 
 export type View =
   | 'welcome'
@@ -36,6 +36,9 @@ export type ViewOptions = {
   shareToken?: string;
   resumeSessionId?: string;
   pendingScheduleDeepLink?: string;
+  extensionConfigs?: ExtensionConfig[];
+  workingDir?: string;
+  navigationId?: string; // Unique ID for each navigation to prevent duplicate session creation
 };
 
 export const createNavigationHandler = (navigate: NavigateFunction) => {

@@ -105,7 +105,7 @@ export default function ExtensionsView({
             </p>
             <p className="text-sm text-text-muted mb-6">
               Extensions enabled here are used as the default for new chats. You can also toggle
-              extensions using the extensions menu during chat.
+              extensions using the menu during chat.
             </p>
 
             {/* Action Buttons */}

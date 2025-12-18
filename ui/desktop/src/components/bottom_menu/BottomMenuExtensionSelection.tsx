@@ -16,15 +16,22 @@ import {
 
 interface BottomMenuExtensionSelectionProps {
   sessionId: string | null;
+  onRestartStart?: () => void;
+  onRestartEnd?: () => void;
 }
 
-export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionSelectionProps) => {
+export const BottomMenuExtensionSelection = ({
+  sessionId,
+  onRestartStart,
+  onRestartEnd,
+}: BottomMenuExtensionSelectionProps) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [sessionExtensions, setSessionExtensions] = useState<ExtensionConfig[]>([]);
   const [hubUpdateTrigger, setHubUpdateTrigger] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [pendingSort, setPendingSort] = useState(false);
+  const [togglingExtension, setTogglingExtension] = useState<string | null>(null);
   const sortTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { extensionsList: allExtensions } = useConfig();
   const isHubView = !sessionId;
@@ -63,17 +70,18 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
 
   const handleToggle = useCallback(
     async (extensionConfig: FixedExtensionEntry) => {
-      // Start transition animation
+      if (togglingExtension === extensionConfig.name) {
+        return;
+      }
+
       setIsTransitioning(true);
+      setTogglingExtension(extensionConfig.name);
 
       if (isHubView) {
         const currentState = getExtensionOverride(extensionConfig.name) ?? extensionConfig.enabled;
         setExtensionOverride(extensionConfig.name, !currentState);
-
-        // Mark that we need to re-sort after delay
         setPendingSort(true);
 
-        // Clear any existing timeout
         if (sortTimeoutRef.current) {
           clearTimeout(sortTimeoutRef.current);
         }
@@ -83,6 +91,7 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
           setHubUpdateTrigger((prev) => prev + 1);
           setPendingSort(false);
           setIsTransitioning(false);
+          setTogglingExtension(null);
         }, 800);
 
         toastService.success({
@@ -94,6 +103,7 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
 
       if (!sessionId) {
         setIsTransitioning(false);
+        setTogglingExtension(null);
         toastService.error({
           title: 'Extension Toggle Error',
           msg: 'No active session found. Please start a chat session first.',
@@ -101,6 +111,8 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
         });
         return;
       }
+
+      onRestartStart?.();
 
       try {
         if (extensionConfig.enabled) {
@@ -125,18 +137,17 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
           }
           setPendingSort(false);
           setIsTransitioning(false);
+          setTogglingExtension(null);
+          onRestartEnd?.();
         }, 800);
-      } catch (error) {
+      } catch {
         setIsTransitioning(false);
         setPendingSort(false);
-        toastService.error({
-          title: 'Extension Error',
-          msg: `Failed to ${extensionConfig.enabled ? 'disable' : 'enable'} ${extensionConfig.name}`,
-          traceback: error instanceof Error ? error.message : String(error),
-        });
+        setTogglingExtension(null);
+        onRestartEnd?.();
       }
     },
-    [sessionId, isHubView]
+    [sessionId, isHubView, togglingExtension, onRestartStart, onRestartEnd]
   );
 
   // Merge all available extensions with session-specific or hub override state
@@ -201,6 +212,7 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
           }
           setIsTransitioning(false);
           setPendingSort(false);
+          setTogglingExtension(null);
         }
       }}
     >
@@ -213,7 +225,14 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
           <span>{activeCount}</span>
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent side="top" align="center" className="w-64">
+      <DropdownMenuContent
+        side="top"
+        align="center"
+        className="w-64"
+        onCloseAutoFocus={(e) => {
+          e.preventDefault();
+        }}
+      >
         <div className="p-2">
           <Input
             type="text"
@@ -237,23 +256,31 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
               {searchQuery ? 'no extensions found' : 'no extensions available'}
             </div>
           ) : (
-            sortedExtensions.map((ext) => (
-              <div
-                key={ext.name}
-                className="flex items-center justify-between px-2 py-2 hover:bg-background-hover cursor-pointer transition-all duration-300"
-                onClick={() => handleToggle(ext)}
-                title={ext.description || ext.name}
-              >
-                <div className="text-sm font-medium text-text-default">{getFriendlyTitle(ext)}</div>
-                <div onClick={(e) => e.stopPropagation()}>
-                  <Switch
-                    checked={ext.enabled}
-                    onCheckedChange={() => handleToggle(ext)}
-                    variant="mono"
-                  />
+            sortedExtensions.map((ext) => {
+              const isToggling = togglingExtension === ext.name;
+              return (
+                <div
+                  key={ext.name}
+                  className={`flex items-center justify-between px-2 py-2 hover:bg-background-hover transition-all duration-300 ${
+                    isToggling ? 'cursor-wait opacity-70' : 'cursor-pointer'
+                  }`}
+                  onClick={() => !isToggling && handleToggle(ext)}
+                  title={ext.description || ext.name}
+                >
+                  <div className="text-sm font-medium text-text-default">
+                    {getFriendlyTitle(ext)}
+                  </div>
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <Switch
+                      checked={ext.enabled}
+                      onCheckedChange={() => handleToggle(ext)}
+                      variant="mono"
+                      disabled={isToggling}
+                    />
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </DropdownMenuContent>

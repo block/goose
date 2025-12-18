@@ -20,6 +20,7 @@ import {
   NotificationEvent,
 } from '../types/message';
 import { errorMessage } from '../utils/conversionUtils';
+import { showExtensionLoadResults } from '../utils/extensionErrorUtils';
 
 const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
 
@@ -221,6 +222,7 @@ export function useChatStream({
         accumulatedTotalTokens: cached.session?.accumulated_total_tokens ?? 0,
       });
       setChatState(ChatState.Idle);
+      onSessionLoaded?.();
       return;
     }
 
@@ -246,16 +248,20 @@ export function useChatStream({
           return;
         }
 
-        const session = response.data;
-        setSession(session);
-        updateMessages(session?.conversation || []);
+        const resumeData = response.data;
+        const loadedSession = resumeData?.session;
+        const extensionResults = resumeData?.extension_results;
+
+        showExtensionLoadResults(extensionResults);
+        setSession(loadedSession);
+        updateMessages(loadedSession?.conversation || []);
         setTokenState({
-          inputTokens: session?.input_tokens ?? 0,
-          outputTokens: session?.output_tokens ?? 0,
-          totalTokens: session?.total_tokens ?? 0,
-          accumulatedInputTokens: session?.accumulated_input_tokens ?? 0,
-          accumulatedOutputTokens: session?.accumulated_output_tokens ?? 0,
-          accumulatedTotalTokens: session?.accumulated_total_tokens ?? 0,
+          inputTokens: loadedSession?.input_tokens ?? 0,
+          outputTokens: loadedSession?.output_tokens ?? 0,
+          totalTokens: loadedSession?.total_tokens ?? 0,
+          accumulatedInputTokens: loadedSession?.accumulated_input_tokens ?? 0,
+          accumulatedOutputTokens: loadedSession?.accumulated_output_tokens ?? 0,
+          accumulatedTotalTokens: loadedSession?.accumulated_total_tokens ?? 0,
         });
         setChatState(ChatState.Idle);
         onSessionLoaded?.();

@@ -9,6 +9,8 @@ interface DirSwitcherProps {
   sessionId: string | undefined;
   workingDir: string;
   onWorkingDirChange?: (newDir: string) => void;
+  onRestartStart?: () => void;
+  onRestartEnd?: () => void;
 }
 
 export const DirSwitcher: React.FC<DirSwitcherProps> = ({
@@ -16,6 +18,8 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({
   sessionId,
   workingDir,
   onWorkingDirChange,
+  onRestartStart,
+  onRestartEnd,
 }) => {
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
   const [isDirectoryChooserOpen, setIsDirectoryChooserOpen] = useState(false);
@@ -40,14 +44,18 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({
     window.electron.addRecentDir(newDir);
 
     if (sessionId) {
+      onWorkingDirChange?.(newDir);
+      onRestartStart?.();
+
       try {
         await updateWorkingDir({
           body: { session_id: sessionId, working_dir: newDir },
         });
-        onWorkingDirChange?.(newDir);
       } catch (error) {
         console.error('[DirSwitcher] Failed to update working directory:', error);
         toast.error('Failed to update working directory');
+      } finally {
+        onRestartEnd?.();
       }
     } else {
       onWorkingDirChange?.(newDir);

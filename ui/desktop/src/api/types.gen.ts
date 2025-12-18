@@ -326,6 +326,12 @@ export type ExtensionEntry = ExtensionConfig & {
     enabled: boolean;
 };
 
+export type ExtensionLoadResult = {
+    error?: string | null;
+    name: string;
+    success: boolean;
+};
+
 export type ExtensionQuery = {
     config: ExtensionConfig;
     enabled: boolean;
@@ -696,9 +702,18 @@ export type RestartAgentRequest = {
     session_id: string;
 };
 
+export type RestartAgentResponse = {
+    extension_results: Array<ExtensionLoadResult>;
+};
+
 export type ResumeAgentRequest = {
     load_model_and_extensions: boolean;
     session_id: string;
+};
+
+export type ResumeAgentResponse = {
+    extension_results?: Array<ExtensionLoadResult> | null;
+    session: Session;
 };
 
 /**
@@ -1255,8 +1270,10 @@ export type RestartAgentResponses = {
     /**
      * Agent restarted successfully
      */
-    200: unknown;
+    200: RestartAgentResponse;
 };
+
+export type RestartAgentResponse2 = RestartAgentResponses[keyof RestartAgentResponses];
 
 export type ResumeAgentData = {
     body: ResumeAgentRequest;
@@ -1284,10 +1301,10 @@ export type ResumeAgentResponses = {
     /**
      * Agent started successfully
      */
-    200: Session;
+    200: ResumeAgentResponse;
 };
 
-export type ResumeAgentResponse = ResumeAgentResponses[keyof ResumeAgentResponses];
+export type ResumeAgentResponse2 = ResumeAgentResponses[keyof ResumeAgentResponses];
 
 export type StartAgentData = {
     body: StartAgentRequest;

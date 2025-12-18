@@ -97,7 +97,7 @@ interface ChatInputProps {
   initialPrompt?: string;
   toolCount: number;
   append?: (message: Message) => void;
-  isExtensionsLoading?: boolean;
+  onWorkingDirChange?: (newDir: string) => void;
 }
 
 export default function ChatInput({
@@ -122,7 +122,7 @@ export default function ChatInput({
   initialPrompt,
   toolCount,
   append: _append,
-  isExtensionsLoading = false,
+  onWorkingDirChange,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
@@ -152,6 +152,7 @@ export default function ChatInput({
   const [showEditRecipeModal, setShowEditRecipeModal] = useState(false);
   const [isFilePickerOpen, setIsFilePickerOpen] = useState(false);
   const [sessionWorkingDir, setSessionWorkingDir] = useState<string | null>(null);
+  const [isRestartingAgent, setIsRestartingAgent] = useState(false);
 
   useEffect(() => {
     if (!sessionId) {
@@ -1131,7 +1132,7 @@ export default function ChatInput({
     isAnyDroppedFileLoading ||
     isRecording ||
     isTranscribing ||
-    isExtensionsLoading;
+    isRestartingAgent;
 
   // Queue management functions - no storage persistence, only in-memory
   const handleRemoveQueuedMessage = (messageId: string) => {
@@ -1374,16 +1375,16 @@ export default function ChatInput({
               </TooltipTrigger>
               <TooltipContent>
                 <p>
-                  {isExtensionsLoading
-                    ? 'Loading extensions...'
-                    : isAnyImageLoading
-                      ? 'Waiting for images to save...'
-                      : isAnyDroppedFileLoading
-                        ? 'Processing dropped files...'
-                        : isRecording
-                          ? 'Recording...'
-                          : isTranscribing
-                            ? 'Transcribing...'
+                  {isAnyImageLoading
+                    ? 'Waiting for images to save...'
+                    : isAnyDroppedFileLoading
+                      ? 'Processing dropped files...'
+                      : isRecording
+                        ? 'Recording...'
+                        : isTranscribing
+                          ? 'Transcribing...'
+                          : isRestartingAgent
+                            ? 'Restarting agent...'
                             : 'Send'}
                 </p>
               </TooltipContent>
@@ -1407,6 +1408,15 @@ export default function ChatInput({
                   {estimatedSize > 20 && <span className="text-xs">(near 25MB limit)</span>}
                 </span>
               )}
+            </div>
+          )}
+
+          {isRestartingAgent && !isRecording && !isTranscribing && (
+            <div className="absolute right-0 -top-8 bg-background-default px-2 py-1 rounded text-xs whitespace-nowrap shadow-md border border-borderSubtle">
+              <span className="text-textSubtle flex items-center gap-1">
+                <span className="inline-block w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
+                Restarting agent...
+              </span>
             </div>
           )}
         </div>
@@ -1528,7 +1538,14 @@ export default function ChatInput({
           className="mr-0"
           sessionId={sessionId ?? undefined}
           workingDir={sessionWorkingDir ?? getInitialWorkingDir()}
-          onWorkingDirChange={(newDir) => setSessionWorkingDir(newDir)}
+          onWorkingDirChange={(newDir) => {
+            setSessionWorkingDir(newDir);
+            if (onWorkingDirChange) {
+              onWorkingDirChange(newDir);
+            }
+          }}
+          onRestartStart={() => setIsRestartingAgent(true)}
+          onRestartEnd={() => setIsRestartingAgent(false)}
         />
         <div className="w-px h-4 bg-border-default mx-2" />
         <Tooltip>
@@ -1574,7 +1591,11 @@ export default function ChatInput({
           <div className="w-px h-4 bg-border-default mx-2" />
           <BottomMenuModeSelection />
           <div className="w-px h-4 bg-border-default mx-2" />
-          <BottomMenuExtensionSelection sessionId={sessionId} />
+          <BottomMenuExtensionSelection
+            sessionId={sessionId}
+            onRestartStart={() => setIsRestartingAgent(true)}
+            onRestartEnd={() => setIsRestartingAgent(false)}
+          />
           {sessionId && messages.length > 0 && (
             <>
               <div className="w-px h-4 bg-border-default mx-2" />

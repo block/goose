@@ -103,18 +103,18 @@ export function GroupedExtensionLoadingToast({
                         <div className="text-xs opacity-75 break-words">
                           {formatExtensionErrorMessage(ext.error, 'Failed to add extension')}
                         </div>
-                        {ext.recoverHints && setView ? (
-                          <Button
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              startNewSession(getInitialWorkingDir(), ext.recoverHints, setView);
-                            }}
-                            className="self-start"
-                          >
-                            Ask goose
-                          </Button>
-                        ) : (
+                        <div className="flex gap-2">
+                          {ext.recoverHints && setView && (
+                            <Button
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                startNewSession(getInitialWorkingDir(), ext.recoverHints, setView);
+                              }}
+                            >
+                              Ask goose
+                            </Button>
+                          )}
                           <Button
                             size="sm"
                             onClick={(e) => {
@@ -123,11 +123,10 @@ export function GroupedExtensionLoadingToast({
                               setCopiedExtension(ext.name);
                               setTimeout(() => setCopiedExtension(null), 2000);
                             }}
-                            className="self-start"
                           >
                             {copiedExtension === ext.name ? 'Copied!' : 'Copy error'}
                           </Button>
-                        )}
+                        </div>
                       </div>
                     )}
                   </div>
