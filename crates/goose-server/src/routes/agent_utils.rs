@@ -70,6 +70,10 @@ pub async fn restore_agent_extensions(
             async move {
                 if let Err(e) = agent_ref.add_extension(config_clone.clone()).await {
                     warn!("Failed to load extension {}: {}", config_clone.name(), e);
+                    goose::posthog::emit_error(
+                        "extension_load_failed",
+                        &format!("{}: {}", config_clone.name(), e),
+                    );
                 }
                 Ok::<_, ErrorResponse>(())
             }
