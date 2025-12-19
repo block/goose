@@ -29,6 +29,15 @@ pub enum GcpLocation {
     Iowa,
     /// Represents the us-east5 region in Ohio
     Ohio,
+    /// Represents the global endpoint (required for Gemini 3 models)
+    Global,
+}
+
+impl GcpLocation {
+    /// Returns true if this is the global endpoint
+    pub fn is_global(&self) -> bool {
+        matches!(self, Self::Global)
+    }
 }
 
 impl fmt::Display for GcpLocation {
@@ -36,18 +45,7 @@ impl fmt::Display for GcpLocation {
         match self {
             Self::Iowa => write!(f, "us-central1"),
             Self::Ohio => write!(f, "us-east5"),
-        }
-    }
-}
-
-impl TryFrom<&str> for GcpLocation {
-    type Error = ModelError;
-
-    fn try_from(s: &str) -> Result<Self, Self::Error> {
-        match s {
-            "us-central1" => Ok(Self::Iowa),
-            "us-east5" => Ok(Self::Ohio),
-            _ => Err(ModelError::UnsupportedLocation(s.to_string())),
+            Self::Global => write!(f, "global"),
         }
     }
 }
@@ -390,5 +388,19 @@ mod tests {
         assert_eq!(model.to_string(), "gemini-4.0-ultra");
 
         Ok(())
+    }
+
+    #[test]
+    fn test_gcp_location_display() {
+        assert_eq!(GcpLocation::Iowa.to_string(), "us-central1");
+        assert_eq!(GcpLocation::Ohio.to_string(), "us-east5");
+        assert_eq!(GcpLocation::Global.to_string(), "global");
+    }
+
+    #[test]
+    fn test_gcp_location_is_global() {
+        assert!(!GcpLocation::Iowa.is_global());
+        assert!(!GcpLocation::Ohio.is_global());
+        assert!(GcpLocation::Global.is_global());
     }
 }
