@@ -79,7 +79,7 @@ This was a huge prompt, so let's break down what each part accomplished:
 - **Interaction:** just tell me to do it...and give me the details of what I need to run
 
 :::note
-In retrospect, the instruction regarding blocking commands should have been codified in [persistent context files](/docs/guides/using-goosehints) ([AGENTS.md](https://agents.md/) or [goosehints](/docs/guides/using-goosehints)) rather than inline prompts.
+In retrospect, the instruction regarding blocking commands should have been codified in [persistent context files](/docs/guides/context-engineering/using-goosehints) ([AGENTS.md](https://agents.md/) or [goosehints](/docs/guides/context-engineering/using-goosehints)) rather than inline prompts.
 :::
 
 But, I was so happy that goose generated a pixel perfect recreation of the app. 

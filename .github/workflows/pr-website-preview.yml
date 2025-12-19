@@ -13,20 +13,20 @@ on:
     branches-ignore:
       - 'dependabot/**'
 
-concurrency: preview-${{ github.ref }}
+concurrency: pr-preview
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout the branch
-        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # pin@v3
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
 
       - name: Setup Node.js
         if: github.event.action != 'closed'
-        uses: actions/setup-node@1a4442cacd436585916779262731d5b162bc6ec7 # pin@v3
+        uses: actions/setup-node@3235b876344d2a9aa001b8d1453c930bba69e610 # v3
         with:
-          node-version: 20 
+          node-version: 20
 
       - name: Install dependencies and build docs
         working-directory: ./documentation
@@ -41,7 +41,25 @@ jobs:
           npm run build
 
       - name: Deploy preview
-        uses: rossjrw/pr-preview-action@df22037db54ab6ee34d3c1e2b8810ac040a530c6 # pin@v1
+        uses: rossjrw/pr-preview-action@8ff09e486b4c23709012eedd3b42e9f0b95dd0c5 # v1
         if: ${{ github.event.pull_request.head.repo.full_name == 'block/goose' }}
         with:
           source-dir: documentation/build
+
+  cleanup:
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: github.event.action == 'closed'
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4
+
+      - name: Clean up gh-pages branch
+        run: |
+          bash scripts/clean-gh-pages.sh
+          git push origin $(git rev-parse origin/gh-pages):gh-pages --force

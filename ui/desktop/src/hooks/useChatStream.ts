@@ -292,12 +292,13 @@ export function useChatStream({
         window.dispatchEvent(new CustomEvent('session-created'));
       }
 
-      // Build message list: add new message if provided, otherwise continue with existing
+      const newMessage = hasNewMessage
+        ? createUserMessage(userMessage)
+        : messagesRef.current[messagesRef.current.length - 1];
       const currentMessages = hasNewMessage
-        ? [...messagesRef.current, createUserMessage(userMessage)]
+        ? [...messagesRef.current, newMessage]
         : [...messagesRef.current];
 
-      // Update UI with new message before streaming
       if (hasNewMessage) {
         updateMessages(currentMessages);
       }
@@ -310,7 +311,7 @@ export function useChatStream({
         const { stream } = await reply({
           body: {
             session_id: sessionId,
-            messages: currentMessages,
+            user_message: newMessage,
           },
           throwOnError: true,
           signal: abortControllerRef.current.signal,
@@ -356,7 +357,7 @@ export function useChatStream({
         const { stream } = await reply({
           body: {
             session_id: sessionId,
-            messages: currentMessages,
+            user_message: responseMessage,
           },
           throwOnError: true,
           signal: abortControllerRef.current.signal,
