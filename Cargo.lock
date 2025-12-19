@@ -3141,6 +3141,7 @@ dependencies = [
  "tracing",
  "tracing-opentelemetry",
  "tracing-subscriber",
+ "unbinder",
  "unicode-normalization",
  "url",
  "urlencoding",
@@ -8483,6 +8484,18 @@ dependencies = [
  "thin-vec",
  "thousands",
  "zip 2.5.0",
+]
+
+[[package]]
+name = "unbinder"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "911624cb458604f41ac58db43ab8c2ccc9ad530791c1cd5d0ff8d824a38eeaa7"
+dependencies = [
+ "cfg-if",
+ "rustc-hash 2.1.1",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
