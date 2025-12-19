@@ -797,7 +797,15 @@ impl Agent {
             .await;
 
         match command_result {
-            Some(response) if response.role == rmcp::model::Role::Assistant => {
+            Err(e) => {
+                let error_message = Message::assistant()
+                    .with_text(e.to_string())
+                    .with_visibility(true, false);
+                return Ok(Box::pin(stream::once(async move {
+                    Ok(AgentEvent::Message(error_message))
+                })));
+            }
+            Ok(Some(response)) if response.role == rmcp::model::Role::Assistant => {
                 SessionManager::add_message(
                     &session_config.id,
                     &user_message.clone().with_visibility(true, false),
@@ -830,7 +838,7 @@ impl Agent {
                     }
                 }));
             }
-            Some(resolved_message) => {
+            Ok(Some(resolved_message)) => {
                 SessionManager::add_message(
                     &session_config.id,
                     &user_message.clone().with_visibility(true, false),
@@ -842,7 +850,7 @@ impl Agent {
                 )
                 .await?;
             }
-            None => {
+            Ok(None) => {
                 SessionManager::add_message(&session_config.id, &user_message).await?;
             }
         }
