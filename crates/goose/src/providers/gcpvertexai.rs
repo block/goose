@@ -92,7 +92,7 @@ impl GcpVertexAIProvider {
         let config = crate::config::Config::global();
         let project_id = config.get_param("GCP_PROJECT_ID")?;
         let location = Self::determine_location(config)?;
-        let host = format!("https://{}-aiplatform.googleapis.com", location);
+        let host = Self::build_host_url(&location);
 
         let client = Client::builder()
             .timeout(Duration::from_secs(DEFAULT_TIMEOUT_SECS))
@@ -161,6 +161,18 @@ impl GcpVertexAIProvider {
             .ok()
             .filter(|location: &String| !location.trim().is_empty())
             .unwrap_or_else(|| Iowa.to_string()))
+    }
+
+    /// Builds the host URL for the given location.
+    ///
+    /// For the global endpoint, returns `https://aiplatform.googleapis.com`.
+    /// For regional endpoints, returns `https://{location}-aiplatform.googleapis.com`.
+    fn build_host_url(location: &str) -> String {
+        if location == "global" {
+            "https://aiplatform.googleapis.com".to_string()
+        } else {
+            format!("https://{}-aiplatform.googleapis.com", location)
+        }
     }
 
     /// Retrieves an authentication token for API requests.
@@ -392,7 +404,7 @@ impl GcpVertexAIProvider {
         }
     }
 
-    /// Makes an authenticated POST request to the Vertex AI API with fallback for invalid locations.
+    /// Makes an authenticated POST request to the Vertex AI API.
     ///
     /// # Arguments
     /// * `payload` - The request payload to send
@@ -402,33 +414,8 @@ impl GcpVertexAIProvider {
         payload: &Value,
         context: &RequestContext,
     ) -> Result<Value, ProviderError> {
-        // Try with user-specified location first
-        let result = self
-            .post_with_location(payload, context, &self.location)
-            .await;
-
-        // If location is already the known location for the model or request succeeded, return result
-        if self.location == context.model.known_location().to_string() || result.is_ok() {
-            return result;
-        }
-
-        // Check if we should retry with the model's known location
-        match &result {
-            Err(ProviderError::RequestFailed(msg)) => {
-                let model_name = context.model.to_string();
-                let configured_location = &self.location;
-                let known_location = context.model.known_location().to_string();
-
-                tracing::error!(
-                    "Trying known location {known_location} for {model_name} instead of {configured_location}: {msg}"
-                );
-
-                self.post_with_location(payload, context, &known_location)
-                    .await
-            }
-            // For any other error, return the original result
-            _ => result,
-        }
+        self.post_with_location(payload, context, &self.location)
+            .await
     }
 }
 
@@ -637,5 +624,23 @@ mod tests {
         assert!(model_names.contains(&"gemini-2.5-pro".to_string()));
         // Should contain the original 2 config keys plus 4 new retry-related ones
         assert_eq!(metadata.config_keys.len(), 6);
+    }
+
+    #[test]
+    fn test_build_host_url_regional() {
+        let host = GcpVertexAIProvider::build_host_url("us-central1");
+        assert_eq!(host, "https://us-central1-aiplatform.googleapis.com");
+
+        let host = GcpVertexAIProvider::build_host_url("us-east5");
+        assert_eq!(host, "https://us-east5-aiplatform.googleapis.com");
+
+        let host = GcpVertexAIProvider::build_host_url("europe-west1");
+        assert_eq!(host, "https://europe-west1-aiplatform.googleapis.com");
+    }
+
+    #[test]
+    fn test_build_host_url_global() {
+        let host = GcpVertexAIProvider::build_host_url("global");
+        assert_eq!(host, "https://aiplatform.googleapis.com");
     }
 }
