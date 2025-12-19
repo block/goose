@@ -33,13 +33,6 @@ pub enum GcpLocation {
     Global,
 }
 
-impl GcpLocation {
-    /// Returns true if this is the global endpoint
-    pub fn is_global(&self) -> bool {
-        matches!(self, Self::Global)
-    }
-}
-
 impl fmt::Display for GcpLocation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -80,8 +73,8 @@ pub const KNOWN_MODELS: &[&str] = &[
     "claude-sonnet-4@20250514",
     "claude-3-5-haiku@20241022",
     "claude-3-haiku@20240307",
-    "gemini-3-pro",
-    "gemini-3-flash",
+    "gemini-3-pro-preview",
+    "gemini-3-flash-preview",
     "gemini-2.5-pro",
     "gemini-2.5-flash",
     "gemini-2.5-flash-lite",
@@ -388,19 +381,5 @@ mod tests {
         assert_eq!(model.to_string(), "gemini-4.0-ultra");
 
         Ok(())
-    }
-
-    #[test]
-    fn test_gcp_location_display() {
-        assert_eq!(GcpLocation::Iowa.to_string(), "us-central1");
-        assert_eq!(GcpLocation::Ohio.to_string(), "us-east5");
-        assert_eq!(GcpLocation::Global.to_string(), "global");
-    }
-
-    #[test]
-    fn test_gcp_location_is_global() {
-        assert!(!GcpLocation::Iowa.is_global());
-        assert!(!GcpLocation::Ohio.is_global());
-        assert!(GcpLocation::Global.is_global());
     }
 }

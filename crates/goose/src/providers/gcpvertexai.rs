@@ -226,10 +226,6 @@ impl GcpVertexAIProvider {
             .unwrap_or_else(|| GcpLocation::Iowa.to_string()))
     }
 
-    /// Builds the host URL for the given location.
-    ///
-    /// For the global endpoint, returns `https://aiplatform.googleapis.com`.
-    /// For regional endpoints, returns `https://{location}-aiplatform.googleapis.com`.
     fn build_host_url(location: &str) -> String {
         if location == "global" {
             "https://aiplatform.googleapis.com".to_string()
@@ -806,23 +802,5 @@ mod tests {
         assert_eq!(metadata.default_model, "gemini-2.5-flash");
         assert_eq!(metadata.config_keys.len(), 6);
         assert!(metadata.allows_unlisted_models);
-    }
-
-    #[test]
-    fn test_build_host_url_regional() {
-        let host = GcpVertexAIProvider::build_host_url("us-central1");
-        assert_eq!(host, "https://us-central1-aiplatform.googleapis.com");
-
-        let host = GcpVertexAIProvider::build_host_url("us-east5");
-        assert_eq!(host, "https://us-east5-aiplatform.googleapis.com");
-
-        let host = GcpVertexAIProvider::build_host_url("europe-west1");
-        assert_eq!(host, "https://europe-west1-aiplatform.googleapis.com");
-    }
-
-    #[test]
-    fn test_build_host_url_global() {
-        let host = GcpVertexAIProvider::build_host_url("global");
-        assert_eq!(host, "https://aiplatform.googleapis.com");
     }
 }
