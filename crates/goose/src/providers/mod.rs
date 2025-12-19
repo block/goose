@@ -1,3 +1,4 @@
+pub mod acp;
 pub mod anthropic;
 pub mod api_client;
 pub mod auto_detect;

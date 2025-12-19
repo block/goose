@@ -1,6 +1,7 @@
 use std::sync::{Arc, RwLock};
 
 use super::{
+    acp::AcpProvider,
     anthropic::AnthropicProvider,
     azure::AzureProvider,
     base::{Provider, ProviderMetadata},
@@ -41,6 +42,7 @@ static REGISTRY: OnceCell<RwLock<ProviderRegistry>> = OnceCell::const_new();
 
 async fn init_registry() -> RwLock<ProviderRegistry> {
     let mut registry = ProviderRegistry::new().with_providers(|registry| {
+        registry.register::<AcpProvider, _>(|m| Box::pin(AcpProvider::from_env(m)), false);
         registry
             .register::<AnthropicProvider, _>(|m| Box::pin(AnthropicProvider::from_env(m)), true);
         registry.register::<AzureProvider, _>(|m| Box::pin(AzureProvider::from_env(m)), false);
@@ -402,7 +404,6 @@ mod tests {
                     "{expected_key} should be secret"
                 );
             } else {
-                // Provider not registered; skip test for this provider
                 continue;
             }
         }
