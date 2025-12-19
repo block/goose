@@ -19,8 +19,9 @@ When a session starts, goose adds any skills that it discovers to its instructio
 
 You can also ask goose what skills are available.
 
-:::info Claude Compatibility
-goose skills are compatible with Claude Desktop and other [agents that support Agent Skills](https://agentskills.io/home#adoption).
+:::tip Other goose features that support reuse
+- [.goosehints](/docs/guides/context-engineering/using-goosehints): Best for general preferences, project context, and repeated instructions like "Always use TypeScript"
+- [recipes](/docs/guides/recipes/session-recipes): Shareable configurations that package instructions, prompts, and settings together
 :::
 
 ## Skill Locations
@@ -254,32 +255,8 @@ Always verify webhook signatures. See `src/webhooks/square.js` for our handler p
 
 </details>
 
-:::tip Other goose features that support reuse
-- [.goosehints](/docs/guides/context-engineering/using-goosehints): Best for general preferences, project context, and repeated instructions like "Always use TypeScript"
-- [recipes](/docs/guides/recipes/session-recipes): Shareable configurations that package instructions, prompts, and settings together
-:::
-
 ## Best Practices
 
 - **Keep skills focused** — One skill per workflow or domain. If a skill is getting long, consider splitting it.
 - **Write for clarity** — Skills are instructions for goose. Use clear, direct language and numbered steps.
 - **Include verification steps** — Help goose confirm the workflow completed successfully.
-
-## Additional Resources
-
-import ContentCardCarousel from '@site/src/components/ContentCardCarousel';
-import skillsvsmcp from '@site/blog/2025-12-22-agent-skills-vs-mcp/skills-vs-mcp.png';
-
-<ContentCardCarousel
-  items={[
-    {
-      type: 'blog',
-      title: 'Did Skills Kill MCP?',
-      description: 'An overview of Agent Skills vs MCP',
-      thumbnailUrl: skillsvsmcp,
-      linkUrl: '/goose/blog/2025/12/22/agent-skills-vs-mcp',
-      date: '2025-12-22',
-      duration: '4 min read'
-    }
-  ]}
-/>
