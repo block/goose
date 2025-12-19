@@ -79,7 +79,7 @@ Forking sessions is useful to:
         3. Make your changes in the inline editor
         4. Click `Fork Session` to save your changes and start a new session (or use `Cmd+Enter` (macOS) or `Ctrl+Enter` (Windows/Linux))
 
-        goose copies the conversation history from original session to the new session. The new session is named "(edited)" and the original session is unchanged.
+        goose copies the conversation history from the original session to the new session. The new session is named "(edited)" and the original session is unchanged.
     </TabItem>
     <TabItem value="cli" label="goose CLI">
         Message editing options are not available in the goose CLI.
