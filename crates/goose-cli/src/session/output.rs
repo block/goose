@@ -809,10 +809,9 @@ fn normalize_model_name(model: &str) -> String {
         result = re_date.replace(&result, "").to_string();
     }
 
-    // Convert version numbers like -3-7- to -3.7- (e.g., claude-3-7-sonnet -> claude-3.7-sonnet)
-    let re_version = Regex::new(r"-(\d+)-(\d+)-").unwrap();
-    if re_version.is_match(&result) {
-        result = re_version.replace(&result, "-$1.$2-").to_string();
+    let re_version_separator_pattern = Regex::new(r"-(\d+)-(\d+)-").unwrap();
+    if re_version_separator_pattern.is_match(&result) {
+        result = re_version_separator_pattern.replace(&result, "-$1.$2-").to_string();
     }
 
     result
