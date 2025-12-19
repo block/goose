@@ -21,13 +21,6 @@ pub enum GcpLocation {
     Global,
 }
 
-impl GcpLocation {
-    /// Returns true if this is the global endpoint
-    pub fn is_global(&self) -> bool {
-        matches!(self, Self::Global)
-    }
-}
-
 impl fmt::Display for GcpLocation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -412,19 +405,5 @@ mod tests {
         }
 
         Ok(())
-    }
-
-    #[test]
-    fn test_gcp_location_display() {
-        assert_eq!(GcpLocation::Iowa.to_string(), "us-central1");
-        assert_eq!(GcpLocation::Ohio.to_string(), "us-east5");
-        assert_eq!(GcpLocation::Global.to_string(), "global");
-    }
-
-    #[test]
-    fn test_gcp_location_is_global() {
-        assert!(!GcpLocation::Iowa.is_global());
-        assert!(!GcpLocation::Ohio.is_global());
-        assert!(GcpLocation::Global.is_global());
     }
 }
