@@ -1597,6 +1597,46 @@
         }
       }
     },
+    "/recipes/to-yaml": {
+      "post": {
+        "tags": [
+          "Recipe Management"
+        ],
+        "operationId": "recipe_to_yaml",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecipeToYamlRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Recipe converted to YAML successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecipeToYamlResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - Failed to convert recipe to YAML",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/reply": {
       "post": {
         "tags": [
@@ -4732,6 +4772,28 @@
           "optional",
           "user_prompt"
         ]
+      },
+      "RecipeToYamlRequest": {
+        "type": "object",
+        "required": [
+          "recipe"
+        ],
+        "properties": {
+          "recipe": {
+            "$ref": "#/components/schemas/Recipe"
+          }
+        }
+      },
+      "RecipeToYamlResponse": {
+        "type": "object",
+        "required": [
+          "yaml"
+        ],
+        "properties": {
+          "yaml": {
+            "type": "string"
+          }
+        }
       },
       "RedactedThinkingContent": {
         "type": "object",

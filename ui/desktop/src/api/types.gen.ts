@@ -683,6 +683,14 @@ export type RecipeParameterInputType = 'string' | 'number' | 'boolean' | 'date' 
 
 export type RecipeParameterRequirement = 'required' | 'optional' | 'user_prompt';
 
+export type RecipeToYamlRequest = {
+    recipe: Recipe;
+};
+
+export type RecipeToYamlResponse = {
+    yaml: string;
+};
+
 export type RedactedThinkingContent = {
     data: string;
 };
@@ -2285,6 +2293,31 @@ export type SetRecipeSlashCommandResponses = {
      */
     200: unknown;
 };
+
+export type RecipeToYamlData = {
+    body: RecipeToYamlRequest;
+    path?: never;
+    query?: never;
+    url: '/recipes/to-yaml';
+};
+
+export type RecipeToYamlErrors = {
+    /**
+     * Bad request - Failed to convert recipe to YAML
+     */
+    400: ErrorResponse;
+};
+
+export type RecipeToYamlError = RecipeToYamlErrors[keyof RecipeToYamlErrors];
+
+export type RecipeToYamlResponses = {
+    /**
+     * Recipe converted to YAML successfully
+     */
+    200: RecipeToYamlResponse;
+};
+
+export type RecipeToYamlResponse2 = RecipeToYamlResponses[keyof RecipeToYamlResponses];
 
 export type ReplyData = {
     body: ChatRequest;
