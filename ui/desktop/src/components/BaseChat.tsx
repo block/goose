@@ -276,6 +276,7 @@ function BaseChatContent({
         onRenderingComplete={handleRenderingComplete}
         onMessageUpdate={onMessageUpdate}
         submitElicitationResponse={submitElicitationResponse}
+        append={(text: string) => handleSubmit(text)}
       />
     </>
   );
