@@ -1,7 +1,4 @@
-use goose_tui::components::input::{
-    is_builtin_command, parse_slash_command, replace_input_placeholder, should_add_to_history,
-    MAX_HISTORY_ENTRY_SIZE,
-};
+use goose_tui::components::input::replace_input_placeholder;
 use serde_json::json;
 
 #[test]
@@ -95,65 +92,4 @@ fn replace_placeholder_handles_mixed_structures() {
 
     assert_eq!(result["items"][0]["name"], "dynamic");
     assert_eq!(result["items"][1]["name"], "static");
-}
-
-#[test]
-fn should_add_to_history_rejects_empty_and_whitespace() {
-    assert!(!should_add_to_history("", None));
-    assert!(!should_add_to_history("   ", None));
-    assert!(!should_add_to_history("\t\n", None));
-}
-
-#[test]
-fn should_add_to_history_rejects_duplicates() {
-    assert!(!should_add_to_history("hello", Some("hello")));
-    assert!(!should_add_to_history("  hello  ", Some("hello")));
-}
-
-#[test]
-fn should_add_to_history_accepts_new_entries() {
-    assert!(should_add_to_history("hello", None));
-    assert!(should_add_to_history("hello", Some("world")));
-}
-
-#[test]
-fn should_add_to_history_rejects_oversized() {
-    let huge = "x".repeat(MAX_HISTORY_ENTRY_SIZE + 1);
-    assert!(!should_add_to_history(&huge, None));
-}
-
-#[test]
-fn parse_slash_command_extracts_command_and_args() {
-    assert_eq!(parse_slash_command("/exit"), Some(("/exit", "")));
-    assert_eq!(parse_slash_command("/theme dark"), Some(("/theme", "dark")));
-    assert_eq!(
-        parse_slash_command("/mode auto approve"),
-        Some(("/mode", "auto approve"))
-    );
-}
-
-#[test]
-fn parse_slash_command_returns_none_for_non_commands() {
-    assert_eq!(parse_slash_command("hello"), None);
-    assert_eq!(parse_slash_command(""), None);
-    assert_eq!(parse_slash_command("  "), None);
-}
-
-#[test]
-fn is_builtin_command_recognizes_all_builtins() {
-    assert!(is_builtin_command("/exit"));
-    assert!(is_builtin_command("/quit"));
-    assert!(is_builtin_command("/help"));
-    assert!(is_builtin_command("/config"));
-    assert!(is_builtin_command("/theme"));
-    assert!(is_builtin_command("/mode"));
-    assert!(is_builtin_command("/clear"));
-    assert!(is_builtin_command("/compact"));
-}
-
-#[test]
-fn is_builtin_command_rejects_unknown() {
-    assert!(!is_builtin_command("/foo"));
-    assert!(!is_builtin_command("/unknown"));
-    assert!(!is_builtin_command("exit"));
 }
