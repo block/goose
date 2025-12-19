@@ -29,6 +29,10 @@ Mobile access connects your iOS device to goose Desktop through a secure tunnel.
 ### Install the App
 1. Install the **goose AI** app on your iOS mobile device from the [App Store](https://apps.apple.com/app/goose-ai/id6752889295)
 
+:::tip App Store QR Code
+Follow the steps below to open the `Remote Access` section, then click "scan QR code" in the info box for quick access to the App Store.
+:::
+
 ### Start the Tunnel
 1. Open goose Desktop
 2. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
