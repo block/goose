@@ -26,7 +26,7 @@ The list of experimental features may change as goose development progresses. So
     />
     <Card 
       title="Mobile Access via Secure Tunneling"
-      description="Enable remote access to goose Desktop from the Goose AI mobile app via secure tunneling."
+      description="Enable remote access to goose Desktop from the goose AI mobile app via secure tunneling."
       link="/docs/experimental/mobile-access"
     />
     <Card 
