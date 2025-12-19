@@ -3,6 +3,7 @@ title: "goose Lands MCP Apps"
 description: "goose ships early support for the draft MCP Apps specification, aligning with the emerging standard for interactive UIs in MCP."
 authors:
   - aharvard
+unlisted: true
 ---
 
 ![Retro 1980s hardware lab with three CRT monitors displaying "goose Lands MCP Apps" in glowing green text, with a small goose figurine on the desk](goose-lands-mcp-apps-header-image.png)
