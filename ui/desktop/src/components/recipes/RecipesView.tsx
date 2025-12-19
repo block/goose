@@ -42,6 +42,8 @@ import {
   trackRecipeDeleted,
   trackRecipeStarted,
   trackRecipeDeeplinkCopied,
+  trackRecipeYamlCopied,
+  trackRecipeExportedToFile,
   trackRecipeScheduled,
   trackRecipeSlashCommandSet,
   getErrorType,
@@ -247,12 +249,14 @@ export default function RecipesView() {
       }
 
       await navigator.clipboard.writeText(response.data.yaml);
+      trackRecipeYamlCopied(true);
       toastSuccess({
         title: 'YAML copied',
         msg: 'Recipe YAML has been copied to clipboard',
       });
     } catch (error) {
       console.error('Failed to copy YAML:', error);
+      trackRecipeYamlCopied(false, getErrorType(error));
       toastError({
         title: 'Copy failed',
         msg: 'Failed to copy recipe YAML to clipboard',
@@ -289,6 +293,7 @@ export default function RecipesView() {
 
       if (!result.canceled && result.filePath) {
         await window.electron.writeFile(result.filePath, response.data.yaml);
+        trackRecipeExportedToFile(true);
         toastSuccess({
           title: 'Recipe exported',
           msg: `Recipe saved to ${result.filePath}`,
@@ -296,6 +301,7 @@ export default function RecipesView() {
       }
     } catch (error) {
       console.error('Failed to export recipe:', error);
+      trackRecipeExportedToFile(false, getErrorType(error));
       toastError({
         title: 'Export failed',
         msg: 'Failed to export recipe to file',
@@ -548,7 +554,7 @@ export default function RecipesView() {
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleCopyYaml(recipeManifestResponse)}>
                 <Copy className="w-4 h-4 mr-2" />
-                Copy as YAML
+                Copy YAML
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => handleExportFile(recipeManifestResponse)}>
