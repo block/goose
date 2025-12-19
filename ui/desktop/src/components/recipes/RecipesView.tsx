@@ -549,16 +549,16 @@ export default function RecipesView() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
               <DropdownMenuItem onClick={() => handleCopyDeeplink(recipeManifestResponse)}>
-                <Link className="w-4 h-4 mr-2" />
+                <Link className="w-4 h-4" />
                 Copy Deeplink
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleCopyYaml(recipeManifestResponse)}>
-                <Copy className="w-4 h-4 mr-2" />
+                <Copy className="w-4 h-4" />
                 Copy YAML
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => handleExportFile(recipeManifestResponse)}>
-                <Download className="w-4 h-4 mr-2" />
+                <Download className="w-4 h-4" />
                 Export to File
               </DropdownMenuItem>
             </DropdownMenuContent>
