@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use axum::{routing::{get, post}, Json, Router};
+use chrono::{DateTime, Utc};
 use goose::training_data::schema::TrainingExample;
 use goose::training_data::storage::InMemoryTrainingDataStorage;
 use goose::model_training::job_manager::{TrainingJobBuilder, JobPriority, TrainingJobManager, TrainerFactory, TrainerExecutor, TrainingDataFilter};
@@ -293,7 +294,7 @@ pub async fn job_progress(axum::extract::Path(job_id): axum::extract::Path<Strin
 }
 
 pub async fn activate_adapter(Json(req): Json<ActivateAdapterRequest>) -> Result<Json<String>, StatusCode> {
-    // Resolve adapter path
+    // Resolve adapter path - prefer GGUF, fallback to safetensors
     let adapter_path: Option<String> = if let Some(path) = req.lora_path.clone() {
         Some(path)
     } else if let Some(job_id_str) = req.job_id.clone() {
@@ -301,24 +302,37 @@ pub async fn activate_adapter(Json(req): Json<ActivateAdapterRequest>) -> Result
             Ok(job_id) => {
                 let runtime = goose::model_training::axolotl::AxolotlRuntime::default();
                 let run_dir = runtime.output_root.join(format!("job-{}", job_id));
-                // Try common filename first
-                let candidate = run_dir.join("adapter_model.safetensors");
-                if candidate.exists() {
-                    Some(candidate.display().to_string())
+                
+                // Prefer GGUF format for Ollama compatibility
+                let gguf_candidate = run_dir.join("adapter_model.gguf");
+                if gguf_candidate.exists() {
+                    info!("Found GGUF adapter at {}", gguf_candidate.display());
+                    Some(gguf_candidate.display().to_string())
                 } else {
-                    // Fallback: search immediate children for adapter
-                    if let Ok(mut rd) = tokio::fs::read_dir(&run_dir).await {
-                        let mut found: Option<String> = None;
-                        while let Ok(Some(entry)) = rd.next_entry().await {
-                            let p = entry.path().join("adapter_model.safetensors");
-                            if p.exists() {
-                                found = Some(p.display().to_string());
-                                break;
-                            }
-                        }
-                        found
+                    // Fallback to safetensors
+                    let safetensors_candidate = run_dir.join("adapter_model.safetensors");
+                    if safetensors_candidate.exists() {
+                        warn!("Found safetensors adapter but no GGUF. Consider converting to GGUF for Ollama compatibility.");
+                        Some(safetensors_candidate.display().to_string())
                     } else {
-                        None
+                        // Search immediate children for adapter
+                        if let Ok(mut rd) = tokio::fs::read_dir(&run_dir).await {
+                            let mut found: Option<String> = None;
+                            while let Ok(Some(entry)) = rd.next_entry().await {
+                                let gguf_p = entry.path().join("adapter_model.gguf");
+                                if gguf_p.exists() {
+                                    found = Some(gguf_p.display().to_string());
+                                    break;
+                                }
+                                let st_p = entry.path().join("adapter_model.safetensors");
+                                if st_p.exists() && found.is_none() {
+                                    found = Some(st_p.display().to_string());
+                                }
+                            }
+                            found
+                        } else {
+                            None
+                        }
                     }
                 }
             }
@@ -788,6 +802,468 @@ pub async fn install_axolotl() -> Result<Json<InstallAxolotlResponse>, StatusCod
     }))
 }
 
+#[derive(Debug, Deserialize)]
+pub struct ConvertAdapterRequest {
+    pub job_id: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ConvertAdapterResponse {
+    pub success: bool,
+    pub message: String,
+    pub output_path: Option<String>,
+    pub error: Option<String>,
+}
+
+pub async fn convert_adapter_to_gguf(Json(req): Json<ConvertAdapterRequest>) -> Result<Json<ConvertAdapterResponse>, StatusCode> {
+    let job_id = Uuid::parse_str(&req.job_id).map_err(|_| StatusCode::BAD_REQUEST)?;
+    
+    // Get paths
+    let runtime = goose::model_training::axolotl::AxolotlRuntime::default();
+    let adapter_dir = runtime.output_root.join(format!("job-{}", job_id));
+    
+    if !adapter_dir.exists() {
+        return Ok(Json(ConvertAdapterResponse {
+            success: false,
+            message: "Adapter directory not found".to_string(),
+            output_path: None,
+            error: Some(format!("Directory does not exist: {}", adapter_dir.display())),
+        }));
+    }
+    
+    // Check if already converted
+    let gguf_path = adapter_dir.join("adapter_model.gguf");
+    if gguf_path.exists() {
+        return Ok(Json(ConvertAdapterResponse {
+            success: true,
+            message: "Adapter already converted to GGUF".to_string(),
+            output_path: Some(gguf_path.display().to_string()),
+            error: None,
+        }));
+    }
+    
+    // Check if safetensors exists
+    let safetensors_path = adapter_dir.join("adapter_model.safetensors");
+    if !safetensors_path.exists() {
+        return Ok(Json(ConvertAdapterResponse {
+            success: false,
+            message: "No adapter found to convert".to_string(),
+            output_path: None,
+            error: Some("adapter_model.safetensors not found".to_string()),
+        }));
+    }
+    
+    info!("Converting adapter to GGUF: {}", adapter_dir.display());
+    
+    // Get conversion script path - try multiple locations
+    let convert_script = {
+        // Try relative to current working directory first
+        let cwd_path = std::env::current_dir()
+            .ok()
+            .map(|p| p.join("crates/goose/src/model_training/convert_lora_to_gguf.py"))
+            .filter(|p| p.exists());
+        
+        if let Some(path) = cwd_path {
+            info!("Found conversion script at: {}", path.display());
+            path
+        } else {
+            // Try relative to executable (for installed binaries)
+            let exe_path = std::env::current_exe()
+                .ok()
+                .and_then(|exe| {
+                    // Go up from target/release/goosed to project root
+                    exe.parent()? // target/release
+                        .parent()? // target
+                        .parent() // project root
+                        .map(|p| p.join("crates/goose/src/model_training/convert_lora_to_gguf.py"))
+                })
+                .filter(|p| p.exists());
+            
+            if let Some(path) = exe_path {
+                info!("Found conversion script at: {}", path.display());
+                path
+            } else {
+                let fallback = std::path::PathBuf::from("crates/goose/src/model_training/convert_lora_to_gguf.py");
+                warn!("Conversion script not found, using fallback path: {}", fallback.display());
+                fallback
+            }
+        }
+    };
+    
+    // Verify the script exists before trying to run it
+    if !convert_script.exists() {
+        return Ok(Json(ConvertAdapterResponse {
+            success: false,
+            message: "Conversion script not found".to_string(),
+            output_path: None,
+            error: Some(format!("Script not found at: {}. Please ensure the project is properly set up.", convert_script.display())),
+        }));
+    }
+    
+    // Get llama.cpp path - check common locations
+    let llama_cpp_dir = std::env::current_dir()
+        .ok()
+        .map(|p| p.join("llama.cpp"))
+        .filter(|p| p.exists())
+        .or_else(|| {
+            dirs::home_dir().map(|h| h.join("llama.cpp")).filter(|p| p.exists())
+        })
+        .unwrap_or_else(|| std::path::PathBuf::from("llama.cpp"));
+    
+    if !llama_cpp_dir.exists() {
+        return Ok(Json(ConvertAdapterResponse {
+            success: false,
+            message: "llama.cpp not found".to_string(),
+            output_path: None,
+            error: Some(format!("llama.cpp directory not found. Expected at: {}", llama_cpp_dir.display())),
+        }));
+    }
+    
+    // Run conversion
+    let python_path = &runtime.python;
+    let mut cmd = tokio::process::Command::new(python_path);
+    cmd.arg(&convert_script)
+        .arg(&adapter_dir)
+        .arg(&llama_cpp_dir)
+        .arg(python_path);
+    
+    cmd.stdout(std::process::Stdio::piped());
+    cmd.stderr(std::process::Stdio::piped());
+    
+    match cmd.output().await {
+        Ok(output) => {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            
+            if output.status.success() {
+                // Parse JSON output
+                match serde_json::from_str::<serde_json::Value>(&stdout) {
+                    Ok(result) => {
+                        if result.get("success").and_then(|v| v.as_bool()).unwrap_or(false) {
+                            let output_path = result.get("output_path")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string());
+                            let message = result.get("message")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("Conversion successful")
+                                .to_string();
+                            
+                            info!("Adapter converted successfully: {:?}", output_path);
+                            
+                            Ok(Json(ConvertAdapterResponse {
+                                success: true,
+                                message,
+                                output_path,
+                                error: None,
+                            }))
+                        } else {
+                            let error = result.get("error")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("Unknown error")
+                                .to_string();
+                            
+                            warn!("Conversion failed: {}", error);
+                            
+                            Ok(Json(ConvertAdapterResponse {
+                                success: false,
+                                message: "Conversion failed".to_string(),
+                                output_path: None,
+                                error: Some(error),
+                            }))
+                        }
+                    }
+                    Err(e) => {
+                        warn!("Failed to parse conversion output: {}", e);
+                        Ok(Json(ConvertAdapterResponse {
+                            success: false,
+                            message: "Failed to parse conversion output".to_string(),
+                            output_path: None,
+                            error: Some(format!("Parse error: {}\nOutput: {}", e, stdout)),
+                        }))
+                    }
+                }
+            } else {
+                warn!("Conversion command failed: {}", stderr);
+                Ok(Json(ConvertAdapterResponse {
+                    success: false,
+                    message: "Conversion command failed".to_string(),
+                    output_path: None,
+                    error: Some(stderr.to_string()),
+                }))
+            }
+        }
+        Err(e) => {
+            warn!("Failed to execute conversion command: {}", e);
+            Ok(Json(ConvertAdapterResponse {
+                success: false,
+                message: "Failed to execute conversion".to_string(),
+                output_path: None,
+                error: Some(e.to_string()),
+            }))
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct FineTunedModel {
+    pub job_id: String,
+    pub model_name: String,
+    pub base_model: String,
+    pub created_at: String,
+    pub adapter_path: String,
+    pub gguf_available: bool,
+    pub ollama_model_name: Option<String>,
+    pub size_mb: Option<f64>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ListFineTunedModelsResponse {
+    pub models: Vec<FineTunedModel>,
+    pub total: usize,
+}
+
+pub async fn list_finetuned_models() -> Result<Json<ListFineTunedModelsResponse>, StatusCode> {
+    let runtime = goose::model_training::axolotl::AxolotlRuntime::default();
+    let training_dir = &runtime.output_root;
+    
+    if !training_dir.exists() {
+        return Ok(Json(ListFineTunedModelsResponse {
+            models: vec![],
+            total: 0,
+        }));
+    }
+    
+    let mut models = Vec::new();
+    
+    // Read all job directories
+    if let Ok(mut entries) = tokio::fs::read_dir(training_dir).await {
+        while let Ok(Some(entry)) = entries.next_entry().await {
+            let path = entry.path();
+            if !path.is_dir() {
+                continue;
+            }
+            
+            let dir_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            if !dir_name.starts_with("job-") {
+                continue;
+            }
+            
+            // Extract job ID
+            let job_id = dir_name.strip_prefix("job-").unwrap_or("");
+            
+            // Check for adapter files
+            let safetensors_path = path.join("adapter_model.safetensors");
+            let gguf_path = path.join("adapter_model.gguf");
+            
+            if !safetensors_path.exists() && !gguf_path.exists() {
+                continue; // No adapter found
+            }
+            
+            // Read adapter config to get base model
+            let config_path = path.join("adapter_config.json");
+            let base_model = if config_path.exists() {
+                if let Ok(config_text) = tokio::fs::read_to_string(&config_path).await {
+                    if let Ok(config) = serde_json::from_str::<serde_json::Value>(&config_text) {
+                        config.get("base_model_name_or_path")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("Unknown")
+                            .to_string()
+                    } else {
+                        "Unknown".to_string()
+                    }
+                } else {
+                    "Unknown".to_string()
+                }
+            } else {
+                "Unknown".to_string()
+            };
+            
+            // Get creation time
+            let created_at = if let Ok(metadata) = tokio::fs::metadata(&path).await {
+                if let Ok(created) = metadata.created() {
+                    let datetime: DateTime<Utc> = created.into();
+                    datetime.to_rfc3339()
+                } else {
+                    "Unknown".to_string()
+                }
+            } else {
+                "Unknown".to_string()
+            };
+            
+            // Get file size
+            let size_mb = if gguf_path.exists() {
+                if let Ok(metadata) = tokio::fs::metadata(&gguf_path).await {
+                    Some(metadata.len() as f64 / (1024.0 * 1024.0))
+                } else {
+                    None
+                }
+            } else if safetensors_path.exists() {
+                if let Ok(metadata) = tokio::fs::metadata(&safetensors_path).await {
+                    Some(metadata.len() as f64 / (1024.0 * 1024.0))
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            
+            // Determine Ollama model name (if registered)
+            let ollama_model_name = Some(format!("finetuned-{}", &job_id[..8.min(job_id.len())]));
+            
+            let adapter_path = if gguf_path.exists() {
+                gguf_path.display().to_string()
+            } else {
+                safetensors_path.display().to_string()
+            };
+            
+            // Check for custom name in metadata
+            let metadata_path = path.join("model_metadata.json");
+            let model_name = if metadata_path.exists() {
+                if let Ok(metadata_text) = tokio::fs::read_to_string(&metadata_path).await {
+                    if let Ok(metadata) = serde_json::from_str::<serde_json::Value>(&metadata_text) {
+                        metadata.get("custom_name")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string())
+                            .unwrap_or_else(|| format!("Fine-tuned {}", &job_id[..8.min(job_id.len())]))
+                    } else {
+                        format!("Fine-tuned {}", &job_id[..8.min(job_id.len())])
+                    }
+                } else {
+                    format!("Fine-tuned {}", &job_id[..8.min(job_id.len())])
+                }
+            } else {
+                format!("Fine-tuned {}", &job_id[..8.min(job_id.len())])
+            };
+            
+            models.push(FineTunedModel {
+                job_id: job_id.to_string(),
+                model_name,
+                base_model,
+                created_at,
+                adapter_path,
+                gguf_available: gguf_path.exists(),
+                ollama_model_name,
+                size_mb,
+            });
+        }
+    }
+    
+    // Sort by creation time (newest first)
+    models.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    
+    let total = models.len();
+    
+    Ok(Json(ListFineTunedModelsResponse { models, total }))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DeleteModelRequest {
+    pub job_id: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DeleteModelResponse {
+    pub success: bool,
+    pub message: String,
+}
+
+pub async fn delete_finetuned_model(Json(req): Json<DeleteModelRequest>) -> Result<Json<DeleteModelResponse>, StatusCode> {
+    let job_id = Uuid::parse_str(&req.job_id).map_err(|_| StatusCode::BAD_REQUEST)?;
+    
+    let runtime = goose::model_training::axolotl::AxolotlRuntime::default();
+    let model_dir = runtime.output_root.join(format!("job-{}", job_id));
+    
+    if !model_dir.exists() {
+        return Ok(Json(DeleteModelResponse {
+            success: false,
+            message: "Model not found".to_string(),
+        }));
+    }
+    
+    // Try to remove from Ollama first
+    let ollama_model_name = format!("finetuned-{}", &job_id.to_string()[..8]);
+    let mut ollama_rm = tokio::process::Command::new("ollama");
+    ollama_rm.arg("rm").arg(&ollama_model_name);
+    let _ = ollama_rm.output().await; // Ignore errors if model not in Ollama
+    
+    // Delete the directory
+    match tokio::fs::remove_dir_all(&model_dir).await {
+        Ok(_) => {
+            info!("Deleted fine-tuned model: {}", job_id);
+            Ok(Json(DeleteModelResponse {
+                success: true,
+                message: "Model deleted successfully".to_string(),
+            }))
+        }
+        Err(e) => {
+            warn!("Failed to delete model directory: {}", e);
+            Ok(Json(DeleteModelResponse {
+                success: false,
+                message: format!("Failed to delete model: {}", e),
+            }))
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RenameModelRequest {
+    pub job_id: String,
+    pub new_name: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct RenameModelResponse {
+    pub success: bool,
+    pub message: String,
+}
+
+pub async fn rename_finetuned_model(Json(req): Json<RenameModelRequest>) -> Result<Json<RenameModelResponse>, StatusCode> {
+    let job_id = Uuid::parse_str(&req.job_id).map_err(|_| StatusCode::BAD_REQUEST)?;
+    
+    // Validate new name
+    let new_name = req.new_name.trim();
+    if new_name.is_empty() {
+        return Ok(Json(RenameModelResponse {
+            success: false,
+            message: "Name cannot be empty".to_string(),
+        }));
+    }
+    
+    let runtime = goose::model_training::axolotl::AxolotlRuntime::default();
+    let model_dir = runtime.output_root.join(format!("job-{}", job_id));
+    
+    if !model_dir.exists() {
+        return Ok(Json(RenameModelResponse {
+            success: false,
+            message: "Model not found".to_string(),
+        }));
+    }
+    
+    // Store the name in a metadata file
+    let metadata_path = model_dir.join("model_metadata.json");
+    let metadata = serde_json::json!({
+        "custom_name": new_name,
+        "renamed_at": chrono::Utc::now().to_rfc3339(),
+    });
+    
+    match tokio::fs::write(&metadata_path, serde_json::to_string_pretty(&metadata).unwrap()).await {
+        Ok(_) => {
+            info!("Renamed model {} to '{}'", job_id, new_name);
+            Ok(Json(RenameModelResponse {
+                success: true,
+                message: format!("Model renamed to '{}'", new_name),
+            }))
+        }
+        Err(e) => {
+            warn!("Failed to rename model: {}", e);
+            Ok(Json(RenameModelResponse {
+                success: false,
+                message: format!("Failed to rename model: {}", e),
+            }))
+        }
+    }
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/training/feedback", post(submit_feedback))
@@ -796,6 +1272,10 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/training/jobs", get(list_jobs))
         .route("/training/progress/{job_id}", get(job_progress))
         .route("/training/activate", post(activate_adapter))
+        .route("/training/convert-to-gguf", post(convert_adapter_to_gguf))
+        .route("/training/finetuned-models", get(list_finetuned_models))
+        .route("/training/delete-model", post(delete_finetuned_model))
+        .route("/training/rename-model", post(rename_finetuned_model))
         .route("/training/examples", get(list_examples))
         .route("/training/check-axolotl", get(check_axolotl))
         .route("/training/install-axolotl", post(install_axolotl))
