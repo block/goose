@@ -127,14 +127,15 @@ All UI elements implement this trait. Components:
 
 ```
 App (orchestrator)
-├── ChatComponent      # Message list with caching
-├── InputComponent     # Text input with slash commands
+├── ChatComponent      # Message list with caching, visual mode
+├── InputComponent     # Text input, slash commands, @file completion
 ├── InfoComponent      # Dynamic status (spinner, todos, puns, flash messages)
-├── StatusComponent    # Bottom bar (mode, copy indicator, session, tokens, cwd, model, hints)
+├── StatusComponent    # Bottom bar (mode, session, tokens, cwd, model, hints)
 └── Popups (via ActivePopup enum)
     ├── HelpPopup      # Keybinding reference
     ├── TodoPopup      # Task list from todo_write
     ├── SessionPopup   # Session picker
+    ├── SchedulePopup  # Scheduled recipe management
     ├── BuilderPopup   # Custom command creator/manager
     ├── MessagePopup   # Message detail view with copy/fork
     ├── ConfigPopup    # Provider/extension config
@@ -212,6 +213,16 @@ Vec<ratatui::Span>
      ▼ ratatui
 Terminal cells
 ```
+
+### Syntax Highlighting
+
+Code blocks are syntax-highlighted using [syntect](https://github.com/trishume/syntect):
+
+1. `CodeBlockIterator` (syntax.rs) extracts code blocks from markdown
+2. `highlight_code()` applies syntect highlighting with theme-aware colors
+3. Results are converted to ratatui `Span`s for rendering
+
+Language aliases are normalized (`js`→`javascript`, `py`→`python`, `sh`→`bash`, etc.). Unknown languages fall back to plain text.
 
 ### Message Caching
 

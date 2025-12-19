@@ -29,13 +29,13 @@ src/
 ├── hidden_blocks.rs  # Strip internal XML blocks from display
 ├── components/
 │   ├── mod.rs        # Component trait definition
-│   ├── chat.rs       # Message display, caching, scrolling
-│   ├── input.rs      # Text input, slash commands
+│   ├── chat.rs       # Message display, caching, visual mode
+│   ├── input.rs      # Text input, slash commands, @file completion
 │   ├── info.rs       # Dynamic status line (spinner, todos, flash messages)
 │   ├── status.rs     # Bottom bar (mode, session, tokens, cwd, model, hints)
 │   └── popups/
 │       ├── mod.rs    # Shared popup utilities
-│       ├── help.rs, todo.rs, session.rs, message.rs, config.rs, theme.rs
+│       ├── help.rs, todo.rs, session.rs, message.rs, config.rs, theme.rs, schedule.rs
 │       └── builder/  # Custom command creator (multi-file)
 ├── services/
 │   ├── config.rs     # TuiConfig (theme, custom commands)
@@ -46,9 +46,11 @@ src/
 │   └── reducer.rs    # State update logic
 └── utils/
     ├── styles.rs     # 11 themes
+    ├── syntax.rs     # Code block parsing + syntect highlighting
     ├── termimad_renderer.rs  # Markdown → ratatui
+    ├── file_completion.rs    # @path autocomplete
     ├── sanitize.rs   # ANSI/control char handling
-    ├── spinner.rs    # Spinner animation frames (shared)
+    ├── spinner.rs    # Spinner animation frames
     └── layout.rs, json.rs, ascii_art.rs, message_format.rs
 ```
 

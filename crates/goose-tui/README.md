@@ -9,7 +9,7 @@ A terminal user interface for [Goose](https://github.com/block/goose), the AI ag
 
 ## Features
 
-- **Interactive Chat**: Full conversation interface with markdown rendering
+- **Interactive Chat**: Full conversation interface with markdown rendering and syntax highlighting
 - **Session Management**: Create, resume, and fork sessions
 - **File Attachments**: Reference files inline with `@path/to/file` syntax
 - **Tool Approval**: Interactive approval workflow for sensitive operations
@@ -174,7 +174,22 @@ CLI mode provides the same functionality with simple line-by-line output. Use it
 | `PageUp` / `PageDown` | Page scroll |
 | `Home` / `End` | Jump to start/end |
 | `Enter` | View message details |
+| `V` | Enter Visual mode |
 | `Y` / `N` | Approve/deny tool call (when prompted) |
+
+### Visual Mode
+
+Vim-style selection for copying multiple messages:
+
+| Key | Action |
+|-----|--------|
+| `j` / `↓` | Extend selection down |
+| `k` / `↑` | Extend selection up |
+| `y` / `c` | Copy selection to clipboard |
+| `o` | Swap anchor and cursor |
+| `gg` | Jump to first message |
+| `G` | Jump to last message |
+| `Esc` / `V` | Cancel and exit |
 
 ### Message Detail Popup
 
