@@ -9,7 +9,6 @@ for arg in "$@"; do
   case $arg in
     --code-exec)
       CODE_EXEC_MODE=true
-      shift
       ;;
   esac
 done
@@ -56,13 +55,14 @@ fi
 if [ "$CODE_EXEC_MODE" = true ]; then
   echo "Mode: code_execution (JS batching)"
   BUILTINS="developer,code_execution"
-  SUCCESS_PATTERN="execute_code | code_execution|read_module | code_execution"
+  # Match "execute_code | code_execution" or "read_module | code_execution" in output
+  SUCCESS_PATTERN="(execute_code \| code_execution)|(read_module \| code_execution)"
   SUCCESS_MSG="code_execution tool called"
   FAILURE_MSG="no code_execution tools called"
 else
   echo "Mode: normal (direct tool calls)"
   BUILTINS="developer,autovisualiser,computercontroller,tutorial,todo,extensionmanager"
-  SUCCESS_PATTERN="shell | developer"
+  SUCCESS_PATTERN="shell \| developer"
   SUCCESS_MSG="developer tool called"
   FAILURE_MSG="no developer tools called"
 fi
