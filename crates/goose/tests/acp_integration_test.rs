@@ -1,8 +1,8 @@
-use agent_client_protocol::{
-    self as acp, Agent, Client, ClientSideConnection, ContentBlock, InitializeRequest,
-    NewSessionRequest, PromptRequest, ProtocolVersion, SessionNotification, SessionUpdate,
-    TextContent,
+use sacp::schema::{
+    ContentBlock, ContentChunk, InitializeRequest, NewSessionRequest, PromptRequest,
+    SessionNotification, SessionUpdate, StopReason, TextContent, VERSION as PROTOCOL_VERSION,
 };
+use sacp::{ClientToAgent, JrConnectionCx};
 use std::path::Path;
 use std::process::Stdio;
 use std::sync::{Arc, Mutex};
@@ -20,27 +20,31 @@ async fn test_acp_basic_completion() {
     let mock_server = setup_mock_openai(BASIC_RESPONSE).await;
     let work_dir = tempfile::tempdir().unwrap();
 
-    let (client, updates) = TestClient::new();
+    let updates = Arc::new(Mutex::new(Vec::<SessionNotification>::new()));
     let child = spawn_goose_acp(&mock_server).await;
 
-    run_acp_session(
-        client,
-        child,
-        work_dir.path(),
-        |conn, session_id| async move {
-            let response = conn
-                .prompt(PromptRequest::new(
+    run_acp_session(child, work_dir.path(), updates.clone(), |cx, session_id| {
+        let updates = updates.clone();
+        async move {
+            let response = cx
+                .send_request(PromptRequest {
                     session_id,
-                    vec![ContentBlock::Text(TextContent::new("test message"))],
-                ))
+                    prompt: vec![ContentBlock::Text(TextContent {
+                        text: "test message".to_string(),
+                        annotations: None,
+                        meta: None,
+                    })],
+                    meta: None,
+                })
+                .block_task()
                 .await
                 .unwrap();
 
-            assert_eq!(response.stop_reason, acp::StopReason::EndTurn);
+            assert_eq!(response.stop_reason, StopReason::EndTurn);
 
             wait_for_text(&updates, BASIC_TEXT, Duration::from_secs(5)).await;
-        },
-    )
+        }
+    })
     .await;
 }
 
@@ -83,44 +87,13 @@ fn extract_text(updates: &[SessionNotification]) -> String {
     updates
         .iter()
         .filter_map(|n| match &n.update {
-            SessionUpdate::AgentMessageChunk(chunk) => match &chunk.content {
+            SessionUpdate::AgentMessageChunk(ContentChunk { content, .. }) => match content {
                 ContentBlock::Text(t) => Some(t.text.clone()),
                 _ => None,
             },
             _ => None,
         })
         .collect()
-}
-
-struct TestClient {
-    updates: Arc<Mutex<Vec<SessionNotification>>>,
-}
-
-impl TestClient {
-    fn new() -> (Self, Arc<Mutex<Vec<SessionNotification>>>) {
-        let updates = Arc::new(Mutex::new(Vec::new()));
-        (
-            Self {
-                updates: updates.clone(),
-            },
-            updates,
-        )
-    }
-}
-
-#[async_trait::async_trait(?Send)]
-impl Client for TestClient {
-    async fn request_permission(
-        &self,
-        _args: acp::RequestPermissionRequest,
-    ) -> acp::Result<acp::RequestPermissionResponse> {
-        Err(acp::Error::method_not_found())
-    }
-
-    async fn session_notification(&self, args: SessionNotification) -> acp::Result<()> {
-        self.updates.lock().unwrap().push(args);
-        Ok(())
-    }
 }
 
 async fn spawn_goose_acp(mock_server: &MockServer) -> Child {
@@ -138,33 +111,57 @@ async fn spawn_goose_acp(mock_server: &MockServer) -> Child {
         .unwrap()
 }
 
-async fn run_acp_session<F, Fut>(client: TestClient, mut child: Child, work_dir: &Path, test_fn: F)
-where
-    F: FnOnce(ClientSideConnection, acp::SessionId) -> Fut,
+async fn run_acp_session<F, Fut>(
+    mut child: Child,
+    work_dir: &Path,
+    updates: Arc<Mutex<Vec<SessionNotification>>>,
+    test_fn: F,
+) where
+    F: FnOnce(JrConnectionCx<ClientToAgent>, sacp::schema::SessionId) -> Fut,
     Fut: std::future::Future<Output = ()>,
 {
     let outgoing = child.stdin.take().unwrap().compat_write();
     let incoming = child.stdout.take().unwrap().compat();
 
     let work_dir = work_dir.to_path_buf();
-    let local_set = tokio::task::LocalSet::new();
-    local_set
-        .run_until(async move {
-            let (conn, handle_io) = ClientSideConnection::new(client, outgoing, incoming, |fut| {
-                tokio::task::spawn_local(fut);
-            });
-            tokio::task::spawn_local(handle_io);
+    let transport = sacp::ByteStreams::new(outgoing, incoming);
 
-            conn.initialize(InitializeRequest::new(ProtocolVersion::V1))
+    ClientToAgent::builder()
+        .on_receive_notification(
+            {
+                let updates = updates.clone();
+                async move |notification: SessionNotification, _cx| {
+                    updates.lock().unwrap().push(notification);
+                    Ok(())
+                }
+            },
+            sacp::on_receive_notification!(),
+        )
+        .with_client(transport, |cx: JrConnectionCx<ClientToAgent>| async move {
+            cx.send_request(InitializeRequest {
+                protocol_version: PROTOCOL_VERSION,
+                client_capabilities: Default::default(),
+                client_info: Default::default(),
+                meta: None,
+            })
+            .block_task()
+            .await
+            .unwrap();
+
+            let session = cx
+                .send_request(NewSessionRequest {
+                    mcp_servers: vec![],
+                    cwd: work_dir,
+                    meta: None,
+                })
+                .block_task()
                 .await
                 .unwrap();
 
-            let session = conn
-                .new_session(NewSessionRequest::new(&work_dir))
-                .await
-                .unwrap();
+            test_fn(cx.clone(), session.session_id).await;
 
-            test_fn(conn, session.session_id).await;
+            Ok(())
         })
-        .await;
+        .await
+        .unwrap();
 }
