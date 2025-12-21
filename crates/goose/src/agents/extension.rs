@@ -142,7 +142,7 @@ pub enum ExtensionError {
 
 pub type ExtensionResult<T> = Result<T, ExtensionError>;
 
-#[derive(Debug, Clone, Deserialize, Serialize, Default, ToSchema)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default, ToSchema, PartialEq)]
 pub struct Envs {
     /// A map of environment variables to set, e.g. API_KEY -> some_secret, HOST -> host
     #[serde(default)]
@@ -232,7 +232,7 @@ impl Envs {
 }
 
 /// Represents the different types of MCP extensions that can be added to the manager
-#[derive(Debug, Clone, Deserialize, Serialize, ToSchema)]
+#[derive(Debug, Clone, Deserialize, Serialize, ToSchema, PartialEq)]
 #[serde(tag = "type")]
 pub enum ExtensionConfig {
     /// Server-sent events client with a URI endpoint
