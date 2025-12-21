@@ -5,8 +5,6 @@ authors:
     - rizel
 ---
 
-![Code Mode and MCP working together](header-image.jpg)
-
 One day, we will tell our kids we used to have to wait for agents, but they wouldn't know that world because the agents in their day would be so fast. I joked about this with Nick Cooper, an MCP steering committee member from OpenAI, and Bradley Axen, the creator of goose.
 
 They both laughed at the thought because they understand exactly how clunky and experimental our current "dial-up era" of agentic workflows feels. While the Model Context Protocol (MCP) has already moved the needle by making it easier to connect our everyday apps, the experience is still far from perfect. We are still figuring out how to balance the power of these tools with the technical constraints of the models themselves.
