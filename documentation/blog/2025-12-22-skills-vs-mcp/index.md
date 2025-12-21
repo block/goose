@@ -1,6 +1,6 @@
 ---
 title: "Did Skills Kill MCP?"
-description: An explanation on the difference between Agent Skills and MCP
+description: An overview of Agent Skills vs MCP
 authors: 
     - angie
 ---
@@ -82,11 +82,11 @@ That's progress, not replacement.
   <meta property="og:title" content="Did Skills Kill MCP?" />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2025/12/33/mcp-sampling" />
-  <meta property="og:description" content="An explanation on the difference between Agent Skills and MCP" />
+  <meta property="og:description" content="An overview of Agent Skills vs MCP" />
   <meta property="og:image" content="https://block.github.io/goose/assets/images/skills-vs-mcp-f2d83cbf65b3ddb4f9294470ab653355.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="Did Skills Kill MCP?" />
-  <meta name="twitter:description" content="An explanation on the difference between Agent Skills and MCP" />
+  <meta name="twitter:description" content="An overview of Agent Skills vs MCP" />
   <meta name="twitter:image" content="https://block.github.io/goose/assets/images/skills-vs-mcp-f2d83cbf65b3ddb4f9294470ab653355.png" />
 </head>
