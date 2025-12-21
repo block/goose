@@ -53,7 +53,6 @@ impl TodoClient {
             instructions: Some(indoc! {r#"
                 Task Management
 
-                Use todo_write for tasks with 2+ steps, multiple files/components, or uncertain scope.
                 Your TODO content is automatically available in your context.
 
                 Workflow:
@@ -251,12 +250,15 @@ impl McpClientTrait for TodoClient {
     async fn get_moim(&self) -> Option<String> {
         let session_id = self.context.session_id.as_ref()?;
         let metadata = SessionManager::get_session(session_id, false).await.ok()?;
-        let state = extension_data::TodoState::from_extension_data(&metadata.extension_data)?;
 
-        if state.content.trim().is_empty() {
-            return None;
+        match extension_data::TodoState::from_extension_data(&metadata.extension_data) {
+            Some(state) if !state.content.trim().is_empty() => {
+                Some(format!("Current tasks and notes:\n{}\n", state.content))
+            }
+            _ => Some(
+                "Current tasks and notes:\nOnce given a task, immediately update your todo with all explicit and implicit requirements\n"
+                    .to_string(),
+            ),
         }
-
-        Some(format!("Current tasks and notes:\n{}\n", state.content))
     }
 }
