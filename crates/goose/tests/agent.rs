@@ -387,7 +387,7 @@ mod tests {
             let session_config = SessionConfig {
                 id: session.id,
                 schedule_id: None,
-                max_turns: None,
+                max_turns: Some(1),
                 retry_config: None,
             };
 
@@ -398,16 +398,18 @@ mod tests {
             while let Some(response_result) = reply_stream.next().await {
                 match response_result {
                     Ok(AgentEvent::Message(response)) => {
-                        if let Some(MessageContent::ToolConfirmationRequest(ref req)) =
+                        if let Some(MessageContent::ActionRequired(action)) =
                             response.content.first()
                         {
-                            agent.handle_confirmation(
-                            req.id.clone(),
-                            goose::permission::PermissionConfirmation {
-                                principal_type: goose::permission::permission_confirmation::PrincipalType::Tool,
-                                permission: goose::permission::Permission::AllowOnce,
+                            if let goose::conversation::message::ActionRequiredData::ToolConfirmation { id, .. } = &action.data {
+                                agent.handle_confirmation(
+                                    id.clone(),
+                                    goose::permission::PermissionConfirmation {
+                                        principal_type: goose::permission::permission_confirmation::PrincipalType::Tool,
+                                        permission: goose::permission::Permission::AllowOnce,
+                                    }
+                                ).await;
                             }
-                        ).await;
                         }
                         responses.push(response);
                     }
