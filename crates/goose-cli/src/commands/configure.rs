@@ -22,7 +22,6 @@ use goose::model::ModelConfig;
 use goose::providers::provider_test::test_provider_configuration;
 use goose::providers::{create, providers};
 use goose::session::{SessionManager, SessionType};
-use serde_json::Value;
 use std::collections::HashMap;
 
 // useful for light themes where there is no dicernible colour contrast between
@@ -421,17 +420,20 @@ fn select_model_from_list(
     }
 }
 
-fn try_store_secret(config: &Config, key_name: &str, value: String) -> anyhow::Result<bool> {
-    match config.set_secret(key_name, &value) {
-        Ok(_) => Ok(true),
+fn store_secret(config: &Config, key: &str, value: &str) -> anyhow::Result<()> {
+    match config.set_secret(key, &value.to_string()) {
+        Ok(_) => {}
+        Err(ConfigError::FallbackToFileStorage) => {}
         Err(e) => {
-            cliclack::outro(style(format!(
-                "Failed to store {} securely: {}. Please ensure your system's secure storage is accessible. Alternatively you can run with GOOSE_DISABLE_KEYRING=true or set the key in your environment variables",
-                key_name, e
-            )).on_red().white())?;
-            Ok(false)
+            cliclack::outro(
+                style(format!(
+                    "Failed to store {} securely: {}. Please ensure your system's secure storage is accessible. Alternatively you can run with GOOSE_DISABLE_KEYRING=true or set the key in your environment variables",
+                    key, e
+                )).on_red().white())?;
+            return Err(anyhow::anyhow!("Failed to store secret"));
         }
     }
+    Ok(())
 }
 
 pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
@@ -484,7 +486,7 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
                     .interact()?
                 {
                     if key.secret {
-                        if !try_store_secret(config, &key.name, env_value)? {
+                        if store_secret(config, &key.name, &env_value).is_err() {
                             return Ok(false);
                         }
                     } else {
@@ -496,7 +498,7 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
             None => {
                 // No env var, check config/secret storage
                 let existing: Result<String, _> = if key.secret {
-                    config.get_secret(&key.name)
+                    Err(ConfigError::NotFound(key.name.clone()))
                 } else {
                     config.get_param(&key.name)
                 };
@@ -526,7 +528,7 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
                                 };
 
                                 if key.secret {
-                                    if !try_store_secret(config, &key.name, value)? {
+                                    if store_secret(config, &key.name, &value).is_err() {
                                         return Ok(false);
                                     }
                                 } else {
@@ -559,7 +561,9 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
                             };
 
                             if key.secret {
-                                config.set_secret(&key.name, &value)?;
+                                if store_secret(config, &key.name, &value).is_err() {
+                                    return Ok(false);
+                                }
                             } else {
                                 config.set_param(&key.name, &value)?;
                             }
@@ -820,7 +824,7 @@ pub fn configure_extensions_dialog() -> anyhow::Result<()> {
             let add_env =
                 cliclack::confirm("Would you like to add environment variables?").interact()?;
 
-            let mut envs = HashMap::new();
+            let envs = HashMap::new();
             let mut env_keys = Vec::new();
             let config = Config::global();
 
@@ -834,18 +838,11 @@ pub fn configure_extensions_dialog() -> anyhow::Result<()> {
                         .mask('▪')
                         .interact()?;
 
-                    // Try to store in keychain
                     let keychain_key = key.to_string();
-                    match config.set_secret(&keychain_key, &value) {
-                        Ok(_) => {
-                            // Successfully stored in keychain, add to env_keys
-                            env_keys.push(keychain_key);
-                        }
-                        Err(_) => {
-                            // Failed to store in keychain, store directly in envs
-                            envs.insert(key, value);
-                        }
+                    if store_secret(config, &keychain_key, &value).is_err() {
+                        return Ok(());
                     }
+                    env_keys.push(keychain_key);
 
                     if !cliclack::confirm("Add another environment variable?").interact()? {
                         break;
@@ -916,7 +913,7 @@ pub fn configure_extensions_dialog() -> anyhow::Result<()> {
             let add_env =
                 cliclack::confirm("Would you like to add environment variables?").interact()?;
 
-            let mut envs = HashMap::new();
+            let envs = HashMap::new();
             let mut env_keys = Vec::new();
             let config = Config::global();
 
@@ -930,18 +927,11 @@ pub fn configure_extensions_dialog() -> anyhow::Result<()> {
                         .mask('▪')
                         .interact()?;
 
-                    // Try to store in keychain
                     let keychain_key = key.to_string();
-                    match config.set_secret(&keychain_key, &value) {
-                        Ok(_) => {
-                            // Successfully stored in keychain, add to env_keys
-                            env_keys.push(keychain_key);
-                        }
-                        Err(_) => {
-                            // Failed to store in keychain, store directly in envs
-                            envs.insert(key, value);
-                        }
+                    if store_secret(config, &keychain_key, &value).is_err() {
+                        return Ok(());
                     }
+                    env_keys.push(keychain_key);
 
                     if !cliclack::confirm("Add another environment variable?").interact()? {
                         break;
@@ -1036,7 +1026,7 @@ pub fn configure_extensions_dialog() -> anyhow::Result<()> {
 
             let add_env = false; // No env prompt for Streaming HTTP
 
-            let mut envs = HashMap::new();
+            let envs = HashMap::new();
             let mut env_keys = Vec::new();
             let config = Config::global();
 
@@ -1050,18 +1040,11 @@ pub fn configure_extensions_dialog() -> anyhow::Result<()> {
                         .mask('▪')
                         .interact()?;
 
-                    // Try to store in keychain
                     let keychain_key = key.to_string();
-                    match config.set_secret(&keychain_key, &Value::String(value.clone())) {
-                        Ok(_) => {
-                            // Successfully stored in keychain, add to env_keys
-                            env_keys.push(keychain_key);
-                        }
-                        Err(_) => {
-                            // Failed to store in keychain, store directly in envs
-                            envs.insert(key, value);
-                        }
+                    if store_secret(config, &keychain_key, &value).is_err() {
+                        return Ok(());
                     }
+                    env_keys.push(keychain_key);
 
                     if !cliclack::confirm("Add another environment variable?").interact()? {
                         break;
@@ -1363,14 +1346,14 @@ pub fn configure_keyring_dialog() -> anyhow::Result<()> {
     match storage_option {
         "keyring" => {
             // Set to empty string to enable keyring (absence or empty = enabled)
-            config.set_param("GOOSE_DISABLE_KEYRING", Value::String("".to_string()))?;
+            config.set_param("GOOSE_DISABLE_KEYRING", "")?;
             cliclack::outro("Secret storage set to system keyring (secure)")?;
             let _ =
                 cliclack::log::info("You may need to restart goose for this change to take effect");
         }
         "file" => {
             // Set the disable flag to use file storage
-            config.set_param("GOOSE_DISABLE_KEYRING", Value::String("true".to_string()))?;
+            config.set_param("GOOSE_DISABLE_KEYRING", "true")?;
             cliclack::outro(
                 "Secret storage set to file (~/.config/goose/secrets.yaml). Keep this file secure!",
             )?;
