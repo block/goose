@@ -50,30 +50,24 @@ impl TodoClient {
                 icons: None,
                 website_url: None,
             },
-            instructions: Some(indoc! {r#"
-                Task Management
-
-                Your TODO content is automatically available in your context.
+            instructions: Some(
+                indoc! {r#"
+                Your todo content is automatically available in your context.
 
                 Workflow:
                 - Start: write initial checklist
                 - During: update progress
                 - End: verify all complete
 
-                Warning: todo_write overwrites entirely; always include ALL content you want to keep
-
-                Keep items short, specific, action-oriented. Not using the todo tool for complex tasks is an error.
-
-                For autonomous work, missing requirements means failure - document all requirements in TODO immediately.
-
                 Template:
-                - [ ] Implement feature X
-                  - [ ] Update API
-                  - [ ] Write tests
-                  - [ ] Run tests
-                  - [ ] Run lint
-                - [ ] Blocked: waiting on credentials
-            "#}.to_string()),
+                - [x] Requirement 1
+                - [ ] Task
+                  - [ ] Sub-task
+                - [ ] Requirement 2
+                - [ ] Another task
+            "#}
+                .to_string(),
+            ),
         };
 
         Ok(Self {
