@@ -13,6 +13,7 @@ use aws_sdk_bedrockruntime::config::ProvideCredentials;
 use aws_sdk_bedrockruntime::operation::converse::ConverseError;
 use aws_sdk_bedrockruntime::operation::converse_stream::ConverseStreamError;
 use aws_sdk_bedrockruntime::{types as bedrock, Client};
+
 use rmcp::model::Tool;
 use serde_json::Value;
 use tokio::sync::mpsc;

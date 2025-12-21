@@ -62,9 +62,7 @@ impl BedrockStreamAccumulator {
     ) -> Result<Option<Message>> {
         match delta {
             bedrock::ContentBlockDelta::Text(text) => {
-                // Ensure the block exists (in case we get delta before start)
                 self.text_blocks.entry(index).or_default().push_str(text);
-                // Yield ONLY the new delta text, not the entire accumulated text
                 self.build_delta_text_message(index, text)
             }
             bedrock::ContentBlockDelta::ToolUse(tool_delta) => {
@@ -174,11 +172,9 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
             bedrock::ContentBlock::Image(to_bedrock_image(&image.data, &image.mime_type)?)
         }
         MessageContent::Thinking(_) => {
-            // Thinking blocks are not supported in Bedrock - skip
             bedrock::ContentBlock::Text("".to_string())
         }
         MessageContent::RedactedThinking(_) => {
-            // Redacted thinking blocks are not supported in Bedrock - skip
             bedrock::ContentBlock::Text("".to_string())
         }
         MessageContent::SystemNotification(_) => {
@@ -220,7 +216,6 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
                     result
                         .content
                         .iter()
-                        // Filter out content items that have User in their audience
                         .filter(|c| {
                             c.audience()
                                 .is_none_or(|audience| !audience.contains(&Role::User))
@@ -229,7 +224,6 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
                         .collect::<Result<_>>()?,
                 ),
                 Err(error) => {
-                    // For errors, create a text content block with the error message
                     Some(vec![bedrock::ToolResultContentBlock::Text(format!(
                         "The tool call returned the following error:\n{}",
                         error
@@ -290,7 +284,6 @@ pub fn to_bedrock_role(role: &Role) -> bedrock::ConversationRole {
 }
 
 pub fn to_bedrock_image(data: &String, mime_type: &String) -> Result<bedrock::ImageBlock> {
-    // Extract format from MIME type
     let format = match mime_type.as_str() {
         "image/png" => bedrock::ImageFormat::Png,
         "image/jpeg" | "image/jpg" => bedrock::ImageFormat::Jpeg,
@@ -302,14 +295,12 @@ pub fn to_bedrock_image(data: &String, mime_type: &String) -> Result<bedrock::Im
         ),
     };
 
-    // Create image source with base64 data
     let source = bedrock::ImageSource::Bytes(aws_smithy_types::Blob::new(
         base64::prelude::BASE64_STANDARD
             .decode(data)
             .map_err(|e| anyhow!("Failed to decode base64 image data: {}", e))?,
     ));
 
-    // Build the image block
     Ok(bedrock::ImageBlock::builder()
         .format(format)
         .source(source)
@@ -327,8 +318,6 @@ pub fn to_bedrock_tool_config(tools: &[Tool]) -> Result<bedrock::ToolConfigurati
 pub fn to_bedrock_tool(tool: &Tool) -> Result<bedrock::Tool> {
     let mut input_schema = tool.input_schema.as_ref().clone();
 
-    // If the schema doesn't have a "type" field, add it
-    // This is required by Bedrock
     if !input_schema.contains_key("type") {
         input_schema.insert("type".to_string(), Value::String("object".to_string()));
     }
@@ -389,18 +378,14 @@ fn to_bedrock_document(
         .and_then(|n| n.to_str())
         .unwrap_or(uri);
 
-    // Return None if the file type is not supported
     let (name, format) = match filename.split_once('.') {
         Some((name, "txt")) => (name, bedrock::DocumentFormat::Txt),
         Some((name, "csv")) => (name, bedrock::DocumentFormat::Csv),
         Some((name, "md")) => (name, bedrock::DocumentFormat::Md),
         Some((name, "html")) => (name, bedrock::DocumentFormat::Html),
-        _ => return Ok(None), // Not a supported document type
+        _ => return Ok(None),
     };
 
-    // Since we can't use the full path (due to character limit and also Bedrock does not accept `/` etc.),
-    // and Bedrock wants document names to be unique, we're adding `tool_use_id` as a prefix to make
-    // document names unique.
     let name = format!("{tool_use_id}-{name}");
 
     Ok(Some(
@@ -521,7 +506,6 @@ mod tests {
     use anyhow::Result;
     use rmcp::model::{AnnotateAble, RawImageContent};
 
-    // Base64 encoded 1x1 PNG image for testing
     const TEST_IMAGE_BASE64: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
 
     #[test]
@@ -592,7 +576,6 @@ mod tests {
         let message_content = MessageContent::Image(image);
         let result = to_bedrock_message_content(&message_content)?;
 
-        // Verify we get an Image content block
         assert!(matches!(result, bedrock::ContentBlock::Image(_)));
 
         Ok(())
@@ -603,7 +586,6 @@ mod tests {
         let content = Content::image(TEST_IMAGE_BASE64.to_string(), "image/png".to_string());
         let result = to_bedrock_tool_result_content_block("test_id", content)?;
 
-        // Verify the wrapper correctly converts Content::Image to ToolResultContentBlock::Image
         assert!(matches!(result, bedrock::ToolResultContentBlock::Image(_)));
 
         Ok(())
