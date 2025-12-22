@@ -53,6 +53,7 @@ export type CallToolRequest = {
 };
 
 export type CallToolResponse = {
+    _meta?: unknown;
     content: Array<Content>;
     is_error: boolean;
     structured_content?: unknown;
@@ -134,6 +135,21 @@ export type CreateScheduleRequest = {
     cron: string;
     id: string;
     recipe_source: string;
+};
+
+/**
+ * Content Security Policy metadata for MCP Apps
+ * Specifies allowed domains for network connections and resource loading
+ */
+export type CspMetadata = {
+    /**
+     * Domains allowed for connect-src (fetch, XHR, WebSocket)
+     */
+    connectDomains?: Array<string> | null;
+    /**
+     * Domains allowed for resource loading (scripts, styles, images, fonts, media)
+     */
+    resourceDomains?: Array<string> | null;
 };
 
 export type DeclarativeProviderConfig = {
@@ -394,6 +410,38 @@ export type ListSchedulesResponse = {
 export type LoadedProvider = {
     config: DeclarativeProviderConfig;
     is_editable: boolean;
+};
+
+/**
+ * MCP App Resource
+ * Represents a UI resource that can be rendered in an MCP App
+ */
+export type McpAppResource = {
+    _meta?: ResourceMetadata | null;
+    /**
+     * Base64-encoded binary content (alternative to text)
+     */
+    blob?: string | null;
+    /**
+     * Optional description of what this resource does
+     */
+    description?: string | null;
+    /**
+     * MIME type (should be "text/html;profile=mcp-app" for MCP Apps)
+     */
+    mimeType: string;
+    /**
+     * Human-readable name of the resource
+     */
+    name: string;
+    /**
+     * Text content of the resource (HTML for MCP Apps)
+     */
+    text?: string | null;
+    /**
+     * URI of the resource (must use ui:// scheme)
+     */
+    uri: string;
 };
 
 /**
@@ -686,6 +734,13 @@ export type ResourceContents = {
     blob: string;
     mimeType?: string;
     uri: string;
+};
+
+/**
+ * Resource metadata containing UI configuration
+ */
+export type ResourceMetadata = {
+    ui?: UiMetadata | null;
 };
 
 export type Response = {
@@ -990,6 +1045,21 @@ export type TunnelInfo = {
 };
 
 export type TunnelState = 'idle' | 'starting' | 'running' | 'error' | 'disabled';
+
+/**
+ * UI-specific metadata for MCP resources
+ */
+export type UiMetadata = {
+    csp?: CspMetadata | null;
+    /**
+     * Preferred domain for the app (used for CORS)
+     */
+    domain?: string | null;
+    /**
+     * Whether the app prefers to have a border around it
+     */
+    prefersBorder?: boolean | null;
+};
 
 export type UpdateCustomProviderRequest = {
     api_key: string;

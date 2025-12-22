@@ -531,6 +531,10 @@ derive_utoipa!(Icon as IconSchema);
         super::tunnel::TunnelInfo,
         super::tunnel::TunnelState,
         super::routes::telemetry::TelemetryEventRequest,
+        goose::goose_apps::McpAppResource,
+        goose::goose_apps::CspMetadata,
+        goose::goose_apps::UiMetadata,
+        goose::goose_apps::ResourceMetadata,
     ))
 )]
 pub struct ApiDoc;

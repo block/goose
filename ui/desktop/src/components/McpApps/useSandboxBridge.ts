@@ -1,40 +1,18 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import type {
   JsonRpcMessage,
-  JsonRpcResponse,
-  IncomingGuestMessage,
+  JsonRpcRequest,
+  JsonRpcNotification,
   ToolInput,
   ToolInputPartial,
   ToolResult,
   ToolCancelled,
   HostContext,
-  SizeChangedNotification,
-  MessageRequest,
-  OpenLinkRequest,
-  LoggingMessageRequest,
-  CallToolRequest,
-  ListResourcesRequest,
-  ListResourceTemplatesRequest,
-  ReadResourceRequest,
-  ListPromptsRequest,
-  PingRequest,
   CspMetadata,
 } from './types';
-import {
-  fetchMcpAppProxyUrl,
-  createSandboxResourceReadyMessage,
-  createInitializeResponse,
-  createHostContextChangedNotification,
-  createToolInputNotification,
-  createToolInputPartialNotification,
-  createToolResultNotification,
-  createToolCancelledNotification,
-  createResourceTeardownRequest,
-} from './utils';
+import { fetchMcpAppProxyUrl } from './utils';
 import { useTheme } from '../../contexts/ThemeContext';
-
-/** Handler function type that may return a response to send back to the guest */
-type MessageHandler<T> = (msg: T) => JsonRpcResponse | null;
+import packageJson from '../../../package.json';
 
 interface SandboxBridgeOptions {
   resourceHtml: string;
@@ -44,16 +22,8 @@ interface SandboxBridgeOptions {
   toolInputPartial?: ToolInputPartial;
   toolResult?: ToolResult;
   toolCancelled?: ToolCancelled;
-  onMessage?: MessageHandler<MessageRequest>;
-  onOpenLink?: MessageHandler<OpenLinkRequest>;
-  onNotificationMessage?: MessageHandler<LoggingMessageRequest>;
-  onToolsCall?: MessageHandler<CallToolRequest>;
-  onResourcesList?: MessageHandler<ListResourcesRequest>;
-  onResourceTemplatesList?: MessageHandler<ListResourceTemplatesRequest>;
-  onResourcesRead?: MessageHandler<ReadResourceRequest>;
-  onPromptsList?: MessageHandler<ListPromptsRequest>;
-  onPing?: MessageHandler<PingRequest>;
-  onSizeChanged?: (msg: SizeChangedNotification) => null;
+  onMcpRequest: (method: string, params: unknown, id?: string | number) => Promise<unknown>;
+  onSizeChanged?: (height: number, width?: number) => void;
 }
 
 interface SandboxBridgeResult {
@@ -70,24 +40,13 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
     toolInputPartial,
     toolResult,
     toolCancelled,
-    onMessage,
-    onOpenLink,
-    onNotificationMessage,
-    onToolsCall,
-    onResourcesList,
-    onResourceTemplatesList,
-    onResourcesRead,
-    onPromptsList,
-    onPing,
+    onMcpRequest,
     onSizeChanged,
   } = options;
 
   const { resolvedTheme } = useTheme();
-
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
-  const pendingMessagesRef = useRef<JsonRpcMessage[]>([]);
   const isGuestInitializedRef = useRef(false);
-
   const [proxyUrl, setProxyUrl] = useState<string | null>(null);
   const [isGuestInitialized, setIsGuestInitialized] = useState(false);
 
@@ -98,248 +57,218 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
   useEffect(() => {
     setIsGuestInitialized(false);
     isGuestInitializedRef.current = false;
-    pendingMessagesRef.current = [];
   }, [resourceUri]);
 
   const sendToSandbox = useCallback((message: JsonRpcMessage) => {
-    const iframe = iframeRef.current;
-    if (iframe?.contentWindow) {
-      iframe.contentWindow.postMessage(message, '*');
-    }
+    iframeRef.current?.contentWindow?.postMessage(message, '*');
   }, []);
 
-  const flushPendingMessages = useCallback(() => {
-    pendingMessagesRef.current.forEach((msg) => sendToSandbox(msg));
-    pendingMessagesRef.current = [];
-  }, [sendToSandbox]);
-
   const handleJsonRpcMessage = useCallback(
-    (data: unknown) => {
-      if (!data || typeof data !== 'object' || !('method' in data)) return;
-      const msg = data as IncomingGuestMessage;
+    async (data: unknown) => {
+      if (!data || typeof data !== 'object') return;
 
-      console.log(`[Sandbox Bridge] Incoming message: ${msg.method}`, { msg });
+      // Handle notifications (no id)
+      if ('method' in data && !('id' in data)) {
+        const msg = data as JsonRpcNotification;
 
-      switch (msg.method) {
-        case 'ui/notifications/sandbox-ready': {
-          sendToSandbox(createSandboxResourceReadyMessage(resourceHtml, resourceCsp));
+        if (msg.method === 'ui/notifications/sandbox-ready') {
+          sendToSandbox({
+            jsonrpc: '2.0',
+            method: 'ui/notifications/sandbox-resource-ready',
+            params: { html: resourceHtml, csp: resourceCsp },
+          });
           return;
         }
 
-        case 'ui/initialize': {
-          const iframe = iframeRef.current;
-          const hostContext: HostContext = {
-            // TODO: Populate toolInfo when we have tool call context
-            toolInfo: undefined,
-            theme: resolvedTheme,
-            displayMode: 'inline',
-            availableDisplayModes: ['inline'],
-            viewport: {
-              width: iframe?.clientWidth ?? 0,
-              height: iframe?.clientHeight ?? 0,
-              maxWidth: window.innerWidth,
-              maxHeight: window.innerHeight,
-            },
-            locale: navigator.language,
-            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-            userAgent: navigator.userAgent,
-            platform: 'desktop',
-            deviceCapabilities: {
-              touch: 'ontouchstart' in window || navigator.maxTouchPoints > 0,
-              hover: window.matchMedia('(hover: hover)').matches,
-            },
-            safeAreaInsets: {
-              top: 0,
-              right: 0,
-              bottom: 0,
-              left: 0,
-            },
-          };
-          sendToSandbox(createInitializeResponse(msg.id, hostContext));
-          return;
-        }
-
-        case 'ui/notifications/initialized': {
+        if (msg.method === 'ui/notifications/initialized') {
           setIsGuestInitialized(true);
           isGuestInitializedRef.current = true;
-          flushPendingMessages();
           return;
         }
 
-        case 'ui/notifications/size-changed': {
-          onSizeChanged?.(msg);
-          return;
-        }
-
-        case 'ui/open-link': {
-          const response = onOpenLink?.(msg);
-          if (response) sendToSandbox(response);
-          return;
-        }
-
-        case 'ui/message': {
-          const response = onMessage?.(msg);
-          if (response) sendToSandbox(response);
-          return;
-        }
-
-        case 'notifications/message': {
-          const response = onNotificationMessage?.(msg);
-          if (response) sendToSandbox(response);
-          return;
-        }
-
-        case 'tools/call': {
-          const response = onToolsCall?.(msg);
-          if (response) sendToSandbox(response);
-          return;
-        }
-
-        case 'resources/list': {
-          const response = onResourcesList?.(msg);
-          if (response) sendToSandbox(response);
-          return;
-        }
-
-        case 'resources/templates/list': {
-          const response = onResourceTemplatesList?.(msg);
-          if (response) sendToSandbox(response);
-          return;
-        }
-
-        case 'resources/read': {
-          const response = onResourcesRead?.(msg);
-          if (response) sendToSandbox(response);
-          return;
-        }
-
-        case 'prompts/list': {
-          const response = onPromptsList?.(msg);
-          if (response) sendToSandbox(response);
-          return;
-        }
-
-        case 'ping': {
-          const response = onPing?.(msg);
-          if (response) sendToSandbox(response);
+        if (msg.method === 'ui/notifications/size-changed') {
+          const params = msg.params as { height: number; width?: number };
+          onSizeChanged?.(params.height, params.width);
           return;
         }
       }
+
+      // Handle requests (with id)
+      if ('method' in data && 'id' in data) {
+        const msg = data as JsonRpcRequest;
+
+        try {
+          if (msg.method === 'ui/initialize') {
+            if (msg.id === undefined) return;
+
+            const iframe = iframeRef.current;
+            const hostContext: HostContext = {
+              toolInfo: undefined,
+              theme: resolvedTheme,
+              displayMode: 'inline',
+              availableDisplayModes: ['inline'],
+              viewport: {
+                width: iframe?.clientWidth ?? 0,
+                height: iframe?.clientHeight ?? 0,
+                maxWidth: window.innerWidth,
+                maxHeight: window.innerHeight,
+              },
+              locale: navigator.language,
+              timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+              userAgent: navigator.userAgent,
+              platform: 'desktop',
+              deviceCapabilities: {
+                touch: 'ontouchstart' in window || navigator.maxTouchPoints > 0,
+                hover: window.matchMedia('(hover: hover)').matches,
+              },
+              safeAreaInsets: { top: 0, right: 0, bottom: 0, left: 0 },
+            };
+
+            sendToSandbox({
+              jsonrpc: '2.0',
+              id: msg.id,
+              result: {
+                protocolVersion: '2025-06-18',
+                hostCapabilities: { links: true, messages: true },
+                hostInfo: {
+                  name: packageJson.productName,
+                  version: packageJson.version,
+                },
+                hostContext,
+              },
+            });
+            return;
+          }
+
+          // Delegate other requests to handler
+          const result = await onMcpRequest(msg.method, msg.params, msg.id);
+          if (msg.id !== undefined) {
+            sendToSandbox({ jsonrpc: '2.0', id: msg.id, result });
+          }
+        } catch (error) {
+          console.error(`[Sandbox Bridge] Error handling ${msg.method}:`, error);
+          if (msg.id !== undefined) {
+            sendToSandbox({
+              jsonrpc: '2.0',
+              id: msg.id,
+              error: {
+                code: -32603,
+                message: error instanceof Error ? error.message : 'Unknown error',
+              },
+            });
+          }
+        }
+      }
     },
-    [
-      resourceHtml,
-      resourceCsp,
-      resolvedTheme,
-      sendToSandbox,
-      flushPendingMessages,
-      onToolsCall,
-      onNotificationMessage,
-      onOpenLink,
-      onMessage,
-      onResourcesList,
-      onResourceTemplatesList,
-      onResourcesRead,
-      onPromptsList,
-      onPing,
-      onSizeChanged,
-    ]
+    [resourceHtml, resourceCsp, resolvedTheme, sendToSandbox, onMcpRequest, onSizeChanged]
   );
 
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
-      const iframe = iframeRef.current;
-      if (!iframe || event.source !== iframe.contentWindow) {
-        return;
-      }
+      if (event.source !== iframeRef.current?.contentWindow) return;
       handleJsonRpcMessage(event.data);
     };
-
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
   }, [handleJsonRpcMessage]);
 
-  // Send tool input when guest is initialized
+  // Send tool input notification when it changes
   useEffect(() => {
     if (!isGuestInitialized || !toolInput) return;
-    sendToSandbox(createToolInputNotification(toolInput));
+    sendToSandbox({
+      jsonrpc: '2.0',
+      method: 'ui/notifications/tool-input',
+      params: { arguments: toolInput.arguments },
+    });
   }, [isGuestInitialized, toolInput, sendToSandbox]);
 
-  // Send partial tool input (streaming) when guest is initialized
+  // Send partial tool input (streaming) notification when it changes
   useEffect(() => {
     if (!isGuestInitialized || !toolInputPartial) return;
-    sendToSandbox(createToolInputPartialNotification(toolInputPartial));
+    sendToSandbox({
+      jsonrpc: '2.0',
+      method: 'ui/notifications/tool-input-partial',
+      params: { arguments: toolInputPartial.arguments },
+    });
   }, [isGuestInitialized, toolInputPartial, sendToSandbox]);
 
-  // Send tool result when guest is initialized and result is available
+  // Send tool result notification when it changes
   useEffect(() => {
     if (!isGuestInitialized || !toolResult) return;
-    sendToSandbox(createToolResultNotification(toolResult));
+    sendToSandbox({
+      jsonrpc: '2.0',
+      method: 'ui/notifications/tool-result',
+      params: toolResult,
+    });
   }, [isGuestInitialized, toolResult, sendToSandbox]);
 
-  // Send tool cancelled notification when toolCancelled changes
+  // Send tool cancelled notification when it changes
   useEffect(() => {
     if (!isGuestInitialized || !toolCancelled) return;
-    sendToSandbox(createToolCancelledNotification(toolCancelled));
+    sendToSandbox({
+      jsonrpc: '2.0',
+      method: 'ui/notifications/tool-cancelled',
+      params: toolCancelled.reason ? { reason: toolCancelled.reason } : {},
+    });
   }, [isGuestInitialized, toolCancelled, sendToSandbox]);
 
-  // Send theme changes to sandbox when resolvedTheme changes
+  // Send theme changes when it changes
   useEffect(() => {
     if (!isGuestInitialized) return;
-    sendToSandbox(createHostContextChangedNotification({ theme: resolvedTheme }));
+    sendToSandbox({
+      jsonrpc: '2.0',
+      method: 'ui/notifications/host-context-changed',
+      params: { theme: resolvedTheme },
+    });
   }, [isGuestInitialized, resolvedTheme, sendToSandbox]);
 
-  // Watch for viewport size changes
   useEffect(() => {
-    if (!isGuestInitialized) return;
+    if (!isGuestInitialized || !iframeRef.current) return;
 
     const iframe = iframeRef.current;
-    if (!iframe) return;
-
     let lastWidth = iframe.clientWidth;
     let lastHeight = iframe.clientHeight;
 
-    const resizeObserver = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const { width, height } = entry.contentRect;
-        const roundedWidth = Math.round(width);
-        const roundedHeight = Math.round(height);
+    const observer = new ResizeObserver((entries) => {
+      const { width, height } = entries[0].contentRect;
+      const w = Math.round(width);
+      const h = Math.round(height);
 
-        if (roundedWidth !== lastWidth || roundedHeight !== lastHeight) {
-          lastWidth = roundedWidth;
-          lastHeight = roundedHeight;
-          sendToSandbox(
-            createHostContextChangedNotification({
-              viewport: {
-                width: roundedWidth,
-                height: roundedHeight,
-                maxWidth: window.innerWidth,
-                maxHeight: window.innerHeight,
-              },
-            })
-          );
-        }
+      if (w !== lastWidth || h !== lastHeight) {
+        lastWidth = w;
+        lastHeight = h;
+        sendToSandbox({
+          jsonrpc: '2.0',
+          method: 'ui/notifications/host-context-changed',
+          params: {
+            viewport: {
+              width: w,
+              height: h,
+              maxWidth: window.innerWidth,
+              maxHeight: window.innerHeight,
+            },
+          },
+        });
       }
     });
 
-    resizeObserver.observe(iframe);
-
-    return () => {
-      resizeObserver.disconnect();
-    };
+    observer.observe(iframe);
+    return () => observer.disconnect();
   }, [isGuestInitialized, sendToSandbox]);
 
-  // Send resource teardown request when component unmounts
+  // Cleanup on unmount - use ref to capture latest initialized state
   useEffect(() => {
     return () => {
       if (isGuestInitializedRef.current) {
-        const { message } = createResourceTeardownRequest('Component unmounting');
-        sendToSandbox(message);
+        sendToSandbox({
+          jsonrpc: '2.0',
+          id: Date.now(),
+          method: 'ui/resource-teardown',
+          params: { reason: 'Component unmounting' },
+        });
       }
     };
   }, [sendToSandbox]);
 
-  return {
-    iframeRef,
-    proxyUrl,
-  };
+  return { iframeRef, proxyUrl };
 }

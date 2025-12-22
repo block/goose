@@ -116,6 +116,8 @@ pub struct CallToolResponse {
     content: Vec<Content>,
     structured_content: Option<Value>,
     is_error: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    _meta: Option<Value>,
 }
 
 #[utoipa::path(
@@ -670,6 +672,7 @@ async fn call_tool(
         content: result.content,
         structured_content: result.structured_content,
         is_error: result.is_error.unwrap_or(false),
+        _meta: None,
     }))
 }
 
