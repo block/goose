@@ -118,7 +118,6 @@ export function useAgent(): UseAgentReturn {
           return {
             sessionId: agentSession.id,
             name: agentSession.recipe?.title || agentSession.name,
-            messageHistoryIndex: 0,
             messages,
             recipe: agentSession.recipe,
             recipeParameterValues: agentSession.user_recipe_values || null,
@@ -251,7 +250,6 @@ export function useAgent(): UseAgentReturn {
           let initChat: ChatType = {
             sessionId: agentSession.id,
             name: agentSession.recipe?.title || agentSession.name,
-            messageHistoryIndex: 0,
             messages: messages,
             recipe: recipe,
             recipeParameterValues: agentSession.user_recipe_values || null,

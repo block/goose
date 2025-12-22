@@ -372,7 +372,6 @@ export function AppInner() {
     sessionId: '',
     name: 'Pair Chat',
     messages: [],
-    messageHistoryIndex: 0,
     recipe: null,
   });
 
