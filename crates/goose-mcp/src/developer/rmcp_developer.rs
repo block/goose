@@ -3292,9 +3292,15 @@ mod tests {
             let temp_dir = tempfile::tempdir().unwrap();
             std::env::set_current_dir(&temp_dir).unwrap();
 
+            // Override HOME to use temp_dir so etcetera finds our test config
+            std::env::set_var("HOME", temp_dir.path());
+
             // Set up global .gooseignore if specified
+            // Use etcetera to get the actual config dir path for this platform
             if let Some(global_content) = test_case.global_ignore {
-                let global_config_dir = temp_dir.path().join(".config").join("goose");
+                let global_config_dir = etcetera::choose_app_strategy(crate::APP_STRATEGY.clone())
+                    .map(|strategy| strategy.config_dir())
+                    .expect("Failed to get config dir");
                 fs::create_dir_all(&global_config_dir).unwrap();
                 fs::write(global_config_dir.join(".gooseignore"), global_content).unwrap();
             }
@@ -3303,9 +3309,6 @@ mod tests {
             if let Some(local_content) = test_case.local_ignore {
                 fs::write(".gooseignore", local_content).unwrap();
             }
-
-            // Override HOME to use temp_dir so etcetera finds our test config
-            std::env::set_var("HOME", temp_dir.path());
 
             let server = create_test_server();
 
