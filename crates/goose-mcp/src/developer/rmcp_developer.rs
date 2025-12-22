@@ -1292,37 +1292,22 @@ impl DeveloperServer {
             .map(|strategy| strategy.config_dir().join(".gooseignore"))
             .ok();
 
-        let has_local_ignore = local_ignore_path.is_file();
-        let has_global_ignore = global_ignore_path
-            .as_ref()
-            .map(|p| p.is_file())
-            .unwrap_or(false);
+        // Always add default patterns first (lowest priority)
+        // These can be negated by global or local .gooseignore files
+        let _ = builder.add_line(None, "**/.env");
+        let _ = builder.add_line(None, "**/.env.*");
+        let _ = builder.add_line(None, "**/secrets.*");
 
-        // Only use default patterns if no ignore file exists
-        // This maintains backward compatibility with the original behavior
-        if !has_local_ignore && !has_global_ignore {
-            let _ = builder.add_line(None, "**/.env");
-            let _ = builder.add_line(None, "**/.env.*");
-            let _ = builder.add_line(None, "**/secrets.*");
-        } else {
-            // When ignore files exist, add defaults first (lowest priority)
-            // to allow them to be negated by global or local .gooseignore files
-            let _ = builder.add_line(None, "**/.env");
-            let _ = builder.add_line(None, "**/.env.*");
-            let _ = builder.add_line(None, "**/secrets.*");
-
-            // Add global .gooseignore patterns (medium priority)
-            if has_global_ignore {
-                let global_path = global_ignore_path
-                    .as_ref()
-                    .expect("global_ignore_path must be Some when has_global_ignore is true");
+        // Add global .gooseignore patterns (medium priority)
+        if let Some(ref global_path) = global_ignore_path {
+            if global_path.is_file() {
                 let _ = builder.add(global_path);
             }
+        }
 
-            // Add local .gooseignore patterns (highest priority)
-            if has_local_ignore {
-                let _ = builder.add(&local_ignore_path);
-            }
+        // Add local .gooseignore patterns (highest priority)
+        if local_ignore_path.is_file() {
+            let _ = builder.add(&local_ignore_path);
         }
 
         builder.build().expect("Failed to build ignore patterns")
@@ -3276,6 +3261,7 @@ mod tests {
 
     #[test]
     #[serial]
+    #[cfg(unix)] // Uses HOME env var which is Unix-specific; Windows uses APPDATA/LOCALAPPDATA
     fn test_gooseignore_patterns() {
         let test_cases = [
             GooseignoreTestCase {
