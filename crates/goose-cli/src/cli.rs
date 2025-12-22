@@ -753,13 +753,13 @@ enum Command {
         )]
         additional_sub_recipes: Vec<String>,
 
-        /// Output format (text, json)
+        /// Output format (text, json, stream-json)
         #[arg(
             long = "output-format",
             value_name = "FORMAT",
-            help = "Output format (text, json)",
+            help = "Output format (text, json, stream-json)",
             default_value = "text",
-            value_parser = clap::builder::PossibleValuesParser::new(["text", "json"])
+            value_parser = clap::builder::PossibleValuesParser::new(["text", "json", "stream-json"])
         )]
         output_format: String,
 

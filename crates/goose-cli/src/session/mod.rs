@@ -65,6 +65,42 @@ struct JsonMetadata {
     status: String,
 }
 
+#[derive(Serialize, Debug)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum StreamEvent {
+    Message {
+        message: Message,
+    },
+    Notification {
+        extension_id: String,
+        #[serde(flatten)]
+        data: NotificationData,
+    },
+    ModelChange {
+        model: String,
+        mode: String,
+    },
+    Error {
+        error: String,
+    },
+    Complete {
+        total_tokens: Option<i32>,
+    },
+}
+
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "snake_case")]
+enum NotificationData {
+    Log {
+        message: String,
+    },
+    Progress {
+        progress: f64,
+        total: Option<f64>,
+        message: Option<String>,
+    },
+}
+
 pub enum RunMode {
     Normal,
     Plan,
@@ -814,6 +850,14 @@ impl CliSession {
     ) -> Result<()> {
         // Cache the output format check to avoid repeated string comparisons in the hot loop
         let is_json_mode = self.output_format == "json";
+        let is_stream_json_mode = self.output_format == "stream-json";
+
+        // Helper to emit a streaming JSON event
+        let emit_stream_event = |event: &StreamEvent| {
+            if let Ok(json) = serde_json::to_string(event) {
+                println!("{}", json);
+            }
+        };
 
         let session_config = SessionConfig {
             id: self.session_id.clone(),
@@ -1027,13 +1071,15 @@ impl CliSession {
                                 if interactive {output::hide_thinking()};
                                 let _ = progress_bars.hide();
 
-                                // Don't render in JSON mode
-                                if !is_json_mode {
+                                // Handle different output formats
+                                if is_stream_json_mode {
+                                    emit_stream_event(&StreamEvent::Message { message: message.clone() });
+                                } else if !is_json_mode {
                                     output::render_message(&message, self.debug);
                                 }
                             }
                         }
-                        Some(Ok(AgentEvent::McpNotification((_id, message)))) => {
+                        Some(Ok(AgentEvent::McpNotification((extension_id, message)))) => {
                             match &message {
                                 ServerNotification::LoggingMessageNotification(notification) => {
                                     let data = &notification.params.data;
@@ -1101,9 +1147,15 @@ impl CliSession {
                                         },
                                     };
 
+                                    // Handle stream-json mode for notifications
+                                    if is_stream_json_mode {
+                                        emit_stream_event(&StreamEvent::Notification {
+                                            extension_id: extension_id.clone(),
+                                            data: NotificationData::Log { message: formatted_message.clone() },
+                                        });
+                                    }
                                     // Handle subagent notifications - show immediately
-                                    if let Some(_id) = subagent_id {
-                                        // TODO: proper display for subagent notifications
+                                    else if let Some(_id) = subagent_id {
                                         if interactive {
                                             let _ = progress_bars.hide();
                                             if !is_json_mode {
@@ -1125,7 +1177,6 @@ impl CliSession {
                                                 std::io::stdout().flush().unwrap();
                                             }
                                         } else if notification_type == "shell_output" {
-                                            // Hide spinner, print shell output, spinner will resume
                                             if interactive {
                                                 let _ = progress_bars.hide();
                                             }
@@ -1145,12 +1196,24 @@ impl CliSession {
                                     let text = notification.params.message.as_deref();
                                     let total = notification.params.total;
                                     let token = &notification.params.progress_token;
-                                    progress_bars.update(
-                                        &token.0.to_string(),
-                                        progress,
-                                        total,
-                                        text,
-                                    );
+
+                                    if is_stream_json_mode {
+                                        emit_stream_event(&StreamEvent::Notification {
+                                            extension_id: extension_id.clone(),
+                                            data: NotificationData::Progress {
+                                                progress,
+                                                total,
+                                                message: text.map(String::from),
+                                            },
+                                        });
+                                    } else {
+                                        progress_bars.update(
+                                            &token.0.to_string(),
+                                            progress,
+                                            total,
+                                            text,
+                                        );
+                                    }
                                 },
                                 _ => (),
                             }
@@ -1159,32 +1222,44 @@ impl CliSession {
                             self.messages = updated_conversation;
                         }
                         Some(Ok(AgentEvent::ModelChange { model, mode })) => {
-                            // Log model change if in debug mode
-                            if self.debug {
+                            if is_stream_json_mode {
+                                emit_stream_event(&StreamEvent::ModelChange {
+                                    model: model.clone(),
+                                    mode: mode.clone(),
+                                });
+                            } else if self.debug {
                                 eprintln!("Model changed to {} in {} mode", model, mode);
                             }
                         }
 
                         Some(Err(e)) => {
-                            // TODO(Douwe): Delete this
-                            // Check if it's a ProviderError::ContextLengthExceeded
+                            let error_msg = e.to_string();
+
+                            if is_stream_json_mode {
+                                emit_stream_event(&StreamEvent::Error { error: error_msg.clone() });
+                            }
+
                             if e.downcast_ref::<goose::providers::errors::ProviderError>()
                                 .map(|provider_error| matches!(provider_error, goose::providers::errors::ProviderError::ContextLengthExceeded(_)))
                                 .unwrap_or(false) {
 
-                                output::render_text(
-                                    "Compaction requested. Should have happened in the agent!",
-                                    Some(Color::Yellow),
-                                    true
-                                );
+                                if !is_stream_json_mode {
+                                    output::render_text(
+                                        "Compaction requested. Should have happened in the agent!",
+                                        Some(Color::Yellow),
+                                        true
+                                    );
+                                }
                                 warn!("Compaction requested. Should have happened in the agent!");
                             }
-                            eprintln!("Error: {}", e);
+                            if !is_stream_json_mode {
+                                eprintln!("Error: {}", error_msg);
+                            }
                             cancel_token_clone.cancel();
                             drop(stream);
                             if let Err(e) = self.handle_interrupted_messages(false).await {
                                 eprintln!("Error handling interruption: {}", e);
-                            } else {
+                            } else if !is_stream_json_mode {
                                 output::render_error(
                                     "The error above was an exception we were not able to handle.\n\
                                     These errors are often related to connection or authentication\n\
@@ -1207,7 +1282,7 @@ impl CliSession {
             }
         }
 
-        // Output JSON if requested
+        // Output based on format
         if is_json_mode {
             let metadata = match SessionManager::get_session(&self.session_id, false).await {
                 Ok(session) => JsonMetadata {
@@ -1226,6 +1301,12 @@ impl CliSession {
             };
 
             println!("{}", serde_json::to_string_pretty(&json_output)?);
+        } else if is_stream_json_mode {
+            let total_tokens = SessionManager::get_session(&self.session_id, false)
+                .await
+                .ok()
+                .and_then(|s| s.total_tokens);
+            emit_stream_event(&StreamEvent::Complete { total_tokens });
         } else {
             println!();
         }
