@@ -1,28 +1,44 @@
-/// Canonical Model Checker
+/// Build canonical models from OpenRouter API
 ///
-/// This script checks which models from top providers are properly mapped to canonical models.
-/// It maintains a lock file of mappings and detects changes between runs.
-///
-/// Outputs:
-/// - Models that are NOT mapped to canonical models
-/// - Full list of (provider, model) <-> canonical-model mappings
-/// - Diff report showing mapping changes since last run:
-///   * Changed mappings (model now maps to a different canonical model)
-///   * Added mappings (model gained a canonical mapping)
-///   * Removed mappings (model lost its canonical mapping)
-///
-/// Output File:
-/// - src/providers/canonical/data/canonical_mapping_report.json
-///   Contains full report with mapping data (acts as a lock file)
+/// This script fetches models from OpenRouter and converts them to canonical format.
+/// By default, it also checks which models from top providers are properly mapped.
 ///
 /// Usage:
-///   cargo run --example canonical_model_checker -- [--output custom_path.json]
+///   cargo run --bin build_canonical_models              # Build and check (default)
+///   cargo run --bin build_canonical_models --no-check   # Build only, skip checker
 ///
 use anyhow::{Context, Result};
+use clap::Parser;
+use goose::providers::canonical::{
+    canonical_name, CanonicalModel, CanonicalModelRegistry, Pricing,
+};
 use goose::providers::{canonical::ModelMapping, create_with_named_model};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
+
+const OPENROUTER_API_URL: &str = "https://openrouter.ai/api/v1/models";
+const ALLOWED_PROVIDERS: &[&str] = &[
+    "anthropic",
+    "google",
+    "openai",
+    "meta-llama",
+    "mistralai",
+    "x-ai",
+    "deepseek",
+    "cohere",
+    "ai21",
+    "qwen",
+];
+
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// Skip the canonical model checker (only build models)
+    #[arg(long)]
+    no_check: bool,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 struct ProviderModelPair {
@@ -273,6 +289,232 @@ impl MappingReport {
     }
 }
 
+#[allow(clippy::too_many_lines)]
+async fn build_canonical_models() -> Result<()> {
+    println!("Fetching models from OpenRouter API...");
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get(OPENROUTER_API_URL)
+        .header("User-Agent", "goose/canonical-builder")
+        .send()
+        .await
+        .context("Failed to fetch from OpenRouter API")?;
+
+    let json: Value = response
+        .json()
+        .await
+        .context("Failed to parse OpenRouter response")?;
+
+    let models = json["data"]
+        .as_array()
+        .context("Expected 'data' array in OpenRouter response")?
+        .clone();
+
+    println!("Processing {} models from OpenRouter...", models.len());
+
+    // First pass: Group models by canonical ID and track the one with shortest name
+    let mut canonical_groups: HashMap<String, &Value> = HashMap::new();
+    let mut shortest_names: HashMap<String, String> = HashMap::new();
+
+    for model in &models {
+        let id = model["id"].as_str().unwrap();
+        let name = model["name"].as_str().context("Model missing id field")?;
+
+        // Skip OpenRouter-specific pricing variants (:free, :nitro)
+        // Keep :extended since it has different context length
+        if id.contains(":free") || id.contains(":nitro") {
+            continue;
+        }
+
+        let canonical_id = canonical_name("openrouter", id);
+
+        let provider = canonical_id.split('/').next().unwrap_or("");
+        if !ALLOWED_PROVIDERS.contains(&provider) {
+            continue;
+        }
+
+        let prompt_cost = model
+            .get("pricing")
+            .and_then(|p| p.get("prompt"))
+            .and_then(|v| v.as_str())
+            .and_then(|s| s.parse::<f64>().ok())
+            .unwrap_or(0.0);
+
+        let completion_cost = model
+            .get("pricing")
+            .and_then(|p| p.get("completion"))
+            .and_then(|v| v.as_str())
+            .and_then(|s| s.parse::<f64>().ok())
+            .unwrap_or(0.0);
+
+        let has_paid_pricing = prompt_cost > 0.0 || completion_cost > 0.0;
+
+        if let Some(existing_model) = canonical_groups.get(&canonical_id) {
+            let existing_name = shortest_names.get(&canonical_id).unwrap();
+
+            let existing_prompt = existing_model
+                .get("pricing")
+                .and_then(|p| p.get("prompt"))
+                .and_then(|v| v.as_str())
+                .and_then(|s| s.parse::<f64>().ok())
+                .unwrap_or(0.0);
+
+            let existing_completion = existing_model
+                .get("pricing")
+                .and_then(|p| p.get("completion"))
+                .and_then(|v| v.as_str())
+                .and_then(|s| s.parse::<f64>().ok())
+                .unwrap_or(0.0);
+
+            let existing_has_paid = existing_prompt > 0.0 || existing_completion > 0.0;
+
+            let should_replace = if has_paid_pricing != existing_has_paid {
+                has_paid_pricing // Prefer the one with paid pricing
+            } else {
+                name.len() < existing_name.len() // Both same pricing tier, prefer shorter name
+            };
+
+            if should_replace {
+                println!(
+                    "  Updating {} from '{}' (paid: {}) to '{}' (paid: {})",
+                    canonical_id,
+                    existing_model["id"].as_str().unwrap(),
+                    existing_has_paid,
+                    id,
+                    has_paid_pricing
+                );
+                shortest_names.insert(canonical_id.clone(), name.to_string());
+                canonical_groups.insert(canonical_id, model);
+            }
+        } else {
+            println!(
+                "  Adding: {} (from {}, paid: {})",
+                canonical_id, id, has_paid_pricing
+            );
+            shortest_names.insert(canonical_id.clone(), name.to_string());
+            canonical_groups.insert(canonical_id, model);
+        }
+    }
+
+    // Filter out beta/preview variants if non-beta version exists
+    let beta_suffixes = ["-beta", "-preview", "-alpha"];
+    let mut to_remove = Vec::new();
+
+    for canonical_id in canonical_groups.keys() {
+        for suffix in &beta_suffixes {
+            if canonical_id.ends_with(suffix) {
+                // Check if non-beta version exists
+                let base_id = canonical_id.strip_suffix(suffix).unwrap();
+                if canonical_groups.contains_key(base_id) {
+                    println!(
+                        "  Filtering out {} (non-beta version {} exists)",
+                        canonical_id, base_id
+                    );
+                    to_remove.push(canonical_id.clone());
+                    break;
+                }
+            }
+        }
+    }
+
+    for id in to_remove {
+        canonical_groups.remove(&id);
+        shortest_names.remove(&id);
+    }
+
+    // Second pass: Build the registry with the selected models
+    let mut registry = CanonicalModelRegistry::new();
+
+    for (canonical_id, model) in canonical_groups.iter() {
+        let name = shortest_names.get(canonical_id).unwrap();
+
+        let context_length = model["context_length"].as_u64().unwrap_or(128_000) as usize;
+
+        let max_completion_tokens = model
+            .get("top_provider")
+            .and_then(|tp| tp.get("max_completion_tokens"))
+            .and_then(|v| v.as_u64())
+            .map(|v| v as usize);
+
+        let input_modalities: Vec<String> = model
+            .get("architecture")
+            .and_then(|arch| arch.get("input_modalities"))
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .collect()
+            })
+            .unwrap_or_else(|| vec!["text".to_string()]);
+
+        let output_modalities: Vec<String> = model
+            .get("architecture")
+            .and_then(|arch| arch.get("output_modalities"))
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .collect()
+            })
+            .unwrap_or_else(|| vec!["text".to_string()]);
+
+        let supports_tools = model
+            .get("supported_parameters")
+            .and_then(|v| v.as_array())
+            .map(|params| params.iter().any(|param| param.as_str() == Some("tools")))
+            .unwrap_or(false);
+
+        let pricing_obj = model
+            .get("pricing")
+            .context("Model missing pricing field")?;
+        let pricing = Pricing {
+            prompt: pricing_obj
+                .get("prompt")
+                .and_then(|v| v.as_str())
+                .and_then(|s| s.parse().ok()),
+            completion: pricing_obj
+                .get("completion")
+                .and_then(|v| v.as_str())
+                .and_then(|s| s.parse().ok()),
+            request: pricing_obj
+                .get("request")
+                .and_then(|v| v.as_str())
+                .and_then(|s| s.parse().ok()),
+            image: pricing_obj
+                .get("image")
+                .and_then(|v| v.as_str())
+                .and_then(|s| s.parse().ok()),
+        };
+
+        let canonical_model = CanonicalModel {
+            id: canonical_id.clone(),
+            name: name.to_string(),
+            context_length,
+            max_completion_tokens,
+            input_modalities,
+            output_modalities,
+            supports_tools,
+            pricing,
+        };
+
+        registry.register(canonical_model);
+    }
+
+    let output_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("src/providers/canonical/data/canonical_models.json");
+    registry.to_file(&output_path)?;
+    println!(
+        "\n✓ Wrote {} models to {}",
+        registry.count(),
+        output_path.display()
+    );
+
+    Ok(())
+}
+
 async fn check_provider(
     provider_name: &str,
     model_for_init: &str,
@@ -323,8 +565,8 @@ async fn check_provider(
     Ok((fetched_models, mappings))
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
+async fn check_canonical_mappings() -> Result<()> {
+    println!("\n{}", "=".repeat(80));
     println!("Canonical Model Checker");
     println!("Checking model mappings for top providers...\n");
 
@@ -348,13 +590,8 @@ async fn main() -> Result<()> {
 
     report.print_summary();
 
-    let args: Vec<String> = std::env::args().collect();
-    let output_path = if args.len() > 2 && args[1] == "--output" {
-        PathBuf::from(&args[2])
-    } else {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("src/providers/canonical/data/canonical_mapping_report.json")
-    };
+    let output_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("src/providers/canonical/data/canonical_mapping_report.json");
 
     if output_path.exists() {
         if let Ok(previous) = MappingReport::load_from_file(&output_path) {
@@ -364,6 +601,21 @@ async fn main() -> Result<()> {
 
     report.save_to_file(&output_path)?;
     println!("\n✓ Report saved to: {}", output_path.display());
+
+    Ok(())
+}
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    let args = Args::parse();
+
+    // Build canonical models
+    build_canonical_models().await?;
+
+    // Run the checker unless --no-check is passed
+    if !args.no_check {
+        check_canonical_mappings().await?;
+    }
 
     Ok(())
 }

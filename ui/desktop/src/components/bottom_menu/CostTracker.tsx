@@ -1,14 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useModelAndProvider } from '../ModelAndProviderContext';
-import { useConfig } from '../ConfigContext';
 import { CoinIcon } from '../icons';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/Tooltip';
-import {
-  getCostForModel,
-  initializeCostDatabase,
-  updateAllModelCosts,
-  fetchAndCachePricing,
-} from '../../utils/costDatabase';
+import { fetchModelPricing } from '../../utils/pricing';
+import { PricingData } from '../../api';
 
 interface CostTrackerProps {
   inputTokens?: number;
@@ -24,18 +19,10 @@ interface CostTrackerProps {
 
 export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }: CostTrackerProps) {
   const { currentModel, currentProvider } = useModelAndProvider();
-  const { getProviders } = useConfig();
-  const [costInfo, setCostInfo] = useState<{
-    input_token_cost?: number;
-    output_token_cost?: number;
-    currency?: string;
-  } | null>(null);
+  const [costInfo, setCostInfo] = useState<PricingData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showPricing, setShowPricing] = useState(true);
   const [pricingFailed, setPricingFailed] = useState(false);
-  const [modelNotFound, setModelNotFound] = useState(false);
-  const [hasAttemptedFetch, setHasAttemptedFetch] = useState(false);
-  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
 
   // Check if pricing is enabled
   useEffect(() => {
@@ -44,32 +31,10 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
       setShowPricing(stored !== 'false');
     };
 
-    // Check on mount
     checkPricingSetting();
-
-    // Listen for storage changes
     window.addEventListener('storage', checkPricingSetting);
     return () => window.removeEventListener('storage', checkPricingSetting);
   }, []);
-
-  // Set initial load complete after a short delay
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setInitialLoadComplete(true);
-    }, 3000); // Give 3 seconds for initial load
-
-    return () => window.clearTimeout(timer);
-  }, []);
-
-  // Debug log props removed
-
-  // Initialize cost database on mount
-  useEffect(() => {
-    initializeCostDatabase();
-
-    // Update costs for all models in background
-    updateAllModelCosts().catch(() => {});
-  }, [getProviders]);
 
   useEffect(() => {
     const loadCostInfo = async () => {
@@ -78,49 +43,20 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
         return;
       }
 
+      setIsLoading(true);
       try {
-        // First check sync cache
-        let costData = getCostForModel(currentProvider, currentModel);
-
+        const costData = await fetchModelPricing(currentProvider, currentModel);
         if (costData) {
-          // We have cached data
           setCostInfo(costData);
           setPricingFailed(false);
-          setModelNotFound(false);
-          setIsLoading(false);
-          setHasAttemptedFetch(true);
         } else {
-          // Need to fetch from backend
-          setIsLoading(true);
-          const result = await fetchAndCachePricing(currentProvider, currentModel);
-          setHasAttemptedFetch(true);
-
-          if (result && result.costInfo) {
-            setCostInfo(result.costInfo);
-            setPricingFailed(false);
-            setModelNotFound(false);
-          } else if (result && result.error === 'model_not_found') {
-            // Model not found in pricing database, but API call succeeded
-            setModelNotFound(true);
-            setPricingFailed(false);
-          } else {
-            // API call failed or other error
-            const freeProviders = ['ollama', 'local', 'localhost'];
-            if (!freeProviders.includes(currentProvider.toLowerCase())) {
-              setPricingFailed(true);
-              setModelNotFound(false);
-            }
-          }
-          setIsLoading(false);
+          setPricingFailed(true);
+          setCostInfo(null);
         }
       } catch {
-        setHasAttemptedFetch(true);
-        // Only set pricing failed if we're not dealing with a known free provider
-        const freeProviders = ['ollama', 'local', 'localhost'];
-        if (!freeProviders.includes(currentProvider.toLowerCase())) {
-          setPricingFailed(true);
-          setModelNotFound(false);
-        }
+        setPricingFailed(true);
+        setCostInfo(null);
+      } finally {
         setIsLoading(false);
       }
     };
@@ -221,10 +157,9 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
 
     // Otherwise show as unavailable
     const getUnavailableTooltip = () => {
-      if (pricingFailed && hasAttemptedFetch && initialLoadComplete) {
-        return `Pricing data unavailable - OpenRouter connection failed. Click refresh in settings to retry.`;
+      if (pricingFailed) {
+        return `Pricing data unavailable for ${currentModel}`;
       }
-      // If we reach here, it must be modelNotFound (since we only get here after attempting fetch)
       return `Cost data not available for ${currentModel} (${inputTokens.toLocaleString()} input, ${outputTokens.toLocaleString()} output tokens)`;
     };
 
@@ -249,12 +184,8 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
   // Build tooltip content
   const getTooltipContent = (): string => {
     // Handle error states first
-    if (pricingFailed && hasAttemptedFetch && initialLoadComplete) {
-      return `Pricing data unavailable - OpenRouter connection failed. Click refresh in settings to retry.`;
-    }
-
-    if (modelNotFound && hasAttemptedFetch && initialLoadComplete) {
-      return `Pricing not available for ${currentProvider}/${currentModel}. This model may not be supported by the pricing service.`;
+    if (pricingFailed) {
+      return `Pricing data unavailable for ${currentProvider}/${currentModel}`;
     }
 
     // Handle session costs

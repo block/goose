@@ -475,6 +475,6 @@ If you can share a [diagnostic report](/docs/troubleshooting/diagnostics-and-rep
 [handling-rate-limits]: /docs/guides/handling-llm-rate-limits-with-goose
 [installation]: /docs/getting-started/installation
 [discord]: https://discord.gg/goose-oss
-[goosehints]: /docs/guides/using-goosehints
+[goosehints]: /docs/guides/context-engineering/using-goosehints
 [configure-llm-provider]: /docs/getting-started/providers
 [extensions-directory]: /extensions

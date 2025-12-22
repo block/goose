@@ -149,6 +149,7 @@ async fn start_agent(
             Ok(recipe) => Some(recipe),
             Err(err) => {
                 error!("Failed to decode recipe deeplink: {}", err);
+                goose::posthog::emit_error("recipe_deeplink_decode_failed", &err.to_string());
                 return Err(ErrorResponse {
                     message: err.to_string(),
                     status: StatusCode::BAD_REQUEST,
@@ -181,6 +182,7 @@ async fn start_agent(
             .await
             .map_err(|err| {
                 error!("Failed to create session: {}", err);
+                goose::posthog::emit_error("session_create_failed", &err.to_string());
                 ErrorResponse {
                     message: format!("Failed to create session: {}", err),
                     status: StatusCode::BAD_REQUEST,
@@ -235,6 +237,7 @@ async fn resume_agent(
         .await
         .map_err(|err| {
             error!("Failed to resume session {}: {}", payload.session_id, err);
+            goose::posthog::emit_error("session_resume_failed", &err.to_string());
             ErrorResponse {
                 message: format!("Failed to resume session: {}", err),
                 status: StatusCode::NOT_FOUND,
@@ -306,6 +309,10 @@ async fn resume_agent(
                     async move {
                         if let Err(e) = agent_ref.add_extension(config_clone.clone()).await {
                             warn!("Failed to load extension {}: {}", config_clone.name(), e);
+                            goose::posthog::emit_error(
+                                "extension_load_failed",
+                                &format!("{}: {}", config_clone.name(), e),
+                            );
                         }
                         Ok::<_, ErrorResponse>(())
                     }
@@ -538,11 +545,15 @@ async fn agent_add_extension(
     State(state): State<Arc<AppState>>,
     Json(request): Json<AddExtensionRequest>,
 ) -> Result<StatusCode, ErrorResponse> {
+    let extension_name = request.config.name();
     let agent = state.get_agent(request.session_id).await?;
-    agent
-        .add_extension(request.config)
-        .await
-        .map_err(|e| ErrorResponse::internal(format!("Failed to add extension: {}", e)))?;
+    agent.add_extension(request.config).await.map_err(|e| {
+        goose::posthog::emit_error(
+            "extension_add_failed",
+            &format!("{}: {}", extension_name, e),
+        );
+        ErrorResponse::internal(format!("Failed to add extension: {}", e))
+    })?;
     Ok(StatusCode::OK)
 }
 

@@ -57,7 +57,7 @@ const LinuxDesktopInstallButtons = () => {
 
   return (
     <div>
-      <p>To download Goose Desktop for Linux, click one of the buttons below:</p>
+      <p>Click one of the buttons below to download goose Desktop for Linux:</p>
       <div className="pill-button" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
         <Link
           className="button button--primary button--lg"

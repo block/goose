@@ -276,12 +276,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_lead_worker_provider() {
+        // Both API keys needed: openai for worker, anthropic for lead (GOOSE_LEAD_PROVIDER=anthropic)
         let _guard = EnvVarGuard::new(&[
             "GOOSE_LEAD_MODEL",
             "GOOSE_LEAD_PROVIDER",
             "GOOSE_LEAD_TURNS",
+            "OPENAI_API_KEY",
+            "ANTHROPIC_API_KEY",
         ]);
 
+        _guard.set("OPENAI_API_KEY", "fake-openai-no-keyring");
+        _guard.set("ANTHROPIC_API_KEY", "fake-anthropic-no-keyring");
         _guard.set("GOOSE_LEAD_MODEL", "gpt-4o");
 
         let gpt4mini_config = ModelConfig::new_or_fail("gpt-4o-mini");
@@ -309,8 +314,10 @@ mod tests {
             "GOOSE_LEAD_TURNS",
             "GOOSE_LEAD_FAILURE_THRESHOLD",
             "GOOSE_LEAD_FALLBACK_TURNS",
+            "OPENAI_API_KEY",
         ]);
 
+        _guard.set("OPENAI_API_KEY", "fake-openai-no-keyring");
         _guard.set("GOOSE_LEAD_MODEL", "grok-3");
 
         let result = create("openai", ModelConfig::new_or_fail("gpt-4o-mini")).await;
@@ -338,8 +345,10 @@ mod tests {
             "GOOSE_LEAD_TURNS",
             "GOOSE_LEAD_FAILURE_THRESHOLD",
             "GOOSE_LEAD_FALLBACK_TURNS",
+            "OPENAI_API_KEY",
         ]);
 
+        _guard.set("OPENAI_API_KEY", "fake-openai-no-keyring");
         let result = create("openai", ModelConfig::new_or_fail("gpt-4o-mini")).await;
 
         match result {

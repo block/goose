@@ -174,11 +174,14 @@ fn require_str_parameter<'a>(v: &'a serde_json::Value, name: &str) -> Result<&'a
 }
 
 pub fn get_parameter_names(tool: &Tool) -> Vec<String> {
-    tool.input_schema
+    let mut names: Vec<String> = tool
+        .input_schema
         .get("properties")
         .and_then(|props| props.as_object())
         .map(|props| props.keys().cloned().collect())
-        .unwrap_or_default()
+        .unwrap_or_default();
+    names.sort();
+    names
 }
 
 impl Default for ExtensionManager {

@@ -12,6 +12,19 @@ on:
         required: false
         type: string
         default: 'main'
+    secrets:
+      ANTHROPIC_API_KEY:
+        required: false
+      OPENAI_API_KEY:
+        required: false
+      GOOGLE_API_KEY:
+        required: false
+      OPENROUTER_API_KEY:
+        required: false
+      XAI_API_KEY:
+        required: false
+      TETRATE_API_KEY:
+        required: false
 
 permissions:
   contents: write
@@ -41,6 +54,13 @@ jobs:
         fi
 
     - name: create release branch
+      env:
+        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+        TETRATE_API_KEY: ${{ secrets.TETRATE_API_KEY }}
       run: |
         PRIOR_VERSION=$(just get-tag-version)
         if [[ "$BUMP_TYPE" == "minor" ]]; then

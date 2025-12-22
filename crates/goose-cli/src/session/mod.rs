@@ -33,7 +33,6 @@ use goose::agents::extension::{Envs, ExtensionConfig, PLATFORM_EXTENSIONS};
 use goose::agents::types::RetryConfig;
 use goose::agents::{Agent, SessionConfig, COMPACT_TRIGGERS};
 use goose::config::{Config, GooseMode};
-use goose::providers::pricing::initialize_pricing_cache;
 use goose::session::SessionManager;
 use input::InputResult;
 use rmcp::model::PromptMessage;
@@ -1416,19 +1415,6 @@ impl CliSession {
             .get_goose_provider()
             .unwrap_or_else(|_| "unknown".to_string());
 
-        // Do not get costing information if show cost is disabled
-        // This will prevent the API call to openrouter.ai
-        // This is useful if for cases where openrouter.ai may be blocked by corporate firewalls
-        if show_cost {
-            // Initialize pricing cache on startup
-            tracing::info!("Initializing pricing cache...");
-            if let Err(e) = initialize_pricing_cache().await {
-                tracing::warn!(
-                    "Failed to initialize pricing cache: {e}. Pricing data may not be available."
-                );
-            }
-        }
-
         match self.get_session().await {
             Ok(metadata) => {
                 let total_tokens = metadata.total_tokens.unwrap_or(0) as usize;
@@ -1443,8 +1429,7 @@ impl CliSession {
                         &model_config.model_name,
                         input_tokens,
                         output_tokens,
-                    )
-                    .await;
+                    );
                 }
             }
             Err(_) => {
