@@ -63,12 +63,9 @@ impl BedrockStreamAccumulator {
         match delta {
             bedrock::ContentBlockDelta::Text(text) => {
                 // Ensure the block exists (in case we get delta before start)
-                self.text_blocks
-                    .entry(index)
-                    .or_insert_with(String::new)
-                    .push_str(text);
-                // Always emit incremental text updates
-                self.build_incremental_text_message()
+                self.text_blocks.entry(index).or_default().push_str(text);
+                // Yield ONLY the new delta text, not the entire accumulated text
+                self.build_delta_text_message(index, text)
             }
             bedrock::ContentBlockDelta::ToolUse(tool_delta) => {
                 if let Some((_, _, json)) = self.tool_blocks.get_mut(&index) {
@@ -93,27 +90,17 @@ impl BedrockStreamAccumulator {
         }
     }
 
-    /// Build a message with only the current text content (for streaming)
-    fn build_incremental_text_message(&self) -> Result<Option<Message>> {
+    /// Build a message with only the delta text chunk (for streaming efficiency)
+    fn build_delta_text_message(&self, _index: i32, delta_text: &str) -> Result<Option<Message>> {
+        if delta_text.is_empty() {
+            return Ok(None);
+        }
+
         let role = self.role.clone().unwrap_or(Role::Assistant);
         let created = Utc::now().timestamp();
-        let mut content = Vec::new();
+        let content = vec![MessageContent::text(delta_text.to_string())];
 
-        let mut indices: Vec<_> = self.text_blocks.keys().cloned().collect();
-        indices.sort();
-        for idx in indices {
-            if let Some(text) = self.text_blocks.get(&idx) {
-                if !text.is_empty() {
-                    content.push(MessageContent::text(text.clone()));
-                }
-            }
-        }
-
-        if content.is_empty() {
-            Ok(None)
-        } else {
-            Ok(Some(Message::new(role, created, content)))
-        }
+        Ok(Some(Message::new(role, created, content)))
     }
 
     fn build_final_message(&self) -> Result<Option<Message>> {
