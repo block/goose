@@ -205,7 +205,6 @@
     "id": "anthropic/claude-opus-4.1",
     "name": "Anthropic: Claude Opus 4.1",
     "context_length": 200000,
-    "max_completion_tokens": 32000,
     "input_modalities": [
       "image",
       "text",
@@ -365,7 +364,7 @@
     "id": "deepseek/deepseek",
     "name": "DeepSeek: DeepSeek V3.2",
     "context_length": 163840,
-    "max_completion_tokens": 65536,
+    "max_completion_tokens": 163840,
     "input_modalities": [
       "text"
     ],
@@ -374,8 +373,8 @@
     ],
     "supports_tools": true,
     "pricing": {
-      "prompt": 2.6e-7,
-      "completion": 3.8e-7,
+      "prompt": 2.39e-7,
+      "completion": 3.78e-7,
       "request": 0.0,
       "image": 0.0
     }
@@ -468,7 +467,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 3e-8,
-      "completion": 1.3e-7,
+      "completion": 1.1e-7,
       "request": 0.0,
       "image": 0.0
     }
@@ -1198,8 +1197,8 @@
     ],
     "supports_tools": true,
     "pricing": {
-      "prompt": 1.5e-7,
-      "completion": 6e-7,
+      "prompt": 5e-8,
+      "completion": 2.2e-7,
       "request": 0.0,
       "image": 0.0
     }
@@ -2935,8 +2934,8 @@
   {
     "id": "qwen/qwen3-coder-30b-a3b-instruct",
     "name": "Qwen: Qwen3 Coder 30B A3B Instruct",
-    "context_length": 262144,
-    "max_completion_tokens": 262144,
+    "context_length": 160000,
+    "max_completion_tokens": 32768,
     "input_modalities": [
       "text"
     ],
@@ -2945,8 +2944,8 @@
     ],
     "supports_tools": true,
     "pricing": {
-      "prompt": 6e-8,
-      "completion": 2.5e-7,
+      "prompt": 7e-8,
+      "completion": 2.7e-7,
       "request": 0.0,
       "image": 0.0
     }
