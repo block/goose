@@ -1146,7 +1146,6 @@ impl CliSession {
                                         },
                                     };
 
-                                    // Handle stream-json mode for notifications
                                     if is_stream_json_mode {
                                         emit_stream_event(&StreamEvent::Notification {
                                             extension_id: extension_id.clone(),
