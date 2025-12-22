@@ -1,5 +1,6 @@
 use crate::recipe::build_recipe::{
-    build_recipe_from_template, resolve_sub_recipe_path, RecipeError,
+    build_recipe_from_template, build_recipe_from_template_with_positional_params,
+    resolve_sub_recipe_path, RecipeError,
 };
 use crate::recipe::read_recipe_file_content::RecipeFile;
 use crate::recipe::{RecipeParameterInputType, RecipeParameterRequirement};
@@ -636,5 +637,140 @@ parameters:
         } else {
             panic!("Expected TemplateRendering error for file parameter with default");
         }
+    }
+}
+
+mod positional_params_tests {
+    use super::*;
+
+    #[test]
+    fn test_positional_params_single_optional_with_default_no_args() {
+        let instructions_and_parameters = r#"
+                "instructions": "Test with {{ filename }}",
+                "parameters": [
+                    {
+                        "key": "filename",
+                        "input_type": "string",
+                        "requirement": "optional",
+                        "default": "default_filename.txt",
+                        "description": "Name of file"
+                    }
+                ]"#;
+
+        let (_temp_dir, recipe_content, recipe_dir) =
+            setup_recipe_file(instructions_and_parameters);
+
+        let result = build_recipe_from_template_with_positional_params(
+            recipe_content,
+            &recipe_dir,
+            vec![],
+            NO_USER_PROMPT,
+        );
+
+        assert!(result.is_ok());
+        let recipe = result.unwrap();
+        assert_eq!(
+            recipe.instructions.unwrap(),
+            "Test with default_filename.txt"
+        );
+    }
+
+    #[test]
+    fn test_positional_params_single_optional_with_default_with_arg() {
+        let instructions_and_parameters = r#"
+                "instructions": "Test with {{ filename }}",
+                "parameters": [
+                    {
+                        "key": "filename",
+                        "input_type": "string",
+                        "requirement": "optional",
+                        "default": "default_filename.txt",
+                        "description": "Name of file"
+                    }
+                ]"#;
+
+        let (_temp_dir, recipe_content, recipe_dir) =
+            setup_recipe_file(instructions_and_parameters);
+
+        let result = build_recipe_from_template_with_positional_params(
+            recipe_content,
+            &recipe_dir,
+            vec!["user_provided.txt".to_string()],
+            NO_USER_PROMPT,
+        );
+
+        assert!(result.is_ok());
+        let recipe = result.unwrap();
+        assert_eq!(recipe.instructions.unwrap(), "Test with user_provided.txt");
+    }
+
+    #[test]
+    fn test_positional_params_required_param_missing_fails() {
+        let instructions_and_parameters = r#"
+                "instructions": "Test with {{ required_param }}",
+                "parameters": [
+                    {
+                        "key": "required_param",
+                        "input_type": "string",
+                        "requirement": "required",
+                        "description": "A required parameter"
+                    }
+                ]"#;
+
+        let (_temp_dir, recipe_content, recipe_dir) =
+            setup_recipe_file(instructions_and_parameters);
+
+        let result = build_recipe_from_template_with_positional_params(
+            recipe_content,
+            &recipe_dir,
+            vec![],
+            NO_USER_PROMPT,
+        );
+
+        assert!(result.is_err());
+        match result {
+            Err(RecipeError::MissingParams { parameters }) => {
+                assert_eq!(parameters, vec!["required_param"]);
+            }
+            _ => panic!("Expected MissingParams error"),
+        }
+    }
+
+    #[test]
+    fn test_positional_params_mixed_required_and_optional() {
+        let instructions_and_parameters = r#"
+                "instructions": "Required: {{ required_param }}, Optional: {{ optional_param }}",
+                "parameters": [
+                    {
+                        "key": "required_param",
+                        "input_type": "string",
+                        "requirement": "required",
+                        "description": "A required parameter"
+                    },
+                    {
+                        "key": "optional_param",
+                        "input_type": "string",
+                        "requirement": "optional",
+                        "default": "default_value",
+                        "description": "An optional parameter"
+                    }
+                ]"#;
+
+        let (_temp_dir, recipe_content, recipe_dir) =
+            setup_recipe_file(instructions_and_parameters);
+
+        let result = build_recipe_from_template_with_positional_params(
+            recipe_content,
+            &recipe_dir,
+            vec!["required_value".to_string()],
+            NO_USER_PROMPT,
+        );
+
+        assert!(result.is_ok());
+        let recipe = result.unwrap();
+        assert_eq!(
+            recipe.instructions.unwrap(),
+            "Required: required_value, Optional: default_value"
+        );
     }
 }

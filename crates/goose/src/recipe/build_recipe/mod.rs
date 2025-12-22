@@ -94,10 +94,15 @@ where
             .parameters;
 
     let param_pairs: Vec<(String, String)> = if let Some(recipe_params) = &recipe_parameters {
-        if params.len() < recipe_params.len() {
-            let param_keys: Vec<String> = recipe_params.iter().map(|p| p.key.clone()).collect();
+        let required_count = recipe_params.iter().filter(|p| p.default.is_none()).count();
+        if params.len() < required_count {
+            let required_keys: Vec<String> = recipe_params
+                .iter()
+                .filter(|p| p.default.is_none())
+                .map(|p| p.key.clone())
+                .collect();
             return Err(RecipeError::MissingParams {
-                parameters: param_keys,
+                parameters: required_keys,
             });
         }
         recipe_params
