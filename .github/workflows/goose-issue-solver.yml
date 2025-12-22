@@ -84,7 +84,7 @@ env:
 permissions:
   contents: write
   pull-requests: write
-  issues: read
+  issues: write
 
 concurrency:
   group: goose-issue-${{ github.event.issue.number || github.event.inputs.issue_number }}
