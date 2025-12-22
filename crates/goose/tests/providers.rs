@@ -100,12 +100,16 @@ impl ProviderTester {
 
         let (response, _) = self
             .provider
+<<<<<<< HEAD
             .complete(
                 "test-session-id",
                 "You are a helpful assistant.",
                 &[message],
                 &[],
             )
+=======
+            .complete("You are a helpful assistant.", &[message], &[])
+>>>>>>> c1b919482b (fix: use or_default() instead of or_insert_with(String::new))
             .await?;
 
         assert_eq!(
@@ -143,7 +147,10 @@ impl ProviderTester {
         let (response1, _) = self
             .provider
             .complete(
+<<<<<<< HEAD
                 "test-session-id",
+=======
+>>>>>>> c1b919482b (fix: use or_default() instead of or_insert_with(String::new))
                 "You are a helpful weather assistant.",
                 std::slice::from_ref(&message),
                 std::slice::from_ref(&weather_tool),
@@ -175,6 +182,7 @@ impl ProviderTester {
             Ok(rmcp::model::CallToolResult {
                 content: vec![Content::text(
                     "
+<<<<<<< HEAD
                   50°F°C
                   Precipitation: 0%
                   Humidity: 84%
@@ -182,6 +190,15 @@ impl ProviderTester {
                   Weather
                   Saturday 9:00 PM
                   Clear",
+=======
+                   50°F°C
+                   Precipitation: 0%
+                   Humidity: 84%
+                   Wind: 2 mph
+                   Weather
+                   Saturday 9:00 PM
+                   Clear",
+>>>>>>> c1b919482b (fix: use or_default() instead of or_insert_with(String::new))
                 )],
                 structured_content: None,
                 is_error: Some(false),
@@ -192,7 +209,10 @@ impl ProviderTester {
         let (response2, _) = self
             .provider
             .complete(
+<<<<<<< HEAD
                 "test-session-id",
+=======
+>>>>>>> c1b919482b (fix: use or_default() instead of or_insert_with(String::new))
                 "You are a helpful weather assistant.",
                 &[message, response1, weather],
                 &[weather_tool],
@@ -235,12 +255,16 @@ impl ProviderTester {
 
         let result = self
             .provider
+<<<<<<< HEAD
             .complete(
                 "test-session-id",
                 "You are a helpful assistant.",
                 &messages,
                 &[],
             )
+=======
+            .complete("You are a helpful assistant.", &messages, &[])
+>>>>>>> c1b919482b (fix: use or_default() instead of or_insert_with(String::new))
             .await;
 
         println!("=== {}::context_length_exceeded_error ===", self.name);
@@ -298,7 +322,10 @@ impl ProviderTester {
         let result = self
             .provider
             .complete(
+<<<<<<< HEAD
                 "test-session-id",
+=======
+>>>>>>> c1b919482b (fix: use or_default() instead of or_insert_with(String::new))
                 "You are a helpful assistant. Describe what you see in the image briefly.",
                 &[message_with_image],
                 &[],
@@ -329,9 +356,13 @@ impl ProviderTester {
         let user_message = Message::user().with_text("Take a screenshot please");
         let tool_request = Message::assistant().with_tool_request(
             "test_id",
+<<<<<<< HEAD
             Ok(CallToolRequestParams {
                 meta: None,
                 task: None,
+=======
+            Ok(CallToolRequestParam {
+>>>>>>> c1b919482b (fix: use or_default() instead of or_insert_with(String::new))
                 name: "get_screenshot".into(),
                 arguments: Some(object!({})),
             }),
@@ -352,7 +383,10 @@ impl ProviderTester {
         let result2 = self
             .provider
             .complete(
+<<<<<<< HEAD
                 "test-session-id",
+=======
+>>>>>>> c1b919482b (fix: use or_default() instead of or_insert_with(String::new))
                 "You are a helpful assistant.",
                 &[user_message, tool_request, tool_response],
                 &[screenshot_tool],
