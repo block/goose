@@ -69,6 +69,7 @@ When asked to work autonomously, follow the requirements and guidance in this se
 - **Delegate exploration**: Broad questions ("where is X?", "how does Y work?") go to subagents
 - **Protect your context**: Don't fill it with grep results—that's what subagents are for
 - **Ask subagents for**: relevant files, code flow, existing patterns, potential approaches
+- **Launch in parallel**: For independent questions ("where is auth?" + "where is logging?"), spawn multiple subagents in one message
 
 ## The Cycle
 
