@@ -25,7 +25,6 @@ use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
     config::permission::PermissionLevel,
 };
-use rmcp::model::{CallToolRequestParam, Content};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -40,33 +39,33 @@ pub struct UpdateFromSessionRequest {
     session_id: String,
 }
 
-#[derive(Deserialize, utoipa::ToSchema)]
+#[derive(Deserialize, Serialize, utoipa::ToSchema)]
 pub struct UpdateProviderRequest {
-    provider: String,
-    model: Option<String>,
-    session_id: String,
+    pub provider: String,
+    pub model: Option<String>,
+    pub session_id: String,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct GetToolsQuery {
-    extension_name: Option<String>,
-    session_id: String,
+    pub extension_name: Option<String>,
+    pub session_id: String,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdateRouterToolSelectorRequest {
-    session_id: String,
+    pub session_id: String,
 }
 
-#[derive(Deserialize, utoipa::ToSchema)]
+#[derive(Deserialize, Serialize, utoipa::ToSchema)]
 pub struct StartAgentRequest {
-    working_dir: String,
+    pub working_dir: String,
     #[serde(default)]
-    recipe: Option<Recipe>,
+    pub recipe: Option<Recipe>,
     #[serde(default)]
-    recipe_id: Option<String>,
+    pub recipe_id: Option<String>,
     #[serde(default)]
-    recipe_deeplink: Option<String>,
+    pub recipe_deeplink: Option<String>,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -74,22 +73,22 @@ pub struct StopAgentRequest {
     session_id: String,
 }
 
-#[derive(Deserialize, utoipa::ToSchema)]
+#[derive(Deserialize, Serialize, utoipa::ToSchema)]
 pub struct ResumeAgentRequest {
-    session_id: String,
-    load_model_and_extensions: bool,
+    pub session_id: String,
+    pub load_model_and_extensions: bool,
 }
 
-#[derive(Deserialize, utoipa::ToSchema)]
+#[derive(Deserialize, Serialize, utoipa::ToSchema)]
 pub struct AddExtensionRequest {
-    session_id: String,
-    config: ExtensionConfig,
+    pub session_id: String,
+    pub config: ExtensionConfig,
 }
 
-#[derive(Deserialize, utoipa::ToSchema)]
+#[derive(Deserialize, Serialize, utoipa::ToSchema)]
 pub struct RemoveExtensionRequest {
-    name: String,
-    session_id: String,
+    pub name: String,
+    pub session_id: String,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -102,20 +101,6 @@ pub struct ReadResourceRequest {
 #[derive(Serialize, Deserialize, utoipa::ToSchema)]
 pub struct ReadResourceResponse {
     html: String,
-}
-
-#[derive(Deserialize, utoipa::ToSchema)]
-pub struct CallToolRequest {
-    session_id: String,
-    name: String,
-    arguments: Value,
-}
-
-#[derive(Serialize, utoipa::ToSchema)]
-pub struct CallToolResponse {
-    content: Vec<Content>,
-    structured_content: Option<Value>,
-    is_error: bool,
 }
 
 #[utoipa::path(
@@ -603,6 +588,27 @@ async fn stop_agent(
     Ok(StatusCode::OK)
 }
 
+#[derive(Deserialize, Serialize, utoipa::ToSchema)]
+pub struct CallToolRequest {
+    pub session_id: String,
+    pub name: String,
+    pub arguments: Value,
+}
+
+#[derive(Deserialize, Serialize, utoipa::ToSchema)]
+pub struct CallToolResponse {
+    #[schema(schema_with = content_schema)]
+    pub content: Vec<rmcp::model::Content>,
+    pub structured_content: Option<Value>,
+    pub is_error: bool,
+}
+
+fn content_schema() -> utoipa::openapi::schema::Array {
+    utoipa::openapi::schema::ArrayBuilder::new()
+        .items(utoipa::openapi::Ref::from_schema_name("Content"))
+        .build()
+}
+
 #[utoipa::path(
     post,
     path = "/agent/read_resource",
@@ -641,11 +647,10 @@ async fn read_resource(
     path = "/agent/call_tool",
     request_body = CallToolRequest,
     responses(
-        (status = 200, description = "Resource read successfully", body = CallToolResponse),
-        (status = 401, description = "Unauthorized - invalid secret key"),
-        (status = 424, description = "Agent not initialized"),
-        (status = 404, description = "Resource not found"),
-        (status = 500, description = "Internal server error")
+        (status = 200, description = "Tool executed successfully", body = CallToolResponse),
+        (status = 404, description = "Session not found"),
+        (status = 424, description = "Agent not initialized for session"),
+        (status = 500, description = "Tool execution failed")
     )
 )]
 async fn call_tool(
@@ -661,7 +666,7 @@ async fn call_tool(
         _ => None,
     };
 
-    let tool_call = CallToolRequestParam {
+    let tool_call = rmcp::model::CallToolRequestParam {
         name: payload.name.into(),
         arguments,
     };

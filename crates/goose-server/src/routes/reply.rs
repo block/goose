@@ -75,12 +75,12 @@ fn track_tool_telemetry(content: &MessageContent, all_messages: &[Message]) {
 
 #[derive(Debug, Deserialize, Serialize, utoipa::ToSchema)]
 pub struct ChatRequest {
-    user_message: Message,
+    pub user_message: Message,
     #[serde(default)]
-    conversation_so_far: Option<Vec<Message>>,
-    session_id: String,
-    recipe_name: Option<String>,
-    recipe_version: Option<String>,
+    pub conversation_so_far: Option<Vec<Message>>,
+    pub session_id: String,
+    pub recipe_name: Option<String>,
+    pub recipe_version: Option<String>,
 }
 
 pub struct SseResponse {
@@ -117,7 +117,7 @@ impl IntoResponse for SseResponse {
     }
 }
 
-#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[derive(Debug, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(tag = "type")]
 pub enum MessageEvent {
     Message {
