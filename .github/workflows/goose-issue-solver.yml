@@ -96,7 +96,7 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       (!github.event.issue.pull_request &&
        startsWith(github.event.comment.body, '/goose') &&
-       contains(fromJSON('["OWNER", "MEMBER"]'), github.event.comment.author_association))
+       contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association))
 
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -111,6 +111,15 @@ jobs:
         HOME: /tmp/goose-home
 
     steps:
+      - name: Acknowledge trigger
+        if: github.event_name == 'issue_comment'
+        run: |
+          curl -sL -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" \
+            -d '{"content":"eyes"}'
+
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
         with:
