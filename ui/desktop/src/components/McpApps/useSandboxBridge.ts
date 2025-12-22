@@ -151,7 +151,6 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
               error: {
                 code: -32603,
                 message: error instanceof Error ? error.message : 'Unknown error',
-                ...(error !== undefined && { data: error }),
               },
             });
           }
