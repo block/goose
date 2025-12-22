@@ -57,7 +57,7 @@ env:
 
       **Types & Options**: Is the type system being used correctly?
       - Option<T>: Why optional? If .unwrap() is nearby, it should be required.
-      - Option<bool>: Never. Booleans default to false.
+      - Option<bool>: Rarely needed. Consider if None vs Some(false) distinction matters.
       - Manual JSON parsing: Use typed structs, not field extraction.
       - Many casts/assertions: The types are probably wrong.
       - Use builders: Prefer `Foo::builder()` over manual struct construction when available.
@@ -96,8 +96,14 @@ env:
 
       ## Anti-hallucination
       - Search with rg before claiming something is "missing"
+      - Before claiming UI/frontend changes are needed, trace the actual data flow
       - Say "I couldn't verify" not "this is wrong"
       - 3-7 verified issues > 10 speculative ones
+
+      ## Language Note
+      These guidelines are primarily Rust-focused. For TypeScript/frontend changes (ui/desktop/),
+      apply the same rigor with language-appropriate patterns (e.g., discriminated unions,
+      optional chaining, React key uniqueness). Review all code equally thoroughly.
 
       If the approach is fundamentally wrong, reject it. Don't polish bad code.
 
