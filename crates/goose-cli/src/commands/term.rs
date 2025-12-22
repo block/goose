@@ -39,11 +39,11 @@ static BASH_CONFIG: ShellConfig = ShellConfig {
 alias @goose='{goose_bin} term run'
 alias @g='{goose_bin} term run'
 
-goose_preexec() {{
+goose_preexec() {
     [[ "$1" =~ ^goose\ term ]] && return
     [[ "$1" =~ ^(@goose|@g)($|[[:space:]]) ]] && return
     ('{goose_bin}' term log "$1" &) 2>/dev/null
-}}
+}
 
 if [[ -z "$goose_preexec_installed" ]]; then
     goose_preexec_installed=1
@@ -52,11 +52,11 @@ fi{command_not_found_handler}"#,
     command_not_found: Some(
         r#"
 
-command_not_found_handle() {{
+command_not_found_handle() {
     echo "🪿 Command '$1' not found. Asking goose..."
     '{goose_bin}' term run "$@"
     return 0
-}}"#,
+}"#,
     ),
 };
 
@@ -65,22 +65,22 @@ static ZSH_CONFIG: ShellConfig = ShellConfig {
 alias @goose='{goose_bin} term run'
 alias @g='{goose_bin} term run'
 
-goose_preexec() {{
+goose_preexec() {
     [[ "$1" =~ ^goose\ term ]] && return
     [[ "$1" =~ ^(@goose|@g)($|[[:space:]]) ]] && return
     ('{goose_bin}' term log "$1" &) 2>/dev/null
-}}
+}
 
 autoload -Uz add-zsh-hook
 add-zsh-hook preexec goose_preexec{command_not_found_handler}"#,
     command_not_found: Some(
         r#"
 
-command_not_found_handler() {{
+command_not_found_handler() {
     echo "🪿 Command '$1' not found. Asking goose..."
     '{goose_bin}' term run "$@"
     return 0
-}}"#,
+}"#,
     ),
 };
 
@@ -99,17 +99,17 @@ end"#,
 
 static POWERSHELL_CONFIG: ShellConfig = ShellConfig {
     script_template: r#"$env:GOOSE_SESSION_ID = "{session_id}"
-function @goose {{ & '{goose_bin}' term run @args }}
-function @g {{ & '{goose_bin}' term run @args }}
+function @goose { & '{goose_bin}' term run @args }
+function @g { & '{goose_bin}' term run @args }
 
-Set-PSReadLineKeyHandler -Chord Enter -ScriptBlock {{
+Set-PSReadLineKeyHandler -Chord Enter -ScriptBlock {
     $line = $null
     [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$null)
-    if ($line -notmatch '^goose term' -and $line -notmatch '^(@goose|@g)($|\s)') {{
-        Start-Job -ScriptBlock {{ & '{goose_bin}' term log $using:line }} | Out-Null
-    }}
+    if ($line -notmatch '^goose term' -and $line -notmatch '^(@goose|@g)($|\s)') {
+        Start-Job -ScriptBlock { & '{goose_bin}' term log $using:line } | Out-Null
+    }
     [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
-}}"#,
+}"#,
     command_not_found: None,
 };
 
