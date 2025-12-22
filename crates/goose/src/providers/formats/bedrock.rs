@@ -17,6 +17,132 @@ use serde_json::Value;
 use super::super::base::Usage;
 use crate::conversation::message::{Message, MessageContent};
 
+
+/// Accumulates streaming chunks into a complete message
+#[derive(Debug, Default)]
+pub struct BedrockStreamAccumulator {
+    text_blocks: HashMap<i32, String>,
+    tool_blocks: HashMap<i32, (String, String, String)>,
+    role: Option<Role>,
+    usage: Option<bedrock::TokenUsage>,
+}
+
+impl BedrockStreamAccumulator {
+    pub fn new() -> Self {
+        Self::default()
+    }
+    
+    pub fn handle_message_start(&mut self, role: &bedrock::ConversationRole) -> Result<()> {
+        self.role = Some(from_bedrock_role(role)?);
+        Ok(())
+    }
+    
+    pub fn handle_content_block_start(&mut self, index: i32, start: &bedrock::ContentBlockStart) -> Result<()> {
+        match start {
+            bedrock::ContentBlockStart::ToolUse(tool_use) => {
+                let tool_use_id = tool_use.tool_use_id().to_string();
+                let name = tool_use.name().to_string();
+                self.tool_blocks.insert(index, (tool_use_id, name, String::new()));
+            }
+            _ => {
+                self.text_blocks.insert(index, String::new());
+            }
+        }
+        Ok(())
+    }
+    
+    pub fn handle_content_block_delta(&mut self, index: i32, delta: &bedrock::ContentBlockDelta) -> Result<Option<Message>> {
+        match delta {
+            bedrock::ContentBlockDelta::Text(text) => {
+                // Ensure the block exists (in case we get delta before start)
+                self.text_blocks.entry(index).or_insert_with(String::new).push_str(text);
+                // Always emit incremental text updates
+                self.build_incremental_text_message()
+            }
+            bedrock::ContentBlockDelta::ToolUse(tool_delta) => {
+                if let Some((_, _, json)) = self.tool_blocks.get_mut(&index) {
+                    json.push_str(&tool_delta.input);
+                }
+                Ok(None)
+            }
+            _ => Ok(None),
+        }
+    }
+    
+    pub fn handle_message_stop(&mut self, _stop_reason: bedrock::StopReason) -> Result<Option<Message>> {
+        self.build_final_message()
+    }
+    
+    pub fn handle_metadata(&mut self, usage: Option<bedrock::TokenUsage>) {
+        if let Some(u) = usage {
+            self.usage = Some(u);
+        }
+    }
+    
+    /// Build a message with only the current text content (for streaming)
+    fn build_incremental_text_message(&self) -> Result<Option<Message>> {
+        let role = self.role.clone().unwrap_or(Role::Assistant);
+        let created = Utc::now().timestamp();
+        let mut content = Vec::new();
+        
+        let mut indices: Vec<_> = self.text_blocks.keys().cloned().collect();
+        indices.sort();
+        for idx in indices {
+            if let Some(text) = self.text_blocks.get(&idx) {
+                if !text.is_empty() {
+                    content.push(MessageContent::text(text.clone()));
+                }
+            }
+        }
+        
+        if content.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(Message::new(role, created, content)))
+        }
+    }
+    
+    fn build_final_message(&self) -> Result<Option<Message>> {
+        let role = self.role.clone().unwrap_or(Role::Assistant);
+        let created = Utc::now().timestamp();
+        let mut content = Vec::new();
+        
+        let mut indices: Vec<_> = self.text_blocks.keys().cloned().collect();
+        indices.sort();
+        for idx in indices {
+            if let Some(text) = self.text_blocks.get(&idx) {
+                if !text.is_empty() {
+                    content.push(MessageContent::text(text.clone()));
+                }
+            }
+        }
+        
+        let mut tool_indices: Vec<_> = self.tool_blocks.keys().cloned().collect();
+        tool_indices.sort();
+        for idx in tool_indices {
+            if let Some((tool_use_id, name, json)) = self.tool_blocks.get(&idx) {
+                if let Ok(args) = serde_json::from_str::<serde_json::Value>(json) {
+                    let tool_call = CallToolRequestParam {
+                        name: name.clone().into(),
+                        arguments: args.as_object().cloned(),
+                    };
+                    content.push(MessageContent::tool_request(tool_use_id.clone(), Ok(tool_call)));
+                }
+            }
+        }
+        
+        if content.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(Message::new(role, created, content)))
+        }
+    }
+    
+    pub fn get_usage(&self) -> Option<Usage> {
+        self.usage.as_ref().map(from_bedrock_usage)
+    }
+}
+
 pub fn to_bedrock_message(message: &Message) -> Result<bedrock::Message> {
     bedrock::Message::builder()
         .role(to_bedrock_role(&message.role))

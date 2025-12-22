@@ -464,6 +464,23 @@ impl Provider for LeadWorkerProvider {
     fn as_lead_worker(&self) -> Option<&dyn LeadWorkerProviderTrait> {
         Some(self)
     }
+
+    /// Delegate streaming to the active provider
+    async fn stream(
+        &self,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+    ) -> Result<super::base::MessageStream, ProviderError> {
+        let provider = self.get_active_provider().await;
+        provider.stream(system, messages, tools).await
+    }
+
+    /// Check if the active provider supports streaming
+    fn supports_streaming(&self) -> bool {
+        // Check both providers - if either supports streaming, we support it
+        self.lead_provider.supports_streaming() || self.worker_provider.supports_streaming()
+    }
 }
 
 #[cfg(test)]
