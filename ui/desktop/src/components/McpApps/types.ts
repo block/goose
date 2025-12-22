@@ -59,7 +59,7 @@ export interface HostContext {
     touch: boolean;
     hover: boolean;
   };
-  safeAreaInsets?: {
+  safeAreaInsets: {
     top: number;
     right: number;
     bottom: number;

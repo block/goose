@@ -46,6 +46,7 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
 
   const { resolvedTheme } = useTheme();
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const isGuestInitializedRef = useRef(false);
   const [proxyUrl, setProxyUrl] = useState<string | null>(null);
   const [isGuestInitialized, setIsGuestInitialized] = useState(false);
 
@@ -55,6 +56,7 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
 
   useEffect(() => {
     setIsGuestInitialized(false);
+    isGuestInitializedRef.current = false;
   }, [resourceUri]);
 
   const sendToSandbox = useCallback((message: JsonRpcMessage) => {
@@ -80,6 +82,7 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
 
         if (msg.method === 'ui/notifications/initialized') {
           setIsGuestInitialized(true);
+          isGuestInitializedRef.current = true;
           return;
         }
 
@@ -170,42 +173,47 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
     return () => window.removeEventListener('message', onMessage);
   }, [handleJsonRpcMessage]);
 
+  // Send tool input notification when it changes
   useEffect(() => {
-    if (!isGuestInitialized) return;
+    if (!isGuestInitialized || !toolInput) return;
+    sendToSandbox({
+      jsonrpc: '2.0',
+      method: 'ui/notifications/tool-input',
+      params: { arguments: toolInput.arguments },
+    });
+  }, [isGuestInitialized, toolInput, sendToSandbox]);
 
-    if (toolInput) {
-      sendToSandbox({
-        jsonrpc: '2.0',
-        method: 'ui/notifications/tool-input',
-        params: { arguments: toolInput.arguments },
-      });
-    }
+  // Send partial tool input (streaming) notification when it changes
+  useEffect(() => {
+    if (!isGuestInitialized || !toolInputPartial) return;
+    sendToSandbox({
+      jsonrpc: '2.0',
+      method: 'ui/notifications/tool-input-partial',
+      params: { arguments: toolInputPartial.arguments },
+    });
+  }, [isGuestInitialized, toolInputPartial, sendToSandbox]);
 
-    if (toolInputPartial) {
-      sendToSandbox({
-        jsonrpc: '2.0',
-        method: 'ui/notifications/tool-input-partial',
-        params: { arguments: toolInputPartial.arguments },
-      });
-    }
+  // Send tool result notification when it changes
+  useEffect(() => {
+    if (!isGuestInitialized || !toolResult) return;
+    sendToSandbox({
+      jsonrpc: '2.0',
+      method: 'ui/notifications/tool-result',
+      params: toolResult,
+    });
+  }, [isGuestInitialized, toolResult, sendToSandbox]);
 
-    if (toolResult) {
-      sendToSandbox({
-        jsonrpc: '2.0',
-        method: 'ui/notifications/tool-result',
-        params: toolResult,
-      });
-    }
+  // Send tool cancelled notification when it changes
+  useEffect(() => {
+    if (!isGuestInitialized || !toolCancelled) return;
+    sendToSandbox({
+      jsonrpc: '2.0',
+      method: 'ui/notifications/tool-cancelled',
+      params: toolCancelled.reason ? { reason: toolCancelled.reason } : {},
+    });
+  }, [isGuestInitialized, toolCancelled, sendToSandbox]);
 
-    if (toolCancelled) {
-      sendToSandbox({
-        jsonrpc: '2.0',
-        method: 'ui/notifications/tool-cancelled',
-        params: toolCancelled.reason ? { reason: toolCancelled.reason } : {},
-      });
-    }
-  }, [isGuestInitialized, toolInput, toolInputPartial, toolResult, toolCancelled, sendToSandbox]);
-
+  // Send theme changes when it changes
   useEffect(() => {
     if (!isGuestInitialized) return;
     sendToSandbox({
@@ -249,9 +257,10 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
     return () => observer.disconnect();
   }, [isGuestInitialized, sendToSandbox]);
 
+  // Cleanup on unmount - use ref to capture latest initialized state
   useEffect(() => {
     return () => {
-      if (isGuestInitialized) {
+      if (isGuestInitializedRef.current) {
         sendToSandbox({
           jsonrpc: '2.0',
           id: Date.now(),
@@ -260,7 +269,7 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
         });
       }
     };
-  }, [isGuestInitialized, sendToSandbox]);
+  }, [sendToSandbox]);
 
   return { iframeRef, proxyUrl };
 }
