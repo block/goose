@@ -76,12 +76,7 @@ impl McpAppResource {
         }
     }
 
-    pub fn new_html_with_csp(
-        uri: String,
-        name: String,
-        html: String,
-        csp: CspMetadata,
-    ) -> Self {
+    pub fn new_html_with_csp(uri: String, name: String, html: String, csp: CspMetadata) -> Self {
         Self {
             uri,
             name,
