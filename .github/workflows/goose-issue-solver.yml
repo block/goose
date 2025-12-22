@@ -105,9 +105,9 @@ jobs:
       image: ghcr.io/block/goose:latest
       options: --user root
       env:
-        GOOSE_PROVIDER: ${{ vars.GOOSE_PROVIDER || 'openai' }}
-        GOOSE_MODEL: ${{ vars.GOOSE_MODEL || 'gpt-5.1' }}
-        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        GOOSE_PROVIDER: ${{ vars.GOOSE_PROVIDER || 'anthropic' }}
+        GOOSE_MODEL: ${{ vars.GOOSE_MODEL || 'claude-opus-4-5' }}
+        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         HOME: /tmp/goose-home
 
     steps:
