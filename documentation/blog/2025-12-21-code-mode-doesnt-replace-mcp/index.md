@@ -91,7 +91,7 @@ Therefore, it doesn't make sense for me to use Code Mode when:
 
 ---
 
-## What's Next for goose
+## Improving Code Mode Support in goose
 
 The cool part is Code Mode is only getting better. The team is currently refining Code Mode following its release in goose v1.17.0 (December 2025):
 
