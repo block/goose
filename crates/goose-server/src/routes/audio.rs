@@ -393,8 +393,43 @@ mod tests {
     use axum::{body::Body, http::Request};
     use tower::ServiceExt;
 
+    struct EnvVarGuard {
+        vars: Vec<(String, Option<String>)>,
+    }
+
+    impl EnvVarGuard {
+        fn new(vars: &[&str]) -> Self {
+            let saved_vars = vars
+                .iter()
+                .map(|&var| (var.to_string(), std::env::var(var).ok()))
+                .collect();
+            for &var in vars {
+                std::env::remove_var(var);
+            }
+            Self { vars: saved_vars }
+        }
+
+        fn set(&self, key: &str, value: &str) {
+            std::env::set_var(key, value);
+        }
+    }
+
+    impl Drop for EnvVarGuard {
+        fn drop(&mut self) {
+            for (key, value) in &self.vars {
+                match value {
+                    Some(val) => std::env::set_var(key, val),
+                    None => std::env::remove_var(key),
+                }
+            }
+        }
+    }
+
     #[tokio::test(flavor = "multi_thread")]
     async fn test_transcribe_endpoint_requires_auth() {
+        let _guard = EnvVarGuard::new(&["OPENAI_API_KEY"]);
+        _guard.set("OPENAI_API_KEY", "fake-openai-no-keyring");
+
         let state = AppState::new().await.unwrap();
         let app = routes(state);
         // Test without auth header
