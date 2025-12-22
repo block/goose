@@ -848,7 +848,6 @@ impl CliSession {
         interactive: bool,
         cancel_token: CancellationToken,
     ) -> Result<()> {
-        // Cache the output format check to avoid repeated string comparisons in the hot loop
         let is_json_mode = self.output_format == "json";
         let is_stream_json_mode = self.output_format == "stream-json";
 
