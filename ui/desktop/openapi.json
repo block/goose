@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.15.0"
+    "version": "1.17.0"
   },
   "paths": {
     "/action-required/tool-confirmation": {
@@ -76,6 +76,90 @@
           },
           "401": {
             "description": "Unauthorized - invalid secret key"
+          },
+          "424": {
+            "description": "Agent not initialized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/agent/call_tool": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "call_tool",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CallToolRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Resource read successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CallToolResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "424": {
+            "description": "Agent not initialized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/agent/read_resource": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "read_resource",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReadResourceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Resource read successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadResourceResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "404": {
+            "description": "Resource not found"
           },
           "424": {
             "description": "Agent not initialized"
@@ -585,6 +669,39 @@
         }
       }
     },
+    "/config/detect-provider": {
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "detect_provider",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DetectProviderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Provider detected successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetectProviderResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No matching provider found"
+          }
+        }
+      }
+    },
     "/config/extensions": {
       "get": {
         "tags": [
@@ -733,6 +850,36 @@
           },
           "400": {
             "description": "Invalid request"
+          }
+        }
+      }
+    },
+    "/config/pricing": {
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "get_pricing",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PricingQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Model pricing data retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PricingResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -2264,6 +2411,29 @@
         }
       }
     },
+    "/telemetry/event": {
+      "post": {
+        "tags": [
+          "super::routes::telemetry"
+        ],
+        "operationId": "send_telemetry_event",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TelemetryEventRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Event accepted for processing"
+          }
+        }
+      }
+    },
     "/tunnel/start": {
       "post": {
         "tags": [
@@ -2395,6 +2565,50 @@
                 "type": "string"
               }
             }
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "message",
+              "requested_schema",
+              "actionType"
+            ],
+            "properties": {
+              "actionType": {
+                "type": "string",
+                "enum": [
+                  "elicitation"
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "requested_schema": {}
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "user_data",
+              "actionType"
+            ],
+            "properties": {
+              "actionType": {
+                "type": "string",
+                "enum": [
+                  "elicitationResponse"
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "user_data": {}
+            }
           }
         ],
         "discriminator": {
@@ -2460,18 +2674,57 @@
           }
         }
       },
+      "CallToolRequest": {
+        "type": "object",
+        "required": [
+          "session_id",
+          "name",
+          "arguments"
+        ],
+        "properties": {
+          "arguments": {},
+          "name": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          }
+        }
+      },
+      "CallToolResponse": {
+        "type": "object",
+        "required": [
+          "content",
+          "is_error"
+        ],
+        "properties": {
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Content"
+            }
+          },
+          "is_error": {
+            "type": "boolean"
+          },
+          "structured_content": {
+            "nullable": true
+          }
+        }
+      },
       "ChatRequest": {
         "type": "object",
         "required": [
-          "messages",
+          "user_message",
           "session_id"
         ],
         "properties": {
-          "messages": {
+          "conversation_so_far": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Message"
-            }
+            },
+            "nullable": true
           },
           "recipe_name": {
             "type": "string",
@@ -2483,6 +2736,9 @@
           },
           "session_id": {
             "type": "string"
+          },
+          "user_message": {
+            "$ref": "#/components/schemas/Message"
           }
         }
       },
@@ -2770,6 +3026,35 @@
         ],
         "properties": {
           "id": {
+            "type": "string"
+          }
+        }
+      },
+      "DetectProviderRequest": {
+        "type": "object",
+        "required": [
+          "api_key"
+        ],
+        "properties": {
+          "api_key": {
+            "type": "string"
+          }
+        }
+      },
+      "DetectProviderResponse": {
+        "type": "object",
+        "required": [
+          "provider_name",
+          "models"
+        ],
+        "properties": {
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "provider_name": {
             "type": "string"
           }
         }
@@ -3972,6 +4257,74 @@
           "never_allow"
         ]
       },
+      "PricingData": {
+        "type": "object",
+        "required": [
+          "provider",
+          "model",
+          "input_token_cost",
+          "output_token_cost",
+          "currency"
+        ],
+        "properties": {
+          "context_length": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true,
+            "minimum": 0
+          },
+          "currency": {
+            "type": "string"
+          },
+          "input_token_cost": {
+            "type": "number",
+            "format": "double"
+          },
+          "model": {
+            "type": "string"
+          },
+          "output_token_cost": {
+            "type": "number",
+            "format": "double"
+          },
+          "provider": {
+            "type": "string"
+          }
+        }
+      },
+      "PricingQuery": {
+        "type": "object",
+        "required": [
+          "provider",
+          "model"
+        ],
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          }
+        }
+      },
+      "PricingResponse": {
+        "type": "object",
+        "required": [
+          "pricing",
+          "source"
+        ],
+        "properties": {
+          "pricing": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PricingData"
+            }
+          },
+          "source": {
+            "type": "string"
+          }
+        }
+      },
       "PrincipalType": {
         "type": "string",
         "enum": [
@@ -4176,6 +4529,36 @@
             "additionalProperties": true
           },
           "text": {
+            "type": "string"
+          }
+        }
+      },
+      "ReadResourceRequest": {
+        "type": "object",
+        "required": [
+          "session_id",
+          "extension_name",
+          "uri"
+        ],
+        "properties": {
+          "extension_name": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "uri": {
+            "type": "string"
+          }
+        }
+      },
+      "ReadResourceResponse": {
+        "type": "object",
+        "required": [
+          "html"
+        ],
+        "properties": {
+          "html": {
             "type": "string"
           }
         }
@@ -5043,6 +5426,21 @@
           "inlineMessage"
         ]
       },
+      "TelemetryEventRequest": {
+        "type": "object",
+        "required": [
+          "event_name"
+        ],
+        "properties": {
+          "event_name": {
+            "type": "string"
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        }
+      },
       "TextContent": {
         "type": "object",
         "required": [
@@ -5265,9 +5663,8 @@
           "id": {
             "type": "string"
           },
-          "thoughtSignature": {
-            "type": "string",
-            "nullable": true
+          "metadata": {
+            "type": "object"
           },
           "toolCall": {
             "type": "object"
@@ -5283,6 +5680,9 @@
         "properties": {
           "id": {
             "type": "string"
+          },
+          "metadata": {
+            "type": "object"
           },
           "toolResult": {
             "type": "object"

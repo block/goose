@@ -65,7 +65,8 @@ fn test_configure_tetrate() {
     // Create a test config with temporary paths
     let temp_dir = TempDir::new().unwrap();
     let config_path = temp_dir.path().join("test_config.yaml");
-    let config = Config::new(&config_path, "test_service").unwrap();
+    let secrets_path = temp_dir.path().join("test_secrets.yaml");
+    let config = Config::new_with_file_secrets(&config_path, &secrets_path).unwrap();
 
     // Configure with a test API key
     let test_key = "test-api-key-123".to_string();

@@ -13,6 +13,7 @@ import july2025Data from "./data/july-2025.json";
 import august2025Data from "./data/august-2025.json";
 import september2025Data from "./data/september-2025.json";
 import october2025Data from "./data/october-2025.json";
+import november2025Data from "./data/november-2025.json";
 import communityContentData from "./data/community-content.json";
 
 // Create a data map for easy access
@@ -24,6 +25,7 @@ const communityDataMap = {
   "august-2025": august2025Data,
   "september-2025": september2025Data,
   "october-2025": october2025Data,
+  "november-2025": november2025Data,
 };
 
 function UpcomingEventsSection() {
@@ -94,7 +96,7 @@ function CommunityAllStarsSection() {
         </p>
       </div>
       
-      <div className="flex justify-center">
+      <div className="flex flex-wrap justify-center gap-4 w-full px-4">
         {currentData.communityStars.map((contributor, index) => (
           <StarsCard key={index} contributor={contributor} />
         ))}
@@ -110,7 +112,7 @@ function CommunityAllStarsSection() {
             </p>
           </div>
           
-          <div className="flex justify-center">
+          <div className="flex flex-wrap justify-center gap-4 w-full px-4">
             {currentData.teamStars.map((contributor, index) => (
               <StarsCard key={index} contributor={{...contributor, totalCount: currentData.teamStars.length}} />
             ))}
@@ -411,9 +413,9 @@ function ContentCard({ content }): ReactNode {
 
 export function StarsCard({contributor}): ReactNode {
   return (
-    <div className={`col ${contributor.totalCount <= 3 ? 'col--4' : 'col--2'} mb-8`}>
+    <div className="w-full sm:w-[calc(50%-0.5rem)] md:w-[calc(33.333%-0.67rem)] lg:w-[calc(20%-0.8rem)] max-w-[280px]">
       <div 
-        className="h-full border-2 border-borderSubtle rounded-2xl cursor-pointer hover:shadow-xl hover:border-[var(--ifm-color-primary-dark)]"
+        className="h-full border-2 border-borderSubtle rounded-2xl cursor-pointer hover:shadow-xl hover:border-[var(--ifm-color-primary-dark)] transition-all"
       >
         <div className="card__header text-center">
           <div className="avatar avatar--vertical">

@@ -1,16 +1,18 @@
 import { useState, useEffect, useRef } from 'react';
 import { Switch } from '../../ui/switch';
 import { Button } from '../../ui/button';
-import { Settings, RefreshCw, ExternalLink } from 'lucide-react';
+import { Settings } from 'lucide-react';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog';
 import UpdateSection from './UpdateSection';
 import TunnelSection from '../tunnel/TunnelSection';
+
 import { COST_TRACKING_ENABLED, UPDATES_ENABLED } from '../../../updates';
-import { getApiUrl } from '../../../config';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import ThemeSelector from '../../GooseSidebar/ThemeSelector';
 import BlockLogoBlack from './icons/block-lockup_black.png';
 import BlockLogoWhite from './icons/block-lockup_white.png';
+import TelemetrySettings from './TelemetrySettings';
+import { trackSettingToggled } from '../../../utils/analytics';
 
 interface AppSettingsSectionProps {
   scrollToSection?: string;
@@ -23,9 +25,6 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
   const [isMacOS, setIsMacOS] = useState(false);
   const [isDockSwitchDisabled, setIsDockSwitchDisabled] = useState(false);
   const [showNotificationModal, setShowNotificationModal] = useState(false);
-  const [pricingStatus, setPricingStatus] = useState<'loading' | 'success' | 'error'>('loading');
-  const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [showPricing, setShowPricing] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const updateSectionRef = useRef<HTMLDivElement>(null);
@@ -62,71 +61,6 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
     const stored = localStorage.getItem('show_pricing');
     setShowPricing(stored !== 'false');
   }, []);
-
-  // Check pricing status on mount
-  useEffect(() => {
-    checkPricingStatus();
-  }, []);
-
-  const checkPricingStatus = async () => {
-    try {
-      const apiUrl = getApiUrl('/config/pricing');
-      const secretKey = await window.electron.getSecretKey();
-
-      const headers: HeadersInit = { 'Content-Type': 'application/json' };
-      if (secretKey) {
-        headers['X-Secret-Key'] = secretKey;
-      }
-
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ configured_only: true }),
-      });
-
-      if (response.ok) {
-        await response.json();
-        setPricingStatus('success');
-        setLastFetchTime(new Date());
-      } else {
-        setPricingStatus('error');
-      }
-    } catch {
-      setPricingStatus('error');
-    }
-  };
-
-  const handleRefreshPricing = async () => {
-    setIsRefreshing(true);
-    try {
-      const apiUrl = getApiUrl('/config/pricing');
-      const secretKey = await window.electron.getSecretKey();
-
-      const headers: HeadersInit = { 'Content-Type': 'application/json' };
-      if (secretKey) {
-        headers['X-Secret-Key'] = secretKey;
-      }
-
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ configured_only: false }),
-      });
-
-      if (response.ok) {
-        setPricingStatus('success');
-        setLastFetchTime(new Date());
-        // Trigger a reload of the cost database
-        window.dispatchEvent(new CustomEvent('pricing-updated'));
-      } else {
-        setPricingStatus('error');
-      }
-    } catch {
-      setPricingStatus('error');
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
 
   // Handle scrolling to update section
   useEffect(() => {
@@ -168,6 +102,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
     const success = await window.electron.setMenuBarIcon(newState);
     if (success) {
       setMenuBarIconEnabled(newState);
+      trackSettingToggled('menu_bar_icon', newState);
     }
   };
 
@@ -192,6 +127,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
     const success = await window.electron.setDockIcon(newState);
     if (success) {
       setDockIconEnabled(newState);
+      trackSettingToggled('dock_icon', newState);
     }
   };
 
@@ -200,12 +136,14 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
     const success = await window.electron.setWakelock(newState);
     if (success) {
       setWakelockEnabled(newState);
+      trackSettingToggled('prevent_sleep', newState);
     }
   };
 
   const handleShowPricingToggle = (checked: boolean) => {
     setShowPricing(checked);
     localStorage.setItem('show_pricing', String(checked));
+    trackSettingToggled('cost_tracking', checked);
     // Trigger storage event for other components
     window.dispatchEvent(new CustomEvent('storage'));
   };
@@ -288,7 +226,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
             <div>
               <h3 className="text-text-default text-xs">Prevent Sleep</h3>
               <p className="text-xs text-text-muted max-w-md mt-[2px]">
-                Keep your computer awake while Goose is running a task (screen can still lock)
+                Keep your computer awake while goose is running a task (screen can still lock)
               </p>
             </div>
             <div className="flex items-center">
@@ -319,69 +257,6 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
             </div>
           )}
 
-          {/* Pricing Status - only show if cost tracking is enabled */}
-          {COST_TRACKING_ENABLED && showPricing && (
-            <>
-              <div className="flex items-center justify-between text-xs mb-2 px-4">
-                <span className="text-textSubtle">Pricing Source:</span>
-                <a
-                  href="https://openrouter.ai/docs#models"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
-                >
-                  OpenRouter Docs
-                  <ExternalLink size={10} />
-                </a>
-              </div>
-
-              <div className="flex items-center justify-between text-xs mb-2 px-4">
-                <span className="text-textSubtle">Status:</span>
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`font-medium ${
-                      pricingStatus === 'success'
-                        ? 'text-green-600 dark:text-green-400'
-                        : pricingStatus === 'error'
-                          ? 'text-red-600 dark:text-red-400'
-                          : 'text-textSubtle'
-                    }`}
-                  >
-                    {pricingStatus === 'success'
-                      ? '✓ Connected'
-                      : pricingStatus === 'error'
-                        ? '✗ Failed'
-                        : '... Checking'}
-                  </span>
-                  <button
-                    className="p-0.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50"
-                    onClick={handleRefreshPricing}
-                    disabled={isRefreshing}
-                    title="Refresh pricing data"
-                    type="button"
-                  >
-                    <RefreshCw
-                      size={8}
-                      className={`text-textSubtle hover:text-textStandard ${isRefreshing ? 'animate-spin-fast' : ''}`}
-                    />
-                  </button>
-                </div>
-              </div>
-
-              {lastFetchTime && (
-                <div className="flex items-center justify-between text-xs mb-2 px-4">
-                  <span className="text-textSubtle">Last updated:</span>
-                  <span className="text-textSubtle">{lastFetchTime.toLocaleTimeString()}</span>
-                </div>
-              )}
-
-              {pricingStatus === 'error' && (
-                <p className="text-xs text-red-600 dark:text-red-400 px-4">
-                  Unable to fetch pricing data. Costs will not be displayed.
-                </p>
-              )}
-            </>
-          )}
         </CardContent>
       </Card>
 
@@ -396,6 +271,8 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
       </Card>
 
       <TunnelSection />
+
+      <TelemetrySettings isWelcome={false} />
 
       <Card className="rounded-lg">
         <CardHeader className="pb-0">

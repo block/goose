@@ -14,6 +14,7 @@ import {
 
 import {
   createUserMessage,
+  createElicitationResponseMessage,
   getCompactingMessage,
   getThinkingMessage,
   NotificationEvent,
@@ -33,6 +34,10 @@ interface UseChatStreamReturn {
   messages: Message[];
   chatState: ChatState;
   handleSubmit: (userMessage: string) => Promise<void>;
+  submitElicitationResponse: (
+    elicitationId: string,
+    userData: Record<string, unknown>
+  ) => Promise<void>;
   setRecipeUserParams: (values: Record<string, string>) => Promise<void>;
   stopStreaming: () => void;
   sessionLoadError?: string;
@@ -89,7 +94,12 @@ async function streamFromResponse(
             (content) => content.type === 'toolConfirmationRequest'
           );
 
-          if (hasToolConfirmation) {
+          const hasElicitation = msg.content.some(
+            (content) =>
+              content.type === 'actionRequired' && content.data.actionType === 'elicitation'
+          );
+
+          if (hasToolConfirmation || hasElicitation) {
             updateChatState(ChatState.WaitingForUserInput);
           } else if (getCompactingMessage(msg)) {
             updateChatState(ChatState.Compacting);
@@ -202,6 +212,14 @@ export function useChatStream({
     if (cached) {
       setSession(cached.session);
       updateMessages(cached.messages);
+      setTokenState({
+        inputTokens: cached.session?.input_tokens ?? 0,
+        outputTokens: cached.session?.output_tokens ?? 0,
+        totalTokens: cached.session?.total_tokens ?? 0,
+        accumulatedInputTokens: cached.session?.accumulated_input_tokens ?? 0,
+        accumulatedOutputTokens: cached.session?.accumulated_output_tokens ?? 0,
+        accumulatedTotalTokens: cached.session?.accumulated_total_tokens ?? 0,
+      });
       setChatState(ChatState.Idle);
       return;
     }
@@ -231,6 +249,14 @@ export function useChatStream({
         const session = response.data;
         setSession(session);
         updateMessages(session?.conversation || []);
+        setTokenState({
+          inputTokens: session?.input_tokens ?? 0,
+          outputTokens: session?.output_tokens ?? 0,
+          totalTokens: session?.total_tokens ?? 0,
+          accumulatedInputTokens: session?.accumulated_input_tokens ?? 0,
+          accumulatedOutputTokens: session?.accumulated_output_tokens ?? 0,
+          accumulatedTotalTokens: session?.accumulated_total_tokens ?? 0,
+        });
         setChatState(ChatState.Idle);
         onSessionLoaded?.();
       } catch (error) {
@@ -266,12 +292,13 @@ export function useChatStream({
         window.dispatchEvent(new CustomEvent('session-created'));
       }
 
-      // Build message list: add new message if provided, otherwise continue with existing
+      const newMessage = hasNewMessage
+        ? createUserMessage(userMessage)
+        : messagesRef.current[messagesRef.current.length - 1];
       const currentMessages = hasNewMessage
-        ? [...messagesRef.current, createUserMessage(userMessage)]
+        ? [...messagesRef.current, newMessage]
         : [...messagesRef.current];
 
-      // Update UI with new message before streaming
       if (hasNewMessage) {
         updateMessages(currentMessages);
       }
@@ -284,7 +311,7 @@ export function useChatStream({
         const { stream } = await reply({
           body: {
             session_id: sessionId,
-            messages: currentMessages,
+            user_message: newMessage,
           },
           throwOnError: true,
           signal: abortControllerRef.current.signal,
@@ -305,6 +332,50 @@ export function useChatStream({
           // Silently handle abort
         } else {
           // Unexpected error during fetch setup (streamFromResponse handles its own errors)
+          onFinish('Submit error: ' + errorMessage(error));
+        }
+      }
+    },
+    [sessionId, session, chatState, updateMessages, updateNotifications, onFinish]
+  );
+
+  const submitElicitationResponse = useCallback(
+    async (elicitationId: string, userData: Record<string, unknown>) => {
+      if (!session || chatState === ChatState.LoadingConversation) {
+        return;
+      }
+
+      const responseMessage = createElicitationResponseMessage(elicitationId, userData);
+      const currentMessages = [...messagesRef.current, responseMessage];
+
+      updateMessages(currentMessages);
+      setChatState(ChatState.Streaming);
+      setNotifications([]);
+      abortControllerRef.current = new AbortController();
+
+      try {
+        const { stream } = await reply({
+          body: {
+            session_id: sessionId,
+            user_message: responseMessage,
+          },
+          throwOnError: true,
+          signal: abortControllerRef.current.signal,
+        });
+
+        await streamFromResponse(
+          stream,
+          currentMessages,
+          updateMessages,
+          setTokenState,
+          setChatState,
+          updateNotifications,
+          onFinish
+        );
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          // Silently handle abort
+        } else {
           onFinish('Submit error: ' + errorMessage(error));
         }
       }
@@ -437,6 +508,7 @@ export function useChatStream({
     session: maybe_cached_session,
     chatState,
     handleSubmit,
+    submitElicitationResponse,
     stopStreaming,
     setRecipeUserParams,
     tokenState,

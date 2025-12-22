@@ -6,8 +6,6 @@ use goose_server::auth::check_token;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::info;
 
-use goose::providers::pricing::initialize_pricing_cache;
-
 // Graceful shutdown signal
 #[cfg(unix)]
 async fn shutdown_signal() {
@@ -31,13 +29,6 @@ pub async fn run() -> Result<()> {
     crate::logging::setup_logging(Some("goosed"))?;
 
     let settings = configuration::Settings::new()?;
-
-    if let Err(e) = initialize_pricing_cache().await {
-        tracing::warn!(
-            "Failed to initialize pricing cache: {}. Pricing data may not be available.",
-            e
-        );
-    }
 
     let secret_key =
         std::env::var("GOOSE_SERVER__SECRET_KEY").unwrap_or_else(|_| "test".to_string());

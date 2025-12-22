@@ -187,3 +187,13 @@ Core Maintainers and Maintainers are listed in the main goose repository's [MAIN
 * **Quality**: Thoughtful review while avoiding bureaucracy
 
 We believe this balance enables goose to remain innovative while building a strong, engaged community around the shared goal of creating the most hackable, user-controlled AI agent available.
+
+# General Project Policies
+
+Founded by Block, goose has been established as a Series of LF Projects, LLC. Policies applicable to goose and participants in the goose project, including guidelines on the usage of trademarks, are located at [https://lfprojects.org/policies/](https://lfprojects.org/policies/).  Governance changes approved as per the provisions of this governance document must also be approved by LF Projects, LLC.
+
+goose participants acknowledge that the copyright in all new contributions will be retained by the copyright holder as independent works of authorship and that no contributor or copyright holder will be required to assign copyrights to the project.
+Except as described below, all code and specification contributions to the project must be made using the Apache License, Version 2.0 available at (the “Project License”).
+
+All outbound code and specifications will be made available under the Project License. The Core Maintainers may approve the use of an alternative open license or licenses for inbound or outbound contributions on an exception basis.
+All documentation (excluding specifications) will be made available under the Creative Commons Attribution 4.0 International license, available at: https://creativecommons.org/licenses/by/4.0.

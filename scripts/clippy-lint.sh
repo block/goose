@@ -36,4 +36,7 @@ run_clippy
 echo ""
 check_all_baseline_rules
 echo ""
+echo "🔒 Checking for banned TLS crates..."
+"$SCRIPT_DIR/check-no-native-tls.sh"
+echo ""
 echo "✅ Done"

@@ -1,6 +1,7 @@
 mod builder;
 mod completion;
 mod editor;
+mod elicitation;
 mod export;
 mod input;
 mod output;
@@ -31,9 +32,8 @@ use anyhow::{Context, Result};
 use completion::GooseCompleter;
 use goose::agents::extension::{Envs, ExtensionConfig, PLATFORM_EXTENSIONS};
 use goose::agents::types::RetryConfig;
-use goose::agents::{Agent, SessionConfig, MANUAL_COMPACT_TRIGGERS};
+use goose::agents::{Agent, SessionConfig, COMPACT_TRIGGERS};
 use goose::config::{Config, GooseMode};
-use goose::providers::pricing::initialize_pricing_cache;
 use goose::session::SessionManager;
 use input::InputResult;
 use rmcp::model::PromptMessage;
@@ -717,7 +717,7 @@ impl CliSession {
                         };
 
                     if should_summarize {
-                        self.push_message(Message::user().with_text(MANUAL_COMPACT_TRIGGERS[0]));
+                        self.push_message(Message::user().with_text(COMPACT_TRIGGERS[0]));
                         output::show_thinking();
                         self.process_agent_response(true, CancellationToken::default())
                             .await?;
@@ -879,6 +879,18 @@ impl CliSession {
                                 }
                             });
 
+                            let elicitation_request = message.content.iter().find_map(|content| {
+                                if let MessageContent::ActionRequired(action) = content {
+                                    if let ActionRequiredData::Elicitation { id, message, requested_schema } = &action.data {
+                                        Some((id.clone(), message.clone(), requested_schema.clone()))
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    None
+                                }
+                            });
+
                             if let Some((id, _tool_name, _arguments, security_prompt)) = tool_call_confirmation {
                                 output::hide_thinking();
 
@@ -936,6 +948,48 @@ impl CliSession {
                                         principal_type: PrincipalType::Tool,
                                         permission,
                                     }).await;
+                                }
+                            }
+                            else if let Some((elicitation_id, elicitation_message, schema)) = elicitation_request {
+                                output::hide_thinking();
+                                let _ = progress_bars.hide();
+
+                                match elicitation::collect_elicitation_input(&elicitation_message, &schema) {
+                                    Ok(Some(user_data)) => {
+                                        let user_data_value = serde_json::to_value(user_data)
+                                            .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
+
+                                        let response_message = Message::user()
+                                            .with_content(MessageContent::action_required_elicitation_response(
+                                                elicitation_id.clone(),
+                                                user_data_value,
+                                            ))
+                                            .with_visibility(false, true);
+
+                                        self.messages.push(response_message.clone());
+                                        // Elicitation responses return an empty stream - the response
+                                        // unblocks the waiting tool call via ActionRequiredManager
+                                        let _ = self
+                                            .agent
+                                            .reply(
+                                                response_message,
+                                                session_config.clone(),
+                                                Some(cancel_token.clone()),
+                                            )
+                                            .await?;
+                                    }
+                                    Ok(None) => {
+                                        output::render_text("Information request cancelled.", Some(Color::Yellow), true);
+                                        cancel_token_clone.cancel();
+                                        drop(stream);
+                                        break;
+                                    }
+                                    Err(e) => {
+                                        output::render_error(&format!("Failed to collect input: {}", e));
+                                        cancel_token_clone.cancel();
+                                        drop(stream);
+                                        break;
+                                    }
                                 }
                             }
                             else {
@@ -1044,8 +1098,12 @@ impl CliSession {
                                                 };
                                                 (formatted, subagent_id.map(str::to_string), notification_type.map(str::to_string))
                                             } else if let Some(Value::String(output)) = o.get("output") {
-                                                // Fallback for other MCP notification types
-                                                (output.to_owned(), None, None)
+                                                // Extract type if present (e.g., "shell_output")
+                                                let notification_type = o.get("type")
+                                                    .and_then(|v| v.as_str())
+                                                    .map(str::to_string);
+
+                                                (output.to_owned(), None, notification_type)
                                             } else if let Some(result) = format_task_execution_notification(data) {
                                                 result
                                             } else {
@@ -1079,6 +1137,14 @@ impl CliSession {
                                             } else if !is_json_mode {
                                                 print!("{}", formatted_message);
                                                 std::io::stdout().flush().unwrap();
+                                            }
+                                        } else if notification_type == "shell_output" {
+                                            // Hide spinner, print shell output, spinner will resume
+                                            if interactive {
+                                                let _ = progress_bars.hide();
+                                            }
+                                            if !is_json_mode {
+                                                println!("{}", formatted_message);
                                             }
                                         }
                                     }
@@ -1363,19 +1429,6 @@ impl CliSession {
             .get_goose_provider()
             .unwrap_or_else(|_| "unknown".to_string());
 
-        // Do not get costing information if show cost is disabled
-        // This will prevent the API call to openrouter.ai
-        // This is useful if for cases where openrouter.ai may be blocked by corporate firewalls
-        if show_cost {
-            // Initialize pricing cache on startup
-            tracing::info!("Initializing pricing cache...");
-            if let Err(e) = initialize_pricing_cache().await {
-                tracing::warn!(
-                    "Failed to initialize pricing cache: {e}. Pricing data may not be available."
-                );
-            }
-        }
-
         match self.get_session().await {
             Ok(metadata) => {
                 let total_tokens = metadata.total_tokens.unwrap_or(0) as usize;
@@ -1390,8 +1443,7 @@ impl CliSession {
                         &model_config.model_name,
                         input_tokens,
                         output_tokens,
-                    )
-                    .await;
+                    );
                 }
             }
             Err(_) => {

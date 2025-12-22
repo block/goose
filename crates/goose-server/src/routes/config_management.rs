@@ -11,13 +11,15 @@ use goose::config::paths::Paths;
 use goose::config::ExtensionEntry;
 use goose::config::{Config, ConfigError};
 use goose::model::ModelConfig;
+use goose::providers::auto_detect::detect_provider_from_api_key;
 use goose::providers::base::{ProviderMetadata, ProviderType};
+use goose::providers::canonical::maybe_get_canonical_model;
 use goose::providers::create_with_default_model;
-use goose::providers::pricing::{
-    get_all_pricing, get_model_pricing, parse_model_id, refresh_pricing,
-};
 use goose::providers::providers as get_providers;
-use goose::{agents::ExtensionConfig, config::permission::PermissionLevel, slash_commands};
+use goose::{
+    agents::execute_commands, agents::ExtensionConfig, config::permission::PermissionLevel,
+    slash_commands,
+};
 use http::StatusCode;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -131,6 +133,16 @@ pub struct SlashCommandsResponse {
     pub commands: Vec<SlashCommand>,
 }
 
+#[derive(Deserialize, ToSchema)]
+pub struct DetectProviderRequest {
+    pub api_key: String,
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct DetectProviderResponse {
+    pub provider_name: String,
+    pub models: Vec<String>,
+}
 #[utoipa::path(
     post,
     path = "/config/upsert",
@@ -381,7 +393,9 @@ pub async fn get_provider_models(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    match provider.fetch_supported_models().await {
+    let models_result = provider.fetch_recommended_models().await;
+
+    match models_result {
         Ok(Some(models)) => Ok(Json(models)),
         Ok(None) => Ok(Json(Vec::new())),
         Err(provider_error) => {
@@ -424,11 +438,15 @@ pub async fn get_slash_commands() -> Result<Json<SlashCommandsResponse>, StatusC
             command_type: CommandType::Recipe,
         })
         .collect();
-    commands.push(SlashCommand {
-        command: "compact".to_string(),
-        help: "Compact the current conversation to save tokens".to_string(),
-        command_type: CommandType::Builtin,
-    });
+
+    for cmd_def in execute_commands::list_commands() {
+        commands.push(SlashCommand {
+            command: cmd_def.name.to_string(),
+            help: cmd_def.description.to_string(),
+            command_type: CommandType::Builtin,
+        });
+    }
+
     Ok(Json(SlashCommandsResponse { commands }))
 }
 
@@ -450,7 +468,8 @@ pub struct PricingResponse {
 
 #[derive(Deserialize, ToSchema)]
 pub struct PricingQuery {
-    pub configured_only: bool,
+    pub provider: String,
+    pub model: String,
 }
 
 #[utoipa::path(
@@ -464,84 +483,28 @@ pub struct PricingQuery {
 pub async fn get_pricing(
     Json(query): Json<PricingQuery>,
 ) -> Result<Json<PricingResponse>, StatusCode> {
-    let configured_only = query.configured_only;
-
-    // If refresh requested (configured_only = false), refresh the cache
-    if !configured_only {
-        if let Err(e) = refresh_pricing().await {
-            tracing::error!("Failed to refresh pricing data: {}", e);
-        }
-    }
+    let canonical_model =
+        maybe_get_canonical_model(&query.provider, &query.model).ok_or(StatusCode::NOT_FOUND)?;
 
     let mut pricing_data = Vec::new();
 
-    if !configured_only {
-        // Get ALL pricing data from the cache
-        let all_pricing = get_all_pricing().await;
-
-        for (provider, models) in all_pricing {
-            for (model, pricing) in models {
-                pricing_data.push(PricingData {
-                    provider: provider.clone(),
-                    model: model.clone(),
-                    input_token_cost: pricing.input_cost,
-                    output_token_cost: pricing.output_cost,
-                    currency: "$".to_string(),
-                    context_length: pricing.context_length,
-                });
-            }
-        }
-    } else {
-        for (metadata, provider_type) in get_providers().await {
-            // Skip unconfigured providers if filtering
-            if !check_provider_configured(&metadata, provider_type) {
-                continue;
-            }
-
-            for model_info in &metadata.known_models {
-                // Handle OpenRouter models specially - they store full provider/model names
-                let (lookup_provider, lookup_model) = if metadata.name == "openrouter" {
-                    // For OpenRouter, parse the model name to extract real provider/model
-                    if let Some((provider, model)) = parse_model_id(&model_info.name) {
-                        (provider, model)
-                    } else {
-                        // Fallback if parsing fails
-                        (metadata.name.clone(), model_info.name.clone())
-                    }
-                } else {
-                    // For other providers, use names as-is
-                    (metadata.name.clone(), model_info.name.clone())
-                };
-
-                // Only get pricing from OpenRouter cache
-                if let Some(pricing) = get_model_pricing(&lookup_provider, &lookup_model).await {
-                    pricing_data.push(PricingData {
-                        provider: metadata.name.clone(),
-                        model: model_info.name.clone(),
-                        input_token_cost: pricing.input_cost,
-                        output_token_cost: pricing.output_cost,
-                        currency: "$".to_string(),
-                        context_length: pricing.context_length,
-                    });
-                }
-                // No fallback to hardcoded prices
-            }
-        }
+    if let (Some(input_cost), Some(output_cost)) = (
+        canonical_model.pricing.prompt,
+        canonical_model.pricing.completion,
+    ) {
+        pricing_data.push(PricingData {
+            provider: query.provider.clone(),
+            model: query.model.clone(),
+            input_token_cost: input_cost,
+            output_token_cost: output_cost,
+            currency: "$".to_string(),
+            context_length: Some(canonical_model.context_length as u32),
+        });
     }
-
-    tracing::debug!(
-        "Returning pricing for {} models{}",
-        pricing_data.len(),
-        if configured_only {
-            " (configured providers only)"
-        } else {
-            " (all cached models)"
-        }
-    );
 
     Ok(Json(PricingResponse {
         pricing: pricing_data,
-        source: "openrouter".to_string(),
+        source: "canonical".to_string(),
     }))
 }
 
@@ -594,6 +557,29 @@ pub async fn upsert_permissions(
     }
 
     Ok(Json("Permissions updated successfully".to_string()))
+}
+
+#[utoipa::path(
+    post,
+    path = "/config/detect-provider",
+    request_body = DetectProviderRequest,
+    responses(
+        (status = 200, description = "Provider detected successfully", body = DetectProviderResponse),
+        (status = 404, description = "No matching provider found"),
+    )
+)]
+pub async fn detect_provider(
+    Json(detect_request): Json<DetectProviderRequest>,
+) -> Result<Json<DetectProviderResponse>, StatusCode> {
+    let api_key = detect_request.api_key.trim();
+
+    match detect_provider_from_api_key(api_key).await {
+        Some((provider_name, models)) => Ok(Json(DetectProviderResponse {
+            provider_name,
+            models,
+        })),
+        None => Err(StatusCode::NOT_FOUND),
+    }
 }
 
 #[utoipa::path(
@@ -686,7 +672,6 @@ pub async fn validate_config() -> Result<Json<String>, StatusCode> {
         }
     }
 }
-
 #[utoipa::path(
     post,
     path = "/config/custom-providers",
@@ -834,6 +819,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/extensions/{name}", delete(remove_extension))
         .route("/config/providers", get(providers))
         .route("/config/providers/{name}/models", get(get_provider_models))
+        .route("/config/detect-provider", post(detect_provider))
         .route("/config/slash_commands", get(get_slash_commands))
         .route("/config/pricing", post(get_pricing))
         .route("/config/init", post(init_config))

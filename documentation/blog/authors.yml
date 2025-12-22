@@ -161,3 +161,12 @@ jeuston:
   socials:
     linkedin: joeeuston
     github: joeeuston-dev
+
+alexhancock:
+  name: Alex Hancock
+  title: Software Engineer
+  image_url: https://avatars.githubusercontent.com/u/427516?v=4
+  page: true
+  socials:
+    linkedin: alexjhancock
+    github: alexhancock

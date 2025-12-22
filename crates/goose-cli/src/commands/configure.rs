@@ -576,7 +576,7 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
     let models_res = {
         let temp_model_config = ModelConfig::new(&provider_meta.default_model)?;
         let temp_provider = create(provider_name, temp_model_config).await?;
-        temp_provider.fetch_supported_models().await
+        temp_provider.fetch_recommended_models().await
     };
     spin.stop(style("Model fetch complete").green());
 
@@ -1891,7 +1891,7 @@ fn add_provider() -> anyhow::Result<()> {
         .mask('▪')
         .interact()?;
 
-    let models_input: String = cliclack::input("Available models (seperate with commas):")
+    let models_input: String = cliclack::input("Available models (separate with commas):")
         .placeholder("model-a, model-b, model-c")
         .validate(|input: &String| {
             if input.trim().is_empty() {
