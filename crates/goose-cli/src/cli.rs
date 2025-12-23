@@ -78,27 +78,20 @@ jsonl' -> '20250325_200615')."
 async fn get_or_create_session_id(
     identifier: Option<Identifier>,
     resume: bool,
-    fork: bool,
     no_session: bool,
 ) -> Result<Option<String>> {
     if no_session {
         return Ok(None);
     }
 
-    let resolved_id = if resume || fork {
+    let resolved_id = if resume {
         let Some(id) = identifier else {
             let sessions = SessionManager::list_sessions().await?;
-            let session_id = sessions.first().map(|s| s.id.clone()).ok_or_else(|| {
-                anyhow::anyhow!(
-                    "No session found to {}",
-                    if fork { "fork" } else { "resume" }
-                )
-            })?;
-            return Ok(Some(if fork {
-                copy_and_return_new_id(&session_id).await?
-            } else {
-                session_id
-            }));
+            let session_id = sessions
+                .first()
+                .map(|s| s.id.clone())
+                .ok_or_else(|| anyhow::anyhow!("No session found to resume"))?;
+            return Ok(Some(session_id));
         };
 
         if let Some(session_id) = id.session_id {
@@ -154,17 +147,7 @@ async fn get_or_create_session_id(
         return Ok(Some(session.id));
     };
 
-    if fork {
-        Ok(Some(copy_and_return_new_id(&resolved_id).await?))
-    } else {
-        Ok(Some(resolved_id))
-    }
-}
-
-async fn copy_and_return_new_id(session_id: &str) -> Result<String> {
-    let original = SessionManager::get_session(session_id, false).await?;
-    let copied = SessionManager::copy_session(session_id, original.name).await?;
-    Ok(copied.id)
+    Ok(Some(resolved_id))
 }
 
 async fn lookup_session_id(identifier: Identifier) -> Result<String> {
@@ -1127,8 +1110,16 @@ pub async fn cli() -> anyhow::Result<()> {
                         }
                     }
 
-                    let session_id =
-                        get_or_create_session_id(identifier, resume, fork, false).await?;
+                    let mut session_id =
+                        get_or_create_session_id(identifier, resume, false).await?;
+
+                    if fork {
+                        if let Some(id) = session_id {
+                            let original = SessionManager::get_session(&id, false).await?;
+                            let copied = SessionManager::copy_session(&id, original.name).await?;
+                            session_id = Some(copied.id);
+                        }
+                    }
 
                     // Run session command by default
                     let mut session: crate::CliSession = build_session(SessionBuilderConfig {
@@ -1158,7 +1149,6 @@ pub async fn cli() -> anyhow::Result<()> {
                     })
                     .await;
 
-                    // Render previous messages if resuming a session and history flag is set
                     if resume && history {
                         session.render_message_history();
                     }
@@ -1203,12 +1193,10 @@ pub async fn cli() -> anyhow::Result<()> {
             };
         }
         Some(Command::Project {}) => {
-            // Default behavior: offer to resume the last project
             handle_project_default()?;
             return Ok(());
         }
         Some(Command::Projects) => {
-            // Interactive project selection
             handle_projects_interactive()?;
             return Ok(());
         }
@@ -1341,8 +1329,7 @@ pub async fn cli() -> anyhow::Result<()> {
                 }
             }
 
-            let session_id =
-                get_or_create_session_id(identifier, resume, false, no_session).await?;
+            let session_id = get_or_create_session_id(identifier, resume, no_session).await?;
 
             let mut session = build_session(SessionBuilderConfig {
                 session_id,
@@ -1558,7 +1545,7 @@ pub async fn cli() -> anyhow::Result<()> {
                 Ok(())
             } else {
                 // Run session command by default
-                let session_id = get_or_create_session_id(None, false, false, false).await?;
+                let session_id = get_or_create_session_id(None, false, false).await?;
 
                 let mut session = build_session(SessionBuilderConfig {
                     session_id,

@@ -538,7 +538,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
     }) {
       const handleEditClick = useCallback(
         (e: React.MouseEvent) => {
-          e.stopPropagation(); // Prevent card click
+          e.stopPropagation();
           onEditClick(session);
         },
         [onEditClick, session]
@@ -546,7 +546,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
 
       const handleDuplicateClick = useCallback(
         (e: React.MouseEvent) => {
-          e.stopPropagation(); // Prevent card click
+          e.stopPropagation();
           onDuplicateClick(session);
         },
         [onDuplicateClick, session]
@@ -554,7 +554,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
 
       const handleDeleteClick = useCallback(
         (e: React.MouseEvent) => {
-          e.stopPropagation(); // Prevent card click
+          e.stopPropagation();
           onDeleteClick(session);
         },
         [onDeleteClick, session]

@@ -30,7 +30,7 @@ pub struct SessionBuilderConfig {
     pub session_id: Option<String>,
     /// Whether to resume an existing session
     pub resume: bool,
-    /// Whether to fork an existing session (creates new session with copied history)
+    /// Whether to fork an existing session (creates a copy of the original/existing session then resumes the copy)
     pub fork: bool,
     /// Whether to run without a session file
     pub no_session: bool,
