@@ -1,5 +1,5 @@
 ---
-sidebar_position: 52
+sidebar_position: 3
 title: Code Mode
 sidebar_label: Code Mode
 description: Understanding how Code Mode handles tool discovery and tool calling

@@ -26,6 +26,11 @@ import styles from '@site/src/components/Card/styles.module.css';
       link="/docs/guides/managing-tools/adjust-tool-output"
     />
     <Card 
+      title="Code Mode"
+      description="Programmatic approach that discovers and calls MCP tools on demand."
+      link="/docs/guides/managing-tools/code-mode"
+    />
+    <Card 
       title="Ollama Tool Shim"
       description="Enable tool calling for models that don't natively support it using an experimental local interpreter model setup."
       link="/docs/experimental/ollama"
