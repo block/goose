@@ -105,7 +105,7 @@ instructions: |
   
   ### Step 4: Detailed Plan Writing
   
-  After structure approval, write the plan to `thoughts/plans/YYYY-MM-DD-description.md`
+  After structure approval, write the plan to `thoughts/plans/YYYY-MM-DD-HHmm-description.md` (e.g., `2025-01-15-1430-add-auth.md`)
   
   Use this template structure:
   

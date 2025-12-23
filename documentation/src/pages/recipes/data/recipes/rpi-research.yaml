@@ -56,7 +56,7 @@ instructions: |
   ```
   
   ### STEP 6: Write Research Document
-  Create `thoughts/research/YYYY-MM-DD-topic.md` with this structure:
+  Create `thoughts/research/YYYY-MM-DD-HHmm-topic.md` (e.g., `2025-01-15-1430-auth-flow.md`) with this structure:
   
   ```markdown
   ---
