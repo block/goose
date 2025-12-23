@@ -576,7 +576,7 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
     let models_res = {
         let temp_model_config = ModelConfig::new(&provider_meta.default_model)?;
         let temp_provider = create(provider_name, temp_model_config).await?;
-        temp_provider.fetch_supported_models().await
+        temp_provider.fetch_recommended_models().await
     };
     spin.stop(style("Model fetch complete").green());
 
@@ -1155,11 +1155,6 @@ pub async fn configure_settings_dialog() -> anyhow::Result<()> {
     let setting_type = cliclack::select("What setting would you like to configure?")
         .item("goose_mode", "goose mode", "Configure goose mode")
         .item(
-            "goose_router_strategy",
-            "Router Tool Selection Strategy",
-            "Experimental: configure a strategy for auto selecting tools to use",
-        )
-        .item(
             "tool_permission",
             "Tool Permission",
             "Set permission for individual tool of enabled extensions",
@@ -1173,6 +1168,11 @@ pub async fn configure_settings_dialog() -> anyhow::Result<()> {
             "max_turns",
             "Max Turns",
             "Set maximum number of turns without user input",
+        )
+        .item(
+            "keyring",
+            "Secret Storage",
+            "Configure how secrets are stored (keyring vs file)",
         )
         .item(
             "experiment",
@@ -1192,9 +1192,6 @@ pub async fn configure_settings_dialog() -> anyhow::Result<()> {
         "goose_mode" => {
             configure_goose_mode_dialog()?;
         }
-        "goose_router_strategy" => {
-            configure_goose_router_strategy_dialog()?;
-        }
         "tool_permission" => {
             configure_tool_permissions_dialog().await.and(Ok(()))?;
             // No need to print config file path since it's already handled.
@@ -1205,6 +1202,9 @@ pub async fn configure_settings_dialog() -> anyhow::Result<()> {
         }
         "max_turns" => {
             configure_max_turns_dialog()?;
+        }
+        "keyring" => {
+            configure_keyring_dialog()?;
         }
         "experiment" => {
             toggle_experiments_dialog()?;
@@ -1225,7 +1225,6 @@ pub async fn configure_settings_dialog() -> anyhow::Result<()> {
 pub fn configure_goose_mode_dialog() -> anyhow::Result<()> {
     let config = Config::global();
 
-    // Check if GOOSE_MODE is set as an environment variable
     if std::env::var("GOOSE_MODE").is_ok() {
         let _ = cliclack::log::info("Notice: GOOSE_MODE environment variable is set and will override the configuration here.");
     }
@@ -1264,36 +1263,9 @@ pub fn configure_goose_mode_dialog() -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn configure_goose_router_strategy_dialog() -> anyhow::Result<()> {
-    let config = Config::global();
-
-    let enable_router = cliclack::select("Would you like to enable smart tool routing?")
-        .item(
-            true,
-            "Enable Router",
-            "Use LLM-based intelligence to select tools",
-        )
-        .item(
-            false,
-            "Disable Router",
-            "Use the default tool selection strategy",
-        )
-        .interact()?;
-
-    config.set_param("GOOSE_ENABLE_ROUTER", enable_router)?;
-    let msg = if enable_router {
-        "Router enabled - using LLM-based intelligence for tool selection"
-    } else {
-        "Router disabled - using default tool selection"
-    };
-    cliclack::outro(msg)?;
-
-    Ok(())
-}
-
 pub fn configure_tool_output_dialog() -> anyhow::Result<()> {
     let config = Config::global();
-    // Check if GOOSE_CLI_MIN_PRIORITY is set as an environment variable
+
     if std::env::var("GOOSE_CLI_MIN_PRIORITY").is_ok() {
         let _ = cliclack::log::info("Notice: GOOSE_CLI_MIN_PRIORITY environment variable is set and will override the configuration here.");
     }
@@ -1315,6 +1287,60 @@ pub fn configure_tool_output_dialog() -> anyhow::Result<()> {
         "all" => {
             config.set_param("GOOSE_CLI_MIN_PRIORITY", 0.0)?;
             cliclack::outro("Showing all tool output.")?;
+        }
+        _ => unreachable!(),
+    };
+
+    Ok(())
+}
+
+pub fn configure_keyring_dialog() -> anyhow::Result<()> {
+    let config = Config::global();
+
+    if std::env::var("GOOSE_DISABLE_KEYRING").is_ok() {
+        let _ = cliclack::log::info("Notice: GOOSE_DISABLE_KEYRING environment variable is set and will override the configuration here.");
+    }
+
+    let currently_disabled = config.get_param::<String>("GOOSE_DISABLE_KEYRING").is_ok();
+
+    let current_status = if currently_disabled {
+        "Disabled (using file-based storage)"
+    } else {
+        "Enabled (using system keyring)"
+    };
+
+    let _ = cliclack::log::info(format!("Current secret storage: {}", current_status));
+    let _ = cliclack::log::warning("Note: Disabling the keyring stores secrets in a plain text file (~/.config/goose/secrets.yaml)");
+
+    let storage_option = cliclack::select("How would you like to store secrets?")
+        .item(
+            "keyring",
+            "System Keyring (recommended)",
+            "Use secure system keyring for storing API keys and secrets",
+        )
+        .item(
+            "file",
+            "File-based Storage",
+            "Store secrets in a local file (useful when keyring access is restricted)",
+        )
+        .interact()?;
+
+    match storage_option {
+        "keyring" => {
+            // Set to empty string to enable keyring (absence or empty = enabled)
+            config.set_param("GOOSE_DISABLE_KEYRING", Value::String("".to_string()))?;
+            cliclack::outro("Secret storage set to system keyring (secure)")?;
+            let _ =
+                cliclack::log::info("You may need to restart goose for this change to take effect");
+        }
+        "file" => {
+            // Set the disable flag to use file storage
+            config.set_param("GOOSE_DISABLE_KEYRING", Value::String("true".to_string()))?;
+            cliclack::outro(
+                "Secret storage set to file (~/.config/goose/secrets.yaml). Keep this file secure!",
+            )?;
+            let _ =
+                cliclack::log::info("You may need to restart goose for this change to take effect");
         }
         _ => unreachable!(),
     };
@@ -1740,6 +1766,50 @@ pub async fn handle_tetrate_auth() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Prompts the user to collect custom HTTP headers for a provider.
+fn collect_custom_headers() -> anyhow::Result<Option<std::collections::HashMap<String, String>>> {
+    let use_custom_headers = cliclack::confirm("Does this provider require custom headers?")
+        .initial_value(false)
+        .interact()?;
+
+    if !use_custom_headers {
+        return Ok(None);
+    }
+
+    let mut custom_headers = std::collections::HashMap::new();
+
+    loop {
+        let header_name: String = cliclack::input("Header name:")
+            .placeholder("e.g., x-origin-client-id")
+            .required(false)
+            .interact()?;
+
+        if header_name.is_empty() {
+            break;
+        }
+
+        let header_value: String = cliclack::password(format!("Value for '{}':", header_name))
+            .mask('▪')
+            .interact()?;
+
+        custom_headers.insert(header_name, header_value);
+
+        let add_more = cliclack::confirm("Add another header?")
+            .initial_value(false)
+            .interact()?;
+
+        if !add_more {
+            break;
+        }
+    }
+
+    if custom_headers.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(custom_headers))
+    }
+}
+
 fn add_provider() -> anyhow::Result<()> {
     let provider_type = cliclack::select("What type of API is this?")
         .item(
@@ -1786,7 +1856,7 @@ fn add_provider() -> anyhow::Result<()> {
         .mask('▪')
         .interact()?;
 
-    let models_input: String = cliclack::input("Available models (seperate with commas):")
+    let models_input: String = cliclack::input("Available models (separate with commas):")
         .placeholder("model-a, model-b, model-c")
         .validate(|input: &String| {
             if input.trim().is_empty() {
@@ -1807,6 +1877,13 @@ fn add_provider() -> anyhow::Result<()> {
         .initial_value(true)
         .interact()?;
 
+    // Ask about custom headers for OpenAI compatible providers
+    let headers = if provider_type == "openai_compatible" {
+        collect_custom_headers()?
+    } else {
+        None
+    };
+
     create_custom_provider(
         provider_type,
         display_name.clone(),
@@ -1814,6 +1891,7 @@ fn add_provider() -> anyhow::Result<()> {
         api_key,
         models,
         Some(supports_streaming),
+        headers,
     )?;
 
     cliclack::outro(format!("Custom provider added: {}", display_name))?;

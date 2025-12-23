@@ -26,7 +26,7 @@ import { identifyConsecutiveToolCalls, isInChain } from '../utils/toolCallChaini
 
 interface ProgressiveMessageListProps {
   messages: Message[];
-  chat?: Pick<ChatType, 'sessionId' | 'messageHistoryIndex'>;
+  chat: Pick<ChatType, 'sessionId'>;
   toolCallNotifications?: Map<string, NotificationEvent[]>; // Make optional
   append?: (value: string) => void; // Make optional
   isUserMessage: (message: Message) => boolean;
@@ -38,6 +38,10 @@ interface ProgressiveMessageListProps {
   isStreamingMessage?: boolean; // Whether messages are currently being streamed
   onMessageUpdate?: (messageId: string, newContent: string) => void;
   onRenderingComplete?: () => void; // Callback when all messages are rendered
+  submitElicitationResponse?: (
+    elicitationId: string,
+    userData: Record<string, unknown>
+  ) => Promise<void>;
 }
 
 export default function ProgressiveMessageList({
@@ -53,6 +57,7 @@ export default function ProgressiveMessageList({
   isStreamingMessage = false, // Whether messages are currently being streamed
   onMessageUpdate,
   onRenderingComplete,
+  submitElicitationResponse,
 }: ProgressiveMessageListProps) {
   const [renderedCount, setRenderedCount] = useState(() => {
     // Initialize with either all messages (if small) or first batch (if large)
@@ -187,7 +192,7 @@ export default function ProgressiveMessageList({
         if (hasInlineSystemNotification(message)) {
           return (
             <div
-              key={message.id && `${message.id}-${message.content.length}`}
+              key={message.id ?? `msg-${index}-${message.created}`}
               className={`relative ${index === 0 ? 'mt-0' : 'mt-4'} assistant`}
               data-testid="message-container"
             >
@@ -201,7 +206,7 @@ export default function ProgressiveMessageList({
 
         return (
           <div
-            key={message.id && `${message.id}-${message.content.length}`}
+            key={message.id ?? `msg-${index}-${message.created}`}
             className={`relative ${index === 0 ? 'mt-0' : 'mt-4'} ${isUser ? 'user' : 'assistant'} ${messageIsInChain ? 'in-chain' : ''}`}
             data-testid="message-container"
           >
@@ -212,7 +217,6 @@ export default function ProgressiveMessageList({
             ) : (
               <GooseMessage
                 sessionId={chat.sessionId}
-                messageHistoryIndex={chat.messageHistoryIndex}
                 message={message}
                 messages={messages}
                 append={append}
@@ -223,6 +227,7 @@ export default function ProgressiveMessageList({
                   index === messagesToRender.length - 1 &&
                   message.role === 'assistant'
                 }
+                submitElicitationResponse={submitElicitationResponse}
               />
             )}
           </div>
@@ -240,6 +245,7 @@ export default function ProgressiveMessageList({
     isStreamingMessage,
     onMessageUpdate,
     toolCallChains,
+    submitElicitationResponse,
   ]);
 
   return (

@@ -215,9 +215,9 @@ impl LeadWorkerProvider {
                     if let Err(tool_error) = &tool_response.tool_result {
                         failure_indicators += 1;
                         tracing::debug!("Tool execution failure detected: {:?}", tool_error);
-                    } else if let Ok(contents) = &tool_response.tool_result {
+                    } else if let Ok(result) = &tool_response.tool_result {
                         // Check tool output for error indicators
-                        if self.contains_error_indicators(contents) {
+                        if self.contains_error_indicators(&result.content) {
                             failure_indicators += 1;
                             tracing::debug!("Tool output contains error indicators");
                         }
@@ -302,6 +302,15 @@ impl LeadWorkerProviderTrait for LeadWorkerProvider {
             // Fallback to lead model if no current model is set
             self.lead_provider.get_model_config().model_name
         })
+    }
+
+    /// Get (lead_turns, failure_threshold, fallback_turns)
+    fn get_settings(&self) -> (usize, usize, usize) {
+        (
+            self.lead_turns,
+            self.max_failures_before_fallback,
+            self.fallback_turns,
+        )
     }
 }
 

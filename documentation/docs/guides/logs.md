@@ -14,7 +14,8 @@ goose uses a unified storage system for conversations and interactions. All conv
 | **System Logs**     | `~/.local/state/goose/logs/`           | `%APPDATA%\Block\goose\data\logs\`          |
 
 :::info Privacy
-goose is a local application and all log files are stored locally. These logs are never sent to external servers or third parties, ensuring that all data remains private and under your control.
+goose is a local application and all goose log files are stored locally. These logs are never sent to external servers or third parties, ensuring that all goose data remains private and under your control.
+Note that the LLMs and tools goose uses on your behalf may have their own logs and privacy considerations.
 :::
 
 ## Command History

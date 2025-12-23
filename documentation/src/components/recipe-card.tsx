@@ -103,7 +103,7 @@ export function RecipeCard({ recipe }: { recipe: Recipe }) {
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
             >
-              Launch in Goose Desktop →
+              Launch in goose Desktop →
             </a>
 
             <div className="relative group">
@@ -177,7 +177,7 @@ export function RecipeCard({ recipe }: { recipe: Recipe }) {
                 onClick={handleSubmitParams}
                 className="bg-purple-600 text-white px-4 py-2 rounded text-sm hover:bg-purple-700"
               >
-                Copy Goose CLI Command
+                Copy goose CLI Command
               </button>
             </div>
           </div>

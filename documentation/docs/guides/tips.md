@@ -30,7 +30,7 @@ Press `Cmd+Option+Shift+G` (macOS) or `Ctrl+Alt+Shift+G` (Windows/Linux) and sen
 Turning on too many extensions can degrade performance. Enable only essential [extensions and tools](/docs/guides/managing-tools/tool-permissions) to improve tool selection accuracy, save context window space, and stay within provider tool limits.
 
 ### Teach goose your preferences
-Help goose remember how you like to work by using [`.goosehints` or other context files](/docs/guides/using-goosehints/) for permanent project preferences and the [Memory extension](/docs/mcp/memory-mcp) for things you want goose to dynamically recall later. Both can help save valuable context window space while keeping your preferences available.
+Help goose remember how you like to work by using [`.goosehints` or other context files](/docs/guides/context-engineering/using-goosehints) or [skills](/docs/guides/context-engineering/using-skills) for permanent project preferences and the [Memory extension](/docs/mcp/memory-mcp) for things you want goose to dynamically recall later. Both can help save valuable context window space while keeping your preferences available.
 
 ### Protect sensitive files
 goose is often eager to make changes. You can stop it from changing specific files by creating a [.gooseignore](/docs/guides/using-gooseignore) file. In this file, you can list all the file paths you want it to avoid.

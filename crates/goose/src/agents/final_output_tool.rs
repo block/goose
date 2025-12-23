@@ -123,9 +123,14 @@ impl FinalOutputTool {
                 match result {
                     Ok(parsed_value) => {
                         self.final_output = Some(Self::parsed_final_output_string(parsed_value));
-                        ToolCallResult::from(Ok(vec![Content::text(
-                            "Final output successfully collected.".to_string(),
-                        )]))
+                        ToolCallResult::from(Ok(rmcp::model::CallToolResult {
+                            content: vec![Content::text(
+                                "Final output successfully collected.".to_string(),
+                            )],
+                            structured_content: None,
+                            is_error: Some(false),
+                            meta: None,
+                        }))
                     }
                     Err(error) => ToolCallResult::from(Err(ErrorData {
                         code: ErrorCode::INVALID_PARAMS,

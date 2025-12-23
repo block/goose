@@ -14,7 +14,7 @@ goose CLI follows consistent patterns for flag naming to make commands intuitive
 - **`--session-id`**: Used for session identifiers (e.g., `20251108_1`)
 - **`--schedule-id`**: Used for schedule job identifiers (e.g., `daily-report`)
 - **`-n, --name`**: Used for human-readable names
-- **`-p, --path`**: Used for file paths (legacy support)
+- **`--path`**: Used for file paths (legacy support)
 - **`-o, --output`**: Used for output file paths
 - **`-r, --resume` or `-r, --regex`**: Context-dependent (resume for sessions, regex for filters)
 - **`-v, --verbose`**: Used for verbose output
@@ -101,7 +101,7 @@ Start or resume interactive chat sessions.
 **Basic Options:**
 - **`--session-id <session_id>`**: Specify a session by its ID (e.g., '20251108_1')
 - **`-n, --name <name>`**: Give the session a name
-- **`-p, --path <path>`**: Legacy parameter for specifying session by file path
+- **`--path <path>`**: Legacy parameter for specifying session by file path
 - **`-r, --resume`**: Resume a previous session
 - **`--history`**: Show previous messages when resuming a session
 - **`--debug`**: Enable debug mode to output complete tool responses, detailed parameter values, and full file paths
@@ -122,8 +122,8 @@ goose session -n my-project
 # Resume a previous session
 goose session --resume -n my-project
 goose session --resume --session-id 20251108_2
-goose session --resume -p ./session.json    # exported session
-goose session --resume -p ./session.jsonl   # legacy session storage
+goose session --resume --path ./session.json    # exported session
+goose session --resume --path ./session.jsonl   # legacy session storage
 
 # Start with extensions
 goose session --with-extension "npx -y @modelcontextprotocol/server-memory"
@@ -236,7 +236,7 @@ goose session export --session-id 20251108_4 --format json
 goose session export -n my-session --format yaml
 
 # Export session by path (legacy)
-goose session export -p ./my-session.jsonl -o exported.md
+goose session export --path ./my-session.jsonl -o exported.md
 ```
 
 ---
@@ -298,7 +298,7 @@ Execute commands from an instruction file or stdin. Check out the [full guide](/
 - **`-s, --interactive`**: Continue in interactive mode after processing initial input
 - **`-n, --name <name>`**: Name for this run session (e.g. `daily-tasks`)
 - **`-r, --resume`**: Resume from a previous run
-- **`-p, --path <PATH>`**: Path for this run session (e.g. `./playground.jsonl`). Used for legacy file-based session storage.
+- **`--path <PATH>`**: Path for this run session (e.g. `./playground.jsonl`). Used for legacy file-based session storage.
 - **`--no-session`**: Run goose commands without creating or storing a session file
 
 **Extension Options:**
@@ -365,16 +365,21 @@ Used to validate recipe files, manage recipe sharing, list available recipes, an
 
 **Commands:**
 - **`deeplink <RECIPE_NAME>`**: Generate a shareable link for a recipe file
+  - **`-p, --param <KEY=VALUE>`**: Pre-fill recipe parameter (can be specified multiple times)
 - **`list [OPTIONS]`**: List all available recipes from local directories and configured GitHub repositories
   - **`--format <FORMAT>`**: Output format (`text` or `json`). Default is `text`
   - **`-v, --verbose`**: Show verbose information including recipe titles and full file paths
 - **`open <RECIPE_NAME>`**: Open a recipe file directly in goose desktop
+  - **`-p, --param <KEY=VALUE>`**: Pre-fill recipe parameter (can be specified multiple times)
 - **`validate <RECIPE_NAME>`**: Validate a recipe file
 
 **Usage:**
 ```bash
 # Generate a shareable link
 goose recipe deeplink my-recipe.yaml
+
+# Generate a deeplink and provide parameter values
+goose recipe deeplink my-recipe.yaml -p environment=production -p region=us-west-2
 
 # List all available recipes
 goose recipe list
@@ -390,6 +395,9 @@ goose recipe open my-recipe.yaml
 
 # Open a recipe by name
 goose recipe open my-recipe
+
+# Open a recipe and provide parameter value
+goose recipe open my-recipe --param name=myproject
 
 # Validate a recipe file
 goose recipe validate my-recipe.yaml
@@ -538,6 +546,21 @@ While the web interface provides most core features, be aware of these limitatio
 
 ---
 
+### Terminal Integration
+
+#### @goose / @g
+Ask goose questions directly from your shell prompt, with command history included in the context. These aliases are created when you set up [terminal integration](/docs/guides/terminal-integration.md).
+
+**Examples:**
+```bash
+# Ask questions with command history context
+@goose create a python script to process these files
+@goose create a PR description summarizing these changes
+@g how do I fix these permission denied errors?
+```
+
+---
+
 ## Interactive Session Features
 
 ### Slash Commands
@@ -556,7 +579,7 @@ Once you're in an interactive session (via `goose session` or `goose run --inter
 - **`/prompt <n> [--info] [key=value...]`** - Get prompt info or execute a prompt
 - **`/prompts [--extension <name>]`** - List all available prompts, optionally filtered by extension
 - **`/recipe [filepath]`** - Generate a recipe from the current conversation and save it to the specified filepath (must end with .yaml). If no filepath is provided, it will be saved to ./recipe.yaml
-- **`/summarize`** - Summarize the current conversation to reduce context length while preserving key information
+- **`/compact`** - Compact and summarize the current conversation to reduce context length while preserving key information
 - **`/t`** - Toggle between `light`, `dark`, and `ansi` themes. [More info](#themes).
 - **`/t <name>`** - Set theme directly (light, dark, ansi)
 
@@ -577,6 +600,7 @@ Once you're in an interactive session (via `goose session` or `goose run --inter
 # Clear the current conversation history
 /clear
 ```
+You can also create [custom slash commands for running recipes](/docs/guides/recipes/session-recipes.md#custom-recipe-commands) in goose Desktop or the CLI. 
 
 ---
 

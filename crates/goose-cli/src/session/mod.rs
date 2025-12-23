@@ -1,5 +1,6 @@
 mod builder;
 mod completion;
+mod elicitation;
 mod export;
 mod input;
 mod output;
@@ -30,9 +31,8 @@ use anyhow::{Context, Result};
 use completion::GooseCompleter;
 use goose::agents::extension::{Envs, ExtensionConfig, PLATFORM_EXTENSIONS};
 use goose::agents::types::RetryConfig;
-use goose::agents::{Agent, SessionConfig, MANUAL_COMPACT_TRIGGERS};
+use goose::agents::{Agent, SessionConfig, COMPACT_TRIGGERS};
 use goose::config::{Config, GooseMode};
-use goose::providers::pricing::initialize_pricing_cache;
 use goose::session::SessionManager;
 use input::InputResult;
 use rmcp::model::PromptMessage;
@@ -40,7 +40,7 @@ use rmcp::model::ServerNotification;
 use rmcp::model::{ErrorCode, ErrorData};
 
 use goose::config::paths::Paths;
-use goose::conversation::message::{Message, MessageContent};
+use goose::conversation::message::{ActionRequiredData, Message, MessageContent};
 use rand::{distributions::Alphanumeric, Rng};
 use rustyline::EditMode;
 use serde::{Deserialize, Serialize};
@@ -63,6 +63,42 @@ struct JsonOutput {
 struct JsonMetadata {
     total_tokens: Option<i32>,
     status: String,
+}
+
+#[derive(Serialize, Debug)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum StreamEvent {
+    Message {
+        message: Message,
+    },
+    Notification {
+        extension_id: String,
+        #[serde(flatten)]
+        data: NotificationData,
+    },
+    ModelChange {
+        model: String,
+        mode: String,
+    },
+    Error {
+        error: String,
+    },
+    Complete {
+        total_tokens: Option<i32>,
+    },
+}
+
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "snake_case")]
+enum NotificationData {
+    Log {
+        message: String,
+    },
+    Progress {
+        progress: f64,
+        total: Option<f64>,
+        message: Option<String>,
+    },
 }
 
 pub enum RunMode {
@@ -703,7 +739,7 @@ impl CliSession {
                         };
 
                     if should_summarize {
-                        self.push_message(Message::user().with_text(MANUAL_COMPACT_TRIGGERS[0]));
+                        self.push_message(Message::user().with_text(COMPACT_TRIGGERS[0]));
                         output::show_thinking();
                         self.process_agent_response(true, CancellationToken::default())
                             .await?;
@@ -812,8 +848,15 @@ impl CliSession {
         interactive: bool,
         cancel_token: CancellationToken,
     ) -> Result<()> {
-        // Cache the output format check to avoid repeated string comparisons in the hot loop
         let is_json_mode = self.output_format == "json";
+        let is_stream_json_mode = self.output_format == "stream-json";
+
+        // Helper to emit a streaming JSON event
+        let emit_stream_event = |event: &StreamEvent| {
+            if let Ok(json) = serde_json::to_string(event) {
+                println!("{}", json);
+            }
+        };
 
         let session_config = SessionConfig {
             id: self.session_id.clone(),
@@ -852,12 +895,36 @@ impl CliSession {
                 result = stream.next() => {
                     match result {
                         Some(Ok(AgentEvent::Message(message))) => {
-                            // If it's a confirmation request, get approval but otherwise do not render/persist
-                            if let Some(MessageContent::ToolConfirmationRequest(confirmation)) = message.content.first() {
+                            let tool_call_confirmation = message.content.iter().find_map(|content| {
+                                if let MessageContent::ActionRequired(action) = content {
+                                    #[allow(irrefutable_let_patterns)] // this is a one variant enum right now but it will have more
+                                    if let ActionRequiredData::ToolConfirmation { id, tool_name, arguments, prompt } = &action.data {
+                                        Some((id.clone(), tool_name.clone(), arguments.clone(), prompt.clone()))
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    None
+                                }
+                            });
+
+                            let elicitation_request = message.content.iter().find_map(|content| {
+                                if let MessageContent::ActionRequired(action) = content {
+                                    if let ActionRequiredData::Elicitation { id, message, requested_schema } = &action.data {
+                                        Some((id.clone(), message.clone(), requested_schema.clone()))
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    None
+                                }
+                            });
+
+                            if let Some((id, _tool_name, _arguments, security_prompt)) = tool_call_confirmation {
                                 output::hide_thinking();
 
                                 // Format the confirmation prompt - use security message if present, otherwise use generic message
-                                let prompt = if let Some(security_message) = &confirmation.prompt {
+                                let prompt = if let Some(security_message) = &security_prompt {
                                     println!("\n{}", security_message);
                                     "Do you allow this tool call?".to_string()
                                 } else {
@@ -865,7 +932,7 @@ impl CliSession {
                                 };
 
                                 // Get confirmation from user
-                                let permission_result = if confirmation.prompt.is_none() {
+                                let permission_result = if security_prompt.is_none() {
                                     // No security message - show all options including "Always Allow"
                                     cliclack::select(prompt)
                                         .item(Permission::AllowOnce, "Allow", "Allow the tool call once")
@@ -883,13 +950,12 @@ impl CliSession {
                                 };
 
                                 let permission = match permission_result {
-                                    Ok(p) => p, // If Ok, use the selected permission
+                                    Ok(p) => p,
                                     Err(e) => {
-                                        // Check if the error is an interruption (Ctrl+C/Cmd+C, Escape)
                                         if e.kind() == std::io::ErrorKind::Interrupted {
-                                            Permission::Cancel // If interrupted, set permission to Cancel
+                                            Permission::Cancel
                                         } else {
-                                            return Err(e.into()); // Otherwise, convert and propagate the original error
+                                            return Err(e.into());
                                         }
                                     }
                                 };
@@ -899,7 +965,7 @@ impl CliSession {
 
                                     let mut response_message = Message::user();
                                     response_message.content.push(MessageContent::tool_response(
-                                        confirmation.id.clone(),
+                                        id.clone(),
                                         Err(ErrorData { code: ErrorCode::INVALID_REQUEST, message: std::borrow::Cow::from("Tool call cancelled by user".to_string()), data: None })
                                     ));
                                     self.messages.push(response_message);
@@ -907,10 +973,52 @@ impl CliSession {
                                     drop(stream);
                                     break;
                                 } else {
-                                    self.agent.handle_confirmation(confirmation.id.clone(), PermissionConfirmation {
+                                    self.agent.handle_confirmation(id.clone(), PermissionConfirmation {
                                         principal_type: PrincipalType::Tool,
                                         permission,
-                                    },).await;
+                                    }).await;
+                                }
+                            }
+                            else if let Some((elicitation_id, elicitation_message, schema)) = elicitation_request {
+                                output::hide_thinking();
+                                let _ = progress_bars.hide();
+
+                                match elicitation::collect_elicitation_input(&elicitation_message, &schema) {
+                                    Ok(Some(user_data)) => {
+                                        let user_data_value = serde_json::to_value(user_data)
+                                            .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
+
+                                        let response_message = Message::user()
+                                            .with_content(MessageContent::action_required_elicitation_response(
+                                                elicitation_id.clone(),
+                                                user_data_value,
+                                            ))
+                                            .with_visibility(false, true);
+
+                                        self.messages.push(response_message.clone());
+                                        // Elicitation responses return an empty stream - the response
+                                        // unblocks the waiting tool call via ActionRequiredManager
+                                        let _ = self
+                                            .agent
+                                            .reply(
+                                                response_message,
+                                                session_config.clone(),
+                                                Some(cancel_token.clone()),
+                                            )
+                                            .await?;
+                                    }
+                                    Ok(None) => {
+                                        output::render_text("Information request cancelled.", Some(Color::Yellow), true);
+                                        cancel_token_clone.cancel();
+                                        drop(stream);
+                                        break;
+                                    }
+                                    Err(e) => {
+                                        output::render_error(&format!("Failed to collect input: {}", e));
+                                        cancel_token_clone.cancel();
+                                        drop(stream);
+                                        break;
+                                    }
                                 }
                             }
                             else {
@@ -962,13 +1070,15 @@ impl CliSession {
                                 if interactive {output::hide_thinking()};
                                 let _ = progress_bars.hide();
 
-                                // Don't render in JSON mode
-                                if !is_json_mode {
+                                // Handle different output formats
+                                if is_stream_json_mode {
+                                    emit_stream_event(&StreamEvent::Message { message: message.clone() });
+                                } else if !is_json_mode {
                                     output::render_message(&message, self.debug);
                                 }
                             }
                         }
-                        Some(Ok(AgentEvent::McpNotification((_id, message)))) => {
+                        Some(Ok(AgentEvent::McpNotification((extension_id, message)))) => {
                             match &message {
                                 ServerNotification::LoggingMessageNotification(notification) => {
                                     let data = &notification.params.data;
@@ -1019,8 +1129,12 @@ impl CliSession {
                                                 };
                                                 (formatted, subagent_id.map(str::to_string), notification_type.map(str::to_string))
                                             } else if let Some(Value::String(output)) = o.get("output") {
-                                                // Fallback for other MCP notification types
-                                                (output.to_owned(), None, None)
+                                                // Extract type if present (e.g., "shell_output")
+                                                let notification_type = o.get("type")
+                                                    .and_then(|v| v.as_str())
+                                                    .map(str::to_string);
+
+                                                (output.to_owned(), None, notification_type)
                                             } else if let Some(result) = format_task_execution_notification(data) {
                                                 result
                                             } else {
@@ -1032,9 +1146,14 @@ impl CliSession {
                                         },
                                     };
 
+                                    if is_stream_json_mode {
+                                        emit_stream_event(&StreamEvent::Notification {
+                                            extension_id: extension_id.clone(),
+                                            data: NotificationData::Log { message: formatted_message.clone() },
+                                        });
+                                    }
                                     // Handle subagent notifications - show immediately
-                                    if let Some(_id) = subagent_id {
-                                        // TODO: proper display for subagent notifications
+                                    else if let Some(_id) = subagent_id {
                                         if interactive {
                                             let _ = progress_bars.hide();
                                             if !is_json_mode {
@@ -1055,6 +1174,13 @@ impl CliSession {
                                                 print!("{}", formatted_message);
                                                 std::io::stdout().flush().unwrap();
                                             }
+                                        } else if notification_type == "shell_output" {
+                                            if interactive {
+                                                let _ = progress_bars.hide();
+                                            }
+                                            if !is_json_mode {
+                                                println!("{}", formatted_message);
+                                            }
                                         }
                                     }
                                     else if output::is_showing_thinking() {
@@ -1068,12 +1194,24 @@ impl CliSession {
                                     let text = notification.params.message.as_deref();
                                     let total = notification.params.total;
                                     let token = &notification.params.progress_token;
-                                    progress_bars.update(
-                                        &token.0.to_string(),
-                                        progress,
-                                        total,
-                                        text,
-                                    );
+
+                                    if is_stream_json_mode {
+                                        emit_stream_event(&StreamEvent::Notification {
+                                            extension_id: extension_id.clone(),
+                                            data: NotificationData::Progress {
+                                                progress,
+                                                total,
+                                                message: text.map(String::from),
+                                            },
+                                        });
+                                    } else {
+                                        progress_bars.update(
+                                            &token.0.to_string(),
+                                            progress,
+                                            total,
+                                            text,
+                                        );
+                                    }
                                 },
                                 _ => (),
                             }
@@ -1082,32 +1220,44 @@ impl CliSession {
                             self.messages = updated_conversation;
                         }
                         Some(Ok(AgentEvent::ModelChange { model, mode })) => {
-                            // Log model change if in debug mode
-                            if self.debug {
+                            if is_stream_json_mode {
+                                emit_stream_event(&StreamEvent::ModelChange {
+                                    model: model.clone(),
+                                    mode: mode.clone(),
+                                });
+                            } else if self.debug {
                                 eprintln!("Model changed to {} in {} mode", model, mode);
                             }
                         }
 
                         Some(Err(e)) => {
-                            // TODO(Douwe): Delete this
-                            // Check if it's a ProviderError::ContextLengthExceeded
+                            let error_msg = e.to_string();
+
+                            if is_stream_json_mode {
+                                emit_stream_event(&StreamEvent::Error { error: error_msg.clone() });
+                            }
+
                             if e.downcast_ref::<goose::providers::errors::ProviderError>()
                                 .map(|provider_error| matches!(provider_error, goose::providers::errors::ProviderError::ContextLengthExceeded(_)))
                                 .unwrap_or(false) {
 
-                                output::render_text(
-                                    "Compaction requested. Should have happened in the agent!",
-                                    Some(Color::Yellow),
-                                    true
-                                );
+                                if !is_stream_json_mode {
+                                    output::render_text(
+                                        "Compaction requested. Should have happened in the agent!",
+                                        Some(Color::Yellow),
+                                        true
+                                    );
+                                }
                                 warn!("Compaction requested. Should have happened in the agent!");
                             }
-                            eprintln!("Error: {}", e);
+                            if !is_stream_json_mode {
+                                eprintln!("Error: {}", error_msg);
+                            }
                             cancel_token_clone.cancel();
                             drop(stream);
                             if let Err(e) = self.handle_interrupted_messages(false).await {
                                 eprintln!("Error handling interruption: {}", e);
-                            } else {
+                            } else if !is_stream_json_mode {
                                 output::render_error(
                                     "The error above was an exception we were not able to handle.\n\
                                     These errors are often related to connection or authentication\n\
@@ -1130,7 +1280,7 @@ impl CliSession {
             }
         }
 
-        // Output JSON if requested
+        // Output based on format
         if is_json_mode {
             let metadata = match SessionManager::get_session(&self.session_id, false).await {
                 Ok(session) => JsonMetadata {
@@ -1149,6 +1299,12 @@ impl CliSession {
             };
 
             println!("{}", serde_json::to_string_pretty(&json_output)?);
+        } else if is_stream_json_mode {
+            let total_tokens = SessionManager::get_session(&self.session_id, false)
+                .await
+                .ok()
+                .and_then(|s| s.total_tokens);
+            emit_stream_event(&StreamEvent::Complete { total_tokens });
         } else {
             println!();
         }
@@ -1338,19 +1494,6 @@ impl CliSession {
             .get_goose_provider()
             .unwrap_or_else(|_| "unknown".to_string());
 
-        // Do not get costing information if show cost is disabled
-        // This will prevent the API call to openrouter.ai
-        // This is useful if for cases where openrouter.ai may be blocked by corporate firewalls
-        if show_cost {
-            // Initialize pricing cache on startup
-            tracing::info!("Initializing pricing cache...");
-            if let Err(e) = initialize_pricing_cache().await {
-                tracing::warn!(
-                    "Failed to initialize pricing cache: {e}. Pricing data may not be available."
-                );
-            }
-        }
-
         match self.get_session().await {
             Ok(metadata) => {
                 let total_tokens = metadata.total_tokens.unwrap_or(0) as usize;
@@ -1365,8 +1508,7 @@ impl CliSession {
                         &model_config.model_name,
                         input_tokens,
                         output_tokens,
-                    )
-                    .await;
+                    );
                 }
             }
             Err(_) => {

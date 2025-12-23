@@ -23,6 +23,7 @@ import cronstrue from 'cronstrue';
 import { formatToLocalDateWithTimezone } from '../../utils/date';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
 import { ViewOptions } from '../../utils/navigationUtils';
+import { trackScheduleCreated, trackScheduleDeleted, getErrorType } from '../../utils/analytics';
 
 interface SchedulesViewProps {
   onClose?: () => void;
@@ -259,14 +260,23 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
           msg: `Successfully updated schedule "${editingSchedule.id}"`,
         });
       } else {
-        await createSchedule(payload as NewSchedulePayload);
+        const newPayload = payload as NewSchedulePayload;
+        await createSchedule(newPayload);
+        const sourceType = pendingDeepLink ? 'deeplink' : 'file';
+        trackScheduleCreated(sourceType, true);
       }
       await fetchSchedules();
       setIsModalOpen(false);
       setEditingSchedule(null);
     } catch (error) {
       console.error('Failed to save schedule:', error);
-      setSubmitApiError(error instanceof Error ? error.message : 'Unknown error saving schedule.');
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error saving schedule.';
+      setSubmitApiError(errorMsg);
+
+      if (!editingSchedule) {
+        const sourceType = pendingDeepLink ? 'deeplink' : 'file';
+        trackScheduleCreated(sourceType, false, getErrorType(error));
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -281,10 +291,13 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
 
     try {
       await deleteSchedule(id);
+      trackScheduleDeleted(true);
       await fetchSchedules();
     } catch (error) {
       console.error(`Failed to delete schedule "${id}":`, error);
-      setApiError(error instanceof Error ? error.message : `Unknown error deleting "${id}".`);
+      const errorMsg = error instanceof Error ? error.message : `Unknown error deleting "${id}".`;
+      setApiError(errorMsg);
+      trackScheduleDeleted(false, getErrorType(error));
     } finally {
       setActionsInProgress((prev) => {
         const newSet = new Set(prev);
@@ -417,6 +430,10 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
     }
   };
 
+  const handleNavigateToDetail = (id: string) => {
+    setViewingScheduleId(id);
+  };
+
   if (viewingScheduleId) {
     return (
       <ScheduleDetailView
@@ -492,7 +509,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
                       <ScheduleCard
                         key={job.id}
                         job={job}
-                        onNavigateToDetail={setViewingScheduleId}
+                        onNavigateToDetail={handleNavigateToDetail}
                         onEdit={(schedule) => {
                           setEditingSchedule(schedule);
                           setSubmitApiError(null);

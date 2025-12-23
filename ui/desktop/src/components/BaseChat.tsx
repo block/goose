@@ -96,6 +96,7 @@ function BaseChatContent({
     messages,
     chatState,
     handleSubmit,
+    submitElicitationResponse,
     stopStreaming,
     sessionLoadError,
     setRecipeUserParams,
@@ -264,25 +265,10 @@ function BaseChatContent({
     });
   };
 
-  const renderProgressiveMessageList = (chat: ChatType) => (
-    <>
-      <ProgressiveMessageList
-        messages={messages}
-        chat={chat}
-        toolCallNotifications={toolCallNotifications}
-        isUserMessage={(m: Message) => m.role === 'user'}
-        isStreamingMessage={chatState !== ChatState.Idle}
-        onRenderingComplete={handleRenderingComplete}
-        onMessageUpdate={onMessageUpdate}
-      />
-    </>
-  );
-
   const showPopularTopics =
     messages.length === 0 && !initialMessage && chatState === ChatState.Idle;
 
   const chat: ChatType = {
-    messageHistoryIndex: 0,
     messages,
     recipe,
     sessionId,
@@ -367,15 +353,26 @@ function BaseChatContent({
                   append={(text: string) => handleSubmit(text)}
                   activities={Array.isArray(recipe.activities) ? recipe.activities : null}
                   title={recipe.title}
-                  //parameterValues={recipeParameters || {}}
+                  parameterValues={session?.user_recipe_values || {}}
                 />
               </div>
             )}
 
-            {/* Messages or Popular Topics */}
             {messages.length > 0 || recipe ? (
               <>
-                <SearchView>{renderProgressiveMessageList(chat)}</SearchView>
+                <SearchView>
+                  <ProgressiveMessageList
+                    messages={messages}
+                    chat={{ sessionId }}
+                    toolCallNotifications={toolCallNotifications}
+                    append={(text: string) => handleSubmit(text)}
+                    isUserMessage={(m: Message) => m.role === 'user'}
+                    isStreamingMessage={chatState !== ChatState.Idle}
+                    onRenderingComplete={handleRenderingComplete}
+                    onMessageUpdate={onMessageUpdate}
+                    submitElicitationResponse={submitElicitationResponse}
+                  />
+                </SearchView>
 
                 <div className="block h-8" />
               </>
@@ -449,6 +446,10 @@ function BaseChatContent({
           parameters={recipe.parameters}
           onSubmit={setRecipeUserParams}
           onClose={() => setView('chat')}
+          initialValues={
+            (window.appConfig?.get('recipeParameters') as Record<string, string> | undefined) ||
+            undefined
+          }
         />
       )}
 

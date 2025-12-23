@@ -3,6 +3,7 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
+use goose::config::ConfigError;
 use serde::Serialize;
 use utoipa::ToSchema;
 
@@ -34,6 +35,12 @@ impl IntoResponse for ErrorResponse {
 
 impl From<anyhow::Error> for ErrorResponse {
     fn from(err: anyhow::Error) -> Self {
+        Self::internal(err.to_string())
+    }
+}
+
+impl From<ConfigError> for ErrorResponse {
+    fn from(err: ConfigError) -> Self {
         Self::internal(err.to_string())
     }
 }

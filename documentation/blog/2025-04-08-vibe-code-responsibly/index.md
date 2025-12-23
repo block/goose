@@ -98,7 +98,7 @@ By pushing your agent to explain itself, you'll build a better product and learn
 
 ### 6. Define .goosehints for Better Context
 
-The [.goosehints](https://block.github.io/goose/docs/guides/using-goosehints) file gives Goose additional context about your project's coding standards, architectural preferences, and security practices.  
+The [.goosehints](/docs/guides/context-engineering/using-goosehints) file gives Goose additional context about your project's coding standards, architectural preferences, and security practices.  
 
 Here are a few examples:
 

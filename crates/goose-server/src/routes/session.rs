@@ -344,7 +344,6 @@ async fn fork_session(
     Path(session_id): Path<String>,
     Json(request): Json<ForkRequest>,
 ) -> Result<Json<ForkResponse>, ErrorResponse> {
-    // Validate: if truncate=true, timestamp must be provided
     if request.truncate && request.timestamp.is_none() {
         return Err(ErrorResponse {
             message: "truncate=true requires a timestamp".to_string(),
@@ -353,11 +352,11 @@ async fn fork_session(
     }
 
     let target_session_id = if request.copy {
-        // Copy session first
         let original = SessionManager::get_session(&session_id, false)
             .await
             .map_err(|e| {
                 tracing::error!("Failed to get session: {}", e);
+                goose::posthog::emit_error("session_get_failed", &e.to_string());
                 ErrorResponse {
                     message: if e.to_string().contains("not found") {
                         format!("Session {} not found", session_id)
@@ -376,6 +375,7 @@ async fn fork_session(
             .await
             .map_err(|e| {
                 tracing::error!("Failed to copy session: {}", e);
+                goose::posthog::emit_error("session_copy_failed", &e.to_string());
                 ErrorResponse {
                     message: format!("Failed to copy session: {}", e),
                     status: StatusCode::INTERNAL_SERVER_ERROR,
@@ -392,6 +392,7 @@ async fn fork_session(
             .await
             .map_err(|e| {
                 tracing::error!("Failed to truncate conversation: {}", e);
+                goose::posthog::emit_error("session_truncate_failed", &e.to_string());
                 ErrorResponse {
                     message: format!("Failed to truncate conversation: {}", e),
                     status: StatusCode::INTERNAL_SERVER_ERROR,
