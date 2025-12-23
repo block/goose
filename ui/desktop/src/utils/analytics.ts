@@ -115,6 +115,8 @@ export type AnalyticsEvent =
       properties: { success: boolean; error_details?: string; in_new_window?: boolean };
     }
   | { name: 'recipe_deeplink_copied'; properties: { success: boolean; error_details?: string } }
+  | { name: 'recipe_yaml_copied'; properties: { success: boolean; error_details?: string } }
+  | { name: 'recipe_exported_to_file'; properties: { success: boolean; error_details?: string } }
   | {
       name: 'recipe_scheduled';
       properties: { success: boolean; error_details?: string; action: 'add' | 'edit' | 'remove' };
@@ -484,6 +486,20 @@ export function trackRecipeStarted(
 export function trackRecipeDeeplinkCopied(success: boolean, errorDetails?: string): void {
   trackEvent({
     name: 'recipe_deeplink_copied',
+    properties: { success, error_details: errorDetails },
+  });
+}
+
+export function trackRecipeYamlCopied(success: boolean, errorDetails?: string): void {
+  trackEvent({
+    name: 'recipe_yaml_copied',
+    properties: { success, error_details: errorDetails },
+  });
+}
+
+export function trackRecipeExportedToFile(success: boolean, errorDetails?: string): void {
+  trackEvent({
+    name: 'recipe_exported_to_file',
     properties: { success, error_details: errorDetails },
   });
 }
