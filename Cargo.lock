@@ -2454,6 +2454,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c34f04666d835ff5d62e058c3995147c06f42fe86ff053337632bca83e42702d"
 
 [[package]]
+name = "env-lock"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2afbd3cff67810192b5bdb76b77feff72775314d41195c1d779bc92e0e83285d"
+
+[[package]]
 name = "env_filter"
 version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3090,6 +3096,7 @@ dependencies = [
  "dashmap",
  "dirs 5.0.1",
  "dotenvy",
+ "env-lock",
  "etcetera 0.11.0",
  "fs2",
  "futures",
@@ -3308,6 +3315,7 @@ dependencies = [
  "chrono",
  "clap",
  "config",
+ "env-lock",
  "fs2",
  "futures",
  "goose",

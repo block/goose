@@ -132,6 +132,7 @@ temp-env = "0.3.6"
 dotenvy = "0.15.7"
 ctor = "0.2.9"
 test-case = "3.3"
+env-lock = "1.0.1"
 
 [[example]]
 name = "agent"
