@@ -1286,14 +1286,10 @@ impl DeveloperServer {
         let mut builder = GitignoreBuilder::new(cwd);
         let local_ignore_path = cwd.join(".gooseignore");
 
-        // Get the global config directory for .gooseignore
-        // Uses the same pattern as memory/mod.rs for consistency
         let global_ignore_path = etcetera::choose_app_strategy(crate::APP_STRATEGY.clone())
             .map(|strategy| strategy.config_dir().join(".gooseignore"))
             .ok();
 
-        // Always add default patterns first (lowest priority)
-        // These can be negated by global or local .gooseignore files
         let _ = builder.add_line(None, "**/.env");
         let _ = builder.add_line(None, "**/.env.*");
         let _ = builder.add_line(None, "**/secrets.*");
