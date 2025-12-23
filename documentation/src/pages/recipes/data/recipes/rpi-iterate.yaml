@@ -29,9 +29,9 @@ instructions: |
   If the user's feedback requires understanding new code patterns or validating assumptions:
   
   1. **Spawn parallel sub-tasks for research** using subrecipes:
-     - **find_files** (codebase-locator): Find relevant files
-     - **analyze_code** (codebase-analyzer): Understand implementation details
-     - **find_patterns** (pattern-finder): Find similar patterns
+     - **find_files** (rpi-codebase-locator): Find relevant files
+     - **analyze_code** (rpi-codebase-analyzer): Understand implementation details
+     - **find_patterns** (rpi-pattern-finder): Find similar patterns
   
   2. **Read any new files identified by research** FULLY into main context
   

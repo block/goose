@@ -19,9 +19,9 @@ instructions: |
      - NEVER read files partially
   
   2. **Spawn initial research tasks** using subrecipes:
-     - **find_files** (codebase-locator): Find all files related to the ticket/task
-     - **analyze_code** (codebase-analyzer): Understand current implementation
-     - **find_patterns** (pattern-finder): Find similar features to model after
+     - **find_files** (rpi-codebase-locator): Find all files related to the ticket/task
+     - **analyze_code** (rpi-codebase-analyzer): Understand current implementation
+     - **find_patterns** (rpi-pattern-finder): Find similar features to model after
   
   3. **Read all files identified by research tasks** FULLY into main context
   
