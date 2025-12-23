@@ -22,7 +22,7 @@ import { useEscapeKey } from '../../hooks/useEscapeKey';
 import {
   deleteRecipe,
   RecipeManifest,
-  startAgent,
+  createSession,
   scheduleRecipe,
   setRecipeSlashCommand,
 } from '../../api';
@@ -124,14 +124,14 @@ export default function RecipesView() {
 
   const handleStartRecipeChat = async (recipe: Recipe, _recipeId: string) => {
     try {
-      const newAgent = await startAgent({
+      const newSession = await createSession({
         body: {
           working_dir: window.appConfig.get('GOOSE_WORKING_DIR') as string,
           recipe,
         },
         throwOnError: true,
       });
-      const session = newAgent.data;
+      const session = newSession.data;
       trackRecipeStarted(true, undefined, false);
       setView('pair', {
         disableAnimation: true,

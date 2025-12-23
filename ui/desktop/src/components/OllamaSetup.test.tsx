@@ -2,12 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { OllamaSetup } from './OllamaSetup';
 import * as ollamaDetection from '../utils/ollamaDetection';
-import * as providerUtils from '../utils/providerUtils';
 import { toastService } from '../toasts';
 
 // Mock dependencies
 vi.mock('../utils/ollamaDetection');
-vi.mock('../utils/providerUtils');
 vi.mock('../toasts');
 
 // Mock useConfig hook
@@ -144,6 +142,8 @@ describe('OllamaSetup', () => {
   });
 
   // TODO: re-enable when we have ollama back in the onboarding
+  // These tests were removed because the initializeSystem function was removed
+  // as part of the sessions API cleanup (TSK-639)
   describe.skip('when Ollama and model are both available', () => {
     beforeEach(() => {
       vi.mocked(ollamaDetection.checkOllamaStatus).mockResolvedValue({
@@ -158,49 +158,6 @@ describe('OllamaSetup', () => {
 
       await waitFor(() => {
         expect(screen.getByText(/Ollama is detected and running/)).toBeInTheDocument();
-      });
-    });
-
-    it('should handle successful connection', async () => {
-      vi.mocked(providerUtils.initializeSystem).mockResolvedValue(undefined);
-
-      render(<OllamaSetup onSuccess={mockOnSuccess} onCancel={mockOnCancel} />);
-
-      await waitFor(() => {
-        fireEvent.click(screen.getByText(/Use Goose with Ollama/));
-      });
-
-      await waitFor(() => {
-        expect(mockUpsert).toHaveBeenCalledWith('GOOSE_PROVIDER', 'ollama', false);
-        expect(mockUpsert).toHaveBeenCalledWith('GOOSE_MODEL', 'gpt-oss:20b', false);
-        expect(mockUpsert).toHaveBeenCalledWith('OLLAMA_HOST', 'localhost', false);
-        expect(providerUtils.initializeSystem).toHaveBeenCalledWith(
-          'ollama',
-          'gpt-oss:20b',
-          expect.any(Object)
-        );
-        expect(toastService.success).toHaveBeenCalled();
-        expect(mockOnSuccess).toHaveBeenCalled();
-      });
-    });
-
-    it('should handle connection failure', async () => {
-      const testError = new Error('Initialization failed');
-      vi.mocked(providerUtils.initializeSystem).mockRejectedValue(testError);
-
-      render(<OllamaSetup onSuccess={mockOnSuccess} onCancel={mockOnCancel} />);
-
-      await waitFor(() => {
-        fireEvent.click(screen.getByText('Use Goose with Ollama'));
-      });
-
-      await waitFor(() => {
-        expect(toastService.error).toHaveBeenCalledWith(
-          expect.objectContaining({
-            title: 'Connection Failed',
-            msg: expect.stringContaining('Initialization failed'),
-          })
-        );
       });
     });
   });

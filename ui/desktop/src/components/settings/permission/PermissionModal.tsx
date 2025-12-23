@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '../../ui/button';
 import { ChevronDownIcon, SlidersHorizontal } from 'lucide-react';
-import { getTools, PermissionLevel, ToolInfo, upsertPermissions } from '../../../api';
+import { getSessionTools, PermissionLevel, ToolInfo, upsertPermissions } from '../../../api';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog';
 import {
   DropdownMenu,
@@ -44,8 +44,9 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
   useEffect(() => {
     const fetchTools = async () => {
       try {
-        const response = await getTools({
-          query: { extension_name: extensionName, session_id: sessionId },
+        const response = await getSessionTools({
+          path: { session_id: sessionId },
+          query: { extension_name: extensionName },
         });
         if (response.error) {
           console.error('Failed to get tools');

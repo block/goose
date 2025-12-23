@@ -100,8 +100,10 @@ export default function ToolConfirmation({
 
     try {
       const response = await confirmToolAction({
+        path: {
+          session_id: sessionId,
+        },
         body: {
-          sessionId: sessionId,
           id: toolConfirmationId,
           action: newStatus,
           principalType: 'Tool',

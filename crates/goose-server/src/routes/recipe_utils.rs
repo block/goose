@@ -15,6 +15,7 @@ use goose::recipe::build_recipe::{build_recipe_from_template, RecipeError};
 use goose::recipe::local_recipes::{get_recipe_library_dir, list_local_recipes};
 use goose::recipe::validate_recipe::validate_recipe_template_from_content;
 use goose::recipe::Recipe;
+use goose::session::Session;
 use serde::Serialize;
 use serde_json::Value;
 use tracing::error;
@@ -175,4 +176,57 @@ pub async fn apply_recipe_to_agent(
         context.insert("recipe_instructions", Value::String(instructions.clone()));
         render_global_file("desktop_recipe_instruction.md", &context).expect("Prompt should render")
     })
+}
+
+/// Idempotently reconcile recipe state on the agent from the session's stored recipe.
+///
+/// This function:
+/// 1. Resets all recipe-related state on the agent (sub_recipes, final_output_tool, system_prompt_extras)
+/// 2. Applies the base desktop prompt
+/// 3. If the session has a recipe, builds it with parameter values and applies it
+pub async fn reconcile_recipe_state(
+    agent: &Arc<Agent>,
+    session: &Session,
+    include_final_output_tool: bool,
+) -> Result<(), ErrorResponse> {
+    // Reset all recipe-related state to ensure idempotency
+    agent.reset_recipe_state().await;
+
+    // Build the base desktop prompt
+    let context: HashMap<&str, Value> = HashMap::new();
+    let desktop_prompt =
+        render_global_file("desktop_prompt.md", &context).expect("Prompt should render");
+    let mut update_prompt = desktop_prompt;
+
+    // If session has a recipe, build and apply it
+    if let Some(ref recipe) = session.recipe {
+        match build_recipe_with_parameter_values(
+            recipe,
+            session.user_recipe_values.clone().unwrap_or_default(),
+        )
+        .await
+        {
+            Ok(Some(built_recipe)) => {
+                if let Some(prompt) =
+                    apply_recipe_to_agent(agent, &built_recipe, include_final_output_tool).await
+                {
+                    update_prompt = prompt;
+                }
+            }
+            Ok(None) => {
+                // Missing required parameters - just use base prompt
+            }
+            Err(e) => {
+                return Err(ErrorResponse {
+                    message: e.to_string(),
+                    status: StatusCode::INTERNAL_SERVER_ERROR,
+                });
+            }
+        }
+    }
+
+    // Apply the final prompt
+    agent.extend_system_prompt(update_prompt).await;
+
+    Ok(())
 }

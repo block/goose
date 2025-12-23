@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getTools } from '../../api';
+import { getSessionTools } from '../../api';
 
 // TODO(Douwe): return this as part of the start agent request
 export const useToolCount = (sessionId: string) => {
@@ -8,7 +8,7 @@ export const useToolCount = (sessionId: string) => {
   useEffect(() => {
     const fetchTools = async () => {
       try {
-        const response = await getTools({ query: { session_id: sessionId } });
+        const response = await getSessionTools({ path: { session_id: sessionId } });
         setToolCount(response.error || !response.data ? 0 : response.data.length);
       } catch (err) {
         console.error('Error fetching tools:', err);
