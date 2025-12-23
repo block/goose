@@ -209,6 +209,38 @@
         }
       }
     },
+    "/agent/restart": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "restart_agent",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestartAgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Agent restarted successfully"
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/agent/resume": {
       "post": {
         "tags": [
@@ -450,6 +482,41 @@
           },
           "424": {
             "description": "Agent not initialized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/agent/update_working_dir": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "update_working_dir",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWorkingDirRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Working directory updated and agent restarted successfully"
+          },
+          "400": {
+            "description": "Bad request - invalid directory path"
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "404": {
+            "description": "Session not found"
           },
           "500": {
             "description": "Internal server error"
@@ -2382,6 +2449,57 @@
                 }
               }
             }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/sessions/{session_id}/working_dir": {
+      "put": {
+        "tags": [
+          "Session Management"
+        ],
+        "operationId": "update_session_working_dir",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Unique identifier for the session",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSessionWorkingDirRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Session working directory updated successfully"
+          },
+          "400": {
+            "description": "Bad request - Invalid directory path"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "500": {
+            "description": "Internal server error"
           }
         },
         "security": [
@@ -4900,6 +5018,17 @@
           }
         }
       },
+      "RestartAgentRequest": {
+        "type": "object",
+        "required": [
+          "session_id"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
+          }
+        }
+      },
       "ResumeAgentRequest": {
         "type": "object",
         "required": [
@@ -5959,6 +6088,33 @@
         "properties": {
           "recipe": {
             "$ref": "#/components/schemas/Recipe"
+          }
+        }
+      },
+      "UpdateSessionWorkingDirRequest": {
+        "type": "object",
+        "required": [
+          "workingDir"
+        ],
+        "properties": {
+          "workingDir": {
+            "type": "string",
+            "description": "New working directory path"
+          }
+        }
+      },
+      "UpdateWorkingDirRequest": {
+        "type": "object",
+        "required": [
+          "session_id",
+          "working_dir"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
+          },
+          "working_dir": {
+            "type": "string"
           }
         }
       },

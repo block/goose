@@ -1,4 +1,4 @@
-import { Session, startAgent } from './api';
+import { Session, startAgent, restartAgent } from './api';
 import type { setViewType } from './hooks/useNavigation';
 
 export function resumeSession(session: Session, setView: setViewType) {
@@ -8,16 +8,19 @@ export function resumeSession(session: Session, setView: setViewType) {
   });
 }
 
-export async function createSession(options?: {
-  recipeId?: string;
-  recipeDeeplink?: string;
-}): Promise<Session> {
+export async function createSession(
+  workingDir: string,
+  options?: {
+    recipeId?: string;
+    recipeDeeplink?: string;
+  }
+): Promise<Session> {
   const body: {
     working_dir: string;
     recipe_id?: string;
     recipe_deeplink?: string;
   } = {
-    working_dir: window.appConfig.get('GOOSE_WORKING_DIR') as string,
+    working_dir: workingDir,
   };
 
   if (options?.recipeId) {
@@ -30,10 +33,19 @@ export async function createSession(options?: {
     body,
     throwOnError: true,
   });
-  return newAgent.data;
+
+  const session = newAgent.data;
+
+  // Restart agent to ensure it picks up the session's working dir
+  await restartAgent({
+    body: { session_id: session.id },
+  });
+
+  return session;
 }
 
 export async function startNewSession(
+  workingDir: string,
   initialText: string | undefined,
   setView: setViewType,
   options?: {
@@ -41,7 +53,7 @@ export async function startNewSession(
     recipeDeeplink?: string;
   }
 ): Promise<Session> {
-  const session = await createSession(options);
+  const session = await createSession(workingDir, options);
 
   setView('pair', {
     disableAnimation: true,

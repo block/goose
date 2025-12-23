@@ -5,6 +5,7 @@ import { View, ViewOptions } from '../../utils/navigationUtils';
 import { AppWindowMac, AppWindow } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Sidebar, SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from '../ui/sidebar';
+import { getInitialWorkingDir } from '../../utils/workingDir';
 
 const AppLayoutContent: React.FC = () => {
   const navigate = useNavigate();
@@ -66,10 +67,7 @@ const AppLayoutContent: React.FC = () => {
   };
 
   const handleNewWindow = () => {
-    window.electron.createChatWindow(
-      undefined,
-      window.appConfig.get('GOOSE_WORKING_DIR') as string | undefined
-    );
+    window.electron.createChatWindow(undefined, getInitialWorkingDir());
   };
 
   return (

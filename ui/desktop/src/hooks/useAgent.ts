@@ -12,6 +12,7 @@ import {
   startAgent,
   validateConfig,
 } from '../api';
+import { getInitialWorkingDir } from '../utils/workingDir';
 
 export enum AgentState {
   UNINITIALIZED = 'uninitialized',
@@ -154,7 +155,7 @@ export function useAgent(): UseAgentReturn {
                 })
               : await startAgent({
                   body: {
-                    working_dir: window.appConfig.get('GOOSE_WORKING_DIR') as string,
+                    working_dir: getInitialWorkingDir(),
                     ...buildRecipeInput(
                       initContext.recipe,
                       recipeIdFromConfig.current,
@@ -175,7 +176,7 @@ export function useAgent(): UseAgentReturn {
 
               agentResponse = await startAgent({
                 body: {
-                  working_dir: window.appConfig.get('GOOSE_WORKING_DIR') as string,
+                  working_dir: getInitialWorkingDir(),
                   ...buildRecipeInput(
                     initContext.recipe,
                     recipeIdFromConfig.current,

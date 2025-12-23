@@ -42,6 +42,7 @@ import { View, ViewOptions } from './utils/navigationUtils';
 import { NoProviderOrModelError, useAgent } from './hooks/useAgent';
 import { useNavigation } from './hooks/useNavigation';
 import { errorMessage } from './utils/conversionUtils';
+import { getInitialWorkingDir } from './utils/workingDir';
 import { usePageViewTracking } from './hooks/useAnalytics';
 import { trackOnboardingCompleted, trackErrorWithContext } from './utils/analytics';
 
@@ -115,7 +116,7 @@ const PairRouteWrapper = ({
 
       (async () => {
         try {
-          const newSession = await createSession({
+          const newSession = await createSession(getInitialWorkingDir(), {
             recipeId,
             recipeDeeplink: recipeDeeplinkFromConfig,
           });
@@ -462,9 +463,7 @@ export function AppInner() {
       if ((isMac ? event.metaKey : event.ctrlKey) && event.key === 'n') {
         event.preventDefault();
         try {
-          const workingDir = window.appConfig?.get('GOOSE_WORKING_DIR');
-          console.log(`Creating new chat window with working dir: ${workingDir}`);
-          window.electron.createChatWindow(undefined, workingDir as string);
+          window.electron.createChatWindow(undefined, getInitialWorkingDir());
         } catch (error) {
           console.error('Error creating new window:', error);
         }

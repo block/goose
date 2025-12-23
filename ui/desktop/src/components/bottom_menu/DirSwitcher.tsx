@@ -1,22 +1,56 @@
 import React, { useState } from 'react';
 import { FolderDot } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/Tooltip';
+import { updateWorkingDir } from '../../api';
+import { toast } from 'react-toastify';
 
 interface DirSwitcherProps {
-  className?: string;
+  className: string;
+  sessionId: string | undefined;
+  workingDir: string;
+  onWorkingDirChange?: (newDir: string) => void;
 }
 
-export const DirSwitcher: React.FC<DirSwitcherProps> = ({ className = '' }) => {
+export const DirSwitcher: React.FC<DirSwitcherProps> = ({
+  className,
+  sessionId,
+  workingDir,
+  onWorkingDirChange,
+}) => {
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
   const [isDirectoryChooserOpen, setIsDirectoryChooserOpen] = useState(false);
 
   const handleDirectoryChange = async () => {
     if (isDirectoryChooserOpen) return;
     setIsDirectoryChooserOpen(true);
+
+    let result;
     try {
-      await window.electron.directoryChooser(true);
+      result = await window.electron.directoryChooser();
     } finally {
       setIsDirectoryChooserOpen(false);
+    }
+
+    if (result.canceled || result.filePaths.length === 0) {
+      return;
+    }
+
+    const newDir = result.filePaths[0];
+
+    window.electron.addRecentDir(newDir);
+
+    if (sessionId) {
+      try {
+        await updateWorkingDir({
+          body: { session_id: sessionId, working_dir: newDir },
+        });
+        onWorkingDirChange?.(newDir);
+      } catch (error) {
+        console.error('[DirSwitcher] Failed to update working directory:', error);
+        toast.error('Failed to update working directory');
+      }
+    } else {
+      onWorkingDirChange?.(newDir);
     }
   };
 
@@ -31,7 +65,6 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({ className = '' }) => {
     if (isCmdOrCtrlClick) {
       event.preventDefault();
       event.stopPropagation();
-      const workingDir = window.appConfig.get('GOOSE_WORKING_DIR') as string;
       await window.electron.openDirectoryInExplorer(workingDir);
     } else {
       await handleDirectoryChange();
@@ -53,14 +86,10 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({ className = '' }) => {
             disabled={isDirectoryChooserOpen}
           >
             <FolderDot className="mr-1" size={16} />
-            <div className="max-w-[200px] truncate [direction:rtl]">
-              {String(window.appConfig.get('GOOSE_WORKING_DIR'))}
-            </div>
+            <div className="max-w-[200px] truncate [direction:rtl]">{workingDir}</div>
           </button>
         </TooltipTrigger>
-        <TooltipContent side="top">
-          {window.appConfig.get('GOOSE_WORKING_DIR') as string}
-        </TooltipContent>
+        <TooltipContent side="top">{workingDir}</TooltipContent>
       </Tooltip>
     </TooltipProvider>
   );
