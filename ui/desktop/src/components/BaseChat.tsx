@@ -36,6 +36,8 @@ import { substituteParameters } from '../utils/providerUtils';
 import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal';
 import { toastSuccess } from '../toasts';
 import { Recipe } from '../recipe';
+import { useConfig } from './ConfigContext';
+import { loadExtensionsProgressively } from '../utils/extensionUtils';
 
 // Context for sharing current model info
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
@@ -81,7 +83,18 @@ function BaseChatContent({
   // Use shared file drop
   const { droppedFiles, setDroppedFiles, handleDrop, handleDragOver } = useFileDrop();
 
+  // Get extension loading utilities from config context
+  const { getExtensions, addExtension } = useConfig();
+
   const onStreamFinish = useCallback(() => {}, []);
+
+  // Load extensions when session is loaded (for session switching via chat history)
+  const onSessionLoaded = useCallback(async () => {
+    await loadExtensionsProgressively(sessionId, {
+      getExtensions,
+      addExtension,
+    });
+  }, [sessionId, getExtensions, addExtension]);
 
   const [isCreateRecipeModalOpen, setIsCreateRecipeModalOpen] = useState(false);
   const hasAutoSubmittedRef = useRef(false);
@@ -106,6 +119,7 @@ function BaseChatContent({
   } = useChatStream({
     sessionId,
     onStreamFinish,
+    onSessionLoaded,
   });
 
   // Generate command history from user messages (most recent first)

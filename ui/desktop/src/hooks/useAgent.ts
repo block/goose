@@ -1,15 +1,16 @@
 import { useCallback, useRef, useState } from 'react';
 import { useConfig } from '../components/ConfigContext';
 import { ChatType } from '../types/chat';
-import { initializeSystem } from '../utils/providerUtils';
+import { loadExtensionsProgressively } from '../utils/extensionUtils';
 import {
   backupConfig,
   initConfig,
   readAllConfig,
   Recipe,
   recoverConfig,
-  resumeAgent,
-  startAgent,
+  createSession,
+  openSession,
+  getSession,
   validateConfig,
 } from '../api';
 
@@ -86,14 +87,12 @@ export function useAgent(): UseAgentReturn {
         setSessionId(null);
       }
 
+      // If already initialized, just get the session data
       if (agentIsInitialized && sessionId && !deletedSessionsRef.current.has(sessionId)) {
-        let agentResponse;
+        let sessionResponse;
         try {
-          agentResponse = await resumeAgent({
-            body: {
-              session_id: sessionId,
-              load_model_and_extensions: false,
-            },
+          sessionResponse = await getSession({
+            path: { session_id: sessionId },
             throwOnError: true,
           });
         } catch {
@@ -110,8 +109,8 @@ export function useAgent(): UseAgentReturn {
         }
 
         // Fall through to create new session
-        if (agentResponse?.data) {
-          const agentSession = agentResponse.data;
+        if (sessionResponse?.data) {
+          const agentSession = sessionResponse.data;
           const messages = agentSession.conversation || [];
           return {
             sessionId: agentSession.id,
@@ -142,40 +141,21 @@ export function useAgent(): UseAgentReturn {
             throw new NoProviderOrModelError();
           }
 
-          let agentResponse;
+          let agentSession;
           try {
-            agentResponse = initContext.resumeSessionId
-              ? await resumeAgent({
-                  body: {
-                    session_id: initContext.resumeSessionId,
-                    load_model_and_extensions: false,
-                  },
-                  throwOnError: true,
-                })
-              : await startAgent({
-                  body: {
-                    working_dir: window.appConfig.get('GOOSE_WORKING_DIR') as string,
-                    ...buildRecipeInput(
-                      initContext.recipe,
-                      recipeIdFromConfig.current,
-                      recipeDeeplinkFromConfig.current
-                    ),
-                  },
-                  throwOnError: true,
-                });
-          } catch (error) {
-            // If resuming fails, mark session as deleted and create new agent
             if (initContext.resumeSessionId) {
-              deletedSessionsRef.current.add(initContext.resumeSessionId);
-
-              // Clear from URL
-              const url = new URL(window.location.href);
-              url.searchParams.delete('resumeSessionId');
-              window.history.replaceState({}, '', url.toString());
-
-              agentResponse = await startAgent({
+              const response = await openSession({
+                path: { session_id: initContext.resumeSessionId },
+                body: { provider: provider as string, model: model as string },
+                throwOnError: true,
+              });
+              agentSession = response.data;
+            } else {
+              const response = await createSession({
                 body: {
                   working_dir: window.appConfig.get('GOOSE_WORKING_DIR') as string,
+                  provider: provider as string,
+                  model: model as string,
                   ...buildRecipeInput(
                     initContext.recipe,
                     recipeIdFromConfig.current,
@@ -184,6 +164,32 @@ export function useAgent(): UseAgentReturn {
                 },
                 throwOnError: true,
               });
+              agentSession = response.data;
+            }
+          } catch (error) {
+            // If resuming fails, mark session as deleted and create new session
+            if (initContext.resumeSessionId) {
+              deletedSessionsRef.current.add(initContext.resumeSessionId);
+
+              // Clear from URL
+              const url = new URL(window.location.href);
+              url.searchParams.delete('resumeSessionId');
+              window.history.replaceState({}, '', url.toString());
+
+              const response = await createSession({
+                body: {
+                  working_dir: window.appConfig.get('GOOSE_WORKING_DIR') as string,
+                  provider: provider as string,
+                  model: model as string,
+                  ...buildRecipeInput(
+                    initContext.recipe,
+                    recipeIdFromConfig.current,
+                    recipeDeeplinkFromConfig.current
+                  ),
+                },
+                throwOnError: true,
+              });
+              agentSession = response.data;
 
               // Clear resume flag
               initContext.resumeSessionId = undefined;
@@ -192,7 +198,6 @@ export function useAgent(): UseAgentReturn {
             }
           }
 
-          const agentSession = agentResponse.data;
           if (!agentSession) {
             throw Error('Failed to get session info');
           }
@@ -223,13 +228,10 @@ export function useAgent(): UseAgentReturn {
 
           agentWaitingMessage('Extensions are loading');
 
-          const recipeForInit = initContext.recipe || agentSession.recipe || undefined;
-          await initializeSystem(agentSession.id, provider as string, model as string, {
+          await loadExtensionsProgressively(agentSession.id, {
             getExtensions,
             addExtension,
             setIsExtensionsLoading: initContext.setIsExtensionsLoading,
-            recipeParameters: agentSession.user_recipe_values,
-            recipe: recipeForInit,
           });
 
           const recipe = initContext.recipe || agentSession.recipe;

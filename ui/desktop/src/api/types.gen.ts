@@ -30,6 +30,10 @@ export type AddExtensionRequest = {
     session_id: string;
 };
 
+export type AddSessionExtensionRequest = {
+    config: ExtensionConfig;
+};
+
 export type Annotations = {
     audience?: Array<Role>;
     lastModified?: string;
@@ -136,6 +140,15 @@ export type CreateScheduleRequest = {
     cron: string;
     id: string;
     recipe_source: string;
+};
+
+export type CreateSessionRequest = {
+    model?: string | null;
+    provider?: string | null;
+    recipe?: Recipe | null;
+    recipe_deeplink?: string | null;
+    recipe_id?: string | null;
+    working_dir: string;
 };
 
 /**
@@ -561,6 +574,11 @@ export type ModelInfo = {
      * Whether this model supports cache control
      */
     supports_cache_control?: boolean | null;
+};
+
+export type OpenSessionRequest = {
+    model?: string | null;
+    provider?: string | null;
 };
 
 export type ParseRecipeRequest = {
@@ -2675,6 +2693,39 @@ export type ListSessionsResponses = {
 
 export type ListSessionsResponse = ListSessionsResponses[keyof ListSessionsResponses];
 
+export type CreateSessionData = {
+    body: CreateSessionRequest;
+    path?: never;
+    query?: never;
+    url: '/sessions';
+};
+
+export type CreateSessionErrors = {
+    /**
+     * Bad request
+     */
+    400: ErrorResponse;
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type CreateSessionError = CreateSessionErrors[keyof CreateSessionErrors];
+
+export type CreateSessionResponses = {
+    /**
+     * Session created successfully
+     */
+    200: Session;
+};
+
+export type CreateSessionResponse = CreateSessionResponses[keyof CreateSessionResponses];
+
 export type ImportSessionData = {
     body: ImportSessionRequest;
     path?: never;
@@ -2879,6 +2930,46 @@ export type ExportSessionResponses = {
 
 export type ExportSessionResponse = ExportSessionResponses[keyof ExportSessionResponses];
 
+export type AddSessionExtensionData = {
+    body: AddSessionExtensionRequest;
+    path: {
+        /**
+         * Unique identifier for the session
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/sessions/{session_id}/extensions';
+};
+
+export type AddSessionExtensionErrors = {
+    /**
+     * Bad request
+     */
+    400: ErrorResponse;
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Session not found
+     */
+    404: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type AddSessionExtensionError = AddSessionExtensionErrors[keyof AddSessionExtensionErrors];
+
+export type AddSessionExtensionResponses = {
+    /**
+     * Extension added successfully
+     */
+    200: unknown;
+};
+
 export type UpdateSessionNameData = {
     body: UpdateSessionNameRequest;
     path: {
@@ -2893,7 +2984,7 @@ export type UpdateSessionNameData = {
 
 export type UpdateSessionNameErrors = {
     /**
-     * Bad request - Name too long (max 200 characters)
+     * Bad request - Name is empty or too long
      */
     400: unknown;
     /**
@@ -2916,6 +3007,48 @@ export type UpdateSessionNameResponses = {
      */
     200: unknown;
 };
+
+export type OpenSessionData = {
+    body: OpenSessionRequest;
+    path: {
+        /**
+         * Unique identifier for the session
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/sessions/{session_id}/open';
+};
+
+export type OpenSessionErrors = {
+    /**
+     * Bad request
+     */
+    400: ErrorResponse;
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Session not found
+     */
+    404: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type OpenSessionError = OpenSessionErrors[keyof OpenSessionErrors];
+
+export type OpenSessionResponses = {
+    /**
+     * Session opened successfully
+     */
+    200: Session;
+};
+
+export type OpenSessionResponse = OpenSessionResponses[keyof OpenSessionResponses];
 
 export type UpdateSessionUserRecipeValuesData = {
     body: UpdateSessionUserRecipeValuesRequest;
@@ -2948,7 +3081,7 @@ export type UpdateSessionUserRecipeValuesError = UpdateSessionUserRecipeValuesEr
 
 export type UpdateSessionUserRecipeValuesResponses = {
     /**
-     * Session user recipe values updated successfully
+     * User recipe values updated successfully
      */
     200: UpdateSessionUserRecipeValuesResponse;
 };
