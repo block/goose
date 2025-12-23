@@ -1108,10 +1108,6 @@ export type UpdateProviderRequest = {
     session_id: string;
 };
 
-export type UpdateRouterToolSelectorRequest = {
-    session_id: string;
-};
-
 export type UpdateScheduleRequest = {
     cron: string;
 };
@@ -1464,37 +1460,6 @@ export type UpdateAgentProviderResponses = {
      */
     200: unknown;
 };
-
-export type UpdateRouterToolSelectorData = {
-    body: UpdateRouterToolSelectorRequest;
-    path?: never;
-    query?: never;
-    url: '/agent/update_router_tool_selector';
-};
-
-export type UpdateRouterToolSelectorErrors = {
-    /**
-     * Unauthorized - invalid secret key
-     */
-    401: unknown;
-    /**
-     * Agent not initialized
-     */
-    424: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type UpdateRouterToolSelectorResponses = {
-    /**
-     * Tool selection strategy updated successfully
-     */
-    200: string;
-};
-
-export type UpdateRouterToolSelectorResponse = UpdateRouterToolSelectorResponses[keyof UpdateRouterToolSelectorResponses];
 
 export type ReadAllConfigData = {
     body?: never;

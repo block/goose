@@ -264,7 +264,6 @@ impl ExtensionManager {
             context: Mutex::new(PlatformExtensionContext {
                 session_id: None,
                 extension_manager: None,
-                tool_route_manager: None,
             }),
             provider,
         }

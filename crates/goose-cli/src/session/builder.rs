@@ -386,7 +386,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         .set_context(PlatformExtensionContext {
             session_id: Some(session_id.clone()),
             extension_manager: Some(Arc::downgrade(&agent.extension_manager)),
-            tool_route_manager: Some(Arc::downgrade(&agent.tool_route_manager)),
         })
         .await;
 
@@ -425,7 +424,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     // Extensions need to be added after the session is created because we change directory when resuming a session
     // If we get extensions_override, only run those extensions and none other
     let extensions_to_run: Vec<_> = if let Some(extensions) = session_config.extensions_override {
-        agent.disable_router_for_recipe().await;
         extensions.into_iter().collect()
     } else if session_config.resume {
         match SessionManager::get_session(&session_id, false).await {

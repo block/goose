@@ -418,45 +418,6 @@
         }
       }
     },
-    "/agent/update_router_tool_selector": {
-      "post": {
-        "tags": [
-          "super::routes::agent"
-        ],
-        "operationId": "update_router_tool_selector",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateRouterToolSelectorRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Tool selection strategy updated successfully",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - invalid secret key"
-          },
-          "424": {
-            "description": "Agent not initialized"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      }
-    },
     "/config": {
       "get": {
         "tags": [
@@ -5897,17 +5858,6 @@
           "provider": {
             "type": "string"
           },
-          "session_id": {
-            "type": "string"
-          }
-        }
-      },
-      "UpdateRouterToolSelectorRequest": {
-        "type": "object",
-        "required": [
-          "session_id"
-        ],
-        "properties": {
           "session_id": {
             "type": "string"
           }

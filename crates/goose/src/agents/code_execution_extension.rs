@@ -923,7 +923,6 @@ mod tests {
         let context = PlatformExtensionContext {
             session_id: None,
             extension_manager: None,
-            tool_route_manager: None,
         };
         let client = CodeExecutionClient::new(context).unwrap();
 
@@ -948,7 +947,6 @@ mod tests {
         let context = PlatformExtensionContext {
             session_id: None,
             extension_manager: None,
-            tool_route_manager: None,
         };
         let client = CodeExecutionClient::new(context).unwrap();
 
