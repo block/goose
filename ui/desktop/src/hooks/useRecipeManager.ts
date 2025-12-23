@@ -4,7 +4,7 @@ import { createUserMessage } from '../types/message';
 import { Message } from '../api';
 
 import { substituteParameters } from '../utils/providerUtils';
-import { updateSessionUserRecipeValues } from '../api';
+import { updateSessionRecipe } from '../api';
 import { useChatContext } from '../contexts/ChatContext';
 import { ChatType } from '../types/chat';
 import { toastError, toastSuccess } from '../toasts';
@@ -192,12 +192,12 @@ export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {
 
   const handleParameterSubmit = async (inputValues: Record<string, string>) => {
     try {
-      let response = await updateSessionUserRecipeValues({
+      let response = await updateSessionRecipe({
         path: {
           session_id: chat.sessionId,
         },
         body: {
-          userRecipeValues: inputValues,
+          values: inputValues,
         },
         throwOnError: true,
       });

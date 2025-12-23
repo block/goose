@@ -8,7 +8,7 @@ import {
   openSession,
   Session,
   TokenState,
-  updateSessionUserRecipeValues,
+  updateSessionRecipe,
 } from '../api';
 
 import {
@@ -385,12 +385,12 @@ export function useChatStream({
   const setRecipeUserParams = useCallback(
     async (user_recipe_values: Record<string, string>) => {
       if (session) {
-        await updateSessionUserRecipeValues({
+        await updateSessionRecipe({
           path: {
             session_id: sessionId,
           },
           body: {
-            userRecipeValues: user_recipe_values,
+            values: user_recipe_values,
           },
           throwOnError: true,
         });
@@ -414,43 +414,47 @@ export function useChatStream({
   const onMessageUpdate = useCallback(
     async (messageId: string, newContent: string, editType: 'fork' | 'edit' = 'fork') => {
       try {
-        const { editMessage } = await import('../api');
+        const { forkMessage, editMessageInPlace, getSession } = await import('../api');
         const message = messagesRef.current.find((m) => m.id === messageId);
 
         if (!message) {
           throw new Error(`Message with id ${messageId} not found in current messages`);
         }
 
-        const response = await editMessage({
-          path: {
-            session_id: sessionId,
-          },
-          body: {
-            timestamp: message.created,
-            editType,
-          },
-          throwOnError: true,
-        });
-
-        const targetSessionId = response.data?.sessionId;
-        if (!targetSessionId) {
-          throw new Error('No session ID returned from edit_message');
-        }
-
         if (editType === 'fork') {
+          const response = await forkMessage({
+            path: {
+              session_id: sessionId,
+              timestamp: message.created,
+            },
+            throwOnError: true,
+          });
+
+          const newSessionId = response.data?.sessionId;
+          if (!newSessionId) {
+            throw new Error('No session ID returned from fork');
+          }
+
           const event = new CustomEvent('session-forked', {
             detail: {
-              newSessionId: targetSessionId,
+              newSessionId,
               shouldStartAgent: true,
               editedMessage: newContent,
             },
           });
           window.dispatchEvent(event);
-          window.electron.logInfo(`Dispatched session-forked event for session ${targetSessionId}`);
+          window.electron.logInfo(`Dispatched session-forked event for session ${newSessionId}`);
         } else {
-          const { getSession } = await import('../api');
+          await editMessageInPlace({
+            path: {
+              session_id: sessionId,
+              timestamp: message.created,
+            },
+            throwOnError: true,
+          });
+
           const sessionResponse = await getSession({
-            path: { session_id: targetSessionId },
+            path: { session_id: sessionId },
             throwOnError: true,
           });
 

@@ -414,6 +414,23 @@ impl Agent {
         }
     }
 
+    /// Reset all recipe-related state on the agent.
+    /// This clears sub_recipes, final_output_tool, and system_prompt_extras
+    /// to prepare for idempotent recipe reconciliation.
+    pub async fn reset_recipe_state(&self) {
+        // Clear sub_recipes
+        let mut sub_recipes = self.sub_recipes.lock().await;
+        sub_recipes.clear();
+
+        // Clear final_output_tool
+        let mut final_output_tool = self.final_output_tool.lock().await;
+        *final_output_tool = None;
+
+        // Clear system prompt extras
+        let mut prompt_manager = self.prompt_manager.lock().await;
+        prompt_manager.clear_system_prompt_extras();
+    }
+
     /// Dispatch a single tool call to the appropriate client
     #[instrument(skip(self, tool_call, request_id), fields(input, output))]
     pub async fn dispatch_tool_call(

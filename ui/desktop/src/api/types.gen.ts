@@ -25,11 +25,6 @@ export type ActionRequiredData = {
     user_data: unknown;
 };
 
-export type AddExtensionRequest = {
-    config: ExtensionConfig;
-    session_id: string;
-};
-
 export type AddSessionExtensionRequest = {
     config: ExtensionConfig;
 };
@@ -52,8 +47,6 @@ export type AuthorRequest = {
 
 export type CallToolRequest = {
     arguments: unknown;
-    name: string;
-    session_id: string;
 };
 
 export type CallToolResponse = {
@@ -119,7 +112,6 @@ export type ConfirmToolActionRequest = {
     action: string;
     id: string;
     principalType?: PrincipalType;
-    sessionId: string;
 };
 
 export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | RawAudioContent | RawResource;
@@ -201,17 +193,6 @@ export type DetectProviderResponse = {
     models: Array<string>;
     provider_name: string;
 };
-
-export type EditMessageRequest = {
-    editType?: EditType;
-    timestamp: number;
-};
-
-export type EditMessageResponse = {
-    sessionId: string;
-};
-
-export type EditType = 'fork' | 'edit';
 
 export type EmbeddedResource = {
     _meta?: {
@@ -366,6 +347,10 @@ export type ExtensionResponse = {
     extensions: Array<ExtensionEntry>;
 };
 
+export type ForkMessageResponse = {
+    sessionId: string;
+};
+
 export type FrontendToolRequest = {
     id: string;
     toolCall: {
@@ -375,7 +360,6 @@ export type FrontendToolRequest = {
 
 export type GetToolsQuery = {
     extension_name?: string | null;
-    session_id: string;
 };
 
 export type Icon = {
@@ -703,7 +687,6 @@ export type RawTextContent = {
 
 export type ReadResourceRequest = {
     extension_name: string;
-    session_id: string;
     uri: string;
 };
 
@@ -753,11 +736,6 @@ export type RedactedThinkingContent = {
     data: string;
 };
 
-export type RemoveExtensionRequest = {
-    name: string;
-    session_id: string;
-};
-
 export type ResourceContents = {
     _meta?: {
         [key: string]: unknown;
@@ -783,11 +761,6 @@ export type ResourceMetadata = {
 
 export type Response = {
     json_schema?: unknown;
-};
-
-export type ResumeAgentRequest = {
-    load_model_and_extensions: boolean;
-    session_id: string;
 };
 
 /**
@@ -943,13 +916,6 @@ export type SlashCommand = {
 
 export type SlashCommandsResponse = {
     commands: Array<SlashCommand>;
-};
-
-export type StartAgentRequest = {
-    recipe?: Recipe | null;
-    recipe_deeplink?: string | null;
-    recipe_id?: string | null;
-    working_dir: string;
 };
 
 export type SubRecipe = {
@@ -1116,14 +1082,17 @@ export type UpdateCustomProviderRequest = {
     supports_streaming?: boolean | null;
 };
 
-export type UpdateFromSessionRequest = {
-    session_id: string;
+export type UpdateRecipeRequest = {
+    /**
+     * Recipe parameter values entered by the user
+     */
+    values: {
+        [key: string]: string;
+    };
 };
 
-export type UpdateProviderRequest = {
-    model?: string | null;
-    provider: string;
-    session_id: string;
+export type UpdateRecipeResponse = {
+    recipe: Recipe;
 };
 
 export type UpdateScheduleRequest = {
@@ -1137,19 +1106,6 @@ export type UpdateSessionNameRequest = {
     name: string;
 };
 
-export type UpdateSessionUserRecipeValuesRequest = {
-    /**
-     * Recipe parameter values entered by the user
-     */
-    userRecipeValues: {
-        [key: string]: string;
-    };
-};
-
-export type UpdateSessionUserRecipeValuesResponse = {
-    recipe: Recipe;
-};
-
 export type UpsertConfigQuery = {
     is_secret: boolean;
     key: string;
@@ -1158,325 +1114,6 @@ export type UpsertConfigQuery = {
 
 export type UpsertPermissionsQuery = {
     tool_permissions: Array<ToolPermission>;
-};
-
-export type ConfirmToolActionData = {
-    body: ConfirmToolActionRequest;
-    path?: never;
-    query?: never;
-    url: '/action-required/tool-confirmation';
-};
-
-export type ConfirmToolActionErrors = {
-    /**
-     * Unauthorized - invalid secret key
-     */
-    401: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type ConfirmToolActionResponses = {
-    /**
-     * Tool confirmation action is confirmed
-     */
-    200: unknown;
-};
-
-export type AgentAddExtensionData = {
-    body: AddExtensionRequest;
-    path?: never;
-    query?: never;
-    url: '/agent/add_extension';
-};
-
-export type AgentAddExtensionErrors = {
-    /**
-     * Unauthorized - invalid secret key
-     */
-    401: unknown;
-    /**
-     * Agent not initialized
-     */
-    424: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type AgentAddExtensionResponses = {
-    /**
-     * Extension added
-     */
-    200: string;
-};
-
-export type AgentAddExtensionResponse = AgentAddExtensionResponses[keyof AgentAddExtensionResponses];
-
-export type CallToolData = {
-    body: CallToolRequest;
-    path?: never;
-    query?: never;
-    url: '/agent/call_tool';
-};
-
-export type CallToolErrors = {
-    /**
-     * Unauthorized - invalid secret key
-     */
-    401: unknown;
-    /**
-     * Resource not found
-     */
-    404: unknown;
-    /**
-     * Agent not initialized
-     */
-    424: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type CallToolResponses = {
-    /**
-     * Resource read successfully
-     */
-    200: CallToolResponse;
-};
-
-export type CallToolResponse2 = CallToolResponses[keyof CallToolResponses];
-
-export type ReadResourceData = {
-    body: ReadResourceRequest;
-    path?: never;
-    query?: never;
-    url: '/agent/read_resource';
-};
-
-export type ReadResourceErrors = {
-    /**
-     * Unauthorized - invalid secret key
-     */
-    401: unknown;
-    /**
-     * Resource not found
-     */
-    404: unknown;
-    /**
-     * Agent not initialized
-     */
-    424: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type ReadResourceResponses = {
-    /**
-     * Resource read successfully
-     */
-    200: ReadResourceResponse;
-};
-
-export type ReadResourceResponse2 = ReadResourceResponses[keyof ReadResourceResponses];
-
-export type AgentRemoveExtensionData = {
-    body: RemoveExtensionRequest;
-    path?: never;
-    query?: never;
-    url: '/agent/remove_extension';
-};
-
-export type AgentRemoveExtensionErrors = {
-    /**
-     * Unauthorized - invalid secret key
-     */
-    401: unknown;
-    /**
-     * Agent not initialized
-     */
-    424: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type AgentRemoveExtensionResponses = {
-    /**
-     * Extension removed
-     */
-    200: string;
-};
-
-export type AgentRemoveExtensionResponse = AgentRemoveExtensionResponses[keyof AgentRemoveExtensionResponses];
-
-export type ResumeAgentData = {
-    body: ResumeAgentRequest;
-    path?: never;
-    query?: never;
-    url: '/agent/resume';
-};
-
-export type ResumeAgentErrors = {
-    /**
-     * Bad request - invalid working directory
-     */
-    400: unknown;
-    /**
-     * Unauthorized - invalid secret key
-     */
-    401: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type ResumeAgentResponses = {
-    /**
-     * Agent started successfully
-     */
-    200: Session;
-};
-
-export type ResumeAgentResponse = ResumeAgentResponses[keyof ResumeAgentResponses];
-
-export type StartAgentData = {
-    body: StartAgentRequest;
-    path?: never;
-    query?: never;
-    url: '/agent/start';
-};
-
-export type StartAgentErrors = {
-    /**
-     * Bad request
-     */
-    400: ErrorResponse;
-    /**
-     * Unauthorized - invalid secret key
-     */
-    401: unknown;
-    /**
-     * Internal server error
-     */
-    500: ErrorResponse;
-};
-
-export type StartAgentError = StartAgentErrors[keyof StartAgentErrors];
-
-export type StartAgentResponses = {
-    /**
-     * Agent started successfully
-     */
-    200: Session;
-};
-
-export type StartAgentResponse = StartAgentResponses[keyof StartAgentResponses];
-
-export type GetToolsData = {
-    body?: never;
-    path?: never;
-    query: {
-        /**
-         * Optional extension name to filter tools
-         */
-        extension_name?: string | null;
-        /**
-         * Required session ID to scope tools to a specific session
-         */
-        session_id: string;
-    };
-    url: '/agent/tools';
-};
-
-export type GetToolsErrors = {
-    /**
-     * Unauthorized - invalid secret key
-     */
-    401: unknown;
-    /**
-     * Agent not initialized
-     */
-    424: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type GetToolsResponses = {
-    /**
-     * Tools retrieved successfully
-     */
-    200: Array<ToolInfo>;
-};
-
-export type GetToolsResponse = GetToolsResponses[keyof GetToolsResponses];
-
-export type UpdateFromSessionData = {
-    body: UpdateFromSessionRequest;
-    path?: never;
-    query?: never;
-    url: '/agent/update_from_session';
-};
-
-export type UpdateFromSessionErrors = {
-    /**
-     * Unauthorized - invalid secret key
-     */
-    401: unknown;
-    /**
-     * Agent not initialized
-     */
-    424: unknown;
-};
-
-export type UpdateFromSessionResponses = {
-    /**
-     * Update agent from session data successfully
-     */
-    200: unknown;
-};
-
-export type UpdateAgentProviderData = {
-    body: UpdateProviderRequest;
-    path?: never;
-    query?: never;
-    url: '/agent/update_provider';
-};
-
-export type UpdateAgentProviderErrors = {
-    /**
-     * Bad request - missing or invalid parameters
-     */
-    400: unknown;
-    /**
-     * Unauthorized - invalid secret key
-     */
-    401: unknown;
-    /**
-     * Agent not initialized
-     */
-    424: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type UpdateAgentProviderResponses = {
-    /**
-     * Provider updated successfully
-     */
-    200: unknown;
 };
 
 export type ReadAllConfigData = {
@@ -2854,8 +2491,8 @@ export type GetSessionResponses = {
 
 export type GetSessionResponse = GetSessionResponses[keyof GetSessionResponses];
 
-export type EditMessageData = {
-    body: EditMessageRequest;
+export type ConfirmToolActionData = {
+    body: ConfirmToolActionRequest;
     path: {
         /**
          * Unique identifier for the session
@@ -2863,36 +2500,26 @@ export type EditMessageData = {
         session_id: string;
     };
     query?: never;
-    url: '/sessions/{session_id}/edit_message';
+    url: '/sessions/{session_id}/confirmations';
 };
 
-export type EditMessageErrors = {
-    /**
-     * Bad request - Invalid message timestamp
-     */
-    400: unknown;
+export type ConfirmToolActionErrors = {
     /**
      * Unauthorized - Invalid or missing API key
      */
     401: unknown;
-    /**
-     * Session or message not found
-     */
-    404: unknown;
     /**
      * Internal server error
      */
     500: unknown;
 };
 
-export type EditMessageResponses = {
+export type ConfirmToolActionResponses = {
     /**
-     * Session prepared for editing - frontend should submit the edited message
+     * Tool confirmation action processed
      */
-    200: EditMessageResponse;
+    200: unknown;
 };
-
-export type EditMessageResponse2 = EditMessageResponses[keyof EditMessageResponses];
 
 export type ExportSessionData = {
     body?: never;
@@ -2969,6 +2596,124 @@ export type AddSessionExtensionResponses = {
      */
     200: unknown;
 };
+
+export type RemoveSessionExtensionData = {
+    body?: never;
+    path: {
+        /**
+         * Unique identifier for the session
+         */
+        session_id: string;
+        /**
+         * Name of the extension to remove
+         */
+        extension_name: string;
+    };
+    query?: never;
+    url: '/sessions/{session_id}/extensions/{extension_name}';
+};
+
+export type RemoveSessionExtensionErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Session or extension not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type RemoveSessionExtensionError = RemoveSessionExtensionErrors[keyof RemoveSessionExtensionErrors];
+
+export type RemoveSessionExtensionResponses = {
+    /**
+     * Extension removed successfully
+     */
+    200: unknown;
+};
+
+export type EditMessageInPlaceData = {
+    body?: never;
+    path: {
+        /**
+         * Unique identifier for the session
+         */
+        session_id: string;
+        /**
+         * Message timestamp to edit at
+         */
+        timestamp: number;
+    };
+    query?: never;
+    url: '/sessions/{session_id}/messages/{timestamp}/edit';
+};
+
+export type EditMessageInPlaceErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Session or message not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type EditMessageInPlaceResponses = {
+    /**
+     * Session truncated for editing
+     */
+    200: unknown;
+};
+
+export type ForkMessageData = {
+    body?: never;
+    path: {
+        /**
+         * Unique identifier for the session
+         */
+        session_id: string;
+        /**
+         * Message timestamp to fork at
+         */
+        timestamp: number;
+    };
+    query?: never;
+    url: '/sessions/{session_id}/messages/{timestamp}/fork';
+};
+
+export type ForkMessageErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Session or message not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type ForkMessageResponses = {
+    /**
+     * Session forked successfully
+     */
+    200: ForkMessageResponse;
+};
+
+export type ForkMessageResponse2 = ForkMessageResponses[keyof ForkMessageResponses];
 
 export type UpdateSessionNameData = {
     body: UpdateSessionNameRequest;
@@ -3050,8 +2795,8 @@ export type OpenSessionResponses = {
 
 export type OpenSessionResponse = OpenSessionResponses[keyof OpenSessionResponses];
 
-export type UpdateSessionUserRecipeValuesData = {
-    body: UpdateSessionUserRecipeValuesRequest;
+export type UpdateSessionRecipeData = {
+    body: UpdateRecipeRequest;
     path: {
         /**
          * Unique identifier for the session
@@ -3059,10 +2804,10 @@ export type UpdateSessionUserRecipeValuesData = {
         session_id: string;
     };
     query?: never;
-    url: '/sessions/{session_id}/user_recipe_values';
+    url: '/sessions/{session_id}/recipe';
 };
 
-export type UpdateSessionUserRecipeValuesErrors = {
+export type UpdateSessionRecipeErrors = {
     /**
      * Unauthorized - Invalid or missing API key
      */
@@ -3077,16 +2822,141 @@ export type UpdateSessionUserRecipeValuesErrors = {
     500: ErrorResponse;
 };
 
-export type UpdateSessionUserRecipeValuesError = UpdateSessionUserRecipeValuesErrors[keyof UpdateSessionUserRecipeValuesErrors];
+export type UpdateSessionRecipeError = UpdateSessionRecipeErrors[keyof UpdateSessionRecipeErrors];
 
-export type UpdateSessionUserRecipeValuesResponses = {
+export type UpdateSessionRecipeResponses = {
     /**
-     * User recipe values updated successfully
+     * Recipe values updated successfully
      */
-    200: UpdateSessionUserRecipeValuesResponse;
+    200: UpdateRecipeResponse;
 };
 
-export type UpdateSessionUserRecipeValuesResponse2 = UpdateSessionUserRecipeValuesResponses[keyof UpdateSessionUserRecipeValuesResponses];
+export type UpdateSessionRecipeResponse = UpdateSessionRecipeResponses[keyof UpdateSessionRecipeResponses];
+
+export type ReadSessionResourceData = {
+    body: ReadResourceRequest;
+    path: {
+        /**
+         * Unique identifier for the session
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/sessions/{session_id}/resources/read';
+};
+
+export type ReadSessionResourceErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Resource not found
+     */
+    404: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type ReadSessionResourceResponses = {
+    /**
+     * Resource read successfully
+     */
+    200: ReadResourceResponse;
+};
+
+export type ReadSessionResourceResponse = ReadSessionResourceResponses[keyof ReadSessionResourceResponses];
+
+export type GetSessionToolsData = {
+    body?: never;
+    path: {
+        /**
+         * Unique identifier for the session
+         */
+        session_id: string;
+    };
+    query?: {
+        /**
+         * Optional extension name to filter tools
+         */
+        extension_name?: string | null;
+    };
+    url: '/sessions/{session_id}/tools';
+};
+
+export type GetSessionToolsErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type GetSessionToolsResponses = {
+    /**
+     * Tools retrieved successfully
+     */
+    200: Array<ToolInfo>;
+};
+
+export type GetSessionToolsResponse = GetSessionToolsResponses[keyof GetSessionToolsResponses];
+
+export type CallSessionToolData = {
+    body: CallToolRequest;
+    path: {
+        /**
+         * Unique identifier for the session
+         */
+        session_id: string;
+        /**
+         * Name of the tool to call
+         */
+        tool_name: string;
+    };
+    query?: never;
+    url: '/sessions/{session_id}/tools/{tool_name}/call';
+};
+
+export type CallSessionToolErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Tool not found
+     */
+    404: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type CallSessionToolResponses = {
+    /**
+     * Tool called successfully
+     */
+    200: CallToolResponse;
+};
+
+export type CallSessionToolResponse = CallSessionToolResponses[keyof CallSessionToolResponses];
 
 export type StatusData = {
     body?: never;

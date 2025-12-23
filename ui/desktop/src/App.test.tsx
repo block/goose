@@ -30,7 +30,7 @@ Object.defineProperty(window, 'history', {
 
 // Mock dependencies
 vi.mock('./utils/providerUtils', () => ({
-  initializeSystem: vi.fn().mockResolvedValue(undefined),
+  substituteParameters: vi.fn((text: string) => text),
 }));
 
 vi.mock('./utils/costDatabase', () => ({

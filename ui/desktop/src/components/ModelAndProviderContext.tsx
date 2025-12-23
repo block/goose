@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { toastError, toastSuccess } from '../toasts';
 import Model, { getProviderMetadata } from './settings/models/modelInterface';
-import { ProviderMetadata, setConfigProvider, updateAgentProvider } from '../api';
+import { ProviderMetadata, setConfigProvider, openSession } from '../api';
 import { useConfig } from './ConfigContext';
 import {
   getModelDisplayName,
@@ -44,13 +44,13 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
   const changeModel = useCallback(async (sessionId: string | null, model: Model) => {
     const modelName = model.name;
     const providerName = model.provider;
-    let phase = 'agent';
+    let phase = 'session';
 
     try {
       if (sessionId) {
-        await updateAgentProvider({
+        await openSession({
+          path: { session_id: sessionId },
           body: {
-            session_id: sessionId,
             provider: providerName,
             model: modelName,
           },
