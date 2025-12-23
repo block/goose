@@ -7,8 +7,23 @@ use std::{
 use crate::config::paths::Paths;
 use crate::hints::import_files::read_referenced_files;
 
+/// Get configured hint filenames or defaults
+pub fn get_context_filenames() -> Vec<String> {
+    use crate::config::Config;
+
+    Config::global()
+        .get_param::<Vec<String>>("CONTEXT_FILE_NAMES")
+        .unwrap_or_else(|_| {
+            vec![
+                GOOSE_HINTS_FILENAME.to_string(),
+                AGENTS_MD_FILENAME.to_string(),
+            ]
+        })
+}
+
 pub const GOOSE_HINTS_FILENAME: &str = ".goosehints";
 pub const AGENTS_MD_FILENAME: &str = "AGENTS.md";
+pub const DYNAMIC_SUBDIRECTORY_HINT_LOADING_ENV: &str = "GOOSE_DYNAMIC_SUBDIRECTORY_HINT_LOADING";
 
 fn find_git_root(start_dir: &Path) -> Option<&Path> {
     let mut check_dir = start_dir;
@@ -117,6 +132,82 @@ pub fn load_hint_files(
     }
 
     hints
+}
+
+/// Load hint files from a directory hierarchy up to the working directory
+///
+/// This is used for dynamic loading when accessing files in new directories.
+/// Loads hints from all directories from the working directory down to the target directory,
+/// similar to how startup loading works from git root to working directory.
+///
+/// Returns Some(content) if hint files exist and can be read, None otherwise.
+pub fn load_hints_from_directory(
+    directory: &Path,
+    working_dir: &Path,
+    hints_filenames: &[String],
+) -> Option<String> {
+    // Only proceed if dynamic loading is enabled (default: true)
+    let enabled = std::env::var(DYNAMIC_SUBDIRECTORY_HINT_LOADING_ENV)
+        .map(|v| v != "0" && !v.eq_ignore_ascii_case("false"))
+        .unwrap_or(true);
+
+    if !enabled {
+        return None;
+    }
+
+    if !directory.is_dir() {
+        return None;
+    }
+
+    // Build path from working_dir to directory
+    let mut directories: Vec<_> = directory
+        .ancestors()
+        .take_while(|d| d.starts_with(working_dir))
+        .filter(|d| *d != working_dir) // Exclude working_dir itself as its hints are loaded at startup
+        .map(|d| d.to_path_buf())
+        .collect();
+
+    // Reverse so we load from working_dir down to directory
+    directories.reverse();
+
+    let mut contents = Vec::new();
+    let git_root = find_git_root(working_dir);
+    let import_boundary = git_root.unwrap_or(working_dir);
+
+    // Load hints from each directory in the path
+    // Note: Dynamic subdirectory hint loading does not respect gitignore
+    let gitignore = Gitignore::empty();
+    for dir in &directories {
+        let mut visited = HashSet::new();
+
+        for hints_filename in hints_filenames {
+            let hints_path = dir.join(hints_filename);
+
+            if hints_path.is_file() {
+                let expanded_content = read_referenced_files(
+                    &hints_path,
+                    import_boundary,
+                    &mut visited,
+                    0,
+                    &gitignore,
+                );
+
+                if !expanded_content.is_empty() {
+                    contents.push(expanded_content);
+                }
+            }
+        }
+    }
+
+    if contents.is_empty() {
+        None
+    } else {
+        Some(format!(
+            "### Directory-Specific Hints: {}\n\n{}",
+            directory.display(),
+            contents.join("\n")
+        ))
+    }
 }
 
 #[cfg(test)]

@@ -64,6 +64,74 @@ use tracing::{debug, error, info, instrument, warn};
 const DEFAULT_MAX_TURNS: u32 = 1000;
 const COMPACTION_THINKING_TEXT: &str = "goose is compacting the conversation...";
 
+/// Maximum number of turns a directory hint can be idle before pruning
+const MAX_IDLE_TURNS_BEFORE_PRUNING_HINT: u32 = 3;
+
+/// Tool names that trigger directory hint loading
+const TOOLS_THAT_TRIGGER_HINT_LOADING: &[&str] = &["developer__text_editor"];
+
+#[derive(Debug, Clone)]
+struct DirectoryContext {
+    access_turn: u32,
+    tag: String,
+}
+
+#[derive(Debug, Default)]
+struct DynamicHintsState {
+    current_turn: u32,
+    loaded_directories: HashMap<std::path::PathBuf, DirectoryContext>,
+}
+
+impl DynamicHintsState {
+    fn is_loaded(&self, directory: &std::path::Path) -> bool {
+        self.loaded_directories.contains_key(directory)
+    }
+
+    /// Update last access time for a directory. Returns true if updated.
+    fn mark_accessed(&mut self, directory: &std::path::Path, turn: u32) -> bool {
+        if let Some(context) = self.loaded_directories.get_mut(directory) {
+            if context.access_turn != turn {
+                context.access_turn = turn;
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Mark a directory as loaded at a specific turn and return its tag.
+    fn mark_loaded(&mut self, directory: &std::path::Path, turn: u32) -> String {
+        let tag = format!("agents_md:{}", directory.display());
+        self.loaded_directories.insert(
+            directory.to_path_buf(),
+            DirectoryContext {
+                access_turn: turn,
+                tag: tag.clone(),
+            },
+        );
+        tag
+    }
+
+    /// Prune directories that haven't been accessed in N turns.
+    /// Returns tags to remove from the prompt.
+    fn prune_stale(&mut self, current_turn: u32, max_idle_turns: u32) -> Vec<String> {
+        let mut pruned_tags = Vec::new();
+        self.loaded_directories.retain(|path, context| {
+            if current_turn.saturating_sub(context.access_turn) >= max_idle_turns {
+                pruned_tags.push(context.tag.clone());
+                debug!(
+                    "Pruned stale directory hints: {} (idle for {} turns)",
+                    path.display(),
+                    max_idle_turns
+                );
+                false
+            } else {
+                true
+            }
+        });
+        pruned_tags
+    }
+}
+
 /// Context needed for the reply function
 pub struct ReplyContext {
     pub conversation: Conversation,
@@ -90,6 +158,7 @@ pub struct Agent {
     pub(super) frontend_tools: Mutex<HashMap<String, FrontendTool>>,
     pub(super) frontend_instructions: Mutex<Option<String>>,
     pub(super) prompt_manager: Mutex<PromptManager>,
+    dynamic_hints_state: Mutex<DynamicHintsState>,
     pub(super) confirmation_tx: mpsc::Sender<(String, PermissionConfirmation)>,
     pub(super) confirmation_rx: Mutex<mpsc::Receiver<(String, PermissionConfirmation)>>,
     pub(super) tool_result_tx: mpsc::Sender<(String, ToolResult<CallToolResult>)>,
@@ -165,6 +234,7 @@ impl Agent {
             frontend_tools: Mutex::new(HashMap::new()),
             frontend_instructions: Mutex::new(None),
             prompt_manager: Mutex::new(PromptManager::new()),
+            dynamic_hints_state: Mutex::new(DynamicHintsState::default()),
             confirmation_tx: confirm_tx,
             confirmation_rx: Mutex::new(confirm_rx),
             tool_result_tx: tool_tx,
@@ -575,10 +645,7 @@ impl Agent {
             return Err(anyhow!("Extension state serialization failed: {}", e));
         }
 
-        SessionManager::update_session(&session.id)
-            .extension_data(session_data.extension_data)
-            .apply()
-            .await?;
+        Self::update_session_extension_data(&session.id, session_data.extension_data).await?;
 
         Ok(())
     }
@@ -994,6 +1061,34 @@ impl Agent {
                     break;
                 }
 
+                let conversation_turn = {
+                    let (current_turn, pruned_tags) = {
+                        let mut state = self.dynamic_hints_state.lock().await;
+                        state.current_turn = state.current_turn.saturating_add(1);
+                        let current_turn = state.current_turn;
+                        let pruned_tags =
+                            state.prune_stale(current_turn, MAX_IDLE_TURNS_BEFORE_PRUNING_HINT);
+                        (current_turn, pruned_tags)
+                    };
+
+                    if !pruned_tags.is_empty() {
+                        let mut prompt_manager = self.prompt_manager.lock().await;
+                        for tag in &pruned_tags {
+                            prompt_manager.remove_system_prompt_extras_by_tag(tag);
+                        }
+
+                        debug!(
+                            "Pruned {} stale directory hints, rebuilding system prompt",
+                            pruned_tags.len()
+                        );
+                        let prepared = self.prepare_tools_and_prompt(&working_dir).await?;
+                        tools = prepared.0;
+                        toolshim_tools = prepared.1;
+                        system_prompt = prepared.2;
+                    }
+
+                    current_turn
+                };
                 let conversation_with_moim = super::moim::inject_moim(
                     conversation.clone(),
                     &self.extension_manager,
@@ -1177,6 +1272,21 @@ impl Agent {
                                     let mut combined = stream::select_all(with_id);
                                     let mut all_install_successful = true;
 
+                                    // Cache file paths to avoid rescanning
+                                    let text_editor_file_paths_by_request_id: HashMap<String, std::path::PathBuf> = remaining_requests
+                                        .iter()
+                                        .filter_map(|req| {
+                                            if let Ok(call) = &req.tool_call {
+                                                if TOOLS_THAT_TRIGGER_HINT_LOADING.contains(&call.name.as_ref()) {
+                                                    if let Some(path) = Self::extract_file_path_from_args(&call.arguments) {
+                                                        return Some((req.id.clone(), path));
+                                                    }
+                                                }
+                                            }
+                                            None
+                                        })
+                                        .collect();
+
                                     while let Some((request_id, item)) = combined.next().await {
                                         if is_token_cancelled(&cancel_token) {
                                             break;
@@ -1193,6 +1303,20 @@ impl Agent {
                                                 {
                                                     all_install_successful = false;
                                                 }
+
+                                                if let Some(file_path) = text_editor_file_paths_by_request_id.get(&request_id) {
+                                                    match self.maybe_load_directory_hints(file_path, &working_dir, conversation_turn).await {
+                                                        Ok(true) => {
+                                                            tools_updated = true;
+                                                            debug!("Directory hints loaded, will rebuild system prompt");
+                                                        }
+                                                        Ok(false) => {}
+                                                        Err(e) => {
+                                                            warn!("Failed to load directory hints for {}: {}", file_path.display(), e);
+                                                        }
+                                                    }
+                                                }
+
                                                 if let Some(response_msg) = request_to_response_map.get(&request_id) {
                                                     let metadata = request_metadata.get(&request_id).and_then(|m| m.as_ref());
                                                     let mut response = response_msg.lock().await;
@@ -1367,6 +1491,117 @@ impl Agent {
     pub async fn extend_system_prompt(&self, instruction: String) {
         let mut prompt_manager = self.prompt_manager.lock().await;
         prompt_manager.add_system_prompt_extra(instruction);
+    }
+
+    /// Only checks "path" parameter (used by text_editor)
+    fn extract_file_path_from_args(
+        arguments: &Option<serde_json::Map<String, serde_json::Value>>,
+    ) -> Option<std::path::PathBuf> {
+        arguments
+            .as_ref()?
+            .get("path")?
+            .as_str()
+            .map(std::path::PathBuf::from)
+    }
+
+    /// Check if a file path's directory needs hints loading and load if necessary
+    ///
+    /// This is called after tool execution to detect when new directories are accessed.
+    /// If the directory hasn't been loaded yet, loads its hint files (agents.md, .goosehints)
+    /// and extends the system prompt.
+    ///
+    /// Security: Only loads hints from subdirectories of the working directory
+    /// to prevent loading untrusted hints from arbitrary paths.
+    ///
+    /// Note: This method is public for testing purposes only.
+    async fn maybe_load_directory_hints(
+        &self,
+        file_path: &std::path::Path,
+        working_dir: &std::path::Path,
+        current_turn: u32,
+    ) -> Result<bool> {
+        use crate::hints::{get_context_filenames, load_hints_from_directory};
+
+        let directory = if file_path.is_dir() {
+            file_path
+        } else {
+            match file_path.parent() {
+                Some(parent) => parent,
+                None => return Ok(false),
+            }
+        };
+
+        if !directory.is_absolute() {
+            debug!(
+                "Skipping hint loading for relative path: {}",
+                directory.display()
+            );
+            return Ok(false);
+        }
+
+        // Security check: Verify directory is within working directory
+        if !directory.starts_with(working_dir) {
+            debug!(
+                "Skipping hint loading for {} - outside working directory ({})",
+                directory.display(),
+                working_dir.display()
+            );
+            return Ok(false);
+        }
+
+        let mut hints_loaded = false;
+
+        {
+            let mut state = self.dynamic_hints_state.lock().await;
+            if state.is_loaded(directory) && state.mark_accessed(directory, current_turn) {
+                debug!("Updated access time for directory: {}", directory.display());
+            }
+            if state.is_loaded(directory) {
+                debug!(
+                    "Directory hints already loaded for: {}",
+                    directory.display()
+                );
+                return Ok(false);
+            }
+        }
+
+        // Only attempt to load if not already loaded.
+        let hints_filenames = get_context_filenames();
+
+        if let Some(content) = load_hints_from_directory(directory, working_dir, &hints_filenames) {
+            let tag = {
+                let mut state = self.dynamic_hints_state.lock().await;
+                if state.is_loaded(directory) {
+                    state.mark_accessed(directory, current_turn);
+                    return Ok(false);
+                }
+                state.mark_loaded(directory, current_turn)
+            };
+
+            let mut prompt_manager = self.prompt_manager.lock().await;
+            prompt_manager.add_system_prompt_extra_with_tag(content, tag);
+
+            debug!(
+                "Loaded directory hints from {} (turn {})",
+                directory.display(),
+                current_turn
+            );
+            hints_loaded = true;
+        } else {
+            debug!("No hint files found in directory: {}", directory.display());
+        }
+
+        Ok(hints_loaded)
+    }
+
+    async fn update_session_extension_data(
+        session_id: &str,
+        extension_data: crate::session::extension_data::ExtensionData,
+    ) -> Result<()> {
+        SessionManager::update_session(session_id)
+            .extension_data(extension_data)
+            .apply()
+            .await
     }
 
     pub async fn update_provider(
