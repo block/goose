@@ -2021,64 +2021,6 @@
         ]
       }
     },
-    "/sessions/{session_id}/edit_message": {
-      "post": {
-        "tags": [
-          "Session Management"
-        ],
-        "operationId": "edit_message",
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "description": "Unique identifier for the session",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/EditMessageRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Session prepared for editing - frontend should submit the edited message",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EditMessageResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request - Invalid message timestamp"
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing API key"
-          },
-          "404": {
-            "description": "Session or message not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
     "/sessions/{session_id}/export": {
       "get": {
         "tags": [
@@ -2141,16 +2083,32 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForkRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "Session forked successfully",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Session"
+                  "$ref": "#/components/schemas/ForkResponse"
                 }
               }
             }
+          },
+          "400": {
+            "description": "Bad request - truncate=true requires timestamp"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
           },
           "404": {
             "description": "Session not found"
@@ -2746,39 +2704,6 @@
           }
         }
       },
-      "EditMessageRequest": {
-        "type": "object",
-        "required": [
-          "timestamp"
-        ],
-        "properties": {
-          "editType": {
-            "$ref": "#/components/schemas/EditType"
-          },
-          "timestamp": {
-            "type": "integer",
-            "format": "int64"
-          }
-        }
-      },
-      "EditMessageResponse": {
-        "type": "object",
-        "required": [
-          "sessionId"
-        ],
-        "properties": {
-          "sessionId": {
-            "type": "string"
-          }
-        }
-      },
-      "EditType": {
-        "type": "string",
-        "enum": [
-          "fork",
-          "edit"
-        ]
-      },
       "EmbeddedResource": {
         "type": "object",
         "required": [
@@ -3252,6 +3177,37 @@
             "items": {
               "$ref": "#/components/schemas/ExtensionEntry"
             }
+          }
+        }
+      },
+      "ForkRequest": {
+        "type": "object",
+        "required": [
+          "truncate",
+          "copy"
+        ],
+        "properties": {
+          "copy": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "truncate": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ForkResponse": {
+        "type": "object",
+        "required": [
+          "sessionId"
+        ],
+        "properties": {
+          "sessionId": {
+            "type": "string"
           }
         }
       },

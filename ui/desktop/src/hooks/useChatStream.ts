@@ -358,27 +358,28 @@ export function useChatStream({
   const onMessageUpdate = useCallback(
     async (messageId: string, newContent: string, editType: 'fork' | 'edit' = 'fork') => {
       try {
-        const { editMessage } = await import('../api');
+        const { forkSession } = await import('../api');
         const message = messagesRef.current.find((m) => m.id === messageId);
 
         if (!message) {
           throw new Error(`Message with id ${messageId} not found in current messages`);
         }
 
-        const response = await editMessage({
+        const response = await forkSession({
           path: {
             session_id: sessionId,
           },
           body: {
             timestamp: message.created,
-            editType,
+            truncate: true,
+            copy: editType === 'fork',
           },
           throwOnError: true,
         });
 
         const targetSessionId = response.data?.sessionId;
         if (!targetSessionId) {
-          throw new Error('No session ID returned from edit_message');
+          throw new Error('No session ID returned from fork');
         }
 
         if (editType === 'fork') {

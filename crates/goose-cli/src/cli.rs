@@ -82,92 +82,86 @@ async fn get_or_create_session_id(
         return Ok(None);
     }
 
-    let Some(id) = identifier else {
-        return if fork {
+    let resolved_id = if resume || fork {
+        let Some(id) = identifier else {
             let sessions = SessionManager::list_sessions().await?;
-            let source_session = sessions
-                .first()
-                .ok_or_else(|| anyhow::anyhow!("No session found to fork"))?;
-            let forked_session = SessionManager::fork_session(&source_session.id).await?;
-            Ok(Some(forked_session.id))
-        } else if resume {
+            let session_id = sessions.first().map(|s| s.id.clone()).ok_or_else(|| {
+                anyhow::anyhow!(
+                    "No session found to {}",
+                    if fork { "fork" } else { "resume" }
+                )
+            })?;
+            return Ok(Some(if fork {
+                copy_and_return_new_id(&session_id).await?
+            } else {
+                session_id
+            }));
+        };
+
+        if let Some(session_id) = id.session_id {
+            session_id
+        } else if let Some(name) = id.name {
             let sessions = SessionManager::list_sessions().await?;
-            let session_id = sessions
-                .first()
-                .map(|s| s.id.clone())
-                .ok_or_else(|| anyhow::anyhow!("No session found to resume"))?;
-            Ok(Some(session_id))
+            sessions
+                .into_iter()
+                .find(|s| s.name == name || s.id == name)
+                .map(|s| s.id)
+                .ok_or_else(|| anyhow::anyhow!("No session found with name '{}'", name))?
+        } else if let Some(path) = id.path {
+            path.file_stem()
+                .and_then(|s| s.to_str())
+                .map(|s| s.to_string())
+                .ok_or_else(|| {
+                    anyhow::anyhow!("Could not extract session ID from path: {:?}", path)
+                })?
         } else {
+            return Err(anyhow::anyhow!("Invalid identifier"));
+        }
+    } else {
+        let Some(id) = identifier else {
             let session = SessionManager::create_session(
                 std::env::current_dir()?,
                 "CLI Session".to_string(),
                 SessionType::User,
             )
             .await?;
-            Ok(Some(session.id))
+            return Ok(Some(session.id));
         };
-    };
 
-    if let Some(session_id) = id.session_id {
-        if fork {
-            let forked_session = SessionManager::fork_session(&session_id).await?;
-            Ok(Some(forked_session.id))
-        } else {
-            Ok(Some(session_id))
+        if id.session_id.is_some() {
+            return Err(anyhow::anyhow!("Cannot use --session-id without --resume"));
         }
-    } else if let Some(name) = id.name {
-        if fork {
-            let sessions = SessionManager::list_sessions().await?;
-            let source_session = sessions
-                .into_iter()
-                .find(|s| s.name == name || s.id == name)
-                .ok_or_else(|| anyhow::anyhow!("No session found with name '{}'", name))?;
-            let forked_session = SessionManager::fork_session(&source_session.id).await?;
-            Ok(Some(forked_session.id))
-        } else if resume {
-            let sessions = SessionManager::list_sessions().await?;
-            let session_id = sessions
-                .into_iter()
-                .find(|s| s.name == name || s.id == name)
-                .map(|s| s.id)
-                .ok_or_else(|| anyhow::anyhow!("No session found with name '{}'", name))?;
-            Ok(Some(session_id))
-        } else {
-            let session = SessionManager::create_session(
-                std::env::current_dir()?,
-                name.clone(),
-                SessionType::User,
-            )
-            .await?;
 
+        let has_user_provided_name = id.name.is_some();
+        let name = id.name.unwrap_or_else(|| "CLI Session".to_string());
+        let session = SessionManager::create_session(
+            std::env::current_dir()?,
+            name.clone(),
+            SessionType::User,
+        )
+        .await?;
+
+        if has_user_provided_name {
             SessionManager::update_session(&session.id)
                 .user_provided_name(name)
                 .apply()
                 .await?;
+        }
 
-            Ok(Some(session.id))
-        }
-    } else if let Some(path) = id.path {
-        let session_id = path
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .map(|s| s.to_string())
-            .ok_or_else(|| anyhow::anyhow!("Could not extract session ID from path: {:?}", path))?;
-        if fork {
-            let forked_session = SessionManager::fork_session(&session_id).await?;
-            Ok(Some(forked_session.id))
-        } else {
-            Ok(Some(session_id))
-        }
+        return Ok(Some(session.id));
+    };
+
+    if fork {
+        Ok(Some(copy_and_return_new_id(&resolved_id).await?))
     } else {
-        let session = SessionManager::create_session(
-            std::env::current_dir()?,
-            "CLI Session".to_string(),
-            SessionType::User,
-        )
-        .await?;
-        Ok(Some(session.id))
+        Ok(Some(resolved_id))
     }
+}
+
+async fn copy_and_return_new_id(session_id: &str) -> Result<String> {
+    let original = SessionManager::get_session(session_id, false).await?;
+    let copied = SessionManager::copy_session(session_id, original.name).await?;
+    Ok(copied.id)
 }
 
 async fn lookup_session_id(identifier: Identifier) -> Result<String> {

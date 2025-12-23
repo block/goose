@@ -49,28 +49,17 @@ pub struct ImportSessionRequest {
     json: String,
 }
 
-#[derive(Debug, Deserialize, ToSchema)]
-#[serde(rename_all = "lowercase")]
-pub enum EditType {
-    Fork,
-    Edit,
-}
-
 #[derive(Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct EditMessageRequest {
-    timestamp: i64,
-    #[serde(default = "default_edit_type")]
-    edit_type: EditType,
-}
-
-fn default_edit_type() -> EditType {
-    EditType::Fork
+pub struct ForkRequest {
+    timestamp: Option<i64>,
+    truncate: bool,
+    copy: bool,
 }
 
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct EditMessageResponse {
+pub struct ForkResponse {
     session_id: String,
 }
 
@@ -334,70 +323,15 @@ async fn import_session(
 
 #[utoipa::path(
     post,
-    path = "/sessions/{session_id}/edit_message",
-    request_body = EditMessageRequest,
-    params(
-        ("session_id" = String, Path, description = "Unique identifier for the session")
-    ),
-    responses(
-        (status = 200, description = "Session prepared for editing - frontend should submit the edited message", body = EditMessageResponse),
-        (status = 400, description = "Bad request - Invalid message timestamp"),
-        (status = 401, description = "Unauthorized - Invalid or missing API key"),
-        (status = 404, description = "Session or message not found"),
-        (status = 500, description = "Internal server error")
-    ),
-    security(
-        ("api_key" = [])
-    ),
-    tag = "Session Management"
-)]
-async fn edit_message(
-    Path(session_id): Path<String>,
-    Json(request): Json<EditMessageRequest>,
-) -> Result<Json<EditMessageResponse>, StatusCode> {
-    match request.edit_type {
-        EditType::Fork => {
-            let new_session = SessionManager::copy_session(&session_id, "(edited)".to_string())
-                .await
-                .map_err(|e| {
-                    tracing::error!("Failed to copy session: {}", e);
-                    StatusCode::INTERNAL_SERVER_ERROR
-                })?;
-
-            SessionManager::truncate_conversation(&new_session.id, request.timestamp)
-                .await
-                .map_err(|e| {
-                    tracing::error!("Failed to truncate conversation: {}", e);
-                    StatusCode::INTERNAL_SERVER_ERROR
-                })?;
-
-            Ok(Json(EditMessageResponse {
-                session_id: new_session.id,
-            }))
-        }
-        EditType::Edit => {
-            SessionManager::truncate_conversation(&session_id, request.timestamp)
-                .await
-                .map_err(|e| {
-                    tracing::error!("Failed to truncate conversation: {}", e);
-                    StatusCode::INTERNAL_SERVER_ERROR
-                })?;
-
-            Ok(Json(EditMessageResponse {
-                session_id: session_id.clone(),
-            }))
-        }
-    }
-}
-
-#[utoipa::path(
-    post,
     path = "/sessions/{session_id}/fork",
+    request_body = ForkRequest,
     params(
         ("session_id" = String, Path, description = "Unique identifier for the session")
     ),
     responses(
-        (status = 200, description = "Session forked successfully", body = Session),
+        (status = 200, description = "Session forked successfully", body = ForkResponse),
+        (status = 400, description = "Bad request - truncate=true requires timestamp"),
+        (status = 401, description = "Unauthorized - Invalid or missing API key"),
         (status = 404, description = "Session not found"),
         (status = 500, description = "Internal server error")
     ),
@@ -406,19 +340,68 @@ async fn edit_message(
     ),
     tag = "Session Management"
 )]
-async fn fork_session(Path(session_id): Path<String>) -> Result<Json<Session>, StatusCode> {
-    let forked_session = SessionManager::fork_session(&session_id)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to fork session: {}", e);
-            if e.to_string().contains("not found") {
-                StatusCode::NOT_FOUND
-            } else {
-                StatusCode::INTERNAL_SERVER_ERROR
-            }
-        })?;
+async fn fork_session(
+    Path(session_id): Path<String>,
+    Json(request): Json<ForkRequest>,
+) -> Result<Json<ForkResponse>, ErrorResponse> {
+    // Validate: if truncate=true, timestamp must be provided
+    if request.truncate && request.timestamp.is_none() {
+        return Err(ErrorResponse {
+            message: "truncate=true requires a timestamp".to_string(),
+            status: StatusCode::BAD_REQUEST,
+        });
+    }
 
-    Ok(Json(forked_session))
+    let target_session_id = if request.copy {
+        // Copy session first
+        let original = SessionManager::get_session(&session_id, false)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to get session: {}", e);
+                ErrorResponse {
+                    message: if e.to_string().contains("not found") {
+                        format!("Session {} not found", session_id)
+                    } else {
+                        format!("Failed to get session: {}", e)
+                    },
+                    status: if e.to_string().contains("not found") {
+                        StatusCode::NOT_FOUND
+                    } else {
+                        StatusCode::INTERNAL_SERVER_ERROR
+                    },
+                }
+            })?;
+
+        let copied = SessionManager::copy_session(&session_id, original.name)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to copy session: {}", e);
+                ErrorResponse {
+                    message: format!("Failed to copy session: {}", e),
+                    status: StatusCode::INTERNAL_SERVER_ERROR,
+                }
+            })?;
+
+        copied.id
+    } else {
+        session_id.clone()
+    };
+
+    if request.truncate {
+        SessionManager::truncate_conversation(&target_session_id, request.timestamp.unwrap())
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to truncate conversation: {}", e);
+                ErrorResponse {
+                    message: format!("Failed to truncate conversation: {}", e),
+                    status: StatusCode::INTERNAL_SERVER_ERROR,
+                }
+            })?;
+    }
+
+    Ok(Json(ForkResponse {
+        session_id: target_session_id,
+    }))
 }
 
 pub fn routes(state: Arc<AppState>) -> Router {
@@ -434,7 +417,6 @@ pub fn routes(state: Arc<AppState>) -> Router {
             "/sessions/{session_id}/user_recipe_values",
             put(update_session_user_recipe_values),
         )
-        .route("/sessions/{session_id}/edit_message", post(edit_message))
         .route("/sessions/{session_id}/fork", post(fork_session))
         .with_state(state)
 }

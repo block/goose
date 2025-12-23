@@ -10,7 +10,7 @@ import {
   Download,
   Upload,
   ExternalLink,
-  GitFork,
+  Copy,
 } from 'lucide-react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
@@ -26,12 +26,12 @@ import { ConfirmationModal } from '../ui/ConfirmationModal';
 import {
   deleteSession,
   exportSession,
+  forkSession,
   importSession,
   listSessions,
   Session,
   updateSessionName,
 } from '../../api';
-import { useForkSession } from '../../hooks/useForkSession';
 
 interface EditSessionModalProps {
   session: Session | null;
@@ -414,6 +414,25 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       setShowDeleteConfirmation(true);
     }, []);
 
+    const handleDuplicateSession = useCallback(
+      async (session: Session) => {
+        try {
+          await forkSession({
+            path: { session_id: session.id },
+            body: { truncate: false, copy: true },
+            throwOnError: true,
+          });
+          toast.success(`Session "${session.name}" duplicated successfully`);
+          await loadSessions();
+        } catch (error) {
+          console.error('Error duplicating session:', error);
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          toast.error(`Failed to duplicate session: ${errorMessage}`);
+        }
+      },
+      [loadSessions]
+    );
+
     const handleConfirmDelete = useCallback(async () => {
       if (!sessionToDelete) return;
 
@@ -462,19 +481,6 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       toast.success('Session exported successfully');
     }, []);
 
-    const { forkAndOpenWindow } = useForkSession();
-
-    const handleForkSession = useCallback(
-      async (session: Session, e: React.MouseEvent) => {
-        e.stopPropagation();
-        const forkedSession = await forkAndOpenWindow(session.id);
-        if (forkedSession) {
-          await loadSessions();
-        }
-      },
-      [forkAndOpenWindow, loadSessions]
-    );
-
     const handleImportClick = useCallback(() => {
       fileInputRef.current?.click();
     }, []);
@@ -518,16 +524,16 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
     const SessionItem = React.memo(function SessionItem({
       session,
       onEditClick,
+      onDuplicateClick,
       onDeleteClick,
       onExportClick,
-      onForkClick,
       onOpenInNewWindow,
     }: {
       session: Session;
       onEditClick: (session: Session) => void;
+      onDuplicateClick: (session: Session) => void;
       onDeleteClick: (session: Session) => void;
       onExportClick: (session: Session, e: React.MouseEvent) => void;
-      onForkClick: (session: Session, e: React.MouseEvent) => void;
       onOpenInNewWindow: (session: Session, e: React.MouseEvent) => void;
     }) {
       const handleEditClick = useCallback(
@@ -536,6 +542,14 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           onEditClick(session);
         },
         [onEditClick, session]
+      );
+
+      const handleDuplicateClick = useCallback(
+        (e: React.MouseEvent) => {
+          e.stopPropagation(); // Prevent card click
+          onDuplicateClick(session);
+        },
+        [onDuplicateClick, session]
       );
 
       const handleDeleteClick = useCallback(
@@ -564,13 +578,6 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         [onOpenInNewWindow, session]
       );
 
-      const handleForkClick = useCallback(
-        (e: React.MouseEvent) => {
-          onForkClick(session, e);
-        },
-        [onForkClick, session]
-      );
-
       return (
         <Card
           onClick={handleCardClick}
@@ -588,18 +595,18 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                 <ExternalLink className="w-3 h-3 text-textSubtle hover:text-textStandard" />
               </button>
               <button
-                onClick={handleForkClick}
-                className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
-                title="Fork session"
-              >
-                <GitFork className="w-3 h-3 text-textSubtle hover:text-textStandard" />
-              </button>
-              <button
                 onClick={handleEditClick}
                 className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
                 title="Edit session name"
               >
                 <Edit2 className="w-3 h-3 text-textSubtle hover:text-textStandard" />
+              </button>
+              <button
+                onClick={handleDuplicateClick}
+                className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+                title="Duplicate session"
+              >
+                <Copy className="w-3 h-3 text-textSubtle hover:text-textStandard" />
               </button>
               <button
                 onClick={handleDeleteClick}
@@ -731,9 +738,9 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                     key={session.id}
                     session={session}
                     onEditClick={handleEditSession}
+                    onDuplicateClick={handleDuplicateSession}
                     onDeleteClick={handleDeleteSession}
                     onExportClick={handleExportSession}
-                    onForkClick={handleForkSession}
                     onOpenInNewWindow={handleOpenInNewWindow}
                   />
                 ))}
