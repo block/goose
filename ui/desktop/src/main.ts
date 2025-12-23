@@ -227,6 +227,8 @@ if (process.platform !== 'darwin') {
 
 let firstOpenWindow: BrowserWindow;
 let pendingDeepLink: string | null = null;
+// Track if open-url already handled window creation during cold start
+let openUrlHandledLaunch = false;
 
 async function handleProtocolUrl(url: string) {
   if (!url) return;
@@ -305,18 +307,23 @@ let windowDeeplinkURL: string | null = null;
 app.on('open-url', async (_event, url) => {
   if (process.platform !== 'win32') {
     const parsedUrl = new URL(url);
-    const recentDirs = loadRecentDirs();
-    const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
 
     // Handle bot/recipe URLs by directly creating a new window
     console.log('[Main] Received open-url event:', url);
     if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
       console.log('[Main] Detected bot/recipe URL, creating new chat window');
+      openUrlHandledLaunch = true;
       const deeplinkData = parseRecipeDeeplink(url);
       if (deeplinkData) {
         windowDeeplinkURL = url;
       }
       const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
+
+      // Wait for app to be ready before creating window (critical for cold start)
+      await app.whenReady();
+
+      const recentDirs = loadRecentDirs();
+      const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
 
       // Create a new window directly
       await createChat(
@@ -332,25 +339,37 @@ app.on('open-url', async (_event, url) => {
         deeplinkData?.parameters
       );
       windowDeeplinkURL = null;
-      return; // Skip the rest of the handler
+      return;
     }
 
-    // For non-bot URLs, continue with normal handling
+    // For non bot/recipe URLs (extension, sessions), store the deep link and create window
     pendingDeepLink = url;
+    console.log('[Main] Stored pending deep link for processing after React ready:', url);
+
+    // Wait for app to be ready before creating window (critical for cold start)
+    await app.whenReady();
+
+    const recentDirs = loadRecentDirs();
+    const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
 
     const existingWindows = BrowserWindow.getAllWindows();
     if (existingWindows.length > 0) {
       firstOpenWindow = existingWindows[0];
       if (firstOpenWindow.isMinimized()) firstOpenWindow.restore();
       firstOpenWindow.focus();
+      // For existing windows, send the message directly (React is already ready)
+      if (parsedUrl.hostname === 'extension') {
+        firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
+        pendingDeepLink = null;
+      } else if (parsedUrl.hostname === 'sessions') {
+        firstOpenWindow.webContents.send('open-shared-session', pendingDeepLink);
+        pendingDeepLink = null;
+      }
     } else {
+      // Cold start: mark that we're handling the launch, create window
+      // The pending deep link will be processed when react-ready fires
+      openUrlHandledLaunch = true;
       firstOpenWindow = await createChat(app, undefined, openDir || undefined);
-    }
-
-    if (parsedUrl.hostname === 'extension') {
-      firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
-    } else if (parsedUrl.hostname === 'sessions') {
-      firstOpenWindow.webContents.send('open-shared-session', pendingDeepLink);
     }
   }
 });
@@ -1167,9 +1186,22 @@ ipcMain.on('react-ready', (event) => {
     pendingInitialMessages.delete(windowId);
   }
 
-  if (pendingDeepLink) {
+  if (pendingDeepLink && window) {
     log.info('Processing pending deep link:', pendingDeepLink);
-    handleProtocolUrl(pendingDeepLink);
+    try {
+      const parsedUrl = new URL(pendingDeepLink);
+      if (parsedUrl.hostname === 'extension') {
+        log.info('Sending add-extension IPC to ready window');
+        window.webContents.send('add-extension', pendingDeepLink);
+      } else if (parsedUrl.hostname === 'sessions') {
+        log.info('Sending open-shared-session IPC to ready window');
+        window.webContents.send('open-shared-session', pendingDeepLink);
+      }
+      pendingDeepLink = null;
+    } catch (error) {
+      log.error('Error processing pending deep link:', error);
+      pendingDeepLink = null;
+    }
   } else {
     log.info('No pending deep link to process');
   }
@@ -1891,7 +1923,13 @@ async function appMain() {
 
   const { dirPath } = parseArgs();
 
-  await createNewWindow(app, dirPath);
+  // Only create a new window if open-url didn't already handle the launch
+  // This prevents duplicate windows when launching via deep link on cold start
+  if (!openUrlHandledLaunch) {
+    await createNewWindow(app, dirPath);
+  } else {
+    log.info('[Main] Skipping window creation in appMain - open-url already handled launch');
+  }
 
   // Setup auto-updater AFTER window is created and displayed (with delay to avoid blocking)
   setTimeout(() => {
