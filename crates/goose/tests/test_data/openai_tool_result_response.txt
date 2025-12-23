@@ -1,6 +1,6 @@
 data: {"id":"chatcmpl-test2","object":"chat.completion.chunk","created":1766309809,"model":"gpt-5-nano","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}
 
-data: {"id":"chatcmpl-test2","object":"chat.completion.chunk","created":1766309809,"model":"gpt-5-nano","choices":[{"index":0,"delta":{"content":"2"},"finish_reason":null}]}
+data: {"id":"chatcmpl-test2","object":"chat.completion.chunk","created":1766309809,"model":"gpt-5-nano","choices":[{"index":0,"delta":{"content":"test-uuid-12345-67890"},"finish_reason":null}]}
 
 data: {"id":"chatcmpl-test2","object":"chat.completion.chunk","created":1766309809,"model":"gpt-5-nano","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
 

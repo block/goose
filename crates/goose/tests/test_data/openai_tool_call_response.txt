@@ -1,6 +1,6 @@
-data: {"id":"chatcmpl-test1","object":"chat.completion.chunk","created":1766309803,"model":"gpt-5-nano","choices":[{"index":0,"delta":{"role":"assistant","content":null,"tool_calls":[{"index":0,"id":"call_abc123","type":"function","function":{"name":"calculator__sum","arguments":""}}],"refusal":null},"finish_reason":null}]}
+data: {"id":"chatcmpl-test1","object":"chat.completion.chunk","created":1766309803,"model":"gpt-5-nano","choices":[{"index":0,"delta":{"role":"assistant","content":null,"tool_calls":[{"index":0,"id":"call_abc123","type":"function","function":{"name":"lookup__get_code","arguments":""}}],"refusal":null},"finish_reason":null}]}
 
-data: {"id":"chatcmpl-test1","object":"chat.completion.chunk","created":1766309803,"model":"gpt-5-nano","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"a\":1,\"b\":1}"}}]},"finish_reason":null}]}
+data: {"id":"chatcmpl-test1","object":"chat.completion.chunk","created":1766309803,"model":"gpt-5-nano","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{}"}}]},"finish_reason":null}]}
 
 data: {"id":"chatcmpl-test1","object":"chat.completion.chunk","created":1766309803,"model":"gpt-5-nano","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}
 

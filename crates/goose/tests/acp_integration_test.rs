@@ -4,9 +4,8 @@ use rmcp::transport::streamable_http_server::{
     session::local::LocalSessionManager, StreamableHttpServerConfig, StreamableHttpService,
 };
 use rmcp::{
-    handler::server::{router::tool::ToolRouter, wrapper::Parameters},
-    model::*,
-    tool, tool_handler, tool_router, ErrorData as McpError, ServerHandler,
+    handler::server::router::tool::ToolRouter, model::*, tool, tool_handler, tool_router,
+    ErrorData as McpError, ServerHandler,
 };
 use sacp::schema::{
     ContentBlock, ContentChunk, InitializeRequest, McpServer, NewSessionRequest, PromptRequest,
@@ -23,6 +22,9 @@ use tokio::task::JoinHandle;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
+
+/// Fake code returned by the MCP server - an LLM couldn't know this from memory
+const FAKE_CODE: &str = "test-uuid-12345-67890";
 
 #[tokio::test]
 async fn test_acp_basic_completion() {
@@ -56,7 +58,7 @@ async fn test_acp_basic_completion() {
 
 #[tokio::test]
 async fn test_acp_with_mcp_http_server() {
-    let prompt = "Use the sum tool to calculate 1+1 and output only the resulting number.";
+    let prompt = "Use the get_code tool and output only its result.";
     let (mcp_url, _handle) = spawn_mcp_http_server().await;
 
     let mock_server = setup_mock_openai(vec![
@@ -65,7 +67,7 @@ async fn test_acp_with_mcp_http_server() {
             include_str!("./test_data/openai_tool_call_response.txt"),
         ),
         (
-            r#""content":"2","role":"tool""#.to_string(),
+            format!(r#""content":"{FAKE_CODE}","role":"tool""#),
             include_str!("./test_data/openai_tool_result_response.txt"),
         ),
     ])
@@ -74,7 +76,7 @@ async fn test_acp_with_mcp_http_server() {
     run_acp_session(
         &mock_server,
         vec![McpServer::Http {
-            name: "calculator".into(),
+            name: "lookup".into(),
             url: mcp_url,
             headers: vec![],
         }],
@@ -94,7 +96,7 @@ async fn test_acp_with_mcp_http_server() {
                 .unwrap();
 
             assert_eq!(response.stop_reason, StopReason::EndTurn);
-            wait_for_text(&updates, "2", Duration::from_secs(5)).await;
+            wait_for_text(&updates, FAKE_CODE, Duration::from_secs(5)).await;
         },
     )
     .await;
@@ -277,51 +279,41 @@ where
         .unwrap();
 }
 
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
-struct SumRequest {
-    a: i32,
-    b: i32,
-}
-
 #[derive(Clone)]
-struct Calculator {
-    tool_router: ToolRouter<Calculator>,
+struct Lookup {
+    tool_router: ToolRouter<Lookup>,
 }
 
 #[tool_router]
-impl Calculator {
+impl Lookup {
     fn new() -> Self {
         Self {
             tool_router: Self::tool_router(),
         }
     }
 
-    #[tool(description = "Calculate the sum of two numbers")]
-    fn sum(
-        &self,
-        Parameters(SumRequest { a, b }): Parameters<SumRequest>,
-    ) -> Result<CallToolResult, McpError> {
-        Ok(CallToolResult::success(vec![Content::text(
-            (a + b).to_string(),
-        )]))
+    /// Returns a fake code that an LLM couldn't know from memory
+    #[tool(description = "Get the code")]
+    fn get_code(&self) -> Result<CallToolResult, McpError> {
+        Ok(CallToolResult::success(vec![Content::text(FAKE_CODE)]))
     }
 }
 
 #[tool_handler]
-impl ServerHandler for Calculator {
+impl ServerHandler for Lookup {
     fn get_info(&self) -> ServerInfo {
         ServerInfo {
             protocol_version: ProtocolVersion::V_2025_03_26,
             capabilities: ServerCapabilities::builder().enable_tools().build(),
             server_info: Implementation::from_build_env(),
-            instructions: Some("Calculator server with sum tool.".into()),
+            instructions: Some("Lookup server with get_code tool.".into()),
         }
     }
 }
 
 async fn spawn_mcp_http_server() -> (String, JoinHandle<()>) {
     let service = StreamableHttpService::new(
-        || Ok(Calculator::new()),
+        || Ok(Lookup::new()),
         LocalSessionManager::default().into(),
         StreamableHttpServerConfig::default(),
     );
