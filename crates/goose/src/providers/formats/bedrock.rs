@@ -21,6 +21,7 @@ use crate::conversation::message::{Message, MessageContent};
 #[derive(Debug, Default)]
 pub struct BedrockStreamAccumulator {
     text_blocks: HashMap<i32, String>,
+    text_block_emitted_char_counts: HashMap<i32, usize>,
     tool_blocks: HashMap<i32, (String, String, String)>,
     role: Option<Role>,
     usage: Option<bedrock::TokenUsage>,
@@ -50,6 +51,7 @@ impl BedrockStreamAccumulator {
             }
             _ => {
                 self.text_blocks.insert(index, String::new());
+                self.text_block_emitted_char_counts.insert(index, 0);
             }
         }
         Ok(())
@@ -63,9 +65,8 @@ impl BedrockStreamAccumulator {
         match delta {
             bedrock::ContentBlockDelta::Text(text) => {
                 // Ensure the block exists (in case we get delta before start)
-                self.text_blocks.entry(index).or_default().push_str(text);
-                // Always emit incremental text updates
-                self.build_incremental_text_message()
+            self.text_blocks.entry(index).or_default().push_str(text);
+                self.build_incremental_delta_message(index)
             }
             bedrock::ContentBlockDelta::ToolUse(tool_delta) => {
                 if let Some((_, _, json)) = self.tool_blocks.get_mut(&index) {
@@ -90,27 +91,28 @@ impl BedrockStreamAccumulator {
         }
     }
 
-    /// Build a message with only the current text content (for streaming)
-    fn build_incremental_text_message(&self) -> Result<Option<Message>> {
-        let role = self.role.clone().unwrap_or(Role::Assistant);
-        let created = Utc::now().timestamp();
-        let mut content = Vec::new();
+    /// Build a message with only the new text delta for streaming
+    fn build_incremental_delta_message(&mut self, index: i32) -> Result<Option<Message>> {
+        if let Some(text) = self.text_blocks.get(&index) {
+            let emitted_char_count = *self
+                .text_block_emitted_char_counts
+                .get(&index)
+                .unwrap_or(&0);
+            let current_char_count = text.chars().count();
 
-        let mut indices: Vec<_> = self.text_blocks.keys().cloned().collect();
-        indices.sort();
-        for idx in indices {
-            if let Some(text) = self.text_blocks.get(&idx) {
-                if !text.is_empty() {
-                    content.push(MessageContent::text(text.clone()));
-                }
+            if current_char_count > emitted_char_count {
+                let delta = text.chars().skip(emitted_char_count).collect::<String>();
+                self.text_block_emitted_char_counts
+                    .insert(index, current_char_count);
+
+                let role = self.role.clone().unwrap_or(Role::Assistant);
+                let created = Utc::now().timestamp();
+                let content = vec![MessageContent::text(delta)];
+
+                return Ok(Some(Message::new(role, created, content)));
             }
         }
-
-        if content.is_empty() {
-            Ok(None)
-        } else {
-            Ok(Some(Message::new(role, created, content)))
-        }
+        Ok(None)
     }
 
     fn build_final_message(&self) -> Result<Option<Message>> {
@@ -118,16 +120,24 @@ impl BedrockStreamAccumulator {
         let created = Utc::now().timestamp();
         let mut content = Vec::new();
 
+        // Only include text blocks that have remaining content not yet emitted during streaming
         let mut indices: Vec<_> = self.text_blocks.keys().cloned().collect();
         indices.sort();
         for idx in indices {
             if let Some(text) = self.text_blocks.get(&idx) {
-                if !text.is_empty() {
-                    content.push(MessageContent::text(text.clone()));
+                let emitted_char_count =
+                    *self.text_block_emitted_char_counts.get(&idx).unwrap_or(&0);
+                let current_char_count = text.chars().count();
+                if current_char_count > emitted_char_count {
+                    let remaining = text.chars().skip(emitted_char_count).collect::<String>();
+                    if !remaining.is_empty() {
+                        content.push(MessageContent::text(remaining));
+                    }
                 }
             }
         }
 
+        // Tool blocks are always included as they are only complete at the end of streaming
         let mut tool_indices: Vec<_> = self.tool_blocks.keys().cloned().collect();
         tool_indices.sort();
         for idx in tool_indices {
@@ -185,14 +195,8 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
         MessageContent::Image(image) => {
             bedrock::ContentBlock::Image(to_bedrock_image(&image.data, &image.mime_type)?)
         }
-        MessageContent::Thinking(_) => {
-            // Thinking blocks are not supported in Bedrock - skip
-            bedrock::ContentBlock::Text("".to_string())
-        }
-        MessageContent::RedactedThinking(_) => {
-            // Redacted thinking blocks are not supported in Bedrock - skip
-            bedrock::ContentBlock::Text("".to_string())
-        }
+        MessageContent::Thinking(_) => bedrock::ContentBlock::Text("".to_string()),
+        MessageContent::RedactedThinking(_) => bedrock::ContentBlock::Text("".to_string()),
         MessageContent::SystemNotification(_) => {
             bail!("SystemNotification should not get passed to the provider")
         }
@@ -240,13 +244,10 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
                         .map(|c| to_bedrock_tool_result_content_block(&tool_res.id, c.clone()))
                         .collect::<Result<_>>()?,
                 ),
-                Err(error) => {
-                    // For errors, create a text content block with the error message
-                    Some(vec![bedrock::ToolResultContentBlock::Text(format!(
-                        "The tool call returned the following error:\n{}",
-                        error
-                    ))])
-                }
+                Err(error) => Some(vec![bedrock::ToolResultContentBlock::Text(format!(
+                    "The tool call returned the following error:\n{}",
+                    error
+                ))]),
             };
             bedrock::ContentBlock::ToolResult(
                 bedrock::ToolResultBlock::builder()
