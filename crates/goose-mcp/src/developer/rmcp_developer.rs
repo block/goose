@@ -1290,20 +1290,24 @@ impl DeveloperServer {
             .map(|strategy| strategy.config_dir().join(".gooseignore"))
             .ok();
 
-        let _ = builder.add_line(None, "**/.env");
-        let _ = builder.add_line(None, "**/.env.*");
-        let _ = builder.add_line(None, "**/secrets.*");
+        let has_local_ignore = local_ignore_path.is_file();
+        let has_global_ignore = global_ignore_path
+            .as_ref()
+            .map(|p| p.is_file())
+            .unwrap_or(false);
 
-        // Add global .gooseignore patterns (medium priority)
-        if let Some(ref global_path) = global_ignore_path {
-            if global_path.is_file() {
-                let _ = builder.add(global_path);
-            }
+        if has_global_ignore {
+            let _ = builder.add(global_ignore_path.as_ref().unwrap());
         }
 
-        // Add local .gooseignore patterns (highest priority)
-        if local_ignore_path.is_file() {
+        if has_local_ignore {
             let _ = builder.add(&local_ignore_path);
+        }
+
+        if !has_local_ignore && !has_global_ignore {
+            let _ = builder.add_line(None, "**/.env");
+            let _ = builder.add_line(None, "**/.env.*");
+            let _ = builder.add_line(None, "**/secrets.*");
         }
 
         builder.build().expect("Failed to build ignore patterns")
