@@ -1,3 +1,4 @@
+pub mod cgnat;
 pub mod lapstone;
 
 #[cfg(test)]
@@ -9,6 +10,7 @@ use goose::config::{paths::Paths, Config};
 use serde::{Deserialize, Serialize};
 use std::fs::{File, OpenOptions};
 use std::io::Write;
+use std::process::Command;
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
 use utoipa::ToSchema;
@@ -65,6 +67,50 @@ fn is_tunnel_locked_by_another() -> bool {
     false
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum TunnelMode {
+    Disabled,
+    Lapstone,
+    Cgnat,
+}
+
+impl TunnelMode {
+    pub fn from_env() -> Self {
+        match std::env::var("GOOSE_TUNNEL").ok().as_deref() {
+            Some("no") | Some("none") => TunnelMode::Disabled,
+            Some("cgnat") => TunnelMode::Cgnat,
+            _ => TunnelMode::Lapstone,
+        }
+    }
+}
+
+/// Detect CGNAT IP (100.64.0.0/10 range) from network interfaces.
+/// Returns the first 100.x.x.x address found, typically from a VPN tunnel interface.
+pub fn detect_cgnat_ip() -> Option<String> {
+    let output = Command::new("sh")
+        .arg("-c")
+        .arg(r"ifconfig | grep -Eo '100\.[0-9]+\.[0-9]+\.[0-9]+' | head -1")
+        .output()
+        .ok()?;
+
+    if output.status.success() {
+        let ip = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if !ip.is_empty() {
+            return Some(ip);
+        }
+    }
+    None
+}
+
+fn get_or_create_tunnel_secret() -> String {
+    if let Ok(secret) = Config::global().get_secret::<String>("tunnel_secret") {
+        return secret;
+    }
+    let secret = generate_secret();
+    let _ = Config::global().set_secret("tunnel_secret", &secret);
+    secret
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum TunnelState {
@@ -88,6 +134,7 @@ pub struct TunnelManager {
     state: Arc<RwLock<TunnelState>>,
     info: Arc<RwLock<Option<TunnelInfo>>>,
     lapstone_handle: Arc<RwLock<Option<tokio::task::JoinHandle<()>>>>,
+    cgnat_handle: Arc<RwLock<Option<tokio::task::JoinHandle<()>>>>,
     restart_tx: Arc<RwLock<Option<mpsc::Sender<()>>>>,
     watchdog_handle: Arc<RwLock<Option<tokio::task::JoinHandle<()>>>>,
     lock_file: Arc<std::sync::Mutex<Option<File>>>,
@@ -105,6 +152,7 @@ impl TunnelManager {
             state: Arc::new(RwLock::new(TunnelState::Idle)),
             info: Arc::new(RwLock::new(None)),
             lapstone_handle: Arc::new(RwLock::new(None)),
+            cgnat_handle: Arc::new(RwLock::new(None)),
             restart_tx: Arc::new(RwLock::new(None)),
             watchdog_handle: Arc::new(RwLock::new(None)),
             lock_file: Arc::new(std::sync::Mutex::new(None)),
@@ -126,6 +174,31 @@ impl TunnelManager {
     }
 
     pub async fn check_auto_start(&self) {
+        let mode = TunnelMode::from_env();
+
+        if mode == TunnelMode::Disabled {
+            return;
+        }
+
+        // For CGNAT mode, auto-start the CGNAT proxy
+        if mode == TunnelMode::Cgnat {
+            if let Some(cgnat_ip) = detect_cgnat_ip() {
+                tracing::info!("CGNAT mode: detected IP {}, starting proxy", cgnat_ip);
+                match self.start_cgnat(cgnat_ip).await {
+                    Ok(info) => {
+                        tracing::info!("CGNAT proxy started: {}", info.url);
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to start CGNAT proxy: {}", e);
+                    }
+                }
+            } else {
+                tracing::warn!("CGNAT mode enabled but no 100.x.x.x IP detected");
+            }
+            return;
+        }
+
+        // Lapstone mode
         let auto_start = Self::get_auto_start();
         let state = self.state.read().await.clone();
 
@@ -149,17 +222,30 @@ impl TunnelManager {
         }
     }
 
+    async fn start_cgnat(&self, cgnat_ip: String) -> anyhow::Result<TunnelInfo> {
+        let server_port = get_server_port()?;
+        let tunnel_secret = get_or_create_tunnel_secret();
+        let server_secret =
+            std::env::var("GOOSE_SERVER__SECRET_KEY").unwrap_or_else(|_| "test".to_string());
+
+        let (info, handle) =
+            cgnat::start(server_port, tunnel_secret, server_secret, cgnat_ip).await?;
+
+        *self.cgnat_handle.write().await = Some(handle);
+        *self.state.write().await = TunnelState::Running;
+        *self.info.write().await = Some(info.clone());
+
+        Ok(info)
+    }
+
     fn is_tunnel_disabled() -> bool {
-        if let Ok(val) = std::env::var("GOOSE_TUNNEL") {
-            let val = val.to_lowercase();
-            val == "no" || val == "none"
-        } else {
-            false
-        }
+        TunnelMode::from_env() == TunnelMode::Disabled
     }
 
     pub async fn get_info(&self) -> TunnelInfo {
-        if Self::is_tunnel_disabled() {
+        let mode = TunnelMode::from_env();
+
+        if mode == TunnelMode::Disabled {
             return TunnelInfo {
                 state: TunnelState::Disabled,
                 url: String::new(),
@@ -245,6 +331,19 @@ impl TunnelManager {
             anyhow::bail!("Tunnel is disabled via GOOSE_TUNNEL environment variable");
         }
 
+        // In CGNAT mode, start the CGNAT proxy if not already running
+        if TunnelMode::from_env() == TunnelMode::Cgnat {
+            let info = self.info.read().await.clone();
+            if let Some(info) = info {
+                return Ok(info);
+            }
+            // Try to start CGNAT proxy
+            if let Some(cgnat_ip) = detect_cgnat_ip() {
+                return self.start_cgnat(cgnat_ip).await;
+            }
+            anyhow::bail!("CGNAT mode requires a 100.x.x.x IP to be detected");
+        }
+
         let mut state = self.state.write().await;
         if *state != TunnelState::Idle {
             anyhow::bail!("Tunnel is already running or starting");
@@ -313,6 +412,7 @@ impl TunnelManager {
             state: self.state.clone(),
             info: self.info.clone(),
             lapstone_handle: self.lapstone_handle.clone(),
+            cgnat_handle: self.cgnat_handle.clone(),
             restart_tx: self.restart_tx.clone(),
             watchdog_handle: self.watchdog_handle.clone(),
             lock_file: self.lock_file.clone(),
@@ -334,6 +434,11 @@ impl TunnelManager {
         *self.restart_tx.write().await = None;
 
         lapstone::stop(self.lapstone_handle.clone()).await;
+
+        // Stop CGNAT proxy if running
+        if let Some(handle) = self.cgnat_handle.write().await.take() {
+            handle.abort();
+        }
 
         self.release_lock();
 
