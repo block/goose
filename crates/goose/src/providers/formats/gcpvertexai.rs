@@ -58,82 +58,28 @@ pub enum ModelError {
     UnsupportedLocation(String),
 }
 
-/// Represents available GCP Vertex AI models for goose.
-///
-/// This enum encompasses different model families and their versions
-/// that are supported in the GCP Vertex AI platform.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GcpVertexAIModel {
-    /// Claude model family with specific versions
-    Claude(ClaudeVersion),
-    /// Gemini model family with specific versions
-    Gemini(GeminiVersion),
+    /// Claude model family
+    Claude(String),
+    /// Gemini model family
+    Gemini(String),
     /// MaaS (Model as a Service) models from Model Garden
     /// Contains (publisher, full_model_name)
     MaaS(String, String),
 }
 
-/// Represents available versions of the Claude model for goose.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ClaudeVersion {
-    /// Claude 3.7 Sonnet
-    Sonnet37,
-    /// Claude Sonnet 4
-    Sonnet4,
-    /// Claude Opus 4
-    Opus4,
-    /// Generic Claude model for custom or new versions
-    Generic(String),
-}
-
-/// Represents available versions of the Gemini model for goose.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum GeminiVersion {
-    /// Gemini 1.5 Pro version
-    Pro15,
-    /// Gemini 2.0 Flash version
-    Flash20,
-    /// Gemini 2.0 Pro Experimental version
-    Pro20Exp,
-    /// Gemini 2.5 Pro Experimental version
-    Pro25Exp,
-    /// Gemini 2.5 Flash Preview version
-    Flash25Preview,
-    /// Gemini 2.5 Pro Preview version
-    Pro25Preview,
-    /// Gemini 2.5 Flash version
-    Flash25,
-    /// Gemini 2.5 Pro version
-    Pro25,
-    /// Generic Gemini model for custom or new versions
-    Generic(String),
-}
 
 impl fmt::Display for GcpVertexAIModel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let model_id = match self {
-            Self::Claude(version) => match version {
-                ClaudeVersion::Sonnet37 => "claude-3-7-sonnet@20250219",
-                ClaudeVersion::Sonnet4 => "claude-sonnet-4@20250514",
-                ClaudeVersion::Opus4 => "claude-opus-4@20250514",
-                ClaudeVersion::Generic(name) => name,
-            },
-            Self::Gemini(version) => match version {
-                GeminiVersion::Pro15 => "gemini-1.5-pro-002",
-                GeminiVersion::Flash20 => "gemini-2.0-flash-001",
-                GeminiVersion::Pro20Exp => "gemini-2.0-pro-exp-02-05",
-                GeminiVersion::Pro25Exp => "gemini-2.5-pro-exp-03-25",
-                GeminiVersion::Flash25Preview => "gemini-2.5-flash-preview-05-20",
-                GeminiVersion::Pro25Preview => "gemini-2.5-pro-preview-05-06",
-                GeminiVersion::Flash25 => "gemini-2.5-flash",
-                GeminiVersion::Pro25 => "gemini-2.5-pro",
-                GeminiVersion::Generic(name) => name,
-            },
-            Self::MaaS(_, model_name) => model_name,
-        };
-        write!(f, "{model_id}")
+        match self {
+            Self::Claude(model) => write!(f, "{model}"),
+            Self::Gemini(model) => write!(f, "{model}"),
+            Self::MaaS(_, model) => write!(f, "{model}"),
+        }
     }
 }
+
 
 impl GcpVertexAIModel {
     /// Returns the default GCP location for the model.
@@ -155,20 +101,9 @@ impl TryFrom<&str> for GcpVertexAIModel {
     type Error = ModelError;
 
     fn try_from(s: &str) -> Result<Self, Self::Error> {
-        // Known models
         match s {
-            "claude-3-7-sonnet@20250219" => Ok(Self::Claude(ClaudeVersion::Sonnet37)),
-            "claude-sonnet-4@20250514" => Ok(Self::Claude(ClaudeVersion::Sonnet4)),
-            "claude-opus-4@20250514" => Ok(Self::Claude(ClaudeVersion::Opus4)),
-            "gemini-1.5-pro-002" => Ok(Self::Gemini(GeminiVersion::Pro15)),
-            "gemini-2.0-flash-001" => Ok(Self::Gemini(GeminiVersion::Flash20)),
-            "gemini-2.0-pro-exp-02-05" => Ok(Self::Gemini(GeminiVersion::Pro20Exp)),
-            "gemini-2.5-pro-exp-03-25" => Ok(Self::Gemini(GeminiVersion::Pro25Exp)),
-            "gemini-2.5-flash-preview-05-20" => Ok(Self::Gemini(GeminiVersion::Flash25Preview)),
-            "gemini-2.5-pro-preview-05-06" => Ok(Self::Gemini(GeminiVersion::Pro25Preview)),
-            "gemini-2.5-flash" => Ok(Self::Gemini(GeminiVersion::Flash25)),
-            "gemini-2.5-pro" => Ok(Self::Gemini(GeminiVersion::Pro25)),
-            // MaaS models (Model as a Service from Model Garden)
+            _ if s.starts_with("claude-") => Ok(Self::Claude(s.to_string())),
+            _ if s.starts_with("gemini-") => Ok(Self::Gemini(s.to_string())),
             _ if s.ends_with("-maas") => {
                 let publisher = s
                     .split('-')
@@ -176,13 +111,6 @@ impl TryFrom<&str> for GcpVertexAIModel {
                     .ok_or_else(|| ModelError::UnsupportedModel(s.to_string()))?
                     .to_string();
                 Ok(Self::MaaS(publisher, s.to_string()))
-            }
-            // Generic models based on prefix matching
-            _ if s.starts_with("claude-") => {
-                Ok(Self::Claude(ClaudeVersion::Generic(s.to_string())))
-            }
-            _ if s.starts_with("gemini-") => {
-                Ok(Self::Gemini(GeminiVersion::Generic(s.to_string())))
             }
             _ => Err(ModelError::UnsupportedModel(s.to_string())),
         }
@@ -429,41 +357,32 @@ mod tests {
     }
 
     #[test]
-    fn test_generic_model_parsing() -> Result<()> {
-        // Test generic Claude models
+    fn test_model_parsing() -> Result<()> {
         let claude_models = [
-            "claude-3-8-apex@20250301",
-            "claude-new-version",
+            "claude-3-7-sonnet@20250219",
+            "claude-sonnet-4@20250514",
             "claude-experimental",
         ];
-
         for model_id in claude_models {
             let model = GcpVertexAIModel::try_from(model_id)?;
-            match model {
-                GcpVertexAIModel::Claude(ClaudeVersion::Generic(ref name)) => {
-                    assert_eq!(name, model_id);
-                }
-                _ => panic!("Expected Claude generic model for {model_id}"),
-            }
+            assert!(matches!(model, GcpVertexAIModel::Claude(_)));
             assert_eq!(model.to_string(), model_id);
             assert_eq!(model.known_location(), GcpLocation::Ohio);
         }
 
-        // Test generic Gemini models
-        let gemini_models = ["gemini-3-pro", "gemini-2.0-flash", "gemini-experimental"];
-
+        let gemini_models = [
+            "gemini-1.5-pro-002",
+            "gemini-2.0-flash-001",
+            "gemini-experimental",
+        ];
         for model_id in gemini_models {
             let model = GcpVertexAIModel::try_from(model_id)?;
-            match model {
-                GcpVertexAIModel::Gemini(GeminiVersion::Generic(ref name)) => {
-                    assert_eq!(name, model_id);
-                }
-                _ => panic!("Expected Gemini generic model for {model_id}"),
-            }
+            assert!(matches!(model, GcpVertexAIModel::Gemini(_)));
             assert_eq!(model.to_string(), model_id);
             assert_eq!(model.known_location(), GcpLocation::Iowa);
         }
 
+        assert!(GcpVertexAIModel::try_from("unsupported-model").is_err());
         Ok(())
     }
 }
