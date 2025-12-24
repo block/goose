@@ -12,12 +12,13 @@ use regex::Regex;
 use reqwest::{Response, StatusCode};
 use rmcp::model::{AnnotateAble, ImageContent, RawImageContent};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Map, Value};
+use serde_json::{json, Value};
 use std::fmt::Display;
 use std::fs::File;
 use std::io;
 use std::io::{BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 use std::time::Duration;
 use tokio::pin;
 use tokio_stream::StreamExt;
@@ -324,12 +325,14 @@ pub async fn handle_response_google_compat(response: Response) -> Result<Value, 
 }
 
 pub fn sanitize_function_name(name: &str) -> String {
-    let re = Regex::new(r"[^a-zA-Z0-9_-]").unwrap();
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let re = RE.get_or_init(|| Regex::new(r"[^a-zA-Z0-9_-]").unwrap());
     re.replace_all(name, "_").to_string()
 }
 
 pub fn is_valid_function_name(name: &str) -> bool {
-    let re = Regex::new(r"^[a-zA-Z0-9_-]+$").unwrap();
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let re = RE.get_or_init(|| Regex::new(r"^[a-zA-Z0-9_-]+$").unwrap());
     re.is_match(name)
 }
 
@@ -435,31 +438,37 @@ pub fn load_image_file(path: &str) -> Result<ImageContent, ProviderError> {
 }
 
 pub fn unescape_json_values(value: &Value) -> Value {
+    let mut cloned = value.clone();
+    unescape_json_values_in_place(&mut cloned);
+    cloned
+}
+
+fn unescape_json_values_in_place(value: &mut Value) {
     match value {
         Value::Object(map) => {
-            let new_map: Map<String, Value> = map
-                .iter()
-                .map(|(k, v)| (k.clone(), unescape_json_values(v))) // Process each value
-                .collect();
-            Value::Object(new_map)
+            for v in map.values_mut() {
+                unescape_json_values_in_place(v);
+            }
         }
         Value::Array(arr) => {
-            let new_array: Vec<Value> = arr.iter().map(unescape_json_values).collect();
-            Value::Array(new_array)
+            for v in arr.iter_mut() {
+                unescape_json_values_in_place(v);
+            }
         }
         Value::String(s) => {
-            let unescaped = s
-                .replace("\\\\n", "\n")
-                .replace("\\\\t", "\t")
-                .replace("\\\\r", "\r")
-                .replace("\\\\\"", "\"")
-                .replace("\\n", "\n")
-                .replace("\\t", "\t")
-                .replace("\\r", "\r")
-                .replace("\\\"", "\"");
-            Value::String(unescaped)
+            if s.contains('\\') {
+                *s = s
+                    .replace("\\\\n", "\n")
+                    .replace("\\\\t", "\t")
+                    .replace("\\\\r", "\r")
+                    .replace("\\\\\"", "\"")
+                    .replace("\\n", "\n")
+                    .replace("\\t", "\t")
+                    .replace("\\r", "\r")
+                    .replace("\\\"", "\"");
+            }
         }
-        _ => value.clone(),
+        _ => {}
     }
 }
 
