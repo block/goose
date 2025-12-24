@@ -20,7 +20,11 @@ The client manages the goose lifecycle automatically, including:
 - **Multiple Sessions**: The client manages multiple concurrent goose conversations simultaneously
 
 :::info Session Persistence
-ACP sessions are saved to goose's session history where you can access and manage them using goose. However, these sessions aren't persisted in ACP clients, so you'll need to start a new conversation each time you restart the client.
+ACP sessions are saved to goose's session history where you can access and manage them using goose. Access to session history in ACP clients might vary.
+:::
+
+:::tip Reference Implementation
+The [goose for VS Code](/docs/experimental/vs-code-extension) extension uses ACP to communicate with goose. See the [vscode-goose](https://github.com/block/vscode-goose) repository for implementation details.
 :::
 
 ## Setup in ACP Clients
@@ -37,7 +41,7 @@ Ensure you have both Zed and goose CLI installed:
 - **Zed**: Download from [zed.dev](https://zed.dev/)
 - **goose CLI**: Follow the [installation guide](/docs/getting-started/installation)
 
-  - ACP support works best with version 1.14.2 or later - check with `goose --version`.
+  - ACP support works best with version 1.16.0 or later - check with `goose --version`.
 
   - Temporarily run `goose acp` to test that ACP support is working:
 
