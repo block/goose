@@ -1,5 +1,7 @@
 use crate::routes::errors::ErrorResponse;
-use crate::routes::recipe_utils::{apply_recipe_to_agent, build_recipe_with_parameter_values};
+use crate::routes::recipe_utils::{
+    apply_recipe_to_agent, build_recipe_with_parameter_values, load_recipe_by_id, validate_recipe,
+};
 use crate::state::AppState;
 use axum::extract::State;
 use axum::routing::post;
@@ -9,19 +11,30 @@ use axum::{
     routing::{delete, get, put},
     Json, Router,
 };
+use goose::agents::ExtensionConfig;
+use goose::config::Config;
+use goose::model::ModelConfig;
+use goose::prompt_template::render_global_file;
+use goose::providers::create;
 use goose::recipe::Recipe;
+use goose::recipe_deeplink;
 use goose::session::session_manager::SessionInsights;
+use goose::session::session_manager::SessionType;
 use goose::session::{Session, SessionManager};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use tracing::error;
 use utoipa::ToSchema;
 
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionListResponse {
     /// List of available session information objects
-    sessions: Vec<Session>,
+    pub sessions: Vec<Session>,
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -46,7 +59,7 @@ pub struct UpdateSessionUserRecipeValuesResponse {
 #[derive(Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportSessionRequest {
-    json: String,
+    pub json: String,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -74,7 +87,308 @@ pub struct EditMessageResponse {
     session_id: String,
 }
 
+#[derive(Deserialize, ToSchema)]
+pub struct CreateSessionRequest {
+    pub working_dir: String,
+    #[serde(default)]
+    pub recipe: Option<Recipe>,
+    #[serde(default)]
+    pub recipe_id: Option<String>,
+    #[serde(default)]
+    pub recipe_deeplink: Option<String>,
+    #[serde(default)]
+    pub provider: Option<String>,
+    #[serde(default)]
+    pub model: Option<String>,
+}
+
+#[derive(Deserialize, ToSchema)]
+pub struct OpenSessionRequest {
+    #[serde(default)]
+    pub provider: Option<String>,
+    #[serde(default)]
+    pub model: Option<String>,
+}
+
+#[derive(Deserialize, ToSchema)]
+pub struct AddSessionExtensionRequest {
+    pub config: ExtensionConfig,
+}
+
 const MAX_NAME_LENGTH: usize = 200;
+
+async fn setup_agent_for_session(
+    state: &AppState,
+    session: &Session,
+    provider_override: Option<String>,
+    model_override: Option<String>,
+) -> Result<(), ErrorResponse> {
+    let agent = state
+        .get_agent_for_route(session.id.clone())
+        .await
+        .map_err(|code| ErrorResponse {
+            message: "Failed to get agent".into(),
+            status: code,
+        })?;
+
+    let config = Config::global();
+
+    let provider_name = provider_override
+        .or_else(|| session.provider_name.clone())
+        .or_else(|| config.get_goose_provider().ok())
+        .ok_or_else(|| ErrorResponse {
+            message: "No provider configured".into(),
+            status: StatusCode::BAD_REQUEST,
+        })?;
+
+    let model_config = if let Some(model) = model_override {
+        ModelConfig::new(&model).map_err(|e| ErrorResponse {
+            message: format!("Invalid model: {}", e),
+            status: StatusCode::BAD_REQUEST,
+        })?
+    } else if let Some(saved_config) = session.model_config.clone() {
+        saved_config
+    } else {
+        let model_name = config.get_goose_model().map_err(|_| ErrorResponse {
+            message: "No model configured".into(),
+            status: StatusCode::BAD_REQUEST,
+        })?;
+        ModelConfig::new(&model_name).map_err(|e| ErrorResponse {
+            message: format!("Invalid model: {}", e),
+            status: StatusCode::BAD_REQUEST,
+        })?
+    };
+
+    let provider = create(&provider_name, model_config)
+        .await
+        .map_err(|e| ErrorResponse {
+            message: format!("Failed to create provider: {}", e),
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+        })?;
+
+    agent
+        .update_provider(provider, &session.id)
+        .await
+        .map_err(|e| ErrorResponse {
+            message: format!("Failed to set provider: {}", e),
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+        })?;
+
+    let context: HashMap<&str, Value> = HashMap::new();
+    let desktop_prompt =
+        render_global_file("desktop_prompt.md", &context).expect("Prompt should render");
+    let mut update_prompt = desktop_prompt;
+
+    if let Some(ref recipe) = session.recipe {
+        match build_recipe_with_parameter_values(
+            recipe,
+            session.user_recipe_values.clone().unwrap_or_default(),
+        )
+        .await
+        {
+            Ok(Some(built_recipe)) => {
+                if let Some(prompt) = apply_recipe_to_agent(&agent, &built_recipe, true).await {
+                    update_prompt = prompt;
+                }
+            }
+            Ok(None) => {}
+            Err(e) => {
+                return Err(ErrorResponse {
+                    message: e.to_string(),
+                    status: StatusCode::INTERNAL_SERVER_ERROR,
+                });
+            }
+        }
+    }
+
+    agent.extend_system_prompt(update_prompt).await;
+
+    Ok(())
+}
+
+#[utoipa::path(
+    post,
+    path = "/sessions",
+    request_body = CreateSessionRequest,
+    responses(
+        (status = 200, description = "Session created successfully", body = Session),
+        (status = 400, description = "Bad request", body = ErrorResponse),
+        (status = 401, description = "Unauthorized - Invalid or missing API key"),
+        (status = 500, description = "Internal server error", body = ErrorResponse)
+    ),
+    security(
+        ("api_key" = [])
+    ),
+    tag = "Session Management"
+)]
+pub async fn create_session(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<CreateSessionRequest>,
+) -> Result<Json<Session>, ErrorResponse> {
+    goose::posthog::set_session_context("desktop", false);
+
+    let CreateSessionRequest {
+        working_dir,
+        recipe,
+        recipe_id,
+        recipe_deeplink: recipe_deeplink_str,
+        provider,
+        model,
+    } = payload;
+
+    let original_recipe = if let Some(deeplink) = recipe_deeplink_str {
+        match recipe_deeplink::decode(&deeplink) {
+            Ok(recipe) => Some(recipe),
+            Err(err) => {
+                error!("Failed to decode recipe deeplink: {}", err);
+                goose::posthog::emit_error("recipe_deeplink_decode_failed", &err.to_string());
+                return Err(ErrorResponse {
+                    message: err.to_string(),
+                    status: StatusCode::BAD_REQUEST,
+                });
+            }
+        }
+    } else if let Some(id) = recipe_id {
+        match load_recipe_by_id(state.as_ref(), &id).await {
+            Ok(recipe) => Some(recipe),
+            Err(err) => return Err(err),
+        }
+    } else {
+        recipe
+    };
+
+    if let Some(ref recipe) = original_recipe {
+        if let Err(err) = validate_recipe(recipe) {
+            return Err(ErrorResponse {
+                message: err.message,
+                status: err.status,
+            });
+        }
+    }
+
+    let counter = state.session_counter.fetch_add(1, Ordering::SeqCst) + 1;
+    let name = format!("New session {}", counter);
+
+    let mut session =
+        SessionManager::create_session(PathBuf::from(&working_dir), name, SessionType::User)
+            .await
+            .map_err(|err| {
+                error!("Failed to create session: {}", err);
+                goose::posthog::emit_error("session_create_failed", &err.to_string());
+                ErrorResponse {
+                    message: format!("Failed to create session: {}", err),
+                    status: StatusCode::BAD_REQUEST,
+                }
+            })?;
+
+    if let Some(recipe) = original_recipe {
+        SessionManager::update_session(&session.id)
+            .recipe(Some(recipe))
+            .apply()
+            .await
+            .map_err(|err| {
+                error!("Failed to update session with recipe: {}", err);
+                ErrorResponse {
+                    message: format!("Failed to update session with recipe: {}", err),
+                    status: StatusCode::INTERNAL_SERVER_ERROR,
+                }
+            })?;
+
+        session = SessionManager::get_session(&session.id, false)
+            .await
+            .map_err(|err| {
+                error!("Failed to get updated session: {}", err);
+                ErrorResponse {
+                    message: format!("Failed to get updated session: {}", err),
+                    status: StatusCode::INTERNAL_SERVER_ERROR,
+                }
+            })?;
+    }
+
+    setup_agent_for_session(&state, &session, provider, model).await?;
+
+    Ok(Json(session))
+}
+
+#[utoipa::path(
+    post,
+    path = "/sessions/{session_id}/open",
+    request_body = OpenSessionRequest,
+    params(
+        ("session_id" = String, Path, description = "Unique identifier for the session")
+    ),
+    responses(
+        (status = 200, description = "Session opened successfully", body = Session),
+        (status = 400, description = "Bad request", body = ErrorResponse),
+        (status = 401, description = "Unauthorized - Invalid or missing API key"),
+        (status = 404, description = "Session not found", body = ErrorResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse)
+    ),
+    security(
+        ("api_key" = [])
+    ),
+    tag = "Session Management"
+)]
+pub async fn open_session(
+    State(state): State<Arc<AppState>>,
+    Path(session_id): Path<String>,
+    Json(payload): Json<OpenSessionRequest>,
+) -> Result<Json<Session>, ErrorResponse> {
+    goose::posthog::set_session_context("desktop", true);
+
+    let session = SessionManager::get_session(&session_id, true)
+        .await
+        .map_err(|err| {
+            error!("Failed to load session {}: {}", session_id, err);
+            goose::posthog::emit_error("session_open_failed", &err.to_string());
+            ErrorResponse {
+                message: format!("Session not found: {}", err),
+                status: StatusCode::NOT_FOUND,
+            }
+        })?;
+
+    setup_agent_for_session(&state, &session, payload.provider, payload.model).await?;
+
+    Ok(Json(session))
+}
+
+#[utoipa::path(
+    post,
+    path = "/sessions/{session_id}/extensions",
+    request_body = AddSessionExtensionRequest,
+    params(
+        ("session_id" = String, Path, description = "Unique identifier for the session")
+    ),
+    responses(
+        (status = 200, description = "Extension added successfully"),
+        (status = 400, description = "Bad request", body = ErrorResponse),
+        (status = 401, description = "Unauthorized - Invalid or missing API key"),
+        (status = 404, description = "Session not found", body = ErrorResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse)
+    ),
+    security(
+        ("api_key" = [])
+    ),
+    tag = "Session Management"
+)]
+pub async fn add_session_extension(
+    State(state): State<Arc<AppState>>,
+    Path(session_id): Path<String>,
+    Json(request): Json<AddSessionExtensionRequest>,
+) -> Result<StatusCode, ErrorResponse> {
+    let extension_name = request.config.name();
+    let agent = state.get_agent(session_id).await?;
+
+    agent.add_extension(request.config).await.map_err(|e| {
+        goose::posthog::emit_error(
+            "extension_add_failed",
+            &format!("{}: {}", extension_name, e),
+        );
+        ErrorResponse::internal(format!("Failed to add extension: {}", e))
+    })?;
+
+    Ok(StatusCode::OK)
+}
 
 #[utoipa::path(
     get,
@@ -121,6 +435,7 @@ async fn get_session(Path(session_id): Path<String>) -> Result<Json<Session>, St
 
     Ok(Json(session))
 }
+
 #[utoipa::path(
     get,
     path = "/sessions/insights",
@@ -150,7 +465,7 @@ async fn get_session_insights() -> Result<Json<SessionInsights>, StatusCode> {
     ),
     responses(
         (status = 200, description = "Session name updated successfully"),
-        (status = 400, description = "Bad request - Name too long (max 200 characters)"),
+        (status = 400, description = "Bad request - Name is empty or too long"),
         (status = 401, description = "Unauthorized - Invalid or missing API key"),
         (status = 404, description = "Session not found"),
         (status = 500, description = "Internal server error")
@@ -165,10 +480,7 @@ async fn update_session_name(
     Json(request): Json<UpdateSessionNameRequest>,
 ) -> Result<StatusCode, StatusCode> {
     let name = request.name.trim();
-    if name.is_empty() {
-        return Err(StatusCode::BAD_REQUEST);
-    }
-    if name.len() > MAX_NAME_LENGTH {
+    if name.is_empty() || name.len() > MAX_NAME_LENGTH {
         return Err(StatusCode::BAD_REQUEST);
     }
 
@@ -189,7 +501,7 @@ async fn update_session_name(
         ("session_id" = String, Path, description = "Unique identifier for the session")
     ),
     responses(
-        (status = 200, description = "Session user recipe values updated successfully", body = UpdateSessionUserRecipeValuesResponse),
+        (status = 200, description = "User recipe values updated successfully", body = UpdateSessionUserRecipeValuesResponse),
         (status = 401, description = "Unauthorized - Invalid or missing API key"),
         (status = 404, description = "Session not found", body = ErrorResponse),
         (status = 500, description = "Internal server error", body = ErrorResponse)
@@ -199,7 +511,6 @@ async fn update_session_name(
     ),
     tag = "Session Management"
 )]
-// Update session user recipe parameter values
 async fn update_session_user_recipe_values(
     State(state): State<Arc<AppState>>,
     Path(session_id): Path<String>,
@@ -220,6 +531,7 @@ async fn update_session_user_recipe_values(
             message: err.to_string(),
             status: StatusCode::INTERNAL_SERVER_ERROR,
         })?;
+
     let recipe = session.recipe.ok_or_else(|| ErrorResponse {
         message: "Recipe not found".to_string(),
         status: StatusCode::NOT_FOUND,
@@ -396,8 +708,14 @@ async fn edit_message(
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/sessions", get(list_sessions))
+        .route("/sessions", post(create_session))
         .route("/sessions/{session_id}", get(get_session))
         .route("/sessions/{session_id}", delete(delete_session))
+        .route("/sessions/{session_id}/open", post(open_session))
+        .route(
+            "/sessions/{session_id}/extensions",
+            post(add_session_extension),
+        )
         .route("/sessions/{session_id}/export", get(export_session))
         .route("/sessions/import", post(import_session))
         .route("/sessions/insights", get(get_session_insights))
