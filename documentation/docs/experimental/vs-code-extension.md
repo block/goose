@@ -4,8 +4,6 @@ sidebar_label: VS Code Extension
 sidebar_position: 4
 ---
 
-import Tabs from '@theme/Tabs';
-import TabItem from '@theme/TabItem';
 import IconGoose from "@site/src/components/icons/goose";
 
 The [goose for VS Code extension](https://marketplace.visualstudio.com/items?itemName=block.vscode-goose) lets you interact with goose directly within VS Code.
