@@ -41,7 +41,7 @@ curl -sL https://raw.githubusercontent.com/block/goose/main/documentation/src/pa
 <details>
 <summary>2. Add Custom Slash Commands</summary>
 
-Now that the recipes are imported, [add custom slash commands](/docs/guides/recipes/session-recipes/#custom-recipe-commands) for each of the following recipes:
+Now that the recipes are imported, to quickly invoke them in-session [add custom slash commands](/docs/guides/recipes/session-recipes/#custom-recipe-commands) for each of the following recipes:
 
 | Recipe | Slash Command |
 |--------|---------------|
@@ -127,6 +127,8 @@ This is the kind of task where agents often struggle, not because they're incapa
 So instead of jumping to implementation, we'll use RPI.
 
 ## Session 1: Research
+
+The concept of planning before implementation has become a widely accepted practice. However, planning without research can lead to assumptions that come back to bite you. So, in RPI, we begin with research.
 
 I start the prompt with the `/research` command followed by a topic written in natural language
 
