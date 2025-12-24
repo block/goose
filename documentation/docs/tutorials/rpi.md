@@ -244,7 +244,7 @@ The **[RPI Implement Plan](https://raw.githubusercontent.com/block/goose/refs/he
 
 It will read the plan completely, execute the phases in order, run verification after each phase, and update the checkboxes directly in the plan file as it goes.
 
-That last bit was really helpful because my context window filled up partway through and goose was able to compact and pick up right where it left off because of the status updates in the  plan.
+That last bit was really helpful because my context window filled up partway through and goose was able to compact and pick up right where it left off because of the status updates in the plan.
 
 ## Final Result
 
