@@ -107,7 +107,7 @@ thoughts/
 ├── research/
 │   └── YYYY-MM-DD-HHmm-topic.md
 └── plans/
-    └── YYY-MM-DD-HHmm-description.md
+    └── YYYY-MM-DD-HHmm-description.md
 ```
 
 ## The Task
