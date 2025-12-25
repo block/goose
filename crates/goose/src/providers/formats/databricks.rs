@@ -627,6 +627,13 @@ pub fn create_request(
         }
     }
 
+    if let Some(request_params) = &model_config.request_params {
+        let payload_obj = payload.as_object_mut().unwrap();
+        for (key, value) in request_params {
+            payload_obj.insert(key.clone(), value.clone());
+        }
+    }
+
     Ok(payload)
 }
 
@@ -996,6 +1003,7 @@ mod tests {
             toolshim: false,
             toolshim_model: None,
             fast_model: None,
+            request_params: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         let obj = request.as_object().unwrap();
@@ -1027,6 +1035,7 @@ mod tests {
             toolshim: false,
             toolshim_model: None,
             fast_model: None,
+            request_params: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         assert_eq!(request["reasoning_effort"], "high");
