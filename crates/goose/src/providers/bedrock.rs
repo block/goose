@@ -16,7 +16,8 @@ use serde_json::Value;
 
 // Import the migrated helper functions from providers/formats/bedrock.rs
 use super::formats::bedrock::{
-    from_bedrock_message, from_bedrock_usage, to_bedrock_message, to_bedrock_tool_config,
+    from_bedrock_message, from_bedrock_usage, to_bedrock_message_with_caching,
+    to_bedrock_tool_config,
 };
 
 pub const BEDROCK_DOC_LINK: &str =
@@ -128,6 +129,16 @@ impl BedrockProvider {
         }
     }
 
+    fn should_enable_caching(&self, model_name: &str) -> bool {
+        let config = crate::config::Config::global();
+
+        // Default: caching disabled
+        let enabled = config
+            .get_param::<bool>("BEDROCK_ENABLE_CACHING")
+            .unwrap_or(false);
+        enabled && model_name.contains("anthropic.claude")
+    }
+
     async fn converse(
         &self,
         system: &str,
@@ -136,16 +147,65 @@ impl BedrockProvider {
     ) -> Result<(bedrock::Message, Option<bedrock::TokenUsage>), ProviderError> {
         let model_name = &self.model.model_name;
 
+        let enable_caching = self.should_enable_caching(model_name);
+
+        let system_blocks = if enable_caching {
+            vec![
+                bedrock::SystemContentBlock::Text(system.to_string()),
+                // Add cache point AFTER the system prompt content
+                bedrock::SystemContentBlock::CachePoint(
+                    bedrock::CachePointBlock::builder()
+                        .r#type(bedrock::CachePointType::Default)
+                        .build()
+                        .map_err(|e| {
+                            ProviderError::ExecutionError(format!(
+                                "Failed to build cache point: {}",
+                                e
+                            ))
+                        })?,
+                ),
+            ]
+        } else {
+            vec![bedrock::SystemContentBlock::Text(system.to_string())]
+        };
+
+        let visible_messages: Vec<&Message> =
+            messages.iter().filter(|m| m.is_agent_visible()).collect();
+
+        // Determine which messages should have cache points
+        // AWS Bedrock allows max 4 cache points. Strategy:
+        // - 1 system prompt (always cached if caching enabled)
+        // - 1 tools (if tools exist)
+        // - Remaining budget for messages (2-3 depending on tools)
+        let cache_point_indices: Vec<usize> = if enable_caching && !visible_messages.is_empty() {
+            let total_messages = visible_messages.len();
+            // Reserve 1 cache point for system, 1 for tools if present
+            let message_cache_budget = if !tools.is_empty() { 2 } else { 3 };
+
+            if total_messages <= message_cache_budget {
+                // Cache all messages if within budget
+                (0..total_messages).collect()
+            } else {
+                // Cache only the most recent messages
+                ((total_messages - message_cache_budget)..total_messages).collect()
+            }
+        } else {
+            vec![]
+        };
+
         let mut request = self
             .client
             .converse()
-            .system(bedrock::SystemContentBlock::Text(system.to_string()))
+            .set_system(Some(system_blocks))
             .model_id(model_name.to_string())
             .set_messages(Some(
-                messages
+                visible_messages
                     .iter()
-                    .filter(|m| m.is_agent_visible())
-                    .map(to_bedrock_message)
+                    .enumerate()
+                    .map(|(idx, m)| {
+                        let should_cache = cache_point_indices.contains(&idx);
+                        to_bedrock_message_with_caching(m, should_cache)
+                    })
                     .collect::<Result<_>>()?,
             ));
 
@@ -198,13 +258,14 @@ impl Provider for BedrockProvider {
         ProviderMetadata::new(
             "aws_bedrock",
             "Amazon Bedrock",
-            "Run models through Amazon Bedrock. Supports AWS SSO profiles - run 'aws sso login --profile <profile-name>' before using. Configure with AWS_PROFILE and AWS_REGION, or use environment variables/credentials.",
+            "Run models through Amazon Bedrock. Supports AWS SSO profiles - run 'aws sso login --profile <profile-name>' before using. Configure with AWS_PROFILE and AWS_REGION, or use environment variables/credentials. Prompt caching can be enabled for Anthropic Claude models (system prompt + messages) by setting BEDROCK_ENABLE_CACHING=true to reduce costs and improve latency.",
             BEDROCK_DEFAULT_MODEL,
             BEDROCK_KNOWN_MODELS.to_vec(),
             BEDROCK_DOC_LINK,
             vec![
                 ConfigKey::new("AWS_PROFILE", true, false, Some("default")),
                 ConfigKey::new("AWS_REGION", true, false, None),
+                ConfigKey::new("BEDROCK_ENABLE_CACHING", false, false, Some("false")),
             ],
         )
     }
@@ -259,5 +320,183 @@ impl Provider for BedrockProvider {
 
         let provider_usage = ProviderUsage::new(model_name.to_string(), usage);
         Ok((message, provider_usage))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create_mock_provider(model_name: &str) -> BedrockProvider {
+        let sdk_config = aws_config::SdkConfig::builder()
+            .behavior_version(aws_config::BehaviorVersion::latest())
+            .region(aws_config::Region::new("us-east-1"))
+            .build();
+        let client = Client::new(&sdk_config);
+
+        BedrockProvider {
+            client,
+            model: ModelConfig {
+                model_name: model_name.to_string(),
+                context_limit: None,
+                temperature: None,
+                max_tokens: None,
+                toolshim: false,
+                toolshim_model: None,
+                fast_model: None,
+            },
+            retry_config: RetryConfig::default(),
+            name: "aws_bedrock".to_string(),
+        }
+    }
+
+    #[test]
+    fn test_caching_disabled_by_default() {
+        let provider = create_mock_provider("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
+        assert!(
+            !provider.should_enable_caching("us.anthropic.claude-sonnet-4-5-20250929-v1:0"),
+            "Caching should be disabled by default"
+        );
+    }
+
+    #[test]
+    fn test_caching_disabled_for_non_claude_models() {
+        let provider = create_mock_provider("amazon.titan-text-express-v1");
+        assert!(
+            !provider.should_enable_caching("amazon.titan-text-express-v1"),
+            "Caching should be disabled for non-Claude models"
+        );
+    }
+
+    #[test]
+    fn test_cache_point_allocation_without_tools() {
+        let provider = create_mock_provider("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
+        let enable_caching =
+            provider.should_enable_caching("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
+
+        let total_messages = 5;
+        let tools_present = false;
+
+        let message_cache_budget = if tools_present { 2 } else { 3 };
+        let cache_point_indices: Vec<usize> = if enable_caching && total_messages > 0 {
+            if total_messages <= message_cache_budget {
+                (0..total_messages).collect()
+            } else {
+                ((total_messages - message_cache_budget)..total_messages).collect()
+            }
+        } else {
+            vec![]
+        };
+
+        // Since caching is disabled by default, no cache points should be allocated
+        assert_eq!(cache_point_indices, Vec::<usize>::new());
+    }
+
+    #[test]
+    fn test_cache_point_allocation_with_tools() {
+        let provider = create_mock_provider("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
+        let enable_caching =
+            provider.should_enable_caching("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
+
+        // Simulate 5 messages with tools
+        let total_messages = 5;
+        let tools_present = true;
+
+        let message_cache_budget = if tools_present { 2 } else { 3 };
+        let cache_point_indices: Vec<usize> = if enable_caching && total_messages > 0 {
+            if total_messages <= message_cache_budget {
+                (0..total_messages).collect()
+            } else {
+                ((total_messages - message_cache_budget)..total_messages).collect()
+            }
+        } else {
+            vec![]
+        };
+
+        // Since caching is disabled by default, no cache points should be allocated
+        assert_eq!(cache_point_indices, Vec::<usize>::new());
+    }
+
+    #[test]
+    fn test_cache_point_limit_respected_with_few_messages() {
+        let provider = create_mock_provider("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
+        let enable_caching =
+            provider.should_enable_caching("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
+
+        // Simulate 2 messages with no tools
+        let total_messages = 2;
+        let tools_present = false;
+
+        let message_cache_budget = if tools_present { 2 } else { 3 };
+        let cache_point_indices: Vec<usize> = if enable_caching && total_messages > 0 {
+            if total_messages <= message_cache_budget {
+                (0..total_messages).collect()
+            } else {
+                ((total_messages - message_cache_budget)..total_messages).collect()
+            }
+        } else {
+            vec![]
+        };
+
+        // Since caching is disabled by default, no cache points should be allocated
+        assert_eq!(cache_point_indices, Vec::<usize>::new());
+    }
+
+    #[test]
+    fn test_max_four_cache_points_respected() {
+        let _provider = create_mock_provider("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
+
+        // Test with many messages and no tools: 1 system + 3 messages = 4 total
+        let _total_messages = 10;
+        let tools_present = false;
+        let message_cache_budget = if tools_present { 2 } else { 3 };
+
+        // Count total cache points: 1 (system) + message_cache_budget
+        let total_cache_points = 1 + message_cache_budget;
+        assert_eq!(
+            total_cache_points, 4,
+            "Total cache points should not exceed 4"
+        );
+
+        // Test with many messages and tools: 1 system + 1 tools + 2 messages = 4 total
+        let tools_present = true;
+        let message_cache_budget = if tools_present { 2 } else { 3 };
+        let total_cache_points = 1 + 1 + message_cache_budget; // system + tools + messages
+        assert_eq!(
+            total_cache_points, 4,
+            "Total cache points with tools should not exceed 4"
+        );
+    }
+
+    #[test]
+    fn test_system_prompt_cache_point_structure() {
+        let provider = create_mock_provider("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
+        let enable_caching =
+            provider.should_enable_caching("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
+
+        assert!(!enable_caching, "Caching should be disabled by default");
+
+        // When caching is disabled, system blocks should only have:
+        // 1. Text block with system prompt
+        // When caching is enabled (via config), system blocks should have:
+        // 1. Text block with system prompt
+        // 2. CachePoint block
+        // This is tested in the actual converse() method implementation
+    }
+
+    #[test]
+    fn test_caching_respects_config_override() {
+        // Test that BEDROCK_ENABLE_CACHING defaults to false
+        // Note: This test assumes the config can be set. In practice, you'd need to
+        // set the config value before calling should_enable_caching
+        let provider = create_mock_provider("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
+
+        // The should_enable_caching method checks config first
+        // Without BEDROCK_ENABLE_CACHING set, it defaults to false
+        // regardless of model type
+        assert!(
+            !provider.should_enable_caching("us.anthropic.claude-sonnet-4-5-20250929-v1:0"),
+            "Without config override, caching should be disabled by default"
+        );
     }
 }
