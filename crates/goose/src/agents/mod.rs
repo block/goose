@@ -12,6 +12,7 @@ pub mod mcp_client;
 pub mod moim;
 pub mod platform_tools;
 pub mod prompt_manager;
+mod reply_loop;
 mod reply_parts;
 pub mod retry;
 mod schedule_tool;
