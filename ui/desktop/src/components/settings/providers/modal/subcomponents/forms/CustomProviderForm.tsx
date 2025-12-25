@@ -35,8 +35,7 @@ export default function CustomProviderForm({
         anthropic: 'anthropic_compatible',
         ollama: 'ollama_compatible',
       };
-
-      setEngine(engineMap[initialData.engine.toLowerCase()] || 'openai_compatible');
+      setEngine(engineMap[initialData.engine] || 'openai_compatible');
       setDisplayName(initialData.display_name);
       setApiUrl(initialData.api_url);
       setModels(initialData.models.join(', '));
