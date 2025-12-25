@@ -25,27 +25,23 @@ struct DatabricksMessage {
 }
 
 fn format_text_content(text: &str, image_format: &ImageFormat) -> (Vec<Value>, bool) {
-    let mut content_array = Vec::new();
-    let mut has_multiple_content = false;
-
-    if let Some(image_path) = detect_image_path(text) {
-        has_multiple_content = true;
-        content_array.push(json!({"type": "text", "text": text}));
-        if let Ok(image) = load_image_file(image_path) {
-            content_array.push(convert_image(&image, image_format));
+    let mut items = vec![json!({"type": "text", "text": text})];
+    let has_image = if let Some(path) = detect_image_path(text) {
+        if let Ok(image) = load_image_file(path) {
+            items.push(convert_image(&image, image_format));
         }
+        true
     } else {
-        content_array.push(json!({"type": "text", "text": text}));
-    }
-
-    (content_array, has_multiple_content)
+        false
+    };
+    (items, has_image)
 }
 
 fn format_tool_response(
     response: &crate::conversation::message::ToolResponse,
     image_format: &ImageFormat,
 ) -> Vec<DatabricksMessage> {
-    let mut messages = Vec::new();
+    let mut result = Vec::new();
 
     match &response.tool_result {
         Ok(call_result) => {
@@ -89,16 +85,16 @@ fn format_tool_response(
                 .collect::<Vec<String>>()
                 .join(" "));
 
-            messages.push(DatabricksMessage {
+            result.push(DatabricksMessage {
                 content: tool_response_content,
                 role: "tool".to_string(),
                 tool_call_id: Some(response.id.clone()),
                 tool_calls: None,
             });
-            messages.extend(image_messages);
+            result.extend(image_messages);
         }
         Err(e) => {
-            messages.push(DatabricksMessage {
+            result.push(DatabricksMessage {
                 role: "tool".to_string(),
                 content: format!("The tool call returned the following error:\n{}", e).into(),
                 tool_call_id: Some(response.id.clone()),
@@ -107,7 +103,7 @@ fn format_tool_response(
         }
     }
 
-    messages
+    result
 }
 
 /// Convert internal Message format to Databricks' API message specification
