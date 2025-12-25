@@ -53,16 +53,18 @@ export type CallToolRequest = {
 };
 
 export type CallToolResponse = {
+    _meta?: unknown;
     content: Array<Content>;
     is_error: boolean;
     structured_content?: unknown;
 };
 
 export type ChatRequest = {
-    messages: Array<Message>;
+    conversation_so_far?: Array<Message> | null;
     recipe_name?: string | null;
     recipe_version?: string | null;
     session_id: string;
+    user_message: Message;
 };
 
 export type CheckProviderRequest = {
@@ -134,6 +136,21 @@ export type CreateScheduleRequest = {
     cron: string;
     id: string;
     recipe_source: string;
+};
+
+/**
+ * Content Security Policy metadata for MCP Apps
+ * Specifies allowed domains for network connections and resource loading
+ */
+export type CspMetadata = {
+    /**
+     * Domains allowed for connect-src (fetch, XHR, WebSocket)
+     */
+    connectDomains?: Array<string> | null;
+    /**
+     * Domains allowed for resource loading (scripts, styles, images, fonts, media)
+     */
+    resourceDomains?: Array<string> | null;
 };
 
 export type DeclarativeProviderConfig = {
@@ -397,6 +414,38 @@ export type LoadedProvider = {
 };
 
 /**
+ * MCP App Resource
+ * Represents a UI resource that can be rendered in an MCP App
+ */
+export type McpAppResource = {
+    _meta?: ResourceMetadata | null;
+    /**
+     * Base64-encoded binary content (alternative to text)
+     */
+    blob?: string | null;
+    /**
+     * Optional description of what this resource does
+     */
+    description?: string | null;
+    /**
+     * MIME type (should be "text/html;profile=mcp-app" for MCP Apps)
+     */
+    mimeType: string;
+    /**
+     * Human-readable name of the resource
+     */
+    name: string;
+    /**
+     * Text content of the resource (HTML for MCP Apps)
+     */
+    text?: string | null;
+    /**
+     * URI of the resource (must use ui:// scheme)
+     */
+    uri: string;
+};
+
+/**
  * A message to or from an LLM
  */
 export type Message = {
@@ -526,6 +575,25 @@ export type ParseRecipeResponse = {
  * Enum representing the possible permission levels for a tool.
  */
 export type PermissionLevel = 'always_allow' | 'ask_before' | 'never_allow';
+
+export type PricingData = {
+    context_length?: number | null;
+    currency: string;
+    input_token_cost: number;
+    model: string;
+    output_token_cost: number;
+    provider: string;
+};
+
+export type PricingQuery = {
+    model: string;
+    provider: string;
+};
+
+export type PricingResponse = {
+    pricing: Array<PricingData>;
+    source: string;
+};
 
 export type PrincipalType = 'Extension' | 'Tool';
 
@@ -686,6 +754,13 @@ export type ResourceContents = {
     blob: string;
     mimeType?: string;
     uri: string;
+};
+
+/**
+ * Resource metadata containing UI configuration
+ */
+export type ResourceMetadata = {
+    ui?: UiMetadata | null;
 };
 
 export type Response = {
@@ -887,6 +962,13 @@ export type SystemNotificationContent = {
 
 export type SystemNotificationType = 'thinkingMessage' | 'inlineMessage';
 
+export type TelemetryEventRequest = {
+    event_name: string;
+    properties?: {
+        [key: string]: unknown;
+    };
+};
+
 export type TextContent = {
     _meta?: {
         [key: string]: unknown;
@@ -962,7 +1044,9 @@ export type ToolPermission = {
 
 export type ToolRequest = {
     id: string;
-    thoughtSignature?: string | null;
+    metadata?: {
+        [key: string]: unknown;
+    };
     toolCall: {
         [key: string]: unknown;
     };
@@ -970,6 +1054,9 @@ export type ToolRequest = {
 
 export type ToolResponse = {
     id: string;
+    metadata?: {
+        [key: string]: unknown;
+    };
     toolResult: {
         [key: string]: unknown;
     };
@@ -983,6 +1070,21 @@ export type TunnelInfo = {
 };
 
 export type TunnelState = 'idle' | 'starting' | 'running' | 'error' | 'disabled';
+
+/**
+ * UI-specific metadata for MCP resources
+ */
+export type UiMetadata = {
+    csp?: CspMetadata | null;
+    /**
+     * Preferred domain for the app (used for CORS)
+     */
+    domain?: string | null;
+    /**
+     * Whether the app prefers to have a border around it
+     */
+    prefersBorder?: boolean | null;
+};
 
 export type UpdateCustomProviderRequest = {
     api_key: string;
@@ -1003,10 +1105,6 @@ export type UpdateFromSessionRequest = {
 export type UpdateProviderRequest = {
     model?: string | null;
     provider: string;
-    session_id: string;
-};
-
-export type UpdateRouterToolSelectorRequest = {
     session_id: string;
 };
 
@@ -1363,37 +1461,6 @@ export type UpdateAgentProviderResponses = {
     200: unknown;
 };
 
-export type UpdateRouterToolSelectorData = {
-    body: UpdateRouterToolSelectorRequest;
-    path?: never;
-    query?: never;
-    url: '/agent/update_router_tool_selector';
-};
-
-export type UpdateRouterToolSelectorErrors = {
-    /**
-     * Unauthorized - invalid secret key
-     */
-    401: unknown;
-    /**
-     * Agent not initialized
-     */
-    424: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type UpdateRouterToolSelectorResponses = {
-    /**
-     * Tool selection strategy updated successfully
-     */
-    200: string;
-};
-
-export type UpdateRouterToolSelectorResponse = UpdateRouterToolSelectorResponses[keyof UpdateRouterToolSelectorResponses];
-
 export type ReadAllConfigData = {
     body?: never;
     path?: never;
@@ -1705,6 +1772,22 @@ export type UpsertPermissionsResponses = {
 };
 
 export type UpsertPermissionsResponse = UpsertPermissionsResponses[keyof UpsertPermissionsResponses];
+
+export type GetPricingData = {
+    body: PricingQuery;
+    path?: never;
+    query?: never;
+    url: '/config/pricing';
+};
+
+export type GetPricingResponses = {
+    /**
+     * Model pricing data retrieved successfully
+     */
+    200: PricingResponse;
+};
+
+export type GetPricingResponse = GetPricingResponses[keyof GetPricingResponses];
 
 export type ProvidersData = {
     body?: never;
@@ -2887,6 +2970,20 @@ export type StatusResponses = {
 };
 
 export type StatusResponse = StatusResponses[keyof StatusResponses];
+
+export type SendTelemetryEventData = {
+    body: TelemetryEventRequest;
+    path?: never;
+    query?: never;
+    url: '/telemetry/event';
+};
+
+export type SendTelemetryEventResponses = {
+    /**
+     * Event accepted for processing
+     */
+    202: unknown;
+};
 
 export type StartTunnelData = {
     body?: never;

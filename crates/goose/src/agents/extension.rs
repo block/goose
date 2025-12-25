@@ -1,4 +1,5 @@
 use crate::agents::chatrecall_extension;
+use crate::agents::code_execution_extension;
 use crate::agents::extension_manager_extension;
 use crate::agents::skills_extension;
 use crate::agents::todo_extension;
@@ -47,7 +48,7 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
             PlatformExtensionDef {
                 name: todo_extension::EXTENSION_NAME,
                 description:
-                    "Enable a todo list for Goose so it can keep track of what it is doing",
+                    "Enable a todo list for goose so it can keep track of what it is doing",
                 default_enabled: true,
                 client_factory: |ctx| Box::new(todo_extension::TodoClient::new(ctx).unwrap()),
             },
@@ -81,9 +82,21 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
             skills_extension::EXTENSION_NAME,
             PlatformExtensionDef {
                 name: skills_extension::EXTENSION_NAME,
-                description: "Load and use skills from .claude/skills or .goose/skills directories",
+                description: "Load and use skills from relevant directories",
                 default_enabled: true,
                 client_factory: |ctx| Box::new(skills_extension::SkillsClient::new(ctx).unwrap()),
+            },
+        );
+
+        map.insert(
+            code_execution_extension::EXTENSION_NAME,
+            PlatformExtensionDef {
+                name: code_execution_extension::EXTENSION_NAME,
+                description: "Execute JavaScript code in a sandboxed environment",
+                default_enabled: false,
+                client_factory: |ctx| {
+                    Box::new(code_execution_extension::CodeExecutionClient::new(ctx).unwrap())
+                },
             },
         );
 
@@ -96,8 +109,6 @@ pub struct PlatformExtensionContext {
     pub session_id: Option<String>,
     pub extension_manager:
         Option<std::sync::Weak<crate::agents::extension_manager::ExtensionManager>>,
-    pub tool_route_manager:
-        Option<std::sync::Weak<crate::agents::tool_route_manager::ToolRouteManager>>,
 }
 
 #[derive(Debug, Clone)]
@@ -129,7 +140,7 @@ pub enum ExtensionError {
 
 pub type ExtensionResult<T> = Result<T, ExtensionError>;
 
-#[derive(Debug, Clone, Deserialize, Serialize, Default, ToSchema)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default, ToSchema, PartialEq)]
 pub struct Envs {
     /// A map of environment variables to set, e.g. API_KEY -> some_secret, HOST -> host
     #[serde(default)]
@@ -219,7 +230,7 @@ impl Envs {
 }
 
 /// Represents the different types of MCP extensions that can be added to the manager
-#[derive(Debug, Clone, Deserialize, Serialize, ToSchema)]
+#[derive(Debug, Clone, Deserialize, Serialize, ToSchema, PartialEq)]
 #[serde(tag = "type")]
 pub enum ExtensionConfig {
     /// Server-sent events client with a URI endpoint

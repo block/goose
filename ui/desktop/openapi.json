@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.16.0"
+    "version": "1.17.0"
   },
   "paths": {
     "/action-required/tool-confirmation": {
@@ -418,45 +418,6 @@
         }
       }
     },
-    "/agent/update_router_tool_selector": {
-      "post": {
-        "tags": [
-          "super::routes::agent"
-        ],
-        "operationId": "update_router_tool_selector",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateRouterToolSelectorRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Tool selection strategy updated successfully",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - invalid secret key"
-          },
-          "424": {
-            "description": "Agent not initialized"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      }
-    },
     "/config": {
       "get": {
         "tags": [
@@ -850,6 +811,36 @@
           },
           "400": {
             "description": "Invalid request"
+          }
+        }
+      }
+    },
+    "/config/pricing": {
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "get_pricing",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PricingQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Model pricing data retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PricingResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -2381,6 +2372,29 @@
         }
       }
     },
+    "/telemetry/event": {
+      "post": {
+        "tags": [
+          "super::routes::telemetry"
+        ],
+        "operationId": "send_telemetry_event",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TelemetryEventRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Event accepted for processing"
+          }
+        }
+      }
+    },
     "/tunnel/start": {
       "post": {
         "tags": [
@@ -2645,6 +2659,9 @@
           "is_error"
         ],
         "properties": {
+          "_meta": {
+            "nullable": true
+          },
           "content": {
             "type": "array",
             "items": {
@@ -2662,15 +2679,16 @@
       "ChatRequest": {
         "type": "object",
         "required": [
-          "messages",
+          "user_message",
           "session_id"
         ],
         "properties": {
-          "messages": {
+          "conversation_so_far": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Message"
-            }
+            },
+            "nullable": true
           },
           "recipe_name": {
             "type": "string",
@@ -2682,6 +2700,9 @@
           },
           "session_id": {
             "type": "string"
+          },
+          "user_message": {
+            "$ref": "#/components/schemas/Message"
           }
         }
       },
@@ -2882,6 +2903,28 @@
           },
           "recipe_source": {
             "type": "string"
+          }
+        }
+      },
+      "CspMetadata": {
+        "type": "object",
+        "description": "Content Security Policy metadata for MCP Apps\nSpecifies allowed domains for network connections and resource loading",
+        "properties": {
+          "connectDomains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Domains allowed for connect-src (fetch, XHR, WebSocket)",
+            "nullable": true
+          },
+          "resourceDomains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Domains allowed for resource loading (scripts, styles, images, fonts, media)",
+            "nullable": true
           }
         }
       },
@@ -3677,6 +3720,52 @@
           }
         }
       },
+      "McpAppResource": {
+        "type": "object",
+        "description": "MCP App Resource\nRepresents a UI resource that can be rendered in an MCP App",
+        "required": [
+          "uri",
+          "name",
+          "mimeType"
+        ],
+        "properties": {
+          "_meta": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ResourceMetadata"
+              }
+            ],
+            "nullable": true
+          },
+          "blob": {
+            "type": "string",
+            "description": "Base64-encoded binary content (alternative to text)",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "description": "Optional description of what this resource does",
+            "nullable": true
+          },
+          "mimeType": {
+            "type": "string",
+            "description": "MIME type (should be \"text/html;profile=mcp-app\" for MCP Apps)"
+          },
+          "name": {
+            "type": "string",
+            "description": "Human-readable name of the resource"
+          },
+          "text": {
+            "type": "string",
+            "description": "Text content of the resource (HTML for MCP Apps)",
+            "nullable": true
+          },
+          "uri": {
+            "type": "string",
+            "description": "URI of the resource (must use ui:// scheme)"
+          }
+        }
+      },
       "Message": {
         "type": "object",
         "description": "A message to or from an LLM",
@@ -4200,6 +4289,74 @@
           "never_allow"
         ]
       },
+      "PricingData": {
+        "type": "object",
+        "required": [
+          "provider",
+          "model",
+          "input_token_cost",
+          "output_token_cost",
+          "currency"
+        ],
+        "properties": {
+          "context_length": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true,
+            "minimum": 0
+          },
+          "currency": {
+            "type": "string"
+          },
+          "input_token_cost": {
+            "type": "number",
+            "format": "double"
+          },
+          "model": {
+            "type": "string"
+          },
+          "output_token_cost": {
+            "type": "number",
+            "format": "double"
+          },
+          "provider": {
+            "type": "string"
+          }
+        }
+      },
+      "PricingQuery": {
+        "type": "object",
+        "required": [
+          "provider",
+          "model"
+        ],
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          }
+        }
+      },
+      "PricingResponse": {
+        "type": "object",
+        "required": [
+          "pricing",
+          "source"
+        ],
+        "properties": {
+          "pricing": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PricingData"
+            }
+          },
+          "source": {
+            "type": "string"
+          }
+        }
+      },
       "PrincipalType": {
         "type": "string",
         "enum": [
@@ -4681,6 +4838,20 @@
             }
           }
         ]
+      },
+      "ResourceMetadata": {
+        "type": "object",
+        "description": "Resource metadata containing UI configuration",
+        "properties": {
+          "ui": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UiMetadata"
+              }
+            ],
+            "nullable": true
+          }
+        }
       },
       "Response": {
         "type": "object",
@@ -5301,6 +5472,21 @@
           "inlineMessage"
         ]
       },
+      "TelemetryEventRequest": {
+        "type": "object",
+        "required": [
+          "event_name"
+        ],
+        "properties": {
+          "event_name": {
+            "type": "string"
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        }
+      },
       "TextContent": {
         "type": "object",
         "required": [
@@ -5523,9 +5709,8 @@
           "id": {
             "type": "string"
           },
-          "thoughtSignature": {
-            "type": "string",
-            "nullable": true
+          "metadata": {
+            "type": "object"
           },
           "toolCall": {
             "type": "object"
@@ -5541,6 +5726,9 @@
         "properties": {
           "id": {
             "type": "string"
+          },
+          "metadata": {
+            "type": "object"
           },
           "toolResult": {
             "type": "object"
@@ -5579,6 +5767,30 @@
           "error",
           "disabled"
         ]
+      },
+      "UiMetadata": {
+        "type": "object",
+        "description": "UI-specific metadata for MCP resources",
+        "properties": {
+          "csp": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CspMetadata"
+              }
+            ],
+            "nullable": true
+          },
+          "domain": {
+            "type": "string",
+            "description": "Preferred domain for the app (used for CORS)",
+            "nullable": true
+          },
+          "prefersBorder": {
+            "type": "boolean",
+            "description": "Whether the app prefers to have a border around it",
+            "nullable": true
+          }
+        }
       },
       "UpdateCustomProviderRequest": {
         "type": "object",
@@ -5646,17 +5858,6 @@
           "provider": {
             "type": "string"
           },
-          "session_id": {
-            "type": "string"
-          }
-        }
-      },
-      "UpdateRouterToolSelectorRequest": {
-        "type": "object",
-        "required": [
-          "session_id"
-        ],
-        "properties": {
           "session_id": {
             "type": "string"
           }

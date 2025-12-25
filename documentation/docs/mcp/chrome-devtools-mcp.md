@@ -5,8 +5,11 @@ description: Add Chrome DevTools MCP Server as a goose Extension
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
+
+<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/I9FwKbPvgvU" />
 
 This tutorial covers how to add the Chrome DevTools MCP Server as a goose extension to enable browser automation, web performance testing, and interactive web application debugging in a Chrome browser.
 

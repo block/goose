@@ -29,7 +29,7 @@ goose is compatible with a wide range of LLM providers, allowing you to choose a
 | [Docker Model Runner](https://docs.docker.com/ai/model-runner/)                             | Local models running in Docker Desktop or Docker CE with OpenAI-compatible API endpoints. **Because this provider runs locally, you must first [download a model](#local-llms).**                     | `OPENAI_HOST`, `OPENAI_BASE_PATH`   |
 | [Gemini](https://ai.google.dev/gemini-api/docs)                             | Advanced LLMs by Google with multimodal capabilities (text, images).                                                                                                                                                      | `GOOGLE_API_KEY`                                                                                                                                                                    |
 | [GCP Vertex AI](https://cloud.google.com/vertex-ai)                         | Google Cloud's Vertex AI platform, supporting Gemini and Claude models. **Credentials must be [configured in advance](https://cloud.google.com/vertex-ai/docs/authentication).**                 | `GCP_PROJECT_ID`, `GCP_LOCATION` and optionally `GCP_MAX_RATE_LIMIT_RETRIES` (5), `GCP_MAX_OVERLOADED_RETRIES` (5), `GCP_INITIAL_RETRY_INTERVAL_MS` (5000), `GCP_BACKOFF_MULTIPLIER` (2.0), `GCP_MAX_RETRY_INTERVAL_MS` (320_000). |
-| [GitHub Copilot](https://docs.github.com/en/copilot/using-github-copilot/ai-models) | Access to AI models from OpenAI, Anthropic, Google, and other providers through GitHub's Copilot infrastructure. **GitHub account with Copilot access required.** | No manual key. Must configure through the CLI using the GitHub authentication flow to enable both CLI and Desktop access. |
+| [GitHub Copilot](https://docs.github.com/en/copilot/using-github-copilot/ai-models) | Access to AI models from OpenAI, Anthropic, Google, and other providers through GitHub's Copilot infrastructure. **GitHub account with Copilot access required.** | No manual key. Uses [device flow authentication](#github-copilot-authentication) for both CLI and Desktop. |
 | [Groq](https://groq.com/)                                                   | High-performance inference hardware and tools for LLMs.                                                                                                                                                                   | `GROQ_API_KEY`                                                                                                                                                                      |
 | [LiteLLM](https://docs.litellm.ai/docs/) | LiteLLM proxy supporting multiple models with automatic prompt caching and unified API access. | `LITELLM_HOST`, `LITELLM_BASE_PATH` (optional), `LITELLM_API_KEY` (optional), `LITELLM_CUSTOM_HEADERS` (optional), `LITELLM_TIMEOUT` (optional) |
 | [Mistral AI](https://mistral.ai/)                                           | Provides access to Mistral models including general-purpose models, specialized coding models (Codestral), and multimodal models (Pixtral).                                                                   | `MISTRAL_API_KEY`                                                                                                 |
@@ -803,7 +803,7 @@ Here are some local providers we support:
           ```
 
           :::tip Context Length
-          If you notice that goose is having trouble using extensions or is ignoring [.goosehints](/docs/guides/using-goosehints), it is likely that the model's default context length of 2048 tokens is too low. Use `ramalama serve` to set the `--ctx-size, -c` option to a [higher value](https://github.com/containers/ramalama/blob/main/docs/ramalama-serve.1.md#--ctx-size--c).
+          If you notice that goose is having trouble using extensions or is ignoring [.goosehints](/docs/guides/context-engineering/using-goosehints), it is likely that the model's default context length of 2048 tokens is too low. Use `ramalama serve` to set the `--ctx-size, -c` option to a [higher value](https://github.com/containers/ramalama/blob/main/docs/ramalama-serve.1.md#--ctx-size--c).
           :::
 
       </TabItem>
@@ -990,7 +990,7 @@ Here are some local providers we support:
         ```
 
         :::tip Context Length
-        If you notice that goose is having trouble using extensions or is ignoring [.goosehints](/docs/guides/using-goosehints), it is likely that the model's default context length of 4096 tokens is too low. Set the `OLLAMA_CONTEXT_LENGTH` environment variable to a [higher value](https://github.com/ollama/ollama/blob/main/docs/faq.mdx#how-can-i-specify-the-context-window-size).
+        If you notice that goose is having trouble using extensions or is ignoring [.goosehints](/docs/guides/context-engineering/using-goosehints), it is likely that the model's default context length of 4096 tokens is too low. Set the `OLLAMA_CONTEXT_LENGTH` environment variable to a [higher value](https://github.com/ollama/ollama/blob/main/docs/faq.mdx#how-can-i-specify-the-context-window-size).
         :::
         
       </TabItem>
@@ -1084,6 +1084,16 @@ Here are some local providers we support:
 </Tabs>
 
 
+
+## GitHub Copilot Authentication
+
+GitHub Copilot uses a device flow for authentication, so no API keys are required:
+
+1. Run [`goose configure`](#configure-provider-and-model) and select **GitHub Copilot**
+2. An eight-character code will be automatically copied to your clipboard
+3. A browser will open to GitHub's device activation page
+4. Paste the code to authorize the application
+5. When you return to goose, GitHub Copilot will be available as a provider in both CLI and Desktop.
 
 ## Azure OpenAI Credential Chain
 

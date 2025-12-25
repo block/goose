@@ -70,7 +70,7 @@ The detection creation recipe demonstrates the power of this approach by coordin
 6. [**pr_creator**](#6-pr_creator-automated-pull-request-pipeline) - Pull request creation with proper formatting
 
 ### What about .goosehints?
-In our [previous post](https://block.github.io/goose/blog/2025/06/02/goose-panther-mcp), we discussed using [.goosehints](https://block.github.io/goose/docs/guides/using-goosehints/) to provide persistent context to the Large Language Model (LLM). We continue to use `.goosehints` to define coding standards and universal preferences that guide LLM behavior.
+In our [previous post](https://block.github.io/goose/blog/2025/06/02/goose-panther-mcp), we discussed using [.goosehints](/docs/guides/context-engineering/using-goosehints/) to provide persistent context to the Large Language Model (LLM). We continue to use `.goosehints` to define coding standards and universal preferences that guide LLM behavior.
 
 However, to minimize redundancy and avoid conflicting guidance, we adopted a single reference file, `AGENTS.md`, as the source of truth for all agents. Each agent is directed to consult this file, while still supporting agent-specific instructions through their default context files (e.g. `.goosehints`, `CLAUDE.md` etc.) or rules (e.g. `.cursor/rules/`).
 

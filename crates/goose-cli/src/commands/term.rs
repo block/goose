@@ -39,11 +39,11 @@ static BASH_CONFIG: ShellConfig = ShellConfig {
 alias @goose='{goose_bin} term run'
 alias @g='{goose_bin} term run'
 
-goose_preexec() {{
+goose_preexec() {
     [[ "$1" =~ ^goose\ term ]] && return
     [[ "$1" =~ ^(@goose|@g)($|[[:space:]]) ]] && return
     ('{goose_bin}' term log "$1" &) 2>/dev/null
-}}
+}
 
 if [[ -z "$goose_preexec_installed" ]]; then
     goose_preexec_installed=1
@@ -52,11 +52,11 @@ fi{command_not_found_handler}"#,
     command_not_found: Some(
         r#"
 
-command_not_found_handle() {{
+command_not_found_handle() {
     echo "🪿 Command '$1' not found. Asking goose..."
     '{goose_bin}' term run "$@"
     return 0
-}}"#,
+}"#,
     ),
 };
 
@@ -65,22 +65,22 @@ static ZSH_CONFIG: ShellConfig = ShellConfig {
 alias @goose='{goose_bin} term run'
 alias @g='{goose_bin} term run'
 
-goose_preexec() {{
+goose_preexec() {
     [[ "$1" =~ ^goose\ term ]] && return
     [[ "$1" =~ ^(@goose|@g)($|[[:space:]]) ]] && return
     ('{goose_bin}' term log "$1" &) 2>/dev/null
-}}
+}
 
 autoload -Uz add-zsh-hook
 add-zsh-hook preexec goose_preexec{command_not_found_handler}"#,
     command_not_found: Some(
         r#"
 
-command_not_found_handler() {{
+command_not_found_handler() {
     echo "🪿 Command '$1' not found. Asking goose..."
     '{goose_bin}' term run "$@"
     return 0
-}}"#,
+}"#,
     ),
 };
 

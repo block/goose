@@ -26,7 +26,7 @@ import { identifyConsecutiveToolCalls, isInChain } from '../utils/toolCallChaini
 
 interface ProgressiveMessageListProps {
   messages: Message[];
-  chat?: Pick<ChatType, 'sessionId' | 'messageHistoryIndex'>;
+  chat: Pick<ChatType, 'sessionId'>;
   toolCallNotifications?: Map<string, NotificationEvent[]>; // Make optional
   append?: (value: string) => void; // Make optional
   isUserMessage: (message: Message) => boolean;
@@ -217,7 +217,6 @@ export default function ProgressiveMessageList({
             ) : (
               <GooseMessage
                 sessionId={chat.sessionId}
-                messageHistoryIndex={chat.messageHistoryIndex}
                 message={message}
                 messages={messages}
                 append={append}

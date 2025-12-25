@@ -1155,11 +1155,6 @@ pub async fn configure_settings_dialog() -> anyhow::Result<()> {
     let setting_type = cliclack::select("What setting would you like to configure?")
         .item("goose_mode", "goose mode", "Configure goose mode")
         .item(
-            "goose_router_strategy",
-            "Router Tool Selection Strategy",
-            "Experimental: configure a strategy for auto selecting tools to use",
-        )
-        .item(
             "tool_permission",
             "Tool Permission",
             "Set permission for individual tool of enabled extensions",
@@ -1196,9 +1191,6 @@ pub async fn configure_settings_dialog() -> anyhow::Result<()> {
     match setting_type {
         "goose_mode" => {
             configure_goose_mode_dialog()?;
-        }
-        "goose_router_strategy" => {
-            configure_goose_router_strategy_dialog()?;
         }
         "tool_permission" => {
             configure_tool_permissions_dialog().await.and(Ok(()))?;
@@ -1268,33 +1260,6 @@ pub fn configure_goose_mode_dialog() -> anyhow::Result<()> {
         GooseMode::Chat => "Set to Chat Mode - no tools or modifications enabled",
     };
     cliclack::outro(msg)?;
-    Ok(())
-}
-
-pub fn configure_goose_router_strategy_dialog() -> anyhow::Result<()> {
-    let config = Config::global();
-
-    let enable_router = cliclack::select("Would you like to enable smart tool routing?")
-        .item(
-            true,
-            "Enable Router",
-            "Use LLM-based intelligence to select tools",
-        )
-        .item(
-            false,
-            "Disable Router",
-            "Use the default tool selection strategy",
-        )
-        .interact()?;
-
-    config.set_param("GOOSE_ENABLE_ROUTER", enable_router)?;
-    let msg = if enable_router {
-        "Router enabled - using LLM-based intelligence for tool selection"
-    } else {
-        "Router disabled - using default tool selection"
-    };
-    cliclack::outro(msg)?;
-
     Ok(())
 }
 

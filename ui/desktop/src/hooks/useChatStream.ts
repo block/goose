@@ -212,6 +212,14 @@ export function useChatStream({
     if (cached) {
       setSession(cached.session);
       updateMessages(cached.messages);
+      setTokenState({
+        inputTokens: cached.session?.input_tokens ?? 0,
+        outputTokens: cached.session?.output_tokens ?? 0,
+        totalTokens: cached.session?.total_tokens ?? 0,
+        accumulatedInputTokens: cached.session?.accumulated_input_tokens ?? 0,
+        accumulatedOutputTokens: cached.session?.accumulated_output_tokens ?? 0,
+        accumulatedTotalTokens: cached.session?.accumulated_total_tokens ?? 0,
+      });
       setChatState(ChatState.Idle);
       return;
     }
@@ -241,6 +249,14 @@ export function useChatStream({
         const session = response.data;
         setSession(session);
         updateMessages(session?.conversation || []);
+        setTokenState({
+          inputTokens: session?.input_tokens ?? 0,
+          outputTokens: session?.output_tokens ?? 0,
+          totalTokens: session?.total_tokens ?? 0,
+          accumulatedInputTokens: session?.accumulated_input_tokens ?? 0,
+          accumulatedOutputTokens: session?.accumulated_output_tokens ?? 0,
+          accumulatedTotalTokens: session?.accumulated_total_tokens ?? 0,
+        });
         setChatState(ChatState.Idle);
         onSessionLoaded?.();
       } catch (error) {
@@ -276,12 +292,13 @@ export function useChatStream({
         window.dispatchEvent(new CustomEvent('session-created'));
       }
 
-      // Build message list: add new message if provided, otherwise continue with existing
+      const newMessage = hasNewMessage
+        ? createUserMessage(userMessage)
+        : messagesRef.current[messagesRef.current.length - 1];
       const currentMessages = hasNewMessage
-        ? [...messagesRef.current, createUserMessage(userMessage)]
+        ? [...messagesRef.current, newMessage]
         : [...messagesRef.current];
 
-      // Update UI with new message before streaming
       if (hasNewMessage) {
         updateMessages(currentMessages);
       }
@@ -294,7 +311,7 @@ export function useChatStream({
         const { stream } = await reply({
           body: {
             session_id: sessionId,
-            messages: currentMessages,
+            user_message: newMessage,
           },
           throwOnError: true,
           signal: abortControllerRef.current.signal,
@@ -340,7 +357,7 @@ export function useChatStream({
         const { stream } = await reply({
           body: {
             session_id: sessionId,
-            messages: currentMessages,
+            user_message: responseMessage,
           },
           throwOnError: true,
           signal: abortControllerRef.current.signal,

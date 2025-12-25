@@ -174,11 +174,14 @@ fn require_str_parameter<'a>(v: &'a serde_json::Value, name: &str) -> Result<&'a
 }
 
 pub fn get_parameter_names(tool: &Tool) -> Vec<String> {
-    tool.input_schema
+    let mut names: Vec<String> = tool
+        .input_schema
         .get("properties")
         .and_then(|props| props.as_object())
         .map(|props| props.keys().cloned().collect())
-        .unwrap_or_default()
+        .unwrap_or_default();
+    names.sort();
+    names
 }
 
 impl Default for ExtensionManager {
@@ -261,7 +264,6 @@ impl ExtensionManager {
             context: Mutex::new(PlatformExtensionContext {
                 session_id: None,
                 extension_manager: None,
-                tool_route_manager: None,
             }),
             provider,
         }
@@ -598,7 +600,7 @@ impl ExtensionManager {
             .insert(name, Extension::new(config, client, info, temp_dir));
     }
 
-    /// Get extensions info
+    /// Get extensions info for building the system prompt
     pub async fn get_extensions_info(&self) -> Vec<ExtensionInfo> {
         self.extensions
             .lock()
@@ -637,6 +639,10 @@ impl ExtensionManager {
         Ok(self.extensions.lock().await.keys().cloned().collect())
     }
 
+    pub async fn is_extension_enabled(&self, name: &str) -> bool {
+        self.extensions.lock().await.contains_key(name)
+    }
+
     pub async fn get_extension_configs(&self) -> Vec<ExtensionConfig> {
         self.extensions
             .lock()
@@ -651,6 +657,14 @@ impl ExtensionManager {
         &self,
         extension_name: Option<String>,
     ) -> ExtensionResult<Vec<Tool>> {
+        self.get_prefixed_tools_impl(extension_name, None).await
+    }
+
+    async fn get_prefixed_tools_impl(
+        &self,
+        extension_name: Option<String>,
+        exclude: Option<&str>,
+    ) -> ExtensionResult<Vec<Tool>> {
         // Filter clients based on the provided extension_name or include all if None
         let filtered_clients: Vec<_> = self
             .extensions
@@ -658,6 +672,12 @@ impl ExtensionManager {
             .await
             .iter()
             .filter(|(name, _ext)| {
+                if let Some(excluded) = exclude {
+                    if name.as_str() == excluded {
+                        return false;
+                    }
+                }
+
                 if let Some(ref name_filter) = extension_name {
                     *name == name_filter
                 } else {
@@ -721,6 +741,10 @@ impl ExtensionManager {
         }
 
         Ok(tools)
+    }
+
+    pub async fn get_prefixed_tools_excluding(&self, exclude: &str) -> ExtensionResult<Vec<Tool>> {
+        self.get_prefixed_tools_impl(None, Some(exclude)).await
     }
 
     /// Get the extension prompt including client instructions
@@ -1247,18 +1271,28 @@ impl ExtensionManager {
 
     pub async fn collect_moim(&self) -> Option<String> {
         let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-        let mut content = format!("<info-msg>\nDatetime: {}\n", timestamp);
+        let mut content = format!("<info-msg>\nIt is currently {}\n", timestamp);
 
-        let extensions = self.extensions.lock().await;
-        for (name, extension) in extensions.iter() {
-            if let ExtensionConfig::Platform { .. } = &extension.config {
-                let client = extension.get_client();
-                let client_guard = client.lock().await;
-                if let Some(moim_content) = client_guard.get_moim().await {
-                    tracing::debug!("MOIM content from {}: {} chars", name, moim_content.len());
-                    content.push('\n');
-                    content.push_str(&moim_content);
-                }
+        let platform_clients: Vec<(String, McpClientBox)> = {
+            let extensions = self.extensions.lock().await;
+            extensions
+                .iter()
+                .filter_map(|(name, extension)| {
+                    if let ExtensionConfig::Platform { .. } = &extension.config {
+                        Some((name.clone(), extension.get_client()))
+                    } else {
+                        None
+                    }
+                })
+                .collect()
+        };
+
+        for (name, client) in platform_clients {
+            let client_guard = client.lock().await;
+            if let Some(moim_content) = client_guard.get_moim().await {
+                tracing::debug!("MOIM content from {}: {} chars", name, moim_content.len());
+                content.push('\n');
+                content.push_str(&moim_content);
             }
         }
 
