@@ -170,6 +170,7 @@ impl GithubCopilotProvider {
         })
     }
 
+    #[allow(clippy::too_many_lines)]
     async fn post(&self, payload: &mut Value) -> Result<Value, ProviderError> {
         use crate::providers::utils_universal_openai_stream::{OAIStreamChunk, OAIStreamCollector};
         use futures::StreamExt;
@@ -203,29 +204,94 @@ impl GithubCopilotProvider {
         let response = request.json(payload).send().await?;
 
         if stream_only_model {
+            // Check HTTP status before reading the stream
+            let status = response.status();
+            if !status.is_success() {
+                let body = response.text().await.unwrap_or_default();
+                // Try to extract error message from JSON response
+                let error_msg = if let Ok(error_json) = serde_json::from_str::<Value>(&body) {
+                    error_json
+                        .get("error")
+                        .and_then(|e| e.get("message"))
+                        .and_then(|m| m.as_str())
+                        .map(|s| s.to_string())
+                        .unwrap_or(body)
+                } else {
+                    body
+                };
+                return Err(ProviderError::RequestFailed(format!(
+                    "GitHub Copilot API returned status {}: {}",
+                    status, error_msg
+                )));
+            }
+
             let mut collector = OAIStreamCollector::new();
             let mut stream = response.bytes_stream();
+            let mut last_error: Option<String> = None;
+
             while let Some(chunk) = stream.next().await {
                 let chunk = chunk.map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
                 let text = String::from_utf8_lossy(&chunk);
                 for line in text.lines() {
                     let tline = line.trim();
                     if !tline.starts_with("data: ") {
+                        // Check for error responses in non-data lines
+                        if !tline.is_empty() {
+                            if let Ok(error_obj) = serde_json::from_str::<Value>(tline) {
+                                if let Some(error) = error_obj.get("error") {
+                                    let msg = error
+                                        .get("message")
+                                        .and_then(|m| m.as_str())
+                                        .unwrap_or("Unknown error");
+                                    last_error = Some(msg.to_string());
+                                }
+                            }
+                        }
                         continue;
                     }
-                    let Some(payload) = tline.get(6..) else {
+                    let Some(chunk_payload) = tline.get(6..) else {
                         continue;
                     };
-                    if payload == "[DONE]" {
+                    if chunk_payload == "[DONE]" {
                         break;
                     }
-                    match serde_json::from_str::<OAIStreamChunk>(payload) {
+                    match serde_json::from_str::<OAIStreamChunk>(chunk_payload) {
                         Ok(ch) => collector.add_chunk(&ch),
-                        Err(_) => continue,
+                        Err(e) => {
+                            // Try parsing as error response instead of silently ignoring
+                            if let Ok(error_obj) = serde_json::from_str::<Value>(chunk_payload) {
+                                if let Some(error) = error_obj.get("error") {
+                                    let msg = error
+                                        .get("message")
+                                        .and_then(|m| m.as_str())
+                                        .unwrap_or("Unknown error");
+                                    return Err(ProviderError::RequestFailed(format!(
+                                        "GitHub Copilot API error: {}",
+                                        msg
+                                    )));
+                                }
+                            }
+                            tracing::warn!("Failed to parse stream chunk: {}", e);
+                        }
                     }
                 }
             }
+
             let final_response = collector.build_response();
+
+            // Check for empty response with errors
+            if final_response.choices.is_empty() {
+                if let Some(error) = last_error {
+                    return Err(ProviderError::RequestFailed(format!(
+                        "GitHub Copilot API error: {}",
+                        error
+                    )));
+                }
+                return Err(ProviderError::RequestFailed(
+                    "GitHub Copilot returned no response".to_string(),
+                ));
+            }
+
             let value = serde_json::to_value(final_response)
                 .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
             Ok(value)
