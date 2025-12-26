@@ -6,14 +6,17 @@
  * @see SEP-1865 https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/draft/apps.mdx
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useSandboxBridge } from './useSandboxBridge';
-import { McpAppResource, ToolInput, ToolInputPartial, ToolResult, ToolCancelled } from './types';
+import { ToolInput, ToolInputPartial, ToolResult, ToolCancelled, CspMetadata } from './types';
 import { cn } from '../../utils';
 import { DEFAULT_IFRAME_HEIGHT } from './utils';
+import { readResource, callTool } from '../../api';
 
 interface McpAppRendererProps {
-  resource: McpAppResource;
+  resourceUri: string;
+  extensionName: string;
+  sessionId: string;
   toolInput?: ToolInput;
   toolInputPartial?: ToolInputPartial;
   toolResult?: ToolResult;
@@ -22,15 +25,45 @@ interface McpAppRendererProps {
 }
 
 export default function McpAppRenderer({
-  resource,
+  resourceUri,
+  extensionName,
+  sessionId,
   toolInput,
   toolInputPartial,
   toolResult,
   toolCancelled,
   append,
 }: McpAppRendererProps) {
-  const prefersBorder = resource._meta?.ui?.prefersBorder ?? true;
+  const [resourceHtml, setResourceHtml] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [iframeHeight, setIframeHeight] = useState(DEFAULT_IFRAME_HEIGHT);
+  // TODO: Get CSP from backend when supported
+  const resourceCsp: CspMetadata | null = null;
+
+  // Fetch the HTML resource from the MCP server
+  useEffect(() => {
+    const fetchResource = async () => {
+      try {
+        const response = await readResource({
+          body: {
+            session_id: sessionId,
+            uri: resourceUri,
+            extension_name: extensionName,
+          },
+        });
+
+        if (response.data) {
+          setResourceHtml(response.data.html);
+          // TODO: Extract CSP from resource metadata when backend supports it
+          // For now, CSP will be null and the proxy will use default restrictions
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load resource');
+      }
+    };
+
+    fetchResource();
+  }, [resourceUri, extensionName, sessionId]);
 
   // Handle MCP requests from the guest app
   const handleMcpRequest = useCallback(
@@ -61,11 +94,46 @@ export default function McpAppRenderer({
           }
           throw new Error('Invalid params for ui/message');
 
-        case 'notifications/message':
         case 'tools/call':
+          if (params && typeof params === 'object' && 'name' in params) {
+            const { name, arguments: args } = params as {
+              name: string;
+              arguments?: Record<string, unknown>;
+            };
+            const fullToolName = `${extensionName}__${name}`;
+            const response = await callTool({
+              body: {
+                session_id: sessionId,
+                name: fullToolName,
+                arguments: args || {},
+              },
+            });
+            return {
+              content: response.data?.content || [],
+              isError: response.data?.is_error || false,
+            };
+          }
+          throw new Error('Invalid params for tools/call');
+
+        case 'resources/read':
+          if (params && typeof params === 'object' && 'uri' in params) {
+            const { uri } = params as { uri: string };
+            const response = await readResource({
+              body: {
+                session_id: sessionId,
+                uri,
+                extension_name: extensionName,
+              },
+            });
+            return {
+              contents: response.data ? [response.data] : [],
+            };
+          }
+          throw new Error('Invalid params for resources/read');
+
+        case 'notifications/message':
         case 'resources/list':
         case 'resources/templates/list':
-        case 'resources/read':
         case 'prompts/list':
         case 'ping':
           console.warn(`[MCP App] TODO: ${method} not yet implemented`);
@@ -75,7 +143,7 @@ export default function McpAppRenderer({
           throw new Error(`Unknown method: ${method}`);
       }
     },
-    [append]
+    [append, sessionId, extensionName]
   );
 
   const handleSizeChanged = useCallback((height: number, _width?: number) => {
@@ -84,9 +152,9 @@ export default function McpAppRenderer({
   }, []);
 
   const { iframeRef, proxyUrl } = useSandboxBridge({
-    resourceHtml: resource.text || '',
-    resourceCsp: resource._meta?.ui?.csp || null,
-    resourceUri: resource.uri,
+    resourceHtml: resourceHtml || '',
+    resourceCsp,
+    resourceUri,
     toolInput,
     toolInputPartial,
     toolResult,
@@ -95,17 +163,26 @@ export default function McpAppRenderer({
     onSizeChanged: handleSizeChanged,
   });
 
-  if (!resource) {
-    return null;
+  if (error) {
+    return (
+      <div className="mt-3 p-4 border border-red-500 rounded-lg bg-red-50 dark:bg-red-900/20">
+        <div className="text-red-700 dark:text-red-300">Failed to load MCP app: {error}</div>
+      </div>
+    );
+  }
+
+  if (!resourceHtml) {
+    return (
+      <div className="mt-3 p-4 border border-borderSubtle rounded-lg bg-bgApp">
+        <div className="flex items-center justify-center" style={{ minHeight: '200px' }}>
+          Loading MCP app...
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div
-      className={cn(
-        'mt-3 bg-bgApp',
-        prefersBorder && 'border border-borderSubtle rounded-lg overflow-hidden'
-      )}
-    >
+    <div className={cn('mt-3 bg-bgApp', 'border border-borderSubtle rounded-lg overflow-hidden')}>
       {proxyUrl ? (
         <iframe
           ref={iframeRef}

@@ -16,6 +16,7 @@ import { TooltipWrapper } from './settings/providers/subcomponents/buttons/Toolt
 import MCPUIResourceRenderer from './MCPUIResourceRenderer';
 import { isUIResource } from '@mcp-ui/client';
 import { CallToolResponse, Content, EmbeddedResource } from '../api';
+import McpAppRenderer from './McpApps/McpAppRenderer';
 
 interface ToolGraphNode {
   tool: string;
@@ -23,7 +24,17 @@ interface ToolGraphNode {
   depends_on: number[];
 }
 
+type ToolResultWithMeta = {
+  status?: string;
+  value?: CallToolResponse & {
+    _meta?: {
+      'ui/resourceUri'?: string;
+    };
+  };
+};
+
 interface ToolCallWithResponseProps {
+  sessionId?: string;
   isCancelledMessage: boolean;
   toolRequest: ToolRequestMessageContent;
   toolResponse?: ToolResponseMessageContent;
@@ -47,7 +58,49 @@ function isEmbeddedResource(content: Content): content is EmbeddedResource {
   return 'resource' in content && typeof (content as Record<string, unknown>).resource === 'object';
 }
 
+function maybeRenderMCPApp(
+  toolCall: { name: string; arguments: Record<string, unknown> },
+  toolResponse: ToolResponseMessageContent | undefined,
+  sessionId: string | undefined,
+  append?: (value: string) => void
+): React.ReactNode {
+  // MCP apps require a valid session ID to make API calls
+  if (!sessionId || !toolResponse?.toolResult) return null;
+
+  const resultWithMeta = toolResponse.toolResult as ToolResultWithMeta;
+
+  if (resultWithMeta?.status !== 'success' || !resultWithMeta.value) {
+    return null;
+  }
+
+  const value = resultWithMeta.value;
+  const resourceUri = value._meta?.['ui/resourceUri'];
+
+  if (!resourceUri) return null;
+
+  const extensionName = toolCall.name.split('__')[0];
+
+  return (
+    <div className="mt-3">
+      <McpAppRenderer
+        resourceUri={resourceUri}
+        toolInput={{ arguments: toolCall.arguments }}
+        extensionName={extensionName}
+        sessionId={sessionId}
+        append={append}
+      />
+      <div className="mt-3 p-4 py-3 border border-borderSubtle rounded-lg bg-background-muted flex items-center">
+        <FlaskConical className="mr-2" size={20} />
+        <div className="text-sm font-sans">
+          MCP Apps are experimental and may change at any time.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ToolCallWithResponse({
+  sessionId,
   isCancelledMessage,
   toolRequest,
   toolResponse,
@@ -107,20 +160,8 @@ export default function ToolCallWithResponse({
           }
         })}
 
-      {/* MCP Apps - This data will be coming from a resources/read result. */}
-      {/* TODO Hook this up */}
-      {/* {toolResponse?.toolResult &&
-        mockResourceReadResult.contents.map((content) => {
-          return (
-            <McpAppRenderer
-              resource={content}
-              key={content.uri}
-              toolInput={{ arguments: toolCall.arguments }}
-              toolResult={toolResponse.toolResult.value as unknown as ToolResult}
-              append={append}
-            />
-          );
-        })} */}
+      {/* MCP Apps */}
+      {maybeRenderMCPApp(toolCall, toolResponse, sessionId, append)}
     </>
   );
 }
