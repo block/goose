@@ -17,6 +17,8 @@ pub enum GcpLocation {
     Iowa,
     /// Represents the us-east5 region in Ohio
     Ohio,
+    /// Represents the global endpoint (required for Gemini 3 models)
+    Global,
 }
 
 impl fmt::Display for GcpLocation {
@@ -24,18 +26,7 @@ impl fmt::Display for GcpLocation {
         match self {
             Self::Iowa => write!(f, "us-central1"),
             Self::Ohio => write!(f, "us-east5"),
-        }
-    }
-}
-
-impl TryFrom<&str> for GcpLocation {
-    type Error = ModelError;
-
-    fn try_from(s: &str) -> Result<Self, Self::Error> {
-        match s {
-            "us-central1" => Ok(Self::Iowa),
-            "us-east5" => Ok(Self::Ohio),
-            _ => Err(ModelError::UnsupportedLocation(s.to_string())),
+            Self::Global => write!(f, "global"),
         }
     }
 }
@@ -132,22 +123,6 @@ impl fmt::Display for GcpVertexAIModel {
             Self::MaaS(_, model_name) => model_name,
         };
         write!(f, "{model_id}")
-    }
-}
-
-impl GcpVertexAIModel {
-    /// Returns the default GCP location for the model.
-    ///
-    /// Each model family has a well-known location based on availability:
-    /// - Claude models default to Ohio (us-east5)
-    /// - Gemini models default to Iowa (us-central1)
-    /// - MaaS models default to Iowa (us-central1)
-    pub fn known_location(&self) -> GcpLocation {
-        match self {
-            Self::Claude(_) => GcpLocation::Ohio,
-            Self::Gemini(_) => GcpLocation::Iowa,
-            Self::MaaS(_, _) => GcpLocation::Iowa,
-        }
     }
 }
 
@@ -396,39 +371,6 @@ mod tests {
     }
 
     #[test]
-    fn test_default_locations() -> Result<()> {
-        let test_cases = [
-            ("claude-sonnet-4-20250514", GcpLocation::Ohio),
-            ("claude-3-7-sonnet@20250219", GcpLocation::Ohio),
-            ("claude-sonnet-4@20250514", GcpLocation::Ohio),
-            ("gemini-1.5-pro-002", GcpLocation::Iowa),
-            ("gemini-2.0-flash-001", GcpLocation::Iowa),
-            ("gemini-2.0-pro-exp-02-05", GcpLocation::Iowa),
-            ("gemini-2.5-pro-exp-03-25", GcpLocation::Iowa),
-            ("gemini-2.5-flash-preview-05-20", GcpLocation::Iowa),
-            ("gemini-2.5-pro-preview-05-06", GcpLocation::Iowa),
-        ];
-
-        for (model_id, expected_location) in test_cases {
-            let model = GcpVertexAIModel::try_from(model_id)?;
-            assert_eq!(
-                model.known_location(),
-                expected_location,
-                "Model {model_id} should have default location {expected_location:?}",
-            );
-
-            let context = RequestContext::new(model_id)?;
-            assert_eq!(
-                context.model.known_location(),
-                expected_location,
-                "RequestContext for {model_id} should have default location {expected_location:?}",
-            );
-        }
-
-        Ok(())
-    }
-
-    #[test]
     fn test_generic_model_parsing() -> Result<()> {
         // Test generic Claude models
         let claude_models = [
@@ -446,7 +388,6 @@ mod tests {
                 _ => panic!("Expected Claude generic model for {model_id}"),
             }
             assert_eq!(model.to_string(), model_id);
-            assert_eq!(model.known_location(), GcpLocation::Ohio);
         }
 
         // Test generic Gemini models
@@ -461,7 +402,6 @@ mod tests {
                 _ => panic!("Expected Gemini generic model for {model_id}"),
             }
             assert_eq!(model.to_string(), model_id);
-            assert_eq!(model.known_location(), GcpLocation::Iowa);
         }
 
         Ok(())
