@@ -4626,10 +4626,23 @@
       "ReadResourceResponse": {
         "type": "object",
         "required": [
-          "html"
+          "uri",
+          "text"
         ],
         "properties": {
-          "html": {
+          "_meta": {
+            "type": "object",
+            "additionalProperties": {},
+            "nullable": true
+          },
+          "mimeType": {
+            "type": "string",
+            "nullable": true
+          },
+          "text": {
+            "type": "string"
+          },
+          "uri": {
             "type": "string"
           }
         }

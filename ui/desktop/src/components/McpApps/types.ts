@@ -1,23 +1,34 @@
-// Re-export generated types from Rust
-export type {
-  McpAppResource,
-  CspMetadata,
-  UiMetadata,
-  ResourceMetadata,
-  CallToolResponse as ToolResult,
-} from '../../api/types.gen';
+export type { CspMetadata, CallToolResponse as ToolResult } from '../../api/types.gen';
+
+export type McpMethodParams = {
+  'ui/open-link': { url: string };
+  'ui/message': { content: { type: string; text: string } };
+  'tools/call': { name: string; arguments?: Record<string, unknown> };
+  'resources/read': { uri: string };
+  'notifications/message': { level?: string; logger?: string; data: unknown };
+  ping: Record<string, never>;
+};
+
+export type McpMethodResponse = {
+  'ui/open-link': { status: string; message: string };
+  'ui/message': { status: string; message: string };
+  'tools/call': { content: unknown[]; isError: boolean };
+  'resources/read': { contents: unknown[] };
+  'notifications/message': Record<string, never>;
+  ping: Record<string, never>;
+};
 
 export interface JsonRpcRequest {
   jsonrpc: '2.0';
   id?: string | number;
   method: string;
-  params?: unknown;
+  params?: Record<string, unknown>;
 }
 
 export interface JsonRpcNotification {
   jsonrpc: '2.0';
   method: string;
-  params?: unknown;
+  params?: Record<string, unknown>;
 }
 
 export interface JsonRpcResponse {

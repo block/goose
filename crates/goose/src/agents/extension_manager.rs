@@ -41,7 +41,7 @@ use crate::oauth::oauth_flow;
 use crate::prompt_template;
 use crate::subprocess::configure_command_no_window;
 use rmcp::model::{
-    CallToolRequestParam, Content, ErrorCode, ErrorData, GetPromptResult, Prompt, RawContent,
+    CallToolRequestParam, Content, ErrorCode, ErrorData, GetPromptResult, Prompt,
     Resource, ResourceContents, ServerInfo, Tool,
 };
 use rmcp::transport::auth::AuthClient;
@@ -767,7 +767,7 @@ impl ExtensionManager {
     }
 
     // Function that gets executed for read_resource tool
-    pub async fn read_resource(
+    pub async fn read_resource_tool(
         &self,
         params: Value,
         cancellation_token: CancellationToken,
@@ -919,26 +919,61 @@ impl ExtensionManager {
         Ok(ui_resources)
     }
 
-    pub async fn read_ui_resource(
+    pub async fn read_resource(
         &self,
         uri: &str,
         extension_name: &str,
         cancellation_token: CancellationToken,
-    ) -> Result<String, ErrorData> {
-        let contents = self
-            .read_resource_from_extension(uri, extension_name, cancellation_token, false)
+    ) -> Result<ResourceContents, ErrorData> {
+        let result = self
+            .read_resource_from_extension_with_metadata(uri, extension_name, cancellation_token)
             .await?;
 
-        contents
+        result
+            .contents
             .into_iter()
-            .find_map(|c| match c.raw {
-                RawContent::Text(text_content) => Some(text_content.text),
-                _ => None,
-            })
+            .next()
             .ok_or_else(|| {
                 ErrorData::new(
                     ErrorCode::RESOURCE_NOT_FOUND,
-                    format!("No text content in resource '{}'", uri),
+                    format!("No content in resource '{}'", uri),
+                    None,
+                )
+            })
+    }
+
+    async fn read_resource_from_extension_with_metadata(
+        &self,
+        uri: &str,
+        extension_name: &str,
+        cancellation_token: CancellationToken,
+    ) -> Result<rmcp::model::ReadResourceResult, ErrorData> {
+        let available_extensions = self
+            .extensions
+            .lock()
+            .await
+            .keys()
+            .map(|s| s.as_str())
+            .collect::<Vec<&str>>()
+            .join(", ");
+        let error_msg = format!(
+            "Extension '{}' not found. Here are the available extensions: {}",
+            extension_name, available_extensions
+        );
+
+        let client = self
+            .get_server_client(extension_name)
+            .await
+            .ok_or(ErrorData::new(ErrorCode::INVALID_PARAMS, error_msg, None))?;
+
+        let client_guard = client.lock().await;
+        client_guard
+            .read_resource(uri, cancellation_token)
+            .await
+            .map_err(|_| {
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Could not read resource with uri: {}", uri),
                     None,
                 )
             })

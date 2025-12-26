@@ -22,7 +22,11 @@ interface SandboxBridgeOptions {
   toolInputPartial?: ToolInputPartial;
   toolResult?: ToolResult;
   toolCancelled?: ToolCancelled;
-  onMcpRequest: (method: string, params: unknown, id?: string | number) => Promise<unknown>;
+  onMcpRequest: (
+    method: string,
+    params?: Record<string, unknown>,
+    id?: string | number
+  ) => Promise<unknown>;
   onSizeChanged?: (height: number, width?: number) => void;
 }
 
@@ -140,7 +144,6 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
             return;
           }
 
-          // Delegate other requests to handler
           const result = await onMcpRequest(msg.method, msg.params, msg.id);
           if (msg.id !== undefined) {
             sendToSandbox({ jsonrpc: '2.0', id: msg.id, result });

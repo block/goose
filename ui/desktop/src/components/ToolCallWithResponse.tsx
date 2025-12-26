@@ -40,7 +40,7 @@ interface ToolCallWithResponseProps {
   toolResponse?: ToolResponseMessageContent;
   notifications?: NotificationEvent[];
   isStreamingMessage?: boolean;
-  append?: (value: string) => void; // Function to append messages to the chat
+  append?: (value: string) => void;
 }
 
 function getToolResultContent(toolResult: Record<string, unknown>): Content[] {
@@ -60,13 +60,10 @@ function isEmbeddedResource(content: Content): content is EmbeddedResource {
 
 function maybeRenderMCPApp(
   toolCall: { name: string; arguments: Record<string, unknown> },
-  toolResponse: ToolResponseMessageContent | undefined,
-  sessionId: string | undefined,
+  toolResponse: ToolResponseMessageContent,
+  sessionId: string,
   append?: (value: string) => void
 ): React.ReactNode {
-  // MCP apps require a valid session ID to make API calls
-  if (!sessionId || !toolResponse?.toolResult) return null;
-
   const resultWithMeta = toolResponse.toolResult as ToolResultWithMeta;
 
   if (resultWithMeta?.status !== 'success' || !resultWithMeta.value) {
@@ -160,8 +157,7 @@ export default function ToolCallWithResponse({
           }
         })}
 
-      {/* MCP Apps */}
-      {maybeRenderMCPApp(toolCall, toolResponse, sessionId, append)}
+      {toolResponse && sessionId && maybeRenderMCPApp(toolCall, toolResponse, sessionId, append)}
     </>
   );
 }
