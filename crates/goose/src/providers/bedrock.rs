@@ -1,22 +1,28 @@
 use std::collections::HashMap;
 
-use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
-use super::errors::ProviderError;
-use super::retry::{ProviderRetry, RetryConfig};
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
+use crate::providers::base::MessageStream;
+use crate::providers::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
+use crate::providers::errors::ProviderError;
+use crate::providers::retry::{ProviderRetry, RetryConfig};
 use crate::providers::utils::RequestLog;
 use anyhow::Result;
 use async_trait::async_trait;
 use aws_sdk_bedrockruntime::config::ProvideCredentials;
 use aws_sdk_bedrockruntime::operation::converse::ConverseError;
+use aws_sdk_bedrockruntime::operation::converse_stream::ConverseStreamError;
 use aws_sdk_bedrockruntime::{types as bedrock, Client};
+
 use rmcp::model::Tool;
 use serde_json::Value;
+use tokio::sync::mpsc;
+use tokio_stream::wrappers::ReceiverStream;
 
 // Import the migrated helper functions from providers/formats/bedrock.rs
-use super::formats::bedrock::{
+use crate::providers::formats::bedrock::{
     from_bedrock_message, from_bedrock_usage, to_bedrock_message, to_bedrock_tool_config,
+    BedrockStreamAccumulator,
 };
 
 pub const BEDROCK_DOC_LINK: &str =
@@ -48,6 +54,7 @@ pub struct BedrockProvider {
 }
 
 impl BedrockProvider {
+    #[allow(clippy::type_complexity)]
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
 
@@ -190,6 +197,152 @@ impl BedrockProvider {
             )),
         }
     }
+
+    #[allow(clippy::type_complexity)]
+    async fn converse_stream_internal(
+        client: &Client,
+        model_name: &str,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+        tx: mpsc::Sender<Result<(Option<Message>, Option<ProviderUsage>), ProviderError>>,
+    ) -> Result<(), ProviderError> {
+        let mut request = client.converse_stream().model_id(model_name.to_string());
+
+        if !system.is_empty() {
+            request = request.system(bedrock::SystemContentBlock::Text(system.to_string()));
+        }
+
+        let bedrock_messages: Vec<bedrock::Message> = messages
+            .iter()
+            .filter(|m| m.is_agent_visible())
+            .map(to_bedrock_message)
+            .collect::<Result<_>>()?;
+        request = request.set_messages(Some(bedrock_messages));
+
+        if !tools.is_empty() {
+            request = request.tool_config(to_bedrock_tool_config(tools)?);
+        }
+
+        let response = request
+            .send()
+            .await
+            .map_err(Self::map_converse_stream_error)?;
+        let mut stream = response.stream;
+        let mut accumulator = BedrockStreamAccumulator::new();
+
+        loop {
+            match stream.recv().await {
+                Ok(Some(event)) => {
+                    let maybe_message = match event {
+                        bedrock::ConverseStreamOutput::MessageStart(msg_start) => {
+                            accumulator.handle_message_start(&msg_start.role)?;
+                            None
+                        }
+                        bedrock::ConverseStreamOutput::ContentBlockStart(block_start) => {
+                            if let Some(start) = block_start.start {
+                                accumulator.handle_content_block_start(
+                                    block_start.content_block_index,
+                                    &start,
+                                )?;
+                                None
+                            } else {
+                                None
+                            }
+                        }
+                        bedrock::ConverseStreamOutput::ContentBlockDelta(delta_event) => {
+                            if let Some(ref delta) = delta_event.delta {
+                                let msg = accumulator.handle_content_block_delta(
+                                    delta_event.content_block_index,
+                                    delta,
+                                )?;
+                                tracing::debug!(
+                                    "ContentBlockDelta produced message: {}",
+                                    msg.is_some()
+                                );
+                                msg
+                            } else {
+                                None
+                            }
+                        }
+                        bedrock::ConverseStreamOutput::ContentBlockStop(_) => None,
+                        bedrock::ConverseStreamOutput::MessageStop(msg_stop) => {
+                            let msg = accumulator.handle_message_stop(msg_stop.stop_reason)?;
+                            tracing::debug!("MessageStop produced message: {}", msg.is_some());
+                            msg
+                        }
+                        bedrock::ConverseStreamOutput::Metadata(metadata) => {
+                            accumulator.handle_metadata(metadata.usage);
+                            tracing::debug!("Received metadata");
+                            None
+                        }
+                        _ => None,
+                    };
+
+                    if let Some(incremental_msg) = maybe_message {
+                        tracing::debug!("Sending message through channel");
+                        tx.send(Ok((Some(incremental_msg), None)))
+                            .await
+                            .map_err(|_| ProviderError::RequestFailed("Channel closed".into()))?;
+                    }
+                }
+                Ok(None) => {
+                    tracing::debug!("Stream ended");
+                    break;
+                }
+                Err(e) => {
+                    let error_msg = format!("Stream error: {:?}", e);
+                    tracing::error!("{}", error_msg);
+                    let provider_error = ProviderError::ServerError(error_msg);
+                    let _ = tx.send(Err(provider_error)).await;
+                    return Ok(());
+                }
+            }
+        }
+
+        if let Some(usage) = accumulator.get_usage() {
+            let provider_usage = ProviderUsage::new(model_name.to_string(), usage);
+            tracing::debug!("Sending final usage");
+            tx.send(Ok((None, Some(provider_usage))))
+                .await
+                .map_err(|_| ProviderError::RequestFailed("Channel closed".into()))?;
+        }
+
+        tracing::debug!("Sending end marker");
+        tx.send(Ok((None, None)))
+            .await
+            .map_err(|_| ProviderError::RequestFailed("Channel closed".into()))?;
+
+        Ok(())
+    }
+
+    fn map_converse_stream_error(
+        err: aws_sdk_bedrockruntime::error::SdkError<ConverseStreamError>,
+    ) -> ProviderError {
+        match err.into_service_error() {
+            ConverseStreamError::ThrottlingException(throttle_err) => {
+                ProviderError::RateLimitExceeded {
+                    details: format!("Bedrock streaming throttling: {:?}", throttle_err),
+                    retry_delay: None,
+                }
+            }
+            ConverseStreamError::AccessDeniedException(err) => {
+                ProviderError::Authentication(format!("Bedrock streaming access denied: {:?}", err))
+            }
+            ConverseStreamError::ValidationException(err)
+                if err.message().unwrap_or_default().contains("too long") =>
+            {
+                ProviderError::ContextLengthExceeded(format!(
+                    "Bedrock streaming context exceeded: {:?}",
+                    err
+                ))
+            }
+            ConverseStreamError::ModelStreamErrorException(err) => {
+                ProviderError::ExecutionError(format!("Bedrock model streaming error: {:?}", err))
+            }
+            err => ProviderError::ServerError(format!("Bedrock streaming error: {:?}", err)),
+        }
+    }
 }
 
 #[async_trait]
@@ -247,9 +400,9 @@ impl Provider for BedrockProvider {
 
         // Add debug trace with input context
         let debug_payload = serde_json::json!({
-            "system": system,
-            "messages": messages,
-            "tools": tools
+        "system": system,
+        "messages": messages,
+        "tools": tools
         });
         let mut log = RequestLog::start(&self.model, &debug_payload)?;
         log.write(
@@ -259,5 +412,44 @@ impl Provider for BedrockProvider {
 
         let provider_usage = ProviderUsage::new(model_name.to_string(), usage);
         Ok((message, provider_usage))
+    }
+
+    async fn stream(
+        &self,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+    ) -> Result<MessageStream, ProviderError> {
+        let (tx, rx) =
+            mpsc::channel::<Result<(Option<Message>, Option<ProviderUsage>), ProviderError>>(100);
+        let stream_receiver = ReceiverStream::new(rx);
+
+        let client = self.client.clone();
+        let model_name = self.model.model_name.clone();
+        let system_prompt = system.to_string();
+        let messages_clone = messages.to_vec();
+        let tools_clone = tools.to_vec();
+
+        tokio::spawn(async move {
+            let result = Self::converse_stream_internal(
+                &client,
+                &model_name,
+                &system_prompt,
+                &messages_clone,
+                &tools_clone,
+                tx.clone(),
+            )
+            .await;
+
+            if let Err(e) = result {
+                let _ = tx.send(Err(e)).await;
+            }
+        });
+
+        Ok(Box::pin(stream_receiver))
+    }
+
+    fn supports_streaming(&self) -> bool {
+        true
     }
 }

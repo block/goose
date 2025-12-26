@@ -17,6 +17,155 @@ use serde_json::Value;
 use super::super::base::Usage;
 use crate::conversation::message::{Message, MessageContent};
 
+/// Accumulates streaming chunks into a complete message
+#[derive(Debug, Default)]
+pub struct BedrockStreamAccumulator {
+    text_blocks: HashMap<i32, String>,
+    text_block_emitted_char_counts: HashMap<i32, usize>,
+    tool_blocks: HashMap<i32, (String, String, String)>,
+    role: Option<Role>,
+    usage: Option<bedrock::TokenUsage>,
+}
+
+impl BedrockStreamAccumulator {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn handle_message_start(&mut self, role: &bedrock::ConversationRole) -> Result<()> {
+        self.role = Some(from_bedrock_role(role)?);
+        Ok(())
+    }
+
+    pub fn handle_content_block_start(
+        &mut self,
+        index: i32,
+        start: &bedrock::ContentBlockStart,
+    ) -> Result<()> {
+        match start {
+            bedrock::ContentBlockStart::ToolUse(tool_use) => {
+                let tool_use_id = tool_use.tool_use_id().to_string();
+                let name = tool_use.name().to_string();
+                self.tool_blocks
+                    .insert(index, (tool_use_id, name, String::new()));
+            }
+            _ => {
+                self.text_blocks.insert(index, String::new());
+                self.text_block_emitted_char_counts.insert(index, 0);
+            }
+        }
+        Ok(())
+    }
+
+    pub fn handle_content_block_delta(
+        &mut self,
+        index: i32,
+        delta: &bedrock::ContentBlockDelta,
+    ) -> Result<Option<Message>> {
+        match delta {
+            bedrock::ContentBlockDelta::Text(text) => {
+                self.text_blocks.entry(index).or_default().push_str(text);
+                self.build_incremental_delta_message(index)
+            }
+            bedrock::ContentBlockDelta::ToolUse(tool_delta) => {
+                if let Some((_, _, json)) = self.tool_blocks.get_mut(&index) {
+                    json.push_str(&tool_delta.input);
+                }
+                Ok(None)
+            }
+            _ => Ok(None),
+        }
+    }
+
+    pub fn handle_message_stop(
+        &mut self,
+        _stop_reason: bedrock::StopReason,
+    ) -> Result<Option<Message>> {
+        self.build_final_message()
+    }
+
+    pub fn handle_metadata(&mut self, usage: Option<bedrock::TokenUsage>) {
+        if let Some(u) = usage {
+            self.usage = Some(u);
+        }
+    }
+
+    /// Build a message with only the new text delta for streaming
+    fn build_incremental_delta_message(&mut self, index: i32) -> Result<Option<Message>> {
+        if let Some(text) = self.text_blocks.get(&index) {
+            let emitted_char_count = *self
+                .text_block_emitted_char_counts
+                .get(&index)
+                .unwrap_or(&0);
+            let current_char_count = text.chars().count();
+
+            if current_char_count > emitted_char_count {
+                let delta = text.chars().skip(emitted_char_count).collect::<String>();
+                self.text_block_emitted_char_counts
+                    .insert(index, current_char_count);
+
+                let role = self.role.clone().unwrap_or(Role::Assistant);
+                let created = Utc::now().timestamp();
+                let content = vec![MessageContent::text(delta)];
+
+                return Ok(Some(Message::new(role, created, content)));
+            }
+        }
+        Ok(None)
+    }
+
+    fn build_final_message(&self) -> Result<Option<Message>> {
+        let role = self.role.clone().unwrap_or(Role::Assistant);
+        let created = Utc::now().timestamp();
+        let mut content = Vec::new();
+
+        // Only include text blocks that have remaining content not yet emitted during streaming
+        let mut indices: Vec<_> = self.text_blocks.keys().cloned().collect();
+        indices.sort();
+        for idx in indices {
+            if let Some(text) = self.text_blocks.get(&idx) {
+                let emitted_char_count =
+                    *self.text_block_emitted_char_counts.get(&idx).unwrap_or(&0);
+                let current_char_count = text.chars().count();
+                if current_char_count > emitted_char_count {
+                    let remaining = text.chars().skip(emitted_char_count).collect::<String>();
+                    if !remaining.is_empty() {
+                        content.push(MessageContent::text(remaining));
+                    }
+                }
+            }
+        }
+
+        // Tool blocks are always included as they are only complete at the end of streaming
+        let mut tool_indices: Vec<_> = self.tool_blocks.keys().cloned().collect();
+        tool_indices.sort();
+        for idx in tool_indices {
+            if let Some((tool_use_id, name, json)) = self.tool_blocks.get(&idx) {
+                if let Ok(args) = serde_json::from_str::<serde_json::Value>(json) {
+                    let tool_call = CallToolRequestParam {
+                        name: name.clone().into(),
+                        arguments: args.as_object().cloned(),
+                    };
+                    content.push(MessageContent::tool_request(
+                        tool_use_id.clone(),
+                        Ok(tool_call),
+                    ));
+                }
+            }
+        }
+
+        if content.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(Message::new(role, created, content)))
+        }
+    }
+
+    pub fn get_usage(&self) -> Option<Usage> {
+        self.usage.as_ref().map(from_bedrock_usage)
+    }
+}
+
 pub fn to_bedrock_message(message: &Message) -> Result<bedrock::Message> {
     bedrock::Message::builder()
         .role(to_bedrock_role(&message.role))
@@ -43,14 +192,8 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
         MessageContent::Image(image) => {
             bedrock::ContentBlock::Image(to_bedrock_image(&image.data, &image.mime_type)?)
         }
-        MessageContent::Thinking(_) => {
-            // Thinking blocks are not supported in Bedrock - skip
-            bedrock::ContentBlock::Text("".to_string())
-        }
-        MessageContent::RedactedThinking(_) => {
-            // Redacted thinking blocks are not supported in Bedrock - skip
-            bedrock::ContentBlock::Text("".to_string())
-        }
+        MessageContent::Thinking(_) => bedrock::ContentBlock::Text("".to_string()),
+        MessageContent::RedactedThinking(_) => bedrock::ContentBlock::Text("".to_string()),
         MessageContent::SystemNotification(_) => {
             bail!("SystemNotification should not get passed to the provider")
         }
@@ -90,7 +233,6 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
                     result
                         .content
                         .iter()
-                        // Filter out content items that have User in their audience
                         .filter(|c| {
                             c.audience()
                                 .is_none_or(|audience| !audience.contains(&Role::User))
@@ -98,13 +240,10 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
                         .map(|c| to_bedrock_tool_result_content_block(&tool_res.id, c.clone()))
                         .collect::<Result<_>>()?,
                 ),
-                Err(error) => {
-                    // For errors, create a text content block with the error message
-                    Some(vec![bedrock::ToolResultContentBlock::Text(format!(
-                        "The tool call returned the following error:\n{}",
-                        error
-                    ))])
-                }
+                Err(error) => Some(vec![bedrock::ToolResultContentBlock::Text(format!(
+                    "The tool call returned the following error:\n{}",
+                    error
+                ))]),
             };
             bedrock::ContentBlock::ToolResult(
                 bedrock::ToolResultBlock::builder()
@@ -160,7 +299,6 @@ pub fn to_bedrock_role(role: &Role) -> bedrock::ConversationRole {
 }
 
 pub fn to_bedrock_image(data: &String, mime_type: &String) -> Result<bedrock::ImageBlock> {
-    // Extract format from MIME type
     let format = match mime_type.as_str() {
         "image/png" => bedrock::ImageFormat::Png,
         "image/jpeg" | "image/jpg" => bedrock::ImageFormat::Jpeg,
@@ -172,14 +310,12 @@ pub fn to_bedrock_image(data: &String, mime_type: &String) -> Result<bedrock::Im
         ),
     };
 
-    // Create image source with base64 data
     let source = bedrock::ImageSource::Bytes(aws_smithy_types::Blob::new(
         base64::prelude::BASE64_STANDARD
             .decode(data)
             .map_err(|e| anyhow!("Failed to decode base64 image data: {}", e))?,
     ));
 
-    // Build the image block
     Ok(bedrock::ImageBlock::builder()
         .format(format)
         .source(source)
@@ -197,8 +333,6 @@ pub fn to_bedrock_tool_config(tools: &[Tool]) -> Result<bedrock::ToolConfigurati
 pub fn to_bedrock_tool(tool: &Tool) -> Result<bedrock::Tool> {
     let mut input_schema = tool.input_schema.as_ref().clone();
 
-    // If the schema doesn't have a "type" field, add it
-    // This is required by Bedrock
     if !input_schema.contains_key("type") {
         input_schema.insert("type".to_string(), Value::String("object".to_string()));
     }
@@ -259,18 +393,14 @@ fn to_bedrock_document(
         .and_then(|n| n.to_str())
         .unwrap_or(uri);
 
-    // Return None if the file type is not supported
     let (name, format) = match filename.split_once('.') {
         Some((name, "txt")) => (name, bedrock::DocumentFormat::Txt),
         Some((name, "csv")) => (name, bedrock::DocumentFormat::Csv),
         Some((name, "md")) => (name, bedrock::DocumentFormat::Md),
         Some((name, "html")) => (name, bedrock::DocumentFormat::Html),
-        _ => return Ok(None), // Not a supported document type
+        _ => return Ok(None),
     };
 
-    // Since we can't use the full path (due to character limit and also Bedrock does not accept `/` etc.),
-    // and Bedrock wants document names to be unique, we're adding `tool_use_id` as a prefix to make
-    // document names unique.
     let name = format!("{tool_use_id}-{name}");
 
     Ok(Some(
@@ -391,7 +521,6 @@ mod tests {
     use anyhow::Result;
     use rmcp::model::{AnnotateAble, RawImageContent};
 
-    // Base64 encoded 1x1 PNG image for testing
     const TEST_IMAGE_BASE64: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
 
     #[test]
@@ -462,7 +591,6 @@ mod tests {
         let message_content = MessageContent::Image(image);
         let result = to_bedrock_message_content(&message_content)?;
 
-        // Verify we get an Image content block
         assert!(matches!(result, bedrock::ContentBlock::Image(_)));
 
         Ok(())
@@ -473,7 +601,6 @@ mod tests {
         let content = Content::image(TEST_IMAGE_BASE64.to_string(), "image/png".to_string());
         let result = to_bedrock_tool_result_content_block("test_id", content)?;
 
-        // Verify the wrapper correctly converts Content::Image to ToolResultContentBlock::Image
         assert!(matches!(result, bedrock::ToolResultContentBlock::Image(_)));
 
         Ok(())

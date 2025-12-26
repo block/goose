@@ -169,13 +169,13 @@ impl ProviderTester {
             Ok(rmcp::model::CallToolResult {
                 content: vec![Content::text(
                     "
-                  50°F°C
-                  Precipitation: 0%
-                  Humidity: 84%
-                  Wind: 2 mph
-                  Weather
-                  Saturday 9:00 PM
-                  Clear",
+                   50°F°C
+                   Precipitation: 0%
+                   Humidity: 84%
+                   Wind: 2 mph
+                   Weather
+                   Saturday 9:00 PM
+                   Clear",
                 )],
                 structured_content: None,
                 is_error: Some(false),
