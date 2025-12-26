@@ -35,24 +35,29 @@ async fn test_acp_basic_completion() {
     )])
     .await;
 
-    run_acp_session(&mock_server, vec![], |cx, session_id, updates| async move {
-        let response = cx
-            .send_request(PromptRequest {
-                session_id,
-                prompt: vec![ContentBlock::Text(TextContent {
-                    text: prompt.to_string(),
-                    annotations: None,
+    run_acp_session(
+        &mock_server,
+        vec![],
+        &[],
+        |cx, session_id, updates| async move {
+            let response = cx
+                .send_request(PromptRequest {
+                    session_id,
+                    prompt: vec![ContentBlock::Text(TextContent {
+                        text: prompt.to_string(),
+                        annotations: None,
+                        meta: None,
+                    })],
                     meta: None,
-                })],
-                meta: None,
-            })
-            .block_task()
-            .await
-            .unwrap();
+                })
+                .block_task()
+                .await
+                .unwrap();
 
-        assert_eq!(response.stop_reason, StopReason::EndTurn);
-        wait_for_text(&updates, "2", Duration::from_secs(5)).await;
-    })
+            assert_eq!(response.stop_reason, StopReason::EndTurn);
+            wait_for_text(&updates, "2", Duration::from_secs(5)).await;
+        },
+    )
     .await;
 }
 
@@ -80,6 +85,7 @@ async fn test_acp_with_mcp_http_server() {
             url: mcp_url,
             headers: vec![],
         }],
+        &[],
         |cx, session_id, updates| async move {
             let response = cx
                 .send_request(PromptRequest {
@@ -102,6 +108,62 @@ async fn test_acp_with_mcp_http_server() {
     .await;
 }
 
+#[tokio::test]
+async fn test_acp_with_builtin_and_mcp() {
+    let prompt =
+        "Search for get_code and text_editor tools. Use them to save the code to /tmp/result.txt.";
+    let (mcp_url, _handle) = spawn_mcp_http_server().await;
+
+    let mock_server = setup_mock_openai(vec![
+        (
+            format!(r#"</info-msg>\n{prompt}","role":"user""#),
+            include_str!("./test_data/openai_builtin_search.txt"),
+        ),
+        (
+            r#"lookup/get_code: Get the code"#.into(),
+            include_str!("./test_data/openai_builtin_read_modules.txt"),
+        ),
+        (
+            r#"get_code({  }): string - Get the code"#.into(),
+            include_str!("./test_data/openai_builtin_execute.txt"),
+        ),
+        (
+            r#"Successfully wrote to /tmp/result.txt"#.into(),
+            include_str!("./test_data/openai_builtin_final.txt"),
+        ),
+    ])
+    .await;
+
+    run_acp_session(
+        &mock_server,
+        vec![McpServer::Http {
+            name: "lookup".into(),
+            url: mcp_url,
+            headers: vec![],
+        }],
+        &["code_execution", "developer"],
+        |cx, session_id, updates| async move {
+            let response = cx
+                .send_request(PromptRequest {
+                    session_id,
+                    prompt: vec![ContentBlock::Text(TextContent {
+                        text: prompt.to_string(),
+                        annotations: None,
+                        meta: None,
+                    })],
+                    meta: None,
+                })
+                .block_task()
+                .await
+                .unwrap();
+
+            assert_eq!(response.stop_reason, StopReason::EndTurn);
+            wait_for_text(&updates, FAKE_CODE, Duration::from_secs(10)).await;
+        },
+    )
+    .await;
+}
+
 async fn wait_for_text(
     updates: &Arc<Mutex<Vec<SessionNotification>>>,
     expected: &str,
@@ -110,7 +172,7 @@ async fn wait_for_text(
     let deadline = tokio::time::Instant::now() + timeout;
     loop {
         let actual = extract_text(&updates.lock().unwrap());
-        if actual == expected {
+        if actual.contains(expected) {
             return;
         }
         if tokio::time::Instant::now() > deadline {
@@ -184,10 +246,13 @@ fn extract_text(updates: &[SessionNotification]) -> String {
         .collect()
 }
 
-async fn spawn_goose_acp(mock_server: &MockServer) -> Child {
-    Command::new(&*common::GOOSE_BINARY)
-        .args(["acp"])
-        .stdin(Stdio::piped())
+async fn spawn_goose_acp(mock_server: &MockServer, builtins: &[&str]) -> Child {
+    let mut cmd = Command::new(&*common::GOOSE_BINARY);
+    cmd.args(["acp"]);
+    if !builtins.is_empty() {
+        cmd.arg("--with-builtin").arg(builtins.join(","));
+    }
+    cmd.stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .env("GOOSE_PROVIDER", "openai")
@@ -204,8 +269,12 @@ async fn spawn_goose_acp(mock_server: &MockServer) -> Child {
         .unwrap()
 }
 
-async fn run_acp_session<F, Fut>(mock_server: &MockServer, mcp_servers: Vec<McpServer>, test_fn: F)
-where
+async fn run_acp_session<F, Fut>(
+    mock_server: &MockServer,
+    mcp_servers: Vec<McpServer>,
+    builtins: &[&str],
+    test_fn: F,
+) where
     F: FnOnce(
         JrConnectionCx<ClientToAgent>,
         sacp::schema::SessionId,
@@ -213,7 +282,7 @@ where
     ) -> Fut,
     Fut: std::future::Future<Output = ()>,
 {
-    let mut child = spawn_goose_acp(mock_server).await;
+    let mut child = spawn_goose_acp(mock_server, builtins).await;
     let work_dir = tempfile::tempdir().unwrap();
     let updates = Arc::new(Mutex::new(Vec::new()));
     let outgoing = child.stdin.take().unwrap().compat_write();
@@ -305,7 +374,11 @@ impl ServerHandler for Lookup {
         ServerInfo {
             protocol_version: ProtocolVersion::V_2025_03_26,
             capabilities: ServerCapabilities::builder().enable_tools().build(),
-            server_info: Implementation::from_build_env(),
+            server_info: Implementation {
+                name: "lookup".into(),
+                version: "1.0.0".into(),
+                ..Default::default()
+            },
             instructions: Some("Lookup server with get_code tool.".into()),
         }
     }
