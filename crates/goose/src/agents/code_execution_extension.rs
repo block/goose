@@ -377,7 +377,16 @@ fn run_js_module(
         let last = lines.get(last_idx).map(|s| s.trim()).unwrap_or("");
 
         const NO_WRAP: &[&str] = &["import ", "export ", "function ", "class "];
-        if last.contains("__result__") || NO_WRAP.iter().any(|p| last.starts_with(p)) {
+
+        let is_continuation_only = last
+            .trim_end_matches(';')
+            .chars()
+            .all(|c| matches!(c, '}' | ')' | ']') || c.is_whitespace());
+
+        if last.contains("__result__")
+            || NO_WRAP.iter().any(|p| last.starts_with(p))
+            || is_continuation_only
+        {
             code.to_string()
         } else {
             let before = lines[..last_idx].join("\n");
@@ -758,8 +767,9 @@ impl McpClientTrait for CodeExecutionClient {
                         SYNTAX:
                         - Import: import { tool1, tool2 } from "serverName";
                         - Call: toolName({ param1: value, param2: value })
-                        - All calls are synchronous, return strings
-                        - Last expression is the result
+                        - All calls are synchronous and return strings (JSON strings are auto-parsed into objects)
+                        - Last expression is the result (must be on a single line, or assign to variable first)
+                        - console is not available; use the result expression for output
                         - No comments in code
 
                         TOOL_GRAPH: Always provide tool_graph to describe the execution flow for the UI.
@@ -937,6 +947,101 @@ mod tests {
         assert!(!result.is_error.unwrap_or(false));
         if let RawContent::Text(text) = &result.content[0].raw {
             assert_eq!(text.text, "Result: 4");
+        } else {
+            panic!("Expected text content");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_execute_code_multiline_expression() {
+        let context = PlatformExtensionContext {
+            session_id: None,
+            extension_manager: None,
+        };
+        let client = CodeExecutionClient::new(context).unwrap();
+
+        let code = indoc! {r#"
+            const obj = {
+              a: 1,
+              b: 2
+            };
+            obj.a + obj.b
+        "#};
+        let mut args = JsonObject::new();
+        args.insert("code".to_string(), Value::String(code.to_string()));
+
+        let result = client
+            .call_tool("execute_code", Some(args), CancellationToken::new())
+            .await
+            .unwrap();
+
+        assert!(!result.is_error.unwrap_or(false));
+        if let RawContent::Text(text) = &result.content[0].raw {
+            assert_eq!(text.text, "Result: 3");
+        } else {
+            panic!("Expected text content");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_execute_code_multiline_continuation_char() {
+        let context = PlatformExtensionContext {
+            session_id: None,
+            extension_manager: None,
+        };
+        let client = CodeExecutionClient::new(context).unwrap();
+
+        let code = indoc! {r#"
+            const obj = {
+              x: 10,
+              y: 20
+            };
+        "#};
+        let mut args = JsonObject::new();
+        args.insert("code".to_string(), Value::String(code.to_string()));
+
+        let result = client
+            .call_tool("execute_code", Some(args), CancellationToken::new())
+            .await
+            .unwrap();
+
+        assert!(
+            !result.is_error.unwrap_or(false),
+            "Code ending with '}}' should not cause parse error"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_execute_code_multiline_array_with_assignment() {
+        let context = PlatformExtensionContext {
+            session_id: None,
+            extension_manager: None,
+        };
+        let client = CodeExecutionClient::new(context).unwrap();
+
+        let code = indoc! {r#"
+            const arr = [
+              1,
+              2,
+              3
+            ];
+            arr
+        "#};
+        let mut args = JsonObject::new();
+        args.insert("code".to_string(), Value::String(code.to_string()));
+
+        let result = client
+            .call_tool("execute_code", Some(args), CancellationToken::new())
+            .await
+            .unwrap();
+
+        assert!(!result.is_error.unwrap_or(false));
+        if let RawContent::Text(text) = &result.content[0].raw {
+            assert!(
+                text.text.contains("1") && text.text.contains("2") && text.text.contains("3"),
+                "Multi-line array should return its value when assigned, got: {}",
+                text.text
+            );
         } else {
             panic!("Expected text content");
         }
