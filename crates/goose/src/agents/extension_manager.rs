@@ -3,6 +3,7 @@ use axum::http::{HeaderMap, HeaderName};
 use chrono::{DateTime, Utc};
 use futures::stream::{FuturesUnordered, StreamExt};
 use futures::{future, FutureExt};
+use rand::{distributions::Alphanumeric, Rng};
 use rmcp::service::{ClientInitializeError, ServiceError};
 use rmcp::transport::streamable_http_client::{
     AuthRequiredError, StreamableHttpClientTransportConfig, StreamableHttpError,
@@ -143,6 +144,36 @@ fn normalize(input: String) -> String {
         });
     }
     result.to_lowercase()
+}
+
+/// Empty config name uses server's declared name; adds random suffix on collision.
+fn resolve_extension_name(
+    config_name: &str,
+    server_info: Option<&ServerInfo>,
+    name_exists: impl Fn(&str) -> bool,
+) -> String {
+    let base = if config_name.is_empty() {
+        server_info
+            .and_then(|info| {
+                let name = info.server_info.name.as_str();
+                (!name.is_empty()).then(|| normalize(name.to_string()))
+            })
+            .unwrap_or_else(|| "unnamed".to_string())
+    } else {
+        config_name.to_string()
+    };
+
+    if !name_exists(&base) {
+        return base;
+    }
+
+    let suffix: String = rand::thread_rng()
+        .sample_iter(Alphanumeric)
+        .take(6)
+        .map(char::from)
+        .collect();
+
+    format!("{base}_{suffix}")
 }
 
 fn resolve_command(cmd: &str) -> PathBuf {
@@ -574,14 +605,16 @@ impl ExtensionManager {
         };
 
         let server_info = client.get_info().cloned();
-        self.add_client(
-            sanitized_name,
-            config,
-            Arc::new(Mutex::new(client)),
-            server_info,
-            temp_dir,
-        )
-        .await;
+
+        // Use server's declared name when config has no name (e.g., CLI --with-*-extension args)
+        let mut extensions = self.extensions.lock().await;
+        let final_name = resolve_extension_name(&sanitized_name, server_info.as_ref(), |n| {
+            extensions.contains_key(n)
+        });
+        extensions.insert(
+            final_name,
+            Extension::new(config, Arc::new(Mutex::new(client)), server_info, temp_dir),
+        );
 
         Ok(())
     }
@@ -1780,5 +1813,41 @@ mod tests {
             &env_map,
         );
         assert_eq!(result, "Authorization: Bearer secret123 and API key456");
+    }
+
+    mod resolve_extension_name_tests {
+        use super::*;
+        use rmcp::model::Implementation;
+        use test_case::test_case;
+
+        fn make_info(name: &str) -> ServerInfo {
+            ServerInfo {
+                server_info: Implementation {
+                    name: name.into(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            }
+        }
+
+        #[test_case("kiwi", Some("kiwi-mcp-server"), None, "^kiwi$" ; "ACP session prefers explicit name")]
+        #[test_case("", Some("kiwi-mcp-server"), None, "^kiwi-mcp-server$" ; "already normalized server name")]
+        #[test_case("", Some("Context7"), None, "^context7$" ; "mixed case normalized")]
+        #[test_case("", Some("@huggingface/mcp-services"), None, "^_huggingface_mcp-services$" ; "special chars normalized")]
+        #[test_case("", None, None, "^unnamed$" ; "no server info falls back")]
+        #[test_case("", Some(""), None, "^unnamed$" ; "empty server name falls back")]
+        #[test_case("", Some("github-mcp-server"), Some("github-mcp-server"), r"^github-mcp-server_[A-Za-z0-9]{6}$" ; "duplicate adds suffix")]
+        fn test_resolve_name(
+            config_name: &str,
+            server_name: Option<&str>,
+            collision: Option<&str>,
+            expected: &str,
+        ) {
+            let info = server_name.map(make_info);
+            let result =
+                resolve_extension_name(config_name, info.as_ref(), |n| collision == Some(n));
+            let re = regex::Regex::new(expected).unwrap();
+            assert!(re.is_match(&result));
+        }
     }
 }

@@ -33,6 +33,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "agent-client-protocol-schema"
+version = "0.10.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6903a00e8ac822f9bacac59a1932754d7387c72ebb7c9c7439ad021505591da4"
+dependencies = [
+ "anyhow",
+ "derive_more",
+ "schemars",
+ "serde",
+ "serde_json",
+ "strum",
+]
+
+[[package]]
 name = "ahash"
 version = "0.8.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1995,6 +2009,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "darling"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "25ae13da2f202d56bd7f91c25fba009e7717a1e4a1cc98a76d844b65ae912e9d"
+dependencies = [
+ "darling_core 0.23.0",
+ "darling_macro 0.23.0",
+]
+
+[[package]]
 name = "darling_core"
 version = "0.20.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2023,6 +2047,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "darling_core"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9865a50f7c335f53564bb694ef660825eb8610e0a53d3e11bf1b0d3df31e03b0"
+dependencies = [
+ "ident_case",
+ "proc-macro2",
+ "quote",
+ "strsim",
+ "syn 2.0.111",
+]
+
+[[package]]
 name = "darling_macro"
 version = "0.20.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2040,6 +2077,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e79f8e61677d5df9167cd85265f8e5f64b215cdea3fb55eebc3e622e44c7a146"
 dependencies = [
  "darling_core 0.21.0",
+ "quote",
+ "syn 2.0.111",
+]
+
+[[package]]
+name = "darling_macro"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ac3984ec7bd6cfa798e62b4a642426a5be0e68f9401cfc2a01e3fa9ea2fcdb8d"
+dependencies = [
+ "darling_core 0.23.0",
  "quote",
  "syn 2.0.111",
 ]
@@ -3020,6 +3068,7 @@ dependencies = [
 name = "goose"
 version = "1.17.0"
 dependencies = [
+ "agent-client-protocol-schema 0.10.5",
  "ahash",
  "anyhow",
  "async-stream",
@@ -3068,7 +3117,7 @@ dependencies = [
  "rand 0.8.5",
  "regex",
  "reqwest 0.12.12",
- "rmcp",
+ "rmcp 0.9.1",
  "sacp",
  "schemars",
  "serde",
@@ -3120,7 +3169,7 @@ dependencies = [
  "once_cell",
  "paste",
  "regex",
- "rmcp",
+ "rmcp 0.9.1",
  "serde",
  "serde_json",
  "tokio",
@@ -3133,6 +3182,7 @@ dependencies = [
 name = "goose-cli"
 version = "1.17.0"
 dependencies = [
+ "agent-client-protocol-schema 0.10.5",
  "anstream",
  "anyhow",
  "async-trait",
@@ -3158,7 +3208,7 @@ dependencies = [
  "open",
  "rand 0.8.5",
  "regex",
- "rmcp",
+ "rmcp 0.9.1",
  "rustyline",
  "sacp",
  "serde",
@@ -3214,7 +3264,7 @@ dependencies = [
  "rayon",
  "regex",
  "reqwest 0.11.27",
- "rmcp",
+ "rmcp 0.9.1",
  "schemars",
  "serde",
  "serde_json",
@@ -3269,7 +3319,7 @@ dependencies = [
  "http 1.2.0",
  "rand 0.9.2",
  "reqwest 0.12.12",
- "rmcp",
+ "rmcp 0.9.1",
  "rustls 0.23.31",
  "schemars",
  "serde",
@@ -5335,6 +5385,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
+name = "pastey"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b867cad97c0791bbd3aaa6472142568c6c9e8f71937e98379f584cfb0cf35bec"
+
+[[package]]
 name = "path_abs"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6287,7 +6343,7 @@ dependencies = [
  "process-wrap",
  "rand 0.9.2",
  "reqwest 0.12.12",
- "rmcp-macros",
+ "rmcp-macros 0.9.1",
  "schemars",
  "serde",
  "serde_json",
@@ -6303,12 +6359,47 @@ dependencies = [
 ]
 
 [[package]]
+name = "rmcp"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "528d42f8176e6e5e71ea69182b17d1d0a19a6b3b894b564678b74cd7cab13cfa"
+dependencies = [
+ "async-trait",
+ "base64 0.22.1",
+ "chrono",
+ "futures",
+ "pastey",
+ "pin-project-lite",
+ "rmcp-macros 0.12.0",
+ "schemars",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.17",
+ "tokio",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
 name = "rmcp-macros"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0f6fa09933cac0d0204c8a5d647f558425538ed6a0134b1ebb1ae4dc00c96db3"
 dependencies = [
  "darling 0.21.0",
+ "proc-macro2",
+ "quote",
+ "serde_json",
+ "syn 2.0.111",
+]
+
+[[package]]
+name = "rmcp-macros"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e3f81daaa494eb8e985c9462f7d6ce1ab05e5299f48aafd76cdd3d8b060e6f59"
+dependencies = [
+ "darling 0.23.0",
  "proc-macro2",
  "quote",
  "serde_json",
@@ -6559,18 +6650,18 @@ checksum = "dd29631678d6fb0903b69223673e122c32e9ae559d0960a38d574695ebc0ea15"
 
 [[package]]
 name = "sacp"
-version = "9.0.0"
+version = "10.0.0-alpha.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7679525f5c2f4e1cb4b07e3684c4b050b34bafa0f908852879b7411522ff6626"
+checksum = "ec6f93923c7fc285a294b6dd5da1031dc7904d4afb7ce5cfdddf8f608dbe1fcf"
 dependencies = [
- "agent-client-protocol-schema",
+ "agent-client-protocol-schema 0.6.3",
  "anyhow",
  "boxfnonce",
  "futures",
  "futures-concurrency",
  "fxhash",
  "jsonrpcmsg",
- "rmcp",
+ "rmcp 0.12.0",
  "sacp-derive",
  "schemars",
  "serde",
@@ -6584,9 +6675,9 @@ dependencies = [
 
 [[package]]
 name = "sacp-derive"
-version = "9.0.0"
+version = "10.0.0-alpha.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "70a36c27381224c2fc970935c887b26f48ff78105003d9abfa04c2e808569d3b"
+checksum = "52627c6a269525f202f0574865b6d4c10b62f554e32de4a481568c9c4830269d"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -7371,6 +7462,27 @@ name = "strsim"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
+
+[[package]]
+name = "strum"
+version = "0.27.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "af23d6f6c1a224baef9d3f61e287d2761385a5b88fdab4eb4c6f11aeb54c4bcf"
+dependencies = [
+ "strum_macros",
+]
+
+[[package]]
+name = "strum_macros"
+version = "0.27.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7695ce3845ea4b33927c055a39dc438a45b059f7c1b3d91d38d10355fb8cbca7"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.111",
+]
 
 [[package]]
 name = "subtle"

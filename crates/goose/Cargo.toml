@@ -121,7 +121,8 @@ unbinder = "0.1.7"
 winapi = { version = "0.3", features = ["wincred"] }
 
 [dev-dependencies]
-sacp = "9.0.0"
+sacp = "10.0.0-alpha.1"
+agent-client-protocol-schema = "0.10.5"
 criterion = "0.5"
 serial_test = "3.2.0"
 mockall = "0.13.1"
