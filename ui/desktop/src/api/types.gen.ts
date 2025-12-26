@@ -690,7 +690,12 @@ export type ReadResourceRequest = {
 };
 
 export type ReadResourceResponse = {
-    html: string;
+    _meta?: {
+        [key: string]: unknown;
+    } | null;
+    mimeType?: string | null;
+    text: string;
+    uri: string;
 };
 
 export type Recipe = {
