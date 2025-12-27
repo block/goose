@@ -892,9 +892,7 @@ impl McpClientTrait for CodeExecutionClient {
 
         let mut servers: BTreeSet<&str> = BTreeSet::new();
         for tool in &tools {
-            if tool.server_name != "extensionmanager" {
-                servers.insert(&tool.server_name);
-            }
+            servers.insert(&tool.server_name);
         }
 
         let server_list: Vec<_> = servers.into_iter().collect();
