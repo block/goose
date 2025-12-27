@@ -48,10 +48,7 @@ static PROVIDER_CONFIGS: LazyLock<Vec<ProviderConfig>> = LazyLock::new(|| {
         ProviderConfig {
             name: "azure_openai",
             model_name: "gpt-4o",
-            required_env_vars: &[
-                "AZURE_OPENAI_API_KEY",
-                "AZURE_OPENAI_ENDPOINT",
-            ],
+            required_env_vars: &["AZURE_OPENAI_API_KEY", "AZURE_OPENAI_ENDPOINT"],
             env_modifications: None,
             skip_reason: None,
         },
