@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use serde::Serialize;
 use serde_json::Value;
 use url::Url;
-
+ 
 use super::api_client::{ApiClient, AuthMethod, AuthProvider};
 use super::azureauth::{AuthError, AzureAuth};
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
@@ -175,7 +175,7 @@ impl AzureProvider {
     /// The deployment name is passed via the `model` field in the request body.
     async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
         let path = format!("openai/responses?api-version={}", self.api_version);
-
+ 
         let response = self.api_client.response_post(&path, payload).await?;
         handle_response_openai_compat(response).await
     }
@@ -243,7 +243,7 @@ impl Provider for AzureProvider {
                 self.post(&payload_clone).await
             })
             .await?;
-
+ 
         let responses_api_response: ResponsesApiResponse =
             serde_json::from_value(json_response.clone()).map_err(|e| {
                 ProviderError::ExecutionError(format!(
@@ -251,11 +251,11 @@ impl Provider for AzureProvider {
                     e
                 ))
             })?;
-
+ 
         let message = responses_api_to_message(&responses_api_response)?;
         let usage = get_responses_usage(&responses_api_response);
         let response_model = responses_api_response.model.clone();
-
+ 
         log.write(&json_response, Some(&usage))?;
         Ok((message, ProviderUsage::new(response_model, usage)))
     }

@@ -479,16 +479,16 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
             return Ok(false);
         }
     }
- 
+
     // Configure required provider keys
     for key in &provider_meta.config_keys {
         if !key.required {
             continue;
         }
- 
+
         // First check if the value is set via environment variable
         let from_env = std::env::var(&key.name).ok();
- 
+
         match from_env {
             Some(env_value) => {
                 let _ =
@@ -514,7 +514,7 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
                 } else {
                     config.get_param(&key.name)
                 };
- 
+
                 match existing {
                     Ok(_) => {
                         let _ = cliclack::log::info(format!("{} is already configured", key.name));
@@ -538,7 +538,7 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
                                     }
                                     input.interact()?
                                 };
- 
+
                                 if key.secret {
                                     if !try_store_secret(config, &key.name, value)? {
                                         return Ok(false);
@@ -571,7 +571,7 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
                                 }
                                 input.interact()?
                             };
- 
+
                             if key.secret {
                                 config.set_secret(&key.name, &value)?;
                             } else {
@@ -637,7 +637,7 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
         }
     }
 }
- 
+
 fn configure_azure_openai_auth(config: &Config) -> anyhow::Result<bool> {
     // Determine current/default auth type:
     // 1. Existing AZURE_OPENAI_AUTH_TYPE if set
@@ -662,7 +662,7 @@ fn configure_azure_openai_auth(config: &Config) -> anyhow::Result<bool> {
             }
         }
     };
- 
+
     let auth_type = cliclack::select("How would you like to authenticate with Azure OpenAI?")
         .item(
             "api_key",
@@ -676,16 +676,16 @@ fn configure_azure_openai_auth(config: &Config) -> anyhow::Result<bool> {
         )
         .initial_value(&default_auth_type)
         .interact()?;
- 
+
     config.set_param("AZURE_OPENAI_AUTH_TYPE", &auth_type)?;
- 
+
     if auth_type == "entra_id" {
         let _ = cliclack::log::info(
             "Azure OpenAI will use Entra ID / default Azure credentials (no API key required)",
         );
         return Ok(true);
     }
- 
+
     // Key Authentication mode
     let from_env = std::env::var("AZURE_OPENAI_API_KEY").ok();
     match from_env {
@@ -705,8 +705,7 @@ fn configure_azure_openai_auth(config: &Config) -> anyhow::Result<bool> {
             let existing: Result<String, _> = config.get_secret("AZURE_OPENAI_API_KEY");
             match existing {
                 Ok(_) => {
-                    let _ =
-                        cliclack::log::info("AZURE_OPENAI_API_KEY is already configured");
+                    let _ = cliclack::log::info("AZURE_OPENAI_API_KEY is already configured");
                     if cliclack::confirm("Would you like to update this API key?").interact()? {
                         let api_key: String =
                             cliclack::password("Enter new value for AZURE_OPENAI_API_KEY")
