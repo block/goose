@@ -172,7 +172,55 @@ export type AnalyticsEvent =
   | { name: 'input_mode_changed'; properties: { from_mode: string; to_mode: string } }
   | { name: 'input_diagnostics_opened'; properties: Record<string, never> }
   | { name: 'input_create_recipe_opened'; properties: Record<string, never> }
-  | { name: 'input_edit_recipe_opened'; properties: Record<string, never> };
+  | { name: 'input_edit_recipe_opened'; properties: Record<string, never> }
+  // Auto-update tracking events
+  | {
+      name: 'update_check_started';
+      properties: { trigger: 'startup' | 'manual'; current_version: string };
+    }
+  | {
+      name: 'update_check_completed';
+      properties: {
+        result: 'available' | 'not_available' | 'error';
+        current_version: string;
+        latest_version?: string;
+        using_fallback: boolean;
+        error_type?: string;
+      };
+    }
+  | {
+      name: 'update_download_started';
+      properties: {
+        version: string;
+        method: 'electron-updater' | 'github-fallback';
+      };
+    }
+  | {
+      name: 'update_download_progress';
+      properties: {
+        milestone: 25 | 50 | 75 | 100;
+        version: string;
+        method: 'electron-updater' | 'github-fallback';
+      };
+    }
+  | {
+      name: 'update_download_completed';
+      properties: {
+        success: boolean;
+        version: string;
+        method: 'electron-updater' | 'github-fallback';
+        duration_seconds?: number;
+        error_type?: string;
+      };
+    }
+  | {
+      name: 'update_install_initiated';
+      properties: {
+        version: string;
+        method: 'electron-updater' | 'github-fallback';
+        action: 'quit_and_install' | 'open_folder_and_quit' | 'open_folder_only';
+      };
+    };
 // NOTE: slash_command_used is tracked by the backend (posthog.rs) with command_type info
 
 export function trackEvent<T extends AnalyticsEvent>(event: T): void {
@@ -562,5 +610,117 @@ export function trackEditRecipeOpened(): void {
   trackEvent({
     name: 'input_edit_recipe_opened',
     properties: {},
+  });
+}
+
+// ============================================================================
+// Auto-Update Tracking
+// ============================================================================
+
+type UpdateMethod = 'electron-updater' | 'github-fallback';
+
+let updateDownloadStartTime: number | null = null;
+let currentUpdateVersion: string | null = null;
+let currentUpdateMethod: UpdateMethod | null = null;
+let reportedMilestones: Set<25 | 50 | 75 | 100> = new Set();
+
+export function trackUpdateCheckStarted(
+  trigger: 'startup' | 'manual',
+  currentVersion: string
+): void {
+  trackEvent({
+    name: 'update_check_started',
+    properties: { trigger, current_version: currentVersion },
+  });
+}
+
+export function trackUpdateCheckCompleted(
+  result: 'available' | 'not_available' | 'error',
+  currentVersion: string,
+  options: {
+    latestVersion?: string;
+    usingFallback: boolean;
+    errorType?: string;
+  }
+): void {
+  trackEvent({
+    name: 'update_check_completed',
+    properties: {
+      result,
+      current_version: currentVersion,
+      latest_version: options.latestVersion,
+      using_fallback: options.usingFallback,
+      error_type: options.errorType,
+    },
+  });
+}
+
+export function trackUpdateDownloadStarted(version: string, method: UpdateMethod): void {
+  updateDownloadStartTime = Date.now();
+  currentUpdateVersion = version;
+  currentUpdateMethod = method;
+  reportedMilestones = new Set();
+
+  trackEvent({
+    name: 'update_download_started',
+    properties: { version, method },
+  });
+}
+
+export function trackUpdateDownloadProgress(percent: number): void {
+  if (!currentUpdateVersion || !currentUpdateMethod) return;
+
+  const milestones: Array<25 | 50 | 75 | 100> = [25, 50, 75, 100];
+  for (const milestone of milestones) {
+    if (percent >= milestone && !reportedMilestones.has(milestone)) {
+      reportedMilestones.add(milestone);
+      trackEvent({
+        name: 'update_download_progress',
+        properties: {
+          milestone,
+          version: currentUpdateVersion,
+          method: currentUpdateMethod,
+        },
+      });
+    }
+  }
+}
+
+export function trackUpdateDownloadCompleted(
+  success: boolean,
+  version: string,
+  method: UpdateMethod,
+  errorType?: string
+): void {
+  const durationSeconds = updateDownloadStartTime
+    ? Math.round((Date.now() - updateDownloadStartTime) / 1000)
+    : undefined;
+
+  trackEvent({
+    name: 'update_download_completed',
+    properties: {
+      success,
+      version,
+      method,
+      duration_seconds: durationSeconds,
+      error_type: errorType,
+    },
+  });
+
+  // Reset state
+  updateDownloadStartTime = null;
+  currentUpdateVersion = null;
+  currentUpdateMethod = null;
+  reportedMilestones = new Set();
+}
+
+export function trackUpdateInstallInitiated(
+  version: string,
+  method: UpdateMethod,
+  action: 'quit_and_install' | 'open_folder_and_quit' | 'open_folder_only'
+): void {
+  trackEvent({
+    name: 'update_install_initiated',
+    properties: { version, method, action },
   });
 }
