@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use serde::Serialize;
 use serde_json::Value;
 use url::Url;
- 
+
 use super::api_client::{ApiClient, AuthMethod, AuthProvider};
 use super::azureauth::{AuthError, AzureAuth};
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
@@ -22,7 +22,20 @@ pub const AZURE_DEFAULT_MODEL: &str = "gpt-4o";
 pub const AZURE_DOC_URL: &str =
     "https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models";
 pub const AZURE_DEFAULT_API_VERSION: &str = "2025-04-01";
-pub const AZURE_OPENAI_KNOWN_MODELS: &[&str] = &["gpt-4o", "gpt-4o-mini", "gpt-4","gpt-5.1", "gpt-5.1-chat", "gpt-5.1-codex-max", "gpt-5.1-codex", "gpt-5.2", "gpt-5-pro", "sora", "gpt-image-1.5", "claude-sonnet-4.5"];
+pub const AZURE_OPENAI_KNOWN_MODELS: &[&str] = &[
+    "gpt-4o",
+    "gpt-4o-mini",
+    "gpt-4",
+    "gpt-5.1",
+    "gpt-5.1-chat",
+    "gpt-5.1-codex-max",
+    "gpt-5.1-codex",
+    "gpt-5.2",
+    "gpt-5-pro",
+    "sora",
+    "gpt-image-1.5",
+    "claude-sonnet-4.5",
+];
 
 #[derive(Debug)]
 pub struct AzureProvider {
@@ -59,7 +72,7 @@ impl AuthProvider for AzureAuthProvider {
             .get_token()
             .await
             .map_err(|e| anyhow::anyhow!("Failed to get authentication token: {}", e))?;
- 
+
         match self.auth.credential_type() {
             super::azureauth::AzureCredentials::ApiKey(_) => {
                 Ok(("api-key".to_string(), auth_token.token_value))
@@ -71,7 +84,7 @@ impl AuthProvider for AzureAuthProvider {
         }
     }
 }
- 
+
 fn normalize_azure_endpoint(raw_endpoint: &str) -> Result<(String, Option<String>)> {
     let normalized = if raw_endpoint.starts_with("http://") || raw_endpoint.starts_with("https://")
     {
@@ -79,33 +92,25 @@ fn normalize_azure_endpoint(raw_endpoint: &str) -> Result<(String, Option<String
     } else {
         format!("https://{}", raw_endpoint)
     };
- 
-    let url = Url::parse(&normalized).map_err(|e| {
-        anyhow::anyhow!(
-            "Invalid AZURE_OPENAI_ENDPOINT '{}': {}",
-            raw_endpoint,
-            e
-        )
-    })?;
- 
+
+    let url = Url::parse(&normalized)
+        .map_err(|e| anyhow::anyhow!("Invalid AZURE_OPENAI_ENDPOINT '{}': {}", raw_endpoint, e))?;
+
     let scheme = url.scheme();
     let host = url.host_str().ok_or_else(|| {
-        anyhow::anyhow!(
-            "Missing host in AZURE_OPENAI_ENDPOINT '{}'",
-            raw_endpoint
-        )
+        anyhow::anyhow!("Missing host in AZURE_OPENAI_ENDPOINT '{}'", raw_endpoint)
     })?;
- 
+
     let mut base = format!("{}://{}", scheme, host);
     if let Some(port) = url.port() {
         base = format!("{}:{}", base, port);
     }
- 
+
     let api_version = url
         .query_pairs()
         .find(|(name, _)| name == "api-version")
         .map(|(_, value)| value.to_string());
- 
+
     Ok((base, api_version))
 }
 
@@ -120,18 +125,18 @@ impl AzureProvider {
             .ok()
             .or(url_api_version)
             .unwrap_or_else(|| AZURE_DEFAULT_API_VERSION.to_string());
- 
+
         // Determine authentication mode: API key (default) or Entra ID / default Azure credentials
         let auth_type: String = config
             .get_param("AZURE_OPENAI_AUTH_TYPE")
             .unwrap_or_else(|_| "api_key".to_string());
         let auth_type_normalized = auth_type.to_lowercase();
- 
+
         tracing::debug!(
             "Initializing Azure OpenAI provider with auth_type={}",
             auth_type_normalized
         );
- 
+
         let api_key = if auth_type_normalized == "entra_id" {
             None
         } else {
@@ -144,10 +149,10 @@ impl AzureProvider {
             AuthError::Credentials(msg) => anyhow::anyhow!("Credentials error: {}", msg),
             AuthError::TokenExchange(msg) => anyhow::anyhow!("Token exchange error: {}", msg),
         })?;
- 
+
         let auth_provider = AzureAuthProvider { auth };
         let api_client = ApiClient::new(endpoint, AuthMethod::Custom(Box::new(auth_provider)))?;
- 
+
         Ok(Self {
             api_client,
             deployment_name,
@@ -164,7 +169,7 @@ impl AzureProvider {
     /// The deployment name is passed via the `model` field in the request body.
     async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
         let path = format!("openai/responses?api-version={}", self.api_version);
- 
+
         let response = self.api_client.response_post(&path, payload).await?;
         handle_response_openai_compat(response).await
     }
@@ -225,14 +230,14 @@ impl Provider for AzureProvider {
         // On Azure, this model identifier should be configured as the deployment name.
         let payload = create_responses_request(model_config, system, messages, tools)?;
         let mut log = RequestLog::start(model_config, &payload)?;
- 
+
         let json_response = self
             .with_retry(|| async {
                 let payload_clone = payload.clone();
                 self.post(&payload_clone).await
             })
             .await?;
- 
+
         let responses_api_response: ResponsesApiResponse =
             serde_json::from_value(json_response.clone()).map_err(|e| {
                 ProviderError::ExecutionError(format!(
@@ -240,11 +245,11 @@ impl Provider for AzureProvider {
                     e
                 ))
             })?;
- 
+
         let message = responses_api_to_message(&responses_api_response)?;
         let usage = get_responses_usage(&responses_api_response);
         let response_model = responses_api_response.model.clone();
- 
+
         log.write(&json_response, Some(&usage))?;
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
