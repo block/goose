@@ -156,15 +156,15 @@ fn resolve_extension_name(
         server_info
             .and_then(|info| {
                 let name = info.server_info.name.as_str();
-                (!name.is_empty()).then_some(name)
+                (!name.is_empty()).then(|| normalize(name.to_string()))
             })
-            .unwrap_or("unnamed")
+            .unwrap_or_else(|| "unnamed".to_string())
     } else {
-        config_name
+        config_name.to_string()
     };
 
-    if !name_exists(base) {
-        return base.to_string();
+    if !name_exists(&base) {
+        return base;
     }
 
     let suffix: String = rand::thread_rng()
@@ -1830,11 +1830,13 @@ mod tests {
             }
         }
 
-        #[test_case("kiwi", Some("kiwi-mcp-server"), None, "^kiwi$" ; "ACP session with explicit name")]
-        #[test_case("", Some("filesystem"), None, "^filesystem$" ; "CLI arg uses server name")]
-        #[test_case("", None, None, "^unnamed$" ; "CLI arg with no server info")]
+        #[test_case("kiwi", Some("kiwi-mcp-server"), None, "^kiwi$" ; "ACP session prefers explicit name")]
+        #[test_case("", Some("kiwi-mcp-server"), None, "^kiwi-mcp-server$" ; "already normalized server name")]
+        #[test_case("", Some("Context7"), None, "^context7$" ; "mixed case normalized")]
+        #[test_case("", Some("@huggingface/mcp-services"), None, "^_huggingface_mcp-services$" ; "special chars normalized")]
+        #[test_case("", None, None, "^unnamed$" ; "no server info falls back")]
         #[test_case("", Some(""), None, "^unnamed$" ; "empty server name falls back")]
-        #[test_case("", Some("github"), Some("github"), r"^github_[A-Za-z0-9]{6}$" ; "duplicate server adds suffix")]
+        #[test_case("", Some("github-mcp-server"), Some("github-mcp-server"), r"^github-mcp-server_[A-Za-z0-9]{6}$" ; "duplicate adds suffix")]
         fn test_resolve_name(
             config_name: &str,
             server_name: Option<&str>,
