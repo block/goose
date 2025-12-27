@@ -43,6 +43,7 @@ export const configLabels: Record<string, string> = {
   OLLAMA_HOST: 'Ollama Host',
 
   // azure openai
+  AZURE_OPENAI_AUTH_TYPE: 'Azure OpenAI Authentication Type',
   AZURE_OPENAI_API_KEY: 'Azure OpenAI API Key',
   AZURE_OPENAI_ENDPOINT: 'Azure OpenAI Endpoint',
   AZURE_OPENAI_DEPLOYMENT_NAME: 'Azure OpenAI Deployment Name',
