@@ -474,10 +474,8 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
 
     // Special-case authentication flow for Azure OpenAI to offer a clear choice between
     // API key authentication and Entra ID / default Azure credentials.
-    if provider_name == "azure_openai" {
-        if !configure_azure_openai_auth(config)? {
-            return Ok(false);
-        }
+    if provider_name == "azure_openai" && !configure_azure_openai_auth(config)? {
+        return Ok(false);
     }
 
     // Configure required provider keys
@@ -677,7 +675,7 @@ fn configure_azure_openai_auth(config: &Config) -> anyhow::Result<bool> {
         .initial_value(&default_auth_type)
         .interact()?;
 
-    config.set_param("AZURE_OPENAI_AUTH_TYPE", &auth_type)?;
+    config.set_param("AZURE_OPENAI_AUTH_TYPE", auth_type)?;
 
     if auth_type == "entra_id" {
         let _ = cliclack::log::info(
@@ -694,10 +692,9 @@ fn configure_azure_openai_auth(config: &Config) -> anyhow::Result<bool> {
             if cliclack::confirm("Would you like to save this API key to your keyring?")
                 .initial_value(true)
                 .interact()?
+                && !try_store_secret(config, "AZURE_OPENAI_API_KEY", env_value)?
             {
-                if !try_store_secret(config, "AZURE_OPENAI_API_KEY", env_value)? {
-                    return Ok(false);
-                }
+                return Ok(false);
             }
             Ok(true)
         }
