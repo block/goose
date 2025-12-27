@@ -6,7 +6,7 @@ use url::Url;
  
 use super::api_client::{ApiClient, AuthMethod, AuthProvider};
 use super::azureauth::{AuthError, AzureAuth};
-use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
+use super::base::{AuthModeChoice, ConfigKey, Provider, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
 use super::formats::openai_responses::{
     create_responses_request, get_responses_usage, responses_api_to_message, ResponsesApiResponse,
@@ -39,7 +39,6 @@ pub const AZURE_OPENAI_KNOWN_MODELS: &[&str] = &[
 #[derive(Debug)]
 pub struct AzureProvider {
     api_client: ApiClient,
-    deployment_name: String,
     api_version: String,
     model: ModelConfig,
     name: String,
@@ -52,8 +51,8 @@ impl Serialize for AzureProvider {
     {
         use serde::ser::SerializeStruct;
         let mut state = serializer.serialize_struct("AzureProvider", 2)?;
-        state.serialize_field("deployment_name", &self.deployment_name)?;
         state.serialize_field("api_version", &self.api_version)?;
+        state.serialize_field("configured_model", &self.model.model_name)?;
         state.end()
     }
 }
@@ -125,7 +124,6 @@ impl AzureProvider {
         let config = crate::config::Config::global();
         let raw_endpoint: String = config.get_param("AZURE_OPENAI_ENDPOINT")?;
         let (endpoint, url_api_version) = normalize_azure_endpoint(&raw_endpoint)?;
-        let deployment_name: String = config.get_param("AZURE_OPENAI_DEPLOYMENT_NAME")?;
         let api_version: String = config
             .get_param("AZURE_OPENAI_API_VERSION")
             .ok()
@@ -161,7 +159,6 @@ impl AzureProvider {
 
         Ok(Self {
             api_client,
-            deployment_name,
             api_version,
             model,
             name: Self::metadata().name,
@@ -184,6 +181,29 @@ impl AzureProvider {
 #[async_trait]
 impl Provider for AzureProvider {
     fn metadata() -> ProviderMetadata {
+        let mut auth_type_key =
+            ConfigKey::new("AZURE_OPENAI_AUTH_TYPE", false, false, Some("api_key"));
+        auth_type_key.auth_modes = Some(vec![
+            AuthModeChoice {
+                value: "api_key".to_string(),
+                label: "Key Authentication".to_string(),
+                description: Some(
+                    "Azure OpenAI will use an API key stored securely in Goose configuration."
+                        .to_string(),
+                ),
+                requires_api_key: true,
+            },
+            AuthModeChoice {
+                value: "entra_id".to_string(),
+                label: "Entra ID Authentication".to_string(),
+                description: Some(
+                    "Azure OpenAI will use your Azure Entra ID / default credentials (for example via az login). No API key is required in this mode and any configured API key will be ignored."
+                        .to_string(),
+                ),
+                requires_api_key: false,
+            },
+        ]);
+
         ProviderMetadata::new(
             "azure_openai",
             "Azure OpenAI",
@@ -193,19 +213,13 @@ impl Provider for AzureProvider {
             AZURE_DOC_URL,
             vec![
                 ConfigKey::new("AZURE_OPENAI_ENDPOINT", true, false, None),
-                ConfigKey::new("AZURE_OPENAI_DEPLOYMENT_NAME", true, false, None),
                 ConfigKey::new(
                     "AZURE_OPENAI_API_VERSION",
                     true,
                     false,
                     Some(AZURE_DEFAULT_API_VERSION),
                 ),
-                ConfigKey::new(
-                    "AZURE_OPENAI_AUTH_TYPE",
-                    false,
-                    false,
-                    Some("api_key"),
-                ),
+                auth_type_key,
                 ConfigKey::new("AZURE_OPENAI_API_KEY", false, true, Some("")),
             ],
         )

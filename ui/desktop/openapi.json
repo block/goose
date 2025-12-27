@@ -2649,6 +2649,34 @@
           }
         }
       },
+      "AuthModeChoice": {
+        "type": "object",
+        "description": "Configuration key metadata for provider setup",
+        "required": [
+          "value",
+          "label",
+          "requires_api_key"
+        ],
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "Description optionnelle affichée sous le sélecteur",
+            "nullable": true
+          },
+          "label": {
+            "type": "string",
+            "description": "Libellé affiché dans l'UI (ex: \"Key Authentication\")"
+          },
+          "requires_api_key": {
+            "type": "boolean",
+            "description": "Indique si ce mode requiert la présence d'une clé API (secret) côté configuration"
+          },
+          "value": {
+            "type": "string",
+            "description": "Valeur stockée dans la configuration (ex: \"api_key\", \"entra_id\")"
+          }
+        }
+      },
       "Author": {
         "type": "object",
         "properties": {
@@ -2766,7 +2794,6 @@
       },
       "ConfigKey": {
         "type": "object",
-        "description": "Configuration key metadata for provider setup",
         "required": [
           "name",
           "required",
@@ -2774,6 +2801,14 @@
           "oauth_flow"
         ],
         "properties": {
+          "auth_modes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuthModeChoice"
+            },
+            "description": "Optional list of authentication mode choices for this key.\nWhen present, UIs can render a generic \"Authentication Type\" dropdown based on these options.",
+            "nullable": true
+          },
           "default": {
             "type": "string",
             "description": "Optional default value for the key",

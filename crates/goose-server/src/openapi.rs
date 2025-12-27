@@ -6,7 +6,7 @@ use goose::config::ExtensionEntry;
 use goose::conversation::Conversation;
 use goose::model::ModelConfig;
 use goose::permission::permission_confirmation::PrincipalType;
-use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata, ProviderType};
+use goose::providers::base::{AuthModeChoice, ConfigKey, ModelInfo, ProviderMetadata, ProviderType};
 use goose::session::{Session, SessionInsights, SessionType};
 use rmcp::model::{
     Annotations, Content, EmbeddedResource, Icon, ImageContent, JsonObject, RawAudioContent,
@@ -462,6 +462,7 @@ derive_utoipa!(Icon as IconSchema);
         ProviderMetadata,
         ProviderType,
         LoadedProvider,
+        AuthModeChoice,
         ProviderEngine,
         DeclarativeProviderConfig,
         ExtensionEntry,

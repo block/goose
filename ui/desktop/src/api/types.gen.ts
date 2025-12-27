@@ -36,6 +36,28 @@ export type Annotations = {
     priority?: number;
 };
 
+/**
+ * Configuration key metadata for provider setup
+ */
+export type AuthModeChoice = {
+    /**
+     * Description optionnelle affichée sous le sélecteur
+     */
+    description?: string | null;
+    /**
+     * Libellé affiché dans l'UI (ex: "Key Authentication")
+     */
+    label: string;
+    /**
+     * Indique si ce mode requiert la présence d'une clé API (secret) côté configuration
+     */
+    requires_api_key: boolean;
+    /**
+     * Valeur stockée dans la configuration (ex: "api_key", "entra_id")
+     */
+    value: string;
+};
+
 export type Author = {
     contact?: string | null;
     metadata?: string | null;
@@ -73,10 +95,12 @@ export type CheckProviderRequest = {
 
 export type CommandType = 'Builtin' | 'Recipe';
 
-/**
- * Configuration key metadata for provider setup
- */
 export type ConfigKey = {
+    /**
+     * Optional list of authentication mode choices for this key.
+     * When present, UIs can render a generic "Authentication Type" dropdown based on these options.
+     */
+    auth_modes?: Array<AuthModeChoice> | null;
     /**
      * Optional default value for the key
      */

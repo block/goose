@@ -51,7 +51,6 @@ static PROVIDER_CONFIGS: LazyLock<Vec<ProviderConfig>> = LazyLock::new(|| {
             required_env_vars: &[
                 "AZURE_OPENAI_API_KEY",
                 "AZURE_OPENAI_ENDPOINT",
-                "AZURE_OPENAI_DEPLOYMENT_NAME",
             ],
             env_modifications: None,
             skip_reason: None,

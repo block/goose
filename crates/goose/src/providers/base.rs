@@ -176,6 +176,19 @@ impl ProviderMetadata {
 
 /// Configuration key metadata for provider setup
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct AuthModeChoice {
+    /// Valeur stockée dans la configuration (ex: "api_key", "entra_id")
+    pub value: String,
+    /// Libellé affiché dans l'UI (ex: "Key Authentication")
+    pub label: String,
+    /// Description optionnelle affichée sous le sélecteur
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Indique si ce mode requiert la présence d'une clé API (secret) côté configuration
+    pub requires_api_key: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ConfigKey {
     /// The name of the configuration key (e.g., "API_KEY")
     pub name: String,
@@ -188,6 +201,10 @@ pub struct ConfigKey {
     /// Whether this key should be configured using OAuth device code flow
     /// When true, the provider's configure_oauth() method will be called instead of prompting for manual input
     pub oauth_flow: bool,
+    /// Optional list of authentication mode choices for this key.
+    /// When present, UIs can render a generic "Authentication Type" dropdown based on these options.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auth_modes: Option<Vec<AuthModeChoice>>,
 }
 
 impl ConfigKey {
@@ -199,6 +216,7 @@ impl ConfigKey {
             secret,
             default: default.map(|s| s.to_string()),
             oauth_flow: false,
+            auth_modes: None,
         }
     }
 
@@ -209,6 +227,7 @@ impl ConfigKey {
             secret,
             default: Some(T::DEFAULT.to_string()),
             oauth_flow: false,
+            auth_modes: None,
         }
     }
 
@@ -223,6 +242,7 @@ impl ConfigKey {
             secret,
             default: default.map(|s| s.to_string()),
             oauth_flow: true,
+            auth_modes: None,
         }
     }
 }

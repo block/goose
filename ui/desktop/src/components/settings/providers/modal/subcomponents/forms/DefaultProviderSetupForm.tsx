@@ -13,6 +13,17 @@ export interface ConfigInput {
   value?: string;
 }
 
+type AuthModeChoice = {
+  value: string;
+  label: string;
+  description?: string | null;
+  requires_api_key: boolean;
+};
+
+type ConfigKeyWithAuth = ConfigKey & {
+  auth_modes?: AuthModeChoice[] | null;
+};
+
 interface DefaultProviderSetupFormProps {
   configValues: Record<string, ConfigInput>;
   setConfigValues: React.Dispatch<React.SetStateAction<Record<string, ConfigInput>>>;
@@ -43,21 +54,19 @@ export default function DefaultProviderSetupForm({
   validationErrors = {},
 }: DefaultProviderSetupFormProps) {
   const parameters = useMemo(
-    () => provider.metadata.config_keys || [],
+    () => (provider.metadata.config_keys || []) as ConfigKeyWithAuth[],
     [provider.metadata.config_keys]
   );
   const isAzureProvider = provider.name === 'azure_openai';
-  const [azureAuthType, setAzureAuthType] = useState<string>('api_key');
   const [isLoading, setIsLoading] = useState(true);
   const [optionalExpanded, setOptionalExpanded] = useState(false);
   const { read } = useConfig();
 
-  const handleAzureAuthTypeChange = (value: string) => {
-    setAzureAuthType(value);
+  const handleAuthTypeChange = (parameter: ConfigKeyWithAuth, value: string) => {
     setConfigValues((prev) => ({
       ...prev,
-      AZURE_OPENAI_AUTH_TYPE: {
-        ...(prev.AZURE_OPENAI_AUTH_TYPE || {}),
+      [parameter.name]: {
+        ...(prev[parameter.name] || {}),
         value,
       },
     }));
@@ -82,14 +91,6 @@ export default function DefaultProviderSetupForm({
         const configKey = `${parameter.name}`;
         const configValue = (await read(configKey, parameter.secret || false)) as ConfigValue;
 
-        if (isAzureProvider && parameter.name === 'AZURE_OPENAI_AUTH_TYPE') {
-          if (typeof configValue === 'string' && configValue) {
-            setAzureAuthType(configValue);
-          } else if (parameter.default !== undefined && parameter.default !== null) {
-            setAzureAuthType(String(parameter.default));
-          }
-        }
- 
         if (configValue) {
           values[parameter.name] = { serverValue: configValue };
         } else if (parameter.default !== undefined && parameter.default !== null) {
@@ -269,18 +270,36 @@ export default function DefaultProviderSetupForm({
 
     return '';
   }
- 
-  const renderParametersList = (parameters: ConfigKey[]) => {
+
+  const authTypeParameter: ConfigKeyWithAuth | undefined = parameters.find(
+    (p) => p.auth_modes && p.auth_modes.length > 0
+  );
+
+  const currentAuthMode: AuthModeChoice | undefined =
+    authTypeParameter && authTypeParameter.auth_modes && authTypeParameter.auth_modes.length > 0
+      ? (() => {
+          const modes = authTypeParameter.auth_modes as AuthModeChoice[];
+          const entry = configValues[authTypeParameter.name];
+          const currentValue =
+            (entry?.value as string | undefined) ??
+            (typeof entry?.serverValue === 'string'
+              ? (entry.serverValue as string)
+              : authTypeParameter.default ?? modes[0]?.value);
+
+          return modes.find((m) => m.value === currentValue) ?? modes[0];
+        })()
+      : undefined;
+
+  const isApiKeyRequired =
+    !authTypeParameter || !currentAuthMode ? true : currentAuthMode.requires_api_key;
+
+  const renderParametersList = (parameters: ConfigKeyWithAuth[]) => {
     return parameters.map((parameter) => {
-      if (isAzureProvider && parameter.name === 'AZURE_OPENAI_AUTH_TYPE') {
+      if (authTypeParameter && parameter.name === authTypeParameter.name) {
         return null;
       }
 
-      if (
-        isAzureProvider &&
-        parameter.name === 'AZURE_OPENAI_API_KEY' &&
-        azureAuthType === 'entra_id'
-      ) {
+      if (!isApiKeyRequired && parameter.secret) {
         return null;
       }
 
@@ -342,38 +361,36 @@ export default function DefaultProviderSetupForm({
         </div>
       ) : (
         <div className="space-y-4">
-          {isAzureProvider && (
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-textStandard mb-1">
-                Authentication Type
-              </label>
-              <Select
-                options={[
-                  { value: 'api_key', label: 'Key Authentication' },
-                  { value: 'entra_id', label: 'Entra ID Authentication' },
-                ]}
-                value={{
-                  value: azureAuthType,
-                  label:
-                    azureAuthType === 'entra_id'
-                      ? 'Entra ID Authentication'
-                      : 'Key Authentication',
-                }}
-                onChange={(option: unknown) => {
-                  const selectedOption = option as { value: string; label: string } | null;
-                  if (selectedOption) {
-                    handleAzureAuthTypeChange(selectedOption.value);
-                  }
-                }}
-                isSearchable={false}
-              />
-              <p className="text-xs text-textSubtle">
-                {azureAuthType === 'entra_id'
-                  ? 'Azure OpenAI will use your Azure Entra ID / default credentials (for example via az login).'
-                  : 'Azure OpenAI will use an API key stored securely in Goose configuration.'}
-              </p>
-            </div>
-          )}
+          {authTypeParameter &&
+            authTypeParameter.auth_modes &&
+            authTypeParameter.auth_modes.length > 0 &&
+            currentAuthMode && (
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-textStandard mb-1">
+                  Authentication Type
+                </label>
+                <Select
+                  options={authTypeParameter.auth_modes.map((mode) => ({
+                    value: mode.value,
+                    label: mode.label,
+                  }))}
+                  value={{
+                    value: currentAuthMode.value,
+                    label: currentAuthMode.label,
+                  }}
+                  onChange={(option: unknown) => {
+                    const selectedOption = option as { value: string; label: string } | null;
+                    if (selectedOption) {
+                      handleAuthTypeChange(authTypeParameter, selectedOption.value);
+                    }
+                  }}
+                  isSearchable={false}
+                />
+                {currentAuthMode.description && (
+                  <p className="text-xs text-textSubtle">{currentAuthMode.description}</p>
+                )}
+              </div>
+            )}
           <div>{renderParametersList(aboveFoldParameters)}</div>
           {belowFoldParameters.length > 0 && (
             <Collapsible
