@@ -1,0 +1,189 @@
+//! Develop - A developer extension for goose
+//!
+//! Provides capabilities for:
+//! - Process: Shell command execution
+//! - Edit: File editing operations
+//! - Explore: Codebase exploration and analysis
+//! - Image: Screenshot and image processing
+
+pub mod process;
+
+use std::sync::Arc;
+
+use indoc::formatdoc;
+use rmcp::{
+    handler::server::{router::tool::ToolRouter, wrapper::Parameters},
+    model::{CallToolResult, ErrorData, Implementation, ServerCapabilities, ServerInfo},
+    tool, tool_handler, tool_router, ServerHandler,
+};
+
+use process::{
+    ProcessAwaitParams, ProcessIdParams, ProcessInputParams, ProcessManager, ProcessOutputParams,
+    ProcessTools, ShellParams,
+};
+
+/// The Develop MCP server
+pub struct DevelopServer {
+    tool_router: ToolRouter<Self>,
+    instructions: String,
+    process_tools: Arc<ProcessTools>,
+}
+
+impl Clone for DevelopServer {
+    fn clone(&self) -> Self {
+        Self {
+            tool_router: Self::tool_router(),
+            instructions: self.instructions.clone(),
+            process_tools: Arc::clone(&self.process_tools),
+        }
+    }
+}
+
+impl Default for DevelopServer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[tool_router(router = tool_router)]
+impl DevelopServer {
+    pub fn new() -> Self {
+        let manager = Arc::new(ProcessManager::new());
+        let process_tools = Arc::new(ProcessTools::new(Arc::clone(&manager)));
+
+        let mut instructions = formatdoc! {r#"
+            The develop extension provides tools for software development tasks.
+            
+            Capabilities:
+            - **Process**: Execute shell commands with `shell`. Working directory and 
+              environment variables persist across calls. Long-running or large-output 
+              commands return a process ID for later querying.
+            - **Edit**: Create and modify files
+            - **Explore**: Navigate and analyze codebases
+            - **Image**: Capture and process screenshots
+        "#};
+
+        // Add shell warning if using fallback
+        if let Some(warning) = manager.shell_warning() {
+            instructions.push_str(&format!("\n\n**Note**: {}", warning));
+        }
+
+        Self {
+            tool_router: Self::tool_router(),
+            instructions,
+            process_tools,
+        }
+    }
+
+    #[tool(
+        name = "shell",
+        description = "Execute a shell command. Returns output directly for fast commands, or a process ID (proc01, etc.) for long-running commands or large output. Working directory and environment variables persist across calls."
+    )]
+    pub async fn shell(
+        &self,
+        params: Parameters<ShellParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        Ok(self.process_tools.shell(params.0))
+    }
+
+    #[tool(
+        name = "process_list",
+        description = "List all tracked processes. Returns CSV: id, command (truncated), status."
+    )]
+    pub async fn process_list(&self) -> Result<CallToolResult, ErrorData> {
+        Ok(self.process_tools.process_list())
+    }
+
+    #[tool(
+        name = "process_output",
+        description = "Get output from a process buffer. Supports Python slice semantics for start/end (e.g., start=-30 for last 30 lines), and grep with before/after context."
+    )]
+    pub async fn process_output(
+        &self,
+        params: Parameters<ProcessOutputParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        Ok(self.process_tools.process_output(params.0))
+    }
+
+    #[tool(
+        name = "process_status",
+        description = "Check if a process is RUNNING, EXITED(code), or KILLED."
+    )]
+    pub async fn process_status(
+        &self,
+        params: Parameters<ProcessIdParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        Ok(self.process_tools.process_status(params.0))
+    }
+
+    #[tool(
+        name = "process_await",
+        description = "Wait for a process to complete. Use for commands you expect to finish but take a while (compiles, tests). Timeout required, max 300 seconds."
+    )]
+    pub async fn process_await(
+        &self,
+        params: Parameters<ProcessAwaitParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        Ok(self.process_tools.process_await(params.0))
+    }
+
+    #[tool(
+        name = "process_kill",
+        description = "Terminate a process. Sends SIGTERM, then SIGKILL if needed."
+    )]
+    pub async fn process_kill(
+        &self,
+        params: Parameters<ProcessIdParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        Ok(self.process_tools.process_kill(params.0))
+    }
+
+    #[tool(
+        name = "process_input",
+        description = "Send text to a process's stdin. Experimental."
+    )]
+    pub async fn process_input(
+        &self,
+        params: Parameters<ProcessInputParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        Ok(self.process_tools.process_input(params.0))
+    }
+}
+
+#[tool_handler(router = self.tool_router)]
+impl ServerHandler for DevelopServer {
+    fn get_info(&self) -> ServerInfo {
+        ServerInfo {
+            server_info: Implementation {
+                name: "goose-develop".to_string(),
+                version: env!("CARGO_PKG_VERSION").to_owned(),
+                title: None,
+                icons: None,
+                website_url: None,
+            },
+            capabilities: ServerCapabilities::builder().enable_tools().build(),
+            instructions: Some(self.instructions.clone()),
+            ..Default::default()
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_server_creation() {
+        let server = DevelopServer::new();
+        assert!(!server.instructions.is_empty());
+    }
+
+    #[test]
+    fn test_get_info() {
+        let server = DevelopServer::new();
+        let info = server.get_info();
+
+        assert_eq!(info.server_info.name, "goose-develop");
+        assert!(info.instructions.is_some());
+    }
+}
