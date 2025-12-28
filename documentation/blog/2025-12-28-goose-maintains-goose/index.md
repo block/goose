@@ -58,7 +58,7 @@ Maintainers summon goose with `/goose` followed by a prompt as a comment on an i
 
 But there's more happening under the hood than a simple prompt like "/goose fix this."
 
-The workflow uses a [recipe](/docs/guides/recipes) that defines phases to ensure goose actually accomplishes the job and doesn't do more than we ask it to.
+The workflow uses a [recipe](https://github.com/block/goose/blob/main/.github/workflows/goose-issue-solver.yml) that defines phases to ensure goose actually accomplishes the job and doesn't do more than we ask it to.
 
 | Phase      | What goose does                                       | Why it matters                                                        |
 | ---------- | ----------------------------------------------------- | --------------------------------------------------------------------- |
