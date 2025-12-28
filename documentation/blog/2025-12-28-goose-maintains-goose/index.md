@@ -17,7 +17,7 @@ We embraced this reality and put goose to work on its own backlog.
 We actually used goose pre-1.0 to help us build goose 1.0. The original goose was a Python CLI, but we needed to move quickly to Rust, Electron, and an [MCP-native](https://modelcontextprotocol.io) architecture. goose helped us make that transition. Using it to triage issues and review changes felt like a natural extension, so we embedded goose directly into a [GitHub Action](https://github.com/block/goose/blob/main/.github/workflows/goose-issue-solver.yml).
 
 :::note
-That GitHub Action workflow was built by Tyler, who took an idea we had been exploring manually and turned it into something any maintainer could trigger with a single comment.
+That GitHub Action workflow was built by [Tyler Longwell](https://github.com/tlongwell-block), who took an idea we had been exploring manually and turned it into something any maintainer could trigger with a single comment.
 :::
 
 ## Before the GitHub Action
