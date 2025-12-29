@@ -425,12 +425,6 @@ Sometimes you want goose to use different commands or have different shell behav
 1. When goose runs commands, `GOOSE_TERMINAL` is automatically set to "1"
 2. Your shell configuration can detect this and change behavior while keeping your normal terminal usage unchanged
 
-:::caution Important for zsh users
-Goose runs commands using `zsh -c "command"`, which is a **non-interactive shell** that does not source `~/.zshrc`. You must put your `GOOSE_TERMINAL` customizations in `~/.zshenv` instead, which is sourced for all zsh invocations.
-
-For bash users, `~/.bashrc` works fine since bash sources it for non-interactive shells when invoked with `bash -c`.
-:::
-
 **Examples:**
 
 ```bash
