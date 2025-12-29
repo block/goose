@@ -1277,7 +1277,8 @@ impl ExtensionManager {
     }
 
     pub async fn collect_moim(&self) -> Option<String> {
-        let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        // Use minute-level granularity to prevent conversation changes every second
+        let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:00").to_string();
         let mut content = format!("<info-msg>\nIt is currently {}\n", timestamp);
 
         let platform_clients: Vec<(String, McpClientBox)> = {
@@ -1782,6 +1783,19 @@ mod tests {
             let result = generate_extension_name(info.as_ref(), |n| collision == Some(n));
             let re = regex::Regex::new(expected).unwrap();
             assert!(re.is_match(&result));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_collect_moim_uses_minute_granularity() {
+        let em = ExtensionManager::new_without_provider();
+
+        if let Some(moim) = em.collect_moim().await {
+            // Timestamp should end with :00 (seconds fixed to 00)
+            assert!(
+                moim.contains(":00\n"),
+                "Timestamp should use minute granularity"
+            );
         }
     }
 }
