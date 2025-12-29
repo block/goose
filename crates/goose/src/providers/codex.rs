@@ -208,11 +208,6 @@ impl CodexProvider {
         // Pass the prompt via stdin using '-' argument
         cmd.arg("-");
 
-        // Set up PATH for npm resolution
-        if let Ok(path) = SearchPaths::builder().with_npm().path() {
-            cmd.env("PATH", path);
-        }
-
         cmd.stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
