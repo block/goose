@@ -176,7 +176,7 @@ async fn start_agent(
     let name = format!("New session {}", counter);
 
     let mut session =
-        SessionManager::create_session(PathBuf::from(&working_dir), name, SessionType::User)
+        SessionManager::create_session(PathBuf::from(&working_dir), name, SessionType::User, None)
             .await
             .map_err(|err| {
                 error!("Failed to create session: {}", err);

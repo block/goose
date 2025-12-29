@@ -445,6 +445,7 @@ mod tests {
             std::path::PathBuf::default(),
             "test-prepare-tools".to_string(),
             SessionType::Hidden,
+            None,
         )
         .await?;
 

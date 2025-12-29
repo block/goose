@@ -154,6 +154,7 @@ async fn offer_extension_debugging_help(
         std::env::current_dir()?,
         "CLI Session".to_string(),
         SessionType::Hidden,
+        None,
     )
     .await?;
 
@@ -344,6 +345,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             working_dir,
             "CLI Session".to_string(),
             SessionType::Hidden,
+            None,
         )
         .await
         .expect("Could not create session");

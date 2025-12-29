@@ -744,6 +744,7 @@ async fn execute_job(
         std::env::current_dir()?,
         format!("Scheduled job: {}", job.id),
         SessionType::Scheduled,
+        None,
     )
     .await?;
 

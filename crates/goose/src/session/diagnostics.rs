@@ -45,7 +45,7 @@ pub async fn generate_diagnostics(session_id: &str) -> anyhow::Result<Vec<u8>> {
             zip.write_all(&fs::read(&path)?)?;
         }
 
-        let session_data = SessionManager::export_session(session_id).await?;
+        let session_data = SessionManager::export_session(session_id, false).await?;
         zip.start_file("session.json", options)?;
         zip.write_all(session_data.as_bytes())?;
 

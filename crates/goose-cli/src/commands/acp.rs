@@ -230,6 +230,7 @@ impl GooseAcpAgent {
             std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
             "ACP Session".to_string(),
             SessionType::Hidden,
+            None,
         )
         .await?;
 
@@ -570,6 +571,7 @@ impl acp::Agent for GooseAcpAgent {
             std::env::current_dir().unwrap_or_default(),
             "ACP Session".to_string(), // just an initial name - may be replaced by maybe_update_name
             SessionType::User,
+            None,
         )
         .await?;
 

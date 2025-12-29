@@ -246,6 +246,7 @@ async fn execute_subagent(
         working_dir,
         "Subagent task".to_string(),
         crate::session::session_manager::SessionType::SubAgent,
+        Some(task_config.parent_session_id.clone()),
     )
     .await
     .map_err(|e| ErrorData {

@@ -157,6 +157,7 @@ pub async fn handle_web(
         std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
         "Web Agent Initialization".to_string(),
         SessionType::Hidden,
+        None,
     )
     .await?;
 
@@ -245,6 +246,7 @@ async fn serve_index(uri: Uri) -> Result<Redirect, (http::StatusCode, String)> {
         std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
         "Web session".to_string(),
         SessionType::User,
+        None,
     )
     .await
     .map_err(|err| (http::StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))?;

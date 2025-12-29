@@ -300,7 +300,7 @@ async fn delete_session(Path(session_id): Path<String>) -> Result<StatusCode, St
     tag = "Session Management"
 )]
 async fn export_session(Path(session_id): Path<String>) -> Result<Json<String>, StatusCode> {
-    let exported = SessionManager::export_session(&session_id)
+    let exported = SessionManager::export_session(&session_id, false)
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
 

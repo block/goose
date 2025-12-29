@@ -97,6 +97,7 @@ async fn get_or_create_session_id(
                 std::env::current_dir()?,
                 "CLI Session".to_string(),
                 SessionType::User,
+                None,
             )
             .await?;
             Ok(Some(session.id))
@@ -119,6 +120,7 @@ async fn get_or_create_session_id(
                 std::env::current_dir()?,
                 name.clone(),
                 SessionType::User,
+                None,
             )
             .await?;
 
@@ -141,6 +143,7 @@ async fn get_or_create_session_id(
             std::env::current_dir()?,
             "CLI Session".to_string(),
             SessionType::User,
+            None,
         )
         .await?;
         Ok(Some(session.id))

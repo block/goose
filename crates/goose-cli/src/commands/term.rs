@@ -135,6 +135,7 @@ pub async fn handle_term_init(
                 working_dir,
                 "Goose Term Session".to_string(),
                 SessionType::Terminal,
+                None,
             )
             .await?;
 

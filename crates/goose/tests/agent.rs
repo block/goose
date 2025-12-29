@@ -379,6 +379,7 @@ mod tests {
                 PathBuf::default(),
                 "max-turn-test".to_string(),
                 SessionType::Hidden,
+                None,
             )
             .await?;
 
