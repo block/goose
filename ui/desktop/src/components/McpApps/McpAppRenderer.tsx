@@ -118,6 +118,7 @@ export default function McpAppRenderer({
           return {
             content: response.data?.content || [],
             isError: response.data?.is_error || false,
+            structuredContent: (response.data as any)?.structured_content,
           } satisfies McpMethodResponse['tools/call'];
         }
 

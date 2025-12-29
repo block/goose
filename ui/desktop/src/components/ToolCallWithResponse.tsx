@@ -82,6 +82,7 @@ function maybeRenderMCPApp(
       <McpAppRenderer
         resourceUri={resourceUri}
         toolInput={{ arguments: toolCall.arguments }}
+        toolResult={value}
         extensionName={extensionName}
         sessionId={sessionId}
         append={append}

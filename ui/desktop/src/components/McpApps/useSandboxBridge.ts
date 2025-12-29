@@ -60,15 +60,18 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
 
   useEffect(() => {
     setIsGuestInitialized(false);
+    console.log("initialized -> False");
     isGuestInitializedRef.current = false;
   }, [resourceUri]);
 
   const sendToSandbox = useCallback((message: JsonRpcMessage) => {
+    console.log(">>>", message);
     iframeRef.current?.contentWindow?.postMessage(message, '*');
   }, []);
 
   const handleJsonRpcMessage = useCallback(
     async (data: unknown) => {
+      console.log("jsonResponse", data);
       if (!data || typeof data !== 'object') return;
 
       // Handle notifications (no id)
@@ -86,6 +89,7 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
 
         if (msg.method === 'ui/notifications/initialized') {
           setIsGuestInitialized(true);
+          console.log("initialized -> True");
           isGuestInitializedRef.current = true;
           return;
         }

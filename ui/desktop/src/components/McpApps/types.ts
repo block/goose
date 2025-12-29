@@ -12,7 +12,7 @@ export type McpMethodParams = {
 export type McpMethodResponse = {
   'ui/open-link': { status: string; message: string };
   'ui/message': { status: string; message: string };
-  'tools/call': { content: unknown[]; isError: boolean };
+  'tools/call': { content: unknown[]; isError: boolean; structuredContent?: Record<string, unknown> };
   'resources/read': { contents: unknown[] };
   'notifications/message': Record<string, never>;
   ping: Record<string, never>;

@@ -778,14 +778,21 @@ impl ExtensionManager {
 
         // If extension name is provided, we can just look it up
         if extension_name.is_some() {
-            let result = self
-                .read_resource_from_extension(
+            let read_result = self
+                .read_resource(
                     uri,
                     extension_name.unwrap(),
                     cancellation_token.clone(),
-                    true,
                 )
                 .await?;
+
+            let mut result = Vec::new();
+            for content in read_result.contents {
+                if let ResourceContents::TextResourceContents { text, .. } = content {
+                    let content_str = format!("{}\n\n{}", uri, text);
+                    result.push(Content::text(content_str));
+                }
+            }
             return Ok(result);
         }
 
@@ -798,16 +805,24 @@ impl ExtensionManager {
         let extension_names: Vec<String> = self.extensions.lock().await.keys().cloned().collect();
 
         for extension_name in extension_names {
-            let result = self
-                .read_resource_from_extension(
+            let read_result = self
+                .read_resource(
                     uri,
                     &extension_name,
                     cancellation_token.clone(),
-                    true,
                 )
                 .await;
-            match result {
-                Ok(result) => return Ok(result),
+            match read_result {
+                Ok(read_result) => {
+                    let mut result = Vec::new();
+                    for content in read_result.contents {
+                        if let ResourceContents::TextResourceContents { text, .. } = content {
+                            let content_str = format!("{}\n\n{}", uri, text);
+                            result.push(Content::text(content_str));
+                        }
+                    }
+                    return Ok(result);
+                }
                 Err(_) => continue,
             }
         }
@@ -833,116 +848,7 @@ impl ExtensionManager {
         ))
     }
 
-    async fn read_resource_from_extension(
-        &self,
-        uri: &str,
-        extension_name: &str,
-        cancellation_token: CancellationToken,
-        format_with_uri: bool,
-    ) -> Result<Vec<Content>, ErrorData> {
-        let available_extensions = self
-            .extensions
-            .lock()
-            .await
-            .keys()
-            .map(|s| s.as_str())
-            .collect::<Vec<&str>>()
-            .join(", ");
-        let error_msg = format!(
-            "Extension '{}' not found. Here are the available extensions: {}",
-            extension_name, available_extensions
-        );
-
-        let client = self
-            .get_server_client(extension_name)
-            .await
-            .ok_or(ErrorData::new(ErrorCode::INVALID_PARAMS, error_msg, None))?;
-
-        let client_guard = client.lock().await;
-        let read_result = client_guard
-            .read_resource(uri, cancellation_token)
-            .await
-            .map_err(|_| {
-                ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Could not read resource with uri: {}", uri),
-                    None,
-                )
-            })?;
-
-        let mut result = Vec::new();
-        for content in read_result.contents {
-            if let ResourceContents::TextResourceContents { text, .. } = content {
-                let content_str = if format_with_uri {
-                    format!("{}\n\n{}", uri, text)
-                } else {
-                    text
-                };
-                result.push(Content::text(content_str));
-            }
-        }
-
-        Ok(result)
-    }
-
-    pub async fn get_ui_resources(&self) -> Result<Vec<(String, Resource)>, ErrorData> {
-        let mut ui_resources = Vec::new();
-
-        let extensions_to_check: Vec<(String, McpClientBox)> = {
-            let extensions = self.extensions.lock().await;
-            extensions
-                .iter()
-                .map(|(name, ext)| (name.clone(), ext.get_client()))
-                .collect()
-        };
-
-        for (extension_name, client) in extensions_to_check {
-            let client_guard = client.lock().await;
-
-            match client_guard
-                .list_resources(None, CancellationToken::default())
-                .await
-            {
-                Ok(list_response) => {
-                    for resource in list_response.resources {
-                        if resource.uri.starts_with("ui://") {
-                            ui_resources.push((extension_name.clone(), resource));
-                        }
-                    }
-                }
-                Err(e) => {
-                    warn!("Failed to list resources for {}: {:?}", extension_name, e);
-                }
-            }
-        }
-
-        Ok(ui_resources)
-    }
-
     pub async fn read_resource(
-        &self,
-        uri: &str,
-        extension_name: &str,
-        cancellation_token: CancellationToken,
-    ) -> Result<ResourceContents, ErrorData> {
-        let result = self
-            .read_resource_from_extension_with_metadata(uri, extension_name, cancellation_token)
-            .await?;
-
-        result
-            .contents
-            .into_iter()
-            .next()
-            .ok_or_else(|| {
-                ErrorData::new(
-                    ErrorCode::RESOURCE_NOT_FOUND,
-                    format!("No content in resource '{}'", uri),
-                    None,
-                )
-            })
-    }
-
-    async fn read_resource_from_extension_with_metadata(
         &self,
         uri: &str,
         extension_name: &str,
@@ -977,6 +883,40 @@ impl ExtensionManager {
                     None,
                 )
             })
+    }
+
+    pub async fn get_ui_resources(&self) -> Result<Vec<(String, Resource)>, ErrorData> {
+        let mut ui_resources = Vec::new();
+
+        let extensions_to_check: Vec<(String, McpClientBox)> = {
+            let extensions = self.extensions.lock().await;
+            extensions
+                .iter()
+                .map(|(name, ext)| (name.clone(), ext.get_client()))
+                .collect()
+        };
+
+        for (extension_name, client) in extensions_to_check {
+            let client_guard = client.lock().await;
+
+            match client_guard
+                .list_resources(None, CancellationToken::default())
+                .await
+            {
+                Ok(list_response) => {
+                    for resource in list_response.resources {
+                        if resource.uri.starts_with("ui://") {
+                            ui_resources.push((extension_name.clone(), resource));
+                        }
+                    }
+                }
+                Err(e) => {
+                    warn!("Failed to list resources for {}: {:?}", extension_name, e);
+                }
+            }
+        }
+
+        Ok(ui_resources)
     }
 
     async fn list_resources_from_extension(

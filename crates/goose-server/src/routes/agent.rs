@@ -28,6 +28,7 @@ use goose::{
 use rmcp::model::{CallToolRequestParam, Content};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use base64::Engine;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
@@ -633,7 +634,7 @@ async fn read_resource(
         .get_agent_for_route(payload.session_id.clone())
         .await?;
 
-    let content = agent
+    let read_result = agent
         .extension_manager
         .read_resource(
             &payload.uri,
@@ -642,6 +643,12 @@ async fn read_resource(
         )
         .await
         .map_err(|_e| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let content = read_result
+        .contents
+        .into_iter()
+        .next()
+        .ok_or(StatusCode::NOT_FOUND)?;
 
     let (uri, mime_type, text, meta) = match content {
         ResourceContents::TextResourceContents {
@@ -656,8 +663,7 @@ async fn read_resource(
             blob,
             meta,
         } => {
-            // Decode base64 blob to text
-            let decoded = match base64::Engine::decode(&base64::engine::general_purpose::STANDARD, blob) {
+            let decoded = match base64::engine::general_purpose::STANDARD.decode(&blob) {
                 Ok(bytes) => String::from_utf8(bytes)
                     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
                 Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
@@ -722,7 +728,7 @@ async fn call_tool(
         content: result.content,
         structured_content: result.structured_content,
         is_error: result.is_error.unwrap_or(false),
-        _meta: None,
+        _meta: result.meta.and_then(|m| serde_json::to_value(m).ok()),
     }))
 }
 
