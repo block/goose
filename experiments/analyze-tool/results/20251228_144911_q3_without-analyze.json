@@ -1,0 +1,1075 @@
+Loading recipe: Explore Test - Without Analyze
+Description: Test codebase exploration without the analyze tool (baseline)
+Parameters used to load this recipe:
+   target_directory: /Users/baxen/Development/goose
+   question: What calls the complete method on providers?
+
+starting session | provider: databricks model: goose-claude-4-5-opus
+    session id: 20251228_59
+    working directory: /Users/baxen/Development/goose
+{
+  "messages": [
+    {
+      "id": null,
+      "role": "user",
+      "created": 1766962425,
+      "content": [
+        {
+          "type": "text",
+          "text": "You are exploring a codebase to answer a question. Use whatever tools you have available\nto understand the code structure and answer accurately.\n\nTarget directory: /Users/baxen/Development/goose\n\nQuestion: What calls the complete method on providers?\n\nProvide a clear, structured answer. When you're done, summarize what tools you used\nand how many times you called each one.\n"
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_01PquC7LYud79jsnVWmxNNN2",
+      "role": "assistant",
+      "created": 1766962428,
+      "content": [
+        {
+          "type": "toolRequest",
+          "id": "toolu_01BwTmAqfiayQBR6BHQb1ky4",
+          "toolCall": {
+            "status": "success",
+            "value": {
+              "name": "developer__shell",
+              "arguments": {
+                "command": "cd /Users/baxen/Development/goose && rg \"\\.complete\\(\" --type rust -l | head -20"
+              }
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_58a21343-d4ae-4a77-a7a9-ef7399387bb1",
+      "role": "user",
+      "created": 1766962428,
+      "content": [
+        {
+          "type": "toolResponse",
+          "id": "toolu_01BwTmAqfiayQBR6BHQb1ky4",
+          "toolResult": {
+            "status": "success",
+            "value": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "crates/goose-cli/src/session/mod.rs\ncrates/goose-cli/src/session/completion.rs\ncrates/goose-cli/src/commands/configure.rs\ncrates/goose/src/permission/permission_judge.rs\ncrates/goose/tests/providers.rs\ncrates/goose/examples/image_tool.rs\ncrates/goose/tests/session_id_propagation_test.rs\ncrates/goose/tests/agent.rs\ncrates/goose/src/providers/testprovider.rs\ncrates/goose/src/providers/provider_test.rs\ncrates/goose/src/providers/lead_worker.rs\ncrates/goose/src/providers/ollama.rs\ncrates/goose/src/agents/mcp_client.rs\ncrates/goose/src/agents/reply_parts.rs\ncrates/goose/src/agents/agent.rs\n",
+                  "annotations": {
+                    "audience": [
+                      "assistant"
+                    ]
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "crates/goose-cli/src/session/mod.rs\ncrates/goose-cli/src/session/completion.rs\ncrates/goose-cli/src/commands/configure.rs\ncrates/goose/src/permission/permission_judge.rs\ncrates/goose/tests/providers.rs\ncrates/goose/examples/image_tool.rs\ncrates/goose/tests/session_id_propagation_test.rs\ncrates/goose/tests/agent.rs\ncrates/goose/src/providers/testprovider.rs\ncrates/goose/src/providers/provider_test.rs\ncrates/goose/src/providers/lead_worker.rs\ncrates/goose/src/providers/ollama.rs\ncrates/goose/src/agents/mcp_client.rs\ncrates/goose/src/agents/reply_parts.rs\ncrates/goose/src/agents/agent.rs\n",
+                  "annotations": {
+                    "audience": [
+                      "user"
+                    ],
+                    "priority": 0.0
+                  }
+                }
+              ],
+              "isError": false
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_01K61H9ZQWuAkSDXM3F679P5",
+      "role": "assistant",
+      "created": 1766962430,
+      "content": [
+        {
+          "type": "toolRequest",
+          "id": "toolu_01K3uRcfKj2mvtYJ8PZtZ2s8",
+          "toolCall": {
+            "status": "success",
+            "value": {
+              "name": "developer__shell",
+              "arguments": {
+                "command": "cd /Users/baxen/Development/goose && rg \"fn complete\" --type rust -C 3 | head -60"
+              }
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_1ed3b8d5-70e7-4444-815f-9f633f4a361c",
+      "role": "user",
+      "created": 1766962430,
+      "content": [
+        {
+          "type": "toolResponse",
+          "id": "toolu_01K3uRcfKj2mvtYJ8PZtZ2s8",
+          "toolResult": {
+            "status": "success",
+            "value": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "crates/goose-cli/src/session/completion.rs-    }\ncrates/goose-cli/src/session/completion.rs-\ncrates/goose-cli/src/session/completion.rs-    /// Complete prompt names for the /prompt command\ncrates/goose-cli/src/session/completion.rs:    fn complete_prompt_names(&self, line: &str) -> Result<(usize, Vec<Pair>)> {\ncrates/goose-cli/src/session/completion.rs-        // Get the prefix of the prompt name being typed\ncrates/goose-cli/src/session/completion.rs-        let prefix = line.get(8..).unwrap_or(\"\");\ncrates/goose-cli/src/session/completion.rs-\n--\ncrates/goose-cli/src/session/completion.rs-    }\ncrates/goose-cli/src/session/completion.rs-\ncrates/goose-cli/src/session/completion.rs-    /// Complete flags for the /prompt command\ncrates/goose-cli/src/session/completion.rs:    fn complete_prompt_flags(&self, line: &str) -> Result<(usize, Vec<Pair>)> {\ncrates/goose-cli/src/session/completion.rs-        // Get the last part of the line\ncrates/goose-cli/src/session/completion.rs-        let parts: Vec<&str> = line.split_whitespace().collect();\ncrates/goose-cli/src/session/completion.rs-        if let Some(last_part) = parts.last() {\n--\ncrates/goose-cli/src/session/completion.rs-    }\ncrates/goose-cli/src/session/completion.rs-\ncrates/goose-cli/src/session/completion.rs-    /// Complete flags for the /mode command\ncrates/goose-cli/src/session/completion.rs:    fn complete_mode_flags(&self, line: &str) -> Result<(usize, Vec<Pair>)> {\ncrates/goose-cli/src/session/completion.rs-        let modes = [\"auto\", \"approve\", \"smart_approve\", \"chat\"];\ncrates/goose-cli/src/session/completion.rs-\ncrates/goose-cli/src/session/completion.rs-        let parts: Vec<&str> = line.split_whitespace().collect();\n--\ncrates/goose-cli/src/session/completion.rs-    }\ncrates/goose-cli/src/session/completion.rs-\ncrates/goose-cli/src/session/completion.rs-    /// Complete slash commands\ncrates/goose-cli/src/session/completion.rs:    fn complete_slash_commands(&self, line: &str) -> Result<(usize, Vec<Pair>)> {\ncrates/goose-cli/src/session/completion.rs-        // Define available slash commands\ncrates/goose-cli/src/session/completion.rs-        let commands = [\ncrates/goose-cli/src/session/completion.rs-            \"/exit\",\n--\ncrates/goose-cli/src/session/completion.rs-    }\ncrates/goose-cli/src/session/completion.rs-\ncrates/goose-cli/src/session/completion.rs-    /// Complete argument keys for a specific prompt\ncrates/goose-cli/src/session/completion.rs:    fn complete_argument_keys(&self, line: &str) -> Result<(usize, Vec<Pair>)> {\ncrates/goose-cli/src/session/completion.rs-        let parts: Vec<&str> = line.get(8..).unwrap_or(\"\").split_whitespace().collect();\ncrates/goose-cli/src/session/completion.rs-\ncrates/goose-cli/src/session/completion.rs-        // We need at least the prompt name\n--\ncrates/goose-cli/src/session/completion.rs-    }\ncrates/goose-cli/src/session/completion.rs-\ncrates/goose-cli/src/session/completion.rs-    /// Complete file paths\ncrates/goose-cli/src/session/completion.rs:    fn complete_file_path(&self, line: &str, ctx: &Context) -> Result<(usize, Vec<Pair>)> {\ncrates/goose-cli/src/session/completion.rs-        let parts: Vec<&str> = line.split_whitespace().collect();\ncrates/goose-cli/src/session/completion.rs-\ncrates/goose-cli/src/session/completion.rs-        if let Some(last_part) = parts.last() {\n--\ncrates/goose-cli/src/session/completion.rs-impl Completer for GooseCompleter {\ncrates/goose-cli/src/session/completion.rs-    type Candidate = Pair;\ncrates/goose-cli/src/session/completion.rs-\ncrates/goose-cli/src/session/completion.rs:    fn complete(\ncrates/goose-cli/src/session/completion.rs-        &self,\ncrates/goose-cli/src/session/completion.rs-        line: &str,\ncrates/goose-cli/src/session/completion.rs-        pos: usize,\n--\ncrates/goose/src/context_mgmt/mod.rs-            \"mock\"\ncrates/goose/src/context_mgmt/mod.rs-        }\ncrates/goose/src/context_mgmt/mod.rs-\ncrates/goose/src/context_mgmt/mod.rs:        async fn complete_with_model(\n",
+                  "annotations": {
+                    "audience": [
+                      "assistant"
+                    ]
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "crates/goose-cli/src/session/completion.rs-    }\ncrates/goose-cli/src/session/completion.rs-\ncrates/goose-cli/src/session/completion.rs-    /// Complete prompt names for the /prompt command\ncrates/goose-cli/src/session/completion.rs:    fn complete_prompt_names(&self, line: &str) -> Result<(usize, Vec<Pair>)> {\ncrates/goose-cli/src/session/completion.rs-        // Get the prefix of the prompt name being typed\ncrates/goose-cli/src/session/completion.rs-        let prefix = line.get(8..).unwrap_or(\"\");\ncrates/goose-cli/src/session/completion.rs-\n--\ncrates/goose-cli/src/session/completion.rs-    }\ncrates/goose-cli/src/session/completion.rs-\ncrates/goose-cli/src/session/completion.rs-    /// Complete flags for the /prompt command\ncrates/goose-cli/src/session/completion.rs:    fn complete_prompt_flags(&self, line: &str) -> Result<(usize, Vec<Pair>)> {\ncrates/goose-cli/src/session/completion.rs-        // Get the last part of the line\ncrates/goose-cli/src/session/completion.rs-        let parts: Vec<&str> = line.split_whitespace().collect();\ncrates/goose-cli/src/session/completion.rs-        if let Some(last_part) = parts.last() {\n--\ncrates/goose-cli/src/session/completion.rs-    }\ncrates/goose-cli/src/session/completion.rs-\ncrates/goose-cli/src/session/completion.rs-    /// Complete flags for the /mode command\ncrates/goose-cli/src/session/completion.rs:    fn complete_mode_flags(&self, line: &str) -> Result<(usize, Vec<Pair>)> {\ncrates/goose-cli/src/session/completion.rs-        let modes = [\"auto\", \"approve\", \"smart_approve\", \"chat\"];\ncrates/goose-cli/src/session/completion.rs-\ncrates/goose-cli/src/session/completion.rs-        let parts: Vec<&str> = line.split_whitespace().collect();\n--\ncrates/goose-cli/src/session/completion.rs-    }\ncrates/goose-cli/src/session/completion.rs-\ncrates/goose-cli/src/session/completion.rs-    /// Complete slash commands\ncrates/goose-cli/src/session/completion.rs:    fn complete_slash_commands(&self, line: &str) -> Result<(usize, Vec<Pair>)> {\ncrates/goose-cli/src/session/completion.rs-        // Define available slash commands\ncrates/goose-cli/src/session/completion.rs-        let commands = [\ncrates/goose-cli/src/session/completion.rs-            \"/exit\",\n--\ncrates/goose-cli/src/session/completion.rs-    }\ncrates/goose-cli/src/session/completion.rs-\ncrates/goose-cli/src/session/completion.rs-    /// Complete argument keys for a specific prompt\ncrates/goose-cli/src/session/completion.rs:    fn complete_argument_keys(&self, line: &str) -> Result<(usize, Vec<Pair>)> {\ncrates/goose-cli/src/session/completion.rs-        let parts: Vec<&str> = line.get(8..).unwrap_or(\"\").split_whitespace().collect();\ncrates/goose-cli/src/session/completion.rs-\ncrates/goose-cli/src/session/completion.rs-        // We need at least the prompt name\n--\ncrates/goose-cli/src/session/completion.rs-    }\ncrates/goose-cli/src/session/completion.rs-\ncrates/goose-cli/src/session/completion.rs-    /// Complete file paths\ncrates/goose-cli/src/session/completion.rs:    fn complete_file_path(&self, line: &str, ctx: &Context) -> Result<(usize, Vec<Pair>)> {\ncrates/goose-cli/src/session/completion.rs-        let parts: Vec<&str> = line.split_whitespace().collect();\ncrates/goose-cli/src/session/completion.rs-\ncrates/goose-cli/src/session/completion.rs-        if let Some(last_part) = parts.last() {\n--\ncrates/goose-cli/src/session/completion.rs-impl Completer for GooseCompleter {\ncrates/goose-cli/src/session/completion.rs-    type Candidate = Pair;\ncrates/goose-cli/src/session/completion.rs-\ncrates/goose-cli/src/session/completion.rs:    fn complete(\ncrates/goose-cli/src/session/completion.rs-        &self,\ncrates/goose-cli/src/session/completion.rs-        line: &str,\ncrates/goose-cli/src/session/completion.rs-        pos: usize,\n--\ncrates/goose/src/context_mgmt/mod.rs-            \"mock\"\ncrates/goose/src/context_mgmt/mod.rs-        }\ncrates/goose/src/context_mgmt/mod.rs-\ncrates/goose/src/context_mgmt/mod.rs:        async fn complete_with_model(\n",
+                  "annotations": {
+                    "audience": [
+                      "user"
+                    ],
+                    "priority": 0.0
+                  }
+                }
+              ],
+              "isError": false
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_01S6aehZUSKCH4STfFBW2xrx",
+      "role": "assistant",
+      "created": 1766962433,
+      "content": [
+        {
+          "type": "toolRequest",
+          "id": "toolu_016gvcoY15yLGfFQKRF5G2T1",
+          "toolCall": {
+            "status": "success",
+            "value": {
+              "name": "developer__shell",
+              "arguments": {
+                "command": "cd /Users/baxen/Development/goose && rg \"async fn complete\" --type rust -C 5"
+              }
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_0c31b1d4-b6f9-42a2-a843-191d2424bd6b",
+      "role": "user",
+      "created": 1766962433,
+      "content": [
+        {
+          "type": "toolResponse",
+          "id": "toolu_016gvcoY15yLGfFQKRF5G2T1",
+          "toolResult": {
+            "status": "success",
+            "value": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "private note: output was 404 lines and we are only showing the most recent lines, remainder of lines in /var/folders/hl/l_5k5shs2k5ffvchnyslsmjc0000gq/T/.tmppzloxd do not show tmp file to user, that file can be searched if extra context needed to fulfill request. truncated output: \ncrates/goose/src/providers/githubcopilot.rs-        model_config: &ModelConfig,\ncrates/goose/src/providers/githubcopilot.rs-        system: &str,\ncrates/goose/src/providers/githubcopilot.rs-        messages: &[Message],\ncrates/goose/src/providers/githubcopilot.rs-        tools: &[Tool],\n--\ncrates/goose/src/providers/openrouter.rs-\ncrates/goose/src/providers/openrouter.rs-    #[tracing::instrument(\ncrates/goose/src/providers/openrouter.rs-        skip(self, model_config, system, messages, tools),\ncrates/goose/src/providers/openrouter.rs-        fields(model_config, input, output, input_tokens, output_tokens, total_tokens)\ncrates/goose/src/providers/openrouter.rs-    )]\ncrates/goose/src/providers/openrouter.rs:    async fn complete_with_model(\ncrates/goose/src/providers/openrouter.rs-        &self,\ncrates/goose/src/providers/openrouter.rs-        model_config: &ModelConfig,\ncrates/goose/src/providers/openrouter.rs-        system: &str,\ncrates/goose/src/providers/openrouter.rs-        messages: &[Message],\ncrates/goose/src/providers/openrouter.rs-        tools: &[Tool],\n--\ncrates/goose/src/providers/google.rs-\ncrates/goose/src/providers/google.rs-    #[tracing::instrument(\ncrates/goose/src/providers/google.rs-        skip(self, model_config, system, messages, tools),\ncrates/goose/src/providers/google.rs-        fields(model_config, input, output, input_tokens, output_tokens, total_tokens)\ncrates/goose/src/providers/google.rs-    )]\ncrates/goose/src/providers/google.rs:    async fn complete_with_model(\ncrates/goose/src/providers/google.rs-        &self,\ncrates/goose/src/providers/google.rs-        model_config: &ModelConfig,\ncrates/goose/src/providers/google.rs-        system: &str,\ncrates/goose/src/providers/google.rs-        messages: &[Message],\ncrates/goose/src/providers/google.rs-        tools: &[Tool],\n--\ncrates/goose/src/providers/gcpvertexai.rs-    /// * `tools` - Array of available tools for the model\ncrates/goose/src/providers/gcpvertexai.rs-    #[tracing::instrument(\ncrates/goose/src/providers/gcpvertexai.rs-        skip(self, model_config, system, messages, tools),\ncrates/goose/src/providers/gcpvertexai.rs-        fields(model_config, input, output, input_tokens, output_tokens, total_tokens)\ncrates/goose/src/providers/gcpvertexai.rs-    )]\ncrates/goose/src/providers/gcpvertexai.rs:    async fn complete_with_model(\ncrates/goose/src/providers/gcpvertexai.rs-        &self,\ncrates/goose/src/providers/gcpvertexai.rs-        model_config: &ModelConfig,\ncrates/goose/src/providers/gcpvertexai.rs-        system: &str,\ncrates/goose/src/providers/gcpvertexai.rs-        messages: &[Message],\ncrates/goose/src/providers/gcpvertexai.rs-        tools: &[Tool],\n--\ncrates/goose/tests/agent.rs-            }\ncrates/goose/tests/agent.rs-        }\ncrates/goose/tests/agent.rs-\ncrates/goose/tests/agent.rs-        #[async_trait]\ncrates/goose/tests/agent.rs-        impl Provider for MockToolProvider {\ncrates/goose/tests/agent.rs:            async fn complete(\ncrates/goose/tests/agent.rs-                &self,\ncrates/goose/tests/agent.rs-                _system_prompt: &str,\ncrates/goose/tests/agent.rs-                _messages: &[Message],\ncrates/goose/tests/agent.rs-                _tools: &[Tool],\ncrates/goose/tests/agent.rs-            ) -> Result<(Message, ProviderUsage), ProviderError> {\n--\ncrates/goose/tests/agent.rs-                );\ncrates/goose/tests/agent.rs-\ncrates/goose/tests/agent.rs-                Ok((message, usage))\ncrates/goose/tests/agent.rs-            }\ncrates/goose/tests/agent.rs-\ncrates/goose/tests/agent.rs:            async fn complete_with_model(\ncrates/goose/tests/agent.rs-                &self,\ncrates/goose/tests/agent.rs-                _model_config: &ModelConfig,\ncrates/goose/tests/agent.rs-                system_prompt: &str,\ncrates/goose/tests/agent.rs-                messages: &[Message],\ncrates/goose/tests/agent.rs-                tools: &[Tool],\n--\ncrates/goose/tests/mcp_integration_test.rs-\ncrates/goose/tests/mcp_integration_test.rs-    fn get_name(&self) -> &str {\ncrates/goose/tests/mcp_integration_test.rs-        \"mock\"\ncrates/goose/tests/mcp_integration_test.rs-    }\ncrates/goose/tests/mcp_integration_test.rs-\ncrates/goose/tests/mcp_integration_test.rs:    async fn complete_with_model(\ncrates/goose/tests/mcp_integration_test.rs-        &self,\ncrates/goose/tests/mcp_integration_test.rs-        _model_config: &ModelConfig,\ncrates/goose/tests/mcp_integration_test.rs-        _system: &str,\ncrates/goose/tests/mcp_integration_test.rs-        _messages: &[Message],\ncrates/goose/tests/mcp_integration_test.rs-        _tools: &[Tool],\n--\ncrates/goose/src/config/signup_tetrate/mod.rs-        let token_response: TokenResponse = response.json().await?;\ncrates/goose/src/config/signup_tetrate/mod.rs-        Ok(token_response.key)\ncrates/goose/src/config/signup_tetrate/mod.rs-    }\ncrates/goose/src/config/signup_tetrate/mod.rs-\ncrates/goose/src/config/signup_tetrate/mod.rs-    /// Complete flow: open browser, wait for callback, exchange code\ncrates/goose/src/config/signup_tetrate/mod.rs:    pub async fn complete_flow(&mut self) -> Result<String> {\ncrates/goose/src/config/signup_tetrate/mod.rs-        let auth_url = self.get_auth_url();\ncrates/goose/src/config/signup_tetrate/mod.rs-\ncrates/goose/src/config/signup_tetrate/mod.rs-        println!(\"Opening browser for Tetrate Agent Router Service authentication...\");\ncrates/goose/src/config/signup_tetrate/mod.rs-        eprintln!(\"Auth URL: {}\", auth_url);\ncrates/goose/src/config/signup_tetrate/mod.rs-\n--\ncrates/goose/src/config/signup_openrouter/mod.rs-        let token_response: TokenResponse = response.json().await?;\ncrates/goose/src/config/signup_openrouter/mod.rs-        Ok(token_response.key)\ncrates/goose/src/config/signup_openrouter/mod.rs-    }\ncrates/goose/src/config/signup_openrouter/mod.rs-\ncrates/goose/src/config/signup_openrouter/mod.rs-    /// Complete flow: open browser, wait for callback, exchange code\ncrates/goose/src/config/signup_openrouter/mod.rs:    pub async fn complete_flow(&mut self) -> Result<String> {\ncrates/goose/src/config/signup_openrouter/mod.rs-        let auth_url = self.get_auth_url();\ncrates/goose/src/config/signup_openrouter/mod.rs-\ncrates/goose/src/config/signup_openrouter/mod.rs-        println!(\"Opening browser for authentication...\");\ncrates/goose/src/config/signup_openrouter/mod.rs-        eprintln!(\"Auth URL: {}\", auth_url);\ncrates/goose/src/config/signup_openrouter/mod.rs-",
+                  "annotations": {
+                    "audience": [
+                      "assistant"
+                    ]
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "NOTE: Output was 404 lines, showing only the last 100 lines.\n\ncrates/goose/src/providers/githubcopilot.rs-        model_config: &ModelConfig,\ncrates/goose/src/providers/githubcopilot.rs-        system: &str,\ncrates/goose/src/providers/githubcopilot.rs-        messages: &[Message],\ncrates/goose/src/providers/githubcopilot.rs-        tools: &[Tool],\n--\ncrates/goose/src/providers/openrouter.rs-\ncrates/goose/src/providers/openrouter.rs-    #[tracing::instrument(\ncrates/goose/src/providers/openrouter.rs-        skip(self, model_config, system, messages, tools),\ncrates/goose/src/providers/openrouter.rs-        fields(model_config, input, output, input_tokens, output_tokens, total_tokens)\ncrates/goose/src/providers/openrouter.rs-    )]\ncrates/goose/src/providers/openrouter.rs:    async fn complete_with_model(\ncrates/goose/src/providers/openrouter.rs-        &self,\ncrates/goose/src/providers/openrouter.rs-        model_config: &ModelConfig,\ncrates/goose/src/providers/openrouter.rs-        system: &str,\ncrates/goose/src/providers/openrouter.rs-        messages: &[Message],\ncrates/goose/src/providers/openrouter.rs-        tools: &[Tool],\n--\ncrates/goose/src/providers/google.rs-\ncrates/goose/src/providers/google.rs-    #[tracing::instrument(\ncrates/goose/src/providers/google.rs-        skip(self, model_config, system, messages, tools),\ncrates/goose/src/providers/google.rs-        fields(model_config, input, output, input_tokens, output_tokens, total_tokens)\ncrates/goose/src/providers/google.rs-    )]\ncrates/goose/src/providers/google.rs:    async fn complete_with_model(\ncrates/goose/src/providers/google.rs-        &self,\ncrates/goose/src/providers/google.rs-        model_config: &ModelConfig,\ncrates/goose/src/providers/google.rs-        system: &str,\ncrates/goose/src/providers/google.rs-        messages: &[Message],\ncrates/goose/src/providers/google.rs-        tools: &[Tool],\n--\ncrates/goose/src/providers/gcpvertexai.rs-    /// * `tools` - Array of available tools for the model\ncrates/goose/src/providers/gcpvertexai.rs-    #[tracing::instrument(\ncrates/goose/src/providers/gcpvertexai.rs-        skip(self, model_config, system, messages, tools),\ncrates/goose/src/providers/gcpvertexai.rs-        fields(model_config, input, output, input_tokens, output_tokens, total_tokens)\ncrates/goose/src/providers/gcpvertexai.rs-    )]\ncrates/goose/src/providers/gcpvertexai.rs:    async fn complete_with_model(\ncrates/goose/src/providers/gcpvertexai.rs-        &self,\ncrates/goose/src/providers/gcpvertexai.rs-        model_config: &ModelConfig,\ncrates/goose/src/providers/gcpvertexai.rs-        system: &str,\ncrates/goose/src/providers/gcpvertexai.rs-        messages: &[Message],\ncrates/goose/src/providers/gcpvertexai.rs-        tools: &[Tool],\n--\ncrates/goose/tests/agent.rs-            }\ncrates/goose/tests/agent.rs-        }\ncrates/goose/tests/agent.rs-\ncrates/goose/tests/agent.rs-        #[async_trait]\ncrates/goose/tests/agent.rs-        impl Provider for MockToolProvider {\ncrates/goose/tests/agent.rs:            async fn complete(\ncrates/goose/tests/agent.rs-                &self,\ncrates/goose/tests/agent.rs-                _system_prompt: &str,\ncrates/goose/tests/agent.rs-                _messages: &[Message],\ncrates/goose/tests/agent.rs-                _tools: &[Tool],\ncrates/goose/tests/agent.rs-            ) -> Result<(Message, ProviderUsage), ProviderError> {\n--\ncrates/goose/tests/agent.rs-                );\ncrates/goose/tests/agent.rs-\ncrates/goose/tests/agent.rs-                Ok((message, usage))\ncrates/goose/tests/agent.rs-            }\ncrates/goose/tests/agent.rs-\ncrates/goose/tests/agent.rs:            async fn complete_with_model(\ncrates/goose/tests/agent.rs-                &self,\ncrates/goose/tests/agent.rs-                _model_config: &ModelConfig,\ncrates/goose/tests/agent.rs-                system_prompt: &str,\ncrates/goose/tests/agent.rs-                messages: &[Message],\ncrates/goose/tests/agent.rs-                tools: &[Tool],\n--\ncrates/goose/tests/mcp_integration_test.rs-\ncrates/goose/tests/mcp_integration_test.rs-    fn get_name(&self) -> &str {\ncrates/goose/tests/mcp_integration_test.rs-        \"mock\"\ncrates/goose/tests/mcp_integration_test.rs-    }\ncrates/goose/tests/mcp_integration_test.rs-\ncrates/goose/tests/mcp_integration_test.rs:    async fn complete_with_model(\ncrates/goose/tests/mcp_integration_test.rs-        &self,\ncrates/goose/tests/mcp_integration_test.rs-        _model_config: &ModelConfig,\ncrates/goose/tests/mcp_integration_test.rs-        _system: &str,\ncrates/goose/tests/mcp_integration_test.rs-        _messages: &[Message],\ncrates/goose/tests/mcp_integration_test.rs-        _tools: &[Tool],\n--\ncrates/goose/src/config/signup_tetrate/mod.rs-        let token_response: TokenResponse = response.json().await?;\ncrates/goose/src/config/signup_tetrate/mod.rs-        Ok(token_response.key)\ncrates/goose/src/config/signup_tetrate/mod.rs-    }\ncrates/goose/src/config/signup_tetrate/mod.rs-\ncrates/goose/src/config/signup_tetrate/mod.rs-    /// Complete flow: open browser, wait for callback, exchange code\ncrates/goose/src/config/signup_tetrate/mod.rs:    pub async fn complete_flow(&mut self) -> Result<String> {\ncrates/goose/src/config/signup_tetrate/mod.rs-        let auth_url = self.get_auth_url();\ncrates/goose/src/config/signup_tetrate/mod.rs-\ncrates/goose/src/config/signup_tetrate/mod.rs-        println!(\"Opening browser for Tetrate Agent Router Service authentication...\");\ncrates/goose/src/config/signup_tetrate/mod.rs-        eprintln!(\"Auth URL: {}\", auth_url);\ncrates/goose/src/config/signup_tetrate/mod.rs-\n--\ncrates/goose/src/config/signup_openrouter/mod.rs-        let token_response: TokenResponse = response.json().await?;\ncrates/goose/src/config/signup_openrouter/mod.rs-        Ok(token_response.key)\ncrates/goose/src/config/signup_openrouter/mod.rs-    }\ncrates/goose/src/config/signup_openrouter/mod.rs-\ncrates/goose/src/config/signup_openrouter/mod.rs-    /// Complete flow: open browser, wait for callback, exchange code\ncrates/goose/src/config/signup_openrouter/mod.rs:    pub async fn complete_flow(&mut self) -> Result<String> {\ncrates/goose/src/config/signup_openrouter/mod.rs-        let auth_url = self.get_auth_url();\ncrates/goose/src/config/signup_openrouter/mod.rs-\ncrates/goose/src/config/signup_openrouter/mod.rs-        println!(\"Opening browser for authentication...\");\ncrates/goose/src/config/signup_openrouter/mod.rs-        eprintln!(\"Auth URL: {}\", auth_url);\ncrates/goose/src/config/signup_openrouter/mod.rs-",
+                  "annotations": {
+                    "audience": [
+                      "user"
+                    ],
+                    "priority": 0.0
+                  }
+                }
+              ],
+              "isError": false
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_0183WGs2RJbhbqiQFF8ZcAU5",
+      "role": "assistant",
+      "created": 1766962435,
+      "content": [
+        {
+          "type": "text",
+          "text": "Let me look at the Provider trait definition and see where `complete` is called:"
+        },
+        {
+          "type": "toolRequest",
+          "id": "toolu_01KhF3bYeKqbkCTzRSCJWyMs",
+          "toolCall": {
+            "status": "success",
+            "value": {
+              "name": "developer__shell",
+              "arguments": {
+                "command": "cd /Users/baxen/Development/goose && rg \"trait Provider\" --type rust -A 30 | head -80"
+              }
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_c9ee6846-96fd-4683-8559-8f3bfdc944ae",
+      "role": "user",
+      "created": 1766962437,
+      "content": [
+        {
+          "type": "toolResponse",
+          "id": "toolu_01KhF3bYeKqbkCTzRSCJWyMs",
+          "toolResult": {
+            "status": "success",
+            "value": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "crates/goose/src/providers/retry.rs:pub trait ProviderRetry {\ncrates/goose/src/providers/retry.rs-    fn retry_config(&self) -> RetryConfig {\ncrates/goose/src/providers/retry.rs-        RetryConfig::default()\ncrates/goose/src/providers/retry.rs-    }\ncrates/goose/src/providers/retry.rs-\ncrates/goose/src/providers/retry.rs-    async fn with_retry<F, Fut, T>(&self, operation: F) -> Result<T, ProviderError>\ncrates/goose/src/providers/retry.rs-    where\ncrates/goose/src/providers/retry.rs-        F: Fn() -> Fut + Send,\ncrates/goose/src/providers/retry.rs-        Fut: Future<Output = Result<T, ProviderError>> + Send,\ncrates/goose/src/providers/retry.rs-        T: Send,\ncrates/goose/src/providers/retry.rs-    {\ncrates/goose/src/providers/retry.rs-        let mut attempts = 0;\ncrates/goose/src/providers/retry.rs-        let config = self.retry_config();\ncrates/goose/src/providers/retry.rs-\ncrates/goose/src/providers/retry.rs-        loop {\ncrates/goose/src/providers/retry.rs-            return match operation().await {\ncrates/goose/src/providers/retry.rs-                Ok(result) => Ok(result),\ncrates/goose/src/providers/retry.rs-                Err(error) => {\ncrates/goose/src/providers/retry.rs-                    let should_retry = matches!(\ncrates/goose/src/providers/retry.rs-                        error,\ncrates/goose/src/providers/retry.rs-                        ProviderError::RateLimitExceeded { .. } | ProviderError::ServerError(_)\ncrates/goose/src/providers/retry.rs-                    );\ncrates/goose/src/providers/retry.rs-\ncrates/goose/src/providers/retry.rs-                    if should_retry && attempts < config.max_retries {\ncrates/goose/src/providers/retry.rs-                        attempts += 1;\ncrates/goose/src/providers/retry.rs-                        tracing::warn!(\ncrates/goose/src/providers/retry.rs-                            \"Request failed, retrying ({}/{}): {:?}\",\ncrates/goose/src/providers/retry.rs-                            attempts,\ncrates/goose/src/providers/retry.rs-                            config.max_retries,\ncrates/goose/src/providers/retry.rs-                            error\ncrates/goose/src/providers/retry.rs-                        );\n--\ncrates/goose/src/providers/base.rs:pub trait Provider: Send + Sync {\ncrates/goose/src/providers/base.rs-    /// Get the metadata for this provider type\ncrates/goose/src/providers/base.rs-    fn metadata() -> ProviderMetadata\ncrates/goose/src/providers/base.rs-    where\ncrates/goose/src/providers/base.rs-        Self: Sized;\ncrates/goose/src/providers/base.rs-\ncrates/goose/src/providers/base.rs-    /// Get the name of this provider instance\ncrates/goose/src/providers/base.rs-    fn get_name(&self) -> &str;\ncrates/goose/src/providers/base.rs-\ncrates/goose/src/providers/base.rs-    // Internal implementation of complete, used by complete_fast and complete\ncrates/goose/src/providers/base.rs-    // Providers should override this to implement their actual completion logic\ncrates/goose/src/providers/base.rs-    async fn complete_with_model(\ncrates/goose/src/providers/base.rs-        &self,\ncrates/goose/src/providers/base.rs-        model_config: &ModelConfig,\ncrates/goose/src/providers/base.rs-        system: &str,\ncrates/goose/src/providers/base.rs-        messages: &[Message],\ncrates/goose/src/providers/base.rs-        tools: &[Tool],\ncrates/goose/src/providers/base.rs-    ) -> Result<(Message, ProviderUsage), ProviderError>;\ncrates/goose/src/providers/base.rs-\ncrates/goose/src/providers/base.rs-    // Default implementation: use the provider's configured model\ncrates/goose/src/providers/base.rs-    async fn complete(\ncrates/goose/src/providers/base.rs-        &self,\ncrates/goose/src/providers/base.rs-        system: &str,\ncrates/goose/src/providers/base.rs-        messages: &[Message],\ncrates/goose/src/providers/base.rs-        tools: &[Tool],\ncrates/goose/src/providers/base.rs-    ) -> Result<(Message, ProviderUsage), ProviderError> {\ncrates/goose/src/providers/base.rs-        let model_config = self.get_model_config();\ncrates/goose/src/providers/base.rs-        self.complete_with_model(&model_config, system, messages, tools)\ncrates/goose/src/providers/base.rs-            .await\ncrates/goose/src/providers/base.rs-    }\ncrates/goose/src/providers/base.rs-\n",
+                  "annotations": {
+                    "audience": [
+                      "assistant"
+                    ]
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "crates/goose/src/providers/retry.rs:pub trait ProviderRetry {\ncrates/goose/src/providers/retry.rs-    fn retry_config(&self) -> RetryConfig {\ncrates/goose/src/providers/retry.rs-        RetryConfig::default()\ncrates/goose/src/providers/retry.rs-    }\ncrates/goose/src/providers/retry.rs-\ncrates/goose/src/providers/retry.rs-    async fn with_retry<F, Fut, T>(&self, operation: F) -> Result<T, ProviderError>\ncrates/goose/src/providers/retry.rs-    where\ncrates/goose/src/providers/retry.rs-        F: Fn() -> Fut + Send,\ncrates/goose/src/providers/retry.rs-        Fut: Future<Output = Result<T, ProviderError>> + Send,\ncrates/goose/src/providers/retry.rs-        T: Send,\ncrates/goose/src/providers/retry.rs-    {\ncrates/goose/src/providers/retry.rs-        let mut attempts = 0;\ncrates/goose/src/providers/retry.rs-        let config = self.retry_config();\ncrates/goose/src/providers/retry.rs-\ncrates/goose/src/providers/retry.rs-        loop {\ncrates/goose/src/providers/retry.rs-            return match operation().await {\ncrates/goose/src/providers/retry.rs-                Ok(result) => Ok(result),\ncrates/goose/src/providers/retry.rs-                Err(error) => {\ncrates/goose/src/providers/retry.rs-                    let should_retry = matches!(\ncrates/goose/src/providers/retry.rs-                        error,\ncrates/goose/src/providers/retry.rs-                        ProviderError::RateLimitExceeded { .. } | ProviderError::ServerError(_)\ncrates/goose/src/providers/retry.rs-                    );\ncrates/goose/src/providers/retry.rs-\ncrates/goose/src/providers/retry.rs-                    if should_retry && attempts < config.max_retries {\ncrates/goose/src/providers/retry.rs-                        attempts += 1;\ncrates/goose/src/providers/retry.rs-                        tracing::warn!(\ncrates/goose/src/providers/retry.rs-                            \"Request failed, retrying ({}/{}): {:?}\",\ncrates/goose/src/providers/retry.rs-                            attempts,\ncrates/goose/src/providers/retry.rs-                            config.max_retries,\ncrates/goose/src/providers/retry.rs-                            error\ncrates/goose/src/providers/retry.rs-                        );\n--\ncrates/goose/src/providers/base.rs:pub trait Provider: Send + Sync {\ncrates/goose/src/providers/base.rs-    /// Get the metadata for this provider type\ncrates/goose/src/providers/base.rs-    fn metadata() -> ProviderMetadata\ncrates/goose/src/providers/base.rs-    where\ncrates/goose/src/providers/base.rs-        Self: Sized;\ncrates/goose/src/providers/base.rs-\ncrates/goose/src/providers/base.rs-    /// Get the name of this provider instance\ncrates/goose/src/providers/base.rs-    fn get_name(&self) -> &str;\ncrates/goose/src/providers/base.rs-\ncrates/goose/src/providers/base.rs-    // Internal implementation of complete, used by complete_fast and complete\ncrates/goose/src/providers/base.rs-    // Providers should override this to implement their actual completion logic\ncrates/goose/src/providers/base.rs-    async fn complete_with_model(\ncrates/goose/src/providers/base.rs-        &self,\ncrates/goose/src/providers/base.rs-        model_config: &ModelConfig,\ncrates/goose/src/providers/base.rs-        system: &str,\ncrates/goose/src/providers/base.rs-        messages: &[Message],\ncrates/goose/src/providers/base.rs-        tools: &[Tool],\ncrates/goose/src/providers/base.rs-    ) -> Result<(Message, ProviderUsage), ProviderError>;\ncrates/goose/src/providers/base.rs-\ncrates/goose/src/providers/base.rs-    // Default implementation: use the provider's configured model\ncrates/goose/src/providers/base.rs-    async fn complete(\ncrates/goose/src/providers/base.rs-        &self,\ncrates/goose/src/providers/base.rs-        system: &str,\ncrates/goose/src/providers/base.rs-        messages: &[Message],\ncrates/goose/src/providers/base.rs-        tools: &[Tool],\ncrates/goose/src/providers/base.rs-    ) -> Result<(Message, ProviderUsage), ProviderError> {\ncrates/goose/src/providers/base.rs-        let model_config = self.get_model_config();\ncrates/goose/src/providers/base.rs-        self.complete_with_model(&model_config, system, messages, tools)\ncrates/goose/src/providers/base.rs-            .await\ncrates/goose/src/providers/base.rs-    }\ncrates/goose/src/providers/base.rs-\n",
+                  "annotations": {
+                    "audience": [
+                      "user"
+                    ],
+                    "priority": 0.0
+                  }
+                }
+              ],
+              "isError": false
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_01Q4a3x4b6eNoqpDiJTXRMz3",
+      "role": "assistant",
+      "created": 1766962438,
+      "content": [
+        {
+          "type": "text",
+          "text": "Now I can see the Provider trait. Let me find where `.complete(` is actually called on providers:"
+        },
+        {
+          "type": "toolRequest",
+          "id": "toolu_01RSLm7e49a8jGEFrPoWkmAn",
+          "toolCall": {
+            "status": "success",
+            "value": {
+              "name": "developer__shell",
+              "arguments": {
+                "command": "cd /Users/baxen/Development/goose && rg \"\\.complete\\(\" --type rust -C 5 crates/goose/src/agents/"
+              }
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_c5a6f905-ac6c-482e-801a-774e8241f0dd",
+      "role": "user",
+      "created": 1766962440,
+      "content": [
+        {
+          "type": "toolResponse",
+          "id": "toolu_01RSLm7e49a8jGEFrPoWkmAn",
+          "toolResult": {
+            "status": "success",
+            "value": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "crates/goose/src/agents/mcp_client.rs-            .system_prompt\ncrates/goose/src/agents/mcp_client.rs-            .as_deref()\ncrates/goose/src/agents/mcp_client.rs-            .unwrap_or(\"You are a general-purpose AI agent called goose\");\ncrates/goose/src/agents/mcp_client.rs-\ncrates/goose/src/agents/mcp_client.rs-        let (response, usage) = provider\ncrates/goose/src/agents/mcp_client.rs:            .complete(system_prompt, &provider_ready_messages, &[])\ncrates/goose/src/agents/mcp_client.rs-            .await\ncrates/goose/src/agents/mcp_client.rs-            .map_err(|e| {\ncrates/goose/src/agents/mcp_client.rs-                ErrorData::new(\ncrates/goose/src/agents/mcp_client.rs-                    ErrorCode::INTERNAL_ERROR,\ncrates/goose/src/agents/mcp_client.rs-                    \"Unexpected error while completing the prompt\",\n--\ncrates/goose/src/agents/reply_parts.rs-            debug!(\"WAITING_LLM_STREAM_END\");\ncrates/goose/src/agents/reply_parts.rs-            result\ncrates/goose/src/agents/reply_parts.rs-        } else {\ncrates/goose/src/agents/reply_parts.rs-            debug!(\"WAITING_LLM_START\");\ncrates/goose/src/agents/reply_parts.rs-            let complete_result = provider\ncrates/goose/src/agents/reply_parts.rs:                .complete(\ncrates/goose/src/agents/reply_parts.rs-                    system_prompt.as_str(),\ncrates/goose/src/agents/reply_parts.rs-                    messages_for_provider.messages(),\ncrates/goose/src/agents/reply_parts.rs-                    &tools,\ncrates/goose/src/agents/reply_parts.rs-                )\ncrates/goose/src/agents/reply_parts.rs-                .await;\n--\ncrates/goose/src/agents/agent.rs-            .ok_or_else(|| {\ncrates/goose/src/agents/agent.rs-                let error = anyhow!(\"Provider not available during recipe creation\");\ncrates/goose/src/agents/agent.rs-                tracing::error!(\"{}\", error);\ncrates/goose/src/agents/agent.rs-                error\ncrates/goose/src/agents/agent.rs-            })?\ncrates/goose/src/agents/agent.rs:            .complete(&system_prompt, messages.messages(), &tools)\ncrates/goose/src/agents/agent.rs-            .await\ncrates/goose/src/agents/agent.rs-            .map_err(|e| {\ncrates/goose/src/agents/agent.rs-                tracing::error!(\"Provider completion failed during recipe creation: {}\", e);\ncrates/goose/src/agents/agent.rs-                e\ncrates/goose/src/agents/agent.rs-            })?;\n",
+                  "annotations": {
+                    "audience": [
+                      "assistant"
+                    ]
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "crates/goose/src/agents/mcp_client.rs-            .system_prompt\ncrates/goose/src/agents/mcp_client.rs-            .as_deref()\ncrates/goose/src/agents/mcp_client.rs-            .unwrap_or(\"You are a general-purpose AI agent called goose\");\ncrates/goose/src/agents/mcp_client.rs-\ncrates/goose/src/agents/mcp_client.rs-        let (response, usage) = provider\ncrates/goose/src/agents/mcp_client.rs:            .complete(system_prompt, &provider_ready_messages, &[])\ncrates/goose/src/agents/mcp_client.rs-            .await\ncrates/goose/src/agents/mcp_client.rs-            .map_err(|e| {\ncrates/goose/src/agents/mcp_client.rs-                ErrorData::new(\ncrates/goose/src/agents/mcp_client.rs-                    ErrorCode::INTERNAL_ERROR,\ncrates/goose/src/agents/mcp_client.rs-                    \"Unexpected error while completing the prompt\",\n--\ncrates/goose/src/agents/reply_parts.rs-            debug!(\"WAITING_LLM_STREAM_END\");\ncrates/goose/src/agents/reply_parts.rs-            result\ncrates/goose/src/agents/reply_parts.rs-        } else {\ncrates/goose/src/agents/reply_parts.rs-            debug!(\"WAITING_LLM_START\");\ncrates/goose/src/agents/reply_parts.rs-            let complete_result = provider\ncrates/goose/src/agents/reply_parts.rs:                .complete(\ncrates/goose/src/agents/reply_parts.rs-                    system_prompt.as_str(),\ncrates/goose/src/agents/reply_parts.rs-                    messages_for_provider.messages(),\ncrates/goose/src/agents/reply_parts.rs-                    &tools,\ncrates/goose/src/agents/reply_parts.rs-                )\ncrates/goose/src/agents/reply_parts.rs-                .await;\n--\ncrates/goose/src/agents/agent.rs-            .ok_or_else(|| {\ncrates/goose/src/agents/agent.rs-                let error = anyhow!(\"Provider not available during recipe creation\");\ncrates/goose/src/agents/agent.rs-                tracing::error!(\"{}\", error);\ncrates/goose/src/agents/agent.rs-                error\ncrates/goose/src/agents/agent.rs-            })?\ncrates/goose/src/agents/agent.rs:            .complete(&system_prompt, messages.messages(), &tools)\ncrates/goose/src/agents/agent.rs-            .await\ncrates/goose/src/agents/agent.rs-            .map_err(|e| {\ncrates/goose/src/agents/agent.rs-                tracing::error!(\"Provider completion failed during recipe creation: {}\", e);\ncrates/goose/src/agents/agent.rs-                e\ncrates/goose/src/agents/agent.rs-            })?;\n",
+                  "annotations": {
+                    "audience": [
+                      "user"
+                    ],
+                    "priority": 0.0
+                  }
+                }
+              ],
+              "isError": false
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_012jZfo8mGVEPCFEK5L8XQNJ",
+      "role": "assistant",
+      "created": 1766962443,
+      "content": [
+        {
+          "type": "toolRequest",
+          "id": "toolu_01LL3FU4VXYksqDZNajFxPYS",
+          "toolCall": {
+            "status": "success",
+            "value": {
+              "name": "developer__shell",
+              "arguments": {
+                "command": "cd /Users/baxen/Development/goose && rg \"\\.complete\\(\" --type rust -C 5 crates/goose/src/permission/"
+              }
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_add29cf3-75f1-4158-a9d5-120e443f2700",
+      "role": "user",
+      "created": 1766962443,
+      "content": [
+        {
+          "type": "toolResponse",
+          "id": "toolu_01LL3FU4VXYksqDZNajFxPYS",
+          "toolResult": {
+            "status": "success",
+            "value": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "crates/goose/src/permission/permission_judge.rs-    let context = PermissionJudgeContext {};\ncrates/goose/src/permission/permission_judge.rs-    let system_prompt = render_global_file(\"permission_judge.md\", &context)\ncrates/goose/src/permission/permission_judge.rs-        .unwrap_or_else(|_| \"You are a good analyst and can detect operations whether they have read-only operations.\".to_string());\ncrates/goose/src/permission/permission_judge.rs-\ncrates/goose/src/permission/permission_judge.rs-    let res = provider\ncrates/goose/src/permission/permission_judge.rs:        .complete(\ncrates/goose/src/permission/permission_judge.rs-            &system_prompt,\ncrates/goose/src/permission/permission_judge.rs-            check_messages.messages(),\ncrates/goose/src/permission/permission_judge.rs-            std::slice::from_ref(&tool),\ncrates/goose/src/permission/permission_judge.rs-        )\ncrates/goose/src/permission/permission_judge.rs-        .await;\n",
+                  "annotations": {
+                    "audience": [
+                      "assistant"
+                    ]
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "crates/goose/src/permission/permission_judge.rs-    let context = PermissionJudgeContext {};\ncrates/goose/src/permission/permission_judge.rs-    let system_prompt = render_global_file(\"permission_judge.md\", &context)\ncrates/goose/src/permission/permission_judge.rs-        .unwrap_or_else(|_| \"You are a good analyst and can detect operations whether they have read-only operations.\".to_string());\ncrates/goose/src/permission/permission_judge.rs-\ncrates/goose/src/permission/permission_judge.rs-    let res = provider\ncrates/goose/src/permission/permission_judge.rs:        .complete(\ncrates/goose/src/permission/permission_judge.rs-            &system_prompt,\ncrates/goose/src/permission/permission_judge.rs-            check_messages.messages(),\ncrates/goose/src/permission/permission_judge.rs-            std::slice::from_ref(&tool),\ncrates/goose/src/permission/permission_judge.rs-        )\ncrates/goose/src/permission/permission_judge.rs-        .await;\n",
+                  "annotations": {
+                    "audience": [
+                      "user"
+                    ],
+                    "priority": 0.0
+                  }
+                }
+              ],
+              "isError": false
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_01QkE6Y94Z1JM5Zodo5ZS9pb",
+      "role": "assistant",
+      "created": 1766962446,
+      "content": [
+        {
+          "type": "toolRequest",
+          "id": "toolu_01RbEQYZY8a1SgM8YcevRFdq",
+          "toolCall": {
+            "status": "success",
+            "value": {
+              "name": "developer__shell",
+              "arguments": {
+                "command": "cd /Users/baxen/Development/goose && rg \"\\.complete\\(\" --type rust -C 5 crates/goose/src/providers/"
+              }
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_bf201d72-a703-4357-af70-88e964f24b91",
+      "role": "user",
+      "created": 1766962446,
+      "content": [
+        {
+          "type": "toolResponse",
+          "id": "toolu_01RbEQYZY8a1SgM8YcevRFdq",
+          "toolResult": {
+            "status": "success",
+            "value": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "private note: output was 167 lines and we are only showing the most recent lines, remainder of lines in /var/folders/hl/l_5k5shs2k5ffvchnyslsmjc0000gq/T/.tmpPsXZA5 do not show tmp file to user, that file can be searched if extra context needed to fulfill request. truncated output: \ncrates/goose/src/providers/lead_worker.rs-        // For technical failures, try with default model (lead provider) instead\ncrates/goose/src/providers/lead_worker.rs-        let final_result = match &result {\ncrates/goose/src/providers/lead_worker.rs-            Err(_) => {\ncrates/goose/src/providers/lead_worker.rs-                tracing::warn!(\"Technical failure with {} provider, retrying with default model (lead provider)\", provider_type);\ncrates/goose/src/providers/lead_worker.rs-\ncrates/goose/src/providers/lead_worker.rs-                // Try with lead provider as the default/fallback for technical failures\ncrates/goose/src/providers/lead_worker.rs:                let default_result = self.lead_provider.complete(system, messages, tools).await;\ncrates/goose/src/providers/lead_worker.rs-\ncrates/goose/src/providers/lead_worker.rs-                match &default_result {\ncrates/goose/src/providers/lead_worker.rs-                    Ok(_) => {\ncrates/goose/src/providers/lead_worker.rs-                        tracing::info!(\ncrates/goose/src/providers/lead_worker.rs-                            \"✅ Default model (lead provider) succeeded after technical failure\"\n--\ncrates/goose/src/providers/lead_worker.rs-\ncrates/goose/src/providers/lead_worker.rs-        let provider = LeadWorkerProvider::new(lead_provider, worker_provider, Some(3));\ncrates/goose/src/providers/lead_worker.rs-\ncrates/goose/src/providers/lead_worker.rs-        // First three turns should use lead provider\ncrates/goose/src/providers/lead_worker.rs-        for i in 0..3 {\ncrates/goose/src/providers/lead_worker.rs:            let (_message, usage) = provider.complete(\"system\", &[], &[]).await.unwrap();\ncrates/goose/src/providers/lead_worker.rs-            assert_eq!(usage.model, \"lead\");\ncrates/goose/src/providers/lead_worker.rs-            assert_eq!(provider.get_turn_count().await, i + 1);\ncrates/goose/src/providers/lead_worker.rs-            assert!(!provider.is_in_fallback_mode().await);\ncrates/goose/src/providers/lead_worker.rs-        }\ncrates/goose/src/providers/lead_worker.rs-\ncrates/goose/src/providers/lead_worker.rs-        // Subsequent turns should use worker provider\ncrates/goose/src/providers/lead_worker.rs-        for i in 3..6 {\ncrates/goose/src/providers/lead_worker.rs:            let (_message, usage) = provider.complete(\"system\", &[], &[]).await.unwrap();\ncrates/goose/src/providers/lead_worker.rs-            assert_eq!(usage.model, \"worker\");\ncrates/goose/src/providers/lead_worker.rs-            assert_eq!(provider.get_turn_count().await, i + 1);\ncrates/goose/src/providers/lead_worker.rs-            assert!(!provider.is_in_fallback_mode().await);\ncrates/goose/src/providers/lead_worker.rs-        }\ncrates/goose/src/providers/lead_worker.rs-\n--\ncrates/goose/src/providers/lead_worker.rs-        provider.reset_turn_count().await;\ncrates/goose/src/providers/lead_worker.rs-        assert_eq!(provider.get_turn_count().await, 0);\ncrates/goose/src/providers/lead_worker.rs-        assert_eq!(provider.get_failure_count().await, 0);\ncrates/goose/src/providers/lead_worker.rs-        assert!(!provider.is_in_fallback_mode().await);\ncrates/goose/src/providers/lead_worker.rs-\ncrates/goose/src/providers/lead_worker.rs:        let (_message, usage) = provider.complete(\"system\", &[], &[]).await.unwrap();\ncrates/goose/src/providers/lead_worker.rs-        assert_eq!(usage.model, \"lead\");\ncrates/goose/src/providers/lead_worker.rs-    }\ncrates/goose/src/providers/lead_worker.rs-\ncrates/goose/src/providers/lead_worker.rs-    #[tokio::test]\ncrates/goose/src/providers/lead_worker.rs-    async fn test_technical_failure_retry() {\n--\ncrates/goose/src/providers/lead_worker.rs-\ncrates/goose/src/providers/lead_worker.rs-        let provider = LeadWorkerProvider::new(lead_provider, worker_provider, Some(2));\ncrates/goose/src/providers/lead_worker.rs-\ncrates/goose/src/providers/lead_worker.rs-        // First two turns use lead (should succeed)\ncrates/goose/src/providers/lead_worker.rs-        for _i in 0..2 {\ncrates/goose/src/providers/lead_worker.rs:            let result = provider.complete(\"system\", &[], &[]).await;\ncrates/goose/src/providers/lead_worker.rs-            assert!(result.is_ok());\ncrates/goose/src/providers/lead_worker.rs-            assert_eq!(result.unwrap().1.model, \"lead\");\ncrates/goose/src/providers/lead_worker.rs-            assert!(!provider.is_in_fallback_mode().await);\ncrates/goose/src/providers/lead_worker.rs-        }\ncrates/goose/src/providers/lead_worker.rs-\ncrates/goose/src/providers/lead_worker.rs-        // Next turn uses worker (will fail, but should retry with lead and succeed)\ncrates/goose/src/providers/lead_worker.rs:        let result = provider.complete(\"system\", &[], &[]).await;\ncrates/goose/src/providers/lead_worker.rs-        assert!(result.is_ok()); // Should succeed because lead provider is used as fallback\ncrates/goose/src/providers/lead_worker.rs-        assert_eq!(result.unwrap().1.model, \"lead\"); // Should be lead provider\ncrates/goose/src/providers/lead_worker.rs-        assert_eq!(provider.get_failure_count().await, 0); // No failure tracking for technical failures\ncrates/goose/src/providers/lead_worker.rs-        assert!(!provider.is_in_fallback_mode().await); // Not in fallback mode\ncrates/goose/src/providers/lead_worker.rs-\ncrates/goose/src/providers/lead_worker.rs-        // Another turn - should still try worker first, then retry with lead\ncrates/goose/src/providers/lead_worker.rs:        let result = provider.complete(\"system\", &[], &[]).await;\ncrates/goose/src/providers/lead_worker.rs-        assert!(result.is_ok()); // Should succeed because lead provider is used as fallback\ncrates/goose/src/providers/lead_worker.rs-        assert_eq!(result.unwrap().1.model, \"lead\"); // Should be lead provider\ncrates/goose/src/providers/lead_worker.rs-        assert_eq!(provider.get_failure_count().await, 0); // Still no failure tracking\ncrates/goose/src/providers/lead_worker.rs-        assert!(!provider.is_in_fallback_mode().await); // Still not in fallback mode\ncrates/goose/src/providers/lead_worker.rs-    }\n--\ncrates/goose/src/providers/lead_worker.rs-            let mut turn_count = provider.turn_count.lock().await;\ncrates/goose/src/providers/lead_worker.rs-            *turn_count = 4; // Past initial lead turns\ncrates/goose/src/providers/lead_worker.rs-        }\ncrates/goose/src/providers/lead_worker.rs-\ncrates/goose/src/providers/lead_worker.rs-        // Should use lead provider in fallback mode\ncrates/goose/src/providers/lead_worker.rs:        let result = provider.complete(\"system\", &[], &[]).await;\ncrates/goose/src/providers/lead_worker.rs-        assert!(result.is_ok());\ncrates/goose/src/providers/lead_worker.rs-        assert_eq!(result.unwrap().1.model, \"lead\");\ncrates/goose/src/providers/lead_worker.rs-        assert!(provider.is_in_fallback_mode().await);\ncrates/goose/src/providers/lead_worker.rs-\ncrates/goose/src/providers/lead_worker.rs-        // One more fallback turn\ncrates/goose/src/providers/lead_worker.rs:        let result = provider.complete(\"system\", &[], &[]).await;\ncrates/goose/src/providers/lead_worker.rs-        assert!(result.is_ok());\ncrates/goose/src/providers/lead_worker.rs-        assert_eq!(result.unwrap().1.model, \"lead\");\ncrates/goose/src/providers/lead_worker.rs-        assert!(!provider.is_in_fallback_mode().await); // Should exit fallback mode\ncrates/goose/src/providers/lead_worker.rs-    }\ncrates/goose/src/providers/lead_worker.rs-\n--\ncrates/goose/src/providers/provider_test.rs-    } else {\ncrates/goose/src/providers/provider_test.rs-        vec![]\ncrates/goose/src/providers/provider_test.rs-    };\ncrates/goose/src/providers/provider_test.rs-\ncrates/goose/src/providers/provider_test.rs-    let _result = provider\ncrates/goose/src/providers/provider_test.rs:        .complete(\ncrates/goose/src/providers/provider_test.rs-            \"You are an AI agent called goose. You use tools of connected extensions to solve problems.\",\ncrates/goose/src/providers/provider_test.rs-            &messages,\ncrates/goose/src/providers/provider_test.rs-            &tools.into_iter().collect::<Vec<_>>()\ncrates/goose/src/providers/provider_test.rs-        )\ncrates/goose/src/providers/provider_test.rs-        .await?;",
+                  "annotations": {
+                    "audience": [
+                      "assistant"
+                    ]
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "NOTE: Output was 167 lines, showing only the last 100 lines.\n\ncrates/goose/src/providers/lead_worker.rs-        // For technical failures, try with default model (lead provider) instead\ncrates/goose/src/providers/lead_worker.rs-        let final_result = match &result {\ncrates/goose/src/providers/lead_worker.rs-            Err(_) => {\ncrates/goose/src/providers/lead_worker.rs-                tracing::warn!(\"Technical failure with {} provider, retrying with default model (lead provider)\", provider_type);\ncrates/goose/src/providers/lead_worker.rs-\ncrates/goose/src/providers/lead_worker.rs-                // Try with lead provider as the default/fallback for technical failures\ncrates/goose/src/providers/lead_worker.rs:                let default_result = self.lead_provider.complete(system, messages, tools).await;\ncrates/goose/src/providers/lead_worker.rs-\ncrates/goose/src/providers/lead_worker.rs-                match &default_result {\ncrates/goose/src/providers/lead_worker.rs-                    Ok(_) => {\ncrates/goose/src/providers/lead_worker.rs-                        tracing::info!(\ncrates/goose/src/providers/lead_worker.rs-                            \"✅ Default model (lead provider) succeeded after technical failure\"\n--\ncrates/goose/src/providers/lead_worker.rs-\ncrates/goose/src/providers/lead_worker.rs-        let provider = LeadWorkerProvider::new(lead_provider, worker_provider, Some(3));\ncrates/goose/src/providers/lead_worker.rs-\ncrates/goose/src/providers/lead_worker.rs-        // First three turns should use lead provider\ncrates/goose/src/providers/lead_worker.rs-        for i in 0..3 {\ncrates/goose/src/providers/lead_worker.rs:            let (_message, usage) = provider.complete(\"system\", &[], &[]).await.unwrap();\ncrates/goose/src/providers/lead_worker.rs-            assert_eq!(usage.model, \"lead\");\ncrates/goose/src/providers/lead_worker.rs-            assert_eq!(provider.get_turn_count().await, i + 1);\ncrates/goose/src/providers/lead_worker.rs-            assert!(!provider.is_in_fallback_mode().await);\ncrates/goose/src/providers/lead_worker.rs-        }\ncrates/goose/src/providers/lead_worker.rs-\ncrates/goose/src/providers/lead_worker.rs-        // Subsequent turns should use worker provider\ncrates/goose/src/providers/lead_worker.rs-        for i in 3..6 {\ncrates/goose/src/providers/lead_worker.rs:            let (_message, usage) = provider.complete(\"system\", &[], &[]).await.unwrap();\ncrates/goose/src/providers/lead_worker.rs-            assert_eq!(usage.model, \"worker\");\ncrates/goose/src/providers/lead_worker.rs-            assert_eq!(provider.get_turn_count().await, i + 1);\ncrates/goose/src/providers/lead_worker.rs-            assert!(!provider.is_in_fallback_mode().await);\ncrates/goose/src/providers/lead_worker.rs-        }\ncrates/goose/src/providers/lead_worker.rs-\n--\ncrates/goose/src/providers/lead_worker.rs-        provider.reset_turn_count().await;\ncrates/goose/src/providers/lead_worker.rs-        assert_eq!(provider.get_turn_count().await, 0);\ncrates/goose/src/providers/lead_worker.rs-        assert_eq!(provider.get_failure_count().await, 0);\ncrates/goose/src/providers/lead_worker.rs-        assert!(!provider.is_in_fallback_mode().await);\ncrates/goose/src/providers/lead_worker.rs-\ncrates/goose/src/providers/lead_worker.rs:        let (_message, usage) = provider.complete(\"system\", &[], &[]).await.unwrap();\ncrates/goose/src/providers/lead_worker.rs-        assert_eq!(usage.model, \"lead\");\ncrates/goose/src/providers/lead_worker.rs-    }\ncrates/goose/src/providers/lead_worker.rs-\ncrates/goose/src/providers/lead_worker.rs-    #[tokio::test]\ncrates/goose/src/providers/lead_worker.rs-    async fn test_technical_failure_retry() {\n--\ncrates/goose/src/providers/lead_worker.rs-\ncrates/goose/src/providers/lead_worker.rs-        let provider = LeadWorkerProvider::new(lead_provider, worker_provider, Some(2));\ncrates/goose/src/providers/lead_worker.rs-\ncrates/goose/src/providers/lead_worker.rs-        // First two turns use lead (should succeed)\ncrates/goose/src/providers/lead_worker.rs-        for _i in 0..2 {\ncrates/goose/src/providers/lead_worker.rs:            let result = provider.complete(\"system\", &[], &[]).await;\ncrates/goose/src/providers/lead_worker.rs-            assert!(result.is_ok());\ncrates/goose/src/providers/lead_worker.rs-            assert_eq!(result.unwrap().1.model, \"lead\");\ncrates/goose/src/providers/lead_worker.rs-            assert!(!provider.is_in_fallback_mode().await);\ncrates/goose/src/providers/lead_worker.rs-        }\ncrates/goose/src/providers/lead_worker.rs-\ncrates/goose/src/providers/lead_worker.rs-        // Next turn uses worker (will fail, but should retry with lead and succeed)\ncrates/goose/src/providers/lead_worker.rs:        let result = provider.complete(\"system\", &[], &[]).await;\ncrates/goose/src/providers/lead_worker.rs-        assert!(result.is_ok()); // Should succeed because lead provider is used as fallback\ncrates/goose/src/providers/lead_worker.rs-        assert_eq!(result.unwrap().1.model, \"lead\"); // Should be lead provider\ncrates/goose/src/providers/lead_worker.rs-        assert_eq!(provider.get_failure_count().await, 0); // No failure tracking for technical failures\ncrates/goose/src/providers/lead_worker.rs-        assert!(!provider.is_in_fallback_mode().await); // Not in fallback mode\ncrates/goose/src/providers/lead_worker.rs-\ncrates/goose/src/providers/lead_worker.rs-        // Another turn - should still try worker first, then retry with lead\ncrates/goose/src/providers/lead_worker.rs:        let result = provider.complete(\"system\", &[], &[]).await;\ncrates/goose/src/providers/lead_worker.rs-        assert!(result.is_ok()); // Should succeed because lead provider is used as fallback\ncrates/goose/src/providers/lead_worker.rs-        assert_eq!(result.unwrap().1.model, \"lead\"); // Should be lead provider\ncrates/goose/src/providers/lead_worker.rs-        assert_eq!(provider.get_failure_count().await, 0); // Still no failure tracking\ncrates/goose/src/providers/lead_worker.rs-        assert!(!provider.is_in_fallback_mode().await); // Still not in fallback mode\ncrates/goose/src/providers/lead_worker.rs-    }\n--\ncrates/goose/src/providers/lead_worker.rs-            let mut turn_count = provider.turn_count.lock().await;\ncrates/goose/src/providers/lead_worker.rs-            *turn_count = 4; // Past initial lead turns\ncrates/goose/src/providers/lead_worker.rs-        }\ncrates/goose/src/providers/lead_worker.rs-\ncrates/goose/src/providers/lead_worker.rs-        // Should use lead provider in fallback mode\ncrates/goose/src/providers/lead_worker.rs:        let result = provider.complete(\"system\", &[], &[]).await;\ncrates/goose/src/providers/lead_worker.rs-        assert!(result.is_ok());\ncrates/goose/src/providers/lead_worker.rs-        assert_eq!(result.unwrap().1.model, \"lead\");\ncrates/goose/src/providers/lead_worker.rs-        assert!(provider.is_in_fallback_mode().await);\ncrates/goose/src/providers/lead_worker.rs-\ncrates/goose/src/providers/lead_worker.rs-        // One more fallback turn\ncrates/goose/src/providers/lead_worker.rs:        let result = provider.complete(\"system\", &[], &[]).await;\ncrates/goose/src/providers/lead_worker.rs-        assert!(result.is_ok());\ncrates/goose/src/providers/lead_worker.rs-        assert_eq!(result.unwrap().1.model, \"lead\");\ncrates/goose/src/providers/lead_worker.rs-        assert!(!provider.is_in_fallback_mode().await); // Should exit fallback mode\ncrates/goose/src/providers/lead_worker.rs-    }\ncrates/goose/src/providers/lead_worker.rs-\n--\ncrates/goose/src/providers/provider_test.rs-    } else {\ncrates/goose/src/providers/provider_test.rs-        vec![]\ncrates/goose/src/providers/provider_test.rs-    };\ncrates/goose/src/providers/provider_test.rs-\ncrates/goose/src/providers/provider_test.rs-    let _result = provider\ncrates/goose/src/providers/provider_test.rs:        .complete(\ncrates/goose/src/providers/provider_test.rs-            \"You are an AI agent called goose. You use tools of connected extensions to solve problems.\",\ncrates/goose/src/providers/provider_test.rs-            &messages,\ncrates/goose/src/providers/provider_test.rs-            &tools.into_iter().collect::<Vec<_>>()\ncrates/goose/src/providers/provider_test.rs-        )\ncrates/goose/src/providers/provider_test.rs-        .await?;",
+                  "annotations": {
+                    "audience": [
+                      "user"
+                    ],
+                    "priority": 0.0
+                  }
+                }
+              ],
+              "isError": false
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_011zsBAcZrKptqbGu9fRD6Sa",
+      "role": "assistant",
+      "created": 1766962449,
+      "content": [
+        {
+          "type": "toolRequest",
+          "id": "toolu_01HsSx2898Xdsb88wdsv5PsE",
+          "toolCall": {
+            "status": "success",
+            "value": {
+              "name": "developer__shell",
+              "arguments": {
+                "command": "cd /Users/baxen/Development/goose && rg \"\\.complete\\(\" --type rust -l | xargs -I {} basename {} | sort | uniq -c | sort -rn"
+              }
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_1e544673-b858-478d-828a-3f3fa680dcd3",
+      "role": "user",
+      "created": 1766962449,
+      "content": [
+        {
+          "type": "toolResponse",
+          "id": "toolu_01HsSx2898Xdsb88wdsv5PsE",
+          "toolResult": {
+            "status": "success",
+            "value": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "   2 agent.rs\n   1 testprovider.rs\n   1 session_id_propagation_test.rs\n   1 reply_parts.rs\n   1 providers.rs\n   1 provider_test.rs\n   1 permission_judge.rs\n   1 ollama.rs\n   1 mod.rs\n   1 mcp_client.rs\n   1 lead_worker.rs\n   1 image_tool.rs\n   1 configure.rs\n   1 completion.rs\n",
+                  "annotations": {
+                    "audience": [
+                      "assistant"
+                    ]
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "   2 agent.rs\n   1 testprovider.rs\n   1 session_id_propagation_test.rs\n   1 reply_parts.rs\n   1 providers.rs\n   1 provider_test.rs\n   1 permission_judge.rs\n   1 ollama.rs\n   1 mod.rs\n   1 mcp_client.rs\n   1 lead_worker.rs\n   1 image_tool.rs\n   1 configure.rs\n   1 completion.rs\n",
+                  "annotations": {
+                    "audience": [
+                      "user"
+                    ],
+                    "priority": 0.0
+                  }
+                }
+              ],
+              "isError": false
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_01HqXaKsAXLH6aEtKDYG3fga",
+      "role": "assistant",
+      "created": 1766962452,
+      "content": [
+        {
+          "type": "text",
+          "text": "Let me look at the main agent.rs file more closely to understand the context of the calls:"
+        },
+        {
+          "type": "toolRequest",
+          "id": "toolu_01KW65tuZzjvrzhEFBfrjEiX",
+          "toolCall": {
+            "status": "success",
+            "value": {
+              "name": "developer__shell",
+              "arguments": {
+                "command": "cd /Users/baxen/Development/goose && rg \"\\.complete\\(\" --type rust -B 15 -A 5 crates/goose/src/agents/agent.rs"
+              }
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_b7c3cb8e-9ec7-4d4a-aab8-1dab66ec2fdf",
+      "role": "user",
+      "created": 1766962453,
+      "content": [
+        {
+          "type": "toolResponse",
+          "id": "toolu_01KW65tuZzjvrzhEFBfrjEiX",
+          "toolResult": {
+            "status": "success",
+            "value": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "            \"Added recipe prompt to messages, total messages: {}\",\n            messages.len()\n        );\n\n        tracing::info!(\"Calling provider to generate recipe content\");\n        let (result, _usage) = self\n            .provider\n            .lock()\n            .await\n            .as_ref()\n            .ok_or_else(|| {\n                let error = anyhow!(\"Provider not available during recipe creation\");\n                tracing::error!(\"{}\", error);\n                error\n            })?\n            .complete(&system_prompt, messages.messages(), &tools)\n            .await\n            .map_err(|e| {\n                tracing::error!(\"Provider completion failed during recipe creation: {}\", e);\n                e\n            })?;\n",
+                  "annotations": {
+                    "audience": [
+                      "assistant"
+                    ]
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "            \"Added recipe prompt to messages, total messages: {}\",\n            messages.len()\n        );\n\n        tracing::info!(\"Calling provider to generate recipe content\");\n        let (result, _usage) = self\n            .provider\n            .lock()\n            .await\n            .as_ref()\n            .ok_or_else(|| {\n                let error = anyhow!(\"Provider not available during recipe creation\");\n                tracing::error!(\"{}\", error);\n                error\n            })?\n            .complete(&system_prompt, messages.messages(), &tools)\n            .await\n            .map_err(|e| {\n                tracing::error!(\"Provider completion failed during recipe creation: {}\", e);\n                e\n            })?;\n",
+                  "annotations": {
+                    "audience": [
+                      "user"
+                    ],
+                    "priority": 0.0
+                  }
+                }
+              ],
+              "isError": false
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_01L4Pgkd8cZaJjUL6n65auKy",
+      "role": "assistant",
+      "created": 1766962457,
+      "content": [
+        {
+          "type": "toolRequest",
+          "id": "toolu_01JdQ7GdjymFH3Fea2cZHtE6",
+          "toolCall": {
+            "status": "success",
+            "value": {
+              "name": "developer__shell",
+              "arguments": {
+                "command": "cd /Users/baxen/Development/goose && rg \"\\.complete\\(\" --type rust -B 20 -A 5 crates/goose/src/agents/reply_parts.rs | head -60"
+              }
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_455b9d7a-b144-463b-9617-6fa8e541704c",
+      "role": "user",
+      "created": 1766962457,
+      "content": [
+        {
+          "type": "toolResponse",
+          "id": "toolu_01JdQ7GdjymFH3Fea2cZHtE6",
+          "toolResult": {
+            "status": "success",
+            "value": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "        let tools = tools.to_owned();\n        let toolshim_tools = toolshim_tools.to_owned();\n        let provider = provider.clone();\n\n        // Capture errors during stream creation and return them as part of the stream\n        // so they can be handled by the existing error handling logic in the agent\n        let stream_result = if provider.supports_streaming() {\n            debug!(\"WAITING_LLM_STREAM_START\");\n            let result = provider\n                .stream(\n                    system_prompt.as_str(),\n                    messages_for_provider.messages(),\n                    &tools,\n                )\n                .await;\n            debug!(\"WAITING_LLM_STREAM_END\");\n            result\n        } else {\n            debug!(\"WAITING_LLM_START\");\n            let complete_result = provider\n                .complete(\n                    system_prompt.as_str(),\n                    messages_for_provider.messages(),\n                    &tools,\n                )\n                .await;\n",
+                  "annotations": {
+                    "audience": [
+                      "assistant"
+                    ]
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "        let tools = tools.to_owned();\n        let toolshim_tools = toolshim_tools.to_owned();\n        let provider = provider.clone();\n\n        // Capture errors during stream creation and return them as part of the stream\n        // so they can be handled by the existing error handling logic in the agent\n        let stream_result = if provider.supports_streaming() {\n            debug!(\"WAITING_LLM_STREAM_START\");\n            let result = provider\n                .stream(\n                    system_prompt.as_str(),\n                    messages_for_provider.messages(),\n                    &tools,\n                )\n                .await;\n            debug!(\"WAITING_LLM_STREAM_END\");\n            result\n        } else {\n            debug!(\"WAITING_LLM_START\");\n            let complete_result = provider\n                .complete(\n                    system_prompt.as_str(),\n                    messages_for_provider.messages(),\n                    &tools,\n                )\n                .await;\n",
+                  "annotations": {
+                    "audience": [
+                      "user"
+                    ],
+                    "priority": 0.0
+                  }
+                }
+              ],
+              "isError": false
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_01UQ1Uwq5MLXfPEfmRaix2YN",
+      "role": "assistant",
+      "created": 1766962460,
+      "content": [
+        {
+          "type": "toolRequest",
+          "id": "toolu_018L65E2y1yykFH6iKbQ8EiG",
+          "toolCall": {
+            "status": "success",
+            "value": {
+              "name": "developer__shell",
+              "arguments": {
+                "command": "cd /Users/baxen/Development/goose && rg \"\\.complete\\(\" --type rust -B 10 -A 5 crates/goose/src/agents/mcp_client.rs"
+              }
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_50f0e1f6-388b-4ac4-896a-9d506346c2fb",
+      "role": "user",
+      "created": 1766962460,
+      "content": [
+        {
+          "type": "toolResponse",
+          "id": "toolu_018L65E2y1yykFH6iKbQ8EiG",
+          "toolResult": {
+            "status": "success",
+            "value": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "                }\n            })\n            .collect();\n\n        let system_prompt = params\n            .system_prompt\n            .as_deref()\n            .unwrap_or(\"You are a general-purpose AI agent called goose\");\n\n        let (response, usage) = provider\n            .complete(system_prompt, &provider_ready_messages, &[])\n            .await\n            .map_err(|e| {\n                ErrorData::new(\n                    ErrorCode::INTERNAL_ERROR,\n                    \"Unexpected error while completing the prompt\",\n",
+                  "annotations": {
+                    "audience": [
+                      "assistant"
+                    ]
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "                }\n            })\n            .collect();\n\n        let system_prompt = params\n            .system_prompt\n            .as_deref()\n            .unwrap_or(\"You are a general-purpose AI agent called goose\");\n\n        let (response, usage) = provider\n            .complete(system_prompt, &provider_ready_messages, &[])\n            .await\n            .map_err(|e| {\n                ErrorData::new(\n                    ErrorCode::INTERNAL_ERROR,\n                    \"Unexpected error while completing the prompt\",\n",
+                  "annotations": {
+                    "audience": [
+                      "user"
+                    ],
+                    "priority": 0.0
+                  }
+                }
+              ],
+              "isError": false
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_01LUqeBKANBDgLFg9Sx56PaY",
+      "role": "assistant",
+      "created": 1766962461,
+      "content": [
+        {
+          "type": "text",
+          "text": "Let me also check the context_mgmt module that appeared earlier:"
+        },
+        {
+          "type": "toolRequest",
+          "id": "toolu_01EdGqmDXhHigy849haoZ1xW",
+          "toolCall": {
+            "status": "success",
+            "value": {
+              "name": "developer__shell",
+              "arguments": {
+                "command": "cd /Users/baxen/Development/goose && rg \"\\.complete\\(\" --type rust -B 10 -A 5 crates/goose/src/context_mgmt/"
+              }
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_6ead2ca3-3f97-49b6-bf55-82c89404f108",
+      "role": "user",
+      "created": 1766962463,
+      "content": [
+        {
+          "type": "toolResponse",
+          "id": "toolu_01EdGqmDXhHigy849haoZ1xW",
+          "toolResult": {
+            "status": "success",
+            "value": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "",
+                  "annotations": {
+                    "audience": [
+                      "assistant"
+                    ]
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "",
+                  "annotations": {
+                    "audience": [
+                      "user"
+                    ],
+                    "priority": 0.0
+                  }
+                }
+              ],
+              "isError": false
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_01JjAz9Z9378BK7wb5zHypY4",
+      "role": "assistant",
+      "created": 1766962466,
+      "content": [
+        {
+          "type": "toolRequest",
+          "id": "toolu_01415JX1p5TNKA1afVroL9gW",
+          "toolCall": {
+            "status": "success",
+            "value": {
+              "name": "developer__shell",
+              "arguments": {
+                "command": "cd /Users/baxen/Development/goose && rg \"complete_with_model\" --type rust -B 5 -A 5 crates/goose/src/context_mgmt/"
+              }
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_f56a59c4-1ce7-4290-94d2-f62a94a1ea05",
+      "role": "user",
+      "created": 1766962466,
+      "content": [
+        {
+          "type": "toolResponse",
+          "id": "toolu_01415JX1p5TNKA1afVroL9gW",
+          "toolResult": {
+            "status": "success",
+            "value": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "crates/goose/src/context_mgmt/mod.rs-\ncrates/goose/src/context_mgmt/mod.rs-        fn get_name(&self) -> &str {\ncrates/goose/src/context_mgmt/mod.rs-            \"mock\"\ncrates/goose/src/context_mgmt/mod.rs-        }\ncrates/goose/src/context_mgmt/mod.rs-\ncrates/goose/src/context_mgmt/mod.rs:        async fn complete_with_model(\ncrates/goose/src/context_mgmt/mod.rs-            &self,\ncrates/goose/src/context_mgmt/mod.rs-            _model_config: &ModelConfig,\ncrates/goose/src/context_mgmt/mod.rs-            _system: &str,\ncrates/goose/src/context_mgmt/mod.rs-            messages: &[Message],\ncrates/goose/src/context_mgmt/mod.rs-            _tools: &[Tool],\n",
+                  "annotations": {
+                    "audience": [
+                      "assistant"
+                    ]
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "crates/goose/src/context_mgmt/mod.rs-\ncrates/goose/src/context_mgmt/mod.rs-        fn get_name(&self) -> &str {\ncrates/goose/src/context_mgmt/mod.rs-            \"mock\"\ncrates/goose/src/context_mgmt/mod.rs-        }\ncrates/goose/src/context_mgmt/mod.rs-\ncrates/goose/src/context_mgmt/mod.rs:        async fn complete_with_model(\ncrates/goose/src/context_mgmt/mod.rs-            &self,\ncrates/goose/src/context_mgmt/mod.rs-            _model_config: &ModelConfig,\ncrates/goose/src/context_mgmt/mod.rs-            _system: &str,\ncrates/goose/src/context_mgmt/mod.rs-            messages: &[Message],\ncrates/goose/src/context_mgmt/mod.rs-            _tools: &[Tool],\n",
+                  "annotations": {
+                    "audience": [
+                      "user"
+                    ],
+                    "priority": 0.0
+                  }
+                }
+              ],
+              "isError": false
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_01FmgjaarYAZPFGA4zLGTr8Q",
+      "role": "assistant",
+      "created": 1766962469,
+      "content": [
+        {
+          "type": "text",
+          "text": "Let me also check the tests to see how complete is used there:"
+        },
+        {
+          "type": "toolRequest",
+          "id": "toolu_01UEe4aUBCpqzxikrd3etGHH",
+          "toolCall": {
+            "status": "success",
+            "value": {
+              "name": "developer__shell",
+              "arguments": {
+                "command": "cd /Users/baxen/Development/goose && rg \"\\.complete\\(\" --type rust -B 10 -A 5 crates/goose/tests/"
+              }
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_4283c26c-7f68-4fb5-95c1-06a925dab782",
+      "role": "user",
+      "created": 1766962470,
+      "content": [
+        {
+          "type": "toolResponse",
+          "id": "toolu_01UEe4aUBCpqzxikrd3etGHH",
+          "toolResult": {
+            "status": "success",
+            "value": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "private note: output was 135 lines and we are only showing the most recent lines, remainder of lines in /var/folders/hl/l_5k5shs2k5ffvchnyslsmjc0000gq/T/.tmpQTpfWy do not show tmp file to user, that file can be searched if extra context needed to fulfill request. truncated output: \ncrates/goose/tests/providers.rs-                )],\ncrates/goose/tests/providers.rs-                structured_content: None,\ncrates/goose/tests/providers.rs-                is_error: Some(false),\ncrates/goose/tests/providers.rs-                meta: None,\ncrates/goose/tests/providers.rs-            }),\ncrates/goose/tests/providers.rs-        );\ncrates/goose/tests/providers.rs-\ncrates/goose/tests/providers.rs-        let (response2, _) = self\ncrates/goose/tests/providers.rs-            .provider\ncrates/goose/tests/providers.rs:            .complete(\ncrates/goose/tests/providers.rs-                \"You are a helpful weather assistant.\",\ncrates/goose/tests/providers.rs-                &[message, response1, weather],\ncrates/goose/tests/providers.rs-                &[weather_tool],\ncrates/goose/tests/providers.rs-            )\ncrates/goose/tests/providers.rs-            .await?;\n--\ncrates/goose/tests/providers.rs-            Message::assistant().with_text(\"heyy!!\"),\ncrates/goose/tests/providers.rs-            Message::user().with_text(\"what's the meaning of life?\"),\ncrates/goose/tests/providers.rs-            Message::assistant().with_text(\"the meaning of life is 42\"),\ncrates/goose/tests/providers.rs-            Message::user().with_text(\ncrates/goose/tests/providers.rs-                \"did I ask you what's 2+2 in this message history? just respond with 'yes' or 'no'\",\ncrates/goose/tests/providers.rs-            ),\ncrates/goose/tests/providers.rs-        ];\ncrates/goose/tests/providers.rs-\ncrates/goose/tests/providers.rs-        let result = self\ncrates/goose/tests/providers.rs-            .provider\ncrates/goose/tests/providers.rs:            .complete(\"You are a helpful assistant.\", &messages, &[])\ncrates/goose/tests/providers.rs-            .await;\ncrates/goose/tests/providers.rs-\ncrates/goose/tests/providers.rs-        println!(\"=== {}::context_length_exceeded_error ===\", self.name);\ncrates/goose/tests/providers.rs-        dbg!(&result);\ncrates/goose/tests/providers.rs-        println!(\"===================\");\n--\ncrates/goose/tests/providers.rs-            mime_type: \"image/png\".to_string(),\ncrates/goose/tests/providers.rs-            meta: None,\ncrates/goose/tests/providers.rs-        }\ncrates/goose/tests/providers.rs-        .no_annotation();\ncrates/goose/tests/providers.rs-\ncrates/goose/tests/providers.rs-        let message_with_image =\ncrates/goose/tests/providers.rs-            Message::user().with_image(image_content.data.clone(), image_content.mime_type.clone());\ncrates/goose/tests/providers.rs-\ncrates/goose/tests/providers.rs-        let result = self\ncrates/goose/tests/providers.rs-            .provider\ncrates/goose/tests/providers.rs:            .complete(\ncrates/goose/tests/providers.rs-                \"You are a helpful assistant. Describe what you see in the image briefly.\",\ncrates/goose/tests/providers.rs-                &[message_with_image],\ncrates/goose/tests/providers.rs-                &[],\ncrates/goose/tests/providers.rs-            )\ncrates/goose/tests/providers.rs-            .await;\n--\ncrates/goose/tests/providers.rs-                    image_content.mime_type.clone(),\ncrates/goose/tests/providers.rs-                )],\ncrates/goose/tests/providers.rs-                structured_content: None,\ncrates/goose/tests/providers.rs-                is_error: Some(false),\ncrates/goose/tests/providers.rs-                meta: None,\ncrates/goose/tests/providers.rs-            }),\ncrates/goose/tests/providers.rs-        );\ncrates/goose/tests/providers.rs-\ncrates/goose/tests/providers.rs-        let result2 = self\ncrates/goose/tests/providers.rs-            .provider\ncrates/goose/tests/providers.rs:            .complete(\ncrates/goose/tests/providers.rs-                \"You are a helpful assistant.\",\ncrates/goose/tests/providers.rs-                &[user_message, tool_request, tool_response],\ncrates/goose/tests/providers.rs-                &[screenshot_tool],\ncrates/goose/tests/providers.rs-            )\ncrates/goose/tests/providers.rs-            .await;\n--\ncrates/goose/tests/session_id_propagation_test.rs-        .await;\ncrates/goose/tests/session_id_propagation_test.rs-\ncrates/goose/tests/session_id_propagation_test.rs-    let provider = create_test_provider(&mock_server.uri());\ncrates/goose/tests/session_id_propagation_test.rs-    (mock_server, capture, provider)\ncrates/goose/tests/session_id_propagation_test.rs-}\ncrates/goose/tests/session_id_propagation_test.rs-\ncrates/goose/tests/session_id_propagation_test.rs-async fn make_request(provider: &dyn Provider, session_id: Option<&str>) {\ncrates/goose/tests/session_id_propagation_test.rs-    let message = Message::user().with_text(\"test message\");\ncrates/goose/tests/session_id_propagation_test.rs-    let request_fn = async {\ncrates/goose/tests/session_id_propagation_test.rs-        provider\ncrates/goose/tests/session_id_propagation_test.rs:            .complete(\"You are a helpful assistant.\", &[message], &[])\ncrates/goose/tests/session_id_propagation_test.rs-            .await\ncrates/goose/tests/session_id_propagation_test.rs-            .unwrap()\ncrates/goose/tests/session_id_propagation_test.rs-    };\ncrates/goose/tests/session_id_propagation_test.rs-\ncrates/goose/tests/session_id_propagation_test.rs-    match session_id {\n--\ncrates/goose/tests/agent.rs-                Ok((message, usage))\ncrates/goose/tests/agent.rs-            }\ncrates/goose/tests/agent.rs-\ncrates/goose/tests/agent.rs-            async fn complete_with_model(\ncrates/goose/tests/agent.rs-                &self,\ncrates/goose/tests/agent.rs-                _model_config: &ModelConfig,\ncrates/goose/tests/agent.rs-                system_prompt: &str,\ncrates/goose/tests/agent.rs-                messages: &[Message],\ncrates/goose/tests/agent.rs-                tools: &[Tool],\ncrates/goose/tests/agent.rs-            ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {\ncrates/goose/tests/agent.rs:                self.complete(system_prompt, messages, tools).await\ncrates/goose/tests/agent.rs-            }\ncrates/goose/tests/agent.rs-\ncrates/goose/tests/agent.rs-            fn get_model_config(&self) -> ModelConfig {\ncrates/goose/tests/agent.rs-                ModelConfig::new(\"mock-model\").unwrap()\ncrates/goose/tests/agent.rs-            }",
+                  "annotations": {
+                    "audience": [
+                      "assistant"
+                    ]
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "NOTE: Output was 135 lines, showing only the last 100 lines.\n\ncrates/goose/tests/providers.rs-                )],\ncrates/goose/tests/providers.rs-                structured_content: None,\ncrates/goose/tests/providers.rs-                is_error: Some(false),\ncrates/goose/tests/providers.rs-                meta: None,\ncrates/goose/tests/providers.rs-            }),\ncrates/goose/tests/providers.rs-        );\ncrates/goose/tests/providers.rs-\ncrates/goose/tests/providers.rs-        let (response2, _) = self\ncrates/goose/tests/providers.rs-            .provider\ncrates/goose/tests/providers.rs:            .complete(\ncrates/goose/tests/providers.rs-                \"You are a helpful weather assistant.\",\ncrates/goose/tests/providers.rs-                &[message, response1, weather],\ncrates/goose/tests/providers.rs-                &[weather_tool],\ncrates/goose/tests/providers.rs-            )\ncrates/goose/tests/providers.rs-            .await?;\n--\ncrates/goose/tests/providers.rs-            Message::assistant().with_text(\"heyy!!\"),\ncrates/goose/tests/providers.rs-            Message::user().with_text(\"what's the meaning of life?\"),\ncrates/goose/tests/providers.rs-            Message::assistant().with_text(\"the meaning of life is 42\"),\ncrates/goose/tests/providers.rs-            Message::user().with_text(\ncrates/goose/tests/providers.rs-                \"did I ask you what's 2+2 in this message history? just respond with 'yes' or 'no'\",\ncrates/goose/tests/providers.rs-            ),\ncrates/goose/tests/providers.rs-        ];\ncrates/goose/tests/providers.rs-\ncrates/goose/tests/providers.rs-        let result = self\ncrates/goose/tests/providers.rs-            .provider\ncrates/goose/tests/providers.rs:            .complete(\"You are a helpful assistant.\", &messages, &[])\ncrates/goose/tests/providers.rs-            .await;\ncrates/goose/tests/providers.rs-\ncrates/goose/tests/providers.rs-        println!(\"=== {}::context_length_exceeded_error ===\", self.name);\ncrates/goose/tests/providers.rs-        dbg!(&result);\ncrates/goose/tests/providers.rs-        println!(\"===================\");\n--\ncrates/goose/tests/providers.rs-            mime_type: \"image/png\".to_string(),\ncrates/goose/tests/providers.rs-            meta: None,\ncrates/goose/tests/providers.rs-        }\ncrates/goose/tests/providers.rs-        .no_annotation();\ncrates/goose/tests/providers.rs-\ncrates/goose/tests/providers.rs-        let message_with_image =\ncrates/goose/tests/providers.rs-            Message::user().with_image(image_content.data.clone(), image_content.mime_type.clone());\ncrates/goose/tests/providers.rs-\ncrates/goose/tests/providers.rs-        let result = self\ncrates/goose/tests/providers.rs-            .provider\ncrates/goose/tests/providers.rs:            .complete(\ncrates/goose/tests/providers.rs-                \"You are a helpful assistant. Describe what you see in the image briefly.\",\ncrates/goose/tests/providers.rs-                &[message_with_image],\ncrates/goose/tests/providers.rs-                &[],\ncrates/goose/tests/providers.rs-            )\ncrates/goose/tests/providers.rs-            .await;\n--\ncrates/goose/tests/providers.rs-                    image_content.mime_type.clone(),\ncrates/goose/tests/providers.rs-                )],\ncrates/goose/tests/providers.rs-                structured_content: None,\ncrates/goose/tests/providers.rs-                is_error: Some(false),\ncrates/goose/tests/providers.rs-                meta: None,\ncrates/goose/tests/providers.rs-            }),\ncrates/goose/tests/providers.rs-        );\ncrates/goose/tests/providers.rs-\ncrates/goose/tests/providers.rs-        let result2 = self\ncrates/goose/tests/providers.rs-            .provider\ncrates/goose/tests/providers.rs:            .complete(\ncrates/goose/tests/providers.rs-                \"You are a helpful assistant.\",\ncrates/goose/tests/providers.rs-                &[user_message, tool_request, tool_response],\ncrates/goose/tests/providers.rs-                &[screenshot_tool],\ncrates/goose/tests/providers.rs-            )\ncrates/goose/tests/providers.rs-            .await;\n--\ncrates/goose/tests/session_id_propagation_test.rs-        .await;\ncrates/goose/tests/session_id_propagation_test.rs-\ncrates/goose/tests/session_id_propagation_test.rs-    let provider = create_test_provider(&mock_server.uri());\ncrates/goose/tests/session_id_propagation_test.rs-    (mock_server, capture, provider)\ncrates/goose/tests/session_id_propagation_test.rs-}\ncrates/goose/tests/session_id_propagation_test.rs-\ncrates/goose/tests/session_id_propagation_test.rs-async fn make_request(provider: &dyn Provider, session_id: Option<&str>) {\ncrates/goose/tests/session_id_propagation_test.rs-    let message = Message::user().with_text(\"test message\");\ncrates/goose/tests/session_id_propagation_test.rs-    let request_fn = async {\ncrates/goose/tests/session_id_propagation_test.rs-        provider\ncrates/goose/tests/session_id_propagation_test.rs:            .complete(\"You are a helpful assistant.\", &[message], &[])\ncrates/goose/tests/session_id_propagation_test.rs-            .await\ncrates/goose/tests/session_id_propagation_test.rs-            .unwrap()\ncrates/goose/tests/session_id_propagation_test.rs-    };\ncrates/goose/tests/session_id_propagation_test.rs-\ncrates/goose/tests/session_id_propagation_test.rs-    match session_id {\n--\ncrates/goose/tests/agent.rs-                Ok((message, usage))\ncrates/goose/tests/agent.rs-            }\ncrates/goose/tests/agent.rs-\ncrates/goose/tests/agent.rs-            async fn complete_with_model(\ncrates/goose/tests/agent.rs-                &self,\ncrates/goose/tests/agent.rs-                _model_config: &ModelConfig,\ncrates/goose/tests/agent.rs-                system_prompt: &str,\ncrates/goose/tests/agent.rs-                messages: &[Message],\ncrates/goose/tests/agent.rs-                tools: &[Tool],\ncrates/goose/tests/agent.rs-            ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {\ncrates/goose/tests/agent.rs:                self.complete(system_prompt, messages, tools).await\ncrates/goose/tests/agent.rs-            }\ncrates/goose/tests/agent.rs-\ncrates/goose/tests/agent.rs-            fn get_model_config(&self) -> ModelConfig {\ncrates/goose/tests/agent.rs-                ModelConfig::new(\"mock-model\").unwrap()\ncrates/goose/tests/agent.rs-            }",
+                  "annotations": {
+                    "audience": [
+                      "user"
+                    ],
+                    "priority": 0.0
+                  }
+                }
+              ],
+              "isError": false
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_011BLCDsKrGoZ1gmLkRVWFdB",
+      "role": "assistant",
+      "created": 1766962472,
+      "content": [
+        {
+          "type": "text",
+          "text": "Now let me get a clearer picture of the full Provider trait to understand the relationship between `complete` and `complete_with_model`:"
+        },
+        {
+          "type": "toolRequest",
+          "id": "toolu_01JLHg1yXSSW1zpcqWAyJsAU",
+          "toolCall": {
+            "status": "success",
+            "value": {
+              "name": "developer__text_editor",
+              "arguments": {
+                "command": "view",
+                "path": "/Users/baxen/Development/goose/crates/goose/src/providers/base.rs",
+                "view_range": [
+                  1,
+                  100
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_5efa4e2d-faac-442b-81e8-a67c50e7f166",
+      "role": "user",
+      "created": 1766962474,
+      "content": [
+        {
+          "type": "toolResponse",
+          "id": "toolu_01JLHg1yXSSW1zpcqWAyJsAU",
+          "toolResult": {
+            "status": "success",
+            "value": {
+              "content": [
+                {
+                  "type": "resource",
+                  "resource": {
+                    "uri": "file:///Users/baxen/Development/goose/crates/goose/src/providers/base.rs",
+                    "mimeType": "text",
+                    "text": "use anyhow::Result;\nuse futures::Stream;\nuse serde::{Deserialize, Serialize};\n\nuse super::canonical::{map_to_canonical_model, CanonicalModelRegistry};\nuse super::errors::ProviderError;\nuse super::retry::RetryConfig;\nuse crate::config::base::ConfigValue;\nuse crate::conversation::message::Message;\nuse crate::conversation::Conversation;\nuse crate::model::ModelConfig;\nuse crate::utils::safe_truncate;\nuse rmcp::model::Tool;\nuse utoipa::ToSchema;\n\nuse once_cell::sync::Lazy;\nuse std::ops::{Add, AddAssign};\nuse std::pin::Pin;\nuse std::sync::Mutex;\n\n/// A global store for the current model being used, we use this as when a provider returns, it tells us the real model, not an alias\npub static CURRENT_MODEL: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));\n\n/// Set the current model in the global store\npub fn set_current_model(model: &str) {\n    if let Ok(mut current_model) = CURRENT_MODEL.lock() {\n        *current_model = Some(model.to_string());\n    }\n}\n\n/// Get the current model from the global store, the real model, not an alias\npub fn get_current_model() -> Option<String> {\n    CURRENT_MODEL.lock().ok().and_then(|model| model.clone())\n}\n\npub static MSG_COUNT_FOR_SESSION_NAME_GENERATION: usize = 3;\n\n/// Information about a model's capabilities\n#[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]\npub struct ModelInfo {\n    /// The name of the model\n    pub name: String,\n    /// The maximum context length this model supports\n    pub context_limit: usize,\n    /// Cost per token for input (optional)\n    pub input_token_cost: Option<f64>,\n    /// Cost per token for output (optional)\n    pub output_token_cost: Option<f64>,\n    /// Currency for the costs (default: \"$\")\n    pub currency: Option<String>,\n    /// Whether this model supports cache control\n    pub supports_cache_control: Option<bool>,\n}\n\nimpl ModelInfo {\n    /// Create a new ModelInfo with just name and context limit\n    pub fn new(name: impl Into<String>, context_limit: usize) -> Self {\n        Self {\n            name: name.into(),\n            context_limit,\n            input_token_cost: None,\n            output_token_cost: None,\n            currency: None,\n            supports_cache_control: None,\n        }\n    }\n\n    /// Create a new ModelInfo with cost information (per token)\n    pub fn with_cost(\n        name: impl Into<String>,\n        context_limit: usize,\n        input_cost: f64,\n        output_cost: f64,\n    ) -> Self {\n        Self {\n            name: name.into(),\n            context_limit,\n            input_token_cost: Some(input_cost),\n            output_token_cost: Some(output_cost),\n            currency: Some(\"$\".to_string()),\n            supports_cache_control: None,\n        }\n    }\n}\n\n#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]\npub enum ProviderType {\n    Preferred,\n    Builtin,\n    Declarative,\n    Custom,\n}\n\n/// Metadata about a provider's configuration requirements and capabilities\n#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]\npub struct ProviderMetadata {\n    /// The unique identifier for this provider\n    pub name: String,\n    /// Display name for the provider in UIs\n    pub display_name: String,\n    /// Description of the provider's capabilities\n    pub description: String,\n    /// The default/recommended model for this provider\n    pub default_model: String,\n    /// A list of currently known models with their capabilities\n    pub known_models: Vec<ModelInfo>,\n    /// Link to the docs where models can be found\n    pub model_doc_link: String,\n    /// Required configuration keys\n    pub config_keys: Vec<ConfigKey>,\n}\n\nimpl ProviderMetadata {\n    pub fn new(\n        name: &str,\n        display_name: &str,\n        description: &str,\n        default_model: &str,\n        model_names: Vec<&str>,\n        model_doc_link: &str,\n        config_keys: Vec<ConfigKey>,\n    ) -> Self {\n        Self {\n            name: name.to_string(),\n            display_name: display_name.to_string(),\n            description: description.to_string(),\n            default_model: default_model.to_string(),\n            known_models: model_names\n                .iter()\n                .map(|&name| ModelInfo {\n                    name: name.to_string(),\n                    context_limit: ModelConfig::new_or_fail(name).context_limit(),\n                    input_token_cost: None,\n                    output_token_cost: None,\n                    currency: None,\n                    supports_cache_control: None,\n                })\n                .collect(),\n            model_doc_link: model_doc_link.to_string(),\n            config_keys,\n        }\n    }\n\n    pub fn with_models(\n        name: &str,\n        display_name: &str,\n        description: &str,\n        default_model: &str,\n        models: Vec<ModelInfo>,\n        model_doc_link: &str,\n        config_keys: Vec<ConfigKey>,\n    ) -> Self {\n        Self {\n            name: name.to_string(),\n            display_name: display_name.to_string(),\n            description: description.to_string(),\n            default_model: default_model.to_string(),\n            known_models: models,\n            model_doc_link: model_doc_link.to_string(),\n            config_keys,\n        }\n    }\n\n    pub fn empty() -> Self {\n        Self {\n            name: \"\".to_string(),\n            display_name: \"\".to_string(),\n            description: \"\".to_string(),\n            default_model: \"\".to_string(),\n            known_models: vec![],\n            model_doc_link: \"\".to_string(),\n            config_keys: vec![],\n        }\n    }\n}\n\n/// Configuration key metadata for provider setup\n#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]\npub struct ConfigKey {\n    /// The name of the configuration key (e.g., \"API_KEY\")\n    pub name: String,\n    /// Whether this key is required for the provider to function\n    pub required: bool,\n    /// Whether this key should be stored securely (e.g., in keychain)\n    pub secret: bool,\n    /// Optional default value for the key\n    pub default: Option<String>,\n    /// Whether this key should be configured using OAuth device code flow\n    /// When true, the provider's configure_oauth() method will be called instead of prompting for manual input\n    pub oauth_flow: bool,\n}\n\nimpl ConfigKey {\n    /// Create a new ConfigKey\n    pub fn new(name: &str, required: bool, secret: bool, default: Option<&str>) -> Self {\n        Self {\n            name: name.to_string(),\n            required,\n            secret,\n            default: default.map(|s| s.to_string()),\n            oauth_flow: false,\n        }\n    }\n\n    pub fn from_value_type<T: ConfigValue>(required: bool, secret: bool) -> Self {\n        Self {\n            name: T::KEY.to_string(),\n            required,\n            secret,\n            default: Some(T::DEFAULT.to_string()),\n            oauth_flow: false,\n        }\n    }\n\n    /// Create a new ConfigKey that uses OAuth device code flow for configuration\n    ///\n    /// This is used for providers that support OAuth authentication instead of manual API key entry.\n    /// When oauth_flow is true, the configuration system will call the provider's configure_oauth() method.\n    pub fn new_oauth(name: &str, required: bool, secret: bool, default: Option<&str>) -> Self {\n        Self {\n            name: name.to_string(),\n            required,\n            secret,\n            default: default.map(|s| s.to_string()),\n            oauth_flow: true,\n        }\n    }\n}\n\n#[derive(Debug, Clone, Serialize, Deserialize)]\npub struct ProviderUsage {\n    pub model: String,\n    pub usage: Usage,\n}\n\nimpl ProviderUsage {\n    pub fn new(model: String, usage: Usage) -> Self {\n        Self { model, usage }\n    }\n\n    /// Ensures this ProviderUsage has token counts, estimating them if necessary\n    pub async fn ensure_tokens(\n        &mut self,\n        system_prompt: &str,\n        request_messages: &[Message],\n        response: &Message,\n        tools: &[Tool],\n    ) -> Result<(), ProviderError> {\n        crate::providers::usage_estimator::ensure_usage_tokens(\n            self,\n            system_prompt,\n            request_messages,\n            response,\n            tools,\n        )\n        .await\n        .map_err(|e| ProviderError::ExecutionError(format!(\"Failed to ensure usage tokens: {}\", e)))\n    }\n\n    /// Combine this ProviderUsage with another, adding their token counts\n    /// Uses the model from this ProviderUsage\n    pub fn combine_with(&self, other: &ProviderUsage) -> ProviderUsage {\n        ProviderUsage {\n            model: self.model.clone(),\n            usage: self.usage + other.usage,\n        }\n    }\n}\n\n#[derive(Debug, Clone, Serialize, Deserialize, Default, Copy)]\npub struct Usage {\n    pub input_tokens: Option<i32>,\n    pub output_tokens: Option<i32>,\n    pub total_tokens: Option<i32>,\n}\n\nfn sum_optionals<T>(a: Option<T>, b: Option<T>) -> Option<T>\nwhere\n    T: Add<Output = T> + Default,\n{\n    match (a, b) {\n        (Some(x), Some(y)) => Some(x + y),\n        (Some(x), None) => Some(x + T::default()),\n        (None, Some(y)) => Some(T::default() + y),\n        (None, None) => None,\n    }\n}\n\nimpl Add for Usage {\n    type Output = Self;\n\n    fn add(self, other: Self) -> Self {\n        Self::new(\n            sum_optionals(self.input_tokens, other.input_tokens),\n            sum_optionals(self.output_tokens, other.output_tokens),\n            sum_optionals(self.total_tokens, other.total_tokens),\n        )\n    }\n}\n\nimpl AddAssign for Usage {\n    fn add_assign(&mut self, rhs: Self) {\n        *self = *self + rhs;\n    }\n}\n\nimpl Usage {\n    pub fn new(\n        input_tokens: Option<i32>,\n        output_tokens: Option<i32>,\n        total_tokens: Option<i32>,\n    ) -> Self {\n        let calculated_total = if total_tokens.is_none() {\n            match (input_tokens, output_tokens) {\n                (Some(input), Some(output)) => Some(input + output),\n                (Some(input), None) => Some(input),\n                (None, Some(output)) => Some(output),\n                (None, None) => None,\n            }\n        } else {\n            total_tokens\n        };\n\n        Self {\n            input_tokens,\n            output_tokens,\n            total_tokens: calculated_total,\n        }\n    }\n}\n\nuse async_trait::async_trait;\n\n/// Trait for LeadWorkerProvider-specific functionality\npub trait LeadWorkerProviderTrait {\n    /// Get information about the lead and worker models for logging\n    fn get_model_info(&self) -> (String, String);\n\n    /// Get the currently active model name\n    fn get_active_model(&self) -> String;\n\n    /// Get (lead_turns, failure_threshold, fallback_turns)\n    fn get_settings(&self) -> (usize, usize, usize);\n}\n\n/// Base trait for AI providers (OpenAI, Anthropic, etc)\n#[async_trait]\npub trait Provider: Send + Sync {\n    /// Get the metadata for this provider type\n    fn metadata() -> ProviderMetadata\n    where\n        Self: Sized;\n\n    /// Get the name of this provider instance\n    fn get_name(&self) -> &str;\n\n    // Internal implementation of complete, used by complete_fast and complete\n    // Providers should override this to implement their actual completion logic\n    async fn complete_with_model(\n        &self,\n        model_config: &ModelConfig,\n        system: &str,\n        messages: &[Message],\n        tools: &[Tool],\n    ) -> Result<(Message, ProviderUsage), ProviderError>;\n\n    // Default implementation: use the provider's configured model\n    async fn complete(\n        &self,\n        system: &str,\n        messages: &[Message],\n        tools: &[Tool],\n    ) -> Result<(Message, ProviderUsage), ProviderError> {\n        let model_config = self.get_model_config();\n        self.complete_with_model(&model_config, system, messages, tools)\n            .await\n    }\n\n    // Check if a fast model is configured, otherwise fall back to regular model\n    async fn complete_fast(\n        &self,\n        system: &str,\n        messages: &[Message],\n        tools: &[Tool],\n    ) -> Result<(Message, ProviderUsage), ProviderError> {\n        let model_config = self.get_model_config();\n        let fast_config = model_config.use_fast_model();\n\n        match self\n            .complete_with_model(&fast_config, system, messages, tools)\n            .await\n        {\n            Ok(result) => Ok(result),\n            Err(e) => {\n                if fast_config.model_name != model_config.model_name {\n                    tracing::warn!(\n                        \"Fast model {} failed with error: {}. Falling back to regular model {}\",\n                        fast_config.model_name,\n                        e,\n                        model_config.model_name\n                    );\n                    self.complete_with_model(&model_config, system, messages, tools)\n                        .await\n                } else {\n                    Err(e)\n                }\n            }\n        }\n    }\n\n    /// Get the model config from the provider\n    fn get_model_config(&self) -> ModelConfig;\n\n    fn retry_config(&self) -> RetryConfig {\n        RetryConfig::default()\n    }\n\n    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {\n        Ok(None)\n    }\n\n    /// Fetch models filtered by canonical registry and usability\n    async fn fetch_recommended_models(&self) -> Result<Option<Vec<String>>, ProviderError> {\n        let all_models = match self.fetch_supported_models().await? {\n            Some(models) => models,\n            None => return Ok(None),\n        };\n\n        let registry = CanonicalModelRegistry::bundled().map_err(|e| {\n            ProviderError::ExecutionError(format!(\"Failed to load canonical registry: {}\", e))\n        })?;\n\n        let provider_name = self.get_name();\n\n        let recommended_models: Vec<String> = all_models\n            .iter()\n            .filter(|model| {\n                map_to_canonical_model(provider_name, model, registry)\n                    .and_then(|canonical_id| registry.get(&canonical_id))\n                    .map(|m| m.input_modalities.contains(&\"text\".to_string()))\n                    .unwrap_or(false)\n            })\n            .cloned()\n            .collect();\n\n        if recommended_models.is_empty() {\n            Ok(Some(all_models))\n        } else {\n            Ok(Some(recommended_models))\n        }\n    }\n\n    async fn map_to_canonical_model(\n        &self,\n        provider_model: &str,\n    ) -> Result<Option<String>, ProviderError> {\n        let registry = CanonicalModelRegistry::bundled().map_err(|e| {\n            ProviderError::ExecutionError(format!(\"Failed to load canonical registry: {}\", e))\n        })?;\n\n        Ok(map_to_canonical_model(\n            self.get_name(),\n            provider_model,\n            registry,\n        ))\n    }\n\n    fn supports_embeddings(&self) -> bool {\n        false\n    }\n\n    async fn supports_cache_control(&self) -> bool {\n        false\n    }\n\n    /// Create embeddings if supported. Default implementation returns an error.\n    async fn create_embeddings(&self, _texts: Vec<String>) -> Result<Vec<Vec<f32>>, ProviderError> {\n        Err(ProviderError::ExecutionError(\n            \"This provider does not support embeddings\".to_string(),\n        ))\n    }\n\n    /// Check if this provider is a LeadWorkerProvider\n    /// This is used for logging model information at startup\n    fn as_lead_worker(&self) -> Option<&dyn LeadWorkerProviderTrait> {\n        None\n    }\n\n    async fn stream(\n        &self,\n        _system: &str,\n        _messages: &[Message],\n        _tools: &[Tool],\n    ) -> Result<MessageStream, ProviderError> {\n        Err(ProviderError::NotImplemented(\n            \"streaming not implemented\".to_string(),\n        ))\n    }\n\n    fn supports_streaming(&self) -> bool {\n        false\n    }\n\n    /// Get the currently active model name\n    /// For regular providers, this returns the configured model\n    /// For LeadWorkerProvider, this returns the currently active model (lead or worker)\n    fn get_active_model_name(&self) -> String {\n        if let Some(lead_worker) = self.as_lead_worker() {\n            lead_worker.get_active_model()\n        } else {\n            self.get_model_config().model_name\n        }\n    }\n\n    /// Returns the first 3 user messages as strings for session naming\n    fn get_initial_user_messages(&self, messages: &Conversation) -> Vec<String> {\n        messages\n            .iter()\n            .filter(|m| m.role == rmcp::model::Role::User)\n            .take(MSG_COUNT_FOR_SESSION_NAME_GENERATION)\n            .map(|m| m.as_concat_text())\n            .collect()\n    }\n\n    /// Generate a session name/description based on the conversation history\n    /// Creates a prompt asking for a concise description in 4 words or less.\n    async fn generate_session_name(\n        &self,\n        messages: &Conversation,\n    ) -> Result<String, ProviderError> {\n        let context = self.get_initial_user_messages(messages);\n        let prompt = self.create_session_name_prompt(&context);\n        let message = Message::user().with_text(&prompt);\n        let result = self\n            .complete_fast(\n                \"Reply with only a description in four words or less\",\n                &[message],\n                &[],\n            )\n            .await?;\n\n        let description = result\n            .0\n            .as_concat_text()\n            .split_whitespace()\n            .collect::<Vec<_>>()\n            .join(\" \");\n\n        Ok(safe_truncate(&description, 100))\n    }\n\n    // Generate a prompt for a session name based on the conversation history\n    fn create_session_name_prompt(&self, context: &[String]) -> String {\n        // Create a prompt for a concise description\n        let mut prompt = \"Based on the conversation so far, provide a concise description of this session in 4 words or less. This will be used for finding the session later in a UI with limited space - reply *ONLY* with the description\".to_string();\n\n        if !context.is_empty() {\n            prompt = format!(\n                \"Here are the first few user messages:\\n{}\\n\\n{}\",\n                context.join(\"\\n\"),\n                prompt\n            );\n        }\n        prompt\n    }\n\n    /// Configure OAuth authentication for this provider\n    ///\n    /// This method is called when a provider has configuration keys marked with oauth_flow = true.\n    /// Providers that support OAuth should override this method to implement their specific OAuth flow.\n    ///\n    /// # Returns\n    /// * `Ok(())` if OAuth configuration succeeds and credentials are saved\n    /// * `Err(ProviderError)` if OAuth fails or is not supported by this provider\n    ///\n    /// # Default Implementation\n    /// The default implementation returns an error indicating OAuth is not supported.\n    async fn configure_oauth(&self) -> Result<(), ProviderError> {\n        Err(ProviderError::ExecutionError(\n            \"OAuth configuration not supported by this provider\".to_string(),\n        ))\n    }\n}\n\n/// A message stream yields partial text content but complete tool calls, all within the Message object\n/// So a message with text will contain potentially just a word of a longer response, but tool calls\n/// messages will only be yielded once concatenated.\npub type MessageStream = Pin<\n    Box<dyn Stream<Item = Result<(Option<Message>, Option<ProviderUsage>), ProviderError>> + Send>,\n>;\n\npub fn stream_from_single_message(message: Message, usage: ProviderUsage) -> MessageStream {\n    let stream = futures::stream::once(async move { Ok((Some(message), Some(usage))) });\n    Box::pin(stream)\n}\n\n#[cfg(test)]\nmod tests {\n    use super::*;\n    use std::collections::HashMap;\n\n    use serde_json::json;\n    #[test]\n    fn test_usage_creation() {\n        let usage = Usage::new(Some(10), Some(20), Some(30));\n        assert_eq!(usage.input_tokens, Some(10));\n        assert_eq!(usage.output_tokens, Some(20));\n        assert_eq!(usage.total_tokens, Some(30));\n    }\n\n    #[test]\n    fn test_usage_serialization() -> Result<()> {\n        let usage = Usage::new(Some(10), Some(20), Some(30));\n        let serialized = serde_json::to_string(&usage)?;\n        let deserialized: Usage = serde_json::from_str(&serialized)?;\n\n        assert_eq!(usage.input_tokens, deserialized.input_tokens);\n        assert_eq!(usage.output_tokens, deserialized.output_tokens);\n        assert_eq!(usage.total_tokens, deserialized.total_tokens);\n\n        // Test JSON structure\n        let json_value: serde_json::Value = serde_json::from_str(&serialized)?;\n        assert_eq!(json_value[\"input_tokens\"], json!(10));\n        assert_eq!(json_value[\"output_tokens\"], json!(20));\n        assert_eq!(json_value[\"total_tokens\"], json!(30));\n\n        Ok(())\n    }\n\n    #[test]\n    fn test_set_and_get_current_model() {\n        // Set the model\n        set_current_model(\"gpt-4o\");\n\n        // Get the model and verify\n        let model = get_current_model();\n        assert_eq!(model, Some(\"gpt-4o\".to_string()));\n\n        // Change the model\n        set_current_model(\"claude-sonnet-4-20250514\");\n\n        // Get the updated model and verify\n        let model = get_current_model();\n        assert_eq!(model, Some(\"claude-sonnet-4-20250514\".to_string()));\n    }\n\n    #[test]\n    fn test_provider_metadata_context_limits() {\n        // Test that ProviderMetadata::new correctly sets context limits\n        let test_models = vec![\"gpt-4o\", \"claude-sonnet-4-20250514\", \"unknown-model\"];\n        let metadata = ProviderMetadata::new(\n            \"test\",\n            \"Test Provider\",\n            \"Test Description\",\n            \"gpt-4o\",\n            test_models,\n            \"https://example.com\",\n            vec![],\n        );\n\n        let model_info: HashMap<String, usize> = metadata\n            .known_models\n            .into_iter()\n            .map(|m| (m.name, m.context_limit))\n            .collect();\n\n        // gpt-4o should have 128k limit\n        assert_eq!(*model_info.get(\"gpt-4o\").unwrap(), 128_000);\n\n        // claude-sonnet-4-20250514 should have 200k limit\n        assert_eq!(\n            *model_info.get(\"claude-sonnet-4-20250514\").unwrap(),\n            200_000\n        );\n\n        // unknown model should have default limit (128k)\n        assert_eq!(*model_info.get(\"unknown-model\").unwrap(), 128_000);\n    }\n\n    #[test]\n    fn test_model_info_creation() {\n        // Test direct ModelInfo creation\n        let info = ModelInfo {\n            name: \"test-model\".to_string(),\n            context_limit: 1000,\n            input_token_cost: None,\n            output_token_cost: None,\n            currency: None,\n            supports_cache_control: None,\n        };\n        assert_eq!(info.context_limit, 1000);\n\n        // Test equality\n        let info2 = ModelInfo {\n            name: \"test-model\".to_string(),\n            context_limit: 1000,\n            input_token_cost: None,\n            output_token_cost: None,\n            currency: None,\n            supports_cache_control: None,\n        };\n        assert_eq!(info, info2);\n\n        // Test inequality\n        let info3 = ModelInfo {\n            name: \"test-model\".to_string(),\n            context_limit: 2000,\n            input_token_cost: None,\n            output_token_cost: None,\n            currency: None,\n            supports_cache_control: None,\n        };\n        assert_ne!(info, info3);\n    }\n\n    #[test]\n    fn test_model_info_with_cost() {\n        let info = ModelInfo::with_cost(\"gpt-4o\", 128000, 0.0000025, 0.00001);\n        assert_eq!(info.name, \"gpt-4o\");\n        assert_eq!(info.context_limit, 128000);\n        assert_eq!(info.input_token_cost, Some(0.0000025));\n        assert_eq!(info.output_token_cost, Some(0.00001));\n        assert_eq!(info.currency, Some(\"$\".to_string()));\n    }\n}\n"
+                  },
+                  "annotations": {
+                    "audience": [
+                      "assistant"
+                    ]
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "### /Users/baxen/Development/goose/crates/goose/src/providers/base.rs (lines 1-100)\n```rust\n1: use anyhow::Result;\n2: use futures::Stream;\n3: use serde::{Deserialize, Serialize};\n4: \n5: use super::canonical::{map_to_canonical_model, CanonicalModelRegistry};\n6: use super::errors::ProviderError;\n7: use super::retry::RetryConfig;\n8: use crate::config::base::ConfigValue;\n9: use crate::conversation::message::Message;\n10: use crate::conversation::Conversation;\n11: use crate::model::ModelConfig;\n12: use crate::utils::safe_truncate;\n13: use rmcp::model::Tool;\n14: use utoipa::ToSchema;\n15: \n16: use once_cell::sync::Lazy;\n17: use std::ops::{Add, AddAssign};\n18: use std::pin::Pin;\n19: use std::sync::Mutex;\n20: \n21: /// A global store for the current model being used, we use this as when a provider returns, it tells us the real model, not an alias\n22: pub static CURRENT_MODEL: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));\n23: \n24: /// Set the current model in the global store\n25: pub fn set_current_model(model: &str) {\n26:     if let Ok(mut current_model) = CURRENT_MODEL.lock() {\n27:         *current_model = Some(model.to_string());\n28:     }\n29: }\n30: \n31: /// Get the current model from the global store, the real model, not an alias\n32: pub fn get_current_model() -> Option<String> {\n33:     CURRENT_MODEL.lock().ok().and_then(|model| model.clone())\n34: }\n35: \n36: pub static MSG_COUNT_FOR_SESSION_NAME_GENERATION: usize = 3;\n37: \n38: /// Information about a model's capabilities\n39: #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]\n40: pub struct ModelInfo {\n41:     /// The name of the model\n42:     pub name: String,\n43:     /// The maximum context length this model supports\n44:     pub context_limit: usize,\n45:     /// Cost per token for input (optional)\n46:     pub input_token_cost: Option<f64>,\n47:     /// Cost per token for output (optional)\n48:     pub output_token_cost: Option<f64>,\n49:     /// Currency for the costs (default: \"$\")\n50:     pub currency: Option<String>,\n51:     /// Whether this model supports cache control\n52:     pub supports_cache_control: Option<bool>,\n53: }\n54: \n55: impl ModelInfo {\n56:     /// Create a new ModelInfo with just name and context limit\n57:     pub fn new(name: impl Into<String>, context_limit: usize) -> Self {\n58:         Self {\n59:             name: name.into(),\n60:             context_limit,\n61:             input_token_cost: None,\n62:             output_token_cost: None,\n63:             currency: None,\n64:             supports_cache_control: None,\n65:         }\n66:     }\n67: \n68:     /// Create a new ModelInfo with cost information (per token)\n69:     pub fn with_cost(\n70:         name: impl Into<String>,\n71:         context_limit: usize,\n72:         input_cost: f64,\n73:         output_cost: f64,\n74:     ) -> Self {\n75:         Self {\n76:             name: name.into(),\n77:             context_limit,\n78:             input_token_cost: Some(input_cost),\n79:             output_token_cost: Some(output_cost),\n80:             currency: Some(\"$\".to_string()),\n81:             supports_cache_control: None,\n82:         }\n83:     }\n84: }\n85: \n86: #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]\n87: pub enum ProviderType {\n88:     Preferred,\n89:     Builtin,\n90:     Declarative,\n91:     Custom,\n92: }\n93: \n94: /// Metadata about a provider's configuration requirements and capabilities\n95: #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]\n96: pub struct ProviderMetadata {\n97:     /// The unique identifier for this provider\n98:     pub name: String,\n99:     /// Display name for the provider in UIs\n100:     pub display_name: String,\n```\n",
+                  "annotations": {
+                    "audience": [
+                      "user"
+                    ],
+                    "priority": 0.0
+                  }
+                }
+              ],
+              "isError": false
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_01JcguR5bX9M3Ez83g2B9CAn",
+      "role": "assistant",
+      "created": 1766962476,
+      "content": [
+        {
+          "type": "text",
+          "text": "Now I have a complete picture. Let me summarize the findings:\n\n## What Calls the `complete` Method on Providers\n\nThe `complete` method on the `Provider` trait is called from **4 main locations** in the codebase:\n\n### 1. **Agent Reply Generation** (`crates/goose/src/agents/reply_parts.rs`)\nWhen a provider doesn't support streaming, the agent falls back to calling `complete` directly:\n```rust\nlet complete_result = provider\n    .complete(\n        system_prompt.as_str(),\n        messages_for_provider.messages(),\n        &tools,\n    )\n    .await;\n```\n\n### 2. **Recipe Creation** (`crates/goose/src/agents/agent.rs`)\nWhen generating recipe content, the agent calls `complete`:\n```rust\nlet (result, _usage) = self\n    .provider\n    .lock()\n    .await\n    .as_ref()\n    .ok_or_else(|| ...)?\n    .complete(&system_prompt, messages.messages(), &tools)\n    .await\n```\n\n### 3. **MCP Client Sampling** (`crates/goose/src/agents/mcp_client.rs`)\nWhen handling MCP sampling requests:\n```rust\nlet (response, usage) = provider\n    .complete(system_prompt, &provider_ready_messages, &[])\n    .await\n```\n\n### 4. **Permission Judging** (`crates/goose/src/permission/permission_judge.rs`)\nWhen determining if an operation is read-only:\n```rust\nlet res = provider\n    .complete(\n        &system_prompt,\n        check_messages.messages(),\n        std::slice::from_ref(&tool),\n    )\n    .await;\n```\n\n### Additional Callers (Internal/Tests)\n\n- **LeadWorkerProvider** (`crates/goose/src/providers/lead_worker.rs`) - Calls `complete` on the lead provider as a fallback when the worker fails\n- **Provider Tests** (`crates/goose/src/providers/provider_test.rs`, `crates/goose/tests/providers.rs`) - Test harnesses\n- **Integration Tests** (`crates/goose/tests/session_id_propagation_test.rs`, `crates/goose/tests/agent.rs`)\n\n### Architecture Note\n\nThe `complete` method is a **default implementation** in the `Provider` trait that delegates to `complete_with_model`:\n\n```rust\nasync fn complete(\n    &self,\n    system: &str,\n    messages: &[Message],\n    tools: &[Tool],\n) -> Result<(Message, ProviderUsage), ProviderError> {\n    let model_config = self.get_model_config();\n    self.complete_with_model(&model_config, system, messages, tools)\n        .await\n}\n```\n\nIndividual providers (OpenAI, Anthropic, Google, etc.) implement `complete_with_model`, while `complete` serves as the public API that uses the provider's configured model.\n\n---\n\n## Tool Usage Summary\n\n| Tool | Times Called |\n|------|-------------|\n| `developer__shell` | 9 |\n| `developer__text_editor` | 1 |\n\n**Total: 10 tool calls**"
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    }
+  ],
+  "metadata": {
+    "total_tokens": 27934,
+    "input_tokens": 27151,
+    "output_tokens": 783,
+    "accumulated_total_tokens": 239569,
+    "accumulated_input_tokens": 238786,
+    "accumulated_output_tokens": 783,
+    "status": "completed"
+  }
+}

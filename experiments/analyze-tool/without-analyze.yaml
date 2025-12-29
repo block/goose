@@ -1,0 +1,36 @@
+version: 1.0.0
+title: "Explore Test - Without Analyze"
+description: "Test codebase exploration without the analyze tool (baseline)"
+
+parameters:
+  - key: question
+    input_type: string
+    requirement: required
+    description: "The exploration question to answer about the codebase"
+  - key: target_directory
+    input_type: string
+    requirement: optional
+    default: "."
+    description: "Directory to explore"
+
+prompt: |
+  You are exploring a codebase to answer a question. Use whatever tools you have available
+  to understand the code structure and answer accurately.
+
+  Target directory: {{ target_directory }}
+
+  Question: {{ question }}
+
+  Provide a clear, structured answer. When you're done, summarize what tools you used
+  and how many times you called each one.
+
+extensions:
+  - type: builtin
+    name: developer
+    available_tools:
+      - shell
+      - text_editor
+      - list_windows
+      - screen_capture
+      - image_processor
+    # Note: analyze is NOT in this list
