@@ -175,10 +175,7 @@ pub struct Session {
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct RecursiveSessionExport {
-    #[serde(flatten)]
-    pub session: Session,
-    #[serde(skip_serializing_if = "Vec::is_empty", default)]
-    pub subagent_sessions: Vec<RecursiveSessionExport>,
+    pub sessions: Vec<Session>,
 }
 
 pub struct SessionUpdateBuilder {
@@ -1340,9 +1337,29 @@ impl SessionStorage {
     fn build_recursive_export<'a>(
         &'a self,
         session: Session,
-    ) -> std::pin::Pin<
-        Box<dyn std::future::Future<Output = Result<RecursiveSessionExport>> + Send + 'a>,
-    > {
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<RecursiveSessionExport>> + Send + 'a>>
+    {
+        Box::pin(async move {
+            let mut all_sessions = Vec::new();
+
+            // Add the parent session first
+            all_sessions.push(session.clone());
+
+            // Collect all sub-agent sessions recursively
+            self.collect_subagent_sessions(&session.id, &mut all_sessions)
+                .await?;
+
+            Ok(RecursiveSessionExport {
+                sessions: all_sessions,
+            })
+        })
+    }
+
+    fn collect_subagent_sessions<'a>(
+        &'a self,
+        parent_id: &'a str,
+        sessions: &'a mut Vec<Session>,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + Send + 'a>> {
         Box::pin(async move {
             // Query for all sub-agent sessions
             let subagent_sessions = sqlx::query_as::<_, Session>(
@@ -1358,46 +1375,31 @@ impl SessionStorage {
                 ORDER BY created_at ASC
                 "#,
             )
-            .bind(&session.id)
+            .bind(parent_id)
             .fetch_all(&self.pool)
             .await?;
 
-            // Load conversation for each sub-agent
-            let mut subagent_exports = Vec::new();
+            // Load conversation for each sub-agent and add to the flat list
             for mut subagent_session in subagent_sessions {
                 let conv = self.get_conversation(&subagent_session.id).await?;
                 subagent_session.message_count = conv.messages().len();
                 subagent_session.conversation = Some(conv);
 
-                // Recursively export sub-agent (handles deeper nesting if it exists)
-                let export = self.build_recursive_export(subagent_session).await?;
-                subagent_exports.push(export);
+                let subagent_id = subagent_session.id.clone();
+                sessions.push(subagent_session);
+
+                // Recursively collect descendants of this sub-agent
+                self.collect_subagent_sessions(&subagent_id, sessions)
+                    .await?;
             }
 
-            Ok(RecursiveSessionExport {
-                session,
-                subagent_sessions: subagent_exports,
-            })
+            Ok(())
         })
     }
 
     async fn import_session(&self, json: &str) -> Result<Session> {
-        // Try to parse as RecursiveSessionExport first
-        if let Ok(recursive_import) = serde_json::from_str::<RecursiveSessionExport>(json) {
-            // Check if it has subagent_sessions
-            if !recursive_import.subagent_sessions.is_empty() {
-                return self.import_recursive_session(recursive_import).await;
-            }
-            // Otherwise, treat the session part as a regular import
-            return self.import_single_session(recursive_import.session).await;
-        }
-
-        // Fall back to parsing as Session for backward compatibility
         let import: Session = serde_json::from_str(json)?;
-        self.import_single_session(import).await
-    }
 
-    async fn import_single_session(&self, import: Session) -> Result<Session> {
         let session = self
             .create_session(
                 import.working_dir.clone(),
@@ -1431,175 +1433,6 @@ impl SessionStorage {
         }
 
         self.get_session(&session.id, true).await
-    }
-
-    async fn import_recursive_session(
-        &self,
-        recursive_import: RecursiveSessionExport,
-    ) -> Result<Session> {
-        // Use a transaction to ensure all-or-nothing import
-        let mut tx = self.pool.begin().await?;
-
-        // Map from old session IDs to new ones
-        let mut id_mapping: HashMap<String, String> = HashMap::new();
-
-        // Import parent session first
-        let parent_session = self
-            .import_session_with_parent(recursive_import.session, None, &mut id_mapping, &mut tx)
-            .await?;
-
-        // Import all sub-agents recursively
-        for subagent_export in recursive_import.subagent_sessions {
-            self.import_recursive_session_internal(
-                subagent_export,
-                Some(parent_session.id.clone()),
-                &mut id_mapping,
-                &mut tx,
-            )
-            .await?;
-        }
-
-        tx.commit().await?;
-
-        // Return the imported parent session with full conversation
-        self.get_session(&parent_session.id, true).await
-    }
-
-    fn import_recursive_session_internal<'a>(
-        &'a self,
-        recursive_import: RecursiveSessionExport,
-        parent_id: Option<String>,
-        id_mapping: &'a mut HashMap<String, String>,
-        tx: &'a mut sqlx::Transaction<'_, Sqlite>,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Session>> + Send + 'a>> {
-        Box::pin(async move {
-            // Import this session
-            let session = self
-                .import_session_with_parent(recursive_import.session, parent_id, id_mapping, tx)
-                .await?;
-
-            // Import sub-agents recursively
-            for subagent_export in recursive_import.subagent_sessions {
-                self.import_recursive_session_internal(
-                    subagent_export,
-                    Some(session.id.clone()),
-                    id_mapping,
-                    tx,
-                )
-                .await?;
-            }
-
-            Ok(session)
-        })
-    }
-
-    async fn import_session_with_parent(
-        &self,
-        import: Session,
-        parent_id: Option<String>,
-        id_mapping: &mut HashMap<String, String>,
-        tx: &mut sqlx::Transaction<'_, Sqlite>,
-    ) -> Result<Session> {
-        // Store old ID for mapping
-        let old_id = import.id.clone();
-
-        // Generate new session ID
-        let today = chrono::Utc::now().format("%Y%m%d").to_string();
-        let new_id = sqlx::query_scalar::<_, String>(
-            r#"
-            SELECT ? || '_' || CAST(COALESCE((
-                SELECT MAX(CAST(SUBSTR(id, 10) AS INTEGER))
-                FROM sessions
-                WHERE id LIKE ? || '_%'
-            ), 0) + 1 AS TEXT)
-            "#,
-        )
-        .bind(&today)
-        .bind(&today)
-        .fetch_one(&mut **tx)
-        .await?;
-
-        // Store mapping
-        id_mapping.insert(old_id, new_id.clone());
-
-        // Prepare JSON fields
-        let recipe_json = match &import.recipe {
-            Some(recipe) => Some(serde_json::to_string(recipe)?),
-            None => None,
-        };
-
-        let user_recipe_values_json = match &import.user_recipe_values {
-            Some(values) => Some(serde_json::to_string(values)?),
-            None => None,
-        };
-
-        let model_config_json = match &import.model_config {
-            Some(config) => Some(serde_json::to_string(config)?),
-            None => None,
-        };
-
-        // Insert session
-        sqlx::query(
-            r#"
-            INSERT INTO sessions (
-                id, name, user_set_name, session_type, working_dir, created_at, updated_at, extension_data,
-                total_tokens, input_tokens, output_tokens,
-                accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
-                schedule_id, recipe_json, user_recipe_values_json,
-                provider_name, model_config_json, parent_session_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            "#,
-        )
-        .bind(&new_id)
-        .bind(&import.name)
-        .bind(import.user_set_name)
-        .bind(import.session_type.to_string())
-        .bind(import.working_dir.to_string_lossy().as_ref())
-        .bind(import.created_at)
-        .bind(import.updated_at)
-        .bind(serde_json::to_string(&import.extension_data)?)
-        .bind(import.total_tokens)
-        .bind(import.input_tokens)
-        .bind(import.output_tokens)
-        .bind(import.accumulated_total_tokens)
-        .bind(import.accumulated_input_tokens)
-        .bind(import.accumulated_output_tokens)
-        .bind(&import.schedule_id)
-        .bind(recipe_json)
-        .bind(user_recipe_values_json)
-        .bind(&import.provider_name)
-        .bind(model_config_json)
-        .bind(&parent_id)
-        .execute(&mut **tx)
-        .await?;
-
-        // Import messages if present
-        if let Some(ref conversation) = import.conversation {
-            for message in conversation.messages() {
-                let metadata_json = serde_json::to_string(&message.metadata)?;
-
-                sqlx::query(
-                    r#"
-                    INSERT INTO messages (session_id, role, content_json, created_timestamp, metadata_json)
-                    VALUES (?, ?, ?, ?, ?)
-                    "#,
-                )
-                .bind(&new_id)
-                .bind(role_to_string(&message.role))
-                .bind(serde_json::to_string(&message.content)?)
-                .bind(message.created)
-                .bind(metadata_json)
-                .execute(&mut **tx)
-                .await?;
-            }
-        }
-
-        // Create and return Session struct
-        let mut session = import;
-        session.id = new_id;
-        session.parent_session_id = parent_id;
-
-        Ok(session)
     }
 
     async fn copy_session(&self, session_id: &str, new_name: String) -> Result<Session> {
@@ -1997,64 +1830,27 @@ mod tests {
         // Export recursively
         let exported = storage.export_session(&parent.id, true).await.unwrap();
 
-        // Verify structure
+        // Verify structure - should be a flat array
         let parsed: RecursiveSessionExport = serde_json::from_str(&exported).unwrap();
-        assert_eq!(parsed.session.name, "Parent session");
-        assert_eq!(parsed.subagent_sessions.len(), 2);
-        assert_eq!(parsed.subagent_sessions[0].session.name, "Subagent 1");
-        assert_eq!(parsed.subagent_sessions[1].session.name, "Subagent 2");
+        assert_eq!(parsed.sessions.len(), 3); // parent + 2 subagents
 
-        // Import and verify
-        let imported = storage.import_session(&exported).await.unwrap();
+        // First session should be parent
+        assert_eq!(parsed.sessions[0].name, "Parent session");
+        assert_eq!(parsed.sessions[0].parent_session_id, None);
+        assert_eq!(parsed.sessions[0].message_count, 1);
 
-        // Should have new ID
-        assert_ne!(imported.id, parent.id);
-        assert_eq!(imported.name, "Parent session");
-        assert_eq!(imported.message_count, 1);
-        assert_eq!(imported.parent_session_id, None); // Root session has no parent
+        // Next two should be subagents
+        assert_eq!(parsed.sessions[1].name, "Subagent 1");
+        assert_eq!(parsed.sessions[1].parent_session_id, Some(parent.id.clone()));
+        assert_eq!(parsed.sessions[1].message_count, 1);
 
-        // Verify sub-agents were imported
-        let imported_subagents = sqlx::query_as::<_, Session>(
-            r#"
-            SELECT id, working_dir, name, description, user_set_name, session_type, created_at, updated_at, extension_data,
-                   total_tokens, input_tokens, output_tokens,
-                   accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
-                   schedule_id, recipe_json, user_recipe_values_json,
-                   provider_name, model_config_json, parent_session_id,
-                   0 as message_count
-            FROM sessions
-            WHERE parent_session_id = ? AND session_type = 'sub_agent'
-            ORDER BY created_at ASC
-            "#,
-        )
-        .bind(&imported.id)
-        .fetch_all(&storage.pool)
-        .await
-        .unwrap();
+        assert_eq!(parsed.sessions[2].name, "Subagent 2");
+        assert_eq!(parsed.sessions[2].parent_session_id, Some(parent.id.clone()));
+        assert_eq!(parsed.sessions[2].message_count, 1);
 
-        assert_eq!(imported_subagents.len(), 2);
-        assert_eq!(imported_subagents[0].name, "Subagent 1");
-        assert_eq!(imported_subagents[1].name, "Subagent 2");
-        assert_eq!(
-            imported_subagents[0].parent_session_id,
-            Some(imported.id.clone())
-        );
-        assert_eq!(
-            imported_subagents[1].parent_session_id,
-            Some(imported.id.clone())
-        );
-
-        // Verify messages were imported for subagents
-        let sub1_conv = storage
-            .get_conversation(&imported_subagents[0].id)
-            .await
-            .unwrap();
-        assert_eq!(sub1_conv.messages().len(), 1);
-
-        let sub2_conv = storage
-            .get_conversation(&imported_subagents[1].id)
-            .await
-            .unwrap();
-        assert_eq!(sub2_conv.messages().len(), 1);
+        // Verify all sessions have their conversations
+        assert!(parsed.sessions[0].conversation.is_some());
+        assert!(parsed.sessions[1].conversation.is_some());
+        assert!(parsed.sessions[2].conversation.is_some());
     }
 }
