@@ -19,7 +19,7 @@ goose = { path = "../goose" }
 goose-bench = { path = "../goose-bench" }
 goose-mcp = { path = "../goose-mcp" }
 rmcp = { workspace = true }
-sacp = "10.0.0-alpha.1"
+sacp = "10.0.0-alpha.3"
 agent-client-protocol-schema = "0.10.5"
 clap = { version = "4.4", features = ["derive"] }
 cliclack = "0.3.5"
