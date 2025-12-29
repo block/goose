@@ -21,17 +21,11 @@ The extension uses the [Agent Client Protocol (ACP)](/docs/guides/acp-clients) t
 - [goose CLI](/docs/getting-started/installation) version 1.16.0 or higher
 :::
 
-Use these steps to install the [goose for VS Code extension](https://marketplace.visualstudio.com/items?itemName=block.vscode-goose) in VS Code.
-
-1. Open VS Code
-2. Open the Extensions marketplace in VS Code:
-   - macOS: `Cmd+Shift+X`
-   - Windows/Linux: `Ctrl+Shift+X`
-   - Or use: View → Extensions
-3. Search for `VS Code goose`
-4. On the `goose for VS Code` page, click the `Install` button
-5. Restart VS Code if prompted
-6. Click the <IconGoose className="inline" size={16} /> icon in the Activity Bar to open the side panel and start chatting with goose
+1. Go to [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=block.vscode-goose)
+2. Click `Install`
+3. On the popup window, click `Open Visual Studio Code`
+4. In Visual Studio Code, click `Install`
+5. Click the <IconGoose className="inline" size={16} /> icon in the Activity Bar to open the side panel and start chatting with goose
 
 ## Share Context with goose
 
