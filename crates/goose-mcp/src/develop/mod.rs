@@ -6,6 +6,7 @@
 //! - Explore: Codebase exploration and analysis
 //! - Image: Screenshot and image processing
 
+pub mod edit;
 pub mod process;
 
 use std::sync::Arc;
@@ -17,6 +18,7 @@ use rmcp::{
     tool, tool_handler, tool_router, ServerHandler,
 };
 
+use edit::{EditTools, FileEditParams, FileWriteParams};
 use process::{
     ProcessAwaitParams, ProcessIdParams, ProcessInputParams, ProcessManager, ProcessOutputParams,
     ProcessTools, ShellParams,
@@ -27,6 +29,7 @@ pub struct DevelopServer {
     tool_router: ToolRouter<Self>,
     instructions: String,
     process_tools: Arc<ProcessTools>,
+    edit_tools: Arc<EditTools>,
 }
 
 impl Clone for DevelopServer {
@@ -35,6 +38,7 @@ impl Clone for DevelopServer {
             tool_router: Self::tool_router(),
             instructions: self.instructions.clone(),
             process_tools: Arc::clone(&self.process_tools),
+            edit_tools: Arc::clone(&self.edit_tools),
         }
     }
 }
@@ -50,6 +54,7 @@ impl DevelopServer {
     pub fn new() -> Self {
         let manager = Arc::new(ProcessManager::new());
         let process_tools = Arc::new(ProcessTools::new(Arc::clone(&manager)));
+        let edit_tools = Arc::new(EditTools::new());
 
         let mut instructions = formatdoc! {r#"
             The develop extension provides tools for software development tasks.
@@ -58,7 +63,7 @@ impl DevelopServer {
             - **Process**: Execute shell commands with `shell`. Working directory and 
               environment variables persist across calls. Long-running or large-output 
               commands return a process ID for later querying.
-            - **Edit**: Create and modify files
+            - **Edit**: Create and modify files with `file_write` and `file_edit`
             - **Explore**: Navigate and analyze codebases
             - **Image**: Capture and process screenshots
         "#};
@@ -72,8 +77,13 @@ impl DevelopServer {
             tool_router: Self::tool_router(),
             instructions,
             process_tools,
+            edit_tools,
         }
     }
+
+    // ========================================================================
+    // Process Tools
+    // ========================================================================
 
     #[tool(
         name = "shell",
@@ -147,6 +157,32 @@ impl DevelopServer {
         params: Parameters<ProcessInputParams>,
     ) -> Result<CallToolResult, ErrorData> {
         Ok(self.process_tools.process_input(params.0))
+    }
+
+    // ========================================================================
+    // Edit Tools
+    // ========================================================================
+
+    #[tool(
+        name = "file_write",
+        description = "Create a new file or overwrite an existing file. Creates parent directories if needed."
+    )]
+    pub async fn file_write(
+        &self,
+        params: Parameters<FileWriteParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        Ok(self.edit_tools.file_write(params.0))
+    }
+
+    #[tool(
+        name = "file_edit",
+        description = "Edit a file by finding and replacing text. The old_text must match exactly and uniquely. Use empty new_text to delete. Returns error with context if no match or multiple matches found."
+    )]
+    pub async fn file_edit(
+        &self,
+        params: Parameters<FileEditParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        Ok(self.edit_tools.file_edit(params.0))
     }
 }
 

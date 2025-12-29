@@ -1,0 +1,898 @@
+Loading recipe: Explore Test - With Analyze
+Description: Test codebase exploration with the analyze tool available
+Parameters used to load this recipe:
+   target_directory: /Users/baxen/Development/goose
+   question: What are the main crates in this project and what does each do?
+
+starting session | provider: databricks model: goose-claude-4-5-opus
+    session id: 20251228_54
+    working directory: /Users/baxen/Development/goose
+{
+  "messages": [
+    {
+      "id": null,
+      "role": "user",
+      "created": 1766962158,
+      "content": [
+        {
+          "type": "text",
+          "text": "You are exploring a codebase to answer a question.\n\nTarget directory: /Users/baxen/Development/goose\n\nQuestion: What are the main crates in this project and what does each do?\n\n**Strategy**: Use the `analyze` tool as your primary exploration method:\n1. Start with `analyze` on the target directory to understand structure\n2. Use `analyze` with `focus` parameter to find symbol definitions and call graphs\n3. Only use `text_editor` to read specific file sections when you need exact implementation details\n4. Avoid reading entire files - let analyze give you the map, then selectively read\n\nThe analyze tool has three modes:\n- Directory mode: `analyze(path=\"/dir\")` - shows file tree with LOC/function/class counts\n- File mode: `analyze(path=\"/file.rs\")` - shows functions, classes, imports without full code\n- Focused mode: `analyze(path=\"/dir\", focus=\"symbol_name\")` - finds where symbol is defined and what calls it\n\nProvide a clear, structured answer. When you're done, summarize what tools you used\nand how many times you called each one.\n"
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_01P2WSX8DrTVXWm7wtgNAsDc",
+      "role": "assistant",
+      "created": 1766962162,
+      "content": [
+        {
+          "type": "toolRequest",
+          "id": "toolu_012Sj4BGAzq1BnV2AjPJrNhr",
+          "toolCall": {
+            "status": "success",
+            "value": {
+              "name": "developer__analyze",
+              "arguments": {
+                "max_depth": 2,
+                "path": "/Users/baxen/Development/goose"
+              }
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_ec851a2e-c1ab-4288-aad6-946cabaad2fe",
+      "role": "user",
+      "created": 1766962162,
+      "content": [
+        {
+          "type": "toolResponse",
+          "id": "toolu_012Sj4BGAzq1BnV2AjPJrNhr",
+          "toolResult": {
+            "status": "success",
+            "value": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "SUMMARY:\nShown: 57 files, 27665L, 20F, 72C (max_depth=2)\nLanguages: json (70%), bash (13%), markdown (7%), python (2%), yaml (2%), typescript (2%), powershell (0%), toml (0%), javascript (0%)\n\nPATH [LOC, FUNCTIONS, CLASSES] <FLAGS>\n.devcontainer/\n  devcontainer.json [28L]\n.github/\n  copilot-instructions.md [102L]\n  pull_request_template.md [33L]\n.intersect/\n  intersect-config.yaml [2L]\nACCEPTABLE_USAGE.md [59L]\nAGENTS.md [102L]\nBUILDING_DOCKER.md [322L]\nBUILDING_LINUX.md [183L]\nCONTRIBUTING.md [311L]\nCONTRIBUTING_RECIPES.md [133L]\nCargo.toml [26L]\nCross.toml [46L]\nGOVERNANCE.md [199L]\nHOWTOAI.md [317L]\nMAINTAINERS.md [19L]\nREADME.md [52L]\nRELEASE.md [15L]\nSECURITY.md [15L]\nbin/\n  README.hermit.md [7L]\ndocumentation/\n  AGENTS.md [21L]\n  README.md [42L]\n  docusaurus.config.ts [534L]\n  package-lock.json [19456L]\n  package.json [65L]\n  postcss.config.js [8L]\n  sidebars.ts [33L]\n  tailwind.config.js [35L]\n  tsconfig.json [9L]\ndownload_cli.ps1 [201L]\ndownload_cli.sh [361L]\nexamples/\n  frontend_tools.py [292L, 7F, 35C] main:279\ngoose-self-test.yaml [310L]\nrecipe-scanner/\n  base_recipe.yaml [328L]\n  config.yaml [10L]\n  decode-training-data.py [163L, 3F, 16C]\n  scan-recipe.sh [946L]\nrecipe.yaml [46L]\nrun_cross_local.md [113L]\nrust-toolchain.toml [3L]\nscripts/\n  README.md [83L]\n  check-no-native-tls.sh [28L]\n  check-openapi-schema.sh [28L]\n  clean-gh-pages.sh [39L]\n  clippy-baseline.sh [159L]\n  clippy-lint.sh [42L]\n  goose-db-helper.sh [876L]\n  parse-benchmark-results.sh [93L]\n  run-benchmarks.sh [334L]\n  test_compaction.sh [355L]\n  test_lead_worker.sh [31L]\n  test_mcp.sh [118L]\n  test_providers.sh [114L]\n  test_subrecipes.sh [126L]\n  test_web.sh [26L]\ntarget/\n  .rustc_info.json [1L]\n  .rustdoc_fingerprint.json [1L]\ntest_acp_client.py [264L, 10F, 21C] main:187\n",
+                  "annotations": {
+                    "audience": [
+                      "assistant"
+                    ]
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "SUMMARY:\nShown: 57 files, 27665L, 20F, 72C (max_depth=2)\nLanguages: json (70%), bash (13%), markdown (7%), python (2%), yaml (2%), typescript (2%), powershell (0%), toml (0%), javascript (0%)\n\nPATH [LOC, FUNCTIONS, CLASSES] <FLAGS>\n.devcontainer/\n  devcontainer.json [28L]\n.github/\n  copilot-instructions.md [102L]\n  pull_request_template.md [33L]\n.intersect/\n  intersect-config.yaml [2L]\nACCEPTABLE_USAGE.md [59L]\nAGENTS.md [102L]\nBUILDING_DOCKER.md [322L]\nBUILDING_LINUX.md [183L]\nCONTRIBUTING.md [311L]\nCONTRIBUTING_RECIPES.md [133L]\nCargo.toml [26L]\nCross.toml [46L]\nGOVERNANCE.md [199L]\nHOWTOAI.md [317L]\nMAINTAINERS.md [19L]\nREADME.md [52L]\nRELEASE.md [15L]\nSECURITY.md [15L]\nbin/\n  README.hermit.md [7L]\ndocumentation/\n  AGENTS.md [21L]\n  README.md [42L]\n  docusaurus.config.ts [534L]\n  package-lock.json [19456L]\n  package.json [65L]\n  postcss.config.js [8L]\n  sidebars.ts [33L]\n  tailwind.config.js [35L]\n  tsconfig.json [9L]\ndownload_cli.ps1 [201L]\ndownload_cli.sh [361L]\nexamples/\n  frontend_tools.py [292L, 7F, 35C] main:279\ngoose-self-test.yaml [310L]\nrecipe-scanner/\n  base_recipe.yaml [328L]\n  config.yaml [10L]\n  decode-training-data.py [163L, 3F, 16C]\n  scan-recipe.sh [946L]\nrecipe.yaml [46L]\nrun_cross_local.md [113L]\nrust-toolchain.toml [3L]\nscripts/\n  README.md [83L]\n  check-no-native-tls.sh [28L]\n  check-openapi-schema.sh [28L]\n  clean-gh-pages.sh [39L]\n  clippy-baseline.sh [159L]\n  clippy-lint.sh [42L]\n  goose-db-helper.sh [876L]\n  parse-benchmark-results.sh [93L]\n  run-benchmarks.sh [334L]\n  test_compaction.sh [355L]\n  test_lead_worker.sh [31L]\n  test_mcp.sh [118L]\n  test_providers.sh [114L]\n  test_subrecipes.sh [126L]\n  test_web.sh [26L]\ntarget/\n  .rustc_info.json [1L]\n  .rustdoc_fingerprint.json [1L]\ntest_acp_client.py [264L, 10F, 21C] main:187\n",
+                  "annotations": {
+                    "audience": [
+                      "user"
+                    ],
+                    "priority": 0.0
+                  }
+                }
+              ],
+              "isError": false
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_018iv7oTijBk15fniyQWg9T6",
+      "role": "assistant",
+      "created": 1766962164,
+      "content": [
+        {
+          "type": "text",
+          "text": "Let me look at the crates directory specifically to understand the main crates:"
+        },
+        {
+          "type": "toolRequest",
+          "id": "toolu_018R2VnmxNA55shKZgn51DBC",
+          "toolCall": {
+            "status": "success",
+            "value": {
+              "name": "developer__analyze",
+              "arguments": {
+                "max_depth": 2,
+                "path": "/Users/baxen/Development/goose/crates"
+              }
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_b62d9c4d-2547-405b-a236-12f300102834",
+      "role": "user",
+      "created": 1766962165,
+      "content": [
+        {
+          "type": "toolResponse",
+          "id": "toolu_018R2VnmxNA55shKZgn51DBC",
+          "toolResult": {
+            "status": "success",
+            "value": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "SUMMARY:\nShown: 12 files, 5266L, 1F, 0C (max_depth=2)\nLanguages: json (83%), toml (8%), markdown (7%), rust (0%)\n\nPATH [LOC, FUNCTIONS, CLASSES] <FLAGS>\ngoose/\n  Cargo.toml [148L]\n  canonical_mapping_report.json [4413L]\ngoose-bench/\n  Cargo.toml [32L]\n  README.md [273L]\ngoose-cli/\n  Cargo.toml [76L]\n  WEB_INTERFACE.md [78L]\ngoose-mcp/\n  Cargo.toml [89L]\n  README.md [9L]\ngoose-server/\n  ALLOWLIST.md [60L]\n  Cargo.toml [65L]\n  build.rs [4L, 1F] main:3\ngoose-test/\n  Cargo.toml [19L]\n",
+                  "annotations": {
+                    "audience": [
+                      "assistant"
+                    ]
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "SUMMARY:\nShown: 12 files, 5266L, 1F, 0C (max_depth=2)\nLanguages: json (83%), toml (8%), markdown (7%), rust (0%)\n\nPATH [LOC, FUNCTIONS, CLASSES] <FLAGS>\ngoose/\n  Cargo.toml [148L]\n  canonical_mapping_report.json [4413L]\ngoose-bench/\n  Cargo.toml [32L]\n  README.md [273L]\ngoose-cli/\n  Cargo.toml [76L]\n  WEB_INTERFACE.md [78L]\ngoose-mcp/\n  Cargo.toml [89L]\n  README.md [9L]\ngoose-server/\n  ALLOWLIST.md [60L]\n  Cargo.toml [65L]\n  build.rs [4L, 1F] main:3\ngoose-test/\n  Cargo.toml [19L]\n",
+                  "annotations": {
+                    "audience": [
+                      "user"
+                    ],
+                    "priority": 0.0
+                  }
+                }
+              ],
+              "isError": false
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_01CRK32ptb1yePbeJkSLKMaz",
+      "role": "assistant",
+      "created": 1766962167,
+      "content": [
+        {
+          "type": "text",
+          "text": "Now let me analyze each crate in more detail to understand what they do:"
+        },
+        {
+          "type": "toolRequest",
+          "id": "toolu_01GsVfnV9Xa98rBPVPdYzUXi",
+          "toolCall": {
+            "status": "success",
+            "value": {
+              "name": "developer__analyze",
+              "arguments": {
+                "max_depth": 2,
+                "path": "/Users/baxen/Development/goose/crates/goose/src"
+              }
+            }
+          }
+        },
+        {
+          "type": "toolRequest",
+          "id": "toolu_01Xq2QT7WLCxKpxGz1RPjhYD",
+          "toolCall": {
+            "status": "success",
+            "value": {
+              "name": "developer__analyze",
+              "arguments": {
+                "max_depth": 2,
+                "path": "/Users/baxen/Development/goose/crates/goose-cli/src"
+              }
+            }
+          }
+        },
+        {
+          "type": "toolRequest",
+          "id": "toolu_01Np3KsfBvFjDno811JoWL6p",
+          "toolCall": {
+            "status": "success",
+            "value": {
+              "name": "developer__analyze",
+              "arguments": {
+                "max_depth": 2,
+                "path": "/Users/baxen/Development/goose/crates/goose-server/src"
+              }
+            }
+          }
+        },
+        {
+          "type": "toolRequest",
+          "id": "toolu_01SD3pa1qfQpUFeAJGEmt54Q",
+          "toolCall": {
+            "status": "success",
+            "value": {
+              "name": "developer__analyze",
+              "arguments": {
+                "max_depth": 2,
+                "path": "/Users/baxen/Development/goose/crates/goose-mcp/src"
+              }
+            }
+          }
+        },
+        {
+          "type": "toolRequest",
+          "id": "toolu_018dycX9phx4ZKhP5tQC2y1T",
+          "toolCall": {
+            "status": "success",
+            "value": {
+              "name": "developer__analyze",
+              "arguments": {
+                "max_depth": 2,
+                "path": "/Users/baxen/Development/goose/crates/goose-bench/src"
+              }
+            }
+          }
+        },
+        {
+          "type": "toolRequest",
+          "id": "toolu_01Dt34WFBEjJkyniTCHXNaAh",
+          "toolCall": {
+            "status": "success",
+            "value": {
+              "name": "developer__analyze",
+              "arguments": {
+                "max_depth": 2,
+                "path": "/Users/baxen/Development/goose/crates/goose-test/src"
+              }
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_468e6b7d-cfc5-451b-8394-45c248b704d2",
+      "role": "user",
+      "created": 1766962171,
+      "content": [
+        {
+          "type": "toolResponse",
+          "id": "toolu_01GsVfnV9Xa98rBPVPdYzUXi",
+          "toolResult": {
+            "status": "success",
+            "value": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "SUMMARY:\nShown: 140 files, 45512L, 1720F, 489C (max_depth=2)\nLanguages: rust (99%), markdown (0%), html (0%)\n\nPATH [LOC, FUNCTIONS, CLASSES] <FLAGS>\naction_required_manager.rs [99L, 4F, 3C]\nagents/\n  agent.rs [1657L, 41F, 5C]\n  chatrecall_extension.rs [352L, 11F, 4C]\n  code_execution_extension.rs [1196L, 34F, 10C]\n  execute_commands.rs [369L, 7F, 2C]\n  extension.rs [671L, 21F, 13C]\n  extension_malware_check.rs [511L, 24F, 9C]\n  extension_manager.rs [1784L, 62F, 10C]\n  extension_manager_extension.rs [475L, 15F, 6C]\n  final_output_tool.rs [277L, 12F, 2C]\n  large_response_handler.rs [256L, 7F]\n  mcp_client.rs [638L, 24F, 6C]\n  mod.rs [33L]\n  moim.rs [154L, 4F]\n  platform_tools.rs [47L, 1F]\n  prompt_manager.rs [387L, 23F, 5C]\n  reply_parts.rs [486L, 14F, 3C]\n  retry.rs [501L, 27F, 3C]\n  schedule_tool.rs [468L, 11F, 1C]\n  skills_extension.rs [867L, 29F, 6C]\n  subagent_handler.rs [224L, 2F, 1C]\n  subagent_task_config.rs [56L, 2F, 3C]\n  subagent_tool.rs [510L, 15F, 2C]\n  todo_extension.rs [258L, 12F, 4C]\n  tool_execution.rs [170L, 3F, 3C]\n  types.rs [95L, 1F, 4C]\nconfig/\n  base.rs [1593L, 61F, 8C]\n  declarative_providers.rs [315L, 14F, 3C]\n  experiments.rs [58L, 4F, 2C]\n  extensions.rs [136L, 11F, 1C]\n  goose_mode.rs [26L, 1F, 1C]\n  mod.rs [28L]\n  paths.rs [60L, 7F, 2C]\n  permission.rs [305L, 19F, 4C]\n  search_path.rs [123L, 7F, 2C]\ncontext_mgmt/\n  mod.rs [577L, 14F, 4C]\nconversation/\n  message.rs [1432L, 86F, 19C]\n  mod.rs [1173L, 47F, 5C]\n  tool_result_serde.rs [144L, 4F]\nexecution/\n  manager.rs [350L, 18F, 2C]\n  mod.rs [45L, 4F, 2C]\ngoose_apps/\n  mod.rs [9L]\n  resource.rs [112L, 4F, 5C]\nhints/\n  import_files.rs [488L, 15F]\n  load_hints.rs [469L, 15F]\n  mod.rs [4L]\nlib.rs [30L]\nlogging.rs [170L, 6F]\nmcp_utils.rs [4L]\nmodel.rs [298L, 18F, 3C]\noauth/\n  mod.rs [114L, 1F, 2C]\n  oauth_callback.html [73L]\n  persist.rs [54L, 5F, 3C]\npermission/\n  mod.rs [9L]\n  permission_confirmation.rs [22L, 1C]\n  permission_inspector.rs [210L, 7F, 3C]\n  permission_judge.rs [269L, 5F, 2C]\n  permission_store.rs [145L, 8F, 4C]\nposthog.rs [566L, 23F, 3C]\nprompt_template.rs [240L, 11F, 4C]\nprompts/\n  desktop_prompt.md [14L]\n  desktop_recipe_instruction.md [15L]\n  mock.md [3L]\n  permission_judge.md [1L]\n  plan.md [32L]\n  recipe.md [20L]\n  subagent_system.md [38L]\n  summarize_oneshot.md [34L]\n  system.md [71L]\n  system_gpt_4.1.md [63L]\nproviders/\n  anthropic.rs [303L, 12F, 3C]\n  api_client.rs [457L, 33F, 12C]\n  auto_detect.rs [51L, 1F]\n  azure.rs [177L, 8F, 6C]\n  azureauth.rs [170L, 4F, 5C]\n  base.rs [725L, 41F, 12C]\n  bedrock.rs [263L, 8F, 3C]\n  claude_code.rs [455L, 10F, 3C]\n  cursor_agent.rs [390L, 10F, 3C]\n  databricks.rs [453L, 19F, 7C]\n  embedding.rs [24L, 3C]\n  errors.rs [129L, 5F, 4C]\n  factory.rs [343L, 15F]\n  gcpauth.rs [1115L, 34F, 16C]\n  gcpvertexai.rs [641L, 16F, 3C]\n  gemini_cli.rs [307L, 8F, 3C]\n  githubcopilot.rs [561L, 19F, 12C]\n  google.rs [161L, 7F, 3C]\n  lead_worker.rs [692L, 33F, 8C]\n  litellm.rs [343L, 14F, 6C]\n  mod.rs [43L]\n  oauth.rs [582L, 15F, 6C]\n  ollama.rs [357L, 13F, 6C]\n  openai.rs [500L, 17F, 4C]\n  openrouter.rs [422L, 12F, 3C]\n  provider_registry.rs [162L, 8F, 4C]\n  provider_test.rs [58L, 2F]\n  retry.rs [138L, 6F, 4C]\n  sagemaker_tgi.rs [331L, 9F, 3C]\n  snowflake.rs [346L, 7F, 4C]\n  testprovider.rs [298L, 17F, 8C]\n  tetrate.rs [305L, 9F, 3C]\n  toolshim.rs [445L, 10F, 3C]\n  usage_estimator.rs [128L, 4F]\n  utils.rs [951L, 42F, 3C]\n  utils_universal_openai_stream.rs [409L, 8F, 15C]\n  venice.rs [536L, 11F, 6C]\n  xai.rs [175L, 8F, 3C]\nrecipe/\n  local_recipes.rs [192L, 10F]\n  mod.rs [775L, 33F, 11C]\n  read_recipe_file_content.rs [102L, 5F, 1C]\n  recipe_extension_adapter.rs [283L, 4F, 2C]\n  template_recipe.rs [284L, 13F]\n  validate_recipe.rs [200L, 8F]\n  yaml_format_utils.rs [122L, 8F]\nrecipe_deeplink.rs [108L, 7F]\nscheduler.rs [976L, 38F, 9C]\nscheduler_trait.rs [41L]\nsecurity/\n  mod.rs [165L, 6F, 4C]\n  patterns.rs [609L, 15F, 6C]\n  scanner.rs [267L, 14F, 4C]\n  security_inspector.rs [147L, 9F, 4C]\nsession/\n  chat_history_search.rs [286L, 9F, 4C]\n  diagnostics.rs [89L, 1F]\n  extension_data.rs [191L, 13F, 8C]\n  legacy.rs [141L, 4F]\n  mod.rs [9L]\n  session_manager.rs [1518L, 71F, 14C]\nsession_context.rs [80L, 7F]\nslash_commands.rs [74L, 5F, 1C]\nsubprocess.rs [10L, 1F]\ntoken_counter.rs [308L, 14F, 2C]\ntool_inspection.rs [323L, 12F, 4C]\ntool_monitor.rs [132L, 8F, 5C]\ntracing/\n  langfuse_layer.rs [506L, 21F, 9C]\n  mod.rs [16L]\n  observation_layer.rs [521L, 32F, 16C]\n  otlp_layer.rs [337L, 15F, 3C]\n  rate_limiter.rs [143L, 7F, 5C]\nutils.rs [128L, 14F]\n",
+                  "annotations": {
+                    "audience": [
+                      "assistant"
+                    ]
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "SUMMARY:\nShown: 140 files, 45512L, 1720F, 489C (max_depth=2)\nLanguages: rust (99%), markdown (0%), html (0%)\n\nPATH [LOC, FUNCTIONS, CLASSES] <FLAGS>\naction_required_manager.rs [99L, 4F, 3C]\nagents/\n  agent.rs [1657L, 41F, 5C]\n  chatrecall_extension.rs [352L, 11F, 4C]\n  code_execution_extension.rs [1196L, 34F, 10C]\n  execute_commands.rs [369L, 7F, 2C]\n  extension.rs [671L, 21F, 13C]\n  extension_malware_check.rs [511L, 24F, 9C]\n  extension_manager.rs [1784L, 62F, 10C]\n  extension_manager_extension.rs [475L, 15F, 6C]\n  final_output_tool.rs [277L, 12F, 2C]\n  large_response_handler.rs [256L, 7F]\n  mcp_client.rs [638L, 24F, 6C]\n  mod.rs [33L]\n  moim.rs [154L, 4F]\n  platform_tools.rs [47L, 1F]\n  prompt_manager.rs [387L, 23F, 5C]\n  reply_parts.rs [486L, 14F, 3C]\n  retry.rs [501L, 27F, 3C]\n  schedule_tool.rs [468L, 11F, 1C]\n  skills_extension.rs [867L, 29F, 6C]\n  subagent_handler.rs [224L, 2F, 1C]\n  subagent_task_config.rs [56L, 2F, 3C]\n  subagent_tool.rs [510L, 15F, 2C]\n  todo_extension.rs [258L, 12F, 4C]\n  tool_execution.rs [170L, 3F, 3C]\n  types.rs [95L, 1F, 4C]\nconfig/\n  base.rs [1593L, 61F, 8C]\n  declarative_providers.rs [315L, 14F, 3C]\n  experiments.rs [58L, 4F, 2C]\n  extensions.rs [136L, 11F, 1C]\n  goose_mode.rs [26L, 1F, 1C]\n  mod.rs [28L]\n  paths.rs [60L, 7F, 2C]\n  permission.rs [305L, 19F, 4C]\n  search_path.rs [123L, 7F, 2C]\ncontext_mgmt/\n  mod.rs [577L, 14F, 4C]\nconversation/\n  message.rs [1432L, 86F, 19C]\n  mod.rs [1173L, 47F, 5C]\n  tool_result_serde.rs [144L, 4F]\nexecution/\n  manager.rs [350L, 18F, 2C]\n  mod.rs [45L, 4F, 2C]\ngoose_apps/\n  mod.rs [9L]\n  resource.rs [112L, 4F, 5C]\nhints/\n  import_files.rs [488L, 15F]\n  load_hints.rs [469L, 15F]\n  mod.rs [4L]\nlib.rs [30L]\nlogging.rs [170L, 6F]\nmcp_utils.rs [4L]\nmodel.rs [298L, 18F, 3C]\noauth/\n  mod.rs [114L, 1F, 2C]\n  oauth_callback.html [73L]\n  persist.rs [54L, 5F, 3C]\npermission/\n  mod.rs [9L]\n  permission_confirmation.rs [22L, 1C]\n  permission_inspector.rs [210L, 7F, 3C]\n  permission_judge.rs [269L, 5F, 2C]\n  permission_store.rs [145L, 8F, 4C]\nposthog.rs [566L, 23F, 3C]\nprompt_template.rs [240L, 11F, 4C]\nprompts/\n  desktop_prompt.md [14L]\n  desktop_recipe_instruction.md [15L]\n  mock.md [3L]\n  permission_judge.md [1L]\n  plan.md [32L]\n  recipe.md [20L]\n  subagent_system.md [38L]\n  summarize_oneshot.md [34L]\n  system.md [71L]\n  system_gpt_4.1.md [63L]\nproviders/\n  anthropic.rs [303L, 12F, 3C]\n  api_client.rs [457L, 33F, 12C]\n  auto_detect.rs [51L, 1F]\n  azure.rs [177L, 8F, 6C]\n  azureauth.rs [170L, 4F, 5C]\n  base.rs [725L, 41F, 12C]\n  bedrock.rs [263L, 8F, 3C]\n  claude_code.rs [455L, 10F, 3C]\n  cursor_agent.rs [390L, 10F, 3C]\n  databricks.rs [453L, 19F, 7C]\n  embedding.rs [24L, 3C]\n  errors.rs [129L, 5F, 4C]\n  factory.rs [343L, 15F]\n  gcpauth.rs [1115L, 34F, 16C]\n  gcpvertexai.rs [641L, 16F, 3C]\n  gemini_cli.rs [307L, 8F, 3C]\n  githubcopilot.rs [561L, 19F, 12C]\n  google.rs [161L, 7F, 3C]\n  lead_worker.rs [692L, 33F, 8C]\n  litellm.rs [343L, 14F, 6C]\n  mod.rs [43L]\n  oauth.rs [582L, 15F, 6C]\n  ollama.rs [357L, 13F, 6C]\n  openai.rs [500L, 17F, 4C]\n  openrouter.rs [422L, 12F, 3C]\n  provider_registry.rs [162L, 8F, 4C]\n  provider_test.rs [58L, 2F]\n  retry.rs [138L, 6F, 4C]\n  sagemaker_tgi.rs [331L, 9F, 3C]\n  snowflake.rs [346L, 7F, 4C]\n  testprovider.rs [298L, 17F, 8C]\n  tetrate.rs [305L, 9F, 3C]\n  toolshim.rs [445L, 10F, 3C]\n  usage_estimator.rs [128L, 4F]\n  utils.rs [951L, 42F, 3C]\n  utils_universal_openai_stream.rs [409L, 8F, 15C]\n  venice.rs [536L, 11F, 6C]\n  xai.rs [175L, 8F, 3C]\nrecipe/\n  local_recipes.rs [192L, 10F]\n  mod.rs [775L, 33F, 11C]\n  read_recipe_file_content.rs [102L, 5F, 1C]\n  recipe_extension_adapter.rs [283L, 4F, 2C]\n  template_recipe.rs [284L, 13F]\n  validate_recipe.rs [200L, 8F]\n  yaml_format_utils.rs [122L, 8F]\nrecipe_deeplink.rs [108L, 7F]\nscheduler.rs [976L, 38F, 9C]\nscheduler_trait.rs [41L]\nsecurity/\n  mod.rs [165L, 6F, 4C]\n  patterns.rs [609L, 15F, 6C]\n  scanner.rs [267L, 14F, 4C]\n  security_inspector.rs [147L, 9F, 4C]\nsession/\n  chat_history_search.rs [286L, 9F, 4C]\n  diagnostics.rs [89L, 1F]\n  extension_data.rs [191L, 13F, 8C]\n  legacy.rs [141L, 4F]\n  mod.rs [9L]\n  session_manager.rs [1518L, 71F, 14C]\nsession_context.rs [80L, 7F]\nslash_commands.rs [74L, 5F, 1C]\nsubprocess.rs [10L, 1F]\ntoken_counter.rs [308L, 14F, 2C]\ntool_inspection.rs [323L, 12F, 4C]\ntool_monitor.rs [132L, 8F, 5C]\ntracing/\n  langfuse_layer.rs [506L, 21F, 9C]\n  mod.rs [16L]\n  observation_layer.rs [521L, 32F, 16C]\n  otlp_layer.rs [337L, 15F, 3C]\n  rate_limiter.rs [143L, 7F, 5C]\nutils.rs [128L, 14F]\n",
+                  "annotations": {
+                    "audience": [
+                      "user"
+                    ],
+                    "priority": 0.0
+                  }
+                }
+              ],
+              "isError": false
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_f6960ff8-77fa-4fe4-bec0-efa04aff0887",
+      "role": "user",
+      "created": 1766962171,
+      "content": [
+        {
+          "type": "toolResponse",
+          "id": "toolu_01Xq2QT7WLCxKpxGz1RPjhYD",
+          "toolResult": {
+            "status": "success",
+            "value": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "SUMMARY:\nShown: 40 files, 16439L, 392F, 55C (max_depth=2)\nLanguages: rust (100%)\n\nPATH [LOC, FUNCTIONS, CLASSES] <FLAGS>\ncli.rs [1556L, 4F, 4C]\ncommands/\n  acp.rs [1305L, 31F, 6C]\n  bench.rs [68L, 5F, 1C]\n  configure.rs [1960L, 24F]\n  info.rs [94L, 3F]\n  mod.rs [11L]\n  project.rs [304L, 3F]\n  recipe.rs [484L, 28F]\n  schedule.rs [335L, 9F]\n  session.rs [370L, 8F]\n  term.rs [300L, 5F, 2C]\n  update.rs [38L, 1F]\n  web.rs [660L, 11F, 2C]\nlib.rs [11L]\nlogging.rs [230L, 5F]\nmain.rs [37L, 1F] main:6\nproject_tracker.rs [142L, 6F, 4C]\nrecipes/\n  extract_from_cli.rs [270L, 5F]\n  github_recipe.rs [346L, 14F, 1C]\n  mod.rs [6L]\n  print_recipe.rs [97L, 5F]\n  recipe.rs [194L, 6F]\n  search_recipe.rs [60L, 3F]\n  secret_discovery.rs [324L, 12F, 2C]\nscenario_tests/\n  message_generator.rs [33L, 2F]\n  mock_client.rs [167L, 11F, 3C]\n  mod.rs [10L]\n  provider_configs.rs [108L, 4F, 2C]\n  scenario_runner.rs [345L, 6F, 2C]\n  scenarios.rs [98L, 3F]\nsession/\n  builder.rs [757L, 7F, 3C]\n  completion.rs [640L, 19F, 7C]\n  elicitation.rs [164L, 4F]\n  export.rs [1286L, 36F]\n  input.rs [591L, 19F, 4C]\n  mod.rs [1763L, 33F, 6C]\n  output.rs [1003L, 55F, 6C]\n  prompt.rs [16L, 1F]\n  thinking.rs [220L, 1F]\nsignal.rs [36L, 2F]\n",
+                  "annotations": {
+                    "audience": [
+                      "assistant"
+                    ]
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "SUMMARY:\nShown: 40 files, 16439L, 392F, 55C (max_depth=2)\nLanguages: rust (100%)\n\nPATH [LOC, FUNCTIONS, CLASSES] <FLAGS>\ncli.rs [1556L, 4F, 4C]\ncommands/\n  acp.rs [1305L, 31F, 6C]\n  bench.rs [68L, 5F, 1C]\n  configure.rs [1960L, 24F]\n  info.rs [94L, 3F]\n  mod.rs [11L]\n  project.rs [304L, 3F]\n  recipe.rs [484L, 28F]\n  schedule.rs [335L, 9F]\n  session.rs [370L, 8F]\n  term.rs [300L, 5F, 2C]\n  update.rs [38L, 1F]\n  web.rs [660L, 11F, 2C]\nlib.rs [11L]\nlogging.rs [230L, 5F]\nmain.rs [37L, 1F] main:6\nproject_tracker.rs [142L, 6F, 4C]\nrecipes/\n  extract_from_cli.rs [270L, 5F]\n  github_recipe.rs [346L, 14F, 1C]\n  mod.rs [6L]\n  print_recipe.rs [97L, 5F]\n  recipe.rs [194L, 6F]\n  search_recipe.rs [60L, 3F]\n  secret_discovery.rs [324L, 12F, 2C]\nscenario_tests/\n  message_generator.rs [33L, 2F]\n  mock_client.rs [167L, 11F, 3C]\n  mod.rs [10L]\n  provider_configs.rs [108L, 4F, 2C]\n  scenario_runner.rs [345L, 6F, 2C]\n  scenarios.rs [98L, 3F]\nsession/\n  builder.rs [757L, 7F, 3C]\n  completion.rs [640L, 19F, 7C]\n  elicitation.rs [164L, 4F]\n  export.rs [1286L, 36F]\n  input.rs [591L, 19F, 4C]\n  mod.rs [1763L, 33F, 6C]\n  output.rs [1003L, 55F, 6C]\n  prompt.rs [16L, 1F]\n  thinking.rs [220L, 1F]\nsignal.rs [36L, 2F]\n",
+                  "annotations": {
+                    "audience": [
+                      "user"
+                    ],
+                    "priority": 0.0
+                  }
+                }
+              ],
+              "isError": false
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_2fc26427-e694-466a-870a-f38da746046d",
+      "role": "user",
+      "created": 1766962171,
+      "content": [
+        {
+          "type": "toolResponse",
+          "id": "toolu_01Np3KsfBvFjDno811JoWL6p",
+          "toolResult": {
+            "status": "success",
+            "value": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "SUMMARY:\nShown: 32 files, 7172L, 199F, 100C (max_depth=2)\nLanguages: rust (100%)\n\nPATH [LOC, FUNCTIONS, CLASSES] <FLAGS>\nauth.rs [28L, 1F]\nbin/\n  generate_schema.rs [30L, 1F] main:7\ncommands/\n  agent.rs [63L, 3F]\n  mod.rs [1L]\nconfiguration.rs [90L, 6F, 2C]\nerror.rs [40L, 2F]\nlib.rs [11L]\nlogging.rs [84L, 1F]\nmain.rs [67L, 1F, 1C] main:39\nopenapi.rs [548L, 4F, 1C]\nroutes/\n  action_required.rs [104L, 4F, 1C]\n  agent.rs [669L, 11F, 12C]\n  audio.rs [474L, 10F, 5C]\n  config_management.rs [872L, 26F, 20C]\n  errors.rs [46L, 4F, 5C]\n  mcp_app_proxy.rs [118L, 4F, 1C]\n  mcp_ui_proxy.rs [53L, 2F, 1C]\n  mod.rs [40L, 1F]\n  recipe.rs [572L, 17F, 17C]\n  recipe_utils.rs [178L, 7F, 2C]\n  reply.rs [498L, 9F, 5C]\n  schedule.rs [517L, 11F, 8C]\n  session.rs [411L, 11F, 7C]\n  setup.rs [115L, 3F, 1C]\n  status.rs [46L, 3F]\n  telemetry.rs [45L, 2F, 1C]\n  tunnel.rs [78L, 4F, 1C]\n  utils.rs [170L, 3F, 1C]\nstate.rs [68L, 6F, 2C]\ntunnel/\n  lapstone.rs [609L, 13F, 2C]\n  lapstone_test.rs [170L, 7F]\n  mod.rs [357L, 22F, 4C]\n",
+                  "annotations": {
+                    "audience": [
+                      "assistant"
+                    ]
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "SUMMARY:\nShown: 32 files, 7172L, 199F, 100C (max_depth=2)\nLanguages: rust (100%)\n\nPATH [LOC, FUNCTIONS, CLASSES] <FLAGS>\nauth.rs [28L, 1F]\nbin/\n  generate_schema.rs [30L, 1F] main:7\ncommands/\n  agent.rs [63L, 3F]\n  mod.rs [1L]\nconfiguration.rs [90L, 6F, 2C]\nerror.rs [40L, 2F]\nlib.rs [11L]\nlogging.rs [84L, 1F]\nmain.rs [67L, 1F, 1C] main:39\nopenapi.rs [548L, 4F, 1C]\nroutes/\n  action_required.rs [104L, 4F, 1C]\n  agent.rs [669L, 11F, 12C]\n  audio.rs [474L, 10F, 5C]\n  config_management.rs [872L, 26F, 20C]\n  errors.rs [46L, 4F, 5C]\n  mcp_app_proxy.rs [118L, 4F, 1C]\n  mcp_ui_proxy.rs [53L, 2F, 1C]\n  mod.rs [40L, 1F]\n  recipe.rs [572L, 17F, 17C]\n  recipe_utils.rs [178L, 7F, 2C]\n  reply.rs [498L, 9F, 5C]\n  schedule.rs [517L, 11F, 8C]\n  session.rs [411L, 11F, 7C]\n  setup.rs [115L, 3F, 1C]\n  status.rs [46L, 3F]\n  telemetry.rs [45L, 2F, 1C]\n  tunnel.rs [78L, 4F, 1C]\n  utils.rs [170L, 3F, 1C]\nstate.rs [68L, 6F, 2C]\ntunnel/\n  lapstone.rs [609L, 13F, 2C]\n  lapstone_test.rs [170L, 7F]\n  mod.rs [357L, 22F, 4C]\n",
+                  "annotations": {
+                    "audience": [
+                      "user"
+                    ],
+                    "priority": 0.0
+                  }
+                }
+              ],
+              "isError": false
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_64486a17-9f9b-47c2-ad75-6cd6b810aec5",
+      "role": "user",
+      "created": 1766962171,
+      "content": [
+        {
+          "type": "toolResponse",
+          "id": "toolu_01SD3pa1qfQpUFeAJGEmt54Q",
+          "toolResult": {
+            "status": "success",
+            "value": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "SUMMARY:\nShown: 16 files, 10901L, 239F, 81C (max_depth=2)\nLanguages: rust (100%)\n\nPATH [LOC, FUNCTIONS, CLASSES] <FLAGS>\nautovisualiser/\n  mod.rs [1566L, 27F, 27C]\ncomputercontroller/\n  docx_tool.rs [927L, 13F, 2C]\n  mod.rs [1355L, 21F, 13C]\n  pdf_tool.rs [460L, 6F]\n  xlsx_tool.rs [416L, 22F, 5C]\ndevelop/\n  mod.rs [189L, 13F, 5C]\ndeveloper/\n  lang.rs [39L, 1F]\n  mod.rs [11L]\n  paths.rs [112L, 4F]\n  rmcp_developer.rs [3556L, 70F, 10C]\n  shell.rs [176L, 7F, 3C]\n  text_editor.rs [1106L, 20F, 1C]\nlib.rs [23L]\nmcp_server_runner.rs [56L, 3F, 2C]\nmemory/\n  mod.rs [695L, 21F, 8C]\ntutorial/\n  mod.rs [214L, 11F, 5C]\n",
+                  "annotations": {
+                    "audience": [
+                      "assistant"
+                    ]
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "SUMMARY:\nShown: 16 files, 10901L, 239F, 81C (max_depth=2)\nLanguages: rust (100%)\n\nPATH [LOC, FUNCTIONS, CLASSES] <FLAGS>\nautovisualiser/\n  mod.rs [1566L, 27F, 27C]\ncomputercontroller/\n  docx_tool.rs [927L, 13F, 2C]\n  mod.rs [1355L, 21F, 13C]\n  pdf_tool.rs [460L, 6F]\n  xlsx_tool.rs [416L, 22F, 5C]\ndevelop/\n  mod.rs [189L, 13F, 5C]\ndeveloper/\n  lang.rs [39L, 1F]\n  mod.rs [11L]\n  paths.rs [112L, 4F]\n  rmcp_developer.rs [3556L, 70F, 10C]\n  shell.rs [176L, 7F, 3C]\n  text_editor.rs [1106L, 20F, 1C]\nlib.rs [23L]\nmcp_server_runner.rs [56L, 3F, 2C]\nmemory/\n  mod.rs [695L, 21F, 8C]\ntutorial/\n  mod.rs [214L, 11F, 5C]\n",
+                  "annotations": {
+                    "audience": [
+                      "user"
+                    ],
+                    "priority": 0.0
+                  }
+                }
+              ],
+              "isError": false
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_46a9306a-3fa7-4b43-84a8-c03f87928d44",
+      "role": "user",
+      "created": 1766962171,
+      "content": [
+        {
+          "type": "toolResponse",
+          "id": "toolu_018dycX9phx4ZKhP5tQC2y1T",
+          "toolResult": {
+            "status": "success",
+            "value": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "SUMMARY:\nShown: 19 files, 88618L, 72F, 40C (max_depth=2)\nLanguages: json (97%), rust (1%), typescript (1%)\n\nPATH [LOC, FUNCTIONS, CLASSES] <FLAGS>\nassets/\n  kubernetes_swagger.json [86037L]\n  vscode_config_registry.ts [960L]\nbench_config.rs [109L, 6F, 6C]\nbench_session.rs [58L, 5F, 3C]\nbench_work_dir.rs [223L, 13F, 4C]\nerror_capture.rs [94L, 7F, 7C]\neval_suites/\n  evaluation.rs [59L, 2F, 3C]\n  factory.rs [130L, 7F, 2C]\n  metrics.rs [109L, 4F]\n  mod.rs [11L]\n  utils.rs [32L, 1F]\nlib.rs [8L]\nreporting.rs [133L, 9F, 7C]\nrunners/\n  bench_runner.rs [94L, 4F, 2C]\n  eval_runner.rs [191L, 4F, 2C]\n  metric_aggregator.rs [81L, 1F, 2C]\n  mod.rs [4L]\n  model_runner.rs [248L, 7F, 2C]\nutilities.rs [37L, 2F]\n",
+                  "annotations": {
+                    "audience": [
+                      "assistant"
+                    ]
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "SUMMARY:\nShown: 19 files, 88618L, 72F, 40C (max_depth=2)\nLanguages: json (97%), rust (1%), typescript (1%)\n\nPATH [LOC, FUNCTIONS, CLASSES] <FLAGS>\nassets/\n  kubernetes_swagger.json [86037L]\n  vscode_config_registry.ts [960L]\nbench_config.rs [109L, 6F, 6C]\nbench_session.rs [58L, 5F, 3C]\nbench_work_dir.rs [223L, 13F, 4C]\nerror_capture.rs [94L, 7F, 7C]\neval_suites/\n  evaluation.rs [59L, 2F, 3C]\n  factory.rs [130L, 7F, 2C]\n  metrics.rs [109L, 4F]\n  mod.rs [11L]\n  utils.rs [32L, 1F]\nlib.rs [8L]\nreporting.rs [133L, 9F, 7C]\nrunners/\n  bench_runner.rs [94L, 4F, 2C]\n  eval_runner.rs [191L, 4F, 2C]\n  metric_aggregator.rs [81L, 1F, 2C]\n  mod.rs [4L]\n  model_runner.rs [248L, 7F, 2C]\nutilities.rs [37L, 2F]\n",
+                  "annotations": {
+                    "audience": [
+                      "user"
+                    ],
+                    "priority": 0.0
+                  }
+                }
+              ],
+              "isError": false
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_edff9b21-a56d-4e10-97bb-992a625f3d6a",
+      "role": "user",
+      "created": 1766962171,
+      "content": [
+        {
+          "type": "toolResponse",
+          "id": "toolu_01Dt34WFBEjJkyniTCHXNaAh",
+          "toolResult": {
+            "status": "success",
+            "value": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "SUMMARY:\nShown: 3 files, 47L, 1F, 1C (max_depth=2)\nLanguages: rust (100%)\n\nPATH [LOC, FUNCTIONS, CLASSES] <FLAGS>\nbin/\n  capture.rs [45L, 1F, 1C] main:35\nlib.rs [1L]\nmcp/\n  mod.rs [1L]\n",
+                  "annotations": {
+                    "audience": [
+                      "assistant"
+                    ]
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "SUMMARY:\nShown: 3 files, 47L, 1F, 1C (max_depth=2)\nLanguages: rust (100%)\n\nPATH [LOC, FUNCTIONS, CLASSES] <FLAGS>\nbin/\n  capture.rs [45L, 1F, 1C] main:35\nlib.rs [1L]\nmcp/\n  mod.rs [1L]\n",
+                  "annotations": {
+                    "audience": [
+                      "user"
+                    ],
+                    "priority": 0.0
+                  }
+                }
+              ],
+              "isError": false
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_01EfYPT1LT5KiivEGT1VProb",
+      "role": "assistant",
+      "created": 1766962175,
+      "content": [
+        {
+          "type": "text",
+          "text": "Now let me also check if there are any MCP-related crates:"
+        },
+        {
+          "type": "toolRequest",
+          "id": "toolu_012szmTBNWj6ZxVVANLvsYRi",
+          "toolCall": {
+            "status": "success",
+            "value": {
+              "name": "developer__shell",
+              "arguments": {
+                "command": "ls -la /Users/baxen/Development/goose/crates/ | grep mcp"
+              }
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_00d85097-926a-4a5d-8b98-8f9f14677783",
+      "role": "user",
+      "created": 1766962176,
+      "content": [
+        {
+          "type": "toolResponse",
+          "id": "toolu_012szmTBNWj6ZxVVANLvsYRi",
+          "toolResult": {
+            "status": "success",
+            "value": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "drwxr-xr-x@  6 baxen  staff   192 Dec 24 16:19 goose-mcp\n",
+                  "annotations": {
+                    "audience": [
+                      "assistant"
+                    ]
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "drwxr-xr-x@  6 baxen  staff   192 Dec 24 16:19 goose-mcp\n",
+                  "annotations": {
+                    "audience": [
+                      "user"
+                    ],
+                    "priority": 0.0
+                  }
+                }
+              ],
+              "isError": false
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_01SqB23jUe9WipVy3DeniAq4",
+      "role": "assistant",
+      "created": 1766962178,
+      "content": [
+        {
+          "type": "toolRequest",
+          "id": "toolu_016LGZ29vppFgLeRppL4oWzd",
+          "toolCall": {
+            "status": "success",
+            "value": {
+              "name": "developer__shell",
+              "arguments": {
+                "command": "ls -la /Users/baxen/Development/goose/crates/"
+              }
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_33732ac3-7306-4d69-9fbc-dfb2d4c938b4",
+      "role": "user",
+      "created": 1766962178,
+      "content": [
+        {
+          "type": "toolResponse",
+          "id": "toolu_016LGZ29vppFgLeRppL4oWzd",
+          "toolResult": {
+            "status": "success",
+            "value": {
+              "content": [
+                {
+                  "type": "text",
+                  "text": "total 0\ndrwxr-xr-x@  8 baxen  staff   256 Oct 31 22:39 .\ndrwxr-xr-x@ 53 baxen  staff  1696 Dec 28 13:55 ..\ndrwxr-xr-x@  8 baxen  staff   256 Dec 24 16:19 goose\ndrwxr-xr-x@  5 baxen  staff   160 Nov 17 12:45 goose-bench\ndrwxr-xr-x@  7 baxen  staff   224 Dec 24 16:19 goose-cli\ndrwxr-xr-x@  6 baxen  staff   192 Dec 24 16:19 goose-mcp\ndrwxr-xr-x@  7 baxen  staff   224 Dec 23 11:00 goose-server\ndrwxr-xr-x@  4 baxen  staff   128 Oct 31 22:39 goose-test\n",
+                  "annotations": {
+                    "audience": [
+                      "assistant"
+                    ]
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "total 0\ndrwxr-xr-x@  8 baxen  staff   256 Oct 31 22:39 .\ndrwxr-xr-x@ 53 baxen  staff  1696 Dec 28 13:55 ..\ndrwxr-xr-x@  8 baxen  staff   256 Dec 24 16:19 goose\ndrwxr-xr-x@  5 baxen  staff   160 Nov 17 12:45 goose-bench\ndrwxr-xr-x@  7 baxen  staff   224 Dec 24 16:19 goose-cli\ndrwxr-xr-x@  6 baxen  staff   192 Dec 24 16:19 goose-mcp\ndrwxr-xr-x@  7 baxen  staff   224 Dec 23 11:00 goose-server\ndrwxr-xr-x@  4 baxen  staff   128 Oct 31 22:39 goose-test\n",
+                  "annotations": {
+                    "audience": [
+                      "user"
+                    ],
+                    "priority": 0.0
+                  }
+                }
+              ],
+              "isError": false
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_01JBELihoA11zxp3aGLEkkdC",
+      "role": "assistant",
+      "created": 1766962180,
+      "content": [
+        {
+          "type": "text",
+          "text": "Let me also check the lib.rs files to get a better understanding of each crate's purpose:"
+        },
+        {
+          "type": "toolRequest",
+          "id": "toolu_011o3rj9kFyfuBq6ewamwp9A",
+          "toolCall": {
+            "status": "success",
+            "value": {
+              "name": "developer__text_editor",
+              "arguments": {
+                "command": "view",
+                "path": "/Users/baxen/Development/goose/crates/goose/src/lib.rs"
+              }
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_97db1318-7521-4656-b1d8-85c701b85c81",
+      "role": "user",
+      "created": 1766962181,
+      "content": [
+        {
+          "type": "toolResponse",
+          "id": "toolu_011o3rj9kFyfuBq6ewamwp9A",
+          "toolResult": {
+            "status": "success",
+            "value": {
+              "content": [
+                {
+                  "type": "resource",
+                  "resource": {
+                    "uri": "file:///Users/baxen/Development/goose/crates/goose/src/lib.rs",
+                    "mimeType": "text",
+                    "text": "pub mod action_required_manager;\npub mod agents;\npub mod config;\npub mod context_mgmt;\npub mod conversation;\npub mod execution;\npub mod goose_apps;\npub mod hints;\npub mod logging;\npub mod mcp_utils;\npub mod model;\npub mod oauth;\npub mod permission;\npub mod posthog;\npub mod prompt_template;\npub mod providers;\npub mod recipe;\npub mod recipe_deeplink;\npub mod scheduler;\npub mod scheduler_trait;\npub mod security;\npub mod session;\npub mod session_context;\npub mod slash_commands;\npub mod subprocess;\npub mod token_counter;\npub mod tool_inspection;\npub mod tool_monitor;\npub mod tracing;\npub mod utils;\n"
+                  },
+                  "annotations": {
+                    "audience": [
+                      "assistant"
+                    ]
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "### /Users/baxen/Development/goose/crates/goose/src/lib.rs\n```rust\n1: pub mod action_required_manager;\n2: pub mod agents;\n3: pub mod config;\n4: pub mod context_mgmt;\n5: pub mod conversation;\n6: pub mod execution;\n7: pub mod goose_apps;\n8: pub mod hints;\n9: pub mod logging;\n10: pub mod mcp_utils;\n11: pub mod model;\n12: pub mod oauth;\n13: pub mod permission;\n14: pub mod posthog;\n15: pub mod prompt_template;\n16: pub mod providers;\n17: pub mod recipe;\n18: pub mod recipe_deeplink;\n19: pub mod scheduler;\n20: pub mod scheduler_trait;\n21: pub mod security;\n22: pub mod session;\n23: pub mod session_context;\n24: pub mod slash_commands;\n25: pub mod subprocess;\n26: pub mod token_counter;\n27: pub mod tool_inspection;\n28: pub mod tool_monitor;\n29: pub mod tracing;\n30: pub mod utils;\n```\n",
+                  "annotations": {
+                    "audience": [
+                      "user"
+                    ],
+                    "priority": 0.0
+                  }
+                }
+              ],
+              "isError": false
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_01SU8sW5PwgeBvnB41fByFJh",
+      "role": "assistant",
+      "created": 1766962184,
+      "content": [
+        {
+          "type": "toolRequest",
+          "id": "toolu_018DAzfMVNWVU4ZmzrPtFQeo",
+          "toolCall": {
+            "status": "success",
+            "value": {
+              "name": "developer__text_editor",
+              "arguments": {
+                "command": "view",
+                "path": "/Users/baxen/Development/goose/crates/goose-mcp/src/lib.rs"
+              }
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_3c9094b1-7456-44a9-8848-adce18b101e8",
+      "role": "user",
+      "created": 1766962184,
+      "content": [
+        {
+          "type": "toolResponse",
+          "id": "toolu_018DAzfMVNWVU4ZmzrPtFQeo",
+          "toolResult": {
+            "status": "success",
+            "value": {
+              "content": [
+                {
+                  "type": "resource",
+                  "resource": {
+                    "uri": "file:///Users/baxen/Development/goose/crates/goose-mcp/src/lib.rs",
+                    "mimeType": "text",
+                    "text": "use etcetera::AppStrategyArgs;\nuse once_cell::sync::Lazy;\n\npub static APP_STRATEGY: Lazy<AppStrategyArgs> = Lazy::new(|| AppStrategyArgs {\n    top_level_domain: \"Block\".to_string(),\n    author: \"Block\".to_string(),\n    app_name: \"goose\".to_string(),\n});\n\npub mod autovisualiser;\npub mod computercontroller;\npub mod develop;\npub mod developer;\npub mod mcp_server_runner;\nmod memory;\npub mod tutorial;\n\npub use autovisualiser::AutoVisualiserRouter;\npub use computercontroller::ComputerControllerServer;\npub use develop::DevelopServer;\npub use developer::rmcp_developer::DeveloperServer;\npub use memory::MemoryServer;\npub use tutorial::TutorialServer;\n"
+                  },
+                  "annotations": {
+                    "audience": [
+                      "assistant"
+                    ]
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "### /Users/baxen/Development/goose/crates/goose-mcp/src/lib.rs\n```rust\n1: use etcetera::AppStrategyArgs;\n2: use once_cell::sync::Lazy;\n3: \n4: pub static APP_STRATEGY: Lazy<AppStrategyArgs> = Lazy::new(|| AppStrategyArgs {\n5:     top_level_domain: \"Block\".to_string(),\n6:     author: \"Block\".to_string(),\n7:     app_name: \"goose\".to_string(),\n8: });\n9: \n10: pub mod autovisualiser;\n11: pub mod computercontroller;\n12: pub mod develop;\n13: pub mod developer;\n14: pub mod mcp_server_runner;\n15: mod memory;\n16: pub mod tutorial;\n17: \n18: pub use autovisualiser::AutoVisualiserRouter;\n19: pub use computercontroller::ComputerControllerServer;\n20: pub use develop::DevelopServer;\n21: pub use developer::rmcp_developer::DeveloperServer;\n22: pub use memory::MemoryServer;\n23: pub use tutorial::TutorialServer;\n```\n",
+                  "annotations": {
+                    "audience": [
+                      "user"
+                    ],
+                    "priority": 0.0
+                  }
+                }
+              ],
+              "isError": false
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_01MLbxLn4RqLo7SEytHFQzxm",
+      "role": "assistant",
+      "created": 1766962187,
+      "content": [
+        {
+          "type": "toolRequest",
+          "id": "toolu_01MrsAJKUefAsPz5vq2oXpgJ",
+          "toolCall": {
+            "status": "success",
+            "value": {
+              "name": "developer__text_editor",
+              "arguments": {
+                "command": "view",
+                "path": "/Users/baxen/Development/goose/crates/goose-bench/README.md",
+                "view_range": [
+                  1,
+                  50
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_2a853ca9-f957-4b2b-8e09-31c88e06fc3d",
+      "role": "user",
+      "created": 1766962187,
+      "content": [
+        {
+          "type": "toolResponse",
+          "id": "toolu_01MrsAJKUefAsPz5vq2oXpgJ",
+          "toolResult": {
+            "status": "success",
+            "value": {
+              "content": [
+                {
+                  "type": "resource",
+                  "resource": {
+                    "uri": "file:///Users/baxen/Development/goose/crates/goose-bench/README.md",
+                    "mimeType": "text",
+                    "text": "# goose Benchmarking Framework\n\nThe `goose-bench` crate provides a framework for benchmarking and evaluating LLM models with the goose framework. This tool helps quantify model performance across various tasks and generate structured reports.\n\n## Features\n\n- Run benchmark suites across multiple LLM models\n- Execute evaluations in parallel when supported\n- Generate structured JSON and CSV reports\n- Process evaluation results with custom scripts\n- Calculate aggregate metrics across evaluations\n- Support for tool-shim evaluation\n- Generate leaderboards and comparative metrics\n\n## Prerequisites\n\n- **Python Environment**: The `generate-leaderboard` command executes Python scripts and requires a valid Python environment with necessary dependencies (pandas, etc.)\n- **OpenAI API Key**: For evaluations using LLM-as-judge (like `blog_summary` and `restaurant_research`), you must have an `OPENAI_API_KEY` environment variable set, as the judge uses the OpenAI GPT-4o model\n\n## Benchmark Workflow\n\nRunning benchmarks is a two-step process:\n\n### Step 1: Run Benchmarks\n\nFirst, run the benchmark evaluations with your configuration:\n\n```bash\ngoose bench run --config /path/to/your-config.json\n```\n\nThis will execute all evaluations for all models specified in your configuration and create a benchmark directory with results.\n\n### Step 2: Generate Leaderboard\n\nAfter the benchmarks complete, generate the leaderboard and aggregated metrics:\n\n```bash\ngoose bench generate-leaderboard --benchmark-dir /path/to/benchmark-output-directory\n```\n\nThe benchmark directory path will be shown in the output of the previous command, typically in the format `benchmark-YYYY-MM-DD-HH:MM:SS`.\n\n**Note**: This command requires a valid Python environment as it executes Python scripts for data aggregation and leaderboard generation.\n\n## Configuration\n\nBenchmark configuration is provided through a JSON file. Here's a sample configuration file (leaderboard-config.json) that you can use as a template:\n\n```json\n{\n  \"models\": [\n    {\n      \"provider\": \"databricks\",\n      \"name\": \"gpt-4-1-mini\",\n      \"parallel_safe\": true,\n      \"tool_shim\": {\n        \"use_tool_shim\": false,\n        \"tool_shim_model\": null\n      }\n    },\n    {\n      \"provider\": \"databricks\",\n      \"name\": \"claude-sonnet-4\",\n      \"parallel_safe\": true,\n      \"tool_shim\": null\n    },\n    {\n      \"provider\": \"databricks\",\n      \"name\": \"gpt-4o\",\n      \"parallel_safe\": true,\n      \"tool_shim\": null\n    }\n  ],\n  \"evals\": [\n    {\n      \"selector\": \"core:developer\",\n      \"post_process_cmd\": null,\n      \"parallel_safe\": true\n    },\n    {\n      \"selector\": \"core:developer_search_replace\",\n      \"post_process_cmd\": null,\n      \"parallel_safe\": true\n    },\n    {\n      \"selector\": \"vibes:blog_summary\",\n      \"post_process_cmd\": \"/Users/ahau/Development/goose-1.0/goose/scripts/bench-postprocess-scripts/llm-judges/run_vibes_judge.sh\",\n      \"parallel_safe\": true\n    },\n    {\n      \"selector\": \"vibes:restaurant_research\",\n      \"post_process_cmd\": \"/Users/ahau/Development/goose-1.0/goose/scripts/bench-postprocess-scripts/llm-judges/run_vibes_judge.sh\",\n      \"parallel_safe\": true\n    }\n  ],\n  \"include_dirs\": [],\n  \"repeat\": 3,\n  \"run_id\": null,\n  \"output_dir\": \"/path/to/output/directory\",\n  \"eval_result_filename\": \"eval-results.json\",\n  \"run_summary_filename\": \"run-results-summary.json\",\n  \"env_file\": \"/path/to/.goosebench.env\"\n}\n```\n\n## Configuration Options\n\n### Models\n\n- `provider`: The LLM provider (e.g., \"databricks\", \"openai\")\n- `name`: The model name\n- `parallel_safe`: Whether the model can be run in parallel\n- `tool_shim`: Configuration for tool-shim support\n  - `use_tool_shim`: Whether to use tool-shim\n  - `tool_shim_model`: Optional custom model for tool-shim\n\n### Evaluations\n\n- `selector`: The evaluation selector in format `suite:evaluation`\n- `post_process_cmd`: Optional path to a post-processing script\n- `parallel_safe`: Whether the evaluation can be run in parallel\n\n### Global Configuration\n\n- `include_dirs`: Additional directories to include in the benchmark environment\n- `repeat`: Number of times to repeat evaluations (for statistical significance)\n- `run_id`: Optional identifier for the run (defaults to timestamp)\n- `output_dir`: Directory to store benchmark results (must be absolute path)\n- `eval_result_filename`: Filename for individual evaluation results\n- `run_summary_filename`: Filename for run summary\n- `env_file`: Optional path to environment variables file\n\n## Environment Variables\n\nYou can provide environment variables through the `env_file` configuration option. This is useful for provider API keys and other sensitive information. Example `.goosebench.env` file:\n\n```bash\nOPENAI_API_KEY=your_openai_api_key_here\nDATABRICKS_TOKEN=your_databricks_token_here\n# Add other environment variables as needed\n```\n\n**Important**: For evaluations that use LLM-as-judge (like `blog_summary` and `restaurant_research`), you must set `OPENAI_API_KEY` as the judging system uses OpenAI's GPT-4o model.\n\n## Post-Processing\n\nYou can specify post-processing commands for evaluations, which will be executed after each evaluation completes. The command receives the path to the evaluation results file as its first argument.\n\nFor example, the `run_vibes_judge.sh` script processes outputs from the `blog_summary` and `restaurant_research` evaluations, using LLM-based judging to assign scores.\n\n## Output Structure\n\nResults are organized in a directory structure that follows this pattern:\n\n```\n{benchmark_dir}/\n├── config.cfg                           # Configuration used for the benchmark\n├── {provider}-{model}/\n│   ├── eval-results/\n│   │   └── aggregate_metrics.csv        # Aggregated metrics for this model\n│   └── run-{run_id}/\n│       ├── {suite}/\n│       │   └── {evaluation}/\n│       │       ├── eval-results.json    # Individual evaluation results\n│       │       ├── {eval_name}.jsonl    # Session logs\n│       │       └── work_dir.json        # Info about evaluation working dir\n│       └── run-results-summary.json     # Summary of all evaluations in this run\n├── leaderboard.csv                      # Final leaderboard comparing all models\n└── all_metrics.csv                      # Union of all metrics across all models\n```\n\n### Output Files Explained\n\n#### Per-Model Files\n\n- **`eval-results/aggregate_metrics.csv`**: Contains aggregated metrics for each evaluation, averaged across all runs. Includes metrics like `score_mean`, `total_tokens_mean`, `prompt_execution_time_seconds_mean`, etc.\n\n#### Global Output Files\n\n- **`leaderboard.csv`**: Final leaderboard ranking all models by their average performance across evaluations. Contains columns like:\n  - `provider`, `model_name`: Model identification\n  - `avg_score_mean`: Average score across all evaluations\n  - `avg_prompt_execution_time_seconds_mean`: Average execution time\n  - `avg_total_tool_calls_mean`: Average number of tool calls\n  - `avg_total_tokens_mean`: Average token usage\n\n- **`all_metrics.csv`**: Comprehensive dataset containing detailed metrics for every model-evaluation combination. This is a union of all individual model metrics, useful for detailed analysis and custom reporting.\n\nEach model gets its own directory, containing run results and aggregated CSV files for analysis. The `generate-leaderboard` command processes all individual evaluation results and creates the comparative metrics files.\n\n## Error Handling and Troubleshooting\n\n**Important**: The current version of goose-bench does not have robust error handling for common issues that can occur during evaluation runs, such as:\n\n- Rate limiting from inference providers\n- Network timeouts or connection errors\n- Provider API errors that cause early session termination\n- Resource exhaustion or memory issues\n\n### Checking for Failed Evaluations\n\nAfter running benchmarks, you should inspect the generated metrics files to identify any evaluations that may have failed or terminated early:\n\n1. **Check the `aggregate_metrics.csv` files** in each model's `eval-results/` directory for:\n   - Missing evaluations (fewer rows than expected)\n   - Unusually low scores or metrics\n   - Zero or near-zero execution times\n   - Missing or NaN values\n\n2. **Look for `server_error_mean` column** in the aggregate metrics - values greater than 0 indicate server errors occurred during evaluation\n\n3. **Review session logs** (`.jsonl` files) in individual evaluation directories for error messages like:\n   - \"Server error\"\n   - \"Rate limit exceeded\" \n   - \"TEMPORARILY_UNAVAILABLE\"\n   - Unexpected session terminations\n\n### Re-running Failed Evaluations\n\nIf you identify failed evaluations, you may need to:\n\n1. **Adjust rate limiting**: Add delays between requests or reduce parallel execution\n2. **Update environment variables**: Ensure API keys and tokens are valid\n3. **Re-run specific model/evaluation combinations**: Create a new config with only the failed combinations\n4. **Check provider status**: Verify the inference provider is operational\n\nExample of creating a config to re-run failed evaluations:\n\n```json\n{\n  \"models\": [\n    {\n      \"provider\": \"databricks\",\n      \"name\": \"claude-sonnet-4\",\n      \"parallel_safe\": false\n    }\n  ],\n  \"evals\": [\n    {\n      \"selector\": \"vibes:blog_summary\",\n      \"post_process_cmd\": \"/path/to/scripts/bench-postprocess-scripts/llm-judges/run_vibes_judge.sh\",\n      \"parallel_safe\": false\n    }\n  ],\n  \"repeat\": 1,\n  \"output_dir\": \"/path/to/retry-benchmark\"\n}\n```\n\nWe recommend monitoring evaluation progress and checking for errors regularly, especially when running large benchmark suites across multiple models.\n\n## Available Commands\n\n### List Evaluations\n```bash\ngoose bench selectors --config /path/to/config.json\n```\n\n### Generate Initial Config\n```bash\ngoose bench init-config --name my-benchmark-config.json\n```\n\n### Run Benchmarks\n```bash\ngoose bench run --config /path/to/config.json\n```\n\n### Generate Leaderboard\n```bash\ngoose bench generate-leaderboard --benchmark-dir /path/to/benchmark-output\n```\n"
+                  },
+                  "annotations": {
+                    "audience": [
+                      "assistant"
+                    ]
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "### /Users/baxen/Development/goose/crates/goose-bench/README.md (lines 1-50)\n```markdown\n1: # goose Benchmarking Framework\n2: \n3: The `goose-bench` crate provides a framework for benchmarking and evaluating LLM models with the goose framework. This tool helps quantify model performance across various tasks and generate structured reports.\n4: \n5: ## Features\n6: \n7: - Run benchmark suites across multiple LLM models\n8: - Execute evaluations in parallel when supported\n9: - Generate structured JSON and CSV reports\n10: - Process evaluation results with custom scripts\n11: - Calculate aggregate metrics across evaluations\n12: - Support for tool-shim evaluation\n13: - Generate leaderboards and comparative metrics\n14: \n15: ## Prerequisites\n16: \n17: - **Python Environment**: The `generate-leaderboard` command executes Python scripts and requires a valid Python environment with necessary dependencies (pandas, etc.)\n18: - **OpenAI API Key**: For evaluations using LLM-as-judge (like `blog_summary` and `restaurant_research`), you must have an `OPENAI_API_KEY` environment variable set, as the judge uses the OpenAI GPT-4o model\n19: \n20: ## Benchmark Workflow\n21: \n22: Running benchmarks is a two-step process:\n23: \n24: ### Step 1: Run Benchmarks\n25: \n26: First, run the benchmark evaluations with your configuration:\n27: \n28: ```bash\n29: goose bench run --config /path/to/your-config.json\n30: ```\n31: \n32: This will execute all evaluations for all models specified in your configuration and create a benchmark directory with results.\n33: \n34: ### Step 2: Generate Leaderboard\n35: \n36: After the benchmarks complete, generate the leaderboard and aggregated metrics:\n37: \n38: ```bash\n39: goose bench generate-leaderboard --benchmark-dir /path/to/benchmark-output-directory\n40: ```\n41: \n42: The benchmark directory path will be shown in the output of the previous command, typically in the format `benchmark-YYYY-MM-DD-HH:MM:SS`.\n43: \n44: **Note**: This command requires a valid Python environment as it executes Python scripts for data aggregation and leaderboard generation.\n45: \n46: ## Configuration\n47: \n48: Benchmark configuration is provided through a JSON file. Here's a sample configuration file (leaderboard-config.json) that you can use as a template:\n49: \n50: ```json\n```\n",
+                  "annotations": {
+                    "audience": [
+                      "user"
+                    ],
+                    "priority": 0.0
+                  }
+                }
+              ],
+              "isError": false
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    },
+    {
+      "id": "msg_018Qh7qjeEsxygq4yK6cZS8o",
+      "role": "assistant",
+      "created": 1766962190,
+      "content": [
+        {
+          "type": "text",
+          "text": "Now I have a comprehensive understanding of all the crates. Let me provide a summary:\n\n# Main Crates in the Goose Project\n\nThe goose project is organized into **6 main crates** in the `/crates` directory. Here's what each one does:\n\n---\n\n## 1. `goose` (Core Library)\n**Location:** `crates/goose/` | **~45,500 LOC** | **1,720 functions**\n\nThe core library containing all the main logic for the goose AI agent framework. Key modules include:\n\n| Module | Purpose |\n|--------|---------|\n| `agents/` | Agent implementation, extension management, MCP client, subagent handling, tool execution |\n| `providers/` | LLM provider integrations (OpenAI, Anthropic, Azure, Bedrock, Google, Ollama, Databricks, etc.) |\n| `conversation/` | Message handling and conversation management |\n| `session/` | Session management, chat history search, persistence |\n| `config/` | Configuration, permissions, experiments, paths |\n| `recipe/` | Recipe loading, validation, and execution |\n| `security/` | Security scanning and pattern detection |\n| `tracing/` | Langfuse, OTLP, and observation layers for telemetry |\n| `permission/` | Permission confirmation, inspection, and judging |\n| `scheduler/` | Task scheduling functionality |\n\n---\n\n## 2. `goose-cli` (Command Line Interface)\n**Location:** `crates/goose-cli/` | **~16,400 LOC** | **392 functions**\n\nThe CLI entry point for goose. Provides:\n\n- **Main commands:** `configure`, `session`, `recipe`, `schedule`, `bench`, `acp`, `web`\n- **Session management:** Interactive sessions, input/output handling, completion\n- **Recipe handling:** GitHub recipes, recipe search, secret discovery\n- **Scenario testing:** Mock clients and scenario runners for testing\n\n---\n\n## 3. `goose-server` (Backend Server)\n**Location:** `crates/goose-server/` | **~7,200 LOC** | **199 functions**\n\nThe HTTP server backend that powers the Electron desktop app. Also known as `goosed`. Features:\n\n- **REST API routes** for: agents, sessions, recipes, schedules, config management, audio, telemetry\n- **MCP proxying** for UI and app communication\n- **Tunnel support** (Lapstone integration)\n- **OpenAPI schema generation** for TypeScript client generation\n\n---\n\n## 4. `goose-mcp` (MCP Extensions)\n**Location:** `crates/goose-mcp/` | **~10,900 LOC** | **239 functions**\n\nBuilt-in MCP (Model Context Protocol) servers that ship with goose:\n\n| Server | Purpose |\n|--------|---------|\n| `DeveloperServer` | Shell commands, text editing, code analysis, screen capture |\n| `ComputerControllerServer` | Document handling (DOCX, PDF, XLSX) |\n| `AutoVisualiserRouter` | Auto-visualization capabilities |\n| `MemoryServer` | Memory/context persistence |\n| `TutorialServer` | Tutorial/onboarding functionality |\n| `DevelopServer` | Development utilities |\n\n---\n\n## 5. `goose-bench` (Benchmarking)\n**Location:** `crates/goose-bench/` | **~88,600 LOC** (mostly test assets) | **72 functions**\n\nBenchmarking and evaluation framework for testing LLM models:\n\n- Run benchmark suites across multiple LLM providers/models\n- Parallel evaluation execution\n- Generate structured JSON/CSV reports and leaderboards\n- Aggregate metrics calculation\n- Tool-shim evaluation support\n\n---\n\n## 6. `goose-test` (Test Utilities)\n**Location:** `crates/goose-test/` | **~47 LOC** | **1 function**\n\nMinimal test utilities crate, primarily containing:\n- MCP test capture functionality\n- Shared test infrastructure\n\n---\n\n## Architecture Summary\n\n```\n┌─────────────────────────────────────────────────────────────┐\n│                     User Interfaces                          │\n├─────────────────────┬───────────────────────────────────────┤\n│    goose-cli        │           goose-server                │\n│   (Terminal CLI)    │    (Desktop App Backend)              │\n└─────────┬───────────┴───────────────┬───────────────────────┘\n          │                           │\n          └───────────┬───────────────┘\n                      ▼\n┌─────────────────────────────────────────────────────────────┐\n│                      goose (Core)                            │\n│  • Agents  • Providers  • Sessions  • Recipes  • Security   │\n└─────────────────────────┬───────────────────────────────────┘\n                          │\n                          ▼\n┌─────────────────────────────────────────────────────────────┐\n│                     goose-mcp                                │\n│   Developer • ComputerController • Memory • Tutorial         │\n└─────────────────────────────────────────────────────────────┘\n```\n\n---\n\n## Tool Usage Summary\n\n| Tool | Times Called |\n|------|--------------|\n| `analyze` | 7 |\n| `shell` | 2 |\n| `text_editor` (view) | 3 |\n\n**Total: 12 tool calls**"
+        }
+      ],
+      "metadata": {
+        "userVisible": true,
+        "agentVisible": true
+      }
+    }
+  ],
+  "metadata": {
+    "total_tokens": 18530,
+    "input_tokens": 17199,
+    "output_tokens": 1331,
+    "accumulated_total_tokens": 110463,
+    "accumulated_input_tokens": 109132,
+    "accumulated_output_tokens": 1331,
+    "status": "completed"
+  }
+}
