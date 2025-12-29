@@ -176,7 +176,8 @@ function streamReducer(state: StreamState, action: StreamAction): StreamState {
 function pushMessage(currentMessages: Message[], incomingMsg: Message): Message[] {
   const lastMsg = currentMessages[currentMessages.length - 1];
 
-  if (lastMsg?.id && lastMsg.id === incomingMsg.id) {
+  // First check: exact ID match (original logic)
+  if (lastMsg?.id && incomingMsg.id && lastMsg.id === incomingMsg.id) {
     const lastContent = lastMsg.content[lastMsg.content.length - 1];
     const newContent = incomingMsg.content[incomingMsg.content.length - 1];
 
@@ -190,9 +191,33 @@ function pushMessage(currentMessages: Message[], incomingMsg: Message): Message[
       lastMsg.content.push(...incomingMsg.content);
     }
     return [...currentMessages];
-  } else {
-    return [...currentMessages, incomingMsg];
   }
+
+  // Second check: accumulate streaming text from same role when IDs are missing or different
+  // This handles the case where ollama/worker models stream chunks without stable IDs
+  if (
+    lastMsg &&
+    lastMsg.role === incomingMsg.role &&
+    lastMsg.role === 'assistant' &&
+    incomingMsg.content.length === 1 &&
+    incomingMsg.content[0].type === 'text'
+  ) {
+    const lastContent = lastMsg.content[lastMsg.content.length - 1];
+    const newContent = incomingMsg.content[0];
+
+    // Only merge if the last content is also text and there are no tool calls
+    if (
+      lastContent?.type === 'text' &&
+      newContent.type === 'text' &&
+      !lastMsg.content.some((c) => c.type === 'toolRequest' || c.type === 'toolResponse')
+    ) {
+      lastContent.text += newContent.text;
+      return [...currentMessages];
+    }
+  }
+
+  // Default: add as new message
+  return [...currentMessages, incomingMsg];
 }
 
 async function streamFromResponse(
