@@ -5,8 +5,7 @@ use goose::config::{DEFAULT_EXTENSION_DESCRIPTION, DEFAULT_EXTENSION_TIMEOUT};
 use goose::conversation::message::Message;
 use goose::providers::create_with_named_model;
 use goose::providers::databricks::DATABRICKS_DEFAULT_MODEL;
-use goose::session::session_manager::SessionType;
-use goose::session::SessionManager;
+use goose::session::{SessionManager, SessionType};
 use std::path::PathBuf;
 
 #[tokio::main]
@@ -21,7 +20,6 @@ async fn main() -> anyhow::Result<()> {
         PathBuf::default(),
         "max-turn-test".to_string(),
         SessionType::Hidden,
-        None,
     )
     .await?;
 

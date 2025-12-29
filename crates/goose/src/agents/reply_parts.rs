@@ -18,8 +18,6 @@ use crate::providers::toolshim::{
 
 use crate::agents::code_execution_extension::EXTENSION_NAME as CODE_EXECUTION_EXTENSION;
 use crate::session::SessionManager;
-#[cfg(test)]
-use crate::session::SessionType;
 use rmcp::model::Tool;
 
 fn coerce_value(s: &str, schema: &Value) -> Value {
@@ -444,8 +442,7 @@ mod tests {
         let session = SessionManager::create_session(
             std::path::PathBuf::default(),
             "test-prepare-tools".to_string(),
-            SessionType::Hidden,
-            None,
+            crate::session::SessionType::Hidden,
         )
         .await?;
 

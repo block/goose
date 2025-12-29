@@ -16,7 +16,7 @@ use crate::providers;
 use crate::recipe::build_recipe::build_recipe_from_template;
 use crate::recipe::local_recipes::load_local_recipe_file;
 use crate::recipe::{Recipe, SubRecipe};
-use crate::session::SessionManager;
+use crate::session::{SessionManager, SessionType};
 
 pub const SUBAGENT_TOOL_NAME: &str = "subagent";
 
@@ -245,8 +245,9 @@ async fn execute_subagent(
     let session = SessionManager::create_session(
         working_dir,
         "Subagent task".to_string(),
-        crate::session::session_manager::SessionType::SubAgent,
-        Some(task_config.parent_session_id.clone()),
+        SessionType::SubAgent {
+            parent_session_id: task_config.parent_session_id.clone(),
+        },
     )
     .await
     .map_err(|e| ErrorData {

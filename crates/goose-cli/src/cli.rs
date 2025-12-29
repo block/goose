@@ -26,8 +26,7 @@ use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::recipes::extract_from_cli::extract_recipe_info_from_cli;
 use crate::recipes::recipe::{explain_recipe, render_recipe_as_yaml};
 use crate::session::{build_session, SessionBuilderConfig, SessionSettings};
-use goose::session::session_manager::SessionType;
-use goose::session::SessionManager;
+use goose::session::{SessionManager, SessionType};
 use goose_bench::bench_config::BenchRunConfig;
 use goose_bench::runners::bench_runner::BenchRunner;
 use goose_bench::runners::eval_runner::EvalRunner;
@@ -97,7 +96,6 @@ async fn get_or_create_session_id(
                 std::env::current_dir()?,
                 "CLI Session".to_string(),
                 SessionType::User,
-                None,
             )
             .await?;
             Ok(Some(session.id))
@@ -120,7 +118,6 @@ async fn get_or_create_session_id(
                 std::env::current_dir()?,
                 name.clone(),
                 SessionType::User,
-                None,
             )
             .await?;
 
@@ -143,7 +140,6 @@ async fn get_or_create_session_id(
             std::env::current_dir()?,
             "CLI Session".to_string(),
             SessionType::User,
-            None,
         )
         .await?;
         Ok(Some(session.id))

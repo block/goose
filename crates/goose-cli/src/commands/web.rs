@@ -15,8 +15,7 @@ use base64::Engine;
 use futures::{sink::SinkExt, stream::StreamExt};
 use goose::agents::{Agent, AgentEvent};
 use goose::conversation::message::Message as GooseMessage;
-use goose::session::session_manager::SessionType;
-use goose::session::SessionManager;
+use goose::session::{SessionManager, SessionType};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{net::SocketAddr, sync::Arc};
@@ -157,7 +156,6 @@ pub async fn handle_web(
         std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
         "Web Agent Initialization".to_string(),
         SessionType::Hidden,
-        None,
     )
     .await?;
 
@@ -246,7 +244,6 @@ async fn serve_index(uri: Uri) -> Result<Redirect, (http::StatusCode, String)> {
         std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
         "Web session".to_string(),
         SessionType::User,
-        None,
     )
     .await
     .map_err(|err| (http::StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))?;

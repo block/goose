@@ -9,8 +9,7 @@ use anyhow::Result;
 use goose::agents::Agent;
 use goose::model::ModelConfig;
 use goose::providers::{create, testprovider::TestProvider};
-use goose::session::session_manager::SessionType;
-use goose::session::SessionManager;
+use goose::session::{SessionManager, SessionType};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -221,7 +220,6 @@ where
         PathBuf::default(),
         "scenario-runner".to_string(),
         SessionType::Hidden,
-        None,
     )
     .await?;
 

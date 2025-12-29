@@ -11,9 +11,7 @@ use goose::providers::create;
 use goose::recipe::{Response, SubRecipe};
 
 use goose::agents::extension::PlatformExtensionContext;
-use goose::session::session_manager::SessionType;
-use goose::session::SessionManager;
-use goose::session::{EnabledExtensionsState, ExtensionState};
+use goose::session::{EnabledExtensionsState, ExtensionState, SessionManager, SessionType};
 use rustyline::EditMode;
 use std::collections::HashSet;
 use std::process;
@@ -154,7 +152,6 @@ async fn offer_extension_debugging_help(
         std::env::current_dir()?,
         "CLI Session".to_string(),
         SessionType::Hidden,
-        None,
     )
     .await?;
 
@@ -345,7 +342,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             working_dir,
             "CLI Session".to_string(),
             SessionType::Hidden,
-            None,
         )
         .await
         .expect("Could not create session");

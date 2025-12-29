@@ -302,8 +302,8 @@ mod tests {
         use goose::model::ModelConfig;
         use goose::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
         use goose::providers::errors::ProviderError;
-        use goose::session::session_manager::SessionType;
-        use goose::session::SessionManager;
+        
+        use goose::session::{SessionManager, SessionType};
         use rmcp::model::{CallToolRequestParam, Tool};
         use rmcp::object;
         use std::path::PathBuf;
@@ -379,7 +379,6 @@ mod tests {
                 PathBuf::default(),
                 "max-turn-test".to_string(),
                 SessionType::Hidden,
-                None,
             )
             .await?;
 

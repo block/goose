@@ -433,7 +433,7 @@ impl Agent {
         session: &Session,
     ) -> (String, Result<ToolCallResult, ErrorData>) {
         // Prevent subagents from creating other subagents
-        if session.session_type == SessionType::SubAgent && tool_call.name == SUBAGENT_TOOL_NAME {
+        if matches!(session.session_type, SessionType::SubAgent { .. }) && tool_call.name == SUBAGENT_TOOL_NAME {
             return (
                 request_id,
                 Err(ErrorData::new(
@@ -657,14 +657,10 @@ impl Agent {
             return false;
         }
         if let Some(ref session_id) = self.extension_manager.get_context().await.session_id {
-            if matches!(
-                SessionManager::get_session(session_id, false)
-                    .await
-                    .ok()
-                    .map(|session| session.session_type),
-                Some(SessionType::SubAgent)
-            ) {
-                return false;
+            if let Ok(session) = SessionManager::get_session(session_id, false).await {
+                if matches!(session.session_type, SessionType::SubAgent { .. }) {
+                    return false;
+                }
             }
         }
         !self

@@ -23,12 +23,11 @@ pub const CURRENT_SCHEMA_VERSION: i32 = 7;
 pub const SESSIONS_FOLDER: &str = "sessions";
 pub const DB_NAME: &str = "sessions.db";
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SessionType {
     User,
     Scheduled,
-    SubAgent,
+    SubAgent { parent_session_id: String },
     Hidden,
     Terminal,
 }
@@ -39,30 +38,106 @@ impl Default for SessionType {
     }
 }
 
-impl std::fmt::Display for SessionType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl SessionType {
+    /// Get the type string for database storage
+    pub fn type_string(&self) -> &str {
         match self {
-            SessionType::User => write!(f, "user"),
-            SessionType::SubAgent => write!(f, "sub_agent"),
-            SessionType::Hidden => write!(f, "hidden"),
-            SessionType::Scheduled => write!(f, "scheduled"),
-            SessionType::Terminal => write!(f, "terminal"),
+            SessionType::User => "user",
+            SessionType::SubAgent { .. } => "sub_agent",
+            SessionType::Hidden => "hidden",
+            SessionType::Scheduled => "scheduled",
+            SessionType::Terminal => "terminal",
+        }
+    }
+
+    /// Extract parent_session_id if this is a SubAgent
+    pub fn parent_session_id(&self) -> Option<&str> {
+        match self {
+            SessionType::SubAgent { parent_session_id } => Some(parent_session_id),
+            _ => None,
+        }
+    }
+
+    /// Reconstruct SessionType from database columns
+    pub fn from_db(type_str: &str, parent_id: Option<String>) -> Result<Self> {
+        match type_str {
+            "user" => Ok(SessionType::User),
+            "sub_agent" => Ok(SessionType::SubAgent {
+                parent_session_id: parent_id.ok_or_else(|| {
+                    anyhow::anyhow!("SubAgent session type requires parent_session_id")
+                })?,
+            }),
+            "hidden" => Ok(SessionType::Hidden),
+            "scheduled" => Ok(SessionType::Scheduled),
+            "terminal" => Ok(SessionType::Terminal),
+            _ => Err(anyhow::anyhow!("Invalid session type: {}", type_str)),
         }
     }
 }
 
-impl std::str::FromStr for SessionType {
-    type Err = anyhow::Error;
+impl std::fmt::Display for SessionType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.type_string())
+    }
+}
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
+// Custom serialization to maintain JSON compatibility (serialize as simple string)
+impl Serialize for SessionType {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.type_string())
+    }
+}
+
+// Custom deserialization - for JSON, we don't have parent_id, so we use a placeholder
+// The actual parent_id will come from the Session.parent_session_id field
+impl<'de> Deserialize<'de> for SessionType {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        match s.as_str() {
             "user" => Ok(SessionType::User),
-            "sub_agent" => Ok(SessionType::SubAgent),
+            "sub_agent" => {
+                // When deserializing from JSON, we don't have the parent_id yet
+                // It will be populated from Session.parent_session_id field
+                Ok(SessionType::SubAgent {
+                    parent_session_id: String::new(),
+                })
+            }
             "hidden" => Ok(SessionType::Hidden),
             "scheduled" => Ok(SessionType::Scheduled),
             "terminal" => Ok(SessionType::Terminal),
-            _ => Err(anyhow::anyhow!("Invalid session type: {}", s)),
+            _ => Err(serde::de::Error::custom(format!(
+                "Invalid session type: {}",
+                s
+            ))),
         }
+    }
+}
+
+// Manual ToSchema implementation for SessionType since it serializes as a string
+impl utoipa::ToSchema<'_> for SessionType {
+    fn schema() -> (
+        &'static str,
+        utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>,
+    ) {
+        (
+            "SessionType",
+            utoipa::openapi::ObjectBuilder::new()
+                .schema_type(utoipa::openapi::SchemaType::String)
+                .enum_values(Some(vec![
+                    "user",
+                    "scheduled",
+                    "sub_agent",
+                    "hidden",
+                    "terminal",
+                ]))
+                .into(),
+        )
     }
 }
 
@@ -273,8 +348,8 @@ impl SessionManager {
         working_dir: PathBuf,
         name: String,
         session_type: SessionType,
-        parent_session_id: Option<String>,
     ) -> Result<Session> {
+        let parent_session_id = session_type.parent_session_id().map(String::from);
         Self::instance()
             .await?
             .create_session(working_dir, name, session_type, parent_session_id)
@@ -445,47 +520,35 @@ impl Session {
 }
 
 impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
-    fn from_row(row: &sqlx::sqlite::SqliteRow) -> Result<Self, sqlx::Error> {
+    fn from_row(row: &sqlx::sqlite::SqliteRow) -> sqlx::Result<Self> {
         use sqlx::Row;
 
-        let recipe_json: Option<String> = row.try_get("recipe_json")?;
-        let recipe = recipe_json.and_then(|json| serde_json::from_str(&json).ok());
+        let session_type_str: String = row.try_get("session_type")?;
+        let parent_session_id: Option<String> = row.try_get("parent_session_id")?;
 
-        let user_recipe_values_json: Option<String> = row.try_get("user_recipe_values_json")?;
-        let user_recipe_values =
-            user_recipe_values_json.and_then(|json| serde_json::from_str(&json).ok());
-
-        let model_config_json: Option<String> = row.try_get("model_config_json").ok().flatten();
-        let model_config = model_config_json.and_then(|json| serde_json::from_str(&json).ok());
-
-        let parent_session_id: Option<String> = row.try_get("parent_session_id").ok().flatten();
-
-        let name: String = {
-            let name_val: String = row.try_get("name").unwrap_or_default();
-            if !name_val.is_empty() {
-                name_val
-            } else {
-                row.try_get("description").unwrap_or_default()
-            }
-        };
-
-        let user_set_name = row.try_get("user_set_name").unwrap_or(false);
-
-        let session_type_str: String = row
-            .try_get("session_type")
-            .unwrap_or_else(|_| "user".to_string());
-        let session_type = session_type_str.parse().unwrap_or_default();
+        let session_type = SessionType::from_db(&session_type_str, parent_session_id.clone())
+            .map_err(|e| sqlx::Error::ColumnDecode {
+                index: "session_type".to_string(),
+                source: Box::new(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    e.to_string(),
+                )),
+            })?;
 
         Ok(Session {
             id: row.try_get("id")?,
-            working_dir: PathBuf::from(row.try_get::<String, _>("working_dir")?),
-            name,
-            user_set_name,
+            working_dir: row.try_get::<String, _>("working_dir")?.into(),
+            name: row
+                .try_get::<Option<String>, _>("name")?
+                .or_else(|| row.try_get("description").ok())
+                .unwrap_or_default(),
+            user_set_name: row.try_get("user_set_name")?,
             session_type,
             created_at: row.try_get("created_at")?,
             updated_at: row.try_get("updated_at")?,
-            extension_data: serde_json::from_str(&row.try_get::<String, _>("extension_data")?)
-                .unwrap_or_default(),
+            extension_data: row.try_get::<String, _>("extension_data").and_then(|s| {
+                serde_json::from_str(&s).map_err(|e| sqlx::Error::Decode(Box::new(e)))
+            })?,
             total_tokens: row.try_get("total_tokens")?,
             input_tokens: row.try_get("input_tokens")?,
             output_tokens: row.try_get("output_tokens")?,
@@ -493,12 +556,18 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
             accumulated_input_tokens: row.try_get("accumulated_input_tokens")?,
             accumulated_output_tokens: row.try_get("accumulated_output_tokens")?,
             schedule_id: row.try_get("schedule_id")?,
-            recipe,
-            user_recipe_values,
-            conversation: None,
-            message_count: row.try_get("message_count").unwrap_or(0) as usize,
-            provider_name: row.try_get("provider_name").ok().flatten(),
-            model_config,
+            recipe: row
+                .try_get::<Option<String>, _>("recipe_json")?
+                .and_then(|s| serde_json::from_str(&s).ok()),
+            user_recipe_values: row
+                .try_get::<Option<String>, _>("user_recipe_values_json")?
+                .and_then(|s| serde_json::from_str(&s).ok()),
+            conversation: None, // Populated separately
+            message_count: row.try_get::<i64, _>("message_count").unwrap_or(0) as usize,
+            provider_name: row.try_get("provider_name")?,
+            model_config: row
+                .try_get::<Option<String>, _>("model_config_json")?
+                .and_then(|s| serde_json::from_str(&s).ok()),
             parent_session_id,
         })
     }
@@ -1271,7 +1340,9 @@ impl SessionStorage {
     fn build_recursive_export<'a>(
         &'a self,
         session: Session,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<RecursiveSessionExport>> + Send + 'a>> {
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = Result<RecursiveSessionExport>> + Send + 'a>,
+    > {
         Box::pin(async move {
             // Query for all sub-agent sessions
             let subagent_sessions = sqlx::query_as::<_, Session>(
@@ -1374,12 +1445,7 @@ impl SessionStorage {
 
         // Import parent session first
         let parent_session = self
-            .import_session_with_parent(
-                recursive_import.session,
-                None,
-                &mut id_mapping,
-                &mut tx,
-            )
+            .import_session_with_parent(recursive_import.session, None, &mut id_mapping, &mut tx)
             .await?;
 
         // Import all sub-agents recursively
@@ -1825,7 +1891,9 @@ mod tests {
             .create_session(
                 PathBuf::from("/tmp/test"),
                 "Subagent session".to_string(),
-                SessionType::SubAgent,
+                SessionType::SubAgent {
+                    parent_session_id: parent.id.clone(),
+                },
                 Some(parent.id.clone()),
             )
             .await
@@ -1878,7 +1946,9 @@ mod tests {
             .create_session(
                 PathBuf::from("/tmp/test"),
                 "Subagent 1".to_string(),
-                SessionType::SubAgent,
+                SessionType::SubAgent {
+                    parent_session_id: parent.id.clone(),
+                },
                 Some(parent.id.clone()),
             )
             .await
@@ -1902,7 +1972,9 @@ mod tests {
             .create_session(
                 PathBuf::from("/tmp/test"),
                 "Subagent 2".to_string(),
-                SessionType::SubAgent,
+                SessionType::SubAgent {
+                    parent_session_id: parent.id.clone(),
+                },
                 Some(parent.id.clone()),
             )
             .await

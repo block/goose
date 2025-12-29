@@ -19,8 +19,7 @@ use goose::prompt_template::render_global_file;
 use goose::providers::create;
 use goose::recipe::Recipe;
 use goose::recipe_deeplink;
-use goose::session::session_manager::SessionType;
-use goose::session::{Session, SessionManager};
+use goose::session::{Session, SessionManager, SessionType};
 use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
     config::permission::PermissionLevel,
@@ -175,17 +174,20 @@ async fn start_agent(
     let counter = state.session_counter.fetch_add(1, Ordering::SeqCst) + 1;
     let name = format!("New session {}", counter);
 
-    let mut session =
-        SessionManager::create_session(PathBuf::from(&working_dir), name, SessionType::User, None)
-            .await
-            .map_err(|err| {
-                error!("Failed to create session: {}", err);
-                goose::posthog::emit_error("session_create_failed", &err.to_string());
-                ErrorResponse {
-                    message: format!("Failed to create session: {}", err),
-                    status: StatusCode::BAD_REQUEST,
-                }
-            })?;
+    let mut session = SessionManager::create_session(
+        PathBuf::from(&working_dir),
+        name,
+        SessionType::User,
+    )
+    .await
+    .map_err(|err| {
+        error!("Failed to create session: {}", err);
+        goose::posthog::emit_error("session_create_failed", &err.to_string());
+        ErrorResponse {
+            message: format!("Failed to create session: {}", err),
+            status: StatusCode::BAD_REQUEST,
+        }
+    })?;
 
     if let Some(recipe) = original_recipe {
         SessionManager::update_session(&session.id)

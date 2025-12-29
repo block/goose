@@ -9,8 +9,7 @@ use goose::conversation::message::{Message, MessageContent};
 use goose::conversation::Conversation;
 use goose::mcp_utils::ToolResult;
 use goose::providers::create;
-use goose::session::session_manager::SessionType;
-use goose::session::SessionManager;
+use goose::session::{SessionManager, SessionType};
 use rmcp::model::{CallToolResult, RawContent, ResourceContents, Role};
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -230,7 +229,6 @@ impl GooseAcpAgent {
             std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
             "ACP Session".to_string(),
             SessionType::Hidden,
-            None,
         )
         .await?;
 
@@ -571,7 +569,6 @@ impl acp::Agent for GooseAcpAgent {
             std::env::current_dir().unwrap_or_default(),
             "ACP Session".to_string(), // just an initial name - may be replaced by maybe_update_name
             SessionType::User,
-            None,
         )
         .await?;
 

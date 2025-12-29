@@ -22,8 +22,7 @@ use crate::posthog;
 use crate::providers::create;
 use crate::recipe::Recipe;
 use crate::scheduler_trait::SchedulerTrait;
-use crate::session::session_manager::SessionType;
-use crate::session::{Session, SessionManager};
+use crate::session::{Session, SessionManager, SessionType};
 
 type RunningTasksMap = HashMap<String, CancellationToken>;
 type JobsMap = HashMap<String, (JobId, ScheduledJob)>;
@@ -744,7 +743,6 @@ async fn execute_job(
         std::env::current_dir()?,
         format!("Scheduled job: {}", job.id),
         SessionType::Scheduled,
-        None,
     )
     .await?;
 
