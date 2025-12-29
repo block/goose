@@ -146,22 +146,17 @@ fn normalize(input: String) -> String {
     result.to_lowercase()
 }
 
-/// Empty config name uses server's declared name; adds random suffix on collision.
-fn resolve_extension_name(
-    config_name: &str,
+/// Generates extension name from server info; adds random suffix on collision.
+fn generate_extension_name(
     server_info: Option<&ServerInfo>,
     name_exists: impl Fn(&str) -> bool,
 ) -> String {
-    let base = if config_name.is_empty() {
-        server_info
-            .and_then(|info| {
-                let name = info.server_info.name.as_str();
-                (!name.is_empty()).then(|| normalize(name.to_string()))
-            })
-            .unwrap_or_else(|| "unnamed".to_string())
-    } else {
-        config_name.to_string()
-    };
+    let base = server_info
+        .and_then(|info| {
+            let name = info.server_info.name.as_str();
+            (!name.is_empty()).then(|| normalize(name.to_string()))
+        })
+        .unwrap_or_else(|| "unnamed".to_string());
 
     if !name_exists(&base) {
         return base;
@@ -606,11 +601,13 @@ impl ExtensionManager {
 
         let server_info = client.get_info().cloned();
 
-        // Use server's declared name when config has no name (e.g., CLI --with-*-extension args)
+        // Only generate name from server info when config has no name (e.g., CLI --with-*-extension args)
         let mut extensions = self.extensions.lock().await;
-        let final_name = resolve_extension_name(&sanitized_name, server_info.as_ref(), |n| {
-            extensions.contains_key(n)
-        });
+        let final_name = if sanitized_name.is_empty() {
+            generate_extension_name(server_info.as_ref(), |n| extensions.contains_key(n))
+        } else {
+            sanitized_name
+        };
         extensions.insert(
             final_name,
             Extension::new(config, Arc::new(Mutex::new(client)), server_info, temp_dir),
@@ -1815,7 +1812,7 @@ mod tests {
         assert_eq!(result, "Authorization: Bearer secret123 and API key456");
     }
 
-    mod resolve_extension_name_tests {
+    mod generate_extension_name_tests {
         use super::*;
         use rmcp::model::Implementation;
         use test_case::test_case;
@@ -1830,22 +1827,15 @@ mod tests {
             }
         }
 
-        #[test_case("kiwi", Some("kiwi-mcp-server"), None, "^kiwi$" ; "ACP session prefers explicit name")]
-        #[test_case("", Some("kiwi-mcp-server"), None, "^kiwi-mcp-server$" ; "already normalized server name")]
-        #[test_case("", Some("Context7"), None, "^context7$" ; "mixed case normalized")]
-        #[test_case("", Some("@huggingface/mcp-services"), None, "^_huggingface_mcp-services$" ; "special chars normalized")]
-        #[test_case("", None, None, "^unnamed$" ; "no server info falls back")]
-        #[test_case("", Some(""), None, "^unnamed$" ; "empty server name falls back")]
-        #[test_case("", Some("github-mcp-server"), Some("github-mcp-server"), r"^github-mcp-server_[A-Za-z0-9]{6}$" ; "duplicate adds suffix")]
-        fn test_resolve_name(
-            config_name: &str,
-            server_name: Option<&str>,
-            collision: Option<&str>,
-            expected: &str,
-        ) {
+        #[test_case(Some("kiwi-mcp-server"), None, "^kiwi-mcp-server$" ; "already normalized server name")]
+        #[test_case(Some("Context7"), None, "^context7$" ; "mixed case normalized")]
+        #[test_case(Some("@huggingface/mcp-services"), None, "^_huggingface_mcp-services$" ; "special chars normalized")]
+        #[test_case(None, None, "^unnamed$" ; "no server info falls back")]
+        #[test_case(Some(""), None, "^unnamed$" ; "empty server name falls back")]
+        #[test_case(Some("github-mcp-server"), Some("github-mcp-server"), r"^github-mcp-server_[A-Za-z0-9]{6}$" ; "duplicate adds suffix")]
+        fn test_generate_name(server_name: Option<&str>, collision: Option<&str>, expected: &str) {
             let info = server_name.map(make_info);
-            let result =
-                resolve_extension_name(config_name, info.as_ref(), |n| collision == Some(n));
+            let result = generate_extension_name(info.as_ref(), |n| collision == Some(n));
             let re = regex::Regex::new(expected).unwrap();
             assert!(re.is_match(&result));
         }
