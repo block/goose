@@ -63,9 +63,8 @@ impl SessionType {
         match type_str {
             "user" => Ok(SessionType::User),
             "sub_agent" => Ok(SessionType::SubAgent {
-                parent_session_id: parent_id.ok_or_else(|| {
-                    anyhow::anyhow!("SubAgent session type requires parent_session_id")
-                })?,
+                // Use empty string for legacy sessions that don't have parent_session_id
+                parent_session_id: parent_id.unwrap_or_default(),
             }),
             "hidden" => Ok(SessionType::Hidden),
             "scheduled" => Ok(SessionType::Scheduled),
@@ -346,10 +345,9 @@ impl SessionManager {
         name: String,
         session_type: SessionType,
     ) -> Result<Session> {
-        let parent_session_id = session_type.parent_session_id().map(String::from);
         Self::instance()
             .await?
-            .create_session(working_dir, name, session_type, parent_session_id)
+            .create_session(working_dir, name, session_type)
             .await
     }
 
@@ -961,7 +959,6 @@ impl SessionStorage {
         working_dir: PathBuf,
         name: String,
         session_type: SessionType,
-        parent_session_id: Option<String>,
     ) -> Result<Session> {
         let mut tx = self.pool.begin().await?;
 
@@ -990,7 +987,7 @@ impl SessionStorage {
             .bind(&name)
             .bind(session_type.to_string())
             .bind(working_dir.to_string_lossy().as_ref())
-            .bind(&parent_session_id)
+            .bind(session_type.parent_session_id())
             .fetch_one(&mut *tx)
             .await?;
 
@@ -1337,8 +1334,9 @@ impl SessionStorage {
     fn build_recursive_export<'a>(
         &'a self,
         session: Session,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<RecursiveSessionExport>> + Send + 'a>>
-    {
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = Result<RecursiveSessionExport>> + Send + 'a>,
+    > {
         Box::pin(async move {
             let mut all_sessions = Vec::new();
 
@@ -1405,7 +1403,6 @@ impl SessionStorage {
                 import.working_dir.clone(),
                 import.name.clone(),
                 import.session_type,
-                None,
             )
             .await?;
 
@@ -1443,7 +1440,6 @@ impl SessionStorage {
                 original_session.working_dir.clone(),
                 new_name,
                 original_session.session_type,
-                None,
             )
             .await?;
 
@@ -1520,7 +1516,7 @@ mod tests {
                 let description = format!("Test session {}", i);
 
                 let session = session_storage
-                    .create_session(working_dir.clone(), description, SessionType::User, None)
+                    .create_session(working_dir.clone(), description, SessionType::User)
                     .await
                     .unwrap();
 
@@ -1616,7 +1612,6 @@ mod tests {
                 PathBuf::from("/tmp/test"),
                 DESCRIPTION.to_string(),
                 SessionType::User,
-                None,
             )
             .await
             .unwrap();
@@ -1714,7 +1709,6 @@ mod tests {
                 PathBuf::from("/tmp/test"),
                 "Parent session".to_string(),
                 SessionType::User,
-                None,
             )
             .await
             .unwrap();
@@ -1727,7 +1721,6 @@ mod tests {
                 SessionType::SubAgent {
                     parent_session_id: parent.id.clone(),
                 },
-                Some(parent.id.clone()),
             )
             .await
             .unwrap();
@@ -1755,7 +1748,6 @@ mod tests {
                 PathBuf::from("/tmp/test"),
                 "Parent session".to_string(),
                 SessionType::User,
-                None,
             )
             .await
             .unwrap();
@@ -1782,7 +1774,6 @@ mod tests {
                 SessionType::SubAgent {
                     parent_session_id: parent.id.clone(),
                 },
-                Some(parent.id.clone()),
             )
             .await
             .unwrap();
@@ -1808,7 +1799,6 @@ mod tests {
                 SessionType::SubAgent {
                     parent_session_id: parent.id.clone(),
                 },
-                Some(parent.id.clone()),
             )
             .await
             .unwrap();
@@ -1841,11 +1831,17 @@ mod tests {
 
         // Next two should be subagents
         assert_eq!(parsed.sessions[1].name, "Subagent 1");
-        assert_eq!(parsed.sessions[1].parent_session_id, Some(parent.id.clone()));
+        assert_eq!(
+            parsed.sessions[1].parent_session_id,
+            Some(parent.id.clone())
+        );
         assert_eq!(parsed.sessions[1].message_count, 1);
 
         assert_eq!(parsed.sessions[2].name, "Subagent 2");
-        assert_eq!(parsed.sessions[2].parent_session_id, Some(parent.id.clone()));
+        assert_eq!(
+            parsed.sessions[2].parent_session_id,
+            Some(parent.id.clone())
+        );
         assert_eq!(parsed.sessions[2].message_count, 1);
 
         // Verify all sessions have their conversations
