@@ -24,7 +24,7 @@ goose is compatible with a wide range of LLM providers, allowing you to choose a
 | [Amazon Bedrock](https://aws.amazon.com/bedrock/)                           | Offers a variety of foundation models, including Claude, Jurassic-2, and others. **AWS environment variables must be set in advance, not configured through `goose configure`**                                           | `AWS_PROFILE`, or `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`                                                                                                 |
 | [Amazon SageMaker TGI](https://docs.aws.amazon.com/sagemaker/latest/dg/realtime-endpoints.html) | Run Text Generation Inference models through Amazon SageMaker endpoints. **AWS credentials must be configured in advance.** | `SAGEMAKER_ENDPOINT_NAME`, `AWS_REGION` (optional), `AWS_PROFILE` (optional)  |
 | [Anthropic](https://www.anthropic.com/)                                     | Offers Claude, an advanced AI model for natural language tasks.                                                                                                                                                           | `ANTHROPIC_API_KEY`, `ANTHROPIC_HOST` (optional)                                                                                                                                                                 |
-| [Azure OpenAI](https://learn.microsoft.com/en-us/azure/ai-services/openai/) | Access Azure-hosted OpenAI models, including GPT-4 and GPT-3.5. Supports both API key and Azure Entra ID / Azure credential chain authentication.                                                                       | `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_VERSION` (optional), `AZURE_OPENAI_AUTH_TYPE` (optional, `"api_key"` or `"entra_id"`), `AZURE_OPENAI_API_KEY` (optional)                         |
+| [Azure OpenAI](https://learn.microsoft.com/en-us/azure/ai-services/openai/) | Access Azure-hosted OpenAI models, including GPT-4 and GPT-3.5. Supports both API key and Azure credential chain authentication.                                                                                          | `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_DEPLOYMENT_NAME`, `AZURE_OPENAI_API_KEY` (optional)                                                                                           |
 | [Databricks](https://www.databricks.com/)                                   | Unified data analytics and AI platform for building and deploying models.                                                                                                                                                 | `DATABRICKS_HOST`, `DATABRICKS_TOKEN` |
 | [Docker Model Runner](https://docs.docker.com/ai/model-runner/)                             | Local models running in Docker Desktop or Docker CE with OpenAI-compatible API endpoints. **Because this provider runs locally, you must first [download a model](#local-llms).**                     | `OPENAI_HOST`, `OPENAI_BASE_PATH`   |
 | [Gemini](https://ai.google.dev/gemini-api/docs)                             | Advanced LLMs by Google with multimodal capabilities (text, images).                                                                                                                                                      | `GOOGLE_API_KEY`                                                                                                                                                                    |
@@ -1100,16 +1100,13 @@ GitHub Copilot uses a device flow for authentication, so no API keys are require
 
 goose supports two authentication methods for Azure OpenAI:
 
-1. **API Key Authentication** – Uses `AZURE_OPENAI_API_KEY` for direct authentication when `AZURE_OPENAI_AUTH_TYPE` is set to `"api_key"` or left unset.
-2. **Azure Entra ID / Credential Chain** – Uses Azure CLI credentials automatically without requiring an API key.
+1. **API Key Authentication** - Uses the `AZURE_OPENAI_API_KEY` for direct authentication
+2. **Azure Credential Chain** - Uses Azure CLI credentials automatically without requiring an API key
 
-To use the Azure Entra ID / credential chain authentication:
-
+To use the Azure Credential Chain:
 - Ensure you're logged in with `az login`
 - Have appropriate Azure role assignments for the Azure OpenAI service
-- Either:
-  - In goose Desktop, open the Azure OpenAI provider configuration and select **Entra ID Authentication** in the *Authentication Type* dropdown. The API key field is hidden and no key is required in this mode.
-  - Or, in `goose configure` / `config.yaml`, set `AZURE_OPENAI_AUTH_TYPE=entra_id` or leave `AZURE_OPENAI_API_KEY` empty. When `AZURE_OPENAI_AUTH_TYPE` is `"entra_id"`, any configured `AZURE_OPENAI_API_KEY` is ignored.
+- Configure with `goose configure` and select Azure OpenAI, leaving the API key field empty
 
 This method simplifies authentication and enhances security for enterprise environments.
 
