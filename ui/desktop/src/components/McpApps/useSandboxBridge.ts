@@ -53,14 +53,13 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const isGuestInitializedRef = useRef(false);
   const [proxyUrl, setProxyUrl] = useState<string | null>(null);
-  const [isGuestInitialized, setIsGuestInitialized] = useState(false);
 
   useEffect(() => {
     fetchMcpAppProxyUrl(resourceCsp).then(setProxyUrl);
   }, [resourceCsp]);
 
+  // Reset initialization state when resource changes
   useEffect(() => {
-    setIsGuestInitialized(false);
     isGuestInitializedRef.current = false;
   }, [resourceUri]);
 
@@ -76,26 +75,26 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
       if ('method' in data && !('id' in data)) {
         const msg = data as JsonRpcNotification;
 
-        if (msg.method === 'ui/notifications/sandbox-ready') {
-          sendToSandbox({
-            jsonrpc: '2.0',
-            method: 'ui/notifications/sandbox-resource-ready',
-            params: { html: resourceHtml, csp: resourceCsp },
-          });
-          return;
-        }
+        switch (msg.method) {
+          case 'ui/notifications/sandbox-ready':
+            sendToSandbox({
+              jsonrpc: '2.0',
+              method: 'ui/notifications/sandbox-resource-ready',
+              params: { html: resourceHtml, csp: resourceCsp },
+            });
+            break;
 
-        if (msg.method === 'ui/notifications/initialized') {
-          setIsGuestInitialized(true);
-          isGuestInitializedRef.current = true;
-          return;
-        }
+          case 'ui/notifications/initialized':
+            isGuestInitializedRef.current = true;
+            break;
 
-        if (msg.method === 'ui/notifications/size-changed') {
-          const params = msg.params as { height: number; width?: number };
-          onSizeChanged?.(params.height, params.width);
-          return;
+          case 'ui/notifications/size-changed': {
+            const params = msg.params as { height: number; width?: number };
+            onSizeChanged?.(params.height, params.width);
+            break;
+          }
         }
+        return;
       }
 
       // Handle requests (with id)
@@ -178,52 +177,52 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
 
   // Send tool input notification when it changes
   useEffect(() => {
-    if (!isGuestInitialized || !toolInput) return;
+    if (!isGuestInitializedRef.current || !toolInput) return;
     sendToSandbox({
       jsonrpc: '2.0',
       method: 'ui/notifications/tool-input',
       params: { arguments: toolInput.arguments },
     });
-  }, [isGuestInitialized, toolInput, sendToSandbox]);
+  }, [toolInput, sendToSandbox]);
 
   useEffect(() => {
-    if (!isGuestInitialized || !toolInputPartial) return;
+    if (!isGuestInitializedRef.current || !toolInputPartial) return;
     sendToSandbox({
       jsonrpc: '2.0',
       method: 'ui/notifications/tool-input-partial',
       params: { arguments: toolInputPartial.arguments },
     });
-  }, [isGuestInitialized, toolInputPartial, sendToSandbox]);
+  }, [toolInputPartial, sendToSandbox]);
 
   useEffect(() => {
-    if (!isGuestInitialized || !toolResult) return;
+    if (!isGuestInitializedRef.current || !toolResult) return;
     sendToSandbox({
       jsonrpc: '2.0',
       method: 'ui/notifications/tool-result',
       params: toolResult,
     });
-  }, [isGuestInitialized, toolResult, sendToSandbox]);
+  }, [toolResult, sendToSandbox]);
 
   useEffect(() => {
-    if (!isGuestInitialized || !toolCancelled) return;
+    if (!isGuestInitializedRef.current || !toolCancelled) return;
     sendToSandbox({
       jsonrpc: '2.0',
       method: 'ui/notifications/tool-cancelled',
       params: toolCancelled.reason ? { reason: toolCancelled.reason } : {},
     });
-  }, [isGuestInitialized, toolCancelled, sendToSandbox]);
+  }, [toolCancelled, sendToSandbox]);
 
   useEffect(() => {
-    if (!isGuestInitialized) return;
+    if (!isGuestInitializedRef.current) return;
     sendToSandbox({
       jsonrpc: '2.0',
       method: 'ui/notifications/host-context-changed',
       params: { theme: resolvedTheme },
     });
-  }, [isGuestInitialized, resolvedTheme, sendToSandbox]);
+  }, [resolvedTheme, sendToSandbox]);
 
   useEffect(() => {
-    if (!isGuestInitialized || !iframeRef.current) return;
+    if (!isGuestInitializedRef.current || !iframeRef.current) return;
 
     const iframe = iframeRef.current;
     let lastWidth = iframe.clientWidth;
@@ -254,7 +253,7 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
 
     observer.observe(iframe);
     return () => observer.disconnect();
-  }, [isGuestInitialized, sendToSandbox]);
+  }, [sendToSandbox]);
 
   useEffect(() => {
     return () => {

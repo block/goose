@@ -78,7 +78,7 @@ export default function McpAppRenderer({
     async (
       method: string,
       params: Record<string, unknown> = {},
-      id?: string | number
+      _id?: string | number
     ): Promise<unknown> => {
       switch (method) {
         case 'ui/open-link': {
@@ -116,7 +116,9 @@ export default function McpAppRenderer({
           return {
             content: response.data?.content || [],
             isError: response.data?.is_error || false,
-            structuredContent: (response.data as any)?.structured_content,
+            structuredContent: (response.data as Record<string, unknown>)?.structured_content as
+              | Record<string, unknown>
+              | undefined,
           } satisfies McpMethodResponse['tools/call'];
         }
 
