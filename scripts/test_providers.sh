@@ -30,7 +30,7 @@ SCRIPT_DIR=$(pwd)
 
 # Format: "provider -> model1|model2|model3"
 PROVIDERS=(
-  "openrouter -> google/gemini-2.5-pro|google/gemini-2.5-flash|anthropic/claude-sonnet-4.5|qwen/qwen3-coder:exacto|z-ai/glm-4.6|nvidia/nemotron-3-nano-30b-a3b"
+  "openrouter -> google/gemini-2.5-pro|google/gemini-2.5-flash|anthropic/claude-sonnet-4.5|qwen/qwen3-coder:exacto|z-ai/glm-4.6:exacto|nvidia/nemotron-3-nano-30b-a3b"
   "xai -> grok-3"
   "openai -> gpt-4o|gpt-4o-mini|gpt-3.5-turbo|gpt-5"
   "anthropic -> claude-sonnet-4-5-20250929|claude-opus-4-1-20250805"
