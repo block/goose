@@ -30,6 +30,11 @@ The list of experimental features may change as goose development progresses. So
       link="/docs/experimental/mobile-access"
     />
     <Card 
+      title="goose for VS Code Extension"
+      description="Interact with goose directly from VS Code via ACP."
+      link="/docs/experimental/vs-code-extension"
+    />
+    <Card 
       title="Using goose in ACP Clients"
       description="Interact with goose natively in ACP-compatible clients like Zed."
       link="/docs/guides/acp-clients"

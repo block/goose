@@ -4,7 +4,13 @@ sidebar_position: 2
 sidebar_label: Ollama Tool Shim
 ---
 
-The Ollama tool shim is an experimental feature that enables tool calling capabilities for language models that don't natively support tool calling (like DeepSeek). It works by instructing the primary model to output json for intended tool usage, the interpretive model uses ollama structured outputs to translate the primary model's message into valid json, and then that json is translated into valid tool calls to be invoked.
+The Ollama tool shim enables tool calling capabilities for language models that don't natively support tool calling (like DeepSeek).
+
+:::warning Experimental Feature
+Ollama tool shim is an experimental feature. Behavior and configuration may change in future releases.
+:::
+
+The tool shim works by instructing the primary model to output json for intended tool usage, the interpretive model uses ollama structured outputs to translate the primary model's message into valid json, and then that json is translated into valid tool calls to be invoked.
 
 
 #### How to use the Ollama Tool Shim
