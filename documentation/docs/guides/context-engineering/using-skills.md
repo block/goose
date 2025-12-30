@@ -19,9 +19,8 @@ When a session starts, goose adds any skills that it discovers to its instructio
 
 You can also ask goose what skills are available.
 
-:::tip Other goose features that support reuse
-- [.goosehints](/docs/guides/context-engineering/using-goosehints): Best for general preferences, project context, and repeated instructions like "Always use TypeScript"
-- [recipes](/docs/guides/recipes/session-recipes): Shareable configurations that package instructions, prompts, and settings together
+:::info Claude Compatibility
+goose skills are compatible with Claude Desktop and other [agents that support Agent Skills](https://agentskills.io/home#adoption).
 :::
 
 ## Skill Locations
@@ -254,6 +253,11 @@ Always verify webhook signatures. See `src/webhooks/square.js` for our handler p
 ````
 
 </details>
+
+:::tip Other goose features that support reuse
+- [.goosehints](/docs/guides/context-engineering/using-goosehints): Best for general preferences, project context, and repeated instructions like "Always use TypeScript"
+- [recipes](/docs/guides/recipes/session-recipes): Shareable configurations that package instructions, prompts, and settings together
+:::
 
 ## Best Practices
 

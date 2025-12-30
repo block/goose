@@ -456,7 +456,6 @@ html, body {
 /* Prevent navbar from causing horizontal overflow */
 .navbar {
   max-width: 100%;
-  overflow-x: hidden;
 }
 
 /* Ensure main content doesn't overflow */

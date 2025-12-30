@@ -450,7 +450,17 @@ enum Command {
 
     /// Run goose as an ACP (Agent Client Protocol) agent
     #[command(about = "Run goose as an ACP agent server on stdio")]
-    Acp {},
+    Acp {
+        /// Add builtin extensions by name
+        #[arg(
+            long = "with-builtin",
+            value_name = "NAME",
+            help = "Add builtin extensions by name (e.g., 'developer' or multiple: 'developer,github')",
+            long_help = "Add one or more builtin extensions that are bundled with goose by specifying their names, comma-separated",
+            value_delimiter = ','
+        )]
+        builtins: Vec<String>,
+    },
 
     /// Start or resume interactive chat sessions
     #[command(
@@ -961,7 +971,7 @@ pub async fn cli() -> anyhow::Result<()> {
         Some(Command::Configure {}) => "configure",
         Some(Command::Info { .. }) => "info",
         Some(Command::Mcp { .. }) => "mcp",
-        Some(Command::Acp {}) => "acp",
+        Some(Command::Acp { .. }) => "acp",
         Some(Command::Session { .. }) => "session",
         Some(Command::Project {}) => "project",
         Some(Command::Projects) => "projects",
@@ -995,8 +1005,8 @@ pub async fn cli() -> anyhow::Result<()> {
                 McpCommand::Developer => serve(DeveloperServer::new()).await?,
             }
         }
-        Some(Command::Acp {}) => {
-            run_acp_agent().await?;
+        Some(Command::Acp { builtins }) => {
+            run_acp_agent(builtins).await?;
         }
         Some(Command::Session {
             command,
