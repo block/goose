@@ -1,5 +1,5 @@
 use anyhow::Result;
-use goose::agents::extension::Envs;
+use goose::agents::extension::{Envs, PlatformExtensionContext, PLATFORM_EXTENSIONS};
 use goose::agents::{Agent, ExtensionConfig, SessionConfig};
 use goose::config::{get_all_extensions, Config};
 use goose::conversation::message::{ActionRequiredData, Message, MessageContent};
@@ -246,8 +246,34 @@ fn format_tool_name(tool_name: &str) -> String {
     }
 }
 
+async fn add_builtins(agent: &Agent, builtins: Vec<String>) {
+    for builtin in builtins {
+        let config = if PLATFORM_EXTENSIONS.contains_key(builtin.as_str()) {
+            ExtensionConfig::Platform {
+                name: builtin.clone(),
+                bundled: None,
+                description: builtin.clone(),
+                available_tools: Vec::new(),
+            }
+        } else {
+            ExtensionConfig::Builtin {
+                name: builtin.clone(),
+                display_name: None,
+                timeout: None,
+                bundled: None,
+                description: builtin.clone(),
+                available_tools: Vec::new(),
+            }
+        };
+        match agent.add_extension(config).await {
+            Ok(_) => info!(extension = %builtin, "builtin extension loaded"),
+            Err(e) => warn!(extension = %builtin, error = %e, "builtin extension load failed"),
+        }
+    }
+}
+
 impl GooseAcpAgent {
-    async fn new() -> Result<Self> {
+    async fn new(builtins: Vec<String>) -> Result<Self> {
         let config = Config::global();
 
         let provider_name: String = config
@@ -286,6 +312,16 @@ impl GooseAcpAgent {
             .collect();
 
         let agent_ptr = Arc::new(agent);
+
+        // ACP loads the same default extensions as CLI
+        agent_ptr
+            .extension_manager
+            .set_context(PlatformExtensionContext {
+                session_id: Some(session.id.clone()),
+                extension_manager: Some(Arc::downgrade(&agent_ptr.extension_manager)),
+            })
+            .await;
+
         let mut set = JoinSet::new();
         let mut waiting_on = HashSet::new();
 
@@ -315,6 +351,8 @@ impl GooseAcpAgent {
                 }
             }
         }
+
+        add_builtins(&agent_ptr, builtins).await;
 
         Ok(Self {
             sessions: Arc::new(Mutex::new(HashMap::new())),
@@ -584,7 +622,7 @@ impl GooseAcpAgent {
         };
 
         cx.send_request(permission_request)
-            .await_when_result_received(move |result| async move {
+            .on_receiving_result(move |result| async move {
                 match result {
                     Ok(response) => {
                         agent
@@ -1029,7 +1067,7 @@ struct GooseAcpHandler {
 }
 
 impl JrMessageHandler for GooseAcpHandler {
-    type Role = AgentToClient;
+    type Link = AgentToClient;
 
     fn describe_chain(&self) -> impl std::fmt::Debug {
         "goose-acp"
@@ -1097,13 +1135,13 @@ impl JrMessageHandler for GooseAcpHandler {
     }
 }
 
-pub async fn run_acp_agent() -> Result<()> {
+pub async fn run_acp_agent(builtins: Vec<String>) -> Result<()> {
     info!("listening on stdio");
 
     let outgoing = tokio::io::stdout().compat_write();
     let incoming = tokio::io::stdin().compat();
 
-    let agent = Arc::new(GooseAcpAgent::new().await?);
+    let agent = Arc::new(GooseAcpAgent::new(builtins).await?);
     let handler = GooseAcpHandler { agent };
 
     AgentToClient::builder()
