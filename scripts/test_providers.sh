@@ -88,7 +88,7 @@ for provider_config in "${PROVIDERS[@]}"; do
     echo "Model: ${MODEL}"
     echo ""
     TMPFILE=$(mktemp)
-    (cd "$TESTDIR" && "$SCRIPT_DIR/target/release/goose" run --text "Immediately call the shell tool to run 'ls -la'. Do not ask for confirmation." --with-builtin "$BUILTINS" 2>&1) | tee "$TMPFILE"
+    (cd "$TESTDIR" && "$SCRIPT_DIR/target/release/goose" run --text "Immediately use the shell tool to run 'ls'. Do not ask for confirmation." --with-builtin "$BUILTINS" 2>&1) | tee "$TMPFILE"
     echo ""
     if grep -qE "$SUCCESS_PATTERN" "$TMPFILE"; then
       echo "✓ SUCCESS: Test passed - $SUCCESS_MSG"
