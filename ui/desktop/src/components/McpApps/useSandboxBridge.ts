@@ -61,18 +61,15 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
 
   useEffect(() => {
     setIsGuestInitialized(false);
-    console.log('initialized -> False');
     isGuestInitializedRef.current = false;
   }, [resourceUri]);
 
   const sendToSandbox = useCallback((message: JsonRpcMessage) => {
-    console.log('>>>', message);
     iframeRef.current?.contentWindow?.postMessage(message, '*');
   }, []);
 
   const handleJsonRpcMessage = useCallback(
     async (data: unknown) => {
-      console.log('jsonResponse', data);
       if (!data || typeof data !== 'object') return;
 
       // Handle notifications (no id)
@@ -90,7 +87,6 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
 
         if (msg.method === 'ui/notifications/initialized') {
           setIsGuestInitialized(true);
-          console.log('initialized -> True');
           isGuestInitializedRef.current = true;
           return;
         }
@@ -190,7 +186,6 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
     });
   }, [isGuestInitialized, toolInput, sendToSandbox]);
 
-  // Send partial tool input (streaming) notification when it changes
   useEffect(() => {
     if (!isGuestInitialized || !toolInputPartial) return;
     sendToSandbox({
@@ -200,7 +195,6 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
     });
   }, [isGuestInitialized, toolInputPartial, sendToSandbox]);
 
-  // Send tool result notification when it changes
   useEffect(() => {
     if (!isGuestInitialized || !toolResult) return;
     sendToSandbox({
@@ -210,7 +204,6 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
     });
   }, [isGuestInitialized, toolResult, sendToSandbox]);
 
-  // Send tool cancelled notification when it changes
   useEffect(() => {
     if (!isGuestInitialized || !toolCancelled) return;
     sendToSandbox({
@@ -220,7 +213,6 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
     });
   }, [isGuestInitialized, toolCancelled, sendToSandbox]);
 
-  // Send theme changes when it changes
   useEffect(() => {
     if (!isGuestInitialized) return;
     sendToSandbox({
@@ -264,7 +256,6 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
     return () => observer.disconnect();
   }, [isGuestInitialized, sendToSandbox]);
 
-  // Cleanup on unmount - use ref to capture latest initialized state
   useEffect(() => {
     return () => {
       if (isGuestInitializedRef.current) {

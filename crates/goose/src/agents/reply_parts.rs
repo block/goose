@@ -300,15 +300,12 @@ impl Agent {
             .collect();
 
         // Create a filtered message with frontend tool requests removed
-        // Use coerced requests (with metadata) instead of original content
         let mut filtered_content = Vec::new();
         let mut tool_request_index = 0;
 
-        // Process each content item one by one
         for content in &response.content {
             match content {
                 MessageContent::ToolRequest(_) => {
-                    // Use the coerced request (with metadata) instead of original
                     if tool_request_index < tool_requests.len() {
                         let coerced_req = &tool_requests[tool_request_index];
                         tool_request_index += 1;

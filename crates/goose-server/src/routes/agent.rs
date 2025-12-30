@@ -672,7 +672,6 @@ async fn read_resource(
         }
     };
 
-    // Extract JsonObject from Meta wrapper
     let meta_map = meta.map(|m| m.0);
 
     Ok(Json(ReadResourceResponse {

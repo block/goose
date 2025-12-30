@@ -80,8 +80,6 @@ export default function McpAppRenderer({
       params: Record<string, unknown> = {},
       id?: string | number
     ): Promise<unknown> => {
-      console.log(`[MCP App] Request: ${method}`, { params, id });
-
       switch (method) {
         case 'ui/open-link': {
           const { url } = params as McpMethodParams['ui/open-link'];
