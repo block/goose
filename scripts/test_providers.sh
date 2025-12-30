@@ -29,7 +29,7 @@ fi
 SCRIPT_DIR=$(pwd)
 
 PROVIDERS=(
-  "openrouter:google/gemini-2.5-pro:google/gemini-2.5-flash:anthropic/claude-sonnet-4.5:qwen/qwen3-coder:z-ai/glm-4.6"
+  "openrouter:google/gemini-2.5-pro:google/gemini-2.5-flash:anthropic/claude-sonnet-4.5:qwen/qwen3-coder:exacto:z-ai/glm-4.6:qwen/qwen3-next-80b-a3b-instruct:nvidia/nemotron-3-nano-30b-a3b"
   "xai:grok-3"
   "openai:gpt-4o:gpt-4o-mini:gpt-3.5-turbo:gpt-5"
   "anthropic:claude-sonnet-4-5-20250929:claude-opus-4-1-20250805"
