@@ -5758,6 +5758,9 @@
           "toolCall"
         ],
         "properties": {
+          "_meta": {
+            "type": "object"
+          },
           "id": {
             "type": "string"
           },

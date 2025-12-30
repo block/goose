@@ -1048,6 +1048,9 @@ export type ToolPermission = {
 };
 
 export type ToolRequest = {
+    _meta?: {
+        [key: string]: unknown;
+    };
     id: string;
     metadata?: {
         [key: string]: unknown;

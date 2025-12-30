@@ -33,6 +33,19 @@ type ToolResultWithMeta = {
   };
 };
 
+type ToolRequestWithMeta = ToolRequestMessageContent & {
+  _meta?: {
+    'ui/resourceUri'?: string;
+  };
+  toolCall: {
+    status: 'success';
+    value: {
+      name: string;
+      arguments?: Record<string, unknown>;
+    };
+  };
+};
+
 interface ToolCallWithResponseProps {
   sessionId?: string;
   isCancelledMessage: boolean;
@@ -59,30 +72,40 @@ function isEmbeddedResource(content: Content): content is EmbeddedResource {
 }
 
 function maybeRenderMCPApp(
-  toolCall: { name: string; arguments: Record<string, unknown> },
-  toolResponse: ToolResponseMessageContent,
+  toolRequest: ToolRequestMessageContent,
+  toolResponse: ToolResponseMessageContent | undefined,
   sessionId: string,
   append?: (value: string) => void
 ): React.ReactNode {
-  const resultWithMeta = toolResponse.toolResult as ToolResultWithMeta;
+  const requestWithMeta = toolRequest as ToolRequestWithMeta;
+  let resourceUri = requestWithMeta._meta?.['ui/resourceUri'];
 
-  if (resultWithMeta?.status !== 'success' || !resultWithMeta.value) {
-    return null;
+  if (!resourceUri && toolResponse) {
+    const resultWithMeta = toolResponse.toolResult as ToolResultWithMeta;
+    if (resultWithMeta?.status === 'success' && resultWithMeta.value) {
+      resourceUri = resultWithMeta.value._meta?.['ui/resourceUri'];
+    }
   }
 
-  const value = resultWithMeta.value;
-  const resourceUri = value._meta?.['ui/resourceUri'];
-
   if (!resourceUri) return null;
+  if (requestWithMeta.toolCall.status !== 'success') return null;
 
-  const extensionName = toolCall.name.split('__')[0];
+  const extensionName = requestWithMeta.toolCall.value.name.split('__')[0];
+
+  let toolResult: CallToolResponse | undefined;
+  if (toolResponse) {
+    const resultWithMeta = toolResponse.toolResult as ToolResultWithMeta;
+    if (resultWithMeta?.status === 'success' && resultWithMeta.value) {
+      toolResult = resultWithMeta.value;
+    }
+  }
 
   return (
     <div className="mt-3">
       <McpAppRenderer
         resourceUri={resourceUri}
-        toolInput={{ arguments: toolCall.arguments }}
-        toolResult={value}
+        toolInput={{ arguments: requestWithMeta.toolCall.value.arguments || {} }}
+        toolResult={toolResult}
         extensionName={extensionName}
         sessionId={sessionId}
         append={append}
@@ -158,7 +181,7 @@ export default function ToolCallWithResponse({
           }
         })}
 
-      {toolResponse && sessionId && maybeRenderMCPApp(toolCall, toolResponse, sessionId, append)}
+      {sessionId && maybeRenderMCPApp(toolRequest, toolResponse, sessionId, append)}
     </>
   );
 }

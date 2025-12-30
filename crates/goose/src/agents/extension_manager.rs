@@ -707,14 +707,13 @@ impl ExtensionManager {
                                 input_schema: tool.input_schema,
                                 annotations: tool.annotations,
                                 output_schema: tool.output_schema,
-                                icons: None,
-                                title: None,
-                                meta: None,
+                                icons: tool.icons,
+                                title: tool.title,
+                                meta: tool.meta,
                             });
                         }
                     }
 
-                    // Exit loop when there are no more pages
                     if client_tools.next_cursor.is_none() {
                         break;
                     }

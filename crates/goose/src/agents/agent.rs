@@ -1241,6 +1241,7 @@ impl Agent {
                                                 request.id.clone(),
                                                 request.tool_call.clone(),
                                                 request.metadata.as_ref(),
+                                                request.tool_meta.clone(),
                                             );
                                         messages_to_add.push(request_msg);
                                         let final_response = tool_response_messages[idx]
