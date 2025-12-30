@@ -20,7 +20,7 @@ When a session starts, goose adds any skills that it discovers to its instructio
 You can also ask goose what skills are available.
 
 :::info Claude Compatibility
-goose skills are compatible with Claude Desktop and other agents that support the [Agent Skills](https://github.com/agentskills/agentskills) format.
+goose skills are compatible with Claude Desktop and other [agents that support Agent Skills](https://agentskills.io/home#adoption).
 :::
 
 ## Skill Locations
