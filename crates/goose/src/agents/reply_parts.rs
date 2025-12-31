@@ -235,7 +235,9 @@ impl Agent {
         };
 
         Ok(Box::pin(try_stream! {
-            while let Some(Ok((mut message, usage))) = stream.next().await {
+            while let Some(result) = stream.next().await {
+                let (mut message, usage) = result?;
+
                 // Store the model information in the global store
                 if let Some(usage) = usage.as_ref() {
                     crate::providers::base::set_current_model(&usage.model);
@@ -482,5 +484,45 @@ mod tests {
         assert_eq!(names, sorted);
 
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_stream_error_propagation() {
+        use futures::StreamExt;
+
+        type StreamItem = Result<(Option<Message>, Option<ProviderUsage>), ProviderError>;
+        let stream = futures::stream::iter(vec![
+            Ok((Some(Message::assistant().with_text("chunk1")), None)),
+            Ok((Some(Message::assistant().with_text("chunk2")), None)),
+            Err(ProviderError::RequestFailed(
+                "simulated stream error".to_string(),
+            )),
+        ] as Vec<StreamItem>);
+
+        let mut pinned = Box::pin(stream);
+        let mut results = Vec::new();
+        let mut error_seen = false;
+
+        while let Some(result) = pinned.next().await {
+            match result {
+                Ok((message, _usage)) => {
+                    if let Some(msg) = message {
+                        results.push(msg.as_concat_text());
+                    }
+                }
+                Err(_e) => {
+                    error_seen = true;
+                    break;
+                }
+            }
+        }
+
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0], "chunk1");
+        assert_eq!(results[1], "chunk2");
+        assert!(
+            error_seen,
+            "Error should have been propagated, not silently ignored"
+        );
     }
 }
