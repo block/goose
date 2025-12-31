@@ -24,25 +24,28 @@ use crate::providers::errors::ProviderError;
 use crate::subprocess::configure_command_no_window;
 use rmcp::model::{CallToolRequestParam, CallToolResult, Content, RawContent, Role, Tool};
 
-/// Default ACP agent - claude-code-acp
-pub const ACP_DEFAULT_MODEL: &str = "claude-code";
+pub const ACP_DEFAULT_MODEL: &str = "claude";
 pub const ACP_DOC_URL: &str = "https://github.com/zed-industries/claude-code-acp";
 
-/// Known ACP agent shortcuts and their npx packages
+/// Resolve model name to command and args
 fn resolve_acp_command(model: &str) -> (String, Vec<String>) {
     match model {
-        // Short aliases
-        "claude-code" | "claude" => (
+        "claude" => (
             "npx".to_string(),
             vec!["@zed-industries/claude-code-acp".to_string()],
         ),
-        "codex" => ("npx".to_string(), vec!["@anthropics/codex-acp".to_string()]),
-        // Full package names (npx @scope/package)
-        s if s.starts_with("@") => ("npx".to_string(), vec![s.to_string()]),
-        // Direct command (e.g., a local binary path)
-        s if s.contains('/') || s.contains('\\') => (s.to_string(), vec![]),
-        // Assume it's an npx package name
-        other => ("npx".to_string(), vec![other.to_string()]),
+        "codex" => (
+            "npx".to_string(),
+            vec!["@zed-industries/codex-acp".to_string()],
+        ),
+        // Treat as a command to run directly
+        cmd => {
+            let parts: Vec<&str> = cmd.split_whitespace().collect();
+            (
+                parts[0].to_string(),
+                parts[1..].iter().map(|s| s.to_string()).collect(),
+            )
+        }
     }
 }
 
@@ -182,9 +185,9 @@ impl Provider for AcpProvider {
         ProviderMetadata::new(
             "acp",
             "ACP Agent",
-            "Connect to ACP agents. Set model to: claude-code, codex, or any npx package name",
+            "Connect to ACP agents (claude, codex, or a command)",
             ACP_DEFAULT_MODEL,
-            vec!["claude-code", "codex"],
+            vec!["claude", "codex"],
             ACP_DOC_URL,
             vec![],
         )
