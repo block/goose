@@ -230,18 +230,10 @@ export type ErrorResponse = {
  * Represents the different types of MCP extensions that can be added to the manager
  */
 export type ExtensionConfig = {
-    available_tools?: Array<string>;
-    bundled?: boolean | null;
     description: string;
-    env_keys?: Array<string>;
-    envs?: Envs;
-    /**
-     * The name used to identify this extension
-     */
     name: string;
-    timeout?: number | null;
     type: 'sse';
-    uri: string;
+    uri?: string | null;
 } | {
     args: Array<string>;
     available_tools?: Array<string>;
@@ -351,6 +343,7 @@ export type ExtensionQuery = {
 
 export type ExtensionResponse = {
     extensions: Array<ExtensionEntry>;
+    warnings?: Array<string>;
 };
 
 export type FrontendToolRequest = {
@@ -667,6 +660,9 @@ export type RawImageContent = {
 };
 
 export type RawResource = {
+    _meta?: {
+        [key: string]: unknown;
+    };
     description?: string;
     icons?: Array<Icon>;
     mimeType?: string;

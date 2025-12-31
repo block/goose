@@ -835,6 +835,7 @@ impl McpClientTrait for CodeExecutionClient {
                 }),
             ],
             next_cursor: None,
+            meta: None,
         })
     }
 

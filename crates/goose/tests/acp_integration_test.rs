@@ -8,9 +8,10 @@ use rmcp::{
     ErrorData as McpError, ServerHandler,
 };
 use sacp::schema::{
-    ContentBlock, ContentChunk, InitializeRequest, McpServer, NewSessionRequest, PromptRequest,
-    RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
-    SessionNotification, SessionUpdate, StopReason, TextContent, VERSION as PROTOCOL_VERSION,
+    ContentBlock, ContentChunk, InitializeRequest, McpServer, McpServerHttp, NewSessionRequest,
+    PromptRequest, ProtocolVersion, RequestPermissionOutcome, RequestPermissionRequest,
+    RequestPermissionResponse, SelectedPermissionOutcome, SessionNotification, SessionUpdate,
+    StopReason, TextContent,
 };
 use sacp::{ClientToAgent, JrConnectionCx};
 use std::collections::VecDeque;
@@ -43,15 +44,10 @@ async fn test_acp_basic_completion() {
         tempfile::tempdir().unwrap().path(),
         |cx, session_id, updates| async move {
             let response = cx
-                .send_request(PromptRequest {
+                .send_request(PromptRequest::new(
                     session_id,
-                    prompt: vec![ContentBlock::Text(TextContent {
-                        text: prompt.to_string(),
-                        annotations: None,
-                        meta: None,
-                    })],
-                    meta: None,
-                })
+                    vec![ContentBlock::Text(TextContent::new(prompt))],
+                ))
                 .block_task()
                 .await
                 .unwrap();
@@ -82,24 +78,15 @@ async fn test_acp_with_mcp_http_server() {
 
     run_acp_session(
         &mock_server,
-        vec![McpServer::Http {
-            name: "lookup".into(),
-            url: mcp_url,
-            headers: vec![],
-        }],
+        vec![McpServer::Http(McpServerHttp::new("lookup", &mcp_url))],
         &[],
         tempfile::tempdir().unwrap().path(),
         |cx, session_id, updates| async move {
             let response = cx
-                .send_request(PromptRequest {
+                .send_request(PromptRequest::new(
                     session_id,
-                    prompt: vec![ContentBlock::Text(TextContent {
-                        text: prompt.to_string(),
-                        annotations: None,
-                        meta: None,
-                    })],
-                    meta: None,
-                })
+                    vec![ContentBlock::Text(TextContent::new(prompt))],
+                ))
                 .block_task()
                 .await
                 .unwrap();
@@ -139,24 +126,15 @@ async fn test_acp_with_builtin_and_mcp() {
 
     run_acp_session(
         &mock_server,
-        vec![McpServer::Http {
-            name: "lookup".into(),
-            url: mcp_url,
-            headers: vec![],
-        }],
+        vec![McpServer::Http(McpServerHttp::new("lookup", &mcp_url))],
         &["code_execution", "developer"],
         tempfile::tempdir().unwrap().path(),
         |cx, session_id, updates| async move {
             let response = cx
-                .send_request(PromptRequest {
+                .send_request(PromptRequest::new(
                     session_id,
-                    prompt: vec![ContentBlock::Text(TextContent {
-                        text: prompt.to_string(),
-                        annotations: None,
-                        meta: None,
-                    })],
-                    meta: None,
-                })
+                    vec![ContentBlock::Text(TextContent::new(prompt))],
+                ))
                 .block_task()
                 .await
                 .unwrap();
@@ -309,16 +287,14 @@ async fn run_acp_session<F, Fut>(
         )
         .on_receive_request(
             async move |request: RequestPermissionRequest, request_cx, _connection_cx| {
-                let option_id = request.options.first().map(|opt| opt.id.clone());
+                let option_id = request.options.first().map(|opt| opt.option_id.clone());
                 match option_id {
-                    Some(id) => request_cx.respond(RequestPermissionResponse {
-                        outcome: RequestPermissionOutcome::Selected { option_id: id },
-                        meta: None,
-                    }),
-                    None => request_cx.respond(RequestPermissionResponse {
-                        outcome: RequestPermissionOutcome::Cancelled,
-                        meta: None,
-                    }),
+                    Some(id) => request_cx.respond(RequestPermissionResponse::new(
+                        RequestPermissionOutcome::Selected(SelectedPermissionOutcome::new(id)),
+                    )),
+                    None => request_cx.respond(RequestPermissionResponse::new(
+                        RequestPermissionOutcome::Cancelled,
+                    )),
                 }
             },
             sacp::on_receive_request!(),
@@ -328,22 +304,16 @@ async fn run_acp_session<F, Fut>(
         .run_until({
             let updates = updates.clone();
             move |cx: JrConnectionCx<ClientToAgent>| async move {
-                cx.send_request(InitializeRequest {
-                    protocol_version: PROTOCOL_VERSION,
-                    client_capabilities: Default::default(),
-                    client_info: Default::default(),
-                    meta: None,
-                })
-                .block_task()
-                .await
-                .unwrap();
+                cx.send_request(InitializeRequest::new(ProtocolVersion::LATEST))
+                    .block_task()
+                    .await
+                    .unwrap();
 
                 let session = cx
-                    .send_request(NewSessionRequest {
-                        mcp_servers,
-                        cwd: work_dir.path().to_path_buf(),
-                        meta: None,
-                    })
+                    .send_request(
+                        NewSessionRequest::new(work_dir.path().to_path_buf())
+                            .mcp_servers(mcp_servers),
+                    )
                     .block_task()
                     .await
                     .unwrap();
@@ -380,7 +350,7 @@ impl Lookup {
 impl ServerHandler for Lookup {
     fn get_info(&self) -> ServerInfo {
         ServerInfo {
-            protocol_version: ProtocolVersion::V_2025_03_26,
+            protocol_version: rmcp::model::ProtocolVersion::V_2025_03_26,
             capabilities: ServerCapabilities::builder().enable_tools().build(),
             server_info: Implementation {
                 name: "lookup".into(),

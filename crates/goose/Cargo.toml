@@ -20,8 +20,6 @@ rmcp = { workspace = true, features = [
     "client",
     "reqwest",
     "transport-child-process",
-    "transport-sse-client",
-    "transport-sse-client-reqwest",
     "transport-streamable-http-client",
     "transport-streamable-http-client-reqwest",
 ] }
@@ -121,7 +119,7 @@ unbinder = "0.1.7"
 winapi = { version = "0.3", features = ["wincred"] }
 
 [dev-dependencies]
-sacp = "10.0.0-alpha.3"
+sacp = { workspace = true }
 agent-client-protocol-schema = "0.10.5"
 criterion = "0.5"
 serial_test = "3.2.0"

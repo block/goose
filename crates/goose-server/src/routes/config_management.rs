@@ -30,6 +30,8 @@ use utoipa::ToSchema;
 #[derive(Serialize, ToSchema)]
 pub struct ExtensionResponse {
     pub extensions: Vec<ExtensionEntry>,
+    #[serde(default)]
+    pub warnings: Vec<String>,
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -254,7 +256,11 @@ pub async fn read_config(
 )]
 pub async fn get_extensions() -> Result<Json<ExtensionResponse>, StatusCode> {
     let extensions = goose::config::get_all_extensions();
-    Ok(Json(ExtensionResponse { extensions }))
+    let warnings = goose::config::get_warnings();
+    Ok(Json(ExtensionResponse {
+        extensions,
+        warnings,
+    }))
 }
 
 #[utoipa::path(

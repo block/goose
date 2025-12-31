@@ -51,13 +51,17 @@ fn extract_secrets_from_extensions(
 
     for ext in extensions {
         let (extension_name, env_keys) = match ext {
-            ExtensionConfig::Sse { name, env_keys, .. } => (name, env_keys),
             ExtensionConfig::Stdio { name, env_keys, .. } => (name, env_keys),
             ExtensionConfig::StreamableHttp { name, env_keys, .. } => (name, env_keys),
             ExtensionConfig::Builtin { name, .. } => (name, &Vec::new()),
             ExtensionConfig::Platform { name, .. } => (name, &Vec::new()),
             ExtensionConfig::Frontend { name, .. } => (name, &Vec::new()),
             ExtensionConfig::InlinePython { name, .. } => (name, &Vec::new()),
+            // SSE is unsupported - skip
+            ExtensionConfig::Sse { name, .. } => {
+                tracing::warn!(name = %name, "SSE is unsupported, skipping");
+                continue;
+            }
         };
 
         for key in env_keys {
@@ -136,15 +140,16 @@ mod tests {
             instructions: Some("Test instructions".to_string()),
             prompt: None,
             extensions: Some(vec![
-                ExtensionConfig::Sse {
+                ExtensionConfig::StreamableHttp {
                     name: "github-mcp".to_string(),
-                    uri: "sse://example.com".to_string(),
+                    uri: "http://localhost:8080/mcp".to_string(),
                     envs: Envs::new(HashMap::new()),
                     env_keys: vec!["GITHUB_TOKEN".to_string(), "GITHUB_API_URL".to_string()],
                     description: "github-mcp".to_string(),
                     timeout: None,
                     bundled: None,
                     available_tools: Vec::new(),
+                    headers: HashMap::new(),
                 },
                 ExtensionConfig::Stdio {
                     name: "slack-mcp".to_string(),
@@ -231,15 +236,16 @@ mod tests {
             instructions: Some("Test instructions".to_string()),
             prompt: None,
             extensions: Some(vec![
-                ExtensionConfig::Sse {
+                ExtensionConfig::StreamableHttp {
                     name: "service-a".to_string(),
-                    uri: "sse://example.com".to_string(),
+                    uri: "http://localhost:8080/mcp".to_string(),
                     envs: Envs::new(HashMap::new()),
                     env_keys: vec!["API_KEY".to_string()],
                     description: "service-a".to_string(),
                     timeout: None,
                     bundled: None,
                     available_tools: Vec::new(),
+                    headers: HashMap::new(),
                 },
                 ExtensionConfig::Stdio {
                     name: "service-b".to_string(),
@@ -289,15 +295,16 @@ mod tests {
             description: "A recipe with sub-recipes".to_string(),
             instructions: Some("Test instructions".to_string()),
             prompt: None,
-            extensions: Some(vec![ExtensionConfig::Sse {
+            extensions: Some(vec![ExtensionConfig::StreamableHttp {
                 name: "parent-ext".to_string(),
-                uri: "sse://parent.com".to_string(),
+                uri: "http://localhost:8080/mcp".to_string(),
                 envs: Envs::new(HashMap::new()),
                 env_keys: vec!["PARENT_TOKEN".to_string()],
                 description: "parent-ext".to_string(),
                 timeout: None,
                 bundled: None,
                 available_tools: Vec::new(),
+                headers: HashMap::new(),
             }]),
             sub_recipes: Some(vec![SubRecipe {
                 name: "child-recipe".to_string(),

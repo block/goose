@@ -410,6 +410,7 @@ impl McpClientTrait for ExtensionManagerClient {
         Ok(ListToolsResult {
             tools: self.get_tools().await,
             next_cursor: None,
+            meta: None,
         })
     }
 

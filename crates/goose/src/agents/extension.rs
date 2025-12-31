@@ -233,27 +233,18 @@ impl Envs {
 #[derive(Debug, Clone, Deserialize, Serialize, ToSchema, PartialEq)]
 #[serde(tag = "type")]
 pub enum ExtensionConfig {
-    /// Server-sent events client with a URI endpoint
+    /// SSE transport is no longer supported - kept only for config file compatibility
     #[serde(rename = "sse")]
     Sse {
-        /// The name used to identify this extension
+        #[serde(default)]
+        #[schema(required)]
         name: String,
         #[serde(default)]
         #[serde(deserialize_with = "deserialize_null_with_default")]
         #[schema(required)]
         description: String,
-        uri: String,
         #[serde(default)]
-        envs: Envs,
-        #[serde(default)]
-        env_keys: Vec<String>,
-        // NOTE: set timeout to be optional for compatibility.
-        // However, new configurations should include this field.
-        timeout: Option<u64>,
-        #[serde(default)]
-        bundled: Option<bool>,
-        #[serde(default)]
-        available_tools: Vec<String>,
+        uri: Option<String>,
     },
     /// Standard I/O client with command and arguments
     #[serde(rename = "stdio")]
@@ -379,19 +370,6 @@ impl Default for ExtensionConfig {
 }
 
 impl ExtensionConfig {
-    pub fn sse<S: Into<String>, T: Into<u64>>(name: S, uri: S, description: S, timeout: T) -> Self {
-        Self::Sse {
-            name: name.into(),
-            uri: uri.into(),
-            envs: Envs::default(),
-            env_keys: Vec::new(),
-            description: description.into(),
-            timeout: Some(timeout.into()),
-            bundled: None,
-            available_tools: Vec::new(),
-        }
-    }
-
     pub fn streamable_http<S: Into<String>, T: Into<u64>>(
         name: S,
         uri: S,
@@ -499,10 +477,8 @@ impl ExtensionConfig {
     /// Check if a tool should be available to the LLM
     pub fn is_tool_available(&self, tool_name: &str) -> bool {
         let available_tools = match self {
-            Self::Sse {
-                available_tools, ..
-            }
-            | Self::StreamableHttp {
+            Self::Sse { .. } => return false, // SSE is unsupported
+            Self::StreamableHttp {
                 available_tools, ..
             }
             | Self::Stdio {
@@ -531,7 +507,9 @@ impl ExtensionConfig {
 impl std::fmt::Display for ExtensionConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ExtensionConfig::Sse { name, uri, .. } => write!(f, "SSE({}: {})", name, uri),
+            ExtensionConfig::Sse { .. } => {
+                unreachable!("SSE extensions are rejected during loading")
+            }
             ExtensionConfig::StreamableHttp { name, uri, .. } => {
                 write!(f, "StreamableHttp({}: {})", name, uri)
             }

@@ -21,19 +21,6 @@ dependencies = [
 
 [[package]]
 name = "agent-client-protocol-schema"
-version = "0.6.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16d08d095e8069115774caa50392e9c818e3fb1c482ef4f3153d26b4595482f2"
-dependencies = [
- "anyhow",
- "derive_more",
- "schemars 1.2.0",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "agent-client-protocol-schema"
 version = "0.10.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6903a00e8ac822f9bacac59a1932754d7387c72ebb7c9c7439ad021505591da4"
@@ -2968,7 +2955,7 @@ dependencies = [
 name = "goose"
 version = "1.17.0"
 dependencies = [
- "agent-client-protocol-schema 0.10.5",
+ "agent-client-protocol-schema",
  "ahash",
  "anyhow",
  "async-stream",
@@ -3017,7 +3004,7 @@ dependencies = [
  "rand 0.8.5",
  "regex",
  "reqwest 0.12.28",
- "rmcp 0.9.1",
+ "rmcp",
  "sacp",
  "schemars 1.2.0",
  "serde",
@@ -3069,7 +3056,7 @@ dependencies = [
  "once_cell",
  "paste",
  "regex",
- "rmcp 0.9.1",
+ "rmcp",
  "serde",
  "serde_json",
  "tokio",
@@ -3082,7 +3069,7 @@ dependencies = [
 name = "goose-cli"
 version = "1.17.0"
 dependencies = [
- "agent-client-protocol-schema 0.10.5",
+ "agent-client-protocol-schema",
  "anstream",
  "anyhow",
  "async-trait",
@@ -3108,7 +3095,7 @@ dependencies = [
  "open",
  "rand 0.8.5",
  "regex",
- "rmcp 0.9.1",
+ "rmcp",
  "rustyline",
  "sacp",
  "serde",
@@ -3164,7 +3151,7 @@ dependencies = [
  "rayon",
  "regex",
  "reqwest 0.11.27",
- "rmcp 0.9.1",
+ "rmcp",
  "schemars 1.2.0",
  "serde",
  "serde_json",
@@ -3219,7 +3206,7 @@ dependencies = [
  "http 1.4.0",
  "rand 0.9.2",
  "reqwest 0.12.28",
- "rmcp 0.9.1",
+ "rmcp",
  "rustls 0.23.31",
  "schemars 1.2.0",
  "serde",
@@ -5742,9 +5729,9 @@ dependencies = [
 
 [[package]]
 name = "process-wrap"
-version = "8.2.1"
+version = "9.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3ef4f2f0422f23a82ec9f628ea2acd12871c81a9362b02c43c1aa86acfc3ba1"
+checksum = "5e5fd83ab7fa55fd06f5e665e3fc52b8bca451c0486b8ea60ad649cd1c10a5da"
 dependencies = [
  "futures",
  "indexmap 2.12.1",
@@ -6239,9 +6226,9 @@ dependencies = [
 
 [[package]]
 name = "rmcp"
-version = "0.9.1"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eaa07b85b779d1e1df52dd79f6c6bffbe005b191f07290136cc42a142da3409a"
+checksum = "528d42f8176e6e5e71ea69182b17d1d0a19a6b3b894b564678b74cd7cab13cfa"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -6252,12 +6239,12 @@ dependencies = [
  "http-body 1.0.1",
  "http-body-util",
  "oauth2",
- "paste",
+ "pastey",
  "pin-project-lite",
  "process-wrap",
  "rand 0.9.2",
  "reqwest 0.12.28",
- "rmcp-macros 0.9.1",
+ "rmcp-macros",
  "schemars 1.2.0",
  "serde",
  "serde_json",
@@ -6270,41 +6257,6 @@ dependencies = [
  "tracing",
  "url",
  "uuid",
-]
-
-[[package]]
-name = "rmcp"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "528d42f8176e6e5e71ea69182b17d1d0a19a6b3b894b564678b74cd7cab13cfa"
-dependencies = [
- "async-trait",
- "base64 0.22.1",
- "chrono",
- "futures",
- "pastey",
- "pin-project-lite",
- "rmcp-macros 0.12.0",
- "schemars 1.2.0",
- "serde",
- "serde_json",
- "thiserror 2.0.17",
- "tokio",
- "tokio-util",
- "tracing",
-]
-
-[[package]]
-name = "rmcp-macros"
-version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f6fa09933cac0d0204c8a5d647f558425538ed6a0134b1ebb1ae4dc00c96db3"
-dependencies = [
- "darling 0.21.3",
- "proc-macro2",
- "quote",
- "serde_json",
- "syn 2.0.111",
 ]
 
 [[package]]
@@ -6555,18 +6507,18 @@ checksum = "dd29631678d6fb0903b69223673e122c32e9ae559d0960a38d574695ebc0ea15"
 
 [[package]]
 name = "sacp"
-version = "10.0.0-alpha.3"
+version = "10.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15a8b2266ce4c22bb4f7b7744a49dfed3890ff8c0f0df0b66794a973d639331c"
+checksum = "47c1b52b3ee79933b19f2ce71945eaa17ef91ee68444e6716d05e335763af1a4"
 dependencies = [
- "agent-client-protocol-schema 0.6.3",
+ "agent-client-protocol-schema",
  "anyhow",
  "boxfnonce",
  "futures",
  "futures-concurrency",
  "fxhash",
  "jsonrpcmsg",
- "rmcp 0.12.0",
+ "rmcp",
  "sacp-derive",
  "schemars 1.2.0",
  "serde",
@@ -6580,9 +6532,9 @@ dependencies = [
 
 [[package]]
 name = "sacp-derive"
-version = "10.0.0-alpha.2"
+version = "10.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9b8803d6b4e86f5c1dc2fb0f0a2545f8504beb93492881ca4cd9982130efd12"
+checksum = "92150f9246c01d501855e34469810a82adc27c416c8d8e21665567f8cd966f29"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -7486,7 +7438,7 @@ dependencies = [
  "memchr",
  "ntapi",
  "rayon",
- "windows 0.56.0",
+ "windows 0.57.0",
 ]
 
 [[package]]
@@ -7500,7 +7452,7 @@ dependencies = [
  "memchr",
  "ntapi",
  "rayon",
- "windows 0.56.0",
+ "windows 0.57.0",
 ]
 
 [[package]]
@@ -8879,6 +8831,16 @@ dependencies = [
 
 [[package]]
 name = "windows"
+version = "0.57.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "12342cb4d8e3b046f3d80effd474a7a02447231330ef77d71daa6fbc40681143"
+dependencies = [
+ "windows-core 0.57.0",
+ "windows-targets 0.52.6",
+]
+
+[[package]]
+name = "windows"
 version = "0.59.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f919aee0a93304be7f62e8e5027811bbba96bcb1de84d6618be56e43f8a32a1"
@@ -8917,6 +8879,18 @@ checksum = "4698e52ed2d08f8658ab0c39512a7c00ee5fe2688c65f8c0a4f06750d729f2a6"
 dependencies = [
  "windows-implement 0.56.0",
  "windows-interface 0.56.0",
+ "windows-result 0.1.2",
+ "windows-targets 0.52.6",
+]
+
+[[package]]
+name = "windows-core"
+version = "0.57.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d2ed2439a290666cd67ecce2b0ffaad89c2a56b976b736e6ece670297897832d"
+dependencies = [
+ "windows-implement 0.57.0",
+ "windows-interface 0.57.0",
  "windows-result 0.1.2",
  "windows-targets 0.52.6",
 ]
@@ -8984,6 +8958,17 @@ dependencies = [
 
 [[package]]
 name = "windows-implement"
+version = "0.57.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9107ddc059d5b6fbfbffdfa7a7fe3e22a226def0b2608f72e9d552763d3e1ad7"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.111",
+]
+
+[[package]]
+name = "windows-implement"
 version = "0.59.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "83577b051e2f49a058c308f17f273b570a6a758386fc291b5f6a934dd84e48c1"
@@ -9009,6 +8994,17 @@ name = "windows-interface"
 version = "0.56.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "08990546bf4edef8f431fa6326e032865f27138718c587dc21bc0265bbcb57cc"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.111",
+]
+
+[[package]]
+name = "windows-interface"
+version = "0.57.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "29bee4b38ea3cde66011baa44dba677c432a78593e202392d1e9070cf2a7fca7"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -9733,9 +9729,9 @@ dependencies = [
 
 [[package]]
 name = "zmij"
-version = "1.0.2"
+version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f4a4e8e9dc5c62d159f04fcdbe07f4c3fb710415aab4754bf11505501e3251d"
+checksum = "e9747e91771f56fd7893e1164abd78febd14a670ceec257caad15e051de35f06"
 
 [[package]]
 name = "zopfli"

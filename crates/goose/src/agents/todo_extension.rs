@@ -193,6 +193,7 @@ impl McpClientTrait for TodoClient {
         Ok(ListToolsResult {
             tools: Self::get_tools(),
             next_cursor: None,
+            meta: None,
         })
     }
 

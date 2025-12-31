@@ -9,7 +9,7 @@
  "extensions": [
     {
       "name": "Pieces",
-      "url": "http://localhost:39300/model_context_protocol/2024-11-05/sse",
+      "command": "uvx pieces-cli mcp start",
       "is_builtin": false
     }
   ]

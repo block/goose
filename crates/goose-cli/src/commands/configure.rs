@@ -625,6 +625,10 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
 /// Configure extensions that can be used with goose
 /// Dialog for toggling which extensions are enabled/disabled
 pub fn toggle_extensions_dialog() -> anyhow::Result<()> {
+    for warning in goose::config::get_warnings() {
+        eprintln!("{}", style(format!("Warning: {}", warning)).yellow());
+    }
+
     let extensions = get_all_extensions();
 
     if extensions.is_empty() {
@@ -693,14 +697,9 @@ pub fn configure_extensions_dialog() -> anyhow::Result<()> {
             "Run a local command or script",
         )
         .item(
-            "sse",
-            "Remote Extension (SSE)",
-            "Connect to a remote extension via Server-Sent Events",
-        )
-        .item(
             "streamable_http",
-            "Remote Extension (Streaming HTTP)",
-            "Connect to a remote extension via MCP Streaming HTTP",
+            "Remote Extension (Streamable HTTP)",
+            "Connect to a remote extension via MCP Streamable HTTP",
         )
         .interact()?;
 
@@ -870,101 +869,6 @@ pub fn configure_extensions_dialog() -> anyhow::Result<()> {
 
             cliclack::outro(format!("Added {} extension", style(name).green()))?;
         }
-        "sse" => {
-            let extensions = get_all_extension_names();
-            let name: String = cliclack::input("What would you like to call this extension?")
-                .placeholder("my-remote-extension")
-                .validate(move |input: &String| {
-                    if input.is_empty() {
-                        Err("Please enter a name")
-                    } else if extensions.contains(input) {
-                        Err("An extension with this name already exists")
-                    } else {
-                        Ok(())
-                    }
-                })
-                .interact()?;
-
-            let uri: String = cliclack::input("What is the SSE endpoint URI?")
-                .placeholder("http://localhost:8000/events")
-                .validate(|input: &String| {
-                    if input.is_empty() {
-                        Err("Please enter a URI")
-                    } else if !input.starts_with("http") {
-                        Err("URI should start with http:// or https://")
-                    } else {
-                        Ok(())
-                    }
-                })
-                .interact()?;
-
-            let timeout: u64 = cliclack::input("Please set the timeout for this tool (in secs):")
-                .placeholder(&goose::config::DEFAULT_EXTENSION_TIMEOUT.to_string())
-                .validate(|input: &String| match input.parse::<u64>() {
-                    Ok(_) => Ok(()),
-                    Err(_) => Err("Please enter a valid timeout"),
-                })
-                .interact()?;
-
-            let description = cliclack::input("Enter a description for this extension:")
-                .placeholder("Description")
-                .validate(|input: &String| match input.parse::<String>() {
-                    Ok(_) => Ok(()),
-                    Err(_) => Err("Please enter a valid description"),
-                })
-                .interact()?;
-            let add_env =
-                cliclack::confirm("Would you like to add environment variables?").interact()?;
-
-            let mut envs = HashMap::new();
-            let mut env_keys = Vec::new();
-            let config = Config::global();
-
-            if add_env {
-                loop {
-                    let key: String = cliclack::input("Environment variable name:")
-                        .placeholder("API_KEY")
-                        .interact()?;
-
-                    let value: String = cliclack::password("Environment variable value:")
-                        .mask('▪')
-                        .interact()?;
-
-                    // Try to store in keychain
-                    let keychain_key = key.to_string();
-                    match config.set_secret(&keychain_key, &value) {
-                        Ok(_) => {
-                            // Successfully stored in keychain, add to env_keys
-                            env_keys.push(keychain_key);
-                        }
-                        Err(_) => {
-                            // Failed to store in keychain, store directly in envs
-                            envs.insert(key, value);
-                        }
-                    }
-
-                    if !cliclack::confirm("Add another environment variable?").interact()? {
-                        break;
-                    }
-                }
-            }
-
-            set_extension(ExtensionEntry {
-                enabled: true,
-                config: ExtensionConfig::Sse {
-                    name: name.clone(),
-                    uri,
-                    envs: Envs::new(envs),
-                    env_keys,
-                    description,
-                    timeout: Some(timeout),
-                    bundled: None,
-                    available_tools: Vec::new(),
-                },
-            });
-
-            cliclack::outro(format!("Added {} extension", style(name).green()))?;
-        }
         "streamable_http" => {
             let extensions = get_all_extension_names();
             let name: String = cliclack::input("What would you like to call this extension?")
@@ -980,7 +884,7 @@ pub fn configure_extensions_dialog() -> anyhow::Result<()> {
                 })
                 .interact()?;
 
-            let uri: String = cliclack::input("What is the Streaming HTTP endpoint URI?")
+            let uri: String = cliclack::input("What is the Streamable HTTP endpoint URI?")
                 .placeholder("http://localhost:8000/messages")
                 .validate(|input: &String| {
                     if input.is_empty() {
@@ -1034,7 +938,7 @@ pub fn configure_extensions_dialog() -> anyhow::Result<()> {
                 }
             }
 
-            let add_env = false; // No env prompt for Streaming HTTP
+            let add_env = false; // No env prompt for Streamable HTTP
 
             let mut envs = HashMap::new();
             let mut env_keys = Vec::new();
@@ -1095,6 +999,10 @@ pub fn configure_extensions_dialog() -> anyhow::Result<()> {
 }
 
 pub fn remove_extension_dialog() -> anyhow::Result<()> {
+    for warning in goose::config::get_warnings() {
+        eprintln!("{}", style(format!("Warning: {}", warning)).yellow());
+    }
+
     let extensions = get_all_extensions();
 
     // Create a list of extension names and their enabled status

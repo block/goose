@@ -9,8 +9,7 @@ use rmcp::transport::streamable_http_client::{
     AuthRequiredError, StreamableHttpClientTransportConfig, StreamableHttpError,
 };
 use rmcp::transport::{
-    ConfigureCommandExt, DynamicTransportError, SseClientTransport, StreamableHttpClientTransport,
-    TokioChildProcess,
+    ConfigureCommandExt, DynamicTransportError, StreamableHttpClientTransport, TokioChildProcess,
 };
 use std::collections::HashMap;
 use std::option::Option;
@@ -379,25 +378,10 @@ impl ExtensionManager {
         }
 
         let client: Box<dyn McpClientTrait> = match &config {
-            ExtensionConfig::Sse { uri, timeout, .. } => {
-                let transport = SseClientTransport::start(uri.to_string()).await.map_err(
-                    |transport_error| {
-                        ClientInitializeError::transport::<SseClientTransport<reqwest::Client>>(
-                            transport_error,
-                            "connect",
-                        )
-                    },
-                )?;
-                Box::new(
-                    McpClient::connect(
-                        transport,
-                        Duration::from_secs(
-                            timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT),
-                        ),
-                        self.provider.clone(),
-                    )
-                    .await?,
-                )
+            ExtensionConfig::Sse { .. } => {
+                return Err(ExtensionError::ConfigError(
+                    "SSE is unsupported, migrate to streamable_http".to_string(),
+                ));
             }
             ExtensionConfig::StreamableHttp {
                 uri,
@@ -1250,8 +1234,8 @@ impl ExtensionManager {
                             description
                         }
                     }
+                    ExtensionConfig::Sse { .. } => "SSE extension (unsupported)",
                     ExtensionConfig::Platform { description, .. }
-                    | ExtensionConfig::Sse { description, .. }
                     | ExtensionConfig::StreamableHttp { description, .. }
                     | ExtensionConfig::Stdio { description, .. }
                     | ExtensionConfig::Frontend { description, .. }
@@ -1426,6 +1410,7 @@ mod tests {
                     ),
                 ],
                 next_cursor: None,
+                meta: None,
             })
         }
 

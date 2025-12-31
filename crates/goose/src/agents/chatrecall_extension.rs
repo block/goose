@@ -302,6 +302,7 @@ impl McpClientTrait for ChatRecallClient {
         Ok(ListToolsResult {
             tools: Self::get_tools(),
             next_cursor: None,
+            meta: None,
         })
     }
 

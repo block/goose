@@ -1330,6 +1330,7 @@ impl ServerHandler for ComputerControllerServer {
         Ok(ListResourcesResult {
             resources,
             next_cursor: None,
+            meta: None,
         })
     }
 
