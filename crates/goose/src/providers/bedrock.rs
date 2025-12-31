@@ -343,6 +343,74 @@ impl BedrockProvider {
             err => ProviderError::ServerError(format!("Bedrock streaming error: {:?}", err)),
         }
     }
+
+    pub fn model_info(&self, model: &str) -> crate::providers::base::ModelInfo {
+        use crate::providers::base::ModelInfo;
+
+        let (input_cost, output_cost) = match model {
+            // Anthropic Claude models on Bedrock
+            m if m.contains("claude-3-5-sonnet") || m.contains("claude-sonnet-4-5") => (3.0, 15.0),
+            m if m.contains("claude-3-5-haiku") => (1.0, 5.0),
+            m if m.contains("claude-3-haiku") => (0.25, 1.25),
+            m if m.contains("claude-3-sonnet") || m.contains("claude-sonnet-3-7") => (3.0, 15.0),
+            m if m.contains("claude-3-opus") || m.contains("claude-opus-4") => (15.0, 75.0),
+
+            // Amazon Titan models
+            m if m.contains("amazon.titan-text-premier") => (0.5, 1.5),
+            m if m.contains("amazon.titan-text-express") => (0.2, 0.6),
+            m if m.contains("amazon.titan-text-lite") => (0.15, 0.2),
+
+            // Amazon Nova models
+            m if m.contains("amazon.nova-pro") => (0.8, 3.2),
+            m if m.contains("amazon.nova-lite") => (0.06, 0.24),
+            m if m.contains("amazon.nova-micro") => (0.035, 0.14),
+
+            // Meta Llama models
+            m if m.contains("meta.llama3-1-405b") => (5.32, 16.0),
+            m if m.contains("meta.llama3-1-70b") => (0.99, 2.97),
+            m if m.contains("meta.llama3-1-8b") => (0.22, 0.66),
+            m if m.contains("meta.llama3-2-90b") => (1.0, 3.0),
+            m if m.contains("meta.llama3-2-11b") => (0.35, 1.05),
+            m if m.contains("meta.llama3-2-3b") => (0.15, 0.45),
+            m if m.contains("meta.llama3-2-1b") => (0.1, 0.3),
+
+            // Cohere Command models
+            m if m.contains("cohere.command-r-plus") => (3.0, 15.0),
+            m if m.contains("cohere.command-r-v") => (0.5, 1.5),
+            m if m.contains("cohere.command-light") => (0.3, 0.6),
+
+            // AI21 Jurassic models
+            m if m.contains("ai21.j2-ultra") || m.contains("ai21.jamba-1-5-large") => (18.8, 18.8),
+            m if m.contains("ai21.j2-mid") || m.contains("ai21.jamba-1-5-mini") => (12.5, 12.5),
+
+            // Mistral AI models
+            m if m.contains("mistral.mistral-large-2") => (3.0, 9.0),
+            m if m.contains("mistral.mistral-large") => (4.0, 12.0),
+            m if m.contains("mistral.mistral-small") => (1.0, 3.0),
+            m if m.contains("mistral.mixtral-8x7b") => (0.45, 0.7),
+
+            // Default fallback
+            _ => (0.0, 0.0),
+        };
+
+        ModelInfo {
+            name: model.to_string(),
+            context_limit: 0,
+            input_token_cost: Some(input_cost),
+            output_token_cost: Some(output_cost),
+            currency: Some("$".to_string()),
+            supports_cache_control: Some(false),
+        }
+    }
+
+    pub fn estimate_cost(&self, usage: &crate::providers::base::Usage) -> Option<f64> {
+        let model_info = self.model_info(&self.model.model_name);
+        let input_cost = (usage.input_tokens.unwrap_or(0) as f64 / 1_000_000.0)
+            * model_info.input_token_cost.unwrap_or(0.0);
+        let output_cost = (usage.output_tokens.unwrap_or(0) as f64 / 1_000_000.0)
+            * model_info.output_token_cost.unwrap_or(0.0);
+        Some(input_cost + output_cost)
+    }
 }
 
 #[async_trait]
@@ -478,5 +546,305 @@ impl Provider for BedrockProvider {
 
         assert_eq!(info.input_token_cost, Some(3.0));
         assert_eq!(info.output_token_cost, Some(15.0));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::providers::base::Usage;
+    use crate::providers::retry::RetryConfig;
+
+    fn create_test_provider(model_name: &str) -> BedrockProvider {
+        let config = aws_sdk_bedrockruntime::Config::builder()
+            .behavior_version(aws_sdk_bedrockruntime::config::BehaviorVersion::latest())
+            .region(aws_sdk_bedrockruntime::config::Region::new("us-east-1"))
+            .credentials_provider(aws_sdk_bedrockruntime::config::Credentials::new(
+                "test_access_key",
+                "test_secret_key",
+                None,
+                None,
+                "test",
+            ))
+            .build();
+        BedrockProvider {
+            client: aws_sdk_bedrockruntime::Client::from_conf(config),
+            model: ModelConfig {
+                model_name: model_name.to_string(),
+                context_limit: Some(200_000),
+                temperature: None,
+                max_tokens: None,
+                toolshim: false,
+                toolshim_model: None,
+                fast_model: None,
+            },
+            retry_config: RetryConfig::default(),
+            name: "bedrock".to_string(),
+        }
+    }
+
+    #[test]
+    fn test_model_info_claude_3_5_sonnet() {
+        let provider = create_test_provider("us.anthropic.claude-3-5-sonnet-20241022-v2:0");
+        let info = provider.model_info(&provider.model.model_name);
+
+        assert_eq!(info.name, "us.anthropic.claude-3-5-sonnet-20241022-v2:0");
+        assert_eq!(info.input_token_cost, Some(3.0));
+        assert_eq!(info.output_token_cost, Some(15.0));
+        assert_eq!(info.currency, Some("$".to_string()));
+        assert_eq!(info.supports_cache_control, Some(false));
+    }
+
+    #[test]
+    fn test_model_info_claude_3_opus() {
+        let provider = create_test_provider("anthropic.claude-3-opus-20240229-v1:0");
+        let info = provider.model_info(&provider.model.model_name);
+
+        assert_eq!(info.input_token_cost, Some(15.0));
+        assert_eq!(info.output_token_cost, Some(75.0));
+    }
+
+    #[test]
+    fn test_model_info_claude_3_haiku() {
+        let provider = create_test_provider("anthropic.claude-3-haiku-20240307-v1:0");
+        let info = provider.model_info(&provider.model.model_name);
+
+        assert_eq!(info.input_token_cost, Some(0.25));
+        assert_eq!(info.output_token_cost, Some(1.25));
+    }
+
+    #[test]
+    fn test_model_info_titan_text_premier() {
+        let provider = create_test_provider("amazon.titan-text-premier-v1:0");
+        let info = provider.model_info(&provider.model.model_name);
+
+        assert_eq!(info.input_token_cost, Some(0.5));
+        assert_eq!(info.output_token_cost, Some(1.5));
+    }
+
+    #[test]
+    fn test_model_info_nova_pro() {
+        let provider = create_test_provider("us.amazon.nova-pro-v1:0");
+        let info = provider.model_info(&provider.model.model_name);
+
+        assert_eq!(info.input_token_cost, Some(0.8));
+        assert_eq!(info.output_token_cost, Some(3.2));
+    }
+
+    #[test]
+    fn test_model_info_llama_3_1_405b() {
+        let provider = create_test_provider("meta.llama3-1-405b-instruct-v1:0");
+        let info = provider.model_info(&provider.model.model_name);
+
+        assert_eq!(info.input_token_cost, Some(5.32));
+        assert_eq!(info.output_token_cost, Some(16.0));
+    }
+
+    #[test]
+    fn test_model_info_cohere_command_r_plus() {
+        let provider = create_test_provider("cohere.command-r-plus-v1:0");
+        let info = provider.model_info(&provider.model.model_name);
+
+        assert_eq!(info.input_token_cost, Some(3.0));
+        assert_eq!(info.output_token_cost, Some(15.0));
+    }
+
+    #[test]
+    fn test_model_info_mistral_large() {
+        let provider = create_test_provider("mistral.mistral-large-2407-v1:0");
+        let info = provider.model_info(&provider.model.model_name);
+
+        assert_eq!(info.input_token_cost, Some(3.0));
+        assert_eq!(info.output_token_cost, Some(9.0));
+    }
+
+    #[test]
+    fn test_model_info_unknown_model() {
+        let provider = create_test_provider("unknown-model-xyz");
+        let info = provider.model_info(&provider.model.model_name);
+
+        assert_eq!(info.input_token_cost, Some(0.0));
+        assert_eq!(info.output_token_cost, Some(0.0));
+        assert_eq!(info.name, "unknown-model-xyz");
+    }
+
+    #[test]
+    fn test_estimate_cost_claude_sonnet() {
+        let provider = create_test_provider("anthropic.claude-3-5-sonnet-20241022-v2:0");
+
+        let usage = Usage {
+            input_tokens: Some(1_000_000),
+            output_tokens: Some(1_000_000),
+            total_tokens: Some(2_000_000),
+        };
+
+        let cost = provider.estimate_cost(&usage);
+
+        assert!(cost.is_some());
+        let cost_value = cost.unwrap();
+        assert_eq!(cost_value, 18.0);
+    }
+
+    #[test]
+    fn test_estimate_cost_small_usage() {
+        let provider = create_test_provider("anthropic.claude-3-5-sonnet-20241022-v2:0");
+
+        let usage = Usage {
+            input_tokens: Some(1000),
+            output_tokens: Some(500),
+            total_tokens: Some(1500),
+        };
+
+        let cost = provider.estimate_cost(&usage);
+
+        assert!(cost.is_some());
+        let cost_value = cost.unwrap();
+        assert!((cost_value - 0.0105).abs() < 0.0001);
+    }
+
+    #[test]
+    fn test_estimate_cost_zero_tokens() {
+        let provider = create_test_provider("anthropic.claude-3-5-sonnet-20241022-v2:0");
+
+        let usage = Usage {
+            input_tokens: Some(0),
+            output_tokens: Some(0),
+            total_tokens: Some(0),
+        };
+
+        let cost = provider.estimate_cost(&usage);
+
+        assert!(cost.is_some());
+        assert_eq!(cost.unwrap(), 0.0);
+    }
+
+    #[test]
+    fn test_estimate_cost_none_tokens() {
+        let provider = create_test_provider("anthropic.claude-3-5-sonnet-20241022-v2:0");
+
+        let usage = Usage {
+            input_tokens: None,
+            output_tokens: None,
+            total_tokens: None,
+        };
+
+        let cost = provider.estimate_cost(&usage);
+
+        assert!(cost.is_some());
+        assert_eq!(cost.unwrap(), 0.0);
+    }
+
+    #[test]
+    fn test_estimate_cost_only_input_tokens() {
+        let provider = create_test_provider("anthropic.claude-3-5-sonnet-20241022-v2:0");
+
+        let usage = Usage {
+            input_tokens: Some(1_000_000),
+            output_tokens: None,
+            total_tokens: Some(1_000_000),
+        };
+
+        let cost = provider.estimate_cost(&usage);
+
+        assert!(cost.is_some());
+        assert_eq!(cost.unwrap(), 3.0);
+    }
+
+    #[test]
+    fn test_estimate_cost_only_output_tokens() {
+        let provider = create_test_provider("anthropic.claude-3-5-sonnet-20241022-v2:0");
+
+        let usage = Usage {
+            input_tokens: None,
+            output_tokens: Some(1_000_000),
+            total_tokens: Some(1_000_000),
+        };
+
+        let cost = provider.estimate_cost(&usage);
+
+        assert!(cost.is_some());
+        assert_eq!(cost.unwrap(), 15.0);
+    }
+
+    #[test]
+    fn test_estimate_cost_unknown_model() {
+        let provider = create_test_provider("unknown-model");
+
+        let usage = Usage {
+            input_tokens: Some(1_000_000),
+            output_tokens: Some(1_000_000),
+            total_tokens: Some(2_000_000),
+        };
+
+        let cost = provider.estimate_cost(&usage);
+
+        assert!(cost.is_some());
+        assert_eq!(cost.unwrap(), 0.0);
+    }
+
+    #[test]
+    fn test_estimate_cost_nova_lite() {
+        let provider = create_test_provider("us.amazon.nova-lite-v1:0");
+
+        let usage = Usage {
+            input_tokens: Some(1_000_000),
+            output_tokens: Some(1_000_000),
+            total_tokens: Some(2_000_000),
+        };
+
+        let cost = provider.estimate_cost(&usage);
+
+        assert!(cost.is_some());
+        let cost_value = cost.unwrap();
+        assert_eq!(cost_value, 0.3);
+    }
+
+    #[test]
+    fn test_estimate_cost_llama_8b() {
+        let provider = create_test_provider("meta.llama3-1-8b-instruct-v1:0");
+
+        let usage = Usage {
+            input_tokens: Some(1_000_000),
+            output_tokens: Some(1_000_000),
+            total_tokens: Some(2_000_000),
+        };
+
+        let cost = provider.estimate_cost(&usage);
+
+        assert!(cost.is_some());
+        let cost_value = cost.unwrap();
+        assert_eq!(cost_value, 0.88);
+    }
+
+    #[test]
+    fn test_estimate_cost_realistic_conversation() {
+        let provider = create_test_provider("anthropic.claude-3-5-sonnet-20241022-v2:0");
+
+        let usage = Usage {
+            input_tokens: Some(2500),
+            output_tokens: Some(1200),
+            total_tokens: Some(3700),
+        };
+
+        let cost = provider.estimate_cost(&usage);
+
+        assert!(cost.is_some());
+        let cost_value = cost.unwrap();
+        let expected = (2500.0 / 1_000_000.0 * 3.0) + (1200.0 / 1_000_000.0 * 15.0);
+        assert!((cost_value - expected).abs() < 0.000001);
+    }
+
+    #[test]
+    fn test_model_info_fields_complete() {
+        let provider = create_test_provider("anthropic.claude-3-5-sonnet-20241022-v2:0");
+        let info = provider.model_info(&provider.model.model_name);
+
+        assert!(!info.name.is_empty());
+        assert!(info.input_token_cost.is_some());
+        assert!(info.output_token_cost.is_some());
+        assert!(info.currency.is_some());
+        assert!(info.supports_cache_control.is_some());
+        assert_eq!(info.currency.unwrap(), "$");
+        assert!(!info.supports_cache_control.unwrap());
     }
 }

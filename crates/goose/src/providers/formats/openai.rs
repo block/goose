@@ -281,6 +281,101 @@ pub fn format_tools(tools: &[Tool]) -> anyhow::Result<Vec<Value>> {
     Ok(result)
 }
 
+/// Process a single tool call and return MessageContent
+fn process_tool_call(id: String, function_name: String, arguments_str: String) -> MessageContent {
+    let arguments_str = if arguments_str.is_empty() {
+        "{}".to_string()
+    } else {
+        arguments_str
+    };
+
+    if !is_valid_function_name(&function_name) {
+        let error = ErrorData {
+            code: ErrorCode::INVALID_REQUEST,
+            message: Cow::from(format!(
+                "The provided function name '{}' had invalid characters, it must match this regex [a-zA-Z0-9_-]+",
+                function_name
+            )),
+            data: None,
+        };
+        MessageContent::tool_request(id, Err(error))
+    } else {
+        match safely_parse_json(&arguments_str) {
+            Ok(params) => MessageContent::tool_request(
+                id,
+                Ok(CallToolRequestParam {
+                    name: function_name.into(),
+                    arguments: Some(object(params)),
+                }),
+            ),
+            Err(e) => {
+                let error = ErrorData {
+                    code: ErrorCode::INVALID_PARAMS,
+                    message: Cow::from(format!(
+                        "Could not interpret tool use parameters for id {}: {}. Raw arguments: '{}'",
+                        id, e, arguments_str
+                    )),
+                    data: None,
+                };
+                MessageContent::tool_request(id, Err(error))
+            }
+        }
+    }
+}
+
+/// Process Qwen-format tool calls from text content
+fn process_qwen_tool_calls(text_str: &str) -> Vec<MessageContent> {
+    let mut content = Vec::new();
+
+    if let Some(qwen_tool_calls) = parse_qwen_tool_calls(text_str) {
+        for tool_call in qwen_tool_calls {
+            let id = tool_call["id"].as_str().unwrap_or_default().to_string();
+            let function_name = tool_call["function"]["name"]
+                .as_str()
+                .unwrap_or_default()
+                .to_string();
+            let arguments_str = tool_call["function"]["arguments"]
+                .as_str()
+                .unwrap_or_default()
+                .to_string();
+
+            content.push(process_tool_call(id, function_name, arguments_str));
+        }
+
+        let remaining_text = strip_qwen_tool_calls(text_str);
+        if !remaining_text.is_empty() {
+            content.push(MessageContent::text(&remaining_text));
+        }
+    } else {
+        content.push(MessageContent::text(text_str));
+    }
+
+    content
+}
+
+/// Process standard OpenAI-format tool calls
+fn process_standard_tool_calls(tool_calls: &Value) -> Vec<MessageContent> {
+    let mut content = Vec::new();
+
+    if let Some(tool_calls_array) = tool_calls.as_array() {
+        for tool_call in tool_calls_array {
+            let id = tool_call["id"].as_str().unwrap_or_default().to_string();
+            let function_name = tool_call["function"]["name"]
+                .as_str()
+                .unwrap_or_default()
+                .to_string();
+            let arguments_str = tool_call["function"]["arguments"]
+                .as_str()
+                .unwrap_or_default()
+                .to_string();
+
+            content.push(process_tool_call(id, function_name, arguments_str));
+        }
+    }
+
+    content
+}
+
 /// Convert OpenAI's API response to internal Message format
 pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
     let Some(original) = response
@@ -300,137 +395,13 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
     // Check for Qwen's XML-wrapped tool calls first
     if let Some(text) = original.get("content") {
         if let Some(text_str) = text.as_str() {
-            if let Some(qwen_tool_calls) = parse_qwen_tool_calls(text_str) {
-                // Process Qwen tool calls using same validation as standard format
-                for tool_call in qwen_tool_calls {
-                    let id = tool_call["id"].as_str().unwrap_or_default().to_string();
-                    let function_name = tool_call["function"]["name"]
-                        .as_str()
-                        .unwrap_or_default()
-                        .to_string();
-
-                    let arguments_str = tool_call["function"]["arguments"]
-                        .as_str()
-                        .unwrap_or_default()
-                        .to_string();
-
-                    let arguments_str = if arguments_str.is_empty() {
-                        "{}".to_string()
-                    } else {
-                        arguments_str
-                    };
-
-                    if !is_valid_function_name(&function_name) {
-                        let error = ErrorData {
-                            code: ErrorCode::INVALID_REQUEST,
-                            message: Cow::from(format!(
-                                "The provided function name '{}' had invalid characters, it must match this regex [a-zA-Z0-9_-]+",
-                                function_name
-                            )),
-                            data: None,
-                        };
-                        content.push(MessageContent::tool_request(id, Err(error)));
-                    } else {
-                        match safely_parse_json(&arguments_str) {
-                            Ok(params) => {
-                                content.push(MessageContent::tool_request(
-                                    id,
-                                    Ok(CallToolRequestParams {
-                                        meta: None,
-                                        task: None,
-                                        name: function_name.into(),
-                                        arguments: Some(object(params)),
-                                    }),
-                                ));
-                            }
-                            Err(e) => {
-                                let error = ErrorData {
-                                    code: ErrorCode::INVALID_PARAMS,
-                                    message: Cow::from(format!(
-                                        "Could not interpret tool use parameters for id {}: {}. Raw arguments: '{}'",
-                                        id, e, arguments_str
-                                    )),
-                                    data: None,
-                                };
-                                content.push(MessageContent::tool_request(id, Err(error)));
-                            }
-                        }
-                    }
-                }
-
-                // Strip XML tags and add remaining text if any
-                let remaining_text = strip_qwen_tool_calls(text_str);
-                if !remaining_text.is_empty() {
-                    content.push(MessageContent::text(&remaining_text));
-                }
-            } else {
-                // No Qwen format, treat as normal text
-                content.push(MessageContent::text(text_str));
-            }
+            content.extend(process_qwen_tool_calls(text_str));
         }
     }
 
     // Process standard OpenAI tool_calls format
     if let Some(tool_calls) = original.get("tool_calls") {
-        if let Some(tool_calls_array) = tool_calls.as_array() {
-            for tool_call in tool_calls_array {
-                let id = tool_call["id"].as_str().unwrap_or_default().to_string();
-                let function_name = tool_call["function"]["name"]
-                    .as_str()
-                    .unwrap_or_default()
-                    .to_string();
-
-                // Get the raw arguments string from the LLM.
-                let arguments_str = tool_call["function"]["arguments"]
-                    .as_str()
-                    .unwrap_or_default()
-                    .to_string();
-
-                // If arguments_str is empty, default to an empty JSON object string.
-                let arguments_str = if arguments_str.is_empty() {
-                    "{}".to_string()
-                } else {
-                    arguments_str
-                };
-
-                if !is_valid_function_name(&function_name) {
-                    let error = ErrorData {
-                        code: ErrorCode::INVALID_REQUEST,
-                        message: Cow::from(format!(
-                            "The provided function name '{}' had invalid characters, it must match this regex [a-zA-Z0-9_-]+",
-                            function_name
-                        )),
-                        data: None,
-                    };
-                    content.push(MessageContent::tool_request(id, Err(error)));
-                } else {
-                    match safely_parse_json(&arguments_str) {
-                        Ok(params) => {
-                            content.push(MessageContent::tool_request(
-                                id,
-                                Ok(CallToolRequestParams {
-                                    meta: None,
-                                    task: None,
-                                    name: function_name.into(),
-                                    arguments: Some(object(params)),
-                                }),
-                            ));
-                        }
-                        Err(e) => {
-                            let error = ErrorData {
-                                code: ErrorCode::INVALID_PARAMS,
-                                message: Cow::from(format!(
-                                    "Could not interpret tool use parameters for id {}: {}. Raw arguments: '{}'",
-                                    id, e, arguments_str
-                                )),
-                                data: None,
-                            };
-                            content.push(MessageContent::tool_request(id, Err(error)));
-                        }
-                    }
-                }
-            }
-        }
+        content.extend(process_standard_tool_calls(tool_calls));
     }
 
     Ok(Message::new(
