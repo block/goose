@@ -543,11 +543,7 @@ fn parse_qwen_tool_calls(content: &str) -> Option<Vec<Value>> {
 
     // Pattern to match <tool_call>...</tool_call> blocks
     // Using lazy matching (.*?) to handle multiple tool calls
-    let re = match regex::Regex::new(
-        r"(?is)<tool_call>s*
-?(.*?)
-?</tool_call>",
-    ) {
+    let re = match regex::Regex::new(r"(?is)<tool_call>\s*?(.*?)\s?</tool_call>") {
         Ok(r) => r,
         Err(e) => {
             tracing::warn!("Failed to compile Qwen tool call regex: {}", e);

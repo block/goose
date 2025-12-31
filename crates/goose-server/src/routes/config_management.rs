@@ -503,28 +503,62 @@ pub struct PricingQuery {
 pub async fn get_pricing(
     Json(query): Json<PricingQuery>,
 ) -> Result<Json<PricingResponse>, StatusCode> {
-    let canonical_model =
-        maybe_get_canonical_model(&query.provider, &query.model).ok_or(StatusCode::NOT_FOUND)?;
-
     let mut pricing_data = Vec::new();
+    let mut source = "canonical".to_string();
 
-    if let (Some(input_cost), Some(output_cost)) = (
-        canonical_model.pricing.prompt,
-        canonical_model.pricing.completion,
-    ) {
-        pricing_data.push(PricingData {
-            provider: query.provider.clone(),
-            model: query.model.clone(),
-            input_token_cost: input_cost,
-            output_token_cost: output_cost,
-            currency: "$".to_string(),
-            context_length: Some(canonical_model.context_length as u32),
-        });
+    if let Some(canonical_model) = maybe_get_canonical_model(&query.provider, &query.model) {
+        if let (Some(input_cost), Some(output_cost)) = (
+            canonical_model.pricing.prompt,
+            canonical_model.pricing.completion,
+        ) {
+            pricing_data.push(PricingData {
+                provider: query.provider.clone(),
+                model: query.model.clone(),
+                input_token_cost: input_cost,
+                output_token_cost: output_cost,
+                currency: "$".to_string(),
+                context_length: Some(canonical_model.context_length as u32),
+            });
+        }
+    }
+
+    if pricing_data.is_empty() && query.provider == "aws_bedrock" {
+        if let Ok(provider) = create_with_default_model(&query.provider).await {
+            if let Some(bedrock_provider) = provider
+                .as_any()
+                .downcast_ref::<goose::providers::bedrock::BedrockProvider>(
+            ) {
+                let model_info = bedrock_provider.model_info(&query.model);
+                if let (Some(input_cost), Some(output_cost)) =
+                    (model_info.input_token_cost, model_info.output_token_cost)
+                {
+                    if input_cost > 0.0 || output_cost > 0.0 {
+                        pricing_data.push(PricingData {
+                            provider: query.provider.clone(),
+                            model: query.model.clone(),
+                            input_token_cost: input_cost,
+                            output_token_cost: output_cost,
+                            currency: model_info.currency.unwrap_or("$".to_string()),
+                            context_length: if model_info.context_limit > 0 {
+                                Some(model_info.context_limit as u32)
+                            } else {
+                                None
+                            },
+                        });
+                        source = "provider".to_string();
+                    }
+                }
+            }
+        }
+    }
+
+    if pricing_data.is_empty() {
+        return Err(StatusCode::NOT_FOUND);
     }
 
     Ok(Json(PricingResponse {
         pricing: pricing_data,
-        source: "canonical".to_string(),
+        source,
     }))
 }
 
@@ -942,5 +976,35 @@ mod tests {
         let gpt4_limit = limits.iter().find(|l| l.pattern == "gpt-4o");
         assert!(gpt4_limit.is_some());
         assert_eq!(gpt4_limit.unwrap().context_limit, 128_000);
+    }
+
+    #[tokio::test]
+    async fn test_get_pricing_bedrock_provider_fallback() {
+        std::env::set_var("AWS_REGION", "us-east-1");
+        std::env::set_var("AWS_ACCESS_KEY_ID", "test");
+        std::env::set_var("AWS_SECRET_ACCESS_KEY", "test");
+
+        let query = PricingQuery {
+            provider: "aws_bedrock".to_string(),
+            model: "anthropic.claude-3-5-sonnet-20241022-v2:0".to_string(),
+        };
+
+        let result = get_pricing(Json(query)).await;
+
+        match result {
+            Ok(Json(response)) => {
+                assert!(!response.pricing.is_empty());
+                assert_eq!(response.source, "provider");
+                let pricing = &response.pricing[0];
+                assert_eq!(pricing.provider, "aws_bedrock");
+                assert_eq!(pricing.model, "anthropic.claude-3-5-sonnet-20241022-v2:0");
+                assert_eq!(pricing.input_token_cost, 3.0);
+                assert_eq!(pricing.output_token_cost, 15.0);
+                assert_eq!(pricing.currency, "$");
+            }
+            Err(e) => {
+                panic!("Pricing endpoint failed: {:?}", e);
+            }
+        }
     }
 }
