@@ -442,6 +442,10 @@ impl Provider for BedrockProvider {
         self.model.clone()
     }
 
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
     #[tracing::instrument(
         skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
@@ -819,5 +823,24 @@ mod tests {
         assert!(info.supports_cache_control.is_some());
         assert_eq!(info.currency.unwrap(), "$");
         assert!(!info.supports_cache_control.unwrap());
+    }
+
+    #[test]
+    fn test_as_any_downcast() {
+        use crate::providers::base::Provider;
+        use std::sync::Arc;
+
+        let provider = create_test_provider("anthropic.claude-3-5-sonnet-20241022-v2:0");
+        let provider_arc: Arc<dyn Provider> = Arc::new(provider);
+
+        let bedrock_provider = provider_arc.as_any().downcast_ref::<BedrockProvider>();
+
+        assert!(bedrock_provider.is_some());
+
+        let bedrock = bedrock_provider.unwrap();
+        let info = bedrock.model_info("anthropic.claude-3-5-sonnet-20241022-v2:0");
+
+        assert_eq!(info.input_token_cost, Some(3.0));
+        assert_eq!(info.output_token_cost, Some(15.0));
     }
 }
