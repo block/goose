@@ -1,27 +1,28 @@
 use anyhow::Result;
+use async_stream::try_stream;
 use async_trait::async_trait;
 use std::path::PathBuf;
 use std::process::Stdio;
-use std::sync::Arc;
 use tokio::process::{Child, Command};
-use tokio::sync::Mutex;
+use tokio::sync::mpsc;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
 use sacp::schema::{
     ContentBlock, InitializeRequest, NewSessionRequest, PromptRequest, PromptResponse,
+    RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
     SessionNotification, SessionUpdate, TextContent, VERSION as PROTOCOL_VERSION,
 };
 use sacp::{ByteStreams, ClientToAgent, JrConnectionCx};
 
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
-use crate::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
+use crate::providers::base::{MessageStream, Provider, ProviderMetadata, ProviderUsage, Usage};
 use crate::providers::errors::ProviderError;
 use crate::subprocess::configure_command_no_window;
 use rmcp::model::{Role, Tool};
 
 pub const ACP_DEFAULT_MODEL: &str = "claude-sonnet-4-20250514";
-pub const ACP_DOC_URL: &str = "https://github.com/anthropics/claude-code";
+pub const ACP_DOC_URL: &str = "https://github.com/zed-industries/claude-code-acp";
 
 #[derive(Debug)]
 pub struct AcpProvider {
@@ -33,7 +34,6 @@ pub struct AcpProvider {
 
 impl AcpProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        // Default to npx @zed-industries/claude-code-acp
         let command = "npx".to_string();
         let args = vec!["@zed-industries/claude-code-acp".to_string()];
 
@@ -102,7 +102,7 @@ impl AcpProvider {
         content_blocks
     }
 
-    async fn spawn_agent(&self) -> Result<Child, ProviderError> {
+    fn spawn_agent(&self) -> Result<Child, ProviderError> {
         let mut cmd = Command::new(&self.command);
         configure_command_no_window(&mut cmd);
         cmd.args(&self.args)
@@ -117,107 +117,13 @@ impl AcpProvider {
             ))
         })
     }
+}
 
-    async fn run_prompt(
-        &self,
-        _system: &str,
-        messages: &[Message],
-    ) -> Result<(Message, Usage), ProviderError> {
-        let mut child = self.spawn_agent().await?;
-
-        let stdin = child.stdin.take().ok_or_else(|| {
-            ProviderError::RequestFailed("Failed to get stdin of ACP agent".to_string())
-        })?;
-        let stdout = child.stdout.take().ok_or_else(|| {
-            ProviderError::RequestFailed("Failed to get stdout of ACP agent".to_string())
-        })?;
-
-        let transport = ByteStreams::new(stdin.compat_write(), stdout.compat());
-        let prompt_blocks = self.convert_messages_to_prompt(messages);
-        let working_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-
-        // Collect response text
-        let collected_text = Arc::new(Mutex::new(String::new()));
-        let collected_text_clone = collected_text.clone();
-
-        let result = ClientToAgent::builder()
-            .name("goose-acp-client")
-            .on_receive_notification(
-                {
-                    let collected = collected_text_clone.clone();
-                    async move |notification: SessionNotification, _cx| {
-                        if let SessionUpdate::AgentMessageChunk(chunk) = notification.update {
-                            if let ContentBlock::Text(text) = chunk.content {
-                                let mut guard = collected.lock().await;
-                                guard.push_str(&text.text);
-                            }
-                        }
-                        Ok(())
-                    }
-                },
-                sacp::on_receive_notification!(),
-            )
-            .connect_to(transport)
-            .map_err(|e| ProviderError::RequestFailed(format!("Failed to connect: {}", e)))?
-            .run_until({
-                let prompt = prompt_blocks;
-                let cwd = working_dir;
-                move |cx: JrConnectionCx<ClientToAgent>| async move {
-                    // Initialize
-                    cx.send_request(InitializeRequest {
-                        protocol_version: PROTOCOL_VERSION,
-                        client_capabilities: Default::default(),
-                        client_info: Default::default(),
-                        meta: None,
-                    })
-                    .block_task()
-                    .await?;
-
-                    // Create session
-                    let session = cx
-                        .send_request(NewSessionRequest {
-                            mcp_servers: vec![],
-                            cwd,
-                            meta: None,
-                        })
-                        .block_task()
-                        .await?;
-
-                    // Send prompt
-                    let response: PromptResponse = cx
-                        .send_request(PromptRequest {
-                            session_id: session.session_id,
-                            prompt,
-                            meta: None,
-                        })
-                        .block_task()
-                        .await?;
-
-                    Ok::<_, sacp::Error>(response)
-                }
-            })
-            .await;
-
-        // Clean up child process
-        let _ = child.kill().await;
-
-        result.map_err(|e| ProviderError::RequestFailed(format!("ACP error: {}", e)))?;
-
-        let text = collected_text.lock().await.clone();
-        if text.is_empty() {
-            return Err(ProviderError::RequestFailed(
-                "No response received from ACP agent".to_string(),
-            ));
-        }
-
-        let message = Message::new(
-            Role::Assistant,
-            chrono::Utc::now().timestamp(),
-            vec![MessageContent::text(text)],
-        );
-
-        Ok((message, Usage::default()))
-    }
+#[derive(Debug)]
+enum AcpEvent {
+    Text(String),
+    Done,
+    Error(String),
 }
 
 #[async_trait]
@@ -245,17 +151,181 @@ impl Provider for AcpProvider {
         self.model.clone()
     }
 
+    fn supports_streaming(&self) -> bool {
+        true
+    }
+
     async fn complete_with_model(
         &self,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
-        _tools: &[Tool],
+        tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let (message, usage) = self.run_prompt(system, messages).await?;
+        let stream = self.stream(system, messages, tools).await?;
+
+        use futures::StreamExt;
+        tokio::pin!(stream);
+
+        let mut collected_text = String::new();
+        while let Some(result) = stream.next().await {
+            if let Ok((Some(msg), _)) = result {
+                collected_text.push_str(&msg.as_concat_text());
+            }
+        }
+
+        if collected_text.is_empty() {
+            return Err(ProviderError::RequestFailed(
+                "No response received from ACP agent".to_string(),
+            ));
+        }
+
+        let message = Message::new(
+            Role::Assistant,
+            chrono::Utc::now().timestamp(),
+            vec![MessageContent::text(collected_text)],
+        );
+
         Ok((
             message,
-            ProviderUsage::new(model_config.model_name.clone(), usage),
+            ProviderUsage::new(model_config.model_name.clone(), Usage::default()),
         ))
+    }
+
+    async fn stream(
+        &self,
+        _system: &str,
+        messages: &[Message],
+        _tools: &[Tool],
+    ) -> Result<MessageStream, ProviderError> {
+        let mut child = self.spawn_agent()?;
+
+        let stdin = child.stdin.take().ok_or_else(|| {
+            ProviderError::RequestFailed("Failed to get stdin of ACP agent".to_string())
+        })?;
+        let stdout = child.stdout.take().ok_or_else(|| {
+            ProviderError::RequestFailed("Failed to get stdout of ACP agent".to_string())
+        })?;
+
+        let transport = ByteStreams::new(stdin.compat_write(), stdout.compat());
+        let prompt_blocks = self.convert_messages_to_prompt(messages);
+        let working_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+
+        let (tx, mut rx) = mpsc::unbounded_channel::<AcpEvent>();
+
+        let tx_notify = tx.clone();
+        let tx_done = tx.clone();
+
+        tokio::spawn(async move {
+            let conn_result = ClientToAgent::builder()
+                .name("goose-acp-client")
+                .on_receive_notification(
+                    {
+                        let tx = tx_notify;
+                        async move |notification: SessionNotification, _cx| {
+                            if let SessionUpdate::AgentMessageChunk(chunk) = notification.update {
+                                if let ContentBlock::Text(text) = chunk.content {
+                                    let _ = tx.send(AcpEvent::Text(text.text));
+                                }
+                            }
+                            Ok(())
+                        }
+                    },
+                    sacp::on_receive_notification!(),
+                )
+                .on_receive_request(
+                    async move |request: RequestPermissionRequest, request_cx, _connection_cx| {
+                        let option_id = request.options.first().map(|opt| opt.id.clone());
+                        match option_id {
+                            Some(id) => request_cx.respond(RequestPermissionResponse {
+                                outcome: RequestPermissionOutcome::Selected { option_id: id },
+                                meta: None,
+                            }),
+                            None => request_cx.respond(RequestPermissionResponse {
+                                outcome: RequestPermissionOutcome::Cancelled,
+                                meta: None,
+                            }),
+                        }
+                    },
+                    sacp::on_receive_request!(),
+                )
+                .connect_to(transport);
+
+            match conn_result {
+                Ok(conn) => {
+                    let run_result = conn
+                        .run_until({
+                            let prompt = prompt_blocks;
+                            let cwd = working_dir;
+                            move |cx: JrConnectionCx<ClientToAgent>| async move {
+                                cx.send_request(InitializeRequest {
+                                    protocol_version: PROTOCOL_VERSION,
+                                    client_capabilities: Default::default(),
+                                    client_info: Default::default(),
+                                    meta: None,
+                                })
+                                .block_task()
+                                .await?;
+
+                                let session = cx
+                                    .send_request(NewSessionRequest {
+                                        mcp_servers: vec![],
+                                        cwd,
+                                        meta: None,
+                                    })
+                                    .block_task()
+                                    .await?;
+
+                                let _response: PromptResponse = cx
+                                    .send_request(PromptRequest {
+                                        session_id: session.session_id,
+                                        prompt,
+                                        meta: None,
+                                    })
+                                    .block_task()
+                                    .await?;
+
+                                Ok::<_, sacp::Error>(())
+                            }
+                        })
+                        .await;
+
+                    match run_result {
+                        Ok(_) => {
+                            let _ = tx_done.send(AcpEvent::Done);
+                        }
+                        Err(e) => {
+                            let _ = tx_done.send(AcpEvent::Error(format!("ACP error: {}", e)));
+                        }
+                    }
+                }
+                Err(e) => {
+                    let _ = tx_done.send(AcpEvent::Error(format!("Connection error: {}", e)));
+                }
+            }
+
+            let _ = child.kill().await;
+        });
+
+        Ok(Box::pin(try_stream! {
+            while let Some(event) = rx.recv().await {
+                match event {
+                    AcpEvent::Text(text) => {
+                        let message = Message::new(
+                            Role::Assistant,
+                            chrono::Utc::now().timestamp(),
+                            vec![MessageContent::text(text)],
+                        );
+                        yield (Some(message), None);
+                    }
+                    AcpEvent::Done => {
+                        break;
+                    }
+                    AcpEvent::Error(e) => {
+                        Err(ProviderError::RequestFailed(e))?;
+                    }
+                }
+            }
+        }))
     }
 }
