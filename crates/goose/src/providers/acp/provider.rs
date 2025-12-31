@@ -24,8 +24,27 @@ use crate::providers::errors::ProviderError;
 use crate::subprocess::configure_command_no_window;
 use rmcp::model::{CallToolRequestParam, CallToolResult, Content, RawContent, Role, Tool};
 
-pub const ACP_DEFAULT_MODEL: &str = "claude-sonnet-4-20250514";
+/// Default ACP agent - claude-code-acp
+pub const ACP_DEFAULT_MODEL: &str = "claude-code";
 pub const ACP_DOC_URL: &str = "https://github.com/zed-industries/claude-code-acp";
+
+/// Known ACP agent shortcuts and their npx packages
+fn resolve_acp_command(model: &str) -> (String, Vec<String>) {
+    match model {
+        // Short aliases
+        "claude-code" | "claude" => (
+            "npx".to_string(),
+            vec!["@zed-industries/claude-code-acp".to_string()],
+        ),
+        "codex" => ("npx".to_string(), vec!["@anthropics/codex-acp".to_string()]),
+        // Full package names (npx @scope/package)
+        s if s.starts_with("@") => ("npx".to_string(), vec![s.to_string()]),
+        // Direct command (e.g., a local binary path)
+        s if s.contains('/') || s.contains('\\') => (s.to_string(), vec![]),
+        // Assume it's an npx package name
+        other => ("npx".to_string(), vec![other.to_string()]),
+    }
+}
 
 #[derive(Debug)]
 pub struct AcpProvider {
@@ -37,8 +56,7 @@ pub struct AcpProvider {
 
 impl AcpProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let command = "npx".to_string();
-        let args = vec!["@zed-industries/claude-code-acp".to_string()];
+        let (command, args) = resolve_acp_command(&model.model_name);
 
         Ok(Self {
             command,
@@ -164,9 +182,9 @@ impl Provider for AcpProvider {
         ProviderMetadata::new(
             "acp",
             "ACP Agent",
-            "Connect to any ACP-compatible agent (like Claude Code)",
+            "Connect to ACP agents. Set model to: claude-code, codex, or any npx package name",
             ACP_DEFAULT_MODEL,
-            vec![],
+            vec!["claude-code", "codex"],
             ACP_DOC_URL,
             vec![],
         )
