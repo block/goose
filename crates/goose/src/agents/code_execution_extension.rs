@@ -257,8 +257,8 @@ impl ToolInfo {
             .join(", ");
         let desc = self.description.lines().next().unwrap_or("");
         format!(
-            "{}({{ {params} }}): {} - {desc}",
-            self.tool_name, self.return_type
+            "{}[\"{}\"]({{{params}}}): {} - {desc}",
+            self.server_name, self.tool_name, self.return_type
         )
     }
 }
@@ -268,29 +268,45 @@ thread_local! {
         const { std::cell::RefCell::new(None) };
 }
 
-fn create_server_module(server_tools: &[&ToolInfo], ctx: &mut Context) -> Module {
-    let (export_names, tool_data): (Vec<JsString>, Vec<(String, String)>) = server_tools
+fn create_server_module(
+    server_name: &str,
+    server_tools: &[&ToolInfo],
+    ctx: &mut Context,
+) -> Module {
+    let tool_data: Vec<(String, String)> = server_tools
         .iter()
-        .map(|t| {
-            (
-                js_string!(t.tool_name.as_str()),
-                (t.tool_name.clone(), t.full_name.clone()),
-            )
-        })
-        .unzip();
+        .map(|t| (t.tool_name.clone(), t.full_name.clone()))
+        .collect();
+
+    let mut export_names: Vec<JsString> = server_tools
+        .iter()
+        .map(|t| js_string!(t.tool_name.as_str()))
+        .collect();
+    export_names.push(js_string!(server_name));
+
+    let server_name_owned = server_name.to_string();
 
     Module::synthetic(
         &export_names,
         SyntheticModuleInitializer::from_copy_closure_with_captures(
-            |module, tools, context| {
-                for (tool_name, full_name) in tools {
+            |module, (tools, server_name), context| {
+                let namespace_obj = boa_engine::JsObject::with_null_proto();
+
+                for (tool_name, full_name) in tools.iter() {
                     let func = create_tool_function(full_name.clone());
                     let js_func = func.to_js_function(context.realm());
-                    module.set_export(&js_string!(tool_name.as_str()), js_func.into())?;
+                    module.set_export(&js_string!(tool_name.as_str()), js_func.clone().into())?;
+                    namespace_obj
+                        .set(js_string!(tool_name.as_str()), js_func, false, context)
+                        .map_err(|e| {
+                            JsNativeError::error().with_message(format!("Failed to set prop: {e}"))
+                        })?;
                 }
+                module.set_export(&js_string!(server_name.as_str()), namespace_obj.into())?;
+
                 Ok(())
             },
-            tool_data,
+            (tool_data, server_name_owned),
         ),
         None,
         None,
@@ -364,7 +380,7 @@ fn run_js_module(
     }
 
     for (server_name, server_tools) in &by_server {
-        let module = create_server_module(server_tools, &mut ctx);
+        let module = create_server_module(server_name, server_tools, &mut ctx);
         loader.insert(*server_name, module);
     }
 
@@ -524,11 +540,9 @@ impl CodeExecutionClient {
                 if server_tools.is_empty() {
                     return Err(format!("Module not found: {server}"));
                 }
-                let names: Vec<_> = server_tools.iter().map(|t| t.tool_name.as_str()).collect();
                 let sigs: Vec<_> = server_tools.iter().map(|t| t.to_signature()).collect();
                 Ok(vec![Content::text(format!(
-                    "// import {{ {} }} from \"{server}\";\n\n{}",
-                    names.join(", "),
+                    "// import * as {server} from \"{server}\";\n\n{}",
                     sigs.join("\n")
                 ))])
             }
@@ -538,7 +552,7 @@ impl CodeExecutionClient {
                     .find(|t| t.server_name == *server && t.tool_name == *tool)
                     .ok_or_else(|| format!("Tool not found: {server}/{tool}"))?;
                 Ok(vec![Content::text(format!(
-                    "// import {{ {tool} }} from \"{server}\";\n\n{}\n\n{}",
+                    "// import * as {server} from \"{server}\";\n\n{}\n\n{}",
                     t.to_signature(),
                     t.description
                 ))])
@@ -1086,21 +1100,21 @@ mod tests {
         "github__get_me",
         serde_json::json!({"type": "object", "properties": {}}),
         None,
-        "get_me({  }): string - Get details of the authenticated user";
+        "github[\"get_me\"]({}): string - Get details of the authenticated user";
         "no params, no output schema"
     )]
     #[test_case(
         "filesystem__read_text_file",
         serde_json::json!({"type": "object", "properties": {"path": {"type": "string"}, "tail": {"type": "number"}, "head": {"type": "number"}}, "required": ["path"]}),
         Some(serde_json::json!({"type": "object", "properties": {"content": {"type": "string"}}, "required": ["content"]})),
-        "read_text_file({ head?: number, path: string, tail?: number }): { content: string } - Read the complete contents of a file";
+        "filesystem[\"read_text_file\"]({head?: number, path: string, tail?: number}): { content: string } - Read the complete contents of a file";
         "optional number params, object output"
     )]
     #[test_case(
         "memory__create_entities",
         serde_json::json!({"type": "object", "properties": {"entities": {"type": "array", "items": {"type": "object", "properties": {"name": {"type": "string"}, "entityType": {"type": "string"}, "observations": {"type": "array", "items": {"type": "string"}}}, "required": ["name", "entityType", "observations"]}}}, "required": ["entities"]}),
         Some(serde_json::json!({"type": "object", "properties": {"entities": {"type": "array", "items": {"type": "object", "properties": {"name": {"type": "string"}, "entityType": {"type": "string"}, "observations": {"type": "array", "items": {"type": "string"}}}, "required": ["name", "entityType", "observations"]}}}, "required": ["entities"]})),
-        "create_entities({ entities: { entityType: string, name: string, observations: string[] }[] }): { entities: { entityType: string, name: string, observations: string[] }[] } - Create multiple new entities";
+        "memory[\"create_entities\"]({entities: { entityType: string, name: string, observations: string[] }[]}): { entities: { entityType: string, name: string, observations: string[] }[] } - Create multiple new entities";
         "nested object array with typed props"
     )]
     #[test_case(
@@ -1110,7 +1124,7 @@ mod tests {
             "state": {"type": "string", "enum": ["read", "done"]}
         }, "required": ["threadID", "state"]}),
         None,
-        "dismiss_notification({ state: \"read\" | \"done\", threadID: string }): string - Dismiss a notification";
+        "github[\"dismiss_notification\"]({state: \"read\" | \"done\", threadID: string}): string - Dismiss a notification";
         "enum param, no output schema"
     )]
     #[test_case(
@@ -1120,8 +1134,19 @@ mod tests {
             "save_as": {"oneOf": [{"const": "text"}, {"const": "json"}, {"const": "binary"}]}
         }, "required": ["url"]}),
         None,
-        "web_scrape({ save_as?: \"text\" | \"json\" | \"binary\", url: string }): string - Scrape content from URL";
+        "computercontroller[\"web_scrape\"]({save_as?: \"text\" | \"json\" | \"binary\", url: string}): string - Scrape content from URL";
         "oneOf const param (schemars), no output schema"
+    )]
+    #[test_case(
+        "kiwitravel__search-flight",
+        serde_json::json!({"type": "object", "properties": {
+            "flyFrom": {"type": "string"},
+            "flyTo": {"type": "string"},
+            "departureDate": {"type": "string"}
+        }, "required": ["flyFrom", "flyTo", "departureDate"]}),
+        None,
+        "kiwitravel[\"search-flight\"]({departureDate: string, flyFrom: string, flyTo: string}): string - Search for flights";
+        "hyphenated tool name uses bracket notation"
     )]
     fn test_mcp_tool_signature(
         name: &str,
@@ -1192,5 +1217,54 @@ mod tests {
     #[test_case("shell({}).content", &[("shell", "plain text")], "undefined"; "plain_text_no_property")]
     fn test_tool_result(code: &str, tools: &[(&str, &str)], expected: &str) {
         assert_eq!(eval_with_tools(code, tools), expected);
+    }
+
+    #[test]
+    fn test_namespace_import_with_synthetic_module() {
+        let tools = vec![ToolInfo {
+            server_name: "testserver".to_string(),
+            tool_name: "get_value".to_string(),
+            full_name: "testserver__get_value".to_string(),
+            description: "Get a value".to_string(),
+            params: vec![],
+            return_type: "string".to_string(),
+        }];
+
+        let (tx, _rx) = mpsc::unbounded_channel();
+
+        let code_named = r#"import { get_value } from "testserver"; typeof get_value"#;
+        let result = run_js_module(code_named, &tools, tx.clone());
+        assert!(
+            result.is_ok(),
+            "Named import should work: {:?}",
+            result.err()
+        );
+
+        let code_namespace =
+            r#"import * as testserver from "testserver"; typeof testserver.get_value"#;
+        let result = run_js_module(code_namespace, &tools, tx.clone());
+        assert!(
+            result.is_ok(),
+            "Namespace import should work: {:?}",
+            result.err()
+        );
+
+        let code_server_named =
+            r#"import { testserver } from "testserver"; typeof testserver.get_value"#;
+        let result = run_js_module(code_server_named, &tools, tx.clone());
+        assert!(
+            result.is_ok(),
+            "Server-named import should work: {:?}",
+            result.err()
+        );
+
+        let code_bracket =
+            r#"import { testserver } from "testserver"; typeof testserver["get_value"]"#;
+        let result = run_js_module(code_bracket, &tools, tx);
+        assert!(
+            result.is_ok(),
+            "Bracket notation should work: {:?}",
+            result.err()
+        );
     }
 }
