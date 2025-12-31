@@ -507,8 +507,8 @@ impl ExtensionConfig {
 impl std::fmt::Display for ExtensionConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ExtensionConfig::Sse { .. } => {
-                unreachable!("SSE extensions are rejected during loading")
+            ExtensionConfig::Sse { name, .. } => {
+                write!(f, "SSE({}: unsupported)", name)
             }
             ExtensionConfig::StreamableHttp { name, uri, .. } => {
                 write!(f, "StreamableHttp({}: {})", name, uri)
