@@ -1,5 +1,5 @@
 use crate::config::paths::Paths;
-use crate::conversation::message::Message;
+use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::Conversation;
 use crate::model::ModelConfig;
 use crate::providers::base::{Provider, MSG_COUNT_FOR_SESSION_NAME_GENERATION};
@@ -362,6 +362,10 @@ impl SessionManager {
         self.storage
             .search_chat_history(query, limit, after_date, before_date, exclude_session_id)
             .await
+    }
+
+    pub async fn consolidate_fragmented_messages() -> Result<usize> {
+        Self::instance().storage.migrate_consolidate_messages().await
     }
 }
 
@@ -1071,21 +1075,98 @@ impl SessionStorage {
         let pool = self.pool().await?;
         let mut tx = pool.begin().await?;
 
-        let metadata_json = serde_json::to_string(&message.metadata)?;
+        // Check if we should merge with the last message to prevent fragmentation
+        // This handles streaming responses that create multiple message chunks
+        let should_merge = if message.role == rmcp::model::Role::Assistant {
+            // Only consider merging if this is a simple text-only message
+            let is_simple_text = message.content.len() == 1
+                && matches!(message.content.first(), Some(MessageContent::Text(_)));
 
-        sqlx::query(
-            r#"
-            INSERT INTO messages (session_id, role, content_json, created_timestamp, metadata_json)
-            VALUES (?, ?, ?, ?, ?)
-        "#,
-        )
-        .bind(session_id)
-        .bind(role_to_string(&message.role))
-        .bind(serde_json::to_string(&message.content)?)
-        .bind(message.created)
-        .bind(metadata_json)
-        .execute(&mut *tx)
-        .await?;
+            if is_simple_text {
+                // Get the last message for this session
+                let last_msg = sqlx::query_as::<_, (String, String)>(
+                    "SELECT role, content_json FROM messages WHERE session_id = ? ORDER BY created_timestamp DESC LIMIT 1"
+                )
+                .bind(session_id)
+                .fetch_optional(&mut *tx)
+                .await?;
+
+                if let Some((last_role, last_content_json)) = last_msg {
+                    // Check if last message is also assistant
+                    if last_role == "assistant" {
+                        if let Ok(last_content) =
+                            serde_json::from_str::<Vec<MessageContent>>(&last_content_json)
+                        {
+                            // Check if last message is also simple text without tool calls
+                            let last_is_simple_text = last_content.len() == 1
+                                && matches!(last_content.first(), Some(MessageContent::Text(_)))
+                                && !last_content.iter().any(|c| {
+                                    matches!(
+                                        c,
+                                        MessageContent::ToolRequest(_)
+                                            | MessageContent::ToolResponse(_)
+                                    )
+                                });
+
+                            last_is_simple_text
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
+        if should_merge {
+            // Merge the text content with the last message
+            let last_msg = sqlx::query_as::<_, (i64, String)>(
+                "SELECT id, content_json FROM messages WHERE session_id = ? ORDER BY created_timestamp DESC LIMIT 1"
+            )
+            .bind(session_id)
+            .fetch_one(&mut *tx)
+            .await?;
+
+            let (last_id, last_content_json) = last_msg;
+            let mut last_content: Vec<MessageContent> = serde_json::from_str(&last_content_json)?;
+
+            if let (Some(MessageContent::Text(last_text)), Some(MessageContent::Text(new_text))) =
+                (last_content.first_mut(), message.content.first())
+            {
+                last_text.text.push_str(&new_text.text);
+
+                // Update the existing message with merged content
+                sqlx::query("UPDATE messages SET content_json = ? WHERE id = ?")
+                    .bind(serde_json::to_string(&last_content)?)
+                    .bind(last_id)
+                    .execute(&mut *tx)
+                    .await?;
+            }
+        } else {
+            // Normal path: insert as new message
+            let metadata_json = serde_json::to_string(&message.metadata)?;
+
+            sqlx::query(
+                r#"
+                INSERT INTO messages (session_id, role, content_json, created_timestamp, metadata_json)
+                VALUES (?, ?, ?, ?, ?)
+            "#,
+            )
+            .bind(session_id)
+            .bind(role_to_string(&message.role))
+            .bind(serde_json::to_string(&message.content)?)
+            .bind(message.created)
+            .bind(metadata_json)
+            .execute(&mut *tx)
+            .await?;
+        }
 
         sqlx::query("UPDATE sessions SET updated_at = datetime('now') WHERE id = ?")
             .bind(session_id)
@@ -1137,6 +1218,125 @@ impl SessionStorage {
     ) -> Result<()> {
         let pool = self.pool().await?;
         Self::replace_conversation_inner(pool, session_id, conversation).await
+    }
+
+    /// Consolidate fragmented assistant messages in existing sessions
+    /// This is a one-time migration to fix messages that were broken up during streaming
+    pub async fn migrate_consolidate_messages(&self) -> Result<usize> {
+        let pool = self.pool().await?;
+        let mut tx = pool.begin().await?;
+        let mut total_consolidated = 0;
+
+        let sessions =
+            sqlx::query_as::<_, (String,)>("SELECT id FROM sessions ORDER BY created_at")
+                .fetch_all(&mut *tx)
+                .await?;
+
+        for (session_id,) in sessions {
+            let messages = sqlx::query_as::<_, (i64, String, String, i64)>(
+                "SELECT id, role, content_json, created_timestamp
+                 FROM messages WHERE session_id = ?
+                 ORDER BY created_timestamp ASC",
+            )
+            .bind(&session_id)
+            .fetch_all(&mut *tx)
+            .await?;
+
+            let mut to_delete = Vec::new();
+            let mut i = 0;
+
+            while i < messages.len() {
+                let (id, role, content_json, _timestamp) = &messages[i];
+
+                if role == "assistant" {
+                    if let Ok(content) = serde_json::from_str::<Vec<MessageContent>>(content_json) {
+                        let is_simple_text = content.len() == 1
+                            && matches!(content.first(), Some(MessageContent::Text(_)))
+                            && !content.iter().any(|c| {
+                                matches!(
+                                    c,
+                                    MessageContent::ToolRequest(_)
+                                        | MessageContent::ToolResponse(_)
+                                )
+                            });
+
+                        if is_simple_text {
+                            let mut merged_text =
+                                if let Some(MessageContent::Text(t)) = content.first() {
+                                    t.text.clone()
+                                } else {
+                                    String::new()
+                                };
+
+                            let mut j = i + 1;
+                            while j < messages.len() {
+                                let (next_id, next_role, next_content_json, _) = &messages[j];
+
+                                if next_role != "assistant" {
+                                    break;
+                                }
+
+                                if let Ok(next_content) =
+                                    serde_json::from_str::<Vec<MessageContent>>(next_content_json)
+                                {
+                                    let next_is_simple = next_content.len() == 1
+                                        && matches!(
+                                            next_content.first(),
+                                            Some(MessageContent::Text(_))
+                                        )
+                                        && !next_content.iter().any(|c| {
+                                            matches!(
+                                                c,
+                                                MessageContent::ToolRequest(_)
+                                                    | MessageContent::ToolResponse(_)
+                                            )
+                                        });
+
+                                    if !next_is_simple {
+                                        break;
+                                    }
+
+                                    if let Some(MessageContent::Text(t)) = next_content.first() {
+                                        merged_text.push_str(&t.text);
+                                        to_delete.push(*next_id);
+                                        total_consolidated += 1;
+                                    }
+                                } else {
+                                    break;
+                                }
+
+                                j += 1;
+                            }
+
+                            if !to_delete.is_empty() {
+                                let updated_content = vec![MessageContent::text(&merged_text)];
+                                sqlx::query("UPDATE messages SET content_json = ? WHERE id = ?")
+                                    .bind(serde_json::to_string(&updated_content)?)
+                                    .bind(id)
+                                    .execute(&mut *tx)
+                                    .await?;
+
+                                for delete_id in &to_delete {
+                                    sqlx::query("DELETE FROM messages WHERE id = ?")
+                                        .bind(delete_id)
+                                        .execute(&mut *tx)
+                                        .await?;
+                                }
+
+                                to_delete.clear();
+                            }
+
+                            i = j;
+                            continue;
+                        }
+                    }
+                }
+                i += 1;
+            }
+        }
+
+        tx.commit().await?;
+        Ok(total_consolidated)
     }
 
     async fn list_sessions_by_types(&self, types: &[SessionType]) -> Result<Vec<Session>> {
@@ -1534,5 +1734,147 @@ mod tests {
         assert_eq!(imported.name, "Old format session");
         assert!(imported.user_set_name);
         assert_eq!(imported.working_dir, PathBuf::from("/tmp/test"));
+    }
+
+    #[tokio::test]
+    async fn test_message_consolidation_during_streaming() {
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test_consolidation.db");
+        let storage = Arc::new(SessionStorage::create(&db_path).await.unwrap());
+
+        let session = storage
+            .create_session(
+                PathBuf::from("/tmp/test"),
+                "Consolidation test".to_string(),
+                SessionType::User,
+            )
+            .await
+            .unwrap();
+
+        storage
+            .add_message(
+                &session.id,
+                &Message {
+                    id: None,
+                    role: Role::User,
+                    created: chrono::Utc::now().timestamp_millis(),
+                    content: vec![MessageContent::text("Hello")],
+                    metadata: Default::default(),
+                },
+            )
+            .await
+            .unwrap();
+
+        storage
+            .add_message(
+                &session.id,
+                &Message {
+                    id: None,
+                    role: Role::Assistant,
+                    created: chrono::Utc::now().timestamp_millis(),
+                    content: vec![MessageContent::text("This is ")],
+                    metadata: Default::default(),
+                },
+            )
+            .await
+            .unwrap();
+
+        storage
+            .add_message(
+                &session.id,
+                &Message {
+                    id: None,
+                    role: Role::Assistant,
+                    created: chrono::Utc::now().timestamp_millis(),
+                    content: vec![MessageContent::text("a streamed ")],
+                    metadata: Default::default(),
+                },
+            )
+            .await
+            .unwrap();
+
+        storage
+            .add_message(
+                &session.id,
+                &Message {
+                    id: None,
+                    role: Role::Assistant,
+                    created: chrono::Utc::now().timestamp_millis(),
+                    content: vec![MessageContent::text("response.")],
+                    metadata: Default::default(),
+                },
+            )
+            .await
+            .unwrap();
+
+        let session_with_messages = storage.get_session(&session.id, true).await.unwrap();
+        let conversation = session_with_messages.conversation.unwrap();
+
+        println!("Total messages: {}", conversation.messages().len());
+        for (i, msg) in conversation.messages().iter().enumerate() {
+            println!(
+                "Message {}: role={:?}, content={}",
+                i,
+                msg.role,
+                msg.as_concat_text()
+            );
+        }
+
+        assert_eq!(conversation.messages().len(), 2);
+        assert_eq!(conversation.messages()[0].role, Role::User);
+        assert_eq!(conversation.messages()[0].as_concat_text(), "Hello");
+        assert_eq!(conversation.messages()[1].role, Role::Assistant);
+        assert_eq!(
+            conversation.messages()[1].as_concat_text(),
+            "This is a streamed response."
+        );
+    }
+
+    #[tokio::test]
+    async fn test_migrate_consolidate_existing_messages() {
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test_migration.db");
+        let storage = Arc::new(SessionStorage::create(&db_path).await.unwrap());
+
+        let session = storage
+            .create_session(
+                PathBuf::from("/tmp/test"),
+                "Migration test".to_string(),
+                SessionType::User,
+            )
+            .await
+            .unwrap();
+
+        let mut tx = storage.pool.begin().await.unwrap();
+        for text in &["Fragment 1 ", "Fragment 2 ", "Fragment 3"] {
+            let content = vec![MessageContent::text(*text)];
+            sqlx::query(
+                r#"
+                INSERT INTO messages (session_id, role, content_json, created_timestamp, metadata_json)
+                VALUES (?, ?, ?, ?, ?)
+            "#,
+            )
+            .bind(&session.id)
+            .bind("assistant")
+            .bind(serde_json::to_string(&content).unwrap())
+            .bind(chrono::Utc::now().timestamp_millis())
+            .bind("{}")
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        }
+        tx.commit().await.unwrap();
+
+        let count = storage.migrate_consolidate_messages().await.unwrap();
+        assert_eq!(count, 2);
+
+        let session_after = storage.get_session(&session.id, true).await.unwrap();
+        let conversation = session_after.conversation.unwrap();
+        assert_eq!(conversation.messages().len(), 1);
+        assert_eq!(conversation.messages()[0].role, Role::Assistant);
+        assert_eq!(
+            conversation.messages()[0].as_concat_text(),
+            "Fragment 1 Fragment 2 Fragment 3"
+        );
     }
 }

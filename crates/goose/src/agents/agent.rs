@@ -50,6 +50,7 @@ use crate::tool_inspection::ToolInspectionManager;
 use crate::tool_monitor::RepetitionInspector;
 use crate::utils::is_token_cancelled;
 use regex::Regex;
+use rmcp::model::Role;
 use rmcp::model::{
     CallToolRequestParams, CallToolResult, Content, ErrorCode, ErrorData, GetPromptResult, Prompt,
     ServerNotification, Tool,
@@ -1172,7 +1173,44 @@ impl Agent {
 
                                 let num_tool_requests = frontend_requests.len() + remaining_requests.len();
                                 if num_tool_requests == 0 {
-                                    messages_to_add.push(response.clone());
+                                    // Check if we should merge with the last message in messages_to_add
+                                    // instead of adding as a new message (for streaming responses)
+                                    let should_merge = if let Some(last_msg) = messages_to_add.last() {
+                                        // Check if both are assistant messages
+                                        last_msg.role == Role::Assistant && response.role == Role::Assistant &&
+                                        // Check if both are simple text-only messages
+                                        last_msg.content.len() == 1 &&
+                                        matches!(last_msg.content.first(), Some(MessageContent::Text(_))) &&
+                                        response.content.len() == 1 &&
+                                        matches!(response.content.first(), Some(MessageContent::Text(_))) &&
+                                        // Make sure neither has tool requests/responses
+                                        !last_msg.content.iter().any(|c| matches!(c, MessageContent::ToolRequest(_) | MessageContent::ToolResponse(_))) &&
+                                        !response.content.iter().any(|c| matches!(c, MessageContent::ToolRequest(_) | MessageContent::ToolResponse(_)))
+                                    } else {
+                                        false
+                                    };
+
+                                    if should_merge {
+                                        // Merge the text content with the last message in messages_to_add
+                                        if let Some(last_msg) = messages_to_add.messages().last().cloned() {
+                                            messages_to_add.pop();
+                                            if let (Some(MessageContent::Text(mut last_text)), Some(MessageContent::Text(new_text))) =
+                                                (last_msg.content.into_iter().next(), response.content.first())
+                                            {
+                                                last_text.text.push_str(&new_text.text);
+                                                let merged_msg = Message {
+                                                    id: last_msg.id,
+                                                    role: last_msg.role,
+                                                    created: last_msg.created,
+                                                    content: vec![MessageContent::Text(last_text)],
+                                                    metadata: last_msg.metadata,
+                                                };
+                                                messages_to_add.push(merged_msg);
+                                            }
+                                        }
+                                    } else {
+                                        messages_to_add.push(response.clone());
+                                    }
                                     continue;
                                 }
 
