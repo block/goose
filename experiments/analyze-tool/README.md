@@ -1,16 +1,22 @@
 # Analyze Tool Effectiveness Experiment
 
-Compares agent performance on codebase exploration tasks **with** and **without** the `analyze` tool.
+Compares agent performance on codebase exploration tasks across three conditions:
+1. **with-analyze** - Full `analyze` tool with tree-sitter semantic analysis
+2. **with-map** - Lightweight `map` tool (line counts only) + `rg --heading -n`
+3. **without-analyze** - Baseline with just shell and text_editor
 
 ## Hypothesis
 
-The `analyze` tool enables more efficient codebase exploration by providing structured code intelligence (file trees, function signatures, call graphs) without requiring the agent to read full file contents.
+Specialized exploration tools enable more efficient codebase exploration. We're testing whether:
+- The full `analyze` tool (semantic analysis, call graphs) justifies its complexity
+- A simpler `map` + `rg` approach achieves similar efficiency
+- Either beats the baseline of shell commands alone
 
 ## Metrics
 
 1. **Token usage** - Total input/output tokens consumed
-2. **Answer quality** - Correctness and completeness (manual evaluation)
-3. **Tool call patterns** - How the agent explores the codebase
+2. **Tool call count** - Number of tool invocations
+3. **Answer quality** - Correctness and completeness (manual evaluation)
 
 ## Test Questions
 
@@ -24,7 +30,7 @@ The `analyze` tool enables more efficient codebase exploration by providing stru
 ## Running
 
 ```bash
-# Run all questions (both conditions)
+# Run all questions (all three conditions)
 ./run-experiment.sh
 
 # Run a specific question
@@ -36,8 +42,11 @@ The `analyze` tool enables more efficient codebase exploration by providing stru
 
 ## Recipes
 
-- `with-analyze.yaml` - Developer extension with all tools (including analyze)
-- `without-analyze.yaml` - Developer extension without analyze tool
+| Recipe | Extension | Key Tools |
+|--------|-----------|-----------|
+| `with-analyze.yaml` | developer | analyze, shell, text_editor |
+| `with-map.yaml` | develop | map, shell, file_write, file_edit |
+| `without-analyze.yaml` | developer | shell, text_editor (no analyze) |
 
 ## Results
 

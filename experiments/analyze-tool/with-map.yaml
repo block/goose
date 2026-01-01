@@ -1,0 +1,34 @@
+version: 1.0.0
+title: "Explore Test - With Map Tool"
+description: "Test codebase exploration with the new develop extension (map tool + rg)"
+
+parameters:
+  - key: question
+    input_type: string
+    requirement: required
+    description: "The exploration question to answer about the codebase"
+  - key: target_directory
+    input_type: string
+    requirement: optional
+    default: "."
+    description: "Directory to explore"
+
+prompt: |
+  You are exploring a codebase to answer a question.
+
+  Target directory: {{ target_directory }}
+
+  Question: {{ question }}
+
+  **Strategy**: Use `map` and `rg` for efficient exploration:
+  1. Use `map` to understand directory structure and file sizes
+  2. Use `rg --heading -n <pattern>` to find symbols and references (groups results by file)
+  3. Use `shell` with `head`, `tail`, or `sed` to read specific line ranges when needed
+  4. Avoid reading entire files - use map for layout, rg for searching
+
+  Provide a clear, structured answer. When you're done, summarize what tools you used
+  and how many times you called each one.
+
+extensions:
+  - type: builtin
+    name: develop
