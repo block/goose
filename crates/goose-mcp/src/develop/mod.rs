@@ -8,6 +8,7 @@
 
 pub mod edit;
 pub mod explore;
+pub mod image;
 pub mod process;
 
 use std::sync::Arc;
@@ -21,6 +22,7 @@ use rmcp::{
 
 use edit::{EditTools, FileEditParams, FileWriteParams};
 use explore::{MapParams, MapTool};
+use image::{ImageTool, ReadImageParams};
 use process::{
     ProcessAwaitParams, ProcessIdParams, ProcessInputParams, ProcessManager, ProcessOutputParams,
     ProcessTools, ShellParams,
@@ -33,6 +35,7 @@ pub struct DevelopServer {
     process_tools: Arc<ProcessTools>,
     edit_tools: Arc<EditTools>,
     map_tool: Arc<MapTool>,
+    image_tool: Arc<ImageTool>,
 }
 
 impl Clone for DevelopServer {
@@ -43,6 +46,7 @@ impl Clone for DevelopServer {
             process_tools: Arc::clone(&self.process_tools),
             edit_tools: Arc::clone(&self.edit_tools),
             map_tool: Arc::clone(&self.map_tool),
+            image_tool: Arc::clone(&self.image_tool),
         }
     }
 }
@@ -60,6 +64,7 @@ impl DevelopServer {
         let process_tools = Arc::new(ProcessTools::new(Arc::clone(&manager)));
         let edit_tools = Arc::new(EditTools::new());
         let map_tool = Arc::new(MapTool::new());
+        let image_tool = Arc::new(ImageTool::new());
 
         let mut instructions = formatdoc! {r#"
             The develop extension provides tools for software development tasks.
@@ -70,7 +75,8 @@ impl DevelopServer {
               commands return a process ID for later querying.
             - **Edit**: Create and modify files with `file_write` and `file_edit`
             - **Explore**: Navigate and analyze codebases with `map`
-            - **Image**: Capture and process screenshots
+            - **Image**: Read images from files or capture windows/screen with `read_image`.
+              Prefer capturing specific windows over full screen when possible.
 
             **Strategy**: You are responsible for carefully managing your own context window.
             It is critical to your ability to solve problems to not fill it up too quickly.
@@ -95,6 +101,7 @@ impl DevelopServer {
             process_tools,
             edit_tools,
             map_tool,
+            image_tool,
         }
     }
 
@@ -212,6 +219,21 @@ impl DevelopServer {
     )]
     pub async fn map(&self, params: Parameters<MapParams>) -> Result<CallToolResult, ErrorData> {
         Ok(self.map_tool.map(params.0))
+    }
+
+    // ========================================================================
+    // Image Tools
+    // ========================================================================
+
+    #[tool(
+        name = "read_image",
+        description = "Read an image from a file or capture from screen. Source can be: a file path, a window title/substring for fuzzy matching, or omit for full screen. Prefer specific windows over full screen when possible. Images are automatically resized for optimal LLM consumption."
+    )]
+    pub async fn read_image(
+        &self,
+        params: Parameters<ReadImageParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        Ok(self.image_tool.read_image(params.0))
     }
 }
 
