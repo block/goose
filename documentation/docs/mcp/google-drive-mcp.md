@@ -132,8 +132,9 @@ You'll need to re-authenticate once a day when using the Google Drive extension.
     │  ○ Built-in Extension 
     // highlight-start    
     │  ● Command-line Extension (Run a local command or script)
-    // highlight-end
-    │  ○ Remote Extension (Streamable HTTP) 
+    // highlight-end    
+    │  ○ Remote Extension (SSE) 
+    │  ○ Remote Extension (Streaming HTTP) 
     └ 
   ```
 

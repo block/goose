@@ -110,7 +110,8 @@ Start or resume interactive chat sessions.
 
 **Extension Options:**
 - **`--with-extension <command>`**: Add stdio extensions
-- **`--with-streamable-http-extension <url>`**: Add remote extensions over Streamable HTTP
+- **`--with-remote-extension <url>`**: Add remote extensions over SSE
+- **`--with-streamable-http-extension <url>`**: Add remote extensions over Streaming HTTP
 - **`--with-builtin <id>`**: Enable built-in extensions (e.g., 'developer', 'computercontroller')
 
 **Usage:**
@@ -127,12 +128,13 @@ goose session --resume --path ./session.jsonl   # legacy session storage
 # Start with extensions
 goose session --with-extension "npx -y @modelcontextprotocol/server-memory"
 goose session --with-builtin developer
-goose session --with-streamable-http-extension "http://localhost:8080/mcp"
+goose session --with-remote-extension "http://localhost:8080/sse"
 
 # Advanced: Mix multiple extension types
 goose session \
   --with-extension "echo hello" \
-  --with-streamable-http-extension "http://localhost:8080/mcp" \
+  --with-remote-extension "http://sse.example.com/sse" \
+  --with-streamable-http-extension "http://http.example.com" \
   --with-builtin "developer"
 
 # Control session behavior
@@ -301,7 +303,8 @@ Execute commands from an instruction file or stdin. Check out the [full guide](/
 
 **Extension Options:**
 - **`--with-extension <COMMAND>`**: Add stdio extensions (can be used multiple times)
-- **`--with-streamable-http-extension <URL>`**: Add remote extensions over Streamable HTTP (can be used multiple times)
+- **`--with-remote-extension <URL>`**: Add remote extensions over SSE (can be used multiple times)
+- **`--with-streamable-http-extension <URL>`**: Add remote extensions over Streaming HTTP (can be used multiple times)
 - **`--with-builtin <name>`**: Add builtin extensions by name (e.g., 'developer' or multiple: 'developer,github')
 
 **Control Options:**

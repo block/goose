@@ -63,8 +63,9 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     │  ○ Built-in Extension 
     // highlight-start    
     │  ● Command-line Extension (Run a local command or script)
-    // highlight-end
-    │  ○ Remote Extension (Streamable HTTP) 
+    // highlight-end    
+    │  ○ Remote Extension (SSE) 
+    │  ○ Remote Extension (Streaming HTTP) 
     └ 
   ```
 

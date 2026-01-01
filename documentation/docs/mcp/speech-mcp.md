@@ -69,8 +69,9 @@ Before adding this extension, make sure [PortAudio](https://github.com/GoogleClo
     │  ○ Built-in Extension 
     // highlight-start    
     │  ● Command-line Extension (Run a local command or script)
-    // highlight-end
-    │  ○ Remote Extension (Streamable HTTP) 
+    // highlight-end    
+    │  ○ Remote Extension (SSE) 
+    │  ○ Remote Extension (Streaming HTTP) 
     └ 
   ```
 

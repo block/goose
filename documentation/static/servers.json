@@ -367,9 +367,10 @@
     "id": "jetbrains",
     "name": "JetBrains",
     "description": "Integrate with any JetBrains IDE (requires local setup, dependent on your IDE version)",
-    "command": "npx -y @jetbrains/mcp-proxy",
+    "url": "http://localhost:<PORT>/sse",
+    "type": "remote",
     "link": "https://github.com/JetBrains/mcp-jetbrains",
-    "installation_notes": "Requires IDE v2025.2+. Use Streamable HTTP from Settings > Tools > MCP Server.",
+    "installation_notes": "IDE v2025.2 and later: Enable SSE configuration from Settings > Tools > MCP Server, then update the placeholder SSE URL in the following command. If installing from the link, you must update the URL from the Extensions page before activating the extension. For earlier IDE versions, you must install the MCP Server plugin and use npx package manager to install the extension.",
     "is_builtin": false,
     "endorsed": true,
     "environmentVariables": []
@@ -459,7 +460,7 @@
     "type": "streamable-http",
     "url": "https://mcp.neon.tech/mcp",
     "link": "https://github.com/neondatabase/mcp-server-neon",
-    "installation_notes": "Streamable HTTP extension with OAuth browser authentication to your Neon account.",
+    "installation_notes": "Streaming HTTP extension with OAuth browser authentication to your Neon account.",
     "is_builtin": false,
     "endorsed": true,
     "environmentVariables": []
@@ -524,12 +525,13 @@
     "id": "pieces",
     "name": "Pieces",
     "description": "Provides access to your Pieces long-term memory. You need to have Pieces installed to use this.",
-    "command": "uvx pieces-cli mcp start",
+    "url": "http://localhost:39300/model_context_protocol/2024-11-05/sse",
     "link": "https://pieces.app?utm_source=goose&utm_medium=collab&utm_campaign=mcp",
-    "installation_notes": "Install PiecesOS first.",
+    "installation_notes": "You need to install Pieces first, and have this running.",
     "is_builtin": false,
     "endorsed": true,
-    "environmentVariables": []
+    "environmentVariables": [],
+    "type": "remote"
   },
   {
     "id": "playwright",
@@ -582,7 +584,7 @@
     "type": "streamable-http",
     "url": "https://rube.app/mcp",
     "link": "https://rube.app",
-    "installation_notes": "Streamable HTTP extension with OAuth browser authentication to your Rube account.",
+    "installation_notes": "Streaming HTTP extension with OAuth browser authentication to your Rube account.",
     "is_builtin": false,
     "endorsed": true,
     "environmentVariables": []
@@ -627,7 +629,7 @@
     "type": "streamable-http",
     "url": "https://mcp.supabase.com/mcp",
     "link": "https://github.com/supabase-community/supabase-mcp",
-    "installation_notes": "Streamable HTTP extension with OAuth browser authentication to your Supabase account.",
+    "installation_notes": "Streaming HTTP extension with OAuth browser authentication to your Supabase account.",
     "is_builtin": false,
     "endorsed": true,
     "environmentVariables": [
