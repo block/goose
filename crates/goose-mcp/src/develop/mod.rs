@@ -7,6 +7,7 @@
 //! - Image: Screenshot and image processing
 
 pub mod edit;
+pub mod explore;
 pub mod process;
 
 use std::sync::Arc;
@@ -19,6 +20,7 @@ use rmcp::{
 };
 
 use edit::{EditTools, FileEditParams, FileWriteParams};
+use explore::{MapParams, MapTool};
 use process::{
     ProcessAwaitParams, ProcessIdParams, ProcessInputParams, ProcessManager, ProcessOutputParams,
     ProcessTools, ShellParams,
@@ -30,6 +32,7 @@ pub struct DevelopServer {
     instructions: String,
     process_tools: Arc<ProcessTools>,
     edit_tools: Arc<EditTools>,
+    map_tool: Arc<MapTool>,
 }
 
 impl Clone for DevelopServer {
@@ -39,6 +42,7 @@ impl Clone for DevelopServer {
             instructions: self.instructions.clone(),
             process_tools: Arc::clone(&self.process_tools),
             edit_tools: Arc::clone(&self.edit_tools),
+            map_tool: Arc::clone(&self.map_tool),
         }
     }
 }
@@ -55,6 +59,7 @@ impl DevelopServer {
         let manager = Arc::new(ProcessManager::new());
         let process_tools = Arc::new(ProcessTools::new(Arc::clone(&manager)));
         let edit_tools = Arc::new(EditTools::new());
+        let map_tool = Arc::new(MapTool::new());
 
         let mut instructions = formatdoc! {r#"
             The develop extension provides tools for software development tasks.
@@ -64,8 +69,15 @@ impl DevelopServer {
               environment variables persist across calls. Long-running or large-output 
               commands return a process ID for later querying.
             - **Edit**: Create and modify files with `file_write` and `file_edit`
-            - **Explore**: Navigate and analyze codebases
+            - **Explore**: Navigate and analyze codebases with `map`
             - **Image**: Capture and process screenshots
+
+            ## Token Efficiency
+
+            Minimize token usage by choosing the right approach:
+            - Use `map` to understand codebase layout (shows file tree with line counts)
+            - Use `rg --heading -n <pattern>` to find symbols/references (groups results by file)
+            - Avoid commands that dump large outputs; pipe to files or use `head`/`tail`
         "#};
 
         // Add shell warning if using fallback
@@ -78,6 +90,7 @@ impl DevelopServer {
             instructions,
             process_tools,
             edit_tools,
+            map_tool,
         }
     }
 
@@ -183,6 +196,18 @@ impl DevelopServer {
         params: Parameters<FileEditParams>,
     ) -> Result<CallToolResult, ErrorData> {
         Ok(self.edit_tools.file_edit(params.0))
+    }
+
+    // ========================================================================
+    // Explore Tools
+    // ========================================================================
+
+    #[tool(
+        name = "map",
+        description = "Build a mental map of a directory. Shows file tree with line counts. Use depth to control traversal depth."
+    )]
+    pub async fn map(&self, params: Parameters<MapParams>) -> Result<CallToolResult, ErrorData> {
+        Ok(self.map_tool.map(params.0))
     }
 }
 
