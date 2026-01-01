@@ -24,7 +24,7 @@ pub(crate) mod todo_extension;
 mod tool_execution;
 pub mod types;
 
-pub use agent::{Agent, AgentEvent};
+pub use agent::{Agent, AgentConfig, AgentEvent};
 pub use execute_commands::COMPACT_TRIGGERS;
 pub use extension::ExtensionConfig;
 pub use extension_manager::ExtensionManager;

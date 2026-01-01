@@ -1,13 +1,16 @@
 use crate::config::paths::Paths;
 use crate::providers::utils::LOGS_TO_KEEP;
 use crate::session::SessionManager;
-use std::fs::{self};
+use std::fs;
 use std::io::Cursor;
 use std::io::Write;
 use zip::write::FileOptions;
 use zip::ZipWriter;
 
-pub async fn generate_diagnostics(session_id: &str) -> anyhow::Result<Vec<u8>> {
+pub async fn generate_diagnostics(
+    session_manager: &SessionManager,
+    session_id: &str,
+) -> anyhow::Result<Vec<u8>> {
     let logs_dir = Paths::in_state_dir("logs");
     let config_dir = Paths::config_dir();
     let config_path = config_dir.join("config.yaml");
@@ -45,7 +48,7 @@ pub async fn generate_diagnostics(session_id: &str) -> anyhow::Result<Vec<u8>> {
             zip.write_all(&fs::read(&path)?)?;
         }
 
-        let session_data = SessionManager::export_session(session_id).await?;
+        let session_data = session_manager.export_session(session_id).await?;
         zip.start_file("session.json", options)?;
         zip.write_all(session_data.as_bytes())?;
 

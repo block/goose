@@ -7,7 +7,6 @@ use goose_mcp::{
     AutoVisualiserRouter, ComputerControllerServer, DeveloperServer, MemoryServer, TutorialServer,
 };
 
-use crate::commands::acp::run_acp_agent;
 use crate::commands::bench::agent_generator;
 use crate::commands::configure::handle_configure;
 use crate::commands::info::handle_info;
@@ -319,21 +318,24 @@ async fn get_or_create_session_id(
         return Ok(None);
     }
 
+    let session_manager = SessionManager::instance();
+
     let Some(id) = identifier else {
         return if resume {
-            let sessions = SessionManager::list_sessions().await?;
+            let sessions = session_manager.list_sessions().await?;
             let session_id = sessions
                 .first()
                 .map(|s| s.id.clone())
                 .ok_or_else(|| anyhow::anyhow!("No session found to resume"))?;
             Ok(Some(session_id))
         } else {
-            let session = SessionManager::create_session(
-                std::env::current_dir()?,
-                "CLI Session".to_string(),
-                SessionType::User,
-            )
-            .await?;
+            let session = session_manager
+                .create_session(
+                    std::env::current_dir()?,
+                    "CLI Session".to_string(),
+                    SessionType::User,
+                )
+                .await?;
             Ok(Some(session.id))
         };
     };
@@ -342,7 +344,7 @@ async fn get_or_create_session_id(
         Ok(Some(session_id))
     } else if let Some(name) = id.name {
         if resume {
-            let sessions = SessionManager::list_sessions().await?;
+            let sessions = session_manager.list_sessions().await?;
             let session_id = sessions
                 .into_iter()
                 .find(|s| s.name == name || s.id == name)
@@ -350,14 +352,12 @@ async fn get_or_create_session_id(
                 .ok_or_else(|| anyhow::anyhow!("No session found with name '{}'", name))?;
             Ok(Some(session_id))
         } else {
-            let session = SessionManager::create_session(
-                std::env::current_dir()?,
-                name.clone(),
-                SessionType::User,
-            )
-            .await?;
+            let session = session_manager
+                .create_session(std::env::current_dir()?, name.clone(), SessionType::User)
+                .await?;
 
-            SessionManager::update_session(&session.id)
+            session_manager
+                .update(&session.id)
                 .user_provided_name(name)
                 .apply()
                 .await?;
@@ -372,12 +372,13 @@ async fn get_or_create_session_id(
             .ok_or_else(|| anyhow::anyhow!("Could not extract session ID from path: {:?}", path))?;
         Ok(Some(session_id))
     } else {
-        let session = SessionManager::create_session(
-            std::env::current_dir()?,
-            "CLI Session".to_string(),
-            SessionType::User,
-        )
-        .await?;
+        let session = session_manager
+            .create_session(
+                std::env::current_dir()?,
+                "CLI Session".to_string(),
+                SessionType::User,
+            )
+            .await?;
         Ok(Some(session.id))
     }
 }
@@ -386,7 +387,8 @@ async fn lookup_session_id(identifier: Identifier) -> Result<String> {
     if let Some(session_id) = identifier.session_id {
         Ok(session_id)
     } else if let Some(name) = identifier.name {
-        let sessions = SessionManager::list_sessions().await?;
+        let session_manager = SessionManager::instance();
+        let sessions = session_manager.list_sessions().await?;
         sessions
             .into_iter()
             .find(|s| s.name == name || s.id == name)
@@ -997,10 +999,15 @@ async fn handle_session_subcommand(command: SessionCommand) -> Result<()> {
             output,
             format,
         } => {
+            let session_manager = SessionManager::instance();
             let session_identifier = if let Some(id) = identifier {
                 lookup_session_id(id).await?
             } else {
-                match crate::commands::session::prompt_interactive_session_selection().await {
+                match crate::commands::session::prompt_interactive_session_selection(
+                    &session_manager,
+                )
+                .await
+                {
                     Ok(id) => id,
                     Err(e) => {
                         eprintln!("Error: {}", e);
@@ -1012,10 +1019,15 @@ async fn handle_session_subcommand(command: SessionCommand) -> Result<()> {
                 .await?;
         }
         SessionCommand::Diagnostics { identifier, output } => {
+            let session_manager = SessionManager::instance();
             let session_id = if let Some(id) = identifier {
                 lookup_session_id(id).await?
             } else {
-                match crate::commands::session::prompt_interactive_session_selection().await {
+                match crate::commands::session::prompt_interactive_session_selection(
+                    &session_manager,
+                )
+                .await
+                {
                     Ok(id) => id,
                     Err(e) => {
                         eprintln!("Error: {}", e);
@@ -1447,7 +1459,7 @@ pub async fn cli() -> anyhow::Result<()> {
         Some(Command::Configure {}) => handle_configure().await,
         Some(Command::Info { verbose }) => handle_info(verbose),
         Some(Command::Mcp { server }) => handle_mcp_command(server).await,
-        Some(Command::Acp { builtins }) => run_acp_agent(builtins).await,
+        Some(Command::Acp { builtins }) => goose_acp::server::run(builtins).await,
         Some(Command::Session {
             command: Some(cmd), ..
         }) => handle_session_subcommand(cmd).await,

@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use std::path::PathBuf;
+use std::sync::{Arc, LazyLock};
 
 use crate::scheduler::{ScheduledJob, SchedulerError};
 use crate::session::Session;
@@ -38,4 +39,105 @@ pub trait SchedulerTrait: Send + Sync {
         &self,
         sched_id: &str,
     ) -> Result<Option<(String, DateTime<Utc>)>, SchedulerError>;
+}
+
+const UNAVAILABLE_MESSAGE: &str = "Scheduler not available. This tool only works in server mode.";
+
+pub struct UnavailableScheduler;
+
+#[async_trait]
+impl SchedulerTrait for UnavailableScheduler {
+    async fn add_scheduled_job(
+        &self,
+        _job: ScheduledJob,
+        _copy_recipe: bool,
+    ) -> Result<(), SchedulerError> {
+        Err(SchedulerError::SchedulerInternalError(
+            UNAVAILABLE_MESSAGE.into(),
+        ))
+    }
+
+    async fn schedule_recipe(
+        &self,
+        _recipe_path: PathBuf,
+        _cron_schedule: Option<String>,
+    ) -> anyhow::Result<(), SchedulerError> {
+        Err(SchedulerError::SchedulerInternalError(
+            UNAVAILABLE_MESSAGE.into(),
+        ))
+    }
+
+    async fn list_scheduled_jobs(&self) -> Vec<ScheduledJob> {
+        vec![]
+    }
+
+    async fn remove_scheduled_job(
+        &self,
+        _id: &str,
+        _remove_recipe: bool,
+    ) -> Result<(), SchedulerError> {
+        Err(SchedulerError::SchedulerInternalError(
+            UNAVAILABLE_MESSAGE.into(),
+        ))
+    }
+
+    async fn pause_schedule(&self, _id: &str) -> Result<(), SchedulerError> {
+        Err(SchedulerError::SchedulerInternalError(
+            UNAVAILABLE_MESSAGE.into(),
+        ))
+    }
+
+    async fn unpause_schedule(&self, _id: &str) -> Result<(), SchedulerError> {
+        Err(SchedulerError::SchedulerInternalError(
+            UNAVAILABLE_MESSAGE.into(),
+        ))
+    }
+
+    async fn run_now(&self, _id: &str) -> Result<String, SchedulerError> {
+        Err(SchedulerError::SchedulerInternalError(
+            UNAVAILABLE_MESSAGE.into(),
+        ))
+    }
+
+    async fn sessions(
+        &self,
+        _sched_id: &str,
+        _limit: usize,
+    ) -> Result<Vec<(String, Session)>, SchedulerError> {
+        Err(SchedulerError::SchedulerInternalError(
+            UNAVAILABLE_MESSAGE.into(),
+        ))
+    }
+
+    async fn update_schedule(
+        &self,
+        _sched_id: &str,
+        _new_cron: String,
+    ) -> Result<(), SchedulerError> {
+        Err(SchedulerError::SchedulerInternalError(
+            UNAVAILABLE_MESSAGE.into(),
+        ))
+    }
+
+    async fn kill_running_job(&self, _sched_id: &str) -> Result<(), SchedulerError> {
+        Err(SchedulerError::SchedulerInternalError(
+            UNAVAILABLE_MESSAGE.into(),
+        ))
+    }
+
+    async fn get_running_job_info(
+        &self,
+        _sched_id: &str,
+    ) -> Result<Option<(String, DateTime<Utc>)>, SchedulerError> {
+        Err(SchedulerError::SchedulerInternalError(
+            UNAVAILABLE_MESSAGE.into(),
+        ))
+    }
+}
+
+static UNAVAILABLE_SCHEDULER: LazyLock<Arc<dyn SchedulerTrait>> =
+    LazyLock::new(|| Arc::new(UnavailableScheduler));
+
+pub fn unavailable_scheduler() -> Arc<dyn SchedulerTrait> {
+    Arc::clone(&UNAVAILABLE_SCHEDULER)
 }
