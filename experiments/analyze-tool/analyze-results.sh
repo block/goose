@@ -33,12 +33,12 @@ echo "Timestamp: $TIMESTAMP"
 echo ""
 
 # Summary table header
-printf "%-10s %-15s %15s %15s %15s\n" "Question" "Condition" "Accum Total" "Accum Input" "Accum Output"
-printf "%-10s %-15s %15s %15s %15s\n" "--------" "---------" "-----------" "-----------" "------------"
+printf "%-10s %-18s %12s %12s %12s\n" "Question" "Condition" "Total" "Input" "Output"
+printf "%-10s %-18s %12s %12s %12s\n" "--------" "---------" "-----" "-----" "------"
 
 # Process each result file
 for q in 1 2 3 4; do
-    for condition in "with-analyze" "without-analyze"; do
+    for condition in "with-analyze" "with-map" "without-analyze"; do
         file="$RESULTS_DIR/${TIMESTAMP}_q${q}_${condition}.json"
         if [ -f "$file" ]; then
             # Extract JSON portion (skip loading messages)
@@ -46,28 +46,39 @@ for q in 1 2 3 4; do
             total=$(echo "$json_content" | jq -r '.metadata.accumulated_total_tokens // .metadata.total_tokens // "N/A"' 2>/dev/null)
             input=$(echo "$json_content" | jq -r '.metadata.accumulated_input_tokens // .metadata.input_tokens // "N/A"' 2>/dev/null)
             output=$(echo "$json_content" | jq -r '.metadata.accumulated_output_tokens // .metadata.output_tokens // "N/A"' 2>/dev/null)
-            printf "%-10s %-15s %15s %15s %15s\n" "Q$q" "$condition" "$total" "$input" "$output"
+            printf "%-10s %-18s %12s %12s %12s\n" "Q$q" "$condition" "$total" "$input" "$output"
         fi
     done
 done
 
 echo ""
-echo "Token Savings Analysis (Accumulated)"
-echo "====================================="
+echo "Token Comparison vs Baseline"
+echo "============================"
 
 for q in 1 2 3 4; do
-    with_file="$RESULTS_DIR/${TIMESTAMP}_q${q}_with-analyze.json"
-    without_file="$RESULTS_DIR/${TIMESTAMP}_q${q}_without-analyze.json"
+    analyze_file="$RESULTS_DIR/${TIMESTAMP}_q${q}_with-analyze.json"
+    map_file="$RESULTS_DIR/${TIMESTAMP}_q${q}_with-map.json"
+    baseline_file="$RESULTS_DIR/${TIMESTAMP}_q${q}_without-analyze.json"
     
-    if [ -f "$with_file" ] && [ -f "$without_file" ]; then
-        with_json=$(sed -n '/^{/,$p' "$with_file")
-        without_json=$(sed -n '/^{/,$p' "$without_file")
-        with_total=$(echo "$with_json" | jq -r '.metadata.accumulated_total_tokens // .metadata.total_tokens // 0' 2>/dev/null)
-        without_total=$(echo "$without_json" | jq -r '.metadata.accumulated_total_tokens // .metadata.total_tokens // 0' 2>/dev/null)
+    if [ -f "$baseline_file" ]; then
+        baseline_json=$(sed -n '/^{/,$p' "$baseline_file")
+        baseline_total=$(echo "$baseline_json" | jq -r '.metadata.accumulated_total_tokens // .metadata.total_tokens // 0' 2>/dev/null)
         
-        if [ "$without_total" != "0" ] && [ "$without_total" != "null" ]; then
-            savings=$(echo "scale=1; (($without_total - $with_total) * 100) / $without_total" | bc 2>/dev/null || echo "N/A")
-            echo "Q$q: With=$with_total, Without=$without_total, Savings=${savings}%"
+        echo ""
+        echo "Q$q (baseline=$baseline_total):"
+        
+        if [ -f "$analyze_file" ] && [ "$baseline_total" != "0" ] && [ "$baseline_total" != "null" ]; then
+            analyze_json=$(sed -n '/^{/,$p' "$analyze_file")
+            analyze_total=$(echo "$analyze_json" | jq -r '.metadata.accumulated_total_tokens // .metadata.total_tokens // 0' 2>/dev/null)
+            savings=$(echo "scale=1; (($baseline_total - $analyze_total) * 100) / $baseline_total" | bc 2>/dev/null || echo "N/A")
+            echo "  with-analyze: $analyze_total (${savings}% savings)"
+        fi
+        
+        if [ -f "$map_file" ] && [ "$baseline_total" != "0" ] && [ "$baseline_total" != "null" ]; then
+            map_json=$(sed -n '/^{/,$p' "$map_file")
+            map_total=$(echo "$map_json" | jq -r '.metadata.accumulated_total_tokens // .metadata.total_tokens // 0' 2>/dev/null)
+            savings=$(echo "scale=1; (($baseline_total - $map_total) * 100) / $baseline_total" | bc 2>/dev/null || echo "N/A")
+            echo "  with-map:     $map_total (${savings}% savings)"
         fi
     fi
 done
@@ -77,7 +88,7 @@ echo "Tool Call Counts"
 echo "================"
 
 for q in 1 2 3 4; do
-    for condition in "with-analyze" "without-analyze"; do
+    for condition in "with-analyze" "with-map" "without-analyze"; do
         file="$RESULTS_DIR/${TIMESTAMP}_q${q}_${condition}.json"
         if [ -f "$file" ]; then
             echo ""

@@ -69,14 +69,21 @@ run_question() {
     echo "=========================================="
     echo ""
     
-    # Run with analyze
+    # Run with analyze (developer extension)
     run_single_experiment \
         "$SCRIPT_DIR/with-analyze.yaml" \
         "$question" \
         "$q_num" \
         "with-analyze"
     
-    # Run without analyze
+    # Run with map (develop extension)
+    run_single_experiment \
+        "$SCRIPT_DIR/with-map.yaml" \
+        "$question" \
+        "$q_num" \
+        "with-map"
+    
+    # Run without analyze (baseline)
     run_single_experiment \
         "$SCRIPT_DIR/without-analyze.yaml" \
         "$question" \
