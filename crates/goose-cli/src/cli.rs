@@ -1,6 +1,6 @@
 use anyhow::Result;
-use clap::{Args, Parser, Subcommand};
-
+use clap::{Args, CommandFactory, Parser, Subcommand};
+use clap_complete::{generate, Shell as ClapShell};
 use goose::config::{Config, ExtensionConfig};
 use goose_mcp::mcp_server_runner::{serve, McpCommand};
 use goose_mcp::{
@@ -865,6 +865,12 @@ enum Command {
         #[command(subcommand)]
         command: TermCommand,
     },
+    /// Generate completions for various shells
+    #[command(about = "Generate the autocompletion script for the specified shell")]
+    Completion {
+        #[arg(value_enum)]
+        shell: ClapShell,
+    },
 }
 
 #[derive(Subcommand)]
@@ -972,6 +978,7 @@ pub async fn cli() -> anyhow::Result<()> {
         Some(Command::Recipe { .. }) => "recipe",
         Some(Command::Web { .. }) => "web",
         Some(Command::Term { .. }) => "term",
+        Some(Command::Completion { .. }) => "completion",
         None => "default_session",
     };
 
@@ -982,6 +989,13 @@ pub async fn cli() -> anyhow::Result<()> {
     );
 
     match cli.command {
+        Some(Command::Completion { shell }) => match shell {
+            shell => {
+                let mut cmd = Cli::command();
+                let bin_name = cmd.get_name().to_string();
+                generate(shell, &mut cmd, bin_name, &mut std::io::stdout());
+            }
+        },
         Some(Command::Configure {}) => handle_configure().await?,
         Some(Command::Info { verbose }) => handle_info(verbose)?,
         Some(Command::Mcp { server }) => {
