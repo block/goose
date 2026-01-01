@@ -72,12 +72,16 @@ impl DevelopServer {
             - **Explore**: Navigate and analyze codebases with `map`
             - **Image**: Capture and process screenshots
 
-            ## Token Efficiency
+            **Strategy**: You are responsible for carefully managing your own context window.
+            It is critical to your ability to solve problems to not fill it up too quickly.
 
-            Minimize token usage by choosing the right approach:
-            - Use `map` to understand codebase layout (shows file tree with line counts)
-            - Use `rg --heading -n <pattern>` to find symbols/references (groups results by file)
-            - Avoid commands that dump large outputs; pipe to files or use `head`/`tail`
+            Use `map` and `rg` for efficient exploration. For `rg`, use `rg --heading -n` for
+            maximally token efficient output format.
+
+            **Efficiency Tip**: Each tool call has overhead because the full conversation history
+            is re-sent. It's often better to do something in one call rather than two or three,
+            even if you read a bit more than strictly necessary. Reading extra context to save a
+            round-trip is usually worth it.
         "#};
 
         // Add shell warning if using fallback
