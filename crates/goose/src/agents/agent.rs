@@ -25,6 +25,7 @@ use crate::agents::subagent_tool::{
 };
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, SharedProvider, ToolResultReceiver};
+use crate::config::permission::PermissionManager;
 use crate::config::{get_enabled_extensions, Config, GooseMode};
 use crate::context_mgmt::{
     check_if_compaction_needed, compact_messages, DEFAULT_COMPACTION_THRESHOLD,
@@ -86,9 +87,34 @@ pub struct ExtensionLoadResult {
     pub error: Option<String>,
 }
 
+#[derive(Clone)]
+pub struct AgentConfig {
+    pub session_manager: Arc<SessionManager>,
+    pub permission_manager: Arc<PermissionManager>,
+    pub scheduler_service: Option<Arc<dyn SchedulerTrait>>,
+    pub goose_mode: GooseMode,
+}
+
+impl AgentConfig {
+    pub fn new(
+        session_manager: Arc<SessionManager>,
+        permission_manager: Arc<PermissionManager>,
+        scheduler_service: Option<Arc<dyn SchedulerTrait>>,
+        goose_mode: GooseMode,
+    ) -> Self {
+        Self {
+            session_manager,
+            permission_manager,
+            scheduler_service,
+            goose_mode,
+        }
+    }
+}
+
 /// The main goose Agent
 pub struct Agent {
     pub(super) provider: SharedProvider,
+    pub config: AgentConfig,
 
     pub extension_manager: Arc<ExtensionManager>,
     pub(super) sub_recipes: Mutex<HashMap<String, SubRecipe>>,
@@ -101,7 +127,6 @@ pub struct Agent {
     pub(super) tool_result_tx: mpsc::Sender<(String, ToolResult<CallToolResult>)>,
     pub(super) tool_result_rx: ToolResultReceiver,
 
-    pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
     pub(super) retry_manager: RetryManager,
     pub(super) tool_inspection_manager: ToolInspectionManager,
 }
@@ -157,14 +182,26 @@ where
 
 impl Agent {
     pub fn new() -> Self {
+        Self::with_config(AgentConfig::new(
+            Arc::new(SessionManager::instance()),
+            PermissionManager::instance(),
+            None,
+            Config::global().get_goose_mode().unwrap_or(GooseMode::Auto),
+        ))
+    }
+
+    pub fn with_config(config: AgentConfig) -> Self {
         // Create channels with buffer size 32 (adjust if needed)
         let (confirm_tx, confirm_rx) = mpsc::channel(32);
         let (tool_tx, tool_rx) = mpsc::channel(32);
         let provider = Arc::new(Mutex::new(None));
 
+        let session_manager = Arc::clone(&config.session_manager);
+        let permission_manager = Arc::clone(&config.permission_manager);
         Self {
             provider: provider.clone(),
-            extension_manager: Arc::new(ExtensionManager::new(provider.clone())),
+            config,
+            extension_manager: Arc::new(ExtensionManager::new(provider.clone(), session_manager)),
             sub_recipes: Mutex::new(HashMap::new()),
             final_output_tool: Arc::new(Mutex::new(None)),
             frontend_tools: Mutex::new(HashMap::new()),
@@ -174,25 +211,25 @@ impl Agent {
             confirmation_rx: Mutex::new(confirm_rx),
             tool_result_tx: tool_tx,
             tool_result_rx: Arc::new(Mutex::new(tool_rx)),
-            scheduler_service: Mutex::new(None),
             retry_manager: RetryManager::new(),
-            tool_inspection_manager: Self::create_default_tool_inspection_manager(),
+            tool_inspection_manager: Self::create_tool_inspection_manager(permission_manager),
         }
     }
 
     /// Create a tool inspection manager with default inspectors
-    fn create_default_tool_inspection_manager() -> ToolInspectionManager {
+    fn create_tool_inspection_manager(
+        permission_manager: Arc<PermissionManager>,
+    ) -> ToolInspectionManager {
         let mut tool_inspection_manager = ToolInspectionManager::new();
 
         // Add security inspector (highest priority - runs first)
         tool_inspection_manager.add_inspector(Box::new(SecurityInspector::new()));
 
         // Add permission inspector (medium-high priority)
-        // Note: mode will be updated dynamically based on session config
         tool_inspection_manager.add_inspector(Box::new(PermissionInspector::new(
-            GooseMode::SmartApprove,
             std::collections::HashSet::new(), // readonly tools - will be populated from extension manager
             std::collections::HashSet::new(), // regular tools - will be populated from extension manager
+            permission_manager,
         )));
 
         // Add repetition inspector (lower priority - basic repetition checking)
@@ -239,11 +276,12 @@ impl Agent {
             | RetryResult::SuccessChecksPassed => Ok(false),
         }
     }
-    async fn drain_elicitation_messages(session_id: &str) -> Vec<Message> {
+    async fn drain_elicitation_messages(&self, session_id: &str) -> Vec<Message> {
         let mut messages = Vec::new();
+        let manager = self.config.session_manager.clone();
         let mut elicitation_rx = ActionRequiredManager::global().request_rx.lock().await;
         while let Ok(elicitation_message) = elicitation_rx.try_recv() {
-            if let Err(e) = SessionManager::add_message(session_id, &elicitation_message).await {
+            if let Err(e) = manager.add_message(session_id, &elicitation_message).await {
                 warn!("Failed to save elicitation message to session: {}", e);
             }
             messages.push(elicitation_message);
@@ -253,6 +291,7 @@ impl Agent {
 
     async fn prepare_reply_context(
         &self,
+        session_id: &str,
         unfixed_conversation: Conversation,
         working_dir: &std::path::Path,
     ) -> Result<ReplyContext> {
@@ -269,22 +308,17 @@ impl Agent {
             );
         }
         let initial_messages = conversation.messages().clone();
-        let config = Config::global();
 
-        let (tools, toolshim_tools, system_prompt) =
-            self.prepare_tools_and_prompt(working_dir).await?;
-        let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
-
-        self.tool_inspection_manager
-            .update_permission_inspector_mode(goose_mode)
-            .await;
+        let (tools, toolshim_tools, system_prompt) = self
+            .prepare_tools_and_prompt(session_id, working_dir)
+            .await?;
 
         Ok(ReplyContext {
             conversation,
             tools,
             toolshim_tools,
             system_prompt,
-            goose_mode,
+            goose_mode: self.config.goose_mode,
             initial_messages,
         })
     }
@@ -366,11 +400,6 @@ impl Agent {
                 );
             }
         }
-    }
-
-    pub async fn set_scheduler(&self, scheduler: Arc<dyn SchedulerTrait>) {
-        let mut scheduler_service = self.scheduler_service.lock().await;
-        *scheduler_service = Some(scheduler);
     }
 
     /// Get a reference count clone to the provider
@@ -505,6 +534,7 @@ impl Agent {
                 .unwrap_or(Value::Object(serde_json::Map::new()));
 
             handle_subagent_tool(
+                &self.config,
                 arguments,
                 task_config,
                 sub_recipes,
@@ -522,7 +552,11 @@ impl Agent {
             // Clone the result to ensure no references to extension_manager are returned
             let result = self
                 .extension_manager
-                .dispatch_tool_call(tool_call.clone(), cancellation_token.unwrap_or_default())
+                .dispatch_tool_call(
+                    &session.id,
+                    tool_call.clone(),
+                    cancellation_token.unwrap_or_default(),
+                )
                 .await;
             result.unwrap_or_else(|e| {
                 crate::posthog::emit_error(
@@ -559,14 +593,16 @@ impl Agent {
 
         let extensions_state = EnabledExtensionsState::new(extension_configs);
 
-        let mut session_data = SessionManager::get_session(&session.id, false).await?;
+        let session_manager = self.config.session_manager.clone();
+        let mut session_data = session_manager.get_session(&session.id, false).await?;
 
         if let Err(e) = extensions_state.to_extension_data(&mut session_data.extension_data) {
             warn!("Failed to serialize extension state: {}", e);
             return Err(anyhow!("Extension state serialization failed: {}", e));
         }
 
-        SessionManager::update_session(&session.id)
+        session_manager
+            .update(&session.id)
             .extension_data(session_data.extension_data)
             .apply()
             .await?;
@@ -579,14 +615,16 @@ impl Agent {
         let extension_configs = self.extension_manager.get_extension_configs().await;
         let extensions_state = EnabledExtensionsState::new(extension_configs);
 
-        let session = SessionManager::get_session(session_id, false).await?;
+        let session_manager = self.config.session_manager.clone();
+        let session = session_manager.get_session(session_id, false).await?;
         let mut extension_data = session.extension_data.clone();
 
         extensions_state
             .to_extension_data(&mut extension_data)
             .map_err(|e| anyhow!("Failed to serialize extension state: {}", e))?;
 
-        SessionManager::update_session(session_id)
+        session_manager
+            .update(session_id)
             .extension_data(extension_data)
             .apply()
             .await?;
@@ -696,10 +734,8 @@ impl Agent {
         Ok(())
     }
 
-    pub async fn subagents_enabled(&self) -> bool {
-        let config = crate::config::Config::global();
-        let is_autonomous = config.get_goose_mode().unwrap_or(GooseMode::Auto) == GooseMode::Auto;
-        if !is_autonomous {
+    pub async fn subagents_enabled(&self, session_id: &str) -> bool {
+        if self.config.goose_mode != GooseMode::Auto {
             return false;
         }
         if self
@@ -710,16 +746,17 @@ impl Agent {
         {
             return false;
         }
-        if let Some(ref session_id) = self.extension_manager.get_context().await.session_id {
-            if matches!(
-                SessionManager::get_session(session_id, false)
-                    .await
-                    .ok()
-                    .map(|session| session.session_type),
-                Some(SessionType::SubAgent)
-            ) {
-                return false;
-            }
+        let context = self.extension_manager.get_context();
+        if matches!(
+            context
+                .session_manager
+                .get_session(session_id, false)
+                .await
+                .ok()
+                .map(|session| session.session_type),
+            Some(SessionType::SubAgent)
+        ) {
+            return false;
         }
         !self
             .extension_manager
@@ -729,16 +766,16 @@ impl Agent {
             .unwrap_or(true)
     }
 
-    pub async fn list_tools(&self, extension_name: Option<String>) -> Vec<Tool> {
+    pub async fn list_tools(&self, session_id: &str, extension_name: Option<String>) -> Vec<Tool> {
         let mut prefixed_tools = self
             .extension_manager
             .get_prefixed_tools(extension_name.clone())
             .await
             .unwrap_or_default();
 
-        let subagents_enabled = self.subagents_enabled().await;
+        let subagents_enabled = self.subagents_enabled(session_id).await;
         if (extension_name.is_none() || extension_name.as_deref() == Some("platform"))
-            && self.scheduler_service.lock().await.is_some()
+            && self.config.scheduler_service.is_some()
         {
             prefixed_tools.push(platform_tools::manage_schedule_tool());
         }
@@ -792,6 +829,8 @@ impl Agent {
         session_config: SessionConfig,
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
+        let session_manager = self.config.session_manager.clone();
+
         for content in &user_message.content {
             if let MessageContent::ActionRequired(action_required) = content {
                 if let ActionRequiredData::ElicitationResponse { id, user_data } =
@@ -809,7 +848,9 @@ impl Agent {
                             ))
                         })));
                     }
-                    SessionManager::add_message(&session_config.id, &user_message).await?;
+                    session_manager
+                        .add_message(&session_config.id, &user_message)
+                        .await?;
                     return Ok(Box::pin(futures::stream::empty()));
                 }
             }
@@ -841,16 +882,18 @@ impl Agent {
                 })));
             }
             Ok(Some(response)) if response.role == rmcp::model::Role::Assistant => {
-                SessionManager::add_message(
-                    &session_config.id,
-                    &user_message.clone().with_visibility(true, false),
-                )
-                .await?;
-                SessionManager::add_message(
-                    &session_config.id,
-                    &response.clone().with_visibility(true, false),
-                )
-                .await?;
+                session_manager
+                    .add_message(
+                        &session_config.id,
+                        &user_message.clone().with_visibility(true, false),
+                    )
+                    .await?;
+                session_manager
+                    .add_message(
+                        &session_config.id,
+                        &response.clone().with_visibility(true, false),
+                    )
+                    .await?;
 
                 // Check if this was a command that modifies conversation history
                 let modifies_history = crate::agents::execute_commands::COMPACT_TRIGGERS
@@ -863,7 +906,7 @@ impl Agent {
 
                     // After commands that modify history, notify UI that history was replaced
                     if modifies_history {
-                        let updated_session = SessionManager::get_session(&session_config.id, true)
+                        let updated_session = session_manager.get_session(&session_config.id, true)
                             .await
                             .map_err(|e| anyhow!("Failed to fetch updated session: {}", e))?;
                         let updated_conversation = updated_session
@@ -874,22 +917,28 @@ impl Agent {
                 }));
             }
             Ok(Some(resolved_message)) => {
-                SessionManager::add_message(
-                    &session_config.id,
-                    &user_message.clone().with_visibility(true, false),
-                )
-                .await?;
-                SessionManager::add_message(
-                    &session_config.id,
-                    &resolved_message.clone().with_visibility(false, true),
-                )
-                .await?;
+                session_manager
+                    .add_message(
+                        &session_config.id,
+                        &user_message.clone().with_visibility(true, false),
+                    )
+                    .await?;
+                session_manager
+                    .add_message(
+                        &session_config.id,
+                        &resolved_message.clone().with_visibility(false, true),
+                    )
+                    .await?;
             }
             Ok(None) => {
-                SessionManager::add_message(&session_config.id, &user_message).await?;
+                session_manager
+                    .add_message(&session_config.id, &user_message)
+                    .await?;
             }
         }
-        let session = SessionManager::get_session(&session_config.id, true).await?;
+        let session = session_manager
+            .get_session(&session_config.id, true)
+            .await?;
         let conversation = session
             .conversation
             .clone()
@@ -936,8 +985,8 @@ impl Agent {
 
                 match compact_messages(self.provider().await?.as_ref(), &conversation_to_compact, false).await {
                     Ok((compacted_conversation, summarization_usage)) => {
-                        SessionManager::replace_conversation(&session_config.id, &compacted_conversation).await?;
-                        Self::update_session_metrics(&session_config, &summarization_usage, true).await?;
+                        session_manager.replace_conversation(&session_config.id, &compacted_conversation).await?;
+                        self.update_session_metrics(&session_config, &summarization_usage, true).await?;
 
                         yield AgentEvent::HistoryReplaced(compacted_conversation.clone());
 
@@ -976,7 +1025,7 @@ impl Agent {
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         let context = self
-            .prepare_reply_context(conversation, &session.working_dir)
+            .prepare_reply_context(&session_config.id, conversation, &session.working_dir)
             .await?;
         let ReplyContext {
             mut conversation,
@@ -990,14 +1039,19 @@ impl Agent {
         self.reset_retry_attempts().await;
 
         let provider = self.provider().await?;
+        let session_manager = self.config.session_manager.clone();
         let session_id = session_config.id.clone();
-        let working_dir = session.working_dir.clone();
+        let manager_for_spawn = session_manager.clone();
         tokio::spawn(async move {
-            if let Err(e) = SessionManager::maybe_update_name(&session_id, provider).await {
+            if let Err(e) = manager_for_spawn
+                .maybe_update_name(&session_id, provider)
+                .await
+            {
                 warn!("Failed to generate session description: {}", e);
             }
         });
 
+        let working_dir = session.working_dir.clone();
         Ok(Box::pin(async_stream::try_stream! {
             let _ = reply_span.enter();
             let mut turns_taken = 0u32;
@@ -1030,6 +1084,7 @@ impl Agent {
                 }
 
                 let conversation_with_moim = super::moim::inject_moim(
+                    &session_config.id,
                     conversation.clone(),
                     &self.extension_manager,
                     &working_dir,
@@ -1079,7 +1134,7 @@ impl Agent {
                             }
 
                             if let Some(ref usage) = usage {
-                                Self::update_session_metrics(&session_config, usage, false).await?;
+                                self.update_session_metrics(&session_config, usage, false).await?;
                             }
 
                             if let Some(response) = response {
@@ -1144,6 +1199,7 @@ impl Agent {
                                         .inspect_tools(
                                             &remaining_requests,
                                             conversation.messages(),
+                                            goose_mode,
                                         )
                                         .await?;
 
@@ -1214,7 +1270,7 @@ impl Agent {
                                             break;
                                         }
 
-                                        for msg in Self::drain_elicitation_messages(&session_config.id).await {
+                                        for msg in self.drain_elicitation_messages(&session_config.id).await {
                                             yield AgentEvent::Message(msg);
                                         }
 
@@ -1240,7 +1296,7 @@ impl Agent {
                                     }
 
                                     // check for remaining elicitation messages after all tools complete
-                                    for msg in Self::drain_elicitation_messages(&session_config.id).await {
+                                    for msg in self.drain_elicitation_messages(&session_config.id).await {
                                         yield AgentEvent::Message(msg);
                                     }
 
@@ -1318,8 +1374,8 @@ impl Agent {
 
                             match compact_messages(self.provider().await?.as_ref(), &conversation, false).await {
                                 Ok((compacted_conversation, usage)) => {
-                                    SessionManager::replace_conversation(&session_config.id, &compacted_conversation).await?;
-                                    Self::update_session_metrics(&session_config, &usage, true).await?;
+                                    session_manager.replace_conversation(&session_config.id, &compacted_conversation).await?;
+                                    self.update_session_metrics(&session_config, &usage, true).await?;
                                     conversation = compacted_conversation;
                                     did_recovery_compact_this_iteration = true;
                                     yield AgentEvent::HistoryReplaced(conversation.clone());
@@ -1346,7 +1402,7 @@ impl Agent {
                 }
                 if tools_updated {
                     (tools, toolshim_tools, system_prompt) =
-                        self.prepare_tools_and_prompt(&working_dir).await?;
+                        self.prepare_tools_and_prompt(&session_config.id, &session.working_dir).await?;
                 }
                 let mut exit_chat = false;
                 if no_tools_called {
@@ -1387,7 +1443,7 @@ impl Agent {
                 }
 
                 for msg in &messages_to_add {
-                    SessionManager::add_message(&session_config.id, msg).await?;
+                    session_manager.add_message(&session_config.id, msg).await?;
                 }
                 conversation.extend(messages_to_add);
                 if exit_chat {
@@ -1409,12 +1465,18 @@ impl Agent {
         provider: Arc<dyn Provider>,
         session_id: &str,
     ) -> Result<()> {
-        let mut current_provider = self.provider.lock().await;
-        *current_provider = Some(provider.clone());
+        let provider_name = provider.get_name().to_string();
+        let model_config = provider.get_model_config();
 
-        SessionManager::update_session(session_id)
-            .provider_name(provider.get_name())
-            .model_config(provider.get_model_config())
+        let mut current_provider = self.provider.lock().await;
+        *current_provider = Some(provider);
+
+        self.config
+            .session_manager
+            .clone()
+            .update(session_id)
+            .provider_name(&provider_name)
+            .model_config(model_config)
             .apply()
             .await
             .context("Failed to persist provider config to session")
@@ -1741,7 +1803,7 @@ mod tests {
 
         agent.add_final_output_tool(response).await;
 
-        let tools = agent.list_tools(None).await;
+        let tools = agent.list_tools("test-session-id", None).await;
         let final_output_tool = tools
             .iter()
             .find(|tool| tool.name == FINAL_OUTPUT_TOOL_NAME);
