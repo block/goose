@@ -94,6 +94,7 @@ impl McpClientTrait for MockClient {
         &self,
         name: &str,
         arguments: Option<serde_json::Map<String, Value>>,
+        _session_id: &str,
         _cancel_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         if let Some(handler) = self.handlers.get(name) {

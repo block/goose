@@ -557,7 +557,7 @@ pub async fn init_config() -> Result<Json<String>, StatusCode> {
 pub async fn upsert_permissions(
     Json(query): Json<UpsertPermissionsQuery>,
 ) -> Result<Json<String>, StatusCode> {
-    let mut permission_manager = goose::config::PermissionManager::default();
+    let permission_manager = goose::config::PermissionManager::instance();
 
     for tool_permission in &query.tool_permissions {
         permission_manager.update_user_permission(

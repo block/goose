@@ -1007,7 +1007,6 @@ mod tests {
     }
 
     #[test]
-    #[serial]
     fn test_multiple_secrets() -> Result<(), ConfigError> {
         let config = new_test_config();
 

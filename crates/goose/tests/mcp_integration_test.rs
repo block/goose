@@ -1,4 +1,4 @@
-mod common;
+use serde::Deserialize;
 
 use std::collections::HashMap;
 use std::fs::File;
@@ -20,6 +20,21 @@ use async_trait::async_trait;
 use goose::conversation::message::Message;
 use goose::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
 use goose::providers::errors::ProviderError;
+use once_cell::sync::Lazy;
+use std::process::Command;
+
+#[derive(Deserialize)]
+struct CargoBuildMessage {
+    reason: String,
+    target: Target,
+    executable: String,
+}
+
+#[derive(Deserialize)]
+struct Target {
+    name: String,
+    kind: Vec<String>,
+}
 
 #[derive(Clone)]
 pub struct MockProvider {
@@ -59,6 +74,44 @@ impl Provider for MockProvider {
         self.model_config.clone()
     }
 }
+
+fn build_and_get_binary_path() -> PathBuf {
+    let output = Command::new("cargo")
+        .args([
+            "build",
+            "--frozen",
+            "-p",
+            "goose-test",
+            "--bin",
+            "capture",
+            "--message-format=json",
+        ])
+        .output()
+        .expect("failed to build binary");
+
+    if !output.status.success() {
+        panic!("build failed: {}", String::from_utf8_lossy(&output.stderr));
+    }
+
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(serde_json::from_str::<CargoBuildMessage>)
+        .filter_map(Result::ok)
+        .filter(|message| message.reason == "compiler-artifact")
+        .filter_map(|message| {
+            if message.target.name == "capture"
+                && message.target.kind.contains(&String::from("bin"))
+            {
+                Some(PathBuf::from(message.executable))
+            } else {
+                None
+            }
+        })
+        .next()
+        .expect("failed to parse binary path")
+}
+
+static REPLAY_BINARY_PATH: Lazy<PathBuf> = Lazy::new(build_and_get_binary_path);
 
 enum TestMode {
     Record,
@@ -161,7 +214,7 @@ async fn test_replayed_session(
         TestMode::Record => "record",
         TestMode::Playback => "playback",
     };
-    let cmd = common::CAPTURE_BINARY.to_string_lossy().to_string();
+    let cmd = REPLAY_BINARY_PATH.to_string_lossy().to_string();
     let mut args = vec!["stdio", mode_arg]
         .into_iter()
         .map(str::to_string)
@@ -203,7 +256,11 @@ async fn test_replayed_session(
     let provider = Arc::new(tokio::sync::Mutex::new(Some(Arc::new(MockProvider {
         model_config: ModelConfig::new("test-model").unwrap(),
     }) as Arc<dyn Provider>)));
-    let extension_manager = ExtensionManager::new(provider);
+    let temp_dir = tempfile::tempdir().unwrap();
+    let session_manager = Arc::new(goose::session::SessionManager::new(
+        temp_dir.path().to_path_buf(),
+    ));
+    let extension_manager = Arc::new(ExtensionManager::new(provider, session_manager));
 
     #[allow(clippy::redundant_closure_call)]
     let result = (async || -> Result<(), Box<dyn std::error::Error>> {
@@ -215,7 +272,7 @@ async fn test_replayed_session(
                 arguments: tool_call.arguments,
             };
             let result = extension_manager
-                .dispatch_tool_call(tool_call, CancellationToken::default())
+                .dispatch_tool_call("test-session-id", tool_call, CancellationToken::default())
                 .await;
 
             let tool_result = result?;

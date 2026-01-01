@@ -6,14 +6,18 @@ use crate::scenario_tests::mock_client::weather_client;
 use crate::scenario_tests::provider_configs::{get_provider_configs, ProviderConfig};
 use crate::session::CliSession;
 use anyhow::Result;
-use goose::agents::Agent;
+use goose::agents::{Agent, AgentConfig};
+use goose::config::permission::PermissionManager;
+use goose::config::GooseMode;
 use goose::model::ModelConfig;
 use goose::providers::{create, testprovider::TestProvider};
+use goose::scheduler_trait::unavailable_scheduler;
 use goose::session::session_manager::SessionType;
 use goose::session::SessionManager;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use tempfile::TempDir;
 use tokio_util::sync::CancellationToken;
 
 pub const SCENARIO_TESTS_DIR: &str = "src/scenario_tests";
@@ -198,7 +202,16 @@ where
 
     let mock_client = weather_client();
 
-    let agent = Agent::new();
+    let temp_dir = TempDir::new()?;
+    let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+    let permission_manager = Arc::new(PermissionManager::new(temp_dir.path().to_path_buf()));
+    let agent_config = AgentConfig::new(
+        session_manager,
+        permission_manager,
+        GooseMode::Auto,
+        unavailable_scheduler(),
+    );
+    let agent = Agent::with_config(agent_config);
     agent
         .extension_manager
         .add_client(
@@ -217,12 +230,14 @@ where
         )
         .await;
 
-    let session = SessionManager::create_session(
-        PathBuf::default(),
-        "scenario-runner".to_string(),
-        SessionType::Hidden,
-    )
-    .await?;
+    let session = agent
+        .session_manager()
+        .create_session(
+            PathBuf::default(),
+            "scenario-runner".to_string(),
+            SessionType::Hidden,
+        )
+        .await?;
 
     agent
         .update_provider(
