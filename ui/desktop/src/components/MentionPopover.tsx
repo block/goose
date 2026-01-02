@@ -170,7 +170,6 @@ const MentionPopover = forwardRef<
             '.Trash',
           ];
 
-          // directories should be included in search
           const allowedHiddenDirs = [
             '.github',
             '.vscode',
