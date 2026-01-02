@@ -10,6 +10,7 @@ declare module '3d-force-graph' {
     source: string | GraphNode;
     target: string | GraphNode;
     value?: number;
+    linkType?: string;
     [key: string]: unknown;
   }
 

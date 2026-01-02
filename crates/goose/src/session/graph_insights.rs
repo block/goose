@@ -2,11 +2,12 @@
 //!
 //! Detects git repositories and normalizes directories to projects,
 //! then clusters sessions around their projects for visualization.
+//! Adds cross-project links for temporal proximity and similar sessions.
 
 use anyhow::Result;
 use serde::Serialize;
 use sqlx::{Pool, Sqlite};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::process::Command;
 use utoipa::ToSchema;
@@ -33,6 +34,7 @@ pub struct NodeMetadata {
     pub last_activity: Option<String>,
     pub directories: Option<Vec<String>>,
     pub project_type: Option<String>,
+    pub session_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -41,6 +43,8 @@ pub struct GraphLink {
     pub source: String,
     pub target: String,
     pub value: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub link_type: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -111,6 +115,7 @@ struct ProjectInfo {
     token_count: i64,
     first_activity: Option<String>,
     last_activity: Option<String>,
+    active_dates: HashSet<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -124,7 +129,6 @@ fn get_git_project_name(dir: &str) -> Option<String> {
         return None;
     }
 
-    // Check if it's a git repo
     let git_dir_check = Command::new("git")
         .args(["-C", dir, "rev-parse", "--git-dir"])
         .output()
@@ -134,7 +138,6 @@ fn get_git_project_name(dir: &str) -> Option<String> {
         return None;
     }
 
-    // Try to get remote origin URL (most reliable for identifying the project)
     let remote_output = Command::new("git")
         .args(["-C", dir, "config", "--get", "remote.origin.url"])
         .output()
@@ -147,7 +150,6 @@ fn get_git_project_name(dir: &str) -> Option<String> {
         return Some(extract_repo_name_from_url(&url));
     }
 
-    // Fallback: get the repo root directory name
     let root_output = Command::new("git")
         .args(["-C", dir, "rev-parse", "--show-toplevel"])
         .output()
@@ -164,37 +166,25 @@ fn get_git_project_name(dir: &str) -> Option<String> {
 }
 
 fn extract_repo_name_from_url(url: &str) -> String {
-    // Handle various URL formats:
-    // git@github.com:user/repo.git
-    // https://github.com/user/repo.git
-    // git@github.com:user/repo
-    // https://github.com/user/repo
-
     let url = url.trim_end_matches(".git");
 
-    // SSH format: git@host:user/repo
     if let Some(path) = url.strip_prefix("git@") {
         if let Some((_host, path)) = path.split_once(':') {
             return path.to_string();
         }
     }
 
-    // HTTPS format: https://host/user/repo
     if url.starts_with("https://") || url.starts_with("http://") {
         let parts: Vec<&str> = url.split('/').collect();
         if parts.len() >= 2 {
-            // Return user/repo
             return parts[parts.len() - 2..].join("/");
         }
     }
 
-    // Fallback: just use the last component
     url.split('/').last().unwrap_or(url).to_string()
 }
 
 fn get_directory_project_name(dir: &str) -> String {
-    // For non-git directories, use the last path component
-    // But handle special cases like /tmp
     let path = Path::new(dir);
 
     if dir == "/tmp" || dir == "/var/tmp" {
@@ -210,23 +200,50 @@ fn get_directory_project_name(dir: &str) -> String {
 fn get_project_color(project_type: &ProjectType, index: usize) -> String {
     match project_type {
         ProjectType::GitRepo => {
-            // Blue/purple palette for git repos
             let colors = [
                 "#6366F1", "#8B5CF6", "#A855F7", "#3B82F6", "#0EA5E9", "#06B6D4",
             ];
             colors[index % colors.len()].to_string()
         }
         ProjectType::Directory => {
-            // Green/teal palette for plain directories
             let colors = ["#10B981", "#14B8A6", "#22C55E", "#84CC16"];
             colors[index % colors.len()].to_string()
         }
     }
 }
 
+/// Extract keywords from session name for similarity matching
+fn extract_keywords(name: &str) -> HashSet<String> {
+    let stopwords: HashSet<&str> = [
+        "session", "new", "the", "a", "an", "and", "or", "for", "to", "in", "on", "at", "of",
+        "goose", "term", "cli", "1", "2", "3", "4", "5",
+    ]
+    .into_iter()
+    .collect();
+
+    name.to_lowercase()
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|w| w.len() > 2 && !stopwords.contains(w))
+        .map(|s| s.to_string())
+        .collect()
+}
+
+/// Check if two session names are similar (share meaningful keywords)
+fn sessions_are_similar(name1: &str, name2: &str) -> bool {
+    let kw1 = extract_keywords(name1);
+    let kw2 = extract_keywords(name2);
+
+    if kw1.is_empty() || kw2.is_empty() {
+        return false;
+    }
+
+    let intersection: HashSet<_> = kw1.intersection(&kw2).collect();
+    !intersection.is_empty()
+}
+
 /// Query and build project-centric graph insights
 pub async fn build_graph_insights(pool: &Pool<Sqlite>) -> Result<GraphInsights> {
-    // Get all directories with their stats
+    // Get all directories with their stats and active dates
     let directory_rows = sqlx::query_as::<_, (String, i64, i64, Option<i64>, String, String)>(
         r#"SELECT s.working_dir, COUNT(DISTINCT s.id), COUNT(m.id), SUM(s.total_tokens),
            MIN(date(s.created_at)), MAX(date(s.updated_at))
@@ -236,7 +253,21 @@ pub async fn build_graph_insights(pool: &Pool<Sqlite>) -> Result<GraphInsights> 
     .fetch_all(pool)
     .await?;
 
-    // Build project map: normalize directories to projects
+    // Get active dates per directory (for temporal links)
+    let date_rows = sqlx::query_as::<_, (String, String)>(
+        r#"SELECT working_dir, date(created_at) FROM sessions
+           WHERE created_at >= date('now', '-30 days')
+           GROUP BY working_dir, date(created_at)"#,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    let mut dir_dates: HashMap<String, HashSet<String>> = HashMap::new();
+    for (dir, date) in date_rows {
+        dir_dates.entry(dir).or_default().insert(date);
+    }
+
+    // Build project map
     let mut project_map: HashMap<String, ProjectInfo> = HashMap::new();
 
     for row in &directory_rows {
@@ -246,15 +277,14 @@ pub async fn build_graph_insights(pool: &Pool<Sqlite>) -> Result<GraphInsights> 
         let token_count = row.3.unwrap_or(0);
         let first_activity = row.4.clone();
         let last_activity = row.5.clone();
+        let dates = dir_dates.get(dir).cloned().unwrap_or_default();
 
-        // Determine project name and type
         let (project_name, project_type) = if let Some(git_name) = get_git_project_name(dir) {
             (git_name, ProjectType::GitRepo)
         } else {
             (get_directory_project_name(dir), ProjectType::Directory)
         };
 
-        // Merge into existing project or create new
         project_map
             .entry(project_name.clone())
             .and_modify(|p| {
@@ -262,7 +292,7 @@ pub async fn build_graph_insights(pool: &Pool<Sqlite>) -> Result<GraphInsights> 
                 p.session_count += session_count;
                 p.message_count += message_count;
                 p.token_count += token_count;
-                // Update date range
+                p.active_dates.extend(dates.clone());
                 if let Some(ref existing) = p.first_activity {
                     if first_activity < *existing {
                         p.first_activity = Some(first_activity.clone());
@@ -283,17 +313,14 @@ pub async fn build_graph_insights(pool: &Pool<Sqlite>) -> Result<GraphInsights> 
                 token_count,
                 first_activity: Some(first_activity),
                 last_activity: Some(last_activity),
+                active_dates: dates,
             });
     }
 
-    // Sort projects by message count
     let mut projects: Vec<ProjectInfo> = project_map.into_values().collect();
     projects.sort_by(|a, b| b.message_count.cmp(&a.message_count));
-
-    // Limit to top 30 projects for visualization clarity
     let projects: Vec<ProjectInfo> = projects.into_iter().take(30).collect();
 
-    // Build nodes and links
     let mut nodes = Vec::new();
     let mut links = Vec::new();
 
@@ -318,13 +345,35 @@ pub async fn build_graph_insights(pool: &Pool<Sqlite>) -> Result<GraphInsights> 
                 last_activity: project.last_activity.clone(),
                 directories: Some(project.directories.clone()),
                 project_type: Some(project_type_str.to_string()),
+                session_name: None,
             }),
         });
     }
 
-    // Get recent sessions for visualization (last 100 sessions)
-    let session_rows = sqlx::query_as::<_, (String, String, i64, String)>(
-        r#"SELECT s.id, s.working_dir, COUNT(m.id), date(s.created_at)
+    // Add temporal links between projects (worked on same day)
+    let mut temporal_links_added: HashSet<(usize, usize)> = HashSet::new();
+    for (i, proj_a) in projects.iter().enumerate() {
+        for (j, proj_b) in projects.iter().enumerate().skip(i + 1) {
+            let shared_dates: HashSet<_> = proj_a
+                .active_dates
+                .intersection(&proj_b.active_dates)
+                .collect();
+            if !shared_dates.is_empty() && !temporal_links_added.contains(&(i, j)) {
+                links.push(GraphLink {
+                    source: format!("project_{}", i),
+                    target: format!("project_{}", j),
+                    value: (shared_dates.len() as f64).sqrt() * 0.5,
+                    link_type: Some("temporal".to_string()),
+                });
+                temporal_links_added.insert((i, j));
+            }
+        }
+    }
+
+    // Get recent sessions with names for visualization
+    let session_rows = sqlx::query_as::<_, (String, String, String, i64, String)>(
+        r#"SELECT s.id, s.working_dir, COALESCE(NULLIF(s.name, ''), s.description, ''),
+           COUNT(m.id), date(s.created_at)
            FROM sessions s LEFT JOIN messages m ON s.id = m.session_id
            WHERE s.created_at >= date('now', '-30 days')
            GROUP BY s.id
@@ -334,25 +383,40 @@ pub async fn build_graph_insights(pool: &Pool<Sqlite>) -> Result<GraphInsights> 
     .fetch_all(pool)
     .await?;
 
+    // Track session info for cross-project similarity links
+    struct SessionInfo {
+        node_id: String,
+        name: String,
+        project_idx: usize,
+    }
+    let mut session_infos: Vec<SessionInfo> = Vec::new();
+
     // Create session nodes and link to projects
     for (sess_idx, sess_row) in session_rows.iter().enumerate() {
         let session_id = &sess_row.0;
         let working_dir = &sess_row.1;
-        let msg_count = sess_row.2;
-        let created_date = &sess_row.3;
+        let session_name = &sess_row.2;
+        let msg_count = sess_row.3;
+        let created_date = &sess_row.4;
 
-        // Find the project for this session
-        let project_idx = projects.iter().position(|p| p.directories.contains(working_dir));
+        let project_idx = projects
+            .iter()
+            .position(|p| p.directories.contains(working_dir));
 
         if let Some(proj_idx) = project_idx {
-            // Create session node
             let node_id = format!("session_{}", sess_idx);
+            let display_name = if session_name.is_empty() {
+                format!("Session {}", &session_id[..8.min(session_id.len())])
+            } else {
+                session_name.chars().take(30).collect()
+            };
+
             nodes.push(GraphNode {
                 id: node_id.clone(),
-                name: format!("Session {}", &session_id[..8.min(session_id.len())]),
+                name: display_name.clone(),
                 node_type: "session".to_string(),
                 val: (msg_count as f64).sqrt().max(1.0),
-                color: Some("#9CA3AF".to_string()), // Gray for sessions
+                color: Some("#9CA3AF".to_string()),
                 metadata: Some(NodeMetadata {
                     session_count: None,
                     message_count: Some(msg_count),
@@ -361,15 +425,53 @@ pub async fn build_graph_insights(pool: &Pool<Sqlite>) -> Result<GraphInsights> 
                     last_activity: None,
                     directories: None,
                     project_type: None,
+                    session_name: Some(session_name.clone()),
                 }),
             });
 
             // Link session to project
             links.push(GraphLink {
-                source: node_id,
+                source: node_id.clone(),
                 target: format!("project_{}", proj_idx),
                 value: 1.0,
+                link_type: None,
             });
+
+            // Track for similarity matching
+            if !session_name.is_empty() {
+                session_infos.push(SessionInfo {
+                    node_id,
+                    name: session_name.clone(),
+                    project_idx: proj_idx,
+                });
+            }
+        }
+    }
+
+    // Add cross-project links for similar sessions
+    let mut similarity_links_added: HashSet<(String, String)> = HashSet::new();
+    for (i, sess_a) in session_infos.iter().enumerate() {
+        for sess_b in session_infos.iter().skip(i + 1) {
+            // Only link sessions from DIFFERENT projects
+            if sess_a.project_idx != sess_b.project_idx
+                && sessions_are_similar(&sess_a.name, &sess_b.name)
+            {
+                let key = if sess_a.node_id < sess_b.node_id {
+                    (sess_a.node_id.clone(), sess_b.node_id.clone())
+                } else {
+                    (sess_b.node_id.clone(), sess_a.node_id.clone())
+                };
+
+                if !similarity_links_added.contains(&key) {
+                    links.push(GraphLink {
+                        source: sess_a.node_id.clone(),
+                        target: sess_b.node_id.clone(),
+                        value: 0.3,
+                        link_type: Some("similar".to_string()),
+                    });
+                    similarity_links_added.insert(key);
+                }
+            }
         }
     }
 
@@ -393,7 +495,6 @@ pub async fn build_graph_insights(pool: &Pool<Sqlite>) -> Result<GraphInsights> 
         date_range_end: summary_row.5,
     };
 
-    // Directory stats (for backward compat)
     let directories: Vec<DirectoryStats> = directory_rows
         .iter()
         .take(50)
@@ -407,7 +508,6 @@ pub async fn build_graph_insights(pool: &Pool<Sqlite>) -> Result<GraphInsights> 
         })
         .collect();
 
-    // Provider statistics
     let provider_rows = sqlx::query_as::<_, (String, i64)>(
         r#"SELECT COALESCE(provider_name, 'unknown'), COUNT(*) FROM sessions
            GROUP BY provider_name ORDER BY COUNT(*) DESC"#,
@@ -423,7 +523,6 @@ pub async fn build_graph_insights(pool: &Pool<Sqlite>) -> Result<GraphInsights> 
         })
         .collect();
 
-    // Session type statistics
     let session_type_rows = sqlx::query_as::<_, (String, i64, Option<i64>)>(
         r#"SELECT session_type, COUNT(*), SUM(total_tokens) FROM sessions
            GROUP BY session_type ORDER BY COUNT(*) DESC"#,
@@ -440,7 +539,6 @@ pub async fn build_graph_insights(pool: &Pool<Sqlite>) -> Result<GraphInsights> 
         })
         .collect();
 
-    // Daily activity
     let daily_rows = sqlx::query_as::<_, (String, i64, i64)>(
         r#"SELECT date(s.updated_at), COUNT(DISTINCT s.id), COUNT(m.id)
            FROM sessions s LEFT JOIN messages m ON s.id = m.session_id

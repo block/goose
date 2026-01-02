@@ -384,6 +384,7 @@ export type GraphInsights = {
 };
 
 export type GraphLink = {
+    linkType?: string | null;
     source: string;
     target: string;
     value: number;
@@ -613,6 +614,7 @@ export type NodeMetadata = {
     messageCount?: number | null;
     projectType?: string | null;
     sessionCount?: number | null;
+    sessionName?: string | null;
     tokenCount?: number | null;
 };
 

@@ -3,7 +3,7 @@ import ForceGraph3D, {
   GraphNode as ForceGraphNode,
   GraphLink as ForceGraphLink,
 } from '3d-force-graph';
-import { ArrowLeft, GitBranch, Folder } from 'lucide-react';
+import { ArrowLeft, GitBranch, Folder, Clock, Link2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { getGraphInsights } from '../../api';
 import type { GraphInsights, GraphNode as ApiGraphNode } from '../../api/types.gen';
@@ -22,6 +22,13 @@ interface ForceNode extends ForceGraphNode {
 interface GraphInsightsViewProps {
   onBack?: () => void;
 }
+
+// Link colors by type
+const LINK_COLORS = {
+  temporal: 'rgba(251, 191, 36, 0.4)', // Amber for temporal (same day)
+  similar: 'rgba(236, 72, 153, 0.5)', // Pink for similar sessions
+  default: 'rgba(255, 255, 255, 0.15)', // White for session→project
+};
 
 export default function GraphInsightsView({ onBack }: GraphInsightsViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -83,6 +90,7 @@ export default function GraphInsightsView({ onBack }: GraphInsightsViewProps) {
         source: l.source,
         target: l.target,
         value: l.value,
+        linkType: l.linkType ?? undefined,
       })),
     };
 
@@ -110,9 +118,19 @@ export default function GraphInsightsView({ onBack }: GraphInsightsViewProps) {
       })
       .nodeColor((node) => (node as ForceNode).color || '#888888')
       .nodeOpacity(0.9)
-      .linkWidth((link: ForceGraphLink) => Math.sqrt(link.value || 1) * 0.5)
-      .linkColor(() => 'rgba(255, 255, 255, 0.15)')
-      .linkOpacity(0.4)
+      .linkWidth((link: ForceGraphLink) => {
+        const lt = link.linkType;
+        if (lt === 'temporal') return 1.5;
+        if (lt === 'similar') return 1.0;
+        return Math.sqrt(link.value || 1) * 0.5;
+      })
+      .linkColor((link: ForceGraphLink) => {
+        const lt = link.linkType;
+        if (lt === 'temporal') return LINK_COLORS.temporal;
+        if (lt === 'similar') return LINK_COLORS.similar;
+        return LINK_COLORS.default;
+      })
+      .linkOpacity(0.6)
       .backgroundColor('#0a0a0a')
       .width(containerRef.current.clientWidth)
       .height(containerRef.current.clientHeight)
@@ -147,6 +165,14 @@ export default function GraphInsightsView({ onBack }: GraphInsightsViewProps) {
       }
     };
   }, [data, loading, handleResize]);
+
+  // Count link types for legend
+  const linkCounts = data
+    ? {
+        temporal: data.links.filter((l) => l.linkType === 'temporal').length,
+        similar: data.links.filter((l) => l.linkType === 'similar').length,
+      }
+    : { temporal: 0, similar: 0 };
 
   if (loading) {
     return (
@@ -214,6 +240,7 @@ export default function GraphInsightsView({ onBack }: GraphInsightsViewProps) {
       <div className="absolute bottom-4 left-4 bg-black/70 border border-white/20 rounded-lg p-4 text-white">
         <h4 className="text-sm font-semibold mb-2">Legend</h4>
         <div className="space-y-2 text-xs">
+          <div className="font-medium text-gray-400 mb-1">Nodes</div>
           <div className="flex items-center gap-2">
             <GitBranch className="w-3 h-3 text-[#6366F1]" />
             <div className="w-3 h-3 rounded-full bg-[#6366F1]" />
@@ -228,8 +255,20 @@ export default function GraphInsightsView({ onBack }: GraphInsightsViewProps) {
             <div className="w-3 h-3 rounded-full bg-[#9CA3AF]" />
             <span>Session</span>
           </div>
+
+          <div className="font-medium text-gray-400 mt-3 mb-1">Links</div>
+          <div className="flex items-center gap-2">
+            <Clock className="w-3 h-3 text-amber-400" />
+            <div className="w-6 h-0.5 bg-amber-400/60" />
+            <span>Same day ({linkCounts.temporal})</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link2 className="w-3 h-3 text-pink-400" />
+            <div className="w-6 h-0.5 bg-pink-400/60" />
+            <span>Similar sessions ({linkCounts.similar})</span>
+          </div>
         </div>
-        <p className="text-[10px] text-gray-500 mt-2">Sessions from the last 30 days</p>
+        <p className="text-[10px] text-gray-500 mt-3">Sessions from the last 30 days</p>
       </div>
 
       {hoveredNode && hoveredNode.nodeType === 'project' && (
@@ -281,6 +320,9 @@ export default function GraphInsightsView({ onBack }: GraphInsightsViewProps) {
           <h4 className="text-sm font-semibold mb-2">{hoveredNode.name}</h4>
           {hoveredNode.metadata && (
             <div className="space-y-1 text-xs">
+              {hoveredNode.metadata.sessionName && (
+                <p className="text-gray-400 italic">{hoveredNode.metadata.sessionName}</p>
+              )}
               {hoveredNode.metadata.messageCount != null && (
                 <p>Messages: {hoveredNode.metadata.messageCount}</p>
               )}

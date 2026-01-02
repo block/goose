@@ -3711,6 +3711,10 @@
           "value"
         ],
         "properties": {
+          "linkType": {
+            "type": "string",
+            "nullable": true
+          },
           "source": {
             "type": "string"
           },
@@ -4503,6 +4507,10 @@
           "sessionCount": {
             "type": "integer",
             "format": "int64",
+            "nullable": true
+          },
+          "sessionName": {
+            "type": "string",
             "nullable": true
           },
           "tokenCount": {
