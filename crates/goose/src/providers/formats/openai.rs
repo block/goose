@@ -37,6 +37,7 @@ struct Delta {
     content: Option<String>,
     role: Option<String>,
     tool_calls: Option<Vec<DeltaToolCall>>,
+    reasoning_content: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -65,6 +66,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
         let mut output = Vec::new();
         let mut content_array = Vec::new();
         let mut text_array = Vec::new();
+        let mut reasoning_text: Option<String> = None;
 
         for content in &message.content {
             match content {
@@ -92,6 +94,9 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                 }
                 MessageContent::SystemNotification(_) => {
                     continue;
+                }
+                MessageContent::Reasoning(r) => {
+                    reasoning_text = Some(r.text.clone());
                 }
                 MessageContent::ToolRequest(request) => match &request.tool_call {
                     Ok(tool_call) => {
@@ -246,6 +251,12 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
             converted["content"] = json!(text_array.join("\n"));
         }
 
+        if let Some(reasoning) = reasoning_text {
+            if !reasoning.is_empty() {
+                converted["reasoning_content"] = json!(reasoning);
+            }
+        }
+
         if converted.get("content").is_some() || converted.get("tool_calls").is_some() {
             output.insert(0, converted);
         }
@@ -293,6 +304,15 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
     };
 
     let mut content = Vec::new();
+
+    // Capture reasoning_content if present (for DeepSeek reasoning models)
+    if let Some(reasoning_content) = original.get("reasoning_content") {
+        if let Some(reasoning_str) = reasoning_content.as_str() {
+            if !reasoning_str.is_empty() {
+                content.push(MessageContent::reasoning(reasoning_str));
+            }
+        }
+    }
 
     if let Some(text) = original.get("content") {
         if let Some(text_str) = text.as_str() {
@@ -579,27 +599,42 @@ where
                     Some(msg),
                     usage,
                 )
-            } else if chunk.choices[0].delta.content.is_some() {
-                let text = chunk.choices[0].delta.content.as_ref().unwrap();
-                let mut msg = Message::new(
-                    Role::Assistant,
-                    chrono::Utc::now().timestamp(),
-                    vec![MessageContent::text(text)],
-                );
-
-                // Add ID if present
-                if let Some(id) = chunk.id {
-                    msg = msg.with_id(id);
+            } else if chunk.choices[0].delta.content.is_some() || chunk.choices[0].delta.reasoning_content.is_some() {
+                let mut content = Vec::new();
+                
+                if let Some(reasoning) = &chunk.choices[0].delta.reasoning_content {
+                    if !reasoning.is_empty() {
+                        content.push(MessageContent::reasoning(reasoning));
+                    }
                 }
+                
+                if let Some(text) = &chunk.choices[0].delta.content {
+                    if !text.is_empty() {
+                        content.push(MessageContent::text(text));
+                    }
+                }
+                
+                if !content.is_empty() {
+                    let mut msg = Message::new(
+                        Role::Assistant,
+                        chrono::Utc::now().timestamp(),
+                        content,
+                    );
 
-                yield (
-                    Some(msg),
-                    if chunk.choices[0].finish_reason.is_some() {
-                        usage
-                    } else {
-                        None
-                    },
-                )
+                    // Add ID if present
+                    if let Some(id) = chunk.id {
+                        msg = msg.with_id(id);
+                    }
+
+                    yield (
+                        Some(msg),
+                        if chunk.choices[0].finish_reason.is_some() {
+                            usage
+                        } else {
+                            None
+                        },
+                    )
+                }
             } else if usage.is_some() {
                 yield (None, usage)
             }
@@ -1426,5 +1461,78 @@ data: [DONE]
         }
 
         panic!("Expected tool call message with two calls, but did not see it");
+    }
+
+    #[test]
+    fn test_response_to_message_with_reasoning_content() -> anyhow::Result<()> {
+        // Test capturing reasoning_content from DeepSeek reasoning models
+        let response = json!({
+            "choices": [{
+                "role": "assistant",
+                "message": {
+                    "reasoning_content": "Let me think about this step by step...",
+                    "content": "The answer is 9.11 is greater than 9.8"
+                }
+            }],
+            "usage": {
+                "input_tokens": 10,
+                "output_tokens": 25,
+                "total_tokens": 35
+            }
+        });
+
+        let message = response_to_message(&response)?;
+        assert_eq!(message.content.len(), 2);
+        
+        // First should be reasoning content
+        if let MessageContent::Reasoning(reasoning) = &message.content[0] {
+            assert_eq!(reasoning.text, "Let me think about this step by step...");
+        } else {
+            panic!("Expected Reasoning content");
+        }
+        
+        // Second should be text content
+        if let MessageContent::Text(text) = &message.content[1] {
+            assert_eq!(text.text, "The answer is 9.11 is greater than 9.8");
+        } else {
+            panic!("Expected Text content");
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_with_reasoning_content() -> anyhow::Result<()> {
+        // Test that reasoning_content is properly included in formatted messages
+        let mut message = Message::assistant()
+            .with_content(MessageContent::reasoning("Thinking through the problem..."))
+            .with_text("The result is 42");
+        
+        // Add a tool call to test that reasoning_content works with tool calls
+        message = message.with_tool_request(
+            "tool1",
+            Ok(rmcp::model::CallToolRequestParam {
+                name: "test_tool".into(),
+                arguments: Some(rmcp::object!({"param": "value"})),
+            }),
+        );
+
+        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+
+        assert_eq!(spec.len(), 1);
+        assert_eq!(spec[0]["role"], "assistant");
+        
+        // Should have reasoning_content field
+        assert!(spec[0].get("reasoning_content").is_some());
+        assert_eq!(spec[0]["reasoning_content"], "Thinking through the problem...");
+        
+        // Should have content
+        assert_eq!(spec[0]["content"], "The result is 42");
+        
+        // Should have tool_calls
+        assert!(spec[0]["tool_calls"].is_array());
+        assert_eq!(spec[0]["tool_calls"][0]["function"]["name"], "test_tool");
+
+        Ok(())
     }
 }
