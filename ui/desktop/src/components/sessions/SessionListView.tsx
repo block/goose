@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo, startTransition } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   MessageSquareText,
   Target,
@@ -10,6 +11,7 @@ import {
   Download,
   Upload,
   ExternalLink,
+  Network,
 } from 'lucide-react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
@@ -180,6 +182,7 @@ interface SessionListViewProps {
 
 const SessionListView: React.FC<SessionListViewProps> = React.memo(
   ({ onSelectSession, selectedSessionId }) => {
+    const navigate = useNavigate();
     const [sessions, setSessions] = useState<Session[]>([]);
     const [filteredSessions, setFilteredSessions] = useState<Session[]>([]);
     const [dateGroups, setDateGroups] = useState<DateGroup[]>([]);
@@ -729,15 +732,26 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
               <div className="flex flex-col page-transition">
                 <div className="flex justify-between items-center mb-1">
                   <h1 className="text-4xl font-light">Chat history</h1>
-                  <Button
-                    onClick={handleImportClick}
-                    variant="outline"
-                    size="sm"
-                    className="flex items-center gap-2"
-                  >
-                    <Upload className="w-4 h-4" />
-                    Import Session
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={() => navigate('/sessions/graph')}
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center gap-2"
+                    >
+                      <Network className="w-4 h-4" />
+                      View Graph
+                    </Button>
+                    <Button
+                      onClick={handleImportClick}
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center gap-2"
+                    >
+                      <Upload className="w-4 h-4" />
+                      Import Session
+                    </Button>
+                  </div>
                 </div>
                 <p className="text-sm text-text-muted mb-4">
                   View and search your past conversations with Goose. ⌘F/Ctrl+F to search.

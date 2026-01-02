@@ -55,6 +55,7 @@
     "@radix-ui/themes": "^3.2.1",
     "@tanstack/react-form": "^1.27.0",
     "@types/react-router-dom": "^5.3.3",
+    "3d-force-graph": "^1.79.0",
     "ai": "^5.0.106",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

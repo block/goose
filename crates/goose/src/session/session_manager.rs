@@ -5,6 +5,7 @@ use crate::model::ModelConfig;
 use crate::providers::base::{Provider, MSG_COUNT_FOR_SESSION_NAME_GENERATION};
 use crate::recipe::Recipe;
 use crate::session::extension_data::ExtensionData;
+use crate::session::graph_insights::{build_graph_insights, GraphInsights};
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use rmcp::model::Role;
@@ -304,6 +305,10 @@ impl SessionManager {
 
     pub async fn get_insights() -> Result<SessionInsights> {
         Self::instance().await?.get_insights().await
+    }
+
+    pub async fn get_graph_insights() -> Result<GraphInsights> {
+        Self::instance().await?.get_graph_insights().await
     }
 
     pub async fn export_session(id: &str) -> Result<String> {
@@ -1207,6 +1212,10 @@ impl SessionStorage {
             total_sessions: row.0 as usize,
             total_tokens: row.1.unwrap_or(0),
         })
+    }
+
+    async fn get_graph_insights(&self) -> Result<GraphInsights> {
+        build_graph_insights(&self.pool).await
     }
 
     async fn export_session(&self, id: &str) -> Result<String> {

@@ -153,6 +153,12 @@ export type CspMetadata = {
     resourceDomains?: Array<string> | null;
 };
 
+export type DailyActivity = {
+    date: string;
+    messageCount: number;
+    sessionCount: number;
+};
+
 export type DeclarativeProviderConfig = {
     api_key_env: string;
     base_url: string;
@@ -187,6 +193,15 @@ export type DetectProviderRequest = {
 export type DetectProviderResponse = {
     models: Array<string>;
     provider_name: string;
+};
+
+export type DirectoryStats = {
+    directory: string;
+    firstActivity: string;
+    lastActivity: string;
+    messageCount: number;
+    sessionCount: number;
+    totalTokens: number;
 };
 
 export type EditMessageRequest = {
@@ -358,6 +373,31 @@ export type GetToolsQuery = {
     session_id: string;
 };
 
+export type GraphInsights = {
+    dailyActivity: Array<DailyActivity>;
+    directories: Array<DirectoryStats>;
+    links: Array<GraphLink>;
+    nodes: Array<GraphNode>;
+    providers: Array<ProviderStats>;
+    sessionTypes: Array<SessionTypeStats>;
+    summary: InsightsSummary;
+};
+
+export type GraphLink = {
+    source: string;
+    target: string;
+    value: number;
+};
+
+export type GraphNode = {
+    color?: string | null;
+    id: string;
+    metadata?: NodeMetadata | null;
+    name: string;
+    nodeType: string;
+    val: number;
+};
+
 export type Icon = {
     mimeType?: string;
     sizes?: Array<string>;
@@ -377,6 +417,15 @@ export type ImageContent = {
 
 export type ImportSessionRequest = {
     json: string;
+};
+
+export type InsightsSummary = {
+    dateRangeEnd?: string | null;
+    dateRangeStart?: string | null;
+    totalMessages: number;
+    totalSessions: number;
+    totalTokens: number;
+    uniqueDirectories: number;
 };
 
 export type InspectJobResponse = {
@@ -556,6 +605,14 @@ export type ModelInfo = {
     supports_cache_control?: boolean | null;
 };
 
+export type NodeMetadata = {
+    firstActivity?: string | null;
+    lastActivity?: string | null;
+    messageCount?: number | null;
+    sessionCount?: number | null;
+    tokenCount?: number | null;
+};
+
 export type ParseRecipeRequest = {
     content: string;
 };
@@ -631,6 +688,11 @@ export type ProviderMetadata = {
      * The unique identifier for this provider
      */
     name: string;
+};
+
+export type ProviderStats = {
+    provider: string;
+    sessionCount: number;
 };
 
 export type ProviderType = 'Preferred' | 'Builtin' | 'Declarative' | 'Custom';
@@ -887,6 +949,12 @@ export type SessionListResponse = {
 };
 
 export type SessionType = 'user' | 'scheduled' | 'sub_agent' | 'hidden' | 'terminal';
+
+export type SessionTypeStats = {
+    count: number;
+    sessionType: string;
+    totalTokens: number;
+};
 
 export type SessionsQuery = {
     limit: number;
@@ -2728,6 +2796,33 @@ export type GetSessionInsightsResponses = {
 };
 
 export type GetSessionInsightsResponse = GetSessionInsightsResponses[keyof GetSessionInsightsResponses];
+
+export type GetGraphInsightsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/sessions/insights/graph';
+};
+
+export type GetGraphInsightsErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type GetGraphInsightsResponses = {
+    /**
+     * Graph insights for 3D visualization retrieved successfully
+     */
+    200: GraphInsights;
+};
+
+export type GetGraphInsightsResponse = GetGraphInsightsResponses[keyof GetGraphInsightsResponses];
 
 export type DeleteSessionData = {
     body?: never;

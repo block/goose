@@ -2048,6 +2048,37 @@
         ]
       }
     },
+    "/sessions/insights/graph": {
+      "get": {
+        "tags": [
+          "Session Management"
+        ],
+        "operationId": "get_graph_insights",
+        "responses": {
+          "200": {
+            "description": "Graph insights for 3D visualization retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraphInsights"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/sessions/{session_id}": {
       "get": {
         "tags": [
@@ -2928,6 +2959,27 @@
           }
         }
       },
+      "DailyActivity": {
+        "type": "object",
+        "required": [
+          "date",
+          "sessionCount",
+          "messageCount"
+        ],
+        "properties": {
+          "date": {
+            "type": "string"
+          },
+          "messageCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "sessionCount": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "DeclarativeProviderConfig": {
         "type": "object",
         "required": [
@@ -3042,6 +3094,40 @@
           },
           "provider_name": {
             "type": "string"
+          }
+        }
+      },
+      "DirectoryStats": {
+        "type": "object",
+        "required": [
+          "directory",
+          "sessionCount",
+          "messageCount",
+          "totalTokens",
+          "firstActivity",
+          "lastActivity"
+        ],
+        "properties": {
+          "directory": {
+            "type": "string"
+          },
+          "firstActivity": {
+            "type": "string"
+          },
+          "lastActivity": {
+            "type": "string"
+          },
+          "messageCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "sessionCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalTokens": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -3564,6 +3650,115 @@
           }
         }
       },
+      "GraphInsights": {
+        "type": "object",
+        "required": [
+          "nodes",
+          "links",
+          "summary",
+          "directories",
+          "providers",
+          "sessionTypes",
+          "dailyActivity"
+        ],
+        "properties": {
+          "dailyActivity": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DailyActivity"
+            }
+          },
+          "directories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DirectoryStats"
+            }
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GraphLink"
+            }
+          },
+          "nodes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GraphNode"
+            }
+          },
+          "providers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProviderStats"
+            }
+          },
+          "sessionTypes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SessionTypeStats"
+            }
+          },
+          "summary": {
+            "$ref": "#/components/schemas/InsightsSummary"
+          }
+        }
+      },
+      "GraphLink": {
+        "type": "object",
+        "required": [
+          "source",
+          "target",
+          "value"
+        ],
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "value": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "GraphNode": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "nodeType",
+          "val"
+        ],
+        "properties": {
+          "color": {
+            "type": "string",
+            "nullable": true
+          },
+          "id": {
+            "type": "string"
+          },
+          "metadata": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NodeMetadata"
+              }
+            ],
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "nodeType": {
+            "type": "string"
+          },
+          "val": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
       "Icon": {
         "type": "object",
         "required": [
@@ -3621,6 +3816,41 @@
         "properties": {
           "json": {
             "type": "string"
+          }
+        }
+      },
+      "InsightsSummary": {
+        "type": "object",
+        "required": [
+          "totalSessions",
+          "totalMessages",
+          "totalTokens",
+          "uniqueDirectories"
+        ],
+        "properties": {
+          "dateRangeEnd": {
+            "type": "string",
+            "nullable": true
+          },
+          "dateRangeStart": {
+            "type": "string",
+            "nullable": true
+          },
+          "totalMessages": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalSessions": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalTokens": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "uniqueDirectories": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -4238,6 +4468,34 @@
           }
         }
       },
+      "NodeMetadata": {
+        "type": "object",
+        "properties": {
+          "firstActivity": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastActivity": {
+            "type": "string",
+            "nullable": true
+          },
+          "messageCount": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "sessionCount": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "tokenCount": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          }
+        }
+      },
       "ParseRecipeRequest": {
         "type": "object",
         "required": [
@@ -4421,6 +4679,22 @@
           "name": {
             "type": "string",
             "description": "The unique identifier for this provider"
+          }
+        }
+      },
+      "ProviderStats": {
+        "type": "object",
+        "required": [
+          "provider",
+          "sessionCount"
+        ],
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "sessionCount": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -5241,6 +5515,27 @@
           "hidden",
           "terminal"
         ]
+      },
+      "SessionTypeStats": {
+        "type": "object",
+        "required": [
+          "sessionType",
+          "count",
+          "totalTokens"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "sessionType": {
+            "type": "string"
+          },
+          "totalTokens": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
       },
       "SessionsQuery": {
         "type": "object",

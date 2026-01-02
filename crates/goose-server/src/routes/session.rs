@@ -11,7 +11,7 @@ use axum::{
 };
 use goose::recipe::Recipe;
 use goose::session::session_manager::SessionInsights;
-use goose::session::{Session, SessionManager};
+use goose::session::{GraphInsights, Session, SessionManager};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -142,6 +142,26 @@ async fn get_session_insights() -> Result<Json<SessionInsights>, StatusCode> {
 }
 
 #[utoipa::path(
+    get,
+    path = "/sessions/insights/graph",
+    responses(
+        (status = 200, description = "Graph insights for 3D visualization retrieved successfully", body = GraphInsights),
+        (status = 401, description = "Unauthorized - Invalid or missing API key"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(
+        ("api_key" = [])
+    ),
+    tag = "Session Management"
+)]
+async fn get_graph_insights() -> Result<Json<GraphInsights>, StatusCode> {
+    let insights = SessionManager::get_graph_insights()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(insights))
+}
+
+#[utoipa::path(
     put,
     path = "/sessions/{session_id}/name",
     request_body = UpdateSessionNameRequest,
@@ -199,7 +219,6 @@ async fn update_session_name(
     ),
     tag = "Session Management"
 )]
-// Update session user recipe parameter values
 async fn update_session_user_recipe_values(
     State(state): State<Arc<AppState>>,
     Path(session_id): Path<String>,
@@ -401,6 +420,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/sessions/{session_id}/export", get(export_session))
         .route("/sessions/import", post(import_session))
         .route("/sessions/insights", get(get_session_insights))
+        .route("/sessions/insights/graph", get(get_graph_insights))
         .route("/sessions/{session_id}/name", put(update_session_name))
         .route(
             "/sessions/{session_id}/user_recipe_values",

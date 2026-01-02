@@ -24,6 +24,7 @@ import Pair, { PairRouteState } from './components/Pair';
 import SettingsView, { SettingsViewOptions } from './components/settings/SettingsView';
 import SessionsView from './components/sessions/SessionsView';
 import SharedSessionView from './components/sessions/SharedSessionView';
+import GraphInsightsView from './components/sessions/GraphInsightsView';
 import SchedulesView from './components/schedule/SchedulesView';
 import ProviderSettings from './components/settings/providers/ProviderSettingsPage';
 import { AppLayout } from './components/Layout/AppLayout';
@@ -202,6 +203,11 @@ const SettingsRoute = () => {
 
 const SessionsRoute = () => {
   return <SessionsView />;
+};
+
+const GraphInsightsRoute = () => {
+  const navigate = useNavigate();
+  return <GraphInsightsView onBack={() => navigate('/sessions')} />;
 };
 
 const SchedulesRoute = () => {
@@ -654,6 +660,7 @@ export function AppInner() {
               }
             />
             <Route path="sessions" element={<SessionsRoute />} />
+            <Route path="sessions/graph" element={<GraphInsightsRoute />} />
             <Route path="schedules" element={<SchedulesRoute />} />
             <Route path="recipes" element={<RecipesRoute />} />
             <Route
