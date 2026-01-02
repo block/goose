@@ -176,6 +176,11 @@ pub struct SystemNotificationContent {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct ReasoningContent {
+    pub text: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 /// Content passed inside a message, which can be both simple content and tool content
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum MessageContent {
@@ -189,6 +194,7 @@ pub enum MessageContent {
     Thinking(ThinkingContent),
     RedactedThinking(RedactedThinkingContent),
     SystemNotification(SystemNotificationContent),
+    Reasoning(ReasoningContent),
 }
 
 impl fmt::Display for MessageContent {
@@ -230,6 +236,7 @@ impl fmt::Display for MessageContent {
             MessageContent::SystemNotification(r) => {
                 write!(f, "[SystemNotification: {}]", r.msg)
             }
+            MessageContent::Reasoning(r) => write!(f, "[Reasoning: {}]", r.text),
         }
     }
 }
@@ -443,6 +450,10 @@ impl MessageContent {
         })
     }
 
+    pub fn reasoning<S: Into<String>>(text: S) -> Self {
+        MessageContent::Reasoning(ReasoningContent { text: text.into() })
+    }
+
     pub fn as_system_notification(&self) -> Option<&SystemNotificationContent> {
         if let MessageContent::SystemNotification(ref notification) = self {
             Some(notification)
@@ -511,6 +522,14 @@ impl MessageContent {
     pub fn as_redacted_thinking(&self) -> Option<&RedactedThinkingContent> {
         match self {
             MessageContent::RedactedThinking(redacted) => Some(redacted),
+            _ => None,
+        }
+    }
+
+    /// Get the reasoning content if this is a ReasoningContent variant
+    pub fn as_reasoning(&self) -> Option<&ReasoningContent> {
+        match self {
+            MessageContent::Reasoning(reasoning) => Some(reasoning),
             _ => None,
         }
     }

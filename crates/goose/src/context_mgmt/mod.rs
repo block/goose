@@ -396,6 +396,7 @@ fn format_message_for_compacting(msg: &Message) -> String {
             MessageContent::SystemNotification(notification) => {
                 format!("system_notification: {}", notification.msg)
             }
+            MessageContent::Reasoning(reasoning) => format!("reasoning: {}", reasoning.text),
         })
         .collect();
 
