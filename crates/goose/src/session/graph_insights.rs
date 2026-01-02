@@ -35,6 +35,7 @@ pub struct NodeMetadata {
     pub directories: Option<Vec<String>>,
     pub project_type: Option<String>,
     pub session_name: Option<String>,
+    pub git_dirty: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -212,6 +213,25 @@ fn get_project_color(project_type: &ProjectType, index: usize) -> String {
     }
 }
 
+/// Check if a git repo has uncommitted changes (dirty)
+fn is_git_dirty(dir: &str) -> Option<bool> {
+    if !Path::new(dir).exists() {
+        return None;
+    }
+
+    let output = Command::new("git")
+        .args(["-C", dir, "status", "--porcelain"])
+        .output()
+        .ok()?;
+
+    if output.status.success() {
+        let status = String::from_utf8_lossy(&output.stdout);
+        Some(!status.trim().is_empty())
+    } else {
+        None
+    }
+}
+
 /// Extract keywords from session name for similarity matching
 fn extract_keywords(name: &str) -> HashSet<String> {
     let stopwords: HashSet<&str> = [
@@ -331,6 +351,16 @@ pub async fn build_graph_insights(pool: &Pool<Sqlite>) -> Result<GraphInsights> 
             ProjectType::Directory => "dir",
         };
 
+        // Check git dirty status for git repos (check first existing directory)
+        let git_dirty = if project.project_type == ProjectType::GitRepo {
+            project
+                .directories
+                .iter()
+                .find_map(|d| is_git_dirty(d))
+        } else {
+            None
+        };
+
         nodes.push(GraphNode {
             id: format!("project_{}", i),
             name: project.name.clone(),
@@ -346,6 +376,7 @@ pub async fn build_graph_insights(pool: &Pool<Sqlite>) -> Result<GraphInsights> 
                 directories: Some(project.directories.clone()),
                 project_type: Some(project_type_str.to_string()),
                 session_name: None,
+                git_dirty,
             }),
         });
     }
@@ -426,6 +457,7 @@ pub async fn build_graph_insights(pool: &Pool<Sqlite>) -> Result<GraphInsights> 
                     directories: None,
                     project_type: None,
                     session_name: Some(session_name.clone()),
+                    git_dirty: None,
                 }),
             });
 

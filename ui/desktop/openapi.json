@@ -4491,6 +4491,10 @@
             "type": "string",
             "nullable": true
           },
+          "gitDirty": {
+            "type": "boolean",
+            "nullable": true
+          },
           "lastActivity": {
             "type": "string",
             "nullable": true

@@ -3,7 +3,8 @@ import ForceGraph3D, {
   GraphNode as ForceGraphNode,
   GraphLink as ForceGraphLink,
 } from '3d-force-graph';
-import { ArrowLeft, GitBranch, Folder, Clock, Link2 } from 'lucide-react';
+import * as THREE from 'three';
+import { ArrowLeft, Clock, Link2, Box, Circle, AlertCircle } from 'lucide-react';
 import { Button } from '../ui/button';
 import { getGraphInsights } from '../../api';
 import type { GraphInsights, GraphNode as ApiGraphNode } from '../../api/types.gen';
@@ -23,11 +24,17 @@ interface GraphInsightsViewProps {
   onBack?: () => void;
 }
 
-// Link colors by type
 const LINK_COLORS = {
-  temporal: 'rgba(251, 191, 36, 0.4)', // Amber for temporal (same day)
-  similar: 'rgba(236, 72, 153, 0.5)', // Pink for similar sessions
-  default: 'rgba(255, 255, 255, 0.15)', // White for session→project
+  temporal: 'rgba(251, 191, 36, 0.4)',
+  similar: 'rgba(236, 72, 153, 0.5)',
+  default: 'rgba(255, 255, 255, 0.15)',
+};
+
+// Neutral colors for shapes (not type-coded)
+const NODE_MATERIAL = {
+  project: 0xcccccc, // Light gray for all projects
+  session: 0x666666, // Darker gray for sessions
+  dirty: 0xff4444, // Red for dirty indicator ball
 };
 
 export default function GraphInsightsView({ onBack }: GraphInsightsViewProps) {
@@ -103,21 +110,88 @@ export default function GraphInsightsView({ onBack }: GraphInsightsViewProps) {
         const meta = n.metadata;
         if (!meta) return n.name;
 
-        const typeIcon = meta.projectType === 'git' ? '🔀' : '📁';
+        // Shape description
+        const shapeDesc = meta.projectType === 'git' ? '⬡ Cube' : '● Sphere';
+        // Git status indicator
+        const gitStatus =
+          meta.projectType === 'git'
+            ? meta.gitDirty === true
+              ? ' (dirty)'
+              : meta.gitDirty === false
+                ? ' (clean)'
+                : ''
+            : '';
+
         const dirList =
           meta.directories && meta.directories.length > 1
             ? `<br/><span style="color: #666; font-size: 10px;">${meta.directories.length} directories</span>`
             : '';
 
         return `<div style="text-align: center; padding: 8px; max-width: 300px;">
-          <strong>${typeIcon} ${n.name}</strong>${dirList}
+          <strong>${n.name}</strong>
+          <br/><span style="color: #888; font-size: 11px;">${shapeDesc}${gitStatus}</span>${dirList}
           ${meta.sessionCount ? `<br/>Sessions: ${meta.sessionCount}` : ''}
           ${meta.messageCount ? `<br/>Messages: ${meta.messageCount.toLocaleString()}` : ''}
           ${meta.tokenCount ? `<br/>Tokens: ${meta.tokenCount.toLocaleString()}` : ''}
         </div>`;
       })
-      .nodeColor((node) => (node as ForceNode).color || '#888888')
-      .nodeOpacity(0.9)
+      .nodeThreeObject((node: ForceGraphNode) => {
+        const n = node as ForceNode;
+        const size = Math.cbrt(n.val || 1) * 4; // Cube root for better scaling
+
+        if (n.nodeType === 'project') {
+          const isGitRepo = n.metadata?.projectType === 'git';
+          const isDirty = n.metadata?.gitDirty === true;
+
+          if (isGitRepo) {
+            // Git repo = Cube
+            const geometry = new THREE.BoxGeometry(size, size, size);
+            const material = new THREE.MeshLambertMaterial({
+              color: NODE_MATERIAL.project,
+              transparent: true,
+              opacity: 0.9,
+            });
+            const cube = new THREE.Mesh(geometry, material);
+
+            if (isDirty) {
+              // Add small red ball to indicate dirty status
+              const dirtyGeometry = new THREE.SphereGeometry(size * 0.3, 16, 16);
+              const dirtyMaterial = new THREE.MeshLambertMaterial({
+                color: NODE_MATERIAL.dirty,
+                transparent: true,
+                opacity: 0.95,
+              });
+              const dirtyBall = new THREE.Mesh(dirtyGeometry, dirtyMaterial);
+              dirtyBall.position.set(size * 0.6, size * 0.6, size * 0.6);
+
+              const group = new THREE.Group();
+              group.add(cube);
+              group.add(dirtyBall);
+              return group;
+            }
+
+            return cube;
+          } else {
+            // Directory = Sphere
+            const geometry = new THREE.SphereGeometry(size * 0.6, 32, 32);
+            const material = new THREE.MeshLambertMaterial({
+              color: NODE_MATERIAL.project,
+              transparent: true,
+              opacity: 0.9,
+            });
+            return new THREE.Mesh(geometry, material);
+          }
+        } else {
+          // Session = Small sphere
+          const geometry = new THREE.SphereGeometry(size * 0.4, 16, 16);
+          const material = new THREE.MeshLambertMaterial({
+            color: NODE_MATERIAL.session,
+            transparent: true,
+            opacity: 0.7,
+          });
+          return new THREE.Mesh(geometry, material);
+        }
+      })
       .linkWidth((link: ForceGraphLink) => {
         const lt = link.linkType;
         if (lt === 'temporal') return 1.5;
@@ -134,13 +208,13 @@ export default function GraphInsightsView({ onBack }: GraphInsightsViewProps) {
       .backgroundColor('#0a0a0a')
       .width(containerRef.current.clientWidth)
       .height(containerRef.current.clientHeight)
-      .onNodeHover((node) => {
+      .onNodeHover((node: ForceGraphNode | null) => {
         setHoveredNode(node as ForceNode | null);
         if (containerRef.current) {
           containerRef.current.style.cursor = node ? 'pointer' : 'default';
         }
       })
-      .onNodeClick((node) => {
+      .onNodeClick((node: ForceGraphNode) => {
         const n = node as ForceNode;
         const distance = 150;
         const distRatio = 1 + distance / Math.hypot(n.val || 1, n.val || 1);
@@ -166,13 +240,34 @@ export default function GraphInsightsView({ onBack }: GraphInsightsViewProps) {
     };
   }, [data, loading, handleResize]);
 
-  // Count link types for legend
-  const linkCounts = data
+  // Count stats for legend
+  const stats = data
     ? {
-        temporal: data.links.filter((l) => l.linkType === 'temporal').length,
-        similar: data.links.filter((l) => l.linkType === 'similar').length,
+        temporalLinks: data.links.filter((l) => l.linkType === 'temporal').length,
+        similarLinks: data.links.filter((l) => l.linkType === 'similar').length,
+        gitProjects: data.nodes.filter(
+          (n) => n.nodeType === 'project' && n.metadata?.projectType === 'git'
+        ).length,
+        dirProjects: data.nodes.filter(
+          (n) => n.nodeType === 'project' && n.metadata?.projectType === 'dir'
+        ).length,
+        dirtyRepos: data.nodes.filter(
+          (n) => n.nodeType === 'project' && n.metadata?.gitDirty === true
+        ).length,
+        cleanRepos: data.nodes.filter(
+          (n) => n.nodeType === 'project' && n.metadata?.gitDirty === false
+        ).length,
+        sessions: data.nodes.filter((n) => n.nodeType === 'session').length,
       }
-    : { temporal: 0, similar: 0 };
+    : {
+        temporalLinks: 0,
+        similarLinks: 0,
+        gitProjects: 0,
+        dirProjects: 0,
+        dirtyRepos: 0,
+        cleanRepos: 0,
+        sessions: 0,
+      };
 
   if (loading) {
     return (
@@ -220,10 +315,12 @@ export default function GraphInsightsView({ onBack }: GraphInsightsViewProps) {
             <p>
               <span className="text-gray-400">Projects:</span>{' '}
               {data.summary.uniqueProjects?.toLocaleString() ?? 'N/A'}
+              <span className="text-gray-500 text-xs ml-1">
+                ({stats.gitProjects} git, {stats.dirProjects} dirs)
+              </span>
             </p>
             <p>
-              <span className="text-gray-400">Sessions (30d):</span>{' '}
-              {data.nodes.filter((n) => n.nodeType === 'session').length}
+              <span className="text-gray-400">Sessions (30d):</span> {stats.sessions}
             </p>
             <p>
               <span className="text-gray-400">Total Sessions:</span>{' '}
@@ -240,32 +337,37 @@ export default function GraphInsightsView({ onBack }: GraphInsightsViewProps) {
       <div className="absolute bottom-4 left-4 bg-black/70 border border-white/20 rounded-lg p-4 text-white">
         <h4 className="text-sm font-semibold mb-2">Legend</h4>
         <div className="space-y-2 text-xs">
-          <div className="font-medium text-gray-400 mb-1">Nodes</div>
+          <div className="font-medium text-gray-400 mb-1">Nodes (by shape)</div>
           <div className="flex items-center gap-2">
-            <GitBranch className="w-3 h-3 text-[#6366F1]" />
-            <div className="w-3 h-3 rounded-full bg-[#6366F1]" />
-            <span>Git Project</span>
+            <Box className="w-4 h-4 text-gray-300" />
+            <span>Git Repository ({stats.gitProjects})</span>
+          </div>
+          <div className="flex items-center gap-2 pl-5">
+            <span className="text-gray-400">Clean: {stats.cleanRepos}</span>
+          </div>
+          <div className="flex items-center gap-2 pl-5">
+            <AlertCircle className="w-3 h-3 text-red-400" />
+            <span className="text-gray-400">With red ball = dirty ({stats.dirtyRepos})</span>
           </div>
           <div className="flex items-center gap-2">
-            <Folder className="w-3 h-3 text-[#10B981]" />
-            <div className="w-3 h-3 rounded-full bg-[#10B981]" />
-            <span>Directory</span>
+            <Circle className="w-4 h-4 text-gray-300" />
+            <span>Directory ({stats.dirProjects})</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-[#9CA3AF]" />
-            <span>Session</span>
+            <div className="w-3 h-3 rounded-full bg-gray-500" />
+            <span>Session ({stats.sessions})</span>
           </div>
 
           <div className="font-medium text-gray-400 mt-3 mb-1">Links</div>
           <div className="flex items-center gap-2">
             <Clock className="w-3 h-3 text-amber-400" />
             <div className="w-6 h-0.5 bg-amber-400/60" />
-            <span>Same day ({linkCounts.temporal})</span>
+            <span>Same day ({stats.temporalLinks})</span>
           </div>
           <div className="flex items-center gap-2">
             <Link2 className="w-3 h-3 text-pink-400" />
             <div className="w-6 h-0.5 bg-pink-400/60" />
-            <span>Similar sessions ({linkCounts.similar})</span>
+            <span>Similar sessions ({stats.similarLinks})</span>
           </div>
         </div>
         <p className="text-[10px] text-gray-500 mt-3">Sessions from the last 30 days</p>
@@ -275,14 +377,23 @@ export default function GraphInsightsView({ onBack }: GraphInsightsViewProps) {
         <div className="absolute bottom-4 right-4 bg-black/70 border border-white/20 rounded-lg p-4 text-white max-w-sm">
           <div className="flex items-center gap-2 mb-2">
             {hoveredNode.metadata?.projectType === 'git' ? (
-              <GitBranch className="w-4 h-4 text-[#6366F1]" />
+              <Box className="w-4 h-4 text-gray-300" />
             ) : (
-              <Folder className="w-4 h-4 text-[#10B981]" />
+              <Circle className="w-4 h-4 text-gray-300" />
             )}
             <h4 className="text-sm font-semibold">{hoveredNode.name}</h4>
+            {hoveredNode.metadata?.projectType === 'git' &&
+              hoveredNode.metadata.gitDirty === true && (
+                <span className="text-red-400 text-xs">(dirty)</span>
+              )}
           </div>
           {hoveredNode.metadata && (
             <div className="space-y-1 text-xs">
+              <p className="text-gray-400">
+                {hoveredNode.metadata.projectType === 'git' ? 'Git Repository' : 'Directory'}
+                {hoveredNode.metadata.gitDirty === true && ' • Uncommitted changes'}
+                {hoveredNode.metadata.gitDirty === false && ' • Clean'}
+              </p>
               {hoveredNode.metadata.sessionCount != null && (
                 <p>Sessions: {hoveredNode.metadata.sessionCount.toLocaleString()}</p>
               )}

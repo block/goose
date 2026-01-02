@@ -1,5 +1,5 @@
 declare module '3d-force-graph' {
-  import { Scene, Camera, WebGLRenderer } from 'three';
+  import { Scene, Camera, WebGLRenderer, Object3D } from 'three';
 
   export interface GraphNode {
     id: string;
@@ -27,6 +27,7 @@ declare module '3d-force-graph' {
     nodeLabel(accessor: string | ((node: GraphNode) => string)): ForceGraph3DInstance;
     nodeColor(accessor: string | ((node: GraphNode) => string)): ForceGraph3DInstance;
     nodeOpacity(opacity: number): ForceGraph3DInstance;
+    nodeThreeObject(accessor: (node: GraphNode) => Object3D): ForceGraph3DInstance;
     linkWidth(accessor: number | ((link: GraphLink) => number)): ForceGraph3DInstance;
     linkColor(accessor: string | ((link: GraphLink) => string)): ForceGraph3DInstance;
     linkOpacity(opacity: number): ForceGraph3DInstance;

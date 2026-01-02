@@ -610,6 +610,7 @@ export type ModelInfo = {
 export type NodeMetadata = {
     directories?: Array<string> | null;
     firstActivity?: string | null;
+    gitDirty?: boolean | null;
     lastActivity?: string | null;
     messageCount?: number | null;
     projectType?: string | null;
