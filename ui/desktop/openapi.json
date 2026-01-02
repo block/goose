@@ -3825,7 +3825,8 @@
           "totalSessions",
           "totalMessages",
           "totalTokens",
-          "uniqueDirectories"
+          "uniqueDirectories",
+          "uniqueProjects"
         ],
         "properties": {
           "dateRangeEnd": {
@@ -3849,6 +3850,10 @@
             "format": "int64"
           },
           "uniqueDirectories": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "uniqueProjects": {
             "type": "integer",
             "format": "int64"
           }
@@ -4471,6 +4476,13 @@
       "NodeMetadata": {
         "type": "object",
         "properties": {
+          "directories": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
           "firstActivity": {
             "type": "string",
             "nullable": true
@@ -4482,6 +4494,10 @@
           "messageCount": {
             "type": "integer",
             "format": "int64",
+            "nullable": true
+          },
+          "projectType": {
+            "type": "string",
             "nullable": true
           },
           "sessionCount": {

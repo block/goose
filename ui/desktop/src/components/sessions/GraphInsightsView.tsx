@@ -3,12 +3,11 @@ import ForceGraph3D, {
   GraphNode as ForceGraphNode,
   GraphLink as ForceGraphLink,
 } from '3d-force-graph';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, GitBranch, Folder } from 'lucide-react';
 import { Button } from '../ui/button';
 import { getGraphInsights } from '../../api';
 import type { GraphInsights, GraphNode as ApiGraphNode } from '../../api/types.gen';
 
-// Extended node type for force graph with position data
 interface ForceNode extends ForceGraphNode {
   name: string;
   nodeType: string;
@@ -32,7 +31,6 @@ export default function GraphInsightsView({ onBack }: GraphInsightsViewProps) {
   const [error, setError] = useState<string | null>(null);
   const [hoveredNode, setHoveredNode] = useState<ForceNode | null>(null);
 
-  // Fetch graph data
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -52,7 +50,6 @@ export default function GraphInsightsView({ onBack }: GraphInsightsViewProps) {
     fetchData();
   }, []);
 
-  // Handle window resize
   const handleResize = useCallback(() => {
     if (graphRef.current && containerRef.current) {
       graphRef.current
@@ -61,11 +58,9 @@ export default function GraphInsightsView({ onBack }: GraphInsightsViewProps) {
     }
   }, []);
 
-  // Initialize graph
   useEffect(() => {
     if (!data || !containerRef.current || loading) return;
 
-    // Clean up any existing graph
     if (graphRef.current) {
       if (graphRef.current._destructor) {
         graphRef.current._destructor();
@@ -73,10 +68,8 @@ export default function GraphInsightsView({ onBack }: GraphInsightsViewProps) {
       graphRef.current = null;
     }
 
-    // Clear container
     containerRef.current.innerHTML = '';
 
-    // Build graph data
     const graphData = {
       nodes: data.nodes.map((n) => ({
         id: n.id,
@@ -93,7 +86,6 @@ export default function GraphInsightsView({ onBack }: GraphInsightsViewProps) {
       })),
     };
 
-    // Create the graph - 3d-force-graph has adequate default lighting
     const graph = ForceGraph3D()(containerRef.current)
       .graphData(graphData)
       .nodeId('id')
@@ -102,10 +94,16 @@ export default function GraphInsightsView({ onBack }: GraphInsightsViewProps) {
         const n = node as ForceNode;
         const meta = n.metadata;
         if (!meta) return n.name;
-        return `<div style="text-align: center; padding: 8px;">
-          <strong>${n.name}</strong><br/>
-          <span style="color: #aaa;">${n.nodeType}</span><br/>
-          ${meta.sessionCount ? `Sessions: ${meta.sessionCount}` : ''}
+
+        const typeIcon = meta.projectType === 'git' ? '🔀' : '📁';
+        const dirList =
+          meta.directories && meta.directories.length > 1
+            ? `<br/><span style="color: #666; font-size: 10px;">${meta.directories.length} directories</span>`
+            : '';
+
+        return `<div style="text-align: center; padding: 8px; max-width: 300px;">
+          <strong>${typeIcon} ${n.name}</strong>${dirList}
+          ${meta.sessionCount ? `<br/>Sessions: ${meta.sessionCount}` : ''}
           ${meta.messageCount ? `<br/>Messages: ${meta.messageCount.toLocaleString()}` : ''}
           ${meta.tokenCount ? `<br/>Tokens: ${meta.tokenCount.toLocaleString()}` : ''}
         </div>`;
@@ -113,8 +111,8 @@ export default function GraphInsightsView({ onBack }: GraphInsightsViewProps) {
       .nodeColor((node) => (node as ForceNode).color || '#888888')
       .nodeOpacity(0.9)
       .linkWidth((link: ForceGraphLink) => Math.sqrt(link.value || 1) * 0.5)
-      .linkColor(() => 'rgba(255, 255, 255, 0.2)')
-      .linkOpacity(0.6)
+      .linkColor(() => 'rgba(255, 255, 255, 0.15)')
+      .linkOpacity(0.4)
       .backgroundColor('#0a0a0a')
       .width(containerRef.current.clientWidth)
       .height(containerRef.current.clientHeight)
@@ -126,7 +124,7 @@ export default function GraphInsightsView({ onBack }: GraphInsightsViewProps) {
       })
       .onNodeClick((node) => {
         const n = node as ForceNode;
-        const distance = 200;
+        const distance = 150;
         const distRatio = 1 + distance / Math.hypot(n.val || 1, n.val || 1);
         graph.cameraPosition(
           {
@@ -140,8 +138,6 @@ export default function GraphInsightsView({ onBack }: GraphInsightsViewProps) {
       });
 
     graphRef.current = graph;
-
-    // Handle resize
     window.addEventListener('resize', handleResize);
 
     return () => {
@@ -155,7 +151,7 @@ export default function GraphInsightsView({ onBack }: GraphInsightsViewProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-[#0a0a0a]">
-        <div className="text-white text-lg">Loading graph data...</div>
+        <div className="text-white text-lg">Loading project graph...</div>
       </div>
     );
   }
@@ -176,10 +172,8 @@ export default function GraphInsightsView({ onBack }: GraphInsightsViewProps) {
 
   return (
     <div className="relative w-full h-screen bg-[#0a0a0a]">
-      {/* Graph container */}
       <div ref={containerRef} className="w-full h-full" />
 
-      {/* Back button */}
       {onBack && (
         <div className="absolute top-4 left-4">
           <Button
@@ -193,59 +187,61 @@ export default function GraphInsightsView({ onBack }: GraphInsightsViewProps) {
         </div>
       )}
 
-      {/* Summary panel */}
       {data && (
         <div className="absolute top-4 right-4 bg-black/70 border border-white/20 rounded-lg p-4 text-white max-w-xs">
-          <h3 className="text-lg font-semibold mb-2">Session Insights</h3>
+          <h3 className="text-lg font-semibold mb-2">Project Insights</h3>
           <div className="space-y-1 text-sm">
             <p>
-              <span className="text-gray-400">Sessions:</span>{' '}
+              <span className="text-gray-400">Projects:</span>{' '}
+              {data.summary.uniqueProjects?.toLocaleString() ?? 'N/A'}
+            </p>
+            <p>
+              <span className="text-gray-400">Sessions (30d):</span>{' '}
+              {data.nodes.filter((n) => n.nodeType === 'session').length}
+            </p>
+            <p>
+              <span className="text-gray-400">Total Sessions:</span>{' '}
               {data.summary.totalSessions.toLocaleString()}
             </p>
             <p>
               <span className="text-gray-400">Messages:</span>{' '}
               {data.summary.totalMessages.toLocaleString()}
             </p>
-            <p>
-              <span className="text-gray-400">Tokens:</span>{' '}
-              {data.summary.totalTokens.toLocaleString()}
-            </p>
-            <p>
-              <span className="text-gray-400">Directories:</span>{' '}
-              {data.summary.uniqueDirectories.toLocaleString()}
-            </p>
           </div>
         </div>
       )}
 
-      {/* Legend */}
       <div className="absolute bottom-4 left-4 bg-black/70 border border-white/20 rounded-lg p-4 text-white">
         <h4 className="text-sm font-semibold mb-2">Legend</h4>
-        <div className="space-y-1 text-xs">
+        <div className="space-y-2 text-xs">
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-[#4CAF50]" />
-            <span>Directories</span>
+            <GitBranch className="w-3 h-3 text-[#6366F1]" />
+            <div className="w-3 h-3 rounded-full bg-[#6366F1]" />
+            <span>Git Project</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-[#FF5722]" />
-            <span>Providers</span>
+            <Folder className="w-3 h-3 text-[#10B981]" />
+            <div className="w-3 h-3 rounded-full bg-[#10B981]" />
+            <span>Directory</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-[#2196F3]" />
-            <span>Session Types</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-[#FF6B35]" />
-            <span>Hub</span>
+            <div className="w-3 h-3 rounded-full bg-[#9CA3AF]" />
+            <span>Session</span>
           </div>
         </div>
+        <p className="text-[10px] text-gray-500 mt-2">Sessions from the last 30 days</p>
       </div>
 
-      {/* Hovered node details */}
-      {hoveredNode && (
+      {hoveredNode && hoveredNode.nodeType === 'project' && (
         <div className="absolute bottom-4 right-4 bg-black/70 border border-white/20 rounded-lg p-4 text-white max-w-sm">
-          <h4 className="text-sm font-semibold mb-2">{hoveredNode.name}</h4>
-          <p className="text-xs text-gray-400 mb-2">{hoveredNode.nodeType}</p>
+          <div className="flex items-center gap-2 mb-2">
+            {hoveredNode.metadata?.projectType === 'git' ? (
+              <GitBranch className="w-4 h-4 text-[#6366F1]" />
+            ) : (
+              <Folder className="w-4 h-4 text-[#10B981]" />
+            )}
+            <h4 className="text-sm font-semibold">{hoveredNode.name}</h4>
+          </div>
           {hoveredNode.metadata && (
             <div className="space-y-1 text-xs">
               {hoveredNode.metadata.sessionCount != null && (
@@ -257,14 +253,40 @@ export default function GraphInsightsView({ onBack }: GraphInsightsViewProps) {
               {hoveredNode.metadata.tokenCount != null && (
                 <p>Tokens: {hoveredNode.metadata.tokenCount.toLocaleString()}</p>
               )}
-              {hoveredNode.metadata.firstActivity && (
-                <p className="text-gray-400">
-                  First: {new Date(hoveredNode.metadata.firstActivity).toLocaleDateString()}
+              {hoveredNode.metadata.directories && hoveredNode.metadata.directories.length > 0 && (
+                <div className="mt-2 pt-2 border-t border-white/10">
+                  <p className="text-gray-400 mb-1">Directories:</p>
+                  <div className="max-h-24 overflow-y-auto">
+                    {hoveredNode.metadata.directories.map((dir, i) => (
+                      <p key={i} className="text-gray-500 truncate text-[10px]">
+                        {dir}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {hoveredNode.metadata.firstActivity && hoveredNode.metadata.lastActivity && (
+                <p className="text-gray-400 mt-1">
+                  {new Date(hoveredNode.metadata.firstActivity).toLocaleDateString()} -{' '}
+                  {new Date(hoveredNode.metadata.lastActivity).toLocaleDateString()}
                 </p>
               )}
-              {hoveredNode.metadata.lastActivity && (
+            </div>
+          )}
+        </div>
+      )}
+
+      {hoveredNode && hoveredNode.nodeType === 'session' && (
+        <div className="absolute bottom-4 right-4 bg-black/70 border border-white/20 rounded-lg p-4 text-white max-w-sm">
+          <h4 className="text-sm font-semibold mb-2">{hoveredNode.name}</h4>
+          {hoveredNode.metadata && (
+            <div className="space-y-1 text-xs">
+              {hoveredNode.metadata.messageCount != null && (
+                <p>Messages: {hoveredNode.metadata.messageCount}</p>
+              )}
+              {hoveredNode.metadata.firstActivity && (
                 <p className="text-gray-400">
-                  Last: {new Date(hoveredNode.metadata.lastActivity).toLocaleDateString()}
+                  {new Date(hoveredNode.metadata.firstActivity).toLocaleDateString()}
                 </p>
               )}
             </div>

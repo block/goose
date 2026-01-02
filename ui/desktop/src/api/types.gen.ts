@@ -426,6 +426,7 @@ export type InsightsSummary = {
     totalSessions: number;
     totalTokens: number;
     uniqueDirectories: number;
+    uniqueProjects: number;
 };
 
 export type InspectJobResponse = {
@@ -606,9 +607,11 @@ export type ModelInfo = {
 };
 
 export type NodeMetadata = {
+    directories?: Array<string> | null;
     firstActivity?: string | null;
     lastActivity?: string | null;
     messageCount?: number | null;
+    projectType?: string | null;
     sessionCount?: number | null;
     tokenCount?: number | null;
 };
