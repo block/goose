@@ -229,6 +229,28 @@ export default function GraphInsightsView({ onBack }: GraphInsightsViewProps) {
         );
       });
 
+    // Configure link distances via d3 force - temporal links need more space
+    const linkForce = graph.d3Force('link') as
+      | { distance?: (fn: (link: ForceGraphLink) => number) => void }
+      | undefined;
+    if (linkForce?.distance) {
+      linkForce.distance((link: ForceGraphLink) => {
+        const lt = link.linkType;
+        // Temporal links (same day) get more space - lots happens in a day
+        if (lt === 'temporal') return 150;
+        // Similar session links - moderate distance
+        if (lt === 'similar') return 100;
+        // Session-to-project links - keep them closer for clustering
+        return 50;
+      });
+    }
+
+    // Increase charge strength to push nodes apart more
+    const chargeForce = graph.d3Force('charge') as { strength?: (val: number) => void } | undefined;
+    if (chargeForce?.strength) {
+      chargeForce.strength(-120);
+    }
+
     graphRef.current = graph;
     window.addEventListener('resize', handleResize);
 

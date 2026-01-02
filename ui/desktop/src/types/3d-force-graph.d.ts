@@ -31,6 +31,9 @@ declare module '3d-force-graph' {
     linkWidth(accessor: number | ((link: GraphLink) => number)): ForceGraph3DInstance;
     linkColor(accessor: string | ((link: GraphLink) => string)): ForceGraph3DInstance;
     linkOpacity(opacity: number): ForceGraph3DInstance;
+    linkDistance(accessor: number | ((link: GraphLink) => number)): ForceGraph3DInstance;
+    d3Force(forceName: string, force?: D3Force | null): ForceGraph3DInstance | D3Force | undefined;
+    d3ReheatSimulation(): ForceGraph3DInstance;
     backgroundColor(color: string): ForceGraph3DInstance;
     width(width: number): ForceGraph3DInstance;
     height(height: number): ForceGraph3DInstance;
@@ -47,6 +50,12 @@ declare module '3d-force-graph' {
     camera(): Camera;
     renderer(): WebGLRenderer;
     _destructor?: () => void;
+  }
+
+  export interface D3Force {
+    strength?: (strength: number | ((node: GraphNode) => number)) => D3Force;
+    distance?: (distance: number | ((link: GraphLink) => number)) => D3Force;
+    [key: string]: unknown;
   }
 
   export default function ForceGraph3D(): (element: HTMLElement) => ForceGraph3DInstance;
