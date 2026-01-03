@@ -38,7 +38,7 @@ curl -sL https://raw.githubusercontent.com/block/goose/main/documentation/src/pa
 <details>
 <summary>2. Add Custom Slash Commands</summary>
 
-Now that the recipes are imported, to quickly invoke them in-session [add custom slash commands](/docs/guides/recipes/session-recipes/#custom-recipe-commands) for each of the following recipes:
+Now that the recipes are imported, to quickly invoke them in-session [add custom slash commands](/docs/guides/context-engineering/slash-commands) for each of the following recipes:
 
 | Recipe | Slash Command |
 |--------|---------------|
