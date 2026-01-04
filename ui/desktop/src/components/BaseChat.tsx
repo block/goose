@@ -185,6 +185,7 @@ export default function BaseChat({
     }
   }, [session?.provider_name, session?.model_config?.model_name, setProviderAndModel]);
 
+
   useEffect(() => {
     if (!recipe) return;
 

@@ -329,6 +329,7 @@ export default function ChatInput({
   const [isInGlobalHistory, setIsInGlobalHistory] = useState(false);
   const [hasUserTyped, setHasUserTyped] = useState(false);
 
+
   // Use shared file drop hook for ChatInput
   const {
     droppedFiles: localDroppedFiles,
