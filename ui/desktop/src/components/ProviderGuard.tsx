@@ -248,18 +248,26 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
                 }}
               />
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                {/* Tetrate Card */}
+              {/* Tetrate Card - Full Width */}
+              <div className="relative w-full mb-4">
+                {/* Recommended pill */}
+                <div className="absolute -top-2 -right-2 sm:-top-3 sm:-right-3 z-20">
+                  <span className="inline-block px-2 py-1 text-xs font-medium bg-blue-600 text-white rounded-full">
+                    Recommended
+                  </span>
+                </div>
+
                 <div
                   onClick={handleTetrateSetup}
                   className="w-full p-4 sm:p-6 bg-transparent border border-background-hover rounded-xl hover:border-text-muted transition-all duration-200 cursor-pointer group"
                 >
                   <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                      <Tetrate className="w-5 h-5 mb-3 text-text-standard" />
-                      <h3 className="font-medium text-text-standard text-sm sm:text-base">
-                        Tetrate Agent Router
-                      </h3>
+                    <div className="flex items-center gap-2">
+                      <Tetrate className="w-5 h-5 text-text-standard" />
+                      <span className="text-sm sm:text-base">
+                        <span className="font-medium text-text-standard">Agent Router</span>
+                        <span className="text-text-muted text-xs"> by Tetrate</span>
+                      </span>
                     </div>
                     <div className="text-text-muted group-hover:text-text-standard transition-colors">
                       <svg
@@ -278,45 +286,45 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
                     </div>
                   </div>
                   <p className="text-text-muted text-sm sm:text-base">
-                    Secure access to multiple AI models with automatic setup. Free tier available.
+                    Access multiple AI models with automatic setup. $10 starter credit.
                   </p>
                 </div>
+              </div>
 
-                {/* OpenRouter Card */}
-                <div
-                  onClick={handleOpenRouterSetup}
-                  className="relative w-full p-4 sm:p-6 bg-transparent border border-background-hover rounded-xl hover:border-text-muted transition-all duration-200 cursor-pointer group overflow-hidden"
-                >
-                  {/* Subtle shimmer effect */}
-                  <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/8 to-transparent"></div>
+              {/* OpenRouter Card - Full Width */}
+              <div
+                onClick={handleOpenRouterSetup}
+                className="relative w-full p-4 sm:p-6 bg-transparent border border-background-hover rounded-xl hover:border-text-muted transition-all duration-200 cursor-pointer group overflow-hidden mb-6"
+              >
+                {/* Subtle shimmer effect */}
+                <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/8 to-transparent"></div>
 
-                  <div className="relative flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                      <OpenRouter className="w-5 h-5 mb-3 text-text-standard" />
-                      <h3 className="font-medium text-text-standard text-sm sm:text-base">
-                        OpenRouter
-                      </h3>
-                    </div>
-                    <div className="text-text-muted group-hover:text-text-standard transition-colors">
-                      <svg
-                        className="w-4 h-4 sm:w-5 sm:h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9 5l7 7-7 7"
-                        />
-                      </svg>
-                    </div>
+                <div className="relative flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <OpenRouter className="w-5 h-5 text-text-standard" />
+                    <span className="font-medium text-text-standard text-sm sm:text-base">
+                      OpenRouter
+                    </span>
                   </div>
-                  <p className="text-text-muted text-sm sm:text-base">
-                    Access 200+ models with one API. Pay-per-use pricing.
-                  </p>
+                  <div className="text-text-muted group-hover:text-text-standard transition-colors">
+                    <svg
+                      className="w-4 h-4 sm:w-5 sm:h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 5l7 7-7 7"
+                      />
+                    </svg>
+                  </div>
                 </div>
+                <p className="text-text-muted text-sm sm:text-base">
+                  Access 200+ models with one API. Pay-per-use pricing.
+                </p>
               </div>
 
               {/* Other providers section */}
