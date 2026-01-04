@@ -286,7 +286,8 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
                     </div>
                   </div>
                   <p className="text-text-muted text-sm sm:text-base">
-                    Access multiple AI models with automatic setup. $10 starter credit.
+                    Access multiple AI models with automatic setup. This will open your browser so
+                    you can sign up to receive $10 credit.
                   </p>
                 </div>
               </div>
@@ -323,7 +324,8 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
                   </div>
                 </div>
                 <p className="text-text-muted text-sm sm:text-base">
-                  Access 200+ models with one API. Pay-per-use pricing.
+                  Access 200+ models with one API. Pay-per-use pricing. This will open your browser
+                  so you can sign in to access the models.
                 </p>
               </div>
 
