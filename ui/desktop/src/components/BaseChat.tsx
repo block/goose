@@ -53,6 +53,7 @@ interface BaseChatProps {
   suppressEmptyState: boolean;
   sessionId: string;
   initialMessage?: string;
+  autoSubmit?: boolean;
 }
 
 function BaseChatContent({
@@ -61,6 +62,7 @@ function BaseChatContent({
   customMainLayoutProps = {},
   sessionId,
   initialMessage,
+  autoSubmit = false,
 }: BaseChatProps) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -123,6 +125,8 @@ function BaseChatContent({
       .reverse();
   }, [messages]);
 
+  const recipe = session?.recipe;
+
   useEffect(() => {
     if (!session || hasAutoSubmittedRef.current) {
       return;
@@ -158,8 +162,6 @@ function BaseChatContent({
     localOutputTokens: 0,
     session,
   });
-
-  const recipe = session?.recipe;
 
   useEffect(() => {
     if (!recipe) return;
@@ -422,6 +424,7 @@ function BaseChatContent({
             recipeAccepted={!hasNotAcceptedRecipe}
             initialPrompt={initialPrompt}
             toolCount={toolCount || 0}
+            autoSubmit={autoSubmit}
             {...customChatInputProps}
           />
         </div>
