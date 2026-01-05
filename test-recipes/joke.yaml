@@ -1,5 +1,0 @@
-version: 1.0.0
-title: "Tell a Joke"
-description: "A simple subrecipe that tells a programming joke"
-instructions: |
-  Tell a short, funny programming joke. Keep it clean and developer-friendly.
