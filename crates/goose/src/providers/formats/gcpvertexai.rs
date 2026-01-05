@@ -69,7 +69,6 @@ pub enum GcpVertexAIModel {
     MaaS(String, String),
 }
 
-
 impl fmt::Display for GcpVertexAIModel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -79,7 +78,6 @@ impl fmt::Display for GcpVertexAIModel {
         }
     }
 }
-
 
 impl GcpVertexAIModel {
     /// Returns the default GCP location for the model.
@@ -355,5 +353,4 @@ mod tests {
 
         Ok(())
     }
-
 }

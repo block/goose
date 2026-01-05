@@ -14,8 +14,7 @@ use crate::providers::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsag
 
 use crate::providers::errors::ProviderError;
 use crate::providers::formats::gcpvertexai::{
-    create_request, get_usage, response_to_message, GcpVertexAIModel, ModelProvider,
-    RequestContext,
+    create_request, get_usage, response_to_message, GcpVertexAIModel, ModelProvider, RequestContext,
 };
 
 use crate::providers::formats::gcpvertexai::GcpLocation::Iowa;
