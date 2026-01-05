@@ -77,7 +77,6 @@ pub struct ToolCategorizeResult {
     pub filtered_response: Message,
 }
 
-/// Result of loading an extension
 #[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
 pub struct ExtensionLoadResult {
     pub name: String,
