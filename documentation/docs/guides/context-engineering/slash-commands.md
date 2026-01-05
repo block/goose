@@ -9,7 +9,7 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import { PanelLeft, Terminal } from 'lucide-react';
 
-Custom slash commands let you instantly apply instructions using shortcuts like this:
+Custom slash commands are personalized shortcuts to run [recipes](/docs/guides/recipes). Given you have a recipe that runs a daily report, you can create a custom slash command to invoke that recipe from within a session:
 
 ```
 /daily-report
