@@ -418,45 +418,6 @@
         }
       }
     },
-    "/agent/update_router_tool_selector": {
-      "post": {
-        "tags": [
-          "super::routes::agent"
-        ],
-        "operationId": "update_router_tool_selector",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateRouterToolSelectorRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Tool selection strategy updated successfully",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - invalid secret key"
-          },
-          "424": {
-            "description": "Agent not initialized"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      }
-    },
     "/config": {
       "get": {
         "tags": [
@@ -3186,45 +3147,18 @@
         "oneOf": [
           {
             "type": "object",
-            "description": "Server-sent events client with a URI endpoint",
+            "description": "SSE transport is no longer supported - kept only for config file compatibility",
             "required": [
               "name",
               "description",
-              "uri",
               "type"
             ],
             "properties": {
-              "available_tools": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "bundled": {
-                "type": "boolean",
-                "nullable": true
-              },
               "description": {
                 "type": "string"
               },
-              "env_keys": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "envs": {
-                "$ref": "#/components/schemas/Envs"
-              },
               "name": {
-                "type": "string",
-                "description": "The name used to identify this extension"
-              },
-              "timeout": {
-                "type": "integer",
-                "format": "int64",
-                "nullable": true,
-                "minimum": 0
+                "type": "string"
               },
               "type": {
                 "type": "string",
@@ -3233,7 +3167,8 @@
                 ]
               },
               "uri": {
-                "type": "string"
+                "type": "string",
+                "nullable": true
               }
             }
           },
@@ -3589,6 +3524,12 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ExtensionEntry"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
             }
           }
         }
@@ -4562,6 +4503,10 @@
           "name"
         ],
         "properties": {
+          "_meta": {
+            "type": "object",
+            "additionalProperties": true
+          },
           "description": {
             "type": "string"
           },
@@ -5913,17 +5858,6 @@
           "provider": {
             "type": "string"
           },
-          "session_id": {
-            "type": "string"
-          }
-        }
-      },
-      "UpdateRouterToolSelectorRequest": {
-        "type": "object",
-        "required": [
-          "session_id"
-        ],
-        "properties": {
           "session_id": {
             "type": "string"
           }

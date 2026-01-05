@@ -31,6 +31,7 @@ interface ConfigContextType {
   config: ConfigResponse['config'];
   providersList: ProviderDetails[];
   extensionsList: FixedExtensionEntry[];
+  extensionWarnings: string[];
   upsert: (key: string, value: unknown, is_secret: boolean) => Promise<void>;
   read: (key: string, is_secret: boolean) => Promise<unknown>;
   remove: (key: string, is_secret: boolean) => Promise<void>;
@@ -62,6 +63,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
   const [config, setConfig] = useState<ConfigResponse['config']>({});
   const [providersList, setProvidersList] = useState<ProviderDetails[]>([]);
   const [extensionsList, setExtensionsList] = useState<FixedExtensionEntry[]>([]);
+  const [extensionWarnings, setExtensionWarnings] = useState<string[]>([]);
 
   const reloadConfig = useCallback(async () => {
     const response = await readAllConfig();
@@ -116,6 +118,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
 
     const extensionResponse: ExtensionResponse = result.data!;
     setExtensionsList(extensionResponse.extensions);
+    setExtensionWarnings(extensionResponse.warnings || []);
     return extensionResponse.extensions;
   }, [extensionsList]);
 
@@ -216,6 +219,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
       try {
         const extensionsResponse = await apiGetExtensions();
         setExtensionsList(extensionsResponse.data?.extensions || []);
+        setExtensionWarnings(extensionsResponse.data?.warnings || []);
       } catch (error) {
         console.error('Failed to load extensions:', error);
       }
@@ -244,6 +248,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
       config,
       providersList,
       extensionsList,
+      extensionWarnings,
       upsert,
       read,
       remove,
@@ -260,6 +265,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     config,
     providersList,
     extensionsList,
+    extensionWarnings,
     upsert,
     read,
     remove,

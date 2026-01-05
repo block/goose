@@ -1,65 +1,64 @@
 ---
-title: VS Code Extension
+title: goose for VS Code Extension
 sidebar_label: VS Code Extension
 sidebar_position: 4
-unlisted: true
 ---
 
-import Tabs from '@theme/Tabs';
-import TabItem from '@theme/TabItem';
+import IconGoose from "@site/src/components/icons/goose";
 
-:::warning
-This is an experimental extension enables you to use goose within VS Code. It is not to be confused with the [VS Code MCP Server](/docs/mcp/vs-code-mcp).
+The [goose for VS Code extension](https://marketplace.visualstudio.com/items?itemName=block.vscode-goose) lets you interact with goose directly within VS Code.
+
+:::warning Experimental Feature
+goose for VS Code is in active development. Behavior and configuration may change in future releases.
 :::
 
-This tutorial covers how to install and use the [goose VS Code Extension](https://marketplace.visualstudio.com/items?itemName=block.vscode-goose) so you can use goose within VS Code.
+The extension uses the [Agent Client Protocol (ACP)](/docs/guides/acp-clients) to communicate with goose.
 
-:::info Prerequisite
-- [VS Code](https://code.visualstudio.com/) version 1.95.0 or higher is required
-- [goose Desktop](https://block.github.io/goose/) must be installed and **running**
+## Install the Extension
+
+:::info Prerequisites
+- [VS Code](https://code.visualstudio.com/) version 1.95.0 or higher
+- [goose CLI](/docs/getting-started/installation) version 1.16.0 or higher
 :::
 
-## Configuration
+1. Go to [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=block.vscode-goose)
+2. Click `Install`
+3. On the popup window, click `Open Visual Studio Code`
+4. In Visual Studio Code, click `Install`
+5. Click the <IconGoose className="inline" size={16} /> icon in the Activity Bar to open the side panel and start chatting with goose
 
-<Tabs>
-<TabItem value="desktop" label="goose Desktop">
+## Share Context with goose
 
-1. Open VS Code
-2. Open the Extensions view in VS Code:
-   - Windows/Linux: `Ctrl+Shift+X`
-   - macOS: `Cmd+Shift+X`
-   - Or use: View → Extensions
-3. Search for `VS Code goose`
-4. Click Install on [VS Code goose](https://marketplace.visualstudio.com/items?itemName=block.vscode-goose) by Block
-5. Restart VS Code if prompted
-6. Open the goose: Chat side panel to start a new conversation or view conversation history
+There are two ways to provide context to goose.
 
-</TabItem>
-<TabItem value="cli" label="goose CLI">
+### Send Selected Code
 
-Not available via CLI.
+1. Select the code you want to discuss in your editor
+2. Send the selection to goose:
+   - macOS: `Cmd+Shift+G`
+   - Windows/Linux: `Ctrl+Shift+G`
+   - Right-click and choose `Send to goose`
 
-</TabItem>
-</Tabs>
+The selected code will appear as a context chip above the chat input.
 
-:::tip
-You can ask goose about a particular file or code block by:
-- Selecting the code you want to discuss
-- Right-clicking and choosing "Ask goose about this code"
-- The code will appear as a reference chip above the chat input
-:::
+### Attach Files with @ Mentions
+
+1. Type `@` in the chat input and start typing the file name
+2. Select the file:
+   - Use the arrow keys (↑/↓) to select the file and press `Enter`
+   - Use your mouse to select the file
+
+The attached file will appear as a context chip above the chat input.
 
 ## Example Usage
 
-The goose VS Code Extension connects directly to your editor, letting you manage files, projects, and workflows with AI. It includes the following features:
+The goose for VS Code extension connects directly to your editor, letting you manage files, projects, and workflows with AI. It includes the following features:
 
-- Interactive chat UI
-- Access to goose's AI capabilities directly within VS Code
-- Unified session switching
-- Code referencing with visual chips in the chat UI
-- Quick actions for common coding tasks
+- Interactive chat UI with streaming responses
+- Access to goose's AI capabilities and enabled extensions
+- Session management with history replay
+- Context sharing and visual context chips in the chat UI
 - Clipboard tools to copy code snippets/responses for easy sharing
-
 
 ### goose Prompt
 

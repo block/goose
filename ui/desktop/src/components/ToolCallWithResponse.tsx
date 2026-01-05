@@ -269,6 +269,14 @@ const notificationToProgress = (notification: NotificationEvent): Progress => {
   return message.params as Progress;
 };
 
+// Helper function to extract toolcall name
+const getToolName = (toolCallName: string): string => {
+  const lastIndex = toolCallName.lastIndexOf('__');
+  if (lastIndex === -1) return toolCallName;
+
+  return toolCallName.substring(lastIndex + 2);
+}
+
 // Helper function to extract extension name for tooltip
 const getExtensionTooltip = (toolCallName: string): string | null => {
   const lastIndex = toolCallName.lastIndexOf('__');
@@ -376,7 +384,7 @@ function ToolCallView({
   // Function to create a descriptive representation of what the tool is doing
   const getToolDescription = (): string | null => {
     const args = toolCall.arguments as Record<string, ToolCallArgumentValue>;
-    const toolName = toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2);
+    const toolName = getToolName(toolCall.name);
 
     const getStringValue = (value: ToolCallArgumentValue): string => {
       return typeof value === 'string' ? value : JSON.stringify(value);
@@ -542,7 +550,7 @@ function ToolCallView({
       return description;
     }
     // Fallback tool name formatting
-    return snakeToTitleCase(toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2));
+    return snakeToTitleCase(getToolName(toolCall.name));
   };
   // Map LoadingStatus to ToolCallStatus
   const getToolCallStatus = (loadingStatus: LoadingStatus): ToolCallStatus => {

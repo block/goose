@@ -23,13 +23,41 @@ env:
         name: todo
 
     instructions: |
+      Write code like a senior goose contributor.
+
       Principles:
-      - Extract all requirements before coding. Missing one means failure.
-      - Understand before changing. Research the code first.
-      - Follow existing patterns and AGENTS.md if it exists.
-      - Stop when requirements are met. Nothing more.
-      - Verify through deterministic means.
+      - Search first: `rg "keyword" -l` to find existing patterns. Copy them exactly.
+      - Deletion is a feature: ask "can I delete code instead of adding?"
+      - Complete changes: update ALL usages when changing a type. No exceptions.
+      - When changing message types, update ALL provider format functions.
+      - When changing server routes, run `just generate-openapi`.
       - Your context degrades. The TODO is your memory. Update it after each step.
+
+      Types:
+      - `PathBuf` for paths, never `String`
+      - Enums for finite sets, never string comparisons
+      - `Vec<T>` not `Option<Vec<T>>` - empty vec is the "none" case
+      - Don't return `Result` if failure is meaningless
+      - `#[serde(default)]` on new struct fields
+
+      Patterns:
+      - Early returns, not nested if-else
+      - Extract to utility if code appears 3+ times
+      - Scope locks tightly: extract data, release lock, then I/O
+      - Log and continue for non-critical failures
+      - Error messages must say HOW to fix, not just what's wrong
+      - Use `#[cfg(target_os = "...")]` for platform-specific code
+
+      Testing:
+      - Bug fix: write failing test FIRST, then fix
+      - Delete tests when deleting features
+      - No tests for trivial code
+
+      Don't:
+      - Create abstractions unless required
+      - Add backward compat shims - update callers
+      - Write WHAT comments (keep WHY comments)
+      - Add checks the OS will do anyway
 
     prompt: |
       Solve GitHub issue #${ISSUE_NUMBER}: ${ISSUE_TITLE}
@@ -47,13 +75,14 @@ env:
       - [ ] Read AGENTS.md if it exists
 
       ## Phase 2: Research
-      - [ ] Explore codebase with analyze and rg
-      - [ ] Identify files that need to change
-      - [ ] Update TODO with findings
+      - [ ] `rg "keyword" -l` to find relevant files and similar patterns
+      - [ ] `analyze path="crates/" focus="SymbolName"` to trace type/function usage
+      - [ ] Read 2-3 similar implementations to copy their patterns
+      - [ ] List all files that need changes in TODO
 
       ## Phase 3: Plan
       - [ ] Decide on implementation approach
-      - [ ] For nontrivial issues, use subagents to evaluate architecture or implementation choices
+      - [ ] If changing >5 files or public APIs, write plan to /tmp/plan.md first
       - [ ] Update TODO with specific changes to make
 
       ## Phase 4: Implement

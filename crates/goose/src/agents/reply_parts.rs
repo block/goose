@@ -113,16 +113,8 @@ impl Agent {
         &self,
         working_dir: &std::path::Path,
     ) -> Result<(Vec<Tool>, Vec<Tool>, String)> {
-        // Get router enabled status
-        let router_enabled = self.tool_route_manager.is_router_enabled().await;
-
         // Get tools from extension manager
-        let mut tools = self.list_tools_for_router().await;
-
-        // If router is disabled and no tools were returned, fall back to regular tools
-        if !router_enabled && tools.is_empty() {
-            tools = self.list_tools(None).await;
-        }
+        let mut tools = self.list_tools(None).await;
 
         // Add frontend tools
         let frontend_tools = self.frontend_tools.lock().await;
@@ -139,10 +131,8 @@ impl Agent {
             tools.retain(|tool| tool.name.starts_with(&code_exec_prefix));
         }
 
-        if !router_enabled {
-            // Stable tool ordering is important for multi session prompt caching.
-            tools.sort_by(|a, b| a.name.cmp(&b.name));
-        }
+        // Stable tool ordering is important for multi session prompt caching.
+        tools.sort_by(|a, b| a.name.cmp(&b.name));
 
         // Prepare system prompt
         let extensions_info = self.extension_manager.get_extensions_info().await;
@@ -159,7 +149,6 @@ impl Agent {
             .with_extensions(extensions_info.into_iter())
             .with_frontend_instructions(self.frontend_instructions.lock().await.clone())
             .with_extension_and_tool_counts(extension_count, tool_count)
-            .with_router_enabled(router_enabled)
             .with_code_execution_mode(code_execution_active)
             .with_hints(working_dir)
             .with_enable_subagents(self.subagents_enabled().await)
@@ -448,8 +437,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn prepare_tools_sorts_when_router_disabled_and_includes_frontend_and_list_tools(
-    ) -> anyhow::Result<()> {
+    async fn prepare_tools_sorts_and_includes_frontend_and_list_tools() -> anyhow::Result<()> {
         let agent = crate::agents::Agent::new();
 
         let session = SessionManager::create_session(
@@ -462,9 +450,6 @@ mod tests {
         let model_config = ModelConfig::new("test-model").unwrap();
         let provider = std::sync::Arc::new(MockProvider { model_config });
         agent.update_provider(provider, &session.id).await?;
-
-        // Disable the router to trigger sorting
-        agent.disable_router_for_recipe().await;
 
         // Add unsorted frontend tools
         let frontend_tools = vec![

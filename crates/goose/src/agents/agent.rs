@@ -12,20 +12,17 @@ use super::final_output_tool::FinalOutputTool;
 use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::action_required_manager::ActionRequiredManager;
-use crate::agents::extension::{ExtensionConfig, ExtensionError, ExtensionResult, ToolInfo};
+use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
 use crate::agents::extension_manager_extension::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
 use crate::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::retry::{RetryManager, RetryResult};
-use crate::agents::router_tools::ROUTER_LLM_SEARCH_TOOL_NAME;
 use crate::agents::subagent_task_config::TaskConfig;
 use crate::agents::subagent_tool::{
     create_subagent_tool, handle_subagent_tool, SUBAGENT_TOOL_NAME,
 };
-use crate::agents::tool_route_manager::ToolRouteManager;
-use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, SharedProvider, ToolResultReceiver};
 use crate::config::{get_enabled_extensions, Config, GooseMode};
@@ -95,7 +92,6 @@ pub struct Agent {
     pub(super) tool_result_tx: mpsc::Sender<(String, ToolResult<CallToolResult>)>,
     pub(super) tool_result_rx: ToolResultReceiver,
 
-    pub tool_route_manager: Arc<ToolRouteManager>,
     pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
     pub(super) retry_manager: RetryManager,
     pub(super) tool_inspection_manager: ToolInspectionManager,
@@ -169,7 +165,6 @@ impl Agent {
             confirmation_rx: Mutex::new(confirm_rx),
             tool_result_tx: tool_tx,
             tool_result_rx: Arc::new(Mutex::new(tool_rx)),
-            tool_route_manager: Arc::new(ToolRouteManager::new()),
             scheduler_service: Mutex::new(None),
             retry_manager: RetryManager::new(),
             tool_inspection_manager: Self::create_default_tool_inspection_manager(),
@@ -369,10 +364,6 @@ impl Agent {
         *scheduler_service = Some(scheduler);
     }
 
-    pub async fn disable_router_for_recipe(&self) {
-        self.tool_route_manager.disable_router_for_recipe().await;
-    }
-
     /// Get a reference count clone to the provider
     pub async fn provider(&self) -> Result<Arc<dyn Provider>, anyhow::Error> {
         match &*self.provider.lock().await {
@@ -518,15 +509,6 @@ impl Agent {
                 "Frontend tool execution required".to_string(),
                 None,
             )))
-        } else if tool_call.name == ROUTER_LLM_SEARCH_TOOL_NAME {
-            match self
-                .tool_route_manager
-                .dispatch_route_search_tool(tool_call.arguments.unwrap_or_default())
-                .await
-            {
-                Ok(tool_result) => tool_result,
-                Err(e) => return (request_id, Err(e)),
-            }
         } else {
             // Clone the result to ensure no references to extension_manager are returned
             let result = self
@@ -617,28 +599,6 @@ impl Agent {
             }
         }
 
-        // If LLM tool selection is functional, index the tools
-        if self.tool_route_manager.is_router_functional().await {
-            let selector = self.tool_route_manager.get_router_tool_selector().await;
-            if let Some(selector) = selector {
-                let selector = Arc::new(selector);
-                if let Err(e) = ToolRouterIndexManager::update_extension_tools(
-                    &selector,
-                    &self.extension_manager,
-                    &extension.name(),
-                    "add",
-                )
-                .await
-                {
-                    return Err(ExtensionError::SetupError(format!(
-                        "Failed to index tools for extension {}: {}",
-                        extension.name(),
-                        e
-                    )));
-                }
-            }
-        }
-
         Ok(())
     }
 
@@ -702,29 +662,8 @@ impl Agent {
         prefixed_tools
     }
 
-    pub async fn list_tools_for_router(&self) -> Vec<Tool> {
-        self.tool_route_manager
-            .list_tools_for_router(&self.extension_manager)
-            .await
-    }
-
     pub async fn remove_extension(&self, name: &str) -> Result<()> {
         self.extension_manager.remove_extension(name).await?;
-
-        // If LLM tool selection is functional, remove tools from the index
-        if self.tool_route_manager.is_router_functional().await {
-            let selector = self.tool_route_manager.get_router_tool_selector().await;
-            if let Some(selector) = selector {
-                ToolRouterIndexManager::update_extension_tools(
-                    &selector,
-                    &self.extension_manager,
-                    name,
-                    "remove",
-                )
-                .await?;
-            }
-        }
-
         Ok(())
     }
 
@@ -1052,10 +991,6 @@ impl Agent {
                                     remaining_requests,
                                     filtered_response,
                                 } = self.categorize_tools(&response, &tools).await;
-                                let requests_to_record: Vec<ToolRequest> = frontend_requests.iter().chain(remaining_requests.iter()).cloned().collect();
-                                self.tool_route_manager
-                                    .record_tool_requests(&requests_to_record)
-                                    .await;
 
                                 yield AgentEvent::Message(filtered_response.clone());
                                 tokio::task::yield_now().await;
@@ -1378,31 +1313,12 @@ impl Agent {
         let mut current_provider = self.provider.lock().await;
         *current_provider = Some(provider.clone());
 
-        self.update_router_tool_selector(Some(provider.clone()), None)
-            .await?;
-
         SessionManager::update_session(session_id)
             .provider_name(provider.get_name())
             .model_config(provider.get_model_config())
             .apply()
             .await
             .context("Failed to persist provider config to session")
-    }
-
-    pub async fn update_router_tool_selector(
-        &self,
-        provider: Option<Arc<dyn Provider>>,
-        reindex_all: Option<bool>,
-    ) -> Result<()> {
-        let provider = match provider {
-            Some(p) => p,
-            None => self.provider().await?,
-        };
-
-        // Delegate to ToolRouteManager
-        self.tool_route_manager
-            .update_router_tool_selector(provider, reindex_all, &self.extension_manager)
-            .await
     }
 
     /// Override the system prompt with a custom template
