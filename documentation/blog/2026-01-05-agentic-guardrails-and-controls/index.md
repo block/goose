@@ -90,6 +90,8 @@ We feel that the CORS model is largely applicable here. In order to accomplish a
 
 As discussed, the session or conversations between an agent and a human including tool calls is generally represented in string/JSON format similar to this example:
 
+<details>
+<summary>Example: Agent conversation with tool calls</summary>
 ```json
 [
   {
@@ -170,6 +172,7 @@ As discussed, the session or conversations between an agent and a human includin
   }
 ]
 ```
+</details>
 
 This format is used to help provide the LLM continued context on what has previously occurred in the conversation but is constructed by our agentic interfaces.
 
