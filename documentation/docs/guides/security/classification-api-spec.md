@@ -4,7 +4,7 @@ This document defines the API that Goose uses for ML-based prompt injection dete
 
 ## Overview
 
-Goose requires a classification endpoint that can analyze text and return a score indicating the likelihood of prompt injection. This API follows the **HuggingFace Inference API format** for text classification, making it compatible with HuggingFace Inference Endpoints to allow for easy usage in OSS goose. 
+Goose requires a classification endpoint that can analyze text and return a score indicating the likelihood of prompt injection. This API follows the **HuggingFace Inference API format** for text classification, making it compatible with [HuggingFace Inference Endpoints](https://huggingface.co/docs/inference-providers/providers/hf-inference). 
 
 ## Security & Privacy Considerations
 **Warning:** When using ML-based prompt injection detection, all tool call content and user messages sent for classification will be transmitted to the configured endpoint. This may include sensitive or confidential information.
