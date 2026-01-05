@@ -1,0 +1,19 @@
+version: 1.0.0
+title: "Greet and Joke"
+description: "A main recipe that uses subrecipes to greet the user and tell a joke"
+instructions: |
+  You have access to two subrecipes:
+  1. "greet" - Use this to greet the user
+  2. "joke" - Use this to tell a programming joke
+  
+  First run the greet subrecipe, then run the joke subrecipe.
+  After both complete, summarize what happened.
+
+sub_recipes:
+  - name: greet
+    path: ./greet.yaml
+    description: "Greets the user warmly"
+    
+  - name: joke
+    path: ./joke.yaml
+    description: "Tells a programming joke"

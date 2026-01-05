@@ -1,0 +1,5 @@
+version: 1.0.0
+title: "Greet User"
+description: "A simple subrecipe that greets the user"
+instructions: |
+  Say hello and introduce yourself briefly. Be friendly and warm.

@@ -74,7 +74,7 @@ But if we wanted autonomy and we wanted it to be safe and aligned with the Rule 
 **A2.** The list of all the tools called since last communicating to the user  
 
 **Q3.** Would it be appropriate to trigger the tool call in response to *any* of these possible identities  
-A3.** We’ll get there, but like at this point you probably know it’s gonna look like CORS 😉
+**A3.** We’ll get there, but like at this point you probably know it’s gonna look like CORS 😉
 
 ## Established techniques and controls
 
