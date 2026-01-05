@@ -1,6 +1,5 @@
 use crate::routes::agent_utils::{
     persist_session_extensions, restore_agent_extensions, restore_agent_provider,
-    ExtensionLoadResult,
 };
 use crate::routes::errors::ErrorResponse;
 use crate::routes::recipe_utils::{
@@ -14,6 +13,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use goose::agents::ExtensionLoadResult;
 use goose::config::PermissionManager;
 
 use base64::Engine;
@@ -279,10 +279,6 @@ async fn start_agent(
             .await
         {
             Ok(agent) => {
-                agent
-                    .set_working_dir(session_for_spawn.working_dir.clone())
-                    .await;
-
                 let results = restore_agent_extensions(agent, &session_for_spawn).await;
                 tracing::debug!(
                     "Background extension loading completed for session {}",
@@ -574,16 +570,16 @@ async fn agent_add_extension(
     let extension_name = request.config.name();
     let agent = state.get_agent(request.session_id.clone()).await?;
 
-    // Set the agent's working directory from the session before adding the extension
-    agent.set_working_dir(session.working_dir).await;
-
-    agent.add_extension(request.config).await.map_err(|e| {
-        goose::posthog::emit_error(
-            "extension_add_failed",
-            &format!("{}: {}", extension_name, e),
-        );
-        ErrorResponse::internal(format!("Failed to add extension: {}", e))
-    })?;
+    agent
+        .add_extension(request.config, Some(session.working_dir))
+        .await
+        .map_err(|e| {
+            goose::posthog::emit_error(
+                "extension_add_failed",
+                &format!("{}: {}", extension_name, e),
+            );
+            ErrorResponse::internal(format!("Failed to add extension: {}", e))
+        })?;
 
     persist_session_extensions(&agent, &request.session_id).await?;
     Ok(StatusCode::OK)

@@ -13,7 +13,7 @@ use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::action_required_manager::ActionRequiredManager;
 use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
-use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
+use crate::agents::extension_manager::{get_parameter_names, normalize, ExtensionManager};
 use crate::agents::extension_manager_extension::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
 use crate::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
@@ -77,6 +77,15 @@ pub struct ToolCategorizeResult {
     pub filtered_response: Message,
 }
 
+/// Result of loading an extension
+#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
+pub struct ExtensionLoadResult {
+    pub name: String,
+    pub success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
 /// The main goose Agent
 pub struct Agent {
     pub(super) provider: SharedProvider,
@@ -95,7 +104,6 @@ pub struct Agent {
     pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
     pub(super) retry_manager: RetryManager,
     pub(super) tool_inspection_manager: ToolInspectionManager,
-    pub(super) working_dir: Mutex<Option<std::path::PathBuf>>,
 }
 
 #[derive(Clone, Debug)]
@@ -169,17 +177,7 @@ impl Agent {
             scheduler_service: Mutex::new(None),
             retry_manager: RetryManager::new(),
             tool_inspection_manager: Self::create_default_tool_inspection_manager(),
-            working_dir: Mutex::new(None),
         }
-    }
-
-    pub async fn set_working_dir(&self, working_dir: std::path::PathBuf) {
-        let mut wd = self.working_dir.lock().await;
-        *wd = Some(working_dir);
-    }
-
-    pub async fn get_working_dir(&self) -> Option<std::path::PathBuf> {
-        self.working_dir.lock().await.clone()
     }
 
     /// Create a tool inspection manager with default inspectors
@@ -576,9 +574,97 @@ impl Agent {
         Ok(())
     }
 
-    pub async fn add_extension(&self, extension: ExtensionConfig) -> ExtensionResult<()> {
-        let working_dir = self.get_working_dir().await;
+    /// Save current extension state to session by session_id
+    /// Simpler version of save_extension_state that just takes a session_id
+    pub async fn persist_extension_state(&self, session_id: &str) -> Result<()> {
+        let extension_configs = self.extension_manager.get_extension_configs().await;
+        let extensions_state = EnabledExtensionsState::new(extension_configs);
 
+        let session = SessionManager::get_session(session_id, false).await?;
+        let mut extension_data = session.extension_data.clone();
+
+        extensions_state
+            .to_extension_data(&mut extension_data)
+            .map_err(|e| anyhow!("Failed to serialize extension state: {}", e))?;
+
+        SessionManager::update_session(session_id)
+            .extension_data(extension_data)
+            .apply()
+            .await?;
+
+        Ok(())
+    }
+
+    /// Load extensions from session into the agent
+    /// Skips extensions that are already loaded
+    pub async fn load_extensions_from_session(
+        self: &Arc<Self>,
+        session: &Session,
+    ) -> Vec<ExtensionLoadResult> {
+        let working_dir = session.working_dir.clone();
+
+        // Try to load session-specific extensions first, fall back to global config
+        let session_extensions =
+            EnabledExtensionsState::from_extension_data(&session.extension_data);
+        let enabled_configs = session_extensions
+            .map(|state| state.extensions)
+            .unwrap_or_else(|| {
+                tracing::info!("load_extensions_from_session: falling back to global config");
+                get_enabled_extensions()
+            });
+
+        let extension_futures = enabled_configs
+            .into_iter()
+            .map(|config| {
+                let config_clone = config.clone();
+                let agent_ref = self.clone();
+                let wd = Some(working_dir.clone());
+
+                async move {
+                    let name = config_clone.name().to_string();
+                    let normalized_name = normalize(&name);
+
+                    if agent_ref
+                        .extension_manager
+                        .is_extension_enabled(&normalized_name)
+                        .await
+                    {
+                        tracing::debug!("Extension {} already loaded, skipping", name);
+                        return ExtensionLoadResult {
+                            name,
+                            success: true,
+                            error: None,
+                        };
+                    }
+
+                    match agent_ref.add_extension(config_clone, wd).await {
+                        Ok(_) => ExtensionLoadResult {
+                            name,
+                            success: true,
+                            error: None,
+                        },
+                        Err(e) => {
+                            let error_msg = e.to_string();
+                            warn!("Failed to load extension {}: {}", name, error_msg);
+                            ExtensionLoadResult {
+                                name,
+                                success: false,
+                                error: Some(error_msg),
+                            }
+                        }
+                    }
+                }
+            })
+            .collect::<Vec<_>>();
+
+        futures::future::join_all(extension_futures).await
+    }
+
+    pub async fn add_extension(
+        &self,
+        extension: ExtensionConfig,
+        working_dir: Option<std::path::PathBuf>,
+    ) -> ExtensionResult<()> {
         match &extension {
             ExtensionConfig::Frontend {
                 tools,

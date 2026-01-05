@@ -539,7 +539,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::agent::RemoveExtensionRequest,
         super::routes::agent::ResumeAgentResponse,
         super::routes::agent::RestartAgentResponse,
-        super::routes::agent_utils::ExtensionLoadResult,
+        goose::agents::ExtensionLoadResult,
         super::routes::setup::SetupResponse,
         super::tunnel::TunnelInfo,
         super::tunnel::TunnelState,

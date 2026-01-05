@@ -33,7 +33,8 @@ async fn main() -> anyhow::Result<()> {
         DEFAULT_EXTENSION_TIMEOUT,
     )
     .with_args(vec!["mcp", "developer"]);
-    agent.add_extension(config).await?;
+    let working_dir = std::env::current_dir().ok();
+    agent.add_extension(config, working_dir).await?;
 
     println!("Extensions:");
     for extension in agent.list_extensions().await {

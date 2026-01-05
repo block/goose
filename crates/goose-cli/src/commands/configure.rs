@@ -1336,8 +1336,9 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
     let new_provider = create(&provider_name, model_config).await?;
     agent.update_provider(new_provider, &session.id).await?;
     if let Some(config) = get_extension_by_name(&selected_extension_name) {
+        let working_dir = std::env::current_dir().ok();
         agent
-            .add_extension(config.clone())
+            .add_extension(config.clone(), working_dir)
             .await
             .unwrap_or_else(|_| {
                 println!(

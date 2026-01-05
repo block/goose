@@ -3667,6 +3667,7 @@
       },
       "ExtensionLoadResult": {
         "type": "object",
+        "description": "Result of loading an extension",
         "required": [
           "name",
           "success"

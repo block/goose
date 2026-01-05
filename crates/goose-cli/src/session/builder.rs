@@ -158,9 +158,13 @@ async fn offer_extension_debugging_help(
 
     // Add the developer extension if available to help with debugging
     let extensions = get_all_extensions();
+    let working_dir = std::env::current_dir().ok();
     for ext_wrapper in extensions {
         if ext_wrapper.enabled && ext_wrapper.config.name() == "developer" {
-            if let Err(e) = debug_agent.add_extension(ext_wrapper.config).await {
+            if let Err(e) = debug_agent
+                .add_extension(ext_wrapper.config, working_dir.clone())
+                .await
+            {
                 // If we can't add developer extension, continue without it
                 eprintln!(
                     "Note: Could not load developer extension for debugging: {}",
@@ -419,9 +423,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
 
     // Setup extensions for the agent
     // Extensions need to be added after the session is created because we change directory when resuming a session
-    // Set the agent's working directory before adding extensions
     let working_dir = std::env::current_dir().expect("Could not get working directory");
-    agent.set_working_dir(working_dir).await;
 
     for warning in goose::config::get_warnings() {
         eprintln!("{}", style(format!("Warning: {}", warning)).yellow());
@@ -455,10 +457,11 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     for extension in extensions_to_run {
         waiting_on.insert(extension.name());
         let agent_ptr = agent_ptr.clone();
+        let wd = Some(working_dir.clone());
         set.spawn(async move {
             (
                 extension.name(),
-                agent_ptr.add_extension(extension.clone()).await,
+                agent_ptr.add_extension(extension.clone(), wd).await,
             )
         });
     }

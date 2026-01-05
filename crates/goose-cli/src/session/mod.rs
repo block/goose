@@ -243,8 +243,9 @@ impl CliSession {
             available_tools: Vec::new(),
         };
 
+        let working_dir = std::env::current_dir().ok();
         self.agent
-            .add_extension(config)
+            .add_extension(config, working_dir)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to start extension: {}", e))?;
 
@@ -272,8 +273,9 @@ impl CliSession {
             available_tools: Vec::new(),
         };
 
+        let working_dir = std::env::current_dir().ok();
         self.agent
-            .add_extension(config)
+            .add_extension(config, working_dir)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to start extension: {}", e))?;
 
@@ -288,6 +290,7 @@ impl CliSession {
     /// # Arguments
     /// * `builtin_name` - Name of the builtin extension(s), comma separated
     pub async fn add_builtin(&mut self, builtin_name: String) -> Result<()> {
+        let working_dir = std::env::current_dir().ok();
         for name in builtin_name.split(',') {
             let extension_name = name.trim();
 
@@ -309,7 +312,7 @@ impl CliSession {
                 }
             };
             self.agent
-                .add_extension(config)
+                .add_extension(config, working_dir.clone())
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to start builtin extension: {}", e))?;
         }

@@ -241,6 +241,7 @@ fn format_tool_name(tool_name: &str) -> String {
 }
 
 async fn add_builtins(agent: &Agent, builtins: Vec<String>) {
+    let working_dir = std::env::current_dir().ok();
     for builtin in builtins {
         let config = if PLATFORM_EXTENSIONS.contains_key(builtin.as_str()) {
             ExtensionConfig::Platform {
@@ -259,7 +260,7 @@ async fn add_builtins(agent: &Agent, builtins: Vec<String>) {
                 available_tools: Vec::new(),
             }
         };
-        match agent.add_extension(config).await {
+        match agent.add_extension(config, working_dir.clone()).await {
             Ok(_) => info!(extension = %builtin, "builtin extension loaded"),
             Err(e) => warn!(extension = %builtin, error = %e, "builtin extension load failed"),
         }
@@ -318,14 +319,16 @@ impl GooseAcpAgent {
 
         let mut set = JoinSet::new();
         let mut waiting_on = HashSet::new();
+        let working_dir = std::env::current_dir().ok();
 
         for extension in extensions_to_run {
             waiting_on.insert(extension.name());
             let agent_ptr_clone = agent_ptr.clone();
+            let wd = working_dir.clone();
             set.spawn(async move {
                 (
                     extension.name(),
-                    agent_ptr_clone.add_extension(extension.clone()).await,
+                    agent_ptr_clone.add_extension(extension.clone(), wd).await,
                 )
             });
         }
@@ -732,6 +735,7 @@ impl GooseAcpAgent {
         sessions.insert(goose_session.id.clone(), session);
 
         // Add MCP servers specified in the session request
+        let working_dir = std::env::current_dir().ok();
         for mcp_server in args.mcp_servers {
             let config = match mcp_server_to_extension_config(mcp_server) {
                 Ok(c) => c,
@@ -740,7 +744,7 @@ impl GooseAcpAgent {
                 }
             };
             let name = config.name().to_string();
-            if let Err(e) = self.agent.add_extension(config).await {
+            if let Err(e) = self.agent.add_extension(config, working_dir.clone()).await {
                 return Err(sacp::Error::new(
                     sacp::ErrorCode::InternalError.into(),
                     format!("Failed to add MCP server '{}': {}", name, e),

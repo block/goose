@@ -487,7 +487,7 @@ mod tests {
             };
 
             agent
-                .add_extension(ext_config)
+                .add_extension(ext_config, None)
                 .await
                 .expect("Failed to add extension manager");
             agent

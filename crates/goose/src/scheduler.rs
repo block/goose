@@ -735,8 +735,11 @@ async fn execute_job(
     let agent_provider = create(&provider_name, model_config).await?;
 
     if let Some(ref extensions) = recipe.extensions {
+        let working_dir = std::env::current_dir().ok();
         for ext in extensions {
-            agent.add_extension(ext.clone()).await?;
+            agent
+                .add_extension(ext.clone(), working_dir.clone())
+                .await?;
         }
     }
 
