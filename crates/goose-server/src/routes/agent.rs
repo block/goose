@@ -1,4 +1,7 @@
-use crate::routes::agent_utils::{restore_agent_extensions, restore_agent_provider};
+use crate::routes::agent_utils::{
+    persist_session_extensions, restore_agent_extensions, restore_agent_provider,
+    ExtensionLoadResult,
+};
 use crate::routes::errors::ErrorResponse;
 use crate::routes::recipe_utils::{
     apply_recipe_to_agent, build_recipe_with_parameter_values, load_recipe_by_id, validate_recipe,
@@ -20,8 +23,9 @@ use goose::prompt_template::render_global_file;
 use goose::providers::create;
 use goose::recipe::Recipe;
 use goose::recipe_deeplink;
+use goose::session::extension_data::ExtensionState;
 use goose::session::session_manager::SessionType;
-use goose::session::{Session, SessionManager};
+use goose::session::{EnabledExtensionsState, Session, SessionManager};
 use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
     config::permission::PermissionLevel,
@@ -68,6 +72,8 @@ pub struct StartAgentRequest {
     recipe_id: Option<String>,
     #[serde(default)]
     recipe_deeplink: Option<String>,
+    #[serde(default)]
+    extension_overrides: Option<Vec<ExtensionConfig>>,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -130,6 +136,18 @@ pub struct CallToolResponse {
     is_error: bool,
 }
 
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct ResumeAgentResponse {
+    pub session: Session,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extension_results: Option<Vec<ExtensionLoadResult>>,
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct RestartAgentResponse {
+    pub extension_results: Vec<ExtensionLoadResult>,
+}
+
 #[utoipa::path(
     post,
     path = "/agent/start",
@@ -141,6 +159,7 @@ pub struct CallToolResponse {
         (status = 500, description = "Internal server error", body = ErrorResponse)
     )
 )]
+#[allow(clippy::too_many_lines)]
 async fn start_agent(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<StartAgentRequest>,
@@ -152,6 +171,7 @@ async fn start_agent(
         recipe,
         recipe_id,
         recipe_deeplink,
+        extension_overrides,
     } = payload;
 
     let original_recipe = if let Some(deeplink) = recipe_deeplink {
@@ -199,6 +219,27 @@ async fn start_agent(
                 }
             })?;
 
+    // Initialize session with extensions (either overrides from hub or global defaults)
+    let extensions_to_use =
+        extension_overrides.unwrap_or_else(goose::config::get_enabled_extensions);
+    let mut extension_data = session.extension_data.clone();
+    let extensions_state = EnabledExtensionsState::new(extensions_to_use);
+    if let Err(e) = extensions_state.to_extension_data(&mut extension_data) {
+        tracing::warn!("Failed to initialize session with extensions: {}", e);
+    } else {
+        SessionManager::update_session(&session.id)
+            .extension_data(extension_data.clone())
+            .apply()
+            .await
+            .map_err(|err| {
+                error!("Failed to save initial extension state: {}", err);
+                ErrorResponse {
+                    message: format!("Failed to save initial extension state: {}", err),
+                    status: StatusCode::INTERNAL_SERVER_ERROR,
+                }
+            })?;
+    }
+
     if let Some(recipe) = original_recipe {
         SessionManager::update_session(&session.id)
             .recipe(Some(recipe))
@@ -211,17 +252,53 @@ async fn start_agent(
                     status: StatusCode::INTERNAL_SERVER_ERROR,
                 }
             })?;
-
-        session = SessionManager::get_session(&session.id, false)
-            .await
-            .map_err(|err| {
-                error!("Failed to get updated session: {}", err);
-                ErrorResponse {
-                    message: format!("Failed to get updated session: {}", err),
-                    status: StatusCode::INTERNAL_SERVER_ERROR,
-                }
-            })?;
     }
+
+    // Refetch session to get all updates
+    session = SessionManager::get_session(&session.id, false)
+        .await
+        .map_err(|err| {
+            error!("Failed to get updated session: {}", err);
+            ErrorResponse {
+                message: format!("Failed to get updated session: {}", err),
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+            }
+        })?;
+
+    // Eagerly start loading extensions in the background
+    let session_for_spawn = session.clone();
+    let state_for_spawn = state.clone();
+    let session_id_for_task = session.id.clone();
+    let task = tokio::spawn(async move {
+        match state_for_spawn
+            .get_agent(session_for_spawn.id.clone())
+            .await
+        {
+            Ok(agent) => {
+                agent
+                    .set_working_dir(session_for_spawn.working_dir.clone())
+                    .await;
+
+                let results = restore_agent_extensions(agent, &session_for_spawn).await;
+                tracing::debug!(
+                    "Background extension loading completed for session {}",
+                    session_for_spawn.id
+                );
+                results
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "Failed to create agent for background extension loading: {}",
+                    e
+                );
+                vec![]
+            }
+        }
+    });
+
+    state
+        .set_extension_loading_task(session_id_for_task, task)
+        .await;
 
     Ok(Json(session))
 }
@@ -231,7 +308,7 @@ async fn start_agent(
     path = "/agent/resume",
     request_body = ResumeAgentRequest,
     responses(
-        (status = 200, description = "Agent started successfully", body = Session),
+        (status = 200, description = "Agent started successfully", body = ResumeAgentResponse),
         (status = 400, description = "Bad request - invalid working directory"),
         (status = 401, description = "Unauthorized - invalid secret key"),
         (status = 500, description = "Internal server error")
@@ -240,7 +317,7 @@ async fn start_agent(
 async fn resume_agent(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<ResumeAgentRequest>,
-) -> Result<Json<Session>, ErrorResponse> {
+) -> Result<Json<ResumeAgentResponse>, ErrorResponse> {
     goose::posthog::set_session_context("desktop", true);
 
     let session = SessionManager::get_session(&payload.session_id, true)
@@ -254,7 +331,7 @@ async fn resume_agent(
             }
         })?;
 
-    if payload.load_model_and_extensions {
+    let extension_results = if payload.load_model_and_extensions {
         let agent = state
             .get_agent_for_route(payload.session_id.clone())
             .await
@@ -263,57 +340,35 @@ async fn resume_agent(
                 status: code,
             })?;
 
-        let config = Config::global();
+        restore_agent_provider(&agent, &session, &payload.session_id).await?;
 
-        let provider_result = async {
-            let provider_name = session
-                .provider_name
-                .clone()
-                .or_else(|| config.get_goose_provider().ok())
-                .ok_or_else(|| ErrorResponse {
-                    message: "Could not configure agent: missing provider".into(),
-                    status: StatusCode::INTERNAL_SERVER_ERROR,
-                })?;
-
-            let model_config = match session.model_config.clone() {
-                Some(saved_config) => saved_config,
-                None => {
-                    let model_name = config.get_goose_model().map_err(|_| ErrorResponse {
-                        message: "Could not configure agent: missing model".into(),
-                        status: StatusCode::INTERNAL_SERVER_ERROR,
-                    })?;
-                    ModelConfig::new(&model_name).map_err(|e| ErrorResponse {
-                        message: format!("Could not configure agent: invalid model {}", e),
-                        status: StatusCode::INTERNAL_SERVER_ERROR,
-                    })?
-                }
+        let extension_results =
+            if let Some(results) = state.take_extension_loading_task(&payload.session_id).await {
+                tracing::debug!(
+                    "Using background extension loading results for session {}",
+                    payload.session_id
+                );
+                state
+                    .remove_extension_loading_task(&payload.session_id)
+                    .await;
+                results
+            } else {
+                tracing::debug!(
+                    "No background task found, loading extensions for session {}",
+                    payload.session_id
+                );
+                restore_agent_extensions(agent.clone(), &session).await
             };
 
-            let provider =
-                create(&provider_name, model_config)
-                    .await
-                    .map_err(|e| ErrorResponse {
-                        message: format!("Could not create provider: {}", e),
-                        status: StatusCode::INTERNAL_SERVER_ERROR,
-                    })?;
+        Some(extension_results)
+    } else {
+        None
+    };
 
-            agent
-                .update_provider(provider, &payload.session_id)
-                .await
-                .map_err(|e| ErrorResponse {
-                    message: format!("Could not configure agent: {}", e),
-                    status: StatusCode::INTERNAL_SERVER_ERROR,
-                })
-        };
-
-        let extensions_result = restore_agent_extensions(agent.clone(), &session.working_dir);
-
-        let (provider_result, extensions_result) = tokio::join!(provider_result, extensions_result);
-        provider_result?;
-        extensions_result?;
-    }
-
-    Ok(Json(session))
+    Ok(Json(ResumeAgentResponse {
+        session,
+        extension_results,
+    }))
 }
 
 #[utoipa::path(
@@ -542,7 +597,7 @@ async fn agent_add_extension(
         })?;
 
     let extension_name = request.config.name();
-    let agent = state.get_agent(request.session_id).await?;
+    let agent = state.get_agent(request.session_id.clone()).await?;
 
     // Set the agent's working directory from the session before adding the extension
     agent.set_working_dir(session.working_dir).await;
@@ -554,6 +609,8 @@ async fn agent_add_extension(
         );
         ErrorResponse::internal(format!("Failed to add extension: {}", e))
     })?;
+
+    persist_session_extensions(&agent, &request.session_id).await?;
     Ok(StatusCode::OK)
 }
 
@@ -572,8 +629,11 @@ async fn agent_remove_extension(
     State(state): State<Arc<AppState>>,
     Json(request): Json<RemoveExtensionRequest>,
 ) -> Result<StatusCode, ErrorResponse> {
-    let agent = state.get_agent(request.session_id).await?;
+    let agent = state.get_agent(request.session_id.clone()).await?;
     agent.remove_extension(&request.name).await?;
+
+    persist_session_extensions(&agent, &request.session_id).await?;
+
     Ok(StatusCode::OK)
 }
 
@@ -609,7 +669,7 @@ async fn restart_agent_internal(
     state: &Arc<AppState>,
     session_id: &str,
     session: &Session,
-) -> Result<(), ErrorResponse> {
+) -> Result<Vec<ExtensionLoadResult>, ErrorResponse> {
     // Remove existing agent (ignore error if not found)
     let _ = state.agent_manager.remove_session(session_id).await;
 
@@ -622,11 +682,10 @@ async fn restart_agent_internal(
         })?;
 
     let provider_result = restore_agent_provider(&agent, session, session_id);
-    let extensions_result = restore_agent_extensions(agent.clone(), &session.working_dir);
+    let extensions_future = restore_agent_extensions(agent.clone(), session);
 
-    let (provider_result, extensions_result) = tokio::join!(provider_result, extensions_result);
+    let (provider_result, extension_results) = tokio::join!(provider_result, extensions_future);
     provider_result?;
-    extensions_result?;
 
     let context: HashMap<&str, Value> = HashMap::new();
     let desktop_prompt =
@@ -658,7 +717,7 @@ async fn restart_agent_internal(
     }
     agent.extend_system_prompt(update_prompt).await;
 
-    Ok(())
+    Ok(extension_results)
 }
 
 #[utoipa::path(
@@ -666,7 +725,7 @@ async fn restart_agent_internal(
     path = "/agent/restart",
     request_body = RestartAgentRequest,
     responses(
-        (status = 200, description = "Agent restarted successfully"),
+        (status = 200, description = "Agent restarted successfully", body = RestartAgentResponse),
         (status = 401, description = "Unauthorized - invalid secret key"),
         (status = 404, description = "Session not found"),
         (status = 500, description = "Internal server error")
@@ -675,7 +734,7 @@ async fn restart_agent_internal(
 async fn restart_agent(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<RestartAgentRequest>,
-) -> Result<StatusCode, ErrorResponse> {
+) -> Result<Json<RestartAgentResponse>, ErrorResponse> {
     let session_id = payload.session_id.clone();
 
     let session = SessionManager::get_session(&session_id, false)
@@ -688,9 +747,9 @@ async fn restart_agent(
             }
         })?;
 
-    restart_agent_internal(&state, &session_id, &session).await?;
+    let extension_results = restart_agent_internal(&state, &session_id, &session).await?;
 
-    Ok(StatusCode::OK)
+    Ok(Json(RestartAgentResponse { extension_results }))
 }
 
 #[utoipa::path(

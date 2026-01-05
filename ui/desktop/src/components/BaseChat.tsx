@@ -95,6 +95,7 @@ function BaseChatContent({
     session,
     messages,
     chatState,
+    setChatState,
     handleSubmit,
     submitElicitationResponse,
     stopStreaming,
@@ -131,15 +132,18 @@ function BaseChatContent({
     const shouldStartAgent = searchParams.get('shouldStartAgent') === 'true';
 
     if (initialMessage) {
-      // Submit the initial message (e.g., from fork)
       hasAutoSubmittedRef.current = true;
       handleSubmit(initialMessage);
+      // Clear initialMessage from navigation state to prevent re-sending on refresh
+      navigate(location.pathname + location.search, {
+        replace: true,
+        state: { ...location.state, initialMessage: undefined },
+      });
     } else if (shouldStartAgent) {
-      // Trigger agent to continue with existing conversation
       hasAutoSubmittedRef.current = true;
       handleSubmit('');
     }
-  }, [session, initialMessage, searchParams, handleSubmit]);
+  }, [session, initialMessage, searchParams, handleSubmit, navigate, location]);
 
   const handleFormSubmit = (e: React.FormEvent) => {
     const customEvent = e as unknown as CustomEvent;
@@ -300,8 +304,7 @@ function BaseChatContent({
       : recipe.prompt;
   }
 
-  const initialPrompt =
-    (initialMessage && !hasAutoSubmittedRef.current ? initialMessage : '') || recipePrompt;
+  const initialPrompt = recipePrompt;
 
   if (sessionLoadError) {
     return (
@@ -407,6 +410,7 @@ function BaseChatContent({
             sessionId={sessionId}
             handleSubmit={handleFormSubmit}
             chatState={chatState}
+            setChatState={setChatState}
             onStop={stopStreaming}
             commandHistory={commandHistory}
             initialValue={initialPrompt}

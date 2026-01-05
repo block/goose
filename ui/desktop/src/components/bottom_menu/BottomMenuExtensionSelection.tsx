@@ -1,25 +1,108 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { Puzzle } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import { Input } from '../ui/input';
 import { Switch } from '../ui/switch';
 import { FixedExtensionEntry, useConfig } from '../ConfigContext';
-import { toggleExtension } from '../settings/extensions/extension-manager';
 import { toastService } from '../../toasts';
-import { getFriendlyTitle } from '../settings/extensions/subcomponents/ExtensionList';
+import { formatExtensionName } from '../settings/extensions/subcomponents/ExtensionList';
+import { ExtensionConfig, getSessionExtensions } from '../../api';
+import { addToAgent, removeFromAgent } from '../settings/extensions/agent-api';
+import {
+  setExtensionOverride,
+  getExtensionOverride,
+  getExtensionOverrides,
+} from '../../store/extensionOverrides';
 
 interface BottomMenuExtensionSelectionProps {
-  sessionId: string;
+  sessionId: string | null;
+  onRestartStart?: () => void;
+  onRestartEnd?: () => void;
 }
 
-export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionSelectionProps) => {
+export const BottomMenuExtensionSelection = ({
+  sessionId,
+  onRestartStart,
+  onRestartEnd,
+}: BottomMenuExtensionSelectionProps) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
-  const { extensionsList, addExtension } = useConfig();
+  const [sessionExtensions, setSessionExtensions] = useState<ExtensionConfig[]>([]);
+  const [hubUpdateTrigger, setHubUpdateTrigger] = useState(0);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [pendingSort, setPendingSort] = useState(false);
+  const [togglingExtension, setTogglingExtension] = useState<string | null>(null);
+  const sortTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { extensionsList: allExtensions } = useConfig();
+  const isHubView = !sessionId;
+
+  useEffect(() => {
+    return () => {
+      if (sortTimeoutRef.current) {
+        clearTimeout(sortTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Fetch session-specific extensions or use global defaults
+  useEffect(() => {
+    const fetchExtensions = async () => {
+      if (!sessionId) {
+        return;
+      }
+
+      try {
+        const response = await getSessionExtensions({
+          path: { session_id: sessionId },
+        });
+
+        if (response.data?.extensions) {
+          setSessionExtensions(response.data.extensions);
+        }
+      } catch (error) {
+        console.error('Failed to fetch session extensions:', error);
+      }
+    };
+
+    fetchExtensions();
+  }, [sessionId, isOpen]);
 
   const handleToggle = useCallback(
     async (extensionConfig: FixedExtensionEntry) => {
+      if (togglingExtension === extensionConfig.name) {
+        return;
+      }
+
+      setIsTransitioning(true);
+      setTogglingExtension(extensionConfig.name);
+
+      if (isHubView) {
+        const currentState = getExtensionOverride(extensionConfig.name) ?? extensionConfig.enabled;
+        setExtensionOverride(extensionConfig.name, !currentState);
+        setPendingSort(true);
+
+        if (sortTimeoutRef.current) {
+          clearTimeout(sortTimeoutRef.current);
+        }
+
+        // Delay the re-sort to allow animation
+        sortTimeoutRef.current = setTimeout(() => {
+          setHubUpdateTrigger((prev) => prev + 1);
+          setPendingSort(false);
+          setIsTransitioning(false);
+          setTogglingExtension(null);
+        }, 800);
+
+        toastService.success({
+          title: 'Extension Updated',
+          msg: `${formatExtensionName(extensionConfig.name)} will be ${!currentState ? 'enabled' : 'disabled'} in new chats`,
+        });
+        return;
+      }
+
       if (!sessionId) {
+        setIsTransitioning(false);
+        setTogglingExtension(null);
         toastService.error({
           title: 'Extension Toggle Error',
           msg: 'No active session found. Please start a chat session first.',
@@ -28,26 +111,69 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
         return;
       }
 
-      try {
-        const toggleDirection = extensionConfig.enabled ? 'toggleOff' : 'toggleOn';
+      onRestartStart?.();
 
-        await toggleExtension({
-          toggle: toggleDirection,
-          extensionConfig: extensionConfig,
-          addToConfig: addExtension,
-          toastOptions: { silent: false },
-          sessionId: sessionId,
-        });
-      } catch (error) {
-        toastService.error({
-          title: 'Extension Error',
-          msg: `Failed to ${extensionConfig.enabled ? 'disable' : 'enable'} ${extensionConfig.name}`,
-          traceback: error instanceof Error ? error.message : String(error),
-        });
+      try {
+        if (extensionConfig.enabled) {
+          await removeFromAgent(extensionConfig.name, sessionId, true);
+        } else {
+          await addToAgent(extensionConfig, sessionId, true);
+        }
+
+        setPendingSort(true);
+
+        if (sortTimeoutRef.current) {
+          clearTimeout(sortTimeoutRef.current);
+        }
+
+        sortTimeoutRef.current = setTimeout(async () => {
+          const response = await getSessionExtensions({
+            path: { session_id: sessionId },
+          });
+
+          if (response.data?.extensions) {
+            setSessionExtensions(response.data.extensions);
+          }
+          setPendingSort(false);
+          setIsTransitioning(false);
+          setTogglingExtension(null);
+          onRestartEnd?.();
+        }, 800);
+      } catch {
+        setIsTransitioning(false);
+        setPendingSort(false);
+        setTogglingExtension(null);
+        onRestartEnd?.();
       }
     },
-    [sessionId, addExtension]
+    [sessionId, isHubView, togglingExtension, onRestartStart, onRestartEnd]
   );
+
+  // Merge all available extensions with session-specific or hub override state
+  const extensionsList = useMemo(() => {
+    const hubOverrides = getExtensionOverrides();
+
+    if (isHubView) {
+      return allExtensions.map(
+        (ext) =>
+          ({
+            ...ext,
+            enabled: hubOverrides.has(ext.name) ? hubOverrides.get(ext.name)! : ext.enabled,
+          }) as FixedExtensionEntry
+      );
+    }
+
+    const sessionExtensionNames = new Set(sessionExtensions.map((ext) => ext.name));
+
+    return allExtensions.map(
+      (ext) =>
+        ({
+          ...ext,
+          enabled: sessionExtensionNames.has(ext.name),
+        }) as FixedExtensionEntry
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allExtensions, sessionExtensions, isHubView, hubUpdateTrigger]);
 
   const filteredExtensions = useMemo(() => {
     return extensionsList.filter((ext) => {
@@ -60,24 +186,11 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
   }, [extensionsList, searchQuery]);
 
   const sortedExtensions = useMemo(() => {
-    const getTypePriority = (type: string): number => {
-      const priorities: Record<string, number> = {
-        builtin: 0,
-        platform: 1,
-        frontend: 2,
-      };
-      return priorities[type] ?? Number.MAX_SAFE_INTEGER;
-    };
-
     return [...filteredExtensions].sort((a, b) => {
-      // First sort by priority type
-      const typeDiff = getTypePriority(a.type) - getTypePriority(b.type);
-      if (typeDiff !== 0) return typeDiff;
-
-      // Then sort by enabled status (enabled first)
+      // Primary sort: enabled first
       if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
 
-      // Finally sort alphabetically
+      // Secondary sort: alphabetically by name
       return a.name.localeCompare(b.name);
     });
   }, [filteredExtensions]);
@@ -92,7 +205,13 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
       onOpenChange={(open) => {
         setIsOpen(open);
         if (!open) {
-          setSearchQuery(''); // Reset search when closing
+          setSearchQuery('');
+          if (sortTimeoutRef.current) {
+            clearTimeout(sortTimeoutRef.current);
+          }
+          setIsTransitioning(false);
+          setPendingSort(false);
+          setTogglingExtension(null);
         }
       }}
     >
@@ -105,7 +224,14 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
           <span>{activeCount}</span>
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent side="top" align="center" className="w-64">
+      <DropdownMenuContent
+        side="top"
+        align="center"
+        className="w-64"
+        onCloseAutoFocus={(e) => {
+          e.preventDefault();
+        }}
+      >
         <div className="p-2">
           <Input
             type="text"
@@ -115,30 +241,45 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
             className="h-8 text-sm"
             autoFocus
           />
+          <p className="text-xs text-text-default/60 mt-1.5">
+            {isHubView ? 'Extensions for new chats' : 'Extensions for this chat session'}
+          </p>
         </div>
-        <div className="max-h-[400px] overflow-y-auto">
+        <div
+          className={`max-h-[400px] overflow-y-auto transition-opacity duration-300 ${
+            isTransitioning && pendingSort ? 'opacity-50' : 'opacity-100'
+          }`}
+        >
           {sortedExtensions.length === 0 ? (
             <div className="px-2 py-4 text-center text-sm text-text-default/70">
               {searchQuery ? 'no extensions found' : 'no extensions available'}
             </div>
           ) : (
-            sortedExtensions.map((ext) => (
-              <div
-                key={ext.name}
-                className="flex items-center justify-between px-2 py-2 hover:bg-background-hover cursor-pointer"
-                onClick={() => handleToggle(ext)}
-                title={ext.description || ext.name}
-              >
-                <div className="text-sm font-medium text-text-default">{getFriendlyTitle(ext)}</div>
-                <div onClick={(e) => e.stopPropagation()}>
-                  <Switch
-                    checked={ext.enabled}
-                    onCheckedChange={() => handleToggle(ext)}
-                    variant="mono"
-                  />
+            sortedExtensions.map((ext) => {
+              const isToggling = togglingExtension === ext.name;
+              return (
+                <div
+                  key={ext.name}
+                  className={`flex items-center justify-between px-2 py-2 hover:bg-background-hover transition-all duration-300 ${
+                    isToggling ? 'cursor-wait opacity-70' : 'cursor-pointer'
+                  }`}
+                  onClick={() => !isToggling && handleToggle(ext)}
+                  title={ext.description || ext.name}
+                >
+                  <div className="text-sm font-medium text-text-default">
+                    {formatExtensionName(ext.name)}
+                  </div>
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <Switch
+                      checked={ext.enabled}
+                      onCheckedChange={() => handleToggle(ext)}
+                      variant="mono"
+                      disabled={isToggling}
+                    />
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </DropdownMenuContent>

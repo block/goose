@@ -19,9 +19,7 @@ export type View =
   | 'recipes'
   | 'permission';
 
-// TODO(Douwe): check these for usage, especially key: string for resetChat
 export type ViewOptions = {
-  extensionId?: string;
   showEnvVars?: boolean;
   deepLinkConfig?: unknown;
   sessionDetails?: unknown;
@@ -32,7 +30,6 @@ export type ViewOptions = {
   parentViewOptions?: ViewOptions;
   disableAnimation?: boolean;
   initialMessage?: string;
-  resetChat?: boolean;
   shareToken?: string;
   resumeSessionId?: string;
   pendingScheduleDeepLink?: string;

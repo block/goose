@@ -31,7 +31,7 @@ pub mod types;
 pub use agent::{Agent, AgentEvent};
 pub use execute_commands::COMPACT_TRIGGERS;
 pub use extension::ExtensionConfig;
-pub use extension_manager::ExtensionManager;
+pub use extension_manager::{normalize, ExtensionManager};
 pub use prompt_manager::PromptManager;
 pub use subagent_task_config::TaskConfig;
 pub use types::{FrontendTool, RetryConfig, SessionConfig, SuccessCheck};

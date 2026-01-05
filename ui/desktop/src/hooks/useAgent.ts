@@ -26,7 +26,6 @@ export interface InitializationContext {
   recipe?: Recipe;
   resumeSessionId?: string;
   setAgentWaitingMessage: (msg: string | null) => void;
-  setIsExtensionsLoading?: (isLoading: boolean) => void;
 }
 
 interface UseAgentReturn {
@@ -112,15 +111,15 @@ export function useAgent(): UseAgentReturn {
 
         // Fall through to create new session
         if (agentResponse?.data) {
-          const agentSession = agentResponse.data;
-          const messages = agentSession.conversation || [];
+          const agentSession = agentResponse.data.session;
+          const messages = agentSession?.conversation || [];
           return {
-            sessionId: agentSession.id,
-            name: agentSession.recipe?.title || agentSession.name,
+            sessionId: agentSession?.id || '',
+            name: agentSession?.recipe?.title || agentSession?.name || '',
             messageHistoryIndex: 0,
             messages,
-            recipe: agentSession.recipe,
-            recipeParameterValues: agentSession.user_recipe_values || null,
+            recipe: agentSession?.recipe,
+            recipeParameterValues: agentSession?.user_recipe_values || null,
           };
         }
       }
@@ -194,7 +193,10 @@ export function useAgent(): UseAgentReturn {
             }
           }
 
-          const agentSession = agentResponse.data;
+          // Handle different response types: resumeAgent returns { session, extension_results }, startAgent returns Session directly
+          const responseData = agentResponse.data;
+          const agentSession =
+            responseData && 'session' in responseData ? responseData.session : responseData;
           if (!agentSession) {
             throw Error('Failed to get session info');
           }
@@ -229,7 +231,6 @@ export function useAgent(): UseAgentReturn {
           await initializeSystem(agentSession.id, provider as string, model as string, {
             getExtensions,
             addExtension,
-            setIsExtensionsLoading: initContext.setIsExtensionsLoading,
             recipeParameters: agentSession.user_recipe_values,
             recipe: recipeForInit,
           });

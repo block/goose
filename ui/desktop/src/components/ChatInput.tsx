@@ -73,6 +73,7 @@ interface ChatInputProps {
   sessionId: string | null;
   handleSubmit: (e: React.FormEvent) => void;
   chatState: ChatState;
+  setChatState?: (state: ChatState) => void;
   onStop?: () => void;
   commandHistory?: string[];
   initialValue?: string;
@@ -97,13 +98,14 @@ interface ChatInputProps {
   initialPrompt?: string;
   toolCount: number;
   append?: (message: Message) => void;
-  isExtensionsLoading?: boolean;
+  onWorkingDirChange?: (newDir: string) => void;
 }
 
 export default function ChatInput({
   sessionId,
   handleSubmit,
   chatState = ChatState.Idle,
+  setChatState,
   onStop,
   commandHistory = [],
   initialValue = '',
@@ -122,7 +124,7 @@ export default function ChatInput({
   initialPrompt,
   toolCount,
   append: _append,
-  isExtensionsLoading = false,
+  onWorkingDirChange,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
@@ -1131,7 +1133,7 @@ export default function ChatInput({
     isAnyDroppedFileLoading ||
     isRecording ||
     isTranscribing ||
-    isExtensionsLoading;
+    chatState === ChatState.RestartingAgent;
 
   // Queue management functions - no storage persistence, only in-memory
   const handleRemoveQueuedMessage = (messageId: string) => {
@@ -1374,16 +1376,16 @@ export default function ChatInput({
               </TooltipTrigger>
               <TooltipContent>
                 <p>
-                  {isExtensionsLoading
-                    ? 'Loading extensions...'
-                    : isAnyImageLoading
-                      ? 'Waiting for images to save...'
-                      : isAnyDroppedFileLoading
-                        ? 'Processing dropped files...'
-                        : isRecording
-                          ? 'Recording...'
-                          : isTranscribing
-                            ? 'Transcribing...'
+                  {isAnyImageLoading
+                    ? 'Waiting for images to save...'
+                    : isAnyDroppedFileLoading
+                      ? 'Processing dropped files...'
+                      : isRecording
+                        ? 'Recording...'
+                        : isTranscribing
+                          ? 'Transcribing...'
+                          : chatState === ChatState.RestartingAgent
+                            ? 'Restarting agent...'
                             : 'Send'}
                 </p>
               </TooltipContent>
@@ -1528,7 +1530,14 @@ export default function ChatInput({
           className="mr-0"
           sessionId={sessionId ?? undefined}
           workingDir={sessionWorkingDir ?? getInitialWorkingDir()}
-          onWorkingDirChange={(newDir) => setSessionWorkingDir(newDir)}
+          onWorkingDirChange={(newDir) => {
+            setSessionWorkingDir(newDir);
+            if (onWorkingDirChange) {
+              onWorkingDirChange(newDir);
+            }
+          }}
+          onRestartStart={() => setChatState?.(ChatState.RestartingAgent)}
+          onRestartEnd={() => setChatState?.(ChatState.Idle)}
         />
         <div className="w-px h-4 bg-border-default mx-2" />
         <Tooltip>
@@ -1573,12 +1582,12 @@ export default function ChatInput({
           </Tooltip>
           <div className="w-px h-4 bg-border-default mx-2" />
           <BottomMenuModeSelection />
-          {sessionId && process.env.ALPHA && (
-            <>
-              <div className="w-px h-4 bg-border-default mx-2" />
-              <BottomMenuExtensionSelection sessionId={sessionId} />
-            </>
-          )}
+          <div className="w-px h-4 bg-border-default mx-2" />
+          <BottomMenuExtensionSelection
+            sessionId={sessionId}
+            onRestartStart={() => setChatState?.(ChatState.RestartingAgent)}
+            onRestartEnd={() => setChatState?.(ChatState.Idle)}
+          />
           {sessionId && messages.length > 0 && (
             <>
               <div className="w-px h-4 bg-border-default mx-2" />

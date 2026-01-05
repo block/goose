@@ -110,7 +110,7 @@ class ToastService {
         {
           ...commonToastOptions,
           toastId,
-          autoClose: false,
+          autoClose: isComplete ? 5000 : false,
           closeButton: true,
           closeOnClick: false, // Prevent closing when clicking to expand/collapse
         }

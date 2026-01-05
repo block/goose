@@ -227,7 +227,14 @@
         },
         "responses": {
           "200": {
-            "description": "Agent restarted successfully"
+            "description": "Agent restarted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestartAgentResponse"
+                }
+              }
+            }
           },
           "401": {
             "description": "Unauthorized - invalid secret key"
@@ -263,7 +270,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Session"
+                  "$ref": "#/components/schemas/ResumeAgentResponse"
                 }
               }
             }
@@ -2338,6 +2345,51 @@
         ]
       }
     },
+    "/sessions/{session_id}/extensions": {
+      "get": {
+        "tags": [
+          "Session Management"
+        ],
+        "operationId": "get_session_extensions",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Unique identifier for the session",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session extensions retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionExtensionsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/sessions/{session_id}/name": {
       "put": {
         "tags": [
@@ -3653,6 +3705,25 @@
           }
         ]
       },
+      "ExtensionLoadResult": {
+        "type": "object",
+        "required": [
+          "name",
+          "success"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          }
+        }
+      },
       "ExtensionQuery": {
         "type": "object",
         "required": [
@@ -4944,6 +5015,20 @@
           }
         }
       },
+      "RestartAgentResponse": {
+        "type": "object",
+        "required": [
+          "extension_results"
+        ],
+        "properties": {
+          "extension_results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExtensionLoadResult"
+            }
+          }
+        }
+      },
       "ResumeAgentRequest": {
         "type": "object",
         "required": [
@@ -4956,6 +5041,24 @@
           },
           "session_id": {
             "type": "string"
+          }
+        }
+      },
+      "ResumeAgentResponse": {
+        "type": "object",
+        "required": [
+          "session"
+        ],
+        "properties": {
+          "extension_results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExtensionLoadResult"
+            },
+            "nullable": true
+          },
+          "session": {
+            "$ref": "#/components/schemas/Session"
           }
         }
       },
@@ -5299,6 +5402,20 @@
           }
         }
       },
+      "SessionExtensionsResponse": {
+        "type": "object",
+        "required": [
+          "extensions"
+        ],
+        "properties": {
+          "extensions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExtensionConfig"
+            }
+          }
+        }
+      },
       "SessionInsights": {
         "type": "object",
         "required": [
@@ -5455,6 +5572,13 @@
           "working_dir"
         ],
         "properties": {
+          "extension_overrides": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExtensionConfig"
+            },
+            "nullable": true
+          },
           "recipe": {
             "allOf": [
               {
@@ -5989,8 +6113,7 @@
         ],
         "properties": {
           "workingDir": {
-            "type": "string",
-            "description": "New working directory path"
+            "type": "string"
           }
         }
       },
