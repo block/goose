@@ -1,4 +1,5 @@
 use crate::config::paths::Paths;
+use crate::providers::utils::{handle_status_openai_compat, stream_openai_compat};
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use axum::http;
@@ -21,7 +22,7 @@ use crate::config::{Config, ConfigError};
 use crate::conversation::message::Message;
 
 use crate::model::ModelConfig;
-use crate::providers::base::ConfigKey;
+use crate::providers::base::{ConfigKey, MessageStream};
 use rmcp::model::Tool;
 
 pub const GITHUB_COPILOT_DEFAULT_MODEL: &str = "gpt-4.1";
@@ -449,6 +450,12 @@ impl Provider for GithubCopilotProvider {
         self.model.clone()
     }
 
+    fn supports_streaming(&self) -> bool {
+        GITHUB_COPILOT_STREAM_MODELS
+            .iter()
+            .any(|prefix| self.model.model_name.starts_with(prefix))
+    }
+
     #[tracing::instrument(
         skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
@@ -487,6 +494,49 @@ impl Provider for GithubCopilotProvider {
         let response_model = get_model(&response);
         log.write(&response, Some(&usage))?;
         Ok((message, ProviderUsage::new(response_model, usage)))
+    }
+
+    async fn stream(
+        &self,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+    ) -> Result<MessageStream, ProviderError> {
+        let mut payload = create_request(
+            &self.model,
+            system,
+            messages,
+            tools,
+            &ImageFormat::OpenAi,
+            true,
+        )?;
+        let mut log = RequestLog::start(&self.model, &payload)?;
+
+        let response = self
+            .with_retry(|| async {
+                let (endpoint, token) = self.get_api_info().await?;
+                let url = url::Url::parse(&format!("{}/chat/completions", endpoint)).map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
+
+                let headers = self.get_github_headers();
+
+                let mut request = self
+                    .client
+                    .post(url)
+                    .headers(headers)
+                    .header("Authorization", format!("Bearer {}", token));
+
+                if Self::payload_contains_image(&payload) {
+                    request = request.header("Copilot-Vision-Request", "true");
+                }
+                let resp = request.json(&payload).send().await?;
+                handle_status_openai_compat(resp).await
+            })
+            .await
+            .inspect_err(|e| {
+                let _ = log.error(e);
+            })?;
+
+        stream_openai_compat(response, log)
     }
 
     /// Fetch supported models from GitHub Copliot; returns Err on failure, Ok(None) if not present
