@@ -11,7 +11,7 @@ description.workspace = true
 workspace = true
 
 [dependencies]
-rmcp = { version = "0.8.1", features = ["server", "client", "transport-io", "macros"] }
+rmcp = { workspace = true, features = ["server", "client", "transport-io", "macros"] }
 anyhow = "1.0.94"
 tokio = { version = "1", features = ["full"] }
 tokio-stream = { version = "0.1", features = ["io-util"] }
@@ -27,7 +27,7 @@ schemars = "1.0"
 lazy_static = "1.5"
 shellexpand = "3.1.0"
 indoc = "2.0.5"
-xcap = "0.0.14"
+xcap = "=0.4.0"
 reqwest = { version = "0.11", features = [
     "json",
     "rustls-tls-native-roots",

@@ -418,45 +418,6 @@
         }
       }
     },
-    "/agent/update_router_tool_selector": {
-      "post": {
-        "tags": [
-          "super::routes::agent"
-        ],
-        "operationId": "update_router_tool_selector",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateRouterToolSelectorRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Tool selection strategy updated successfully",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - invalid secret key"
-          },
-          "424": {
-            "description": "Agent not initialized"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      }
-    },
     "/config": {
       "get": {
         "tags": [
@@ -2738,6 +2699,9 @@
           "is_error"
         ],
         "properties": {
+          "_meta": {
+            "nullable": true
+          },
           "content": {
             "type": "array",
             "items": {
@@ -2982,6 +2946,28 @@
           }
         }
       },
+      "CspMetadata": {
+        "type": "object",
+        "description": "Content Security Policy metadata for MCP Apps\nSpecifies allowed domains for network connections and resource loading",
+        "properties": {
+          "connectDomains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Domains allowed for connect-src (fetch, XHR, WebSocket)",
+            "nullable": true
+          },
+          "resourceDomains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Domains allowed for resource loading (scripts, styles, images, fonts, media)",
+            "nullable": true
+          }
+        }
+      },
       "DeclarativeProviderConfig": {
         "type": "object",
         "required": [
@@ -3201,45 +3187,18 @@
         "oneOf": [
           {
             "type": "object",
-            "description": "Server-sent events client with a URI endpoint",
+            "description": "SSE transport is no longer supported - kept only for config file compatibility",
             "required": [
               "name",
               "description",
-              "uri",
               "type"
             ],
             "properties": {
-              "available_tools": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "bundled": {
-                "type": "boolean",
-                "nullable": true
-              },
               "description": {
                 "type": "string"
               },
-              "env_keys": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "envs": {
-                "$ref": "#/components/schemas/Envs"
-              },
               "name": {
-                "type": "string",
-                "description": "The name used to identify this extension"
-              },
-              "timeout": {
-                "type": "integer",
-                "format": "int64",
-                "nullable": true,
-                "minimum": 0
+                "type": "string"
               },
               "type": {
                 "type": "string",
@@ -3248,7 +3207,8 @@
                 ]
               },
               "uri": {
-                "type": "string"
+                "type": "string",
+                "nullable": true
               }
             }
           },
@@ -3605,6 +3565,12 @@
             "items": {
               "$ref": "#/components/schemas/ExtensionEntry"
             }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -3771,6 +3737,52 @@
           },
           "is_editable": {
             "type": "boolean"
+          }
+        }
+      },
+      "McpAppResource": {
+        "type": "object",
+        "description": "MCP App Resource\nRepresents a UI resource that can be rendered in an MCP App",
+        "required": [
+          "uri",
+          "name",
+          "mimeType"
+        ],
+        "properties": {
+          "_meta": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ResourceMetadata"
+              }
+            ],
+            "nullable": true
+          },
+          "blob": {
+            "type": "string",
+            "description": "Base64-encoded binary content (alternative to text)",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "description": "Optional description of what this resource does",
+            "nullable": true
+          },
+          "mimeType": {
+            "type": "string",
+            "description": "MIME type (should be \"text/html;profile=mcp-app\" for MCP Apps)"
+          },
+          "name": {
+            "type": "string",
+            "description": "Human-readable name of the resource"
+          },
+          "text": {
+            "type": "string",
+            "description": "Text content of the resource (HTML for MCP Apps)",
+            "nullable": true
+          },
+          "uri": {
+            "type": "string",
+            "description": "URI of the resource (must use ui:// scheme)"
           }
         }
       },
@@ -4531,6 +4543,10 @@
           "name"
         ],
         "properties": {
+          "_meta": {
+            "type": "object",
+            "additionalProperties": true
+          },
           "description": {
             "type": "string"
           },
@@ -4595,10 +4611,23 @@
       "ReadResourceResponse": {
         "type": "object",
         "required": [
-          "html"
+          "uri",
+          "text"
         ],
         "properties": {
-          "html": {
+          "_meta": {
+            "type": "object",
+            "additionalProperties": {},
+            "nullable": true
+          },
+          "mimeType": {
+            "type": "string",
+            "nullable": true
+          },
+          "text": {
+            "type": "string"
+          },
+          "uri": {
             "type": "string"
           }
         }
@@ -4868,6 +4897,20 @@
             }
           }
         ]
+      },
+      "ResourceMetadata": {
+        "type": "object",
+        "description": "Resource metadata containing UI configuration",
+        "properties": {
+          "ui": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UiMetadata"
+              }
+            ],
+            "nullable": true
+          }
+        }
       },
       "Response": {
         "type": "object",
@@ -5722,6 +5765,9 @@
           "toolCall"
         ],
         "properties": {
+          "_meta": {
+            "type": "object"
+          },
           "id": {
             "type": "string"
           },
@@ -5783,6 +5829,30 @@
           "error",
           "disabled"
         ]
+      },
+      "UiMetadata": {
+        "type": "object",
+        "description": "UI-specific metadata for MCP resources",
+        "properties": {
+          "csp": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CspMetadata"
+              }
+            ],
+            "nullable": true
+          },
+          "domain": {
+            "type": "string",
+            "description": "Preferred domain for the app (used for CORS)",
+            "nullable": true
+          },
+          "prefersBorder": {
+            "type": "boolean",
+            "description": "Whether the app prefers to have a border around it",
+            "nullable": true
+          }
+        }
       },
       "UpdateCustomProviderRequest": {
         "type": "object",
@@ -5850,17 +5920,6 @@
           "provider": {
             "type": "string"
           },
-          "session_id": {
-            "type": "string"
-          }
-        }
-      },
-      "UpdateRouterToolSelectorRequest": {
-        "type": "object",
-        "required": [
-          "session_id"
-        ],
-        "properties": {
           "session_id": {
             "type": "string"
           }

@@ -58,8 +58,6 @@ Explain that minimizing extensions helps with the recall of the correct tools to
 {% endwith %}
 {% endif %}
 
-{{tool_selection_strategy}}
-
 # Response Guidelines
 
 - Use Markdown formatting for all responses.

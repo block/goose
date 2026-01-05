@@ -517,6 +517,11 @@ You can share a recipe with Desktop users via a recipe link.
     ```sh
     goose recipe deeplink <FILE>
     ```
+
+    You can also provide parameter values to pre-fill the `Recipe Parameters` dialog:
+    ```sh
+    goose recipe deeplink <FILE> --param key1=value1 --param key2=value2
+    ```
   </TabItem>
 </Tabs>
 

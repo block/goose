@@ -537,6 +537,7 @@ mod tests {
             id: "test-id".to_string(),
             tool_call: Ok(tool_call),
             metadata: None,
+            tool_meta: None,
         };
 
         let result = tool_request_to_markdown(&tool_request, true);
@@ -561,6 +562,7 @@ mod tests {
             id: "test-id".to_string(),
             tool_call: Ok(tool_call),
             metadata: None,
+            tool_meta: None,
         };
 
         let result = tool_request_to_markdown(&tool_request, true);
@@ -701,6 +703,7 @@ mod tests {
             id: "shell-cat".to_string(),
             tool_call: Ok(tool_call),
             metadata: None,
+            tool_meta: None,
         };
 
         let python_code = r#"#!/usr/bin/env python3
@@ -754,6 +757,7 @@ if __name__ == "__main__":
             id: "git-status".to_string(),
             tool_call: Ok(git_status_call),
             metadata: None,
+            tool_meta: None,
         };
 
         let git_output = " M src/main.rs\n?? temp.txt\n A new_feature.rs";
@@ -799,6 +803,7 @@ if __name__ == "__main__":
             id: "cargo-build".to_string(),
             tool_call: Ok(cargo_build_call),
             metadata: None,
+            tool_meta: None,
         };
 
         let build_output = r#"   Compiling goose-cli v0.1.0 (/Users/user/goose)
@@ -850,6 +855,7 @@ warning: unused variable `x`
             id: "curl-api".to_string(),
             tool_call: Ok(curl_call),
             metadata: None,
+            tool_meta: None,
         };
 
         let api_response = r#"{
@@ -905,6 +911,7 @@ warning: unused variable `x`
             id: "editor-write".to_string(),
             tool_call: Ok(editor_call),
             metadata: None,
+            tool_meta: None,
         };
 
         let text_content = TextContent {
@@ -952,6 +959,7 @@ warning: unused variable `x`
             id: "editor-view".to_string(),
             tool_call: Ok(editor_call),
             metadata: None,
+            tool_meta: None,
         };
 
         let python_code = r#"import os
@@ -1008,6 +1016,7 @@ def process_data(data: List[Dict]) -> List[Dict]:
             id: "shell-error".to_string(),
             tool_call: Ok(error_call),
             metadata: None,
+            tool_meta: None,
         };
 
         let error_output = r#"python: can't open file 'nonexistent_script.py': [Errno 2] No such file or directory
@@ -1050,6 +1059,7 @@ Command failed with exit code 2"#;
             id: "script-exec".to_string(),
             tool_call: Ok(script_call),
             metadata: None,
+            tool_meta: None,
         };
 
         let script_output = r#"Python 3.11.5 (main, Aug 24 2023, 15:18:16) [Clang 14.0.3 ]
@@ -1103,6 +1113,7 @@ Command failed with exit code 2"#;
             id: "multi-cmd".to_string(),
             tool_call: Ok(multi_call),
             metadata: None,
+            tool_meta: None,
         };
 
         let multi_output = r#"total 24
@@ -1154,6 +1165,7 @@ drwx------   3 user  staff    96 Dec  6 16:20 com.apple.launchd.abc
             id: "grep-search".to_string(),
             tool_call: Ok(grep_call),
             metadata: None,
+            tool_meta: None,
         };
 
         let grep_output = r#"src/main.rs:15:async fn process_request(req: Request) -> Result<Response> {
@@ -1204,6 +1216,7 @@ src/middleware.rs:12:async fn auth_middleware(req: Request, next: Next) -> Resul
             id: "json-test".to_string(),
             tool_call: Ok(tool_call),
             metadata: None,
+            tool_meta: None,
         };
 
         let json_output = r#"{"status": "success", "data": {"count": 42}}"#;
@@ -1245,6 +1258,7 @@ src/middleware.rs:12:async fn auth_middleware(req: Request, next: Next) -> Resul
             id: "npm-install".to_string(),
             tool_call: Ok(npm_call),
             metadata: None,
+            tool_meta: None,
         };
 
         let npm_output = r#"added 57 packages, and audited 58 packages in 3s

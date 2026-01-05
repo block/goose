@@ -50,31 +50,24 @@ impl TodoClient {
                 icons: None,
                 website_url: None,
             },
-            instructions: Some(indoc! {r#"
-                Task Management
-
-                Use todo_write for tasks with 2+ steps, multiple files/components, or uncertain scope.
-                Your TODO content is automatically available in your context.
+            instructions: Some(
+                indoc! {r#"
+                Your todo content is automatically available in your context.
 
                 Workflow:
                 - Start: write initial checklist
                 - During: update progress
                 - End: verify all complete
 
-                Warning: todo_write overwrites entirely; always include ALL content you want to keep
-
-                Keep items short, specific, action-oriented. Not using the todo tool for complex tasks is an error.
-
-                For autonomous work, missing requirements means failure - document all requirements in TODO immediately.
-
                 Template:
-                - [ ] Implement feature X
-                  - [ ] Update API
-                  - [ ] Write tests
-                  - [ ] Run tests
-                  - [ ] Run lint
-                - [ ] Blocked: waiting on credentials
-            "#}.to_string()),
+                - [x] Requirement 1
+                - [ ] Task
+                  - [ ] Sub-task
+                - [ ] Requirement 2
+                - [ ] Another task
+            "#}
+                .to_string(),
+            ),
         };
 
         Ok(Self {
@@ -200,6 +193,7 @@ impl McpClientTrait for TodoClient {
         Ok(ListToolsResult {
             tools: Self::get_tools(),
             next_cursor: None,
+            meta: None,
         })
     }
 
@@ -251,12 +245,15 @@ impl McpClientTrait for TodoClient {
     async fn get_moim(&self) -> Option<String> {
         let session_id = self.context.session_id.as_ref()?;
         let metadata = SessionManager::get_session(session_id, false).await.ok()?;
-        let state = extension_data::TodoState::from_extension_data(&metadata.extension_data)?;
 
-        if state.content.trim().is_empty() {
-            return None;
+        match extension_data::TodoState::from_extension_data(&metadata.extension_data) {
+            Some(state) if !state.content.trim().is_empty() => {
+                Some(format!("Current tasks and notes:\n{}\n", state.content))
+            }
+            _ => Some(
+                "Current tasks and notes:\nOnce given a task, immediately update your todo with all explicit and implicit requirements\n"
+                    .to_string(),
+            ),
         }
-
-        Some(format!("Current tasks and notes:\n{}\n", state.content))
     }
 }

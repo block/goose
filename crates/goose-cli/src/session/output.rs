@@ -271,6 +271,7 @@ fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
         Ok(call) => match call.name.to_string().as_str() {
             "developer__text_editor" => render_text_editor_request(call, debug),
             "developer__shell" => render_shell_request(call, debug),
+            "code_execution__execute_code" => render_execute_code_request(call, debug),
             "subagent" => render_subagent_request(call, debug),
             "todo__write" => render_todo_request(call, debug),
             _ => render_default_request(call, debug),
@@ -442,6 +443,61 @@ fn render_text_editor_request(call: &CallToolRequestParam, debug: bool) {
 fn render_shell_request(call: &CallToolRequestParam, debug: bool) {
     print_tool_header(call);
     print_params(&call.arguments, 0, debug);
+    println!();
+}
+
+fn render_execute_code_request(call: &CallToolRequestParam, debug: bool) {
+    let tool_graph = call
+        .arguments
+        .as_ref()
+        .and_then(|args| args.get("tool_graph"))
+        .and_then(Value::as_array)
+        .filter(|arr| !arr.is_empty());
+
+    let Some(tool_graph) = tool_graph else {
+        return render_default_request(call, debug);
+    };
+
+    let count = tool_graph.len();
+    let plural = if count == 1 { "" } else { "s" };
+    println!();
+    println!(
+        "─── {} tool call{} | {} ──────────────────────────",
+        style(count).cyan(),
+        plural,
+        style("execute_code").magenta().dim()
+    );
+
+    for (i, node) in tool_graph.iter().filter_map(Value::as_object).enumerate() {
+        let tool = node
+            .get("tool")
+            .and_then(Value::as_str)
+            .unwrap_or("unknown");
+        let desc = node
+            .get("description")
+            .and_then(Value::as_str)
+            .unwrap_or("");
+        let deps: Vec<_> = node
+            .get("depends_on")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_u64)
+            .map(|d| (d + 1).to_string())
+            .collect();
+        let deps_str = if deps.is_empty() {
+            String::new()
+        } else {
+            format!(" (uses {})", deps.join(", "))
+        };
+        println!(
+            "  {}. {}: {}{}",
+            style(i + 1).dim(),
+            style(tool).cyan(),
+            style(desc).green(),
+            style(deps_str).dim()
+        );
+    }
     println!();
 }
 

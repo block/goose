@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Button } from '../../ui/button';
-import { Plus } from 'lucide-react';
+import { Plus, AlertTriangle } from 'lucide-react';
 import { GPSIcon } from '../../ui/icons';
 import { useConfig, FixedExtensionEntry } from '../../ConfigContext';
 import ExtensionList from './subcomponents/ExtensionList';
@@ -13,10 +13,10 @@ import {
 } from './utils';
 
 import { activateExtension, deleteExtension, toggleExtension, updateExtension } from './index';
-import { ExtensionConfig } from '../../../api/types.gen';
+import { ExtensionConfig } from '../../../api';
 
 interface ExtensionSectionProps {
-  sessionId: string; // Add required sessionId prop
+  sessionId?: string;
   deepLinkConfig?: ExtensionConfig;
   showEnvVars?: boolean;
   hideButtons?: boolean;
@@ -38,7 +38,8 @@ export default function ExtensionsSection({
   onModalClose,
   searchTerm = '',
 }: ExtensionSectionProps) {
-  const { getExtensions, addExtension, removeExtension, extensionsList } = useConfig();
+  const { getExtensions, addExtension, removeExtension, extensionsList, extensionWarnings } =
+    useConfig();
   const [selectedExtension, setSelectedExtension] = useState<FixedExtensionEntry | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -110,7 +111,7 @@ export default function ExtensionsSection({
       extensionConfig: extensionConfig,
       addToConfig: addExtension,
       toastOptions: { silent: false },
-      sessionId: sessionId,
+      sessionId,
     });
 
     setPendingActivationExtensions((prev) => {
@@ -134,11 +135,7 @@ export default function ExtensionsSection({
 
     const extensionConfig = createExtensionConfig(formData);
     try {
-      await activateExtension({
-        addToConfig: addExtension,
-        extensionConfig: extensionConfig,
-        sessionId: sessionId,
-      });
+      await activateExtension(extensionConfig, addExtension, sessionId);
       setPendingActivationExtensions((prev) => {
         const updated = new Set(prev);
         updated.delete(extensionConfig.name);
@@ -205,7 +202,7 @@ export default function ExtensionsSection({
       await deleteExtension({
         name,
         removeFromConfig: removeExtension,
-        sessionId: sessionId,
+        sessionId,
         extensionConfig: extensionToDelete ?? undefined,
       });
     } catch (error) {
@@ -234,6 +231,22 @@ export default function ExtensionsSection({
   return (
     <section id="extensions">
       <div className="">
+        {/* Unsupported extension warnings */}
+        {extensionWarnings.length > 0 && (
+          <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="h-5 w-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-yellow-500">
+                {extensionWarnings.map((warning, index) => (
+                  <p key={index} className={index > 0 ? 'mt-1' : ''}>
+                    {warning}
+                  </p>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         <ExtensionList
           extensions={extensions}
           onToggle={handleExtensionToggle}

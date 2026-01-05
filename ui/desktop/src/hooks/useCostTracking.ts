@@ -42,10 +42,7 @@ export const useCostTracking = ({
         const prevKey = `${prevProviderRef.current}/${prevModelRef.current}`;
 
         // Get pricing info for the previous model
-        const prevCostInfo = await fetchModelPricing(
-          prevProviderRef.current,
-          prevModelRef.current
-        );
+        const prevCostInfo = await fetchModelPricing(prevProviderRef.current, prevModelRef.current);
 
         if (prevCostInfo) {
           const prevInputCost =

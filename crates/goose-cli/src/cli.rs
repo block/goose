@@ -450,7 +450,17 @@ enum Command {
 
     /// Run goose as an ACP (Agent Client Protocol) agent
     #[command(about = "Run goose as an ACP agent server on stdio")]
-    Acp {},
+    Acp {
+        /// Add builtin extensions by name
+        #[arg(
+            long = "with-builtin",
+            value_name = "NAME",
+            help = "Add builtin extensions by name (e.g., 'developer' or multiple: 'developer,github')",
+            long_help = "Add one or more builtin extensions that are bundled with goose by specifying their names, comma-separated",
+            value_delimiter = ','
+        )]
+        builtins: Vec<String>,
+    },
 
     /// Start or resume interactive chat sessions
     #[command(
@@ -516,16 +526,6 @@ enum Command {
             action = clap::ArgAction::Append
         )]
         extensions: Vec<String>,
-
-        /// Add remote extensions with a URL
-        #[arg(
-            long = "with-remote-extension",
-            value_name = "URL",
-            help = "Add remote extensions (can be specified multiple times)",
-            long_help = "Add remote extensions from a URL. Can be specified multiple times. Format: 'url...'",
-            action = clap::ArgAction::Append
-        )]
-        remote_extensions: Vec<String>,
 
         /// Add streamable HTTP extensions with a URL
         #[arg(
@@ -695,16 +695,6 @@ enum Command {
         )]
         extensions: Vec<String>,
 
-        /// Add remote extensions
-        #[arg(
-            long = "with-remote-extension",
-            value_name = "URL",
-            help = "Add remote extensions (can be specified multiple times)",
-            long_help = "Add remote extensions. Can be specified multiple times. Format: 'url...'",
-            action = clap::ArgAction::Append
-        )]
-        remote_extensions: Vec<String>,
-
         /// Add streamable HTTP extensions
         #[arg(
             long = "with-streamable-http-extension",
@@ -753,13 +743,13 @@ enum Command {
         )]
         additional_sub_recipes: Vec<String>,
 
-        /// Output format (text, json)
+        /// Output format (text, json, stream-json)
         #[arg(
             long = "output-format",
             value_name = "FORMAT",
-            help = "Output format (text, json)",
+            help = "Output format (text, json, stream-json)",
             default_value = "text",
-            value_parser = clap::builder::PossibleValuesParser::new(["text", "json"])
+            value_parser = clap::builder::PossibleValuesParser::new(["text", "json", "stream-json"])
         )]
         output_format: String,
 
@@ -961,7 +951,7 @@ pub async fn cli() -> anyhow::Result<()> {
         Some(Command::Configure {}) => "configure",
         Some(Command::Info { .. }) => "info",
         Some(Command::Mcp { .. }) => "mcp",
-        Some(Command::Acp {}) => "acp",
+        Some(Command::Acp { .. }) => "acp",
         Some(Command::Session { .. }) => "session",
         Some(Command::Project {}) => "project",
         Some(Command::Projects) => "projects",
@@ -995,8 +985,8 @@ pub async fn cli() -> anyhow::Result<()> {
                 McpCommand::Developer => serve(DeveloperServer::new()).await?,
             }
         }
-        Some(Command::Acp {}) => {
-            run_acp_agent().await?;
+        Some(Command::Acp { builtins }) => {
+            run_acp_agent(builtins).await?;
         }
         Some(Command::Session {
             command,
@@ -1007,7 +997,6 @@ pub async fn cli() -> anyhow::Result<()> {
             max_tool_repetitions,
             max_turns,
             extensions,
-            remote_extensions,
             streamable_http_extensions,
             builtins,
         }) => {
@@ -1099,7 +1088,6 @@ pub async fn cli() -> anyhow::Result<()> {
                         resume,
                         no_session: false,
                         extensions,
-                        remote_extensions,
                         streamable_http_extensions,
                         builtins,
                         extensions_override: None,
@@ -1188,7 +1176,6 @@ pub async fn cli() -> anyhow::Result<()> {
             max_tool_repetitions,
             max_turns,
             extensions,
-            remote_extensions,
             streamable_http_extensions,
             builtins,
             params,
@@ -1310,7 +1297,6 @@ pub async fn cli() -> anyhow::Result<()> {
                 resume,
                 no_session,
                 extensions,
-                remote_extensions,
                 streamable_http_extensions,
                 builtins,
                 extensions_override: input_config.extensions_override,
@@ -1525,7 +1511,6 @@ pub async fn cli() -> anyhow::Result<()> {
                     resume: false,
                     no_session: false,
                     extensions: Vec::new(),
-                    remote_extensions: Vec::new(),
                     streamable_http_extensions: Vec::new(),
                     builtins: Vec::new(),
                     extensions_override: None,
