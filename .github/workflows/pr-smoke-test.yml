@@ -18,7 +18,7 @@ name: Live Provider Tests
 jobs:
   check-fork:
     runs-on: ubuntu-latest
-    # Skip entire workflow for PRs from forks (they don't have access to secrets)
+    # Skip entire workflow for fork PRs and dependabot PRs (they don't have access to secrets)
     if: github.actor != 'dependabot[bot]' && (github.event_name == 'workflow_dispatch' || github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
     steps:
       - run: echo "Not a fork PR - proceeding with smoke tests"
