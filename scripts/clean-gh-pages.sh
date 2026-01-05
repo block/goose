@@ -20,7 +20,7 @@ while IFS= read -r dir; do
 done <<< "$all_dirs"
 
 CALLBACK="
-    root, *rest = os.path.split(filename)
+    root, *rest = filename.split(b'/')
     keep = b'''$dirs_with_visible_files'''.splitlines()
     if root != b'pr-preview':
         # keep anything outside of pr-preview
