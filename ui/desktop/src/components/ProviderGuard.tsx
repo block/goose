@@ -279,7 +279,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
                 {/* Recommended pill */}
                 <div className="absolute -top-2 -right-2 sm:-top-3 sm:-right-3 z-20">
                   <span className="inline-block px-2 py-1 text-xs font-medium bg-blue-600 text-white rounded-full">
-                    Recommended
+                    Recommended for new users
                   </span>
                 </div>
 
@@ -380,12 +380,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 pointer-events-none transition-opacity duration-300 opacity-60 animate-bounce">
             <div className="flex flex-col items-center gap-1 text-text-muted">
               <span className="text-xs">More options below</span>
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
