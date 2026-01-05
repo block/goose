@@ -1421,6 +1421,35 @@ impl Agent {
             .context("Failed to persist provider config to session")
     }
 
+    /// Restore the provider from session data or fall back to global config
+    /// This is used when resuming a session to restore the provider state
+    pub async fn restore_provider_from_session(&self, session: &Session) -> Result<()> {
+        let config = Config::global();
+
+        let provider_name = session
+            .provider_name
+            .clone()
+            .or_else(|| config.get_goose_provider().ok())
+            .ok_or_else(|| anyhow!("Could not configure agent: missing provider"))?;
+
+        let model_config = match session.model_config.clone() {
+            Some(saved_config) => saved_config,
+            None => {
+                let model_name = config
+                    .get_goose_model()
+                    .map_err(|_| anyhow!("Could not configure agent: missing model"))?;
+                crate::model::ModelConfig::new(&model_name)
+                    .map_err(|e| anyhow!("Could not configure agent: invalid model {}", e))?
+            }
+        };
+
+        let provider = crate::providers::create(&provider_name, model_config)
+            .await
+            .map_err(|e| anyhow!("Could not create provider: {}", e))?;
+
+        self.update_provider(provider, &session.id).await
+    }
+
     /// Override the system prompt with a custom template
     pub async fn override_system_prompt(&self, template: String) {
         let mut prompt_manager = self.prompt_manager.lock().await;

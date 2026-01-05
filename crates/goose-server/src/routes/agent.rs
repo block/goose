@@ -340,7 +340,7 @@ async fn resume_agent(
                 status: code,
             })?;
 
-        restore_agent_provider(&agent, &session, &payload.session_id).await?;
+        restore_agent_provider(&agent, &session).await?;
 
         let extension_results =
             if let Some(results) = state.take_extension_loading_task(&payload.session_id).await {
@@ -652,7 +652,7 @@ async fn restart_agent_internal(
             status: code,
         })?;
 
-    let provider_result = restore_agent_provider(&agent, session, session_id);
+    let provider_result = restore_agent_provider(&agent, session);
     let extensions_future = restore_agent_extensions(agent.clone(), session);
 
     let (provider_result, extension_results) = tokio::join!(provider_result, extensions_future);

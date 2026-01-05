@@ -16,15 +16,9 @@ import {
 
 interface BottomMenuExtensionSelectionProps {
   sessionId: string | null;
-  onRestartStart?: () => void;
-  onRestartEnd?: () => void;
 }
 
-export const BottomMenuExtensionSelection = ({
-  sessionId,
-  onRestartStart,
-  onRestartEnd,
-}: BottomMenuExtensionSelectionProps) => {
+export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionSelectionProps) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [sessionExtensions, setSessionExtensions] = useState<ExtensionConfig[]>([]);
@@ -111,8 +105,6 @@ export const BottomMenuExtensionSelection = ({
         return;
       }
 
-      onRestartStart?.();
-
       try {
         if (extensionConfig.enabled) {
           await removeFromAgent(extensionConfig.name, sessionId, true);
@@ -137,16 +129,14 @@ export const BottomMenuExtensionSelection = ({
           setPendingSort(false);
           setIsTransitioning(false);
           setTogglingExtension(null);
-          onRestartEnd?.();
         }, 800);
       } catch {
         setIsTransitioning(false);
         setPendingSort(false);
         setTogglingExtension(null);
-        onRestartEnd?.();
       }
     },
-    [sessionId, isHubView, togglingExtension, onRestartStart, onRestartEnd]
+    [sessionId, isHubView, togglingExtension]
   );
 
   // Merge all available extensions with session-specific or hub override state

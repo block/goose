@@ -1583,11 +1583,7 @@ export default function ChatInput({
           <div className="w-px h-4 bg-border-default mx-2" />
           <BottomMenuModeSelection />
           <div className="w-px h-4 bg-border-default mx-2" />
-          <BottomMenuExtensionSelection
-            sessionId={sessionId}
-            onRestartStart={() => setChatState?.(ChatState.RestartingAgent)}
-            onRestartEnd={() => setChatState?.(ChatState.Idle)}
-          />
+          <BottomMenuExtensionSelection sessionId={sessionId} />
           {sessionId && messages.length > 0 && (
             <>
               <div className="w-px h-4 bg-border-default mx-2" />
