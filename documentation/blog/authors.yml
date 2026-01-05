@@ -99,7 +99,7 @@ angie:
 alex:
   name: Alex Rosenzweig
   title: Staff Security Engineer
-  image_url: https://media.licdn.com/dms/image/v2/C5103AQGrOYDDHn8z6g/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1520985744775?e=1749081600&v=beta&t=krNAyF8rFRnInDfEZcO2TlLOHXWKMzt-fJdkgHVfFNs
+  image_url: https://media.licdn.com/dms/image/v2/C5103AQGrOYDDHn8z6g/profile-displayphoto-shrink_200_200/profile-displayphoto-shrink_200_200/0/1520985744424?e=2147483647&v=beta&t=YZcHo6Woah-pGNmg1RRUb7aE7B1FcNwOLBXxqojkDqg
   page: true
   socials:
     linkedin: alex-rosenzweig
@@ -179,3 +179,12 @@ alexhancock:
   socials:
     linkedin: alexjhancock
     github: alexhancock
+
+clinton:
+  name: Clinton Carpene
+  title: Staff Security Engineer
+  image_url: https://avatars.githubusercontent.com/u/244417824?v=4
+  page: true
+  socials:
+    linkedin: clinton-carpene-0b5aa839
+    github: ccarpene-blk
