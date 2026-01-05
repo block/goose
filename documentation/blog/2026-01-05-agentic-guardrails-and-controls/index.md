@@ -6,7 +6,7 @@ authors:
     - alex
 ---
 
-![blog cover](agentic_guardrails_header.png)
+![blog cover](agentic_guardrails_header.jpg)
 
 
 In [our previous blog post](https://block.github.io/goose/blog/2025/03/31/securing-mcp/) we detailed the Model Context Protocol (MCP) system and discussed some security concerns and mitigations. As a brief recap, MCP provides agents with a means to accomplish tasks using defined tools; reducing the burden of using complex and varied APIs and integrations on the agent.
@@ -32,7 +32,7 @@ That’s a lot of words, here’s a picture instead, *(Typos Provided for free\*
 
 <div style={{textAlign: "center"}}>
 
-![CSRF Example - Attack Works](image2.png)
+![CSRF Example - Attack Works](image2.jpg)
 
 
 <em>Example of a successful CSRF attack chain with by a very devious hacker</em>
@@ -43,7 +43,7 @@ Today, CSRF is largely mitigated by **browser-enforced CORS (Cross-Origin Resour
 
 <div style={{textAlign: "center"}}>
 
-![CSRF Example - Attack Fails](image5.png)
+![CSRF Example - Attack Fails](image5.jpg)
 
 
 <em>CORS mitigated the CSRF attack leaving a very sad (but still devious) hacker. Note: in practice the CORS check would likely happen during preflight.</em>
@@ -212,7 +212,7 @@ To handle these threats we propose **removing** **all tool-call responses from t
 
 <div style={{textAlign: "center"}}>
 
-![Tool Response Flush Process](image4.png)
+![Tool Response Flush Process](image4.jpg)
 
 
 <em>Our workflow imagined (mostly) correctly with ♥️ by ChatGPT</em>
