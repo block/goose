@@ -114,7 +114,7 @@ async fn test_acp_with_builtin_and_mcp() {
             include_str!("./test_data/openai_builtin_read_modules.txt"),
         ),
         (
-            r#"get_code({  }): string - Get the code"#.into(),
+            r#"lookup[\"get_code\"]({}): string - Get the code"#.into(),
             include_str!("./test_data/openai_builtin_execute.txt"),
         ),
         (

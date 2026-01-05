@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.17.0"
+    "version": "1.18.0"
   },
   "paths": {
     "/action-required/tool-confirmation": {
@@ -1628,6 +1628,46 @@
           },
           "500": {
             "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/recipes/to-yaml": {
+      "post": {
+        "tags": [
+          "Recipe Management"
+        ],
+        "operationId": "recipe_to_yaml",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecipeToYamlRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Recipe converted to YAML successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecipeToYamlResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - Failed to convert recipe to YAML",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -4951,6 +4991,28 @@
           "optional",
           "user_prompt"
         ]
+      },
+      "RecipeToYamlRequest": {
+        "type": "object",
+        "required": [
+          "recipe"
+        ],
+        "properties": {
+          "recipe": {
+            "$ref": "#/components/schemas/Recipe"
+          }
+        }
+      },
+      "RecipeToYamlResponse": {
+        "type": "object",
+        "required": [
+          "yaml"
+        ],
+        "properties": {
+          "yaml": {
+            "type": "string"
+          }
+        }
       },
       "RedactedThinkingContent": {
         "type": "object",
