@@ -14,8 +14,8 @@ use crate::providers::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsag
 
 use crate::providers::errors::ProviderError;
 use crate::providers::formats::gcpvertexai::{
-    create_request, get_usage, response_to_message, ClaudeVersion, GcpVertexAIModel, GeminiVersion,
-    ModelProvider, RequestContext,
+    create_request, get_usage, response_to_message, GcpVertexAIModel, ModelProvider,
+    RequestContext,
 };
 
 use crate::providers::formats::gcpvertexai::GcpLocation::Iowa;
@@ -440,17 +440,17 @@ impl Provider for GcpVertexAIProvider {
         Self: Sized,
     {
         let model_strings: Vec<String> = vec![
-            GcpVertexAIModel::Claude(ClaudeVersion::Sonnet37),
-            GcpVertexAIModel::Claude(ClaudeVersion::Sonnet4),
-            GcpVertexAIModel::Claude(ClaudeVersion::Opus4),
-            GcpVertexAIModel::Gemini(GeminiVersion::Pro15),
-            GcpVertexAIModel::Gemini(GeminiVersion::Flash20),
-            GcpVertexAIModel::Gemini(GeminiVersion::Pro20Exp),
-            GcpVertexAIModel::Gemini(GeminiVersion::Pro25Exp),
-            GcpVertexAIModel::Gemini(GeminiVersion::Flash25Preview),
-            GcpVertexAIModel::Gemini(GeminiVersion::Pro25Preview),
-            GcpVertexAIModel::Gemini(GeminiVersion::Flash25),
-            GcpVertexAIModel::Gemini(GeminiVersion::Pro25),
+            GcpVertexAIModel::Claude("claude-3-7-sonnet@20250219".to_string()),
+            GcpVertexAIModel::Claude("claude-sonnet-4@20250514".to_string()),
+            GcpVertexAIModel::Claude("claude-opus-4@20250514".to_string()),
+            GcpVertexAIModel::Gemini("gemini-1.5-pro-002".to_string()),
+            GcpVertexAIModel::Gemini("gemini-2.0-flash-001".to_string()),
+            GcpVertexAIModel::Gemini("gemini-2.0-pro-exp-02-05".to_string()),
+            GcpVertexAIModel::Gemini("gemini-2.5-pro-exp-03-25".to_string()),
+            GcpVertexAIModel::Gemini("gemini-2.5-flash-preview-05-20".to_string()),
+            GcpVertexAIModel::Gemini("gemini-2.5-pro-preview-05-06".to_string()),
+            GcpVertexAIModel::Gemini("gemini-2.5-flash".to_string()),
+            GcpVertexAIModel::Gemini("gemini-2.5-pro".to_string()),
         ]
         .iter()
         .map(|model| model.to_string())
@@ -462,9 +462,7 @@ impl Provider for GcpVertexAIProvider {
             "gcp_vertex_ai",
             "GCP Vertex AI",
             "Access variety of AI models such as Claude, Gemini through Vertex AI",
-            GcpVertexAIModel::Gemini(GeminiVersion::Flash25)
-                .to_string()
-                .as_str(),
+            "gemini-2.5-flash",
             known_models,
             GCP_VERTEX_AI_DOC_URL,
             vec![

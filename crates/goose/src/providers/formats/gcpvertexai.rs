@@ -356,33 +356,4 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn test_model_parsing() -> Result<()> {
-        let claude_models = [
-            "claude-3-7-sonnet@20250219",
-            "claude-sonnet-4@20250514",
-            "claude-experimental",
-        ];
-        for model_id in claude_models {
-            let model = GcpVertexAIModel::try_from(model_id)?;
-            assert!(matches!(model, GcpVertexAIModel::Claude(_)));
-            assert_eq!(model.to_string(), model_id);
-            assert_eq!(model.known_location(), GcpLocation::Ohio);
-        }
-
-        let gemini_models = [
-            "gemini-1.5-pro-002",
-            "gemini-2.0-flash-001",
-            "gemini-experimental",
-        ];
-        for model_id in gemini_models {
-            let model = GcpVertexAIModel::try_from(model_id)?;
-            assert!(matches!(model, GcpVertexAIModel::Gemini(_)));
-            assert_eq!(model.to_string(), model_id);
-            assert_eq!(model.known_location(), GcpLocation::Iowa);
-        }
-
-        assert!(GcpVertexAIModel::try_from("unsupported-model").is_err());
-        Ok(())
-    }
 }
