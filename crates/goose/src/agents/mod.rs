@@ -14,8 +14,6 @@ pub mod platform_tools;
 pub mod prompt_manager;
 mod reply_parts;
 pub mod retry;
-mod router_tool_selector;
-mod router_tools;
 mod schedule_tool;
 pub(crate) mod skills_extension;
 pub mod subagent_execution_tool;
@@ -24,8 +22,6 @@ mod subagent_task_config;
 pub mod subagent_tool;
 pub(crate) mod todo_extension;
 mod tool_execution;
-mod tool_route_manager;
-mod tool_router_index_manager;
 pub mod types;
 
 pub use agent::{Agent, AgentEvent};

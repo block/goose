@@ -363,11 +363,6 @@ async fn send_session_event(installation: &InstallationData) -> Result<(), Strin
     if let Ok(max_turns) = config.get_param::<i64>("GOOSE_MAX_TURNS") {
         event.insert_prop("setting_max_turns", max_turns).ok();
     }
-    if let Ok(router_enabled) = config.get_param::<bool>("GOOSE_ENABLE_ROUTER") {
-        event
-            .insert_prop("setting_router_enabled", router_enabled)
-            .ok();
-    }
 
     if let Ok(lead_model) = config.get_param::<String>("GOOSE_LEAD_MODEL") {
         event.insert_prop("setting_lead_model", lead_model).ok();

@@ -50,6 +50,7 @@ impl McpClientTrait for MockClient {
         Ok(ListResourcesResult {
             resources: vec![],
             next_cursor: None,
+            meta: None,
         })
     }
 
@@ -85,6 +86,7 @@ impl McpClientTrait for MockClient {
         Ok(ListToolsResult {
             tools: rmcp_tools,
             next_cursor: None,
+            meta: None,
         })
     }
 
@@ -117,6 +119,7 @@ impl McpClientTrait for MockClient {
         Ok(ListPromptsResult {
             prompts: vec![],
             next_cursor: None,
+            meta: None,
         })
     }
 

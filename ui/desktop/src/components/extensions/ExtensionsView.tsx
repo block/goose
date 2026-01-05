@@ -34,6 +34,7 @@ export default function ExtensionsView({
   const [searchTerm, setSearchTerm] = useState('');
   const { addExtension } = useConfig();
 
+  // Only trigger refresh when deep link config changes AND we don't need to show env vars
   useEffect(() => {
     if (viewOptions.deepLinkConfig && !viewOptions.showEnvVars) {
       setRefreshKey((prevKey) => prevKey + 1);

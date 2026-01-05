@@ -48,10 +48,10 @@ export default function ExtensionInfoFields({
               label:
                 type === 'stdio'
                   ? 'STDIO'
-                  : type === 'sse'
-                    ? 'SSE'
-                    : type === 'streamable_http'
-                      ? 'HTTP'
+                  : type === 'streamable_http'
+                    ? 'HTTP'
+                    : type === 'sse'
+                      ? 'SSE (unsupported)'
                       : type.toUpperCase(),
             }}
             onChange={(newValue: unknown) => {
@@ -62,7 +62,6 @@ export default function ExtensionInfoFields({
             }}
             options={[
               { value: 'stdio', label: 'Standard IO (STDIO)' },
-              { value: 'sse', label: 'Server-Sent Events (SSE)' },
               { value: 'streamable_http', label: 'Streamable HTTP' },
             ]}
             isSearchable={false}

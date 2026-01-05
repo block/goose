@@ -44,6 +44,7 @@
 - Async runtime: tokio
 - See HOWTOAI.md for AI-assisted code standards
 - MCP protocol implementations require extra scrutiny
+- Naming convention: In `documentation/docs` and `documentation/blog`, always refer to the project as "goose" (lowercase), never "Goose" (even at the start of sentences)
 
 ## CI Pipeline Context
 

@@ -31,10 +31,25 @@ type ToolCallRequest = (
     tokio::sync::oneshot::Sender<Result<String, String>>,
 );
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+struct ToolGraphNode {
+    /// Tool name in format "server/tool" (e.g., "developer/shell")
+    tool: String,
+    /// Brief description of what this call does (e.g., "list files in /src")
+    description: String,
+    /// Indices of nodes this depends on (empty if no dependencies)
+    #[serde(default)]
+    depends_on: Vec<usize>,
+}
+
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 struct ExecuteCodeParams {
     /// JavaScript code with ES6 imports for MCP tools.
     code: String,
+    /// DAG of tool calls showing execution flow. Each node represents a tool call.
+    /// Use depends_on to show data flow (e.g., node 1 uses output from node 0).
+    #[serde(default)]
+    tool_graph: Vec<ToolGraphNode>,
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
@@ -69,12 +84,121 @@ struct InputSchema {
     required: Vec<String>,
 }
 
+fn quote_join(vals: &[&str]) -> String {
+    format!("\"{}\"", vals.join("\" | \""))
+}
+
+fn infer_type(schema: &Value) -> Option<String> {
+    if schema.get("properties").is_some() {
+        Some("object".to_string())
+    } else if schema.get("items").is_some() {
+        Some("array".to_string())
+    } else {
+        None
+    }
+}
+
+fn extract_type_from_schema(schema: &Value) -> Option<String> {
+    // enum array (github-mcp style)
+    if let Some(arr) = schema.get("enum").and_then(|e| e.as_array()) {
+        let vals: Vec<_> = arr.iter().filter_map(|v| v.as_str()).collect();
+        if !vals.is_empty() {
+            return Some(quote_join(&vals));
+        }
+    }
+
+    // oneOf with const (schemars enums)
+    if let Some(arr) = schema.get("oneOf").and_then(|o| o.as_array()) {
+        let vals: Vec<_> = arr
+            .iter()
+            .filter_map(|v| v.get("const")?.as_str())
+            .collect();
+        if !vals.is_empty() {
+            return Some(quote_join(&vals));
+        }
+    }
+
+    // anyOf (Option<T> or unions)
+    if let Some(arr) = schema.get("anyOf").and_then(|o| o.as_array()) {
+        let non_null: Vec<_> = arr
+            .iter()
+            .filter(|v| v.get("type").and_then(|t| t.as_str()) != Some("null"))
+            .collect();
+        if non_null.len() == 1 {
+            return extract_type_from_schema(non_null[0]).or_else(|| infer_type(non_null[0]));
+        }
+        if non_null.len() > 1 {
+            let types: Vec<_> = non_null
+                .iter()
+                .filter_map(|v| extract_type_from_schema(v).or_else(|| infer_type(v)))
+                .collect();
+            if !types.is_empty() {
+                return Some(types.join(" | "));
+            }
+        }
+    }
+
+    // type field (string or array)
+    match schema.get("type") {
+        Some(Value::String(s)) if s == "array" => {
+            let item_type = schema
+                .get("items")
+                .and_then(extract_type_from_schema)
+                .unwrap_or_else(|| "any".to_string());
+            Some(if item_type == "any" {
+                "array".into()
+            } else {
+                format!("{item_type}[]")
+            })
+        }
+        Some(Value::String(s)) if s == "object" => {
+            let Some(props) = schema.get("properties").and_then(|p| p.as_object()) else {
+                return Some("object".to_string());
+            };
+            let required: Vec<_> = schema
+                .get("required")
+                .and_then(|r| r.as_array())
+                .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect())
+                .unwrap_or_default();
+            let mut fields: Vec<_> = props
+                .iter()
+                .map(|(name, schema)| {
+                    let ty = extract_type_from_schema(schema).unwrap_or_else(|| "any".into());
+                    let opt = if required.contains(&name.as_str()) {
+                        ""
+                    } else {
+                        "?"
+                    };
+                    format!("{name}{opt}: {ty}")
+                })
+                .collect();
+            fields.sort();
+            Some(format!("{{ {} }}", fields.join(", ")))
+        }
+        Some(Value::String(s)) => Some(s.clone()),
+        Some(Value::Array(arr)) => {
+            let non_null: Vec<_> = arr
+                .iter()
+                .filter_map(|v| v.as_str())
+                .filter(|s| *s != "null")
+                .collect();
+            match non_null.len() {
+                0 => None,
+                1 => Some(non_null[0].to_string()),
+                _ => Some(non_null.join(" | ")),
+            }
+        }
+        _ => None,
+    }
+}
+
 struct ToolInfo {
     server_name: String,
     tool_name: String,
     full_name: String,
     description: String,
     params: Vec<(String, String, bool)>,
+    return_type: String,
 }
 
 impl ToolInfo {
@@ -82,9 +206,9 @@ impl ToolInfo {
         let (server_name, tool_name) = tool.name.as_ref().split_once("__")?;
         let param_names = get_parameter_names(tool);
 
-        let schema: InputSchema =
-            serde_json::from_value(Value::Object(tool.input_schema.as_ref().clone()))
-                .unwrap_or_default();
+        let mut schema_value = Value::Object(tool.input_schema.as_ref().clone());
+        let _ = unbinder::dereference_schema(&mut schema_value, unbinder::Options::default());
+        let schema: InputSchema = serde_json::from_value(schema_value).unwrap_or_default();
 
         let params = param_names
             .iter()
@@ -92,13 +216,23 @@ impl ToolInfo {
                 let ty = schema
                     .properties
                     .get(name)
-                    .and_then(|p| p.get("type"))
-                    .and_then(|t| t.as_str())
-                    .unwrap_or("any");
+                    .and_then(extract_type_from_schema)
+                    .unwrap_or_else(|| "any".to_string());
                 let required = schema.required.contains(name);
-                (name.clone(), ty.to_string(), required)
+                (name.clone(), ty, required)
             })
             .collect();
+
+        let return_type = tool
+            .output_schema
+            .as_ref()
+            .and_then(|schema| {
+                let mut schema_value = Value::Object(schema.as_ref().clone());
+                let _ =
+                    unbinder::dereference_schema(&mut schema_value, unbinder::Options::default());
+                extract_type_from_schema(&schema_value)
+            })
+            .unwrap_or_else(|| "string".to_string());
 
         Some(Self {
             server_name: server_name.to_string(),
@@ -110,6 +244,7 @@ impl ToolInfo {
                 .map(|d| d.as_ref().to_string())
                 .unwrap_or_default(),
             params,
+            return_type,
         })
     }
 
@@ -121,7 +256,10 @@ impl ToolInfo {
             .collect::<Vec<_>>()
             .join(", ");
         let desc = self.description.lines().next().unwrap_or("");
-        format!("{}({{ {params} }}): string - {desc}", self.tool_name)
+        format!(
+            "{}({{ {params} }}): {} - {desc}",
+            self.tool_name, self.return_type
+        )
     }
 }
 
@@ -160,6 +298,13 @@ fn create_server_module(server_tools: &[&ToolInfo], ctx: &mut Context) -> Module
     )
 }
 
+fn parse_result_to_js(result: &str, ctx: &mut Context) -> JsValue {
+    serde_json::from_str::<serde_json::Value>(result)
+        .ok()
+        .and_then(|v| JsValue::from_json(&v, ctx).ok())
+        .unwrap_or_else(|| JsValue::from(js_string!(result)))
+}
+
 fn create_tool_function(full_tool_name: String) -> NativeFunction {
     NativeFunction::from_copy_closure_with_captures(
         |_this, args, full_name: &String, ctx| {
@@ -186,7 +331,7 @@ fn create_tool_function(full_tool_name: String) -> NativeFunction {
             rx.blocking_recv()
                 .map_err(|e| e.to_string())
                 .and_then(|r| r)
-                .map(|result| JsValue::from(js_string!(result.as_str())))
+                .map(|result| parse_result_to_js(&result, ctx))
                 .map_err(|e| JsNativeError::error().with_message(e).into())
         },
         full_tool_name,
@@ -306,7 +451,7 @@ impl CodeExecutionClient {
                 - RIGHT: One execute_code call with a script that calls all needed tools
 
                 Workflow:
-                    1. Use read_module("server") to discover tools and signatures
+                    1. Use the read_module tool to discover tools and signatures
                     2. Write ONE script that imports and calls ALL tools needed for the task
                     3. Chain results: use output from one tool as input to the next
             "#}.to_string()),
@@ -498,6 +643,7 @@ impl CodeExecutionClient {
 
         if !matching_tools.is_empty() {
             output.push_str("## Matching Tools\n");
+            output.push_str("Use the read_module tool for full signature and import syntax\n\n");
             for tool in &matching_tools {
                 output.push_str(&format!(
                     "- {}/{}: {}\n",
@@ -527,15 +673,19 @@ impl CodeExecutionClient {
                         .await
                     {
                         Ok(dispatch_result) => match dispatch_result.result.await {
-                            Ok(result) => Ok(result
-                                .content
-                                .iter()
-                                .filter_map(|c| match &c.raw {
-                                    RawContent::Text(t) => Some(t.text.clone()),
-                                    _ => None,
-                                })
-                                .collect::<Vec<_>>()
-                                .join("\n")),
+                            Ok(result) => Ok(if let Some(sc) = &result.structured_content {
+                                serde_json::to_string(sc).unwrap_or_default()
+                            } else {
+                                result
+                                    .content
+                                    .iter()
+                                    .filter_map(|c| match &c.raw {
+                                        RawContent::Text(t) => Some(t.text.clone()),
+                                        _ => None,
+                                    })
+                                    .collect::<Vec<_>>()
+                                    .join("\n")
+                            }),
                             Err(e) => Err(format!("Tool error: {}", e.message)),
                         },
                         Err(e) => Err(format!("Dispatch error: {e}")),
@@ -566,6 +716,7 @@ impl McpClientTrait for CodeExecutionClient {
         Err(Error::TransportClosed)
     }
 
+    #[allow(clippy::too_many_lines)]
     async fn list_tools(
         &self,
         _next_cursor: Option<String>,
@@ -611,7 +762,16 @@ impl McpClientTrait for CodeExecutionClient {
                         - Last expression is the result
                         - No comments in code
 
-                        BEFORE CALLING: Use read_module("server") to check required parameters.
+                        TOOL_GRAPH: Always provide tool_graph to describe the execution flow for the UI.
+                        Each node has: tool (server/name), description (what it does), depends_on (indices of dependencies).
+                        Example for chained operations:
+                        [
+                          {"tool": "developer/shell", "description": "list files", "depends_on": []},
+                          {"tool": "developer/text_editor", "description": "read README.md", "depends_on": []},
+                          {"tool": "developer/text_editor", "description": "write output.txt", "depends_on": [0, 1]}
+                        ]
+
+                        BEFORE CALLING: Use the read_module tool to check required parameters.
                     "#}
                     .to_string(),
                     schema::<ExecuteCodeParams>(),
@@ -656,9 +816,9 @@ impl McpClientTrait for CodeExecutionClient {
                         Search for tools by name or description across all available modules.
 
                         USAGE:
-                        - Single term: search_modules({ terms: "file" })
-                        - Multiple terms: search_modules({ terms: ["git", "shell"] })
-                        - Regex patterns: search_modules({ terms: "sh.*", regex: true })
+                        - Single term: search_modules with terms="file"
+                        - Multiple terms: search_modules with terms=["git", "shell"]
+                        - Regex patterns: search_modules with terms="sh.*", regex=true
 
                         Returns matching servers and tools with descriptions.
                         Use this when you don't know which module contains the tool you need.
@@ -675,6 +835,7 @@ impl McpClientTrait for CodeExecutionClient {
                 }),
             ],
             next_cursor: None,
+            meta: None,
         })
     }
 
@@ -745,7 +906,7 @@ impl McpClientTrait for CodeExecutionClient {
 
                 Modules: {}
 
-                Use read_module("name") to see tool signatures before calling unfamiliar tools.
+                Use the read_module tool to see signatures before calling unfamiliar tools.
             "#},
             server_list.join(", ")
         ))
@@ -755,13 +916,14 @@ impl McpClientTrait for CodeExecutionClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Arc;
+    use test_case::test_case;
 
     #[tokio::test]
     async fn test_execute_code_simple() {
         let context = PlatformExtensionContext {
             session_id: None,
             extension_manager: None,
-            tool_route_manager: None,
         };
         let client = CodeExecutionClient::new(context).unwrap();
 
@@ -786,7 +948,6 @@ mod tests {
         let context = PlatformExtensionContext {
             session_id: None,
             extension_manager: None,
-            tool_route_manager: None,
         };
         let client = CodeExecutionClient::new(context).unwrap();
 
@@ -809,6 +970,7 @@ mod tests {
                 full_name: "developer__shell".to_string(),
                 description: "Execute shell commands".to_string(),
                 params: vec![("command".to_string(), "string".to_string(), true)],
+                return_type: "string".to_string(),
             },
             ToolInfo {
                 server_name: "developer".to_string(),
@@ -816,6 +978,7 @@ mod tests {
                 full_name: "developer__text_editor".to_string(),
                 description: "Edit text files".to_string(),
                 params: vec![("path".to_string(), "string".to_string(), true)],
+                return_type: "string".to_string(),
             },
             ToolInfo {
                 server_name: "git".to_string(),
@@ -823,6 +986,7 @@ mod tests {
                 full_name: "git__commit".to_string(),
                 description: "Commit changes to git".to_string(),
                 params: vec![("message".to_string(), "string".to_string(), true)],
+                return_type: "string".to_string(),
             },
         ];
 
@@ -883,6 +1047,7 @@ mod tests {
                 full_name: "developer__shell".to_string(),
                 description: "Execute shell commands".to_string(),
                 params: vec![],
+                return_type: "string".to_string(),
             },
             ToolInfo {
                 server_name: "developer".to_string(),
@@ -890,6 +1055,7 @@ mod tests {
                 full_name: "developer__text_editor".to_string(),
                 description: "Edit text files".to_string(),
                 params: vec![],
+                return_type: "string".to_string(),
             },
         ];
 
@@ -915,5 +1081,117 @@ mod tests {
         let result = CodeExecutionClient::handle_search(&tools, &["[invalid".to_string()], true);
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("Invalid regex"));
+    }
+
+    #[test_case(
+        "github__get_me",
+        serde_json::json!({"type": "object", "properties": {}}),
+        None,
+        "get_me({  }): string - Get details of the authenticated user";
+        "no params, no output schema"
+    )]
+    #[test_case(
+        "filesystem__read_text_file",
+        serde_json::json!({"type": "object", "properties": {"path": {"type": "string"}, "tail": {"type": "number"}, "head": {"type": "number"}}, "required": ["path"]}),
+        Some(serde_json::json!({"type": "object", "properties": {"content": {"type": "string"}}, "required": ["content"]})),
+        "read_text_file({ head?: number, path: string, tail?: number }): { content: string } - Read the complete contents of a file";
+        "optional number params, object output"
+    )]
+    #[test_case(
+        "memory__create_entities",
+        serde_json::json!({"type": "object", "properties": {"entities": {"type": "array", "items": {"type": "object", "properties": {"name": {"type": "string"}, "entityType": {"type": "string"}, "observations": {"type": "array", "items": {"type": "string"}}}, "required": ["name", "entityType", "observations"]}}}, "required": ["entities"]}),
+        Some(serde_json::json!({"type": "object", "properties": {"entities": {"type": "array", "items": {"type": "object", "properties": {"name": {"type": "string"}, "entityType": {"type": "string"}, "observations": {"type": "array", "items": {"type": "string"}}}, "required": ["name", "entityType", "observations"]}}}, "required": ["entities"]})),
+        "create_entities({ entities: { entityType: string, name: string, observations: string[] }[] }): { entities: { entityType: string, name: string, observations: string[] }[] } - Create multiple new entities";
+        "nested object array with typed props"
+    )]
+    #[test_case(
+        "github__dismiss_notification",
+        serde_json::json!({"type": "object", "properties": {
+            "threadID": {"type": "string"},
+            "state": {"type": "string", "enum": ["read", "done"]}
+        }, "required": ["threadID", "state"]}),
+        None,
+        "dismiss_notification({ state: \"read\" | \"done\", threadID: string }): string - Dismiss a notification";
+        "enum param, no output schema"
+    )]
+    #[test_case(
+        "computercontroller__web_scrape",
+        serde_json::json!({"type": "object", "properties": {
+            "url": {"type": "string"},
+            "save_as": {"oneOf": [{"const": "text"}, {"const": "json"}, {"const": "binary"}]}
+        }, "required": ["url"]}),
+        None,
+        "web_scrape({ save_as?: \"text\" | \"json\" | \"binary\", url: string }): string - Scrape content from URL";
+        "oneOf const param (schemars), no output schema"
+    )]
+    fn test_mcp_tool_signature(
+        name: &str,
+        input: serde_json::Value,
+        output: Option<serde_json::Value>,
+        expected: &str,
+    ) {
+        let input_schema: serde_json::Map<String, serde_json::Value> =
+            serde_json::from_value(input).unwrap();
+        let output_schema = output.map(|v| {
+            Arc::new(
+                serde_json::from_value::<serde_json::Map<String, serde_json::Value>>(v).unwrap(),
+            )
+        });
+        let desc = expected.split(" - ").nth(1).unwrap_or("").to_string();
+        let tool = McpTool {
+            name: name.to_string().into(),
+            title: None,
+            description: Some(desc.into()),
+            input_schema: Arc::new(input_schema),
+            output_schema,
+            annotations: None,
+            icons: None,
+            meta: None,
+        };
+        let info = ToolInfo::from_mcp_tool(&tool).unwrap();
+        assert_eq!(info.to_signature(), expected);
+    }
+
+    #[test_case(serde_json::json!({"type": "string"}), "string"; "string")]
+    #[test_case(serde_json::json!({"type": "number"}), "number"; "number")]
+    #[test_case(serde_json::json!({"type": "boolean"}), "boolean"; "boolean")]
+    #[test_case(serde_json::json!({"type": "array"}), "array"; "array bare")]
+    #[test_case(serde_json::json!({"type": "array", "items": {"type": "string"}}), "string[]"; "array with items")]
+    #[test_case(serde_json::json!({"type": "object"}), "object"; "object bare")]
+    #[test_case(serde_json::json!({"type": "object", "properties": {"a": {"type": "string"}}, "required": ["a"]}), "{ a: string }"; "object with prop")]
+    #[test_case(serde_json::json!({"type": "object", "properties": {"a": {"type": "string"}}}), "{ a?: string }"; "object optional prop")]
+    #[test_case(serde_json::json!({"type": "object", "properties": {"a": {"type": "array", "items": {"type": "string"}}}, "required": ["a"]}), "{ a: string[] }"; "object with array prop")]
+    #[test_case(serde_json::json!({"enum": ["a", "b"]}), "\"a\" | \"b\""; "enum array")]
+    #[test_case(serde_json::json!({"oneOf": [{"const": "x"}, {"const": "y"}]}), "\"x\" | \"y\""; "oneOf const")]
+    fn test_extract_type_from_schema(schema: serde_json::Value, expected: &str) {
+        assert_eq!(
+            extract_type_from_schema(&schema),
+            Some(expected.to_string())
+        );
+    }
+
+    fn eval_with_tools(code: &str, tools: &[(&str, &str)]) -> String {
+        let mut ctx = Context::default();
+        for &(name, response) in tools {
+            let resp = response.to_string();
+            let func = NativeFunction::from_copy_closure_with_captures(
+                |_this, _args, resp: &String, ctx| Ok(parse_result_to_js(resp, ctx)),
+                resp,
+            );
+            ctx.register_global_callable(js_string!(name), 0, func)
+                .unwrap();
+        }
+        ctx.eval(Source::from_bytes(code))
+            .unwrap()
+            .display()
+            .to_string()
+    }
+
+    #[test_case("2 + 2", &[], "4"; "pure_js")]
+    #[test_case("get_data({}).content", &[("get_data", r#"{"content":"hello"}"#)], "\"hello\""; "structured_property_access")]
+    #[test_case("typeof shell({})", &[("shell", "plain text")], "\"string\""; "plain_text_is_string")]
+    #[test_case("shell({}).content", &[("shell", "plain text")], "undefined"; "plain_text_no_property")]
+    fn test_tool_result(code: &str, tools: &[(&str, &str)], expected: &str) {
+        assert_eq!(eval_with_tools(code, tools), expected);
     }
 }

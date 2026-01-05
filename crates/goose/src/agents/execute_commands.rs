@@ -41,7 +41,11 @@ pub fn list_commands() -> &'static [CommandDef] {
 }
 
 impl Agent {
-    pub async fn execute_command(&self, message_text: &str, session_id: &str) -> Option<Message> {
+    pub async fn execute_command(
+        &self,
+        message_text: &str,
+        session_id: &str,
+    ) -> Result<Option<Message>> {
         let mut trimmed = message_text.trim().to_string();
 
         if COMPACT_TRIGGERS.contains(&trimmed.as_str()) {
@@ -49,36 +53,29 @@ impl Agent {
         }
 
         if !trimmed.starts_with('/') {
-            return None;
+            return Ok(None);
         }
 
         let command_str = trimmed.strip_prefix('/').unwrap_or(&trimmed);
-        let (command, params) = command_str
+        let (command, params_str) = command_str
             .split_once(' ')
             .map(|(cmd, p)| (cmd, p.trim()))
             .unwrap_or((command_str, ""));
 
-        let params: Vec<&str> = if params.is_empty() {
+        let params: Vec<&str> = if params_str.is_empty() {
             vec![]
         } else {
-            params.split_whitespace().collect()
+            params_str.split_whitespace().collect()
         };
 
-        let result = match command {
+        match command {
             "prompts" => self.handle_prompts_command(&params, session_id).await,
             "prompt" => self.handle_prompt_command(&params, session_id).await,
             "compact" => self.handle_compact_command(session_id).await,
             "clear" => self.handle_clear_command(session_id).await,
             _ => {
-                self.handle_recipe_command(command, &params, session_id)
+                self.handle_recipe_command(command, params_str, session_id)
                     .await
-            }
-        };
-
-        match result {
-            Ok(msg) => msg,
-            Err(e) => {
-                Some(Message::assistant().with_text(format!("Error executing /{}: {}", command, e)))
             }
         }
     }
@@ -264,7 +261,7 @@ impl Agent {
     async fn handle_recipe_command(
         &self,
         command: &str,
-        params: &[&str],
+        params_str: &str,
         _session_id: &str,
     ) -> Result<Option<Message>> {
         let full_command = format!("/{}", command);
@@ -284,7 +281,64 @@ impl Agent {
             .parent()
             .ok_or_else(|| anyhow!("Recipe path has no parent directory"))?;
 
-        let param_values: Vec<String> = params.iter().map(|s| s.to_string()).collect();
+        let recipe_dir_str = recipe_dir.display().to_string();
+        let validation_result =
+            crate::recipe::validate_recipe::validate_recipe_template_from_content(
+                &recipe_content,
+                Some(recipe_dir_str),
+            )
+            .map_err(|e| anyhow!("Failed to parse recipe: {}", e))?;
+
+        let param_values: Vec<String> = if params_str.is_empty() {
+            vec![]
+        } else {
+            let params_without_default = validation_result
+                .parameters
+                .as_ref()
+                .map(|params| params.iter().filter(|p| p.default.is_none()).count())
+                .unwrap_or(0);
+
+            if params_without_default <= 1 {
+                vec![params_str.to_string()]
+            } else {
+                let param_names: Vec<String> = validation_result
+                    .parameters
+                    .as_ref()
+                    .map(|params| {
+                        params
+                            .iter()
+                            .filter(|p| p.default.is_none())
+                            .map(|p| p.key.clone())
+                            .collect()
+                    })
+                    .unwrap_or_default();
+
+                let error_message = format!(
+                    "The /{} recipe requires {} parameters: {}.\n\n\
+                    Slash command recipes only support 1 parameter.\n\n\
+                    **To use this recipe:**\n\
+                    • **CLI:** `goose run --recipe {} {}`\n\
+                    • **Desktop:** Launch from the recipes sidebar to fill in parameters",
+                    command,
+                    params_without_default,
+                    param_names
+                        .iter()
+                        .map(|name| format!("**{}**", name))
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                    command,
+                    param_names
+                        .iter()
+                        .map(|name| format!("--params {}=\"...\"", name))
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                );
+
+                return Err(anyhow!(error_message));
+            }
+        };
+
+        let param_values_len = param_values.len();
 
         let recipe = match build_recipe_from_template_with_positional_params(
             recipe_content,
@@ -298,7 +352,7 @@ impl Agent {
                     "Recipe requires {} parameter(s): {}. Provided: {}",
                     parameters.len(),
                     parameters.join(", "),
-                    params.len()
+                    param_values_len
                 ))));
             }
             Err(e) => return Err(anyhow!("Failed to build recipe: {}", e)),

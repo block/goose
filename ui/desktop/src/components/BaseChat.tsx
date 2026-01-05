@@ -269,27 +269,12 @@ function BaseChatContent({
     });
   };
 
-  const renderProgressiveMessageList = (chat: ChatType) => (
-    <>
-      <ProgressiveMessageList
-        messages={messages}
-        chat={chat}
-        toolCallNotifications={toolCallNotifications}
-        isUserMessage={(m: Message) => m.role === 'user'}
-        isStreamingMessage={chatState !== ChatState.Idle}
-        onRenderingComplete={handleRenderingComplete}
-        onMessageUpdate={onMessageUpdate}
-        submitElicitationResponse={submitElicitationResponse}
-      />
-    </>
-  );
-
   const showPopularTopics =
     messages.length === 0 && !initialMessage && chatState === ChatState.Idle;
 
   const chat: ChatType = {
-    messageHistoryIndex: 0,
     messages,
+    messageHistoryIndex: 0,
     recipe,
     sessionId,
     name: session?.name || 'No Session',
@@ -377,10 +362,21 @@ function BaseChatContent({
               </div>
             )}
 
-            {/* Messages or Popular Topics */}
             {messages.length > 0 || recipe ? (
               <>
-                <SearchView>{renderProgressiveMessageList(chat)}</SearchView>
+                <SearchView>
+                  <ProgressiveMessageList
+                    messages={messages}
+                    chat={{ sessionId }}
+                    toolCallNotifications={toolCallNotifications}
+                    append={(text: string) => handleSubmit(text)}
+                    isUserMessage={(m: Message) => m.role === 'user'}
+                    isStreamingMessage={chatState !== ChatState.Idle}
+                    onRenderingComplete={handleRenderingComplete}
+                    onMessageUpdate={onMessageUpdate}
+                    submitElicitationResponse={submitElicitationResponse}
+                  />
+                </SearchView>
 
                 <div className="block h-8" />
               </>

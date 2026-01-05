@@ -289,6 +289,7 @@ impl MappingReport {
     }
 }
 
+#[allow(clippy::too_many_lines)]
 async fn build_canonical_models() -> Result<()> {
     println!("Fetching models from OpenRouter API...");
 

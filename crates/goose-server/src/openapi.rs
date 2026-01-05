@@ -363,7 +363,6 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::agent::agent_add_extension,
         super::routes::agent::agent_remove_extension,
         super::routes::agent::update_agent_provider,
-        super::routes::agent::update_router_tool_selector,
         super::routes::action_required::confirm_tool_action,
         super::routes::reply::reply,
         super::routes::session::list_sessions,
@@ -531,7 +530,6 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::agent::ReadResourceResponse,
         super::routes::agent::CallToolRequest,
         super::routes::agent::CallToolResponse,
-        super::routes::agent::UpdateRouterToolSelectorRequest,
         super::routes::agent::StartAgentRequest,
         super::routes::agent::ResumeAgentRequest,
         super::routes::agent::RestartAgentRequest,
@@ -546,6 +544,10 @@ derive_utoipa!(Icon as IconSchema);
         super::tunnel::TunnelInfo,
         super::tunnel::TunnelState,
         super::routes::telemetry::TelemetryEventRequest,
+        goose::goose_apps::McpAppResource,
+        goose::goose_apps::CspMetadata,
+        goose::goose_apps::UiMetadata,
+        goose::goose_apps::ResourceMetadata,
     ))
 )]
 pub struct ApiDoc;

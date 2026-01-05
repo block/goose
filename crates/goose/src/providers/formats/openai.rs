@@ -512,11 +512,8 @@ where
                                                 }
                                             }
                                         }
-                                    } else {
-                                        done = true;
                                     }
-
-                                    if tool_chunk.choices[0].finish_reason == Some("tool_calls".to_string()) {
+                                    if tool_chunk.choices[0].finish_reason.is_some() {
                                         done = true;
                                     }
                                 } else {
