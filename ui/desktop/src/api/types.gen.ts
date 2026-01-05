@@ -335,9 +335,6 @@ export type ExtensionEntry = ExtensionConfig & {
     enabled: boolean;
 };
 
-/**
- * Result of loading an extension
- */
 export type ExtensionLoadResult = {
     error?: string | null;
     name: string;
