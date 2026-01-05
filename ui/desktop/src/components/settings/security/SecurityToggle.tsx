@@ -15,19 +15,21 @@ export const SecurityToggle = () => {
   const { config, upsert } = useConfig();
 
   const availableModels = useMemo(() => {
-    try {
-      const mappingEnv = window.appConfig?.get('SECURITY_ML_MODEL_MAPPING') as string | undefined;
-      if (mappingEnv) {
-        const mapping = JSON.parse(mappingEnv);
-        return Object.keys(mapping).map((modelName) => ({
-          value: modelName,
-          label: modelName,
-        }));
-      }
-    } catch (error) {
-      console.warn('Failed to parse SECURITY_ML_MODEL_MAPPING:', error);
+    const mappingEnv = window.appConfig?.get('SECURITY_ML_MODEL_MAPPING') as string | undefined;
+    if (!mappingEnv) {
+      return [];
     }
-    return [];
+
+    try {
+      const mapping = JSON.parse(mappingEnv);
+      return Object.keys(mapping).map((modelName) => ({
+        value: modelName,
+        label: modelName,
+      }));
+    } catch {
+      // Invalid JSON in optional env var - gracefully fall back to manual endpoint input
+      return [];
+    }
   }, []);
 
   const showModelDropdown = useMemo(() => {
