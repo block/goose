@@ -237,7 +237,7 @@ impl PromptInjectionScanner {
         messages
             .iter()
             .rev()
-            .filter(|m| matches!(m.role, rmcp::model::Role::User))
+            .filter(|m| crate::conversation::effective_role(m) == "user")
             .take(limit)
             .map(|m| {
                 m.content
