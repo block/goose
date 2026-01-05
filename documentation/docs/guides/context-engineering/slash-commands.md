@@ -15,7 +15,6 @@ Custom slash commands are personalized shortcuts to run [recipes](/docs/guides/r
 /daily-report
 ```
 
-Custom slash commands save you from retyping common instructions by linking to your [recipes](/docs/guides/recipes). After creating a command, use it in any goose chat session to run the recipe.
 
 ## Create Slash Commands
 
