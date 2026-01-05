@@ -1,0 +1,1 @@
+{"id":"chatcmpl-test","object":"chat.completion","created":1766229622,"model":"gpt-5-nano","choices":[{"index":0,"message":{"role":"assistant","content":"Test session"},"finish_reason":"stop"}],"usage":{"prompt_tokens":79,"completion_tokens":10,"total_tokens":89}}

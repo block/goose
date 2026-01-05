@@ -81,7 +81,7 @@ impl Evaluation for ComputerControllerWebScrape {
         ExtensionRequirements {
             builtin: vec!["computercontroller".to_string()],
             external: Vec::new(),
-            remote: Vec::new(),
+            streamable_http: Vec::new(),
         }
     }
 }

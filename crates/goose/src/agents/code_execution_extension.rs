@@ -31,10 +31,25 @@ type ToolCallRequest = (
     tokio::sync::oneshot::Sender<Result<String, String>>,
 );
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+struct ToolGraphNode {
+    /// Tool name in format "server/tool" (e.g., "developer/shell")
+    tool: String,
+    /// Brief description of what this call does (e.g., "list files in /src")
+    description: String,
+    /// Indices of nodes this depends on (empty if no dependencies)
+    #[serde(default)]
+    depends_on: Vec<usize>,
+}
+
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 struct ExecuteCodeParams {
     /// JavaScript code with ES6 imports for MCP tools.
     code: String,
+    /// DAG of tool calls showing execution flow. Each node represents a tool call.
+    /// Use depends_on to show data flow (e.g., node 1 uses output from node 0).
+    #[serde(default)]
+    tool_graph: Vec<ToolGraphNode>,
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
@@ -701,6 +716,7 @@ impl McpClientTrait for CodeExecutionClient {
         Err(Error::TransportClosed)
     }
 
+    #[allow(clippy::too_many_lines)]
     async fn list_tools(
         &self,
         _next_cursor: Option<String>,
@@ -745,6 +761,15 @@ impl McpClientTrait for CodeExecutionClient {
                         - All calls are synchronous, return strings
                         - Last expression is the result
                         - No comments in code
+
+                        TOOL_GRAPH: Always provide tool_graph to describe the execution flow for the UI.
+                        Each node has: tool (server/name), description (what it does), depends_on (indices of dependencies).
+                        Example for chained operations:
+                        [
+                          {"tool": "developer/shell", "description": "list files", "depends_on": []},
+                          {"tool": "developer/text_editor", "description": "read README.md", "depends_on": []},
+                          {"tool": "developer/text_editor", "description": "write output.txt", "depends_on": [0, 1]}
+                        ]
 
                         BEFORE CALLING: Use the read_module tool to check required parameters.
                     "#}
@@ -810,6 +835,7 @@ impl McpClientTrait for CodeExecutionClient {
                 }),
             ],
             next_cursor: None,
+            meta: None,
         })
     }
 
@@ -898,7 +924,6 @@ mod tests {
         let context = PlatformExtensionContext {
             session_id: None,
             extension_manager: None,
-            tool_route_manager: None,
         };
         let client = CodeExecutionClient::new(context).unwrap();
 
@@ -923,7 +948,6 @@ mod tests {
         let context = PlatformExtensionContext {
             session_id: None,
             extension_manager: None,
-            tool_route_manager: None,
         };
         let client = CodeExecutionClient::new(context).unwrap();
 

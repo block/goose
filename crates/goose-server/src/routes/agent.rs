@@ -54,11 +54,6 @@ pub struct GetToolsQuery {
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct UpdateRouterToolSelectorRequest {
-    session_id: String,
-}
-
-#[derive(Deserialize, utoipa::ToSchema)]
 pub struct StartAgentRequest {
     working_dir: String,
     #[serde(default)]
@@ -116,6 +111,8 @@ pub struct CallToolResponse {
     content: Vec<Content>,
     structured_content: Option<Value>,
     is_error: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    _meta: Option<Value>,
 }
 
 #[utoipa::path(
@@ -501,35 +498,6 @@ async fn update_agent_provider(
 
 #[utoipa::path(
     post,
-    path = "/agent/update_router_tool_selector",
-    request_body = UpdateRouterToolSelectorRequest,
-    responses(
-        (status = 200, description = "Tool selection strategy updated successfully", body = String),
-        (status = 401, description = "Unauthorized - invalid secret key"),
-        (status = 424, description = "Agent not initialized"),
-        (status = 500, description = "Internal server error")
-    )
-)]
-async fn update_router_tool_selector(
-    State(state): State<Arc<AppState>>,
-    Json(payload): Json<UpdateRouterToolSelectorRequest>,
-) -> Result<Json<String>, StatusCode> {
-    let agent = state.get_agent_for_route(payload.session_id).await?;
-    agent
-        .update_router_tool_selector(None, Some(true))
-        .await
-        .map_err(|e| {
-            error!("Failed to update tool selection strategy: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-
-    Ok(Json(
-        "Tool selection strategy updated successfully".to_string(),
-    ))
-}
-
-#[utoipa::path(
-    post,
     path = "/agent/add_extension",
     request_body = AddExtensionRequest,
     responses(
@@ -681,6 +649,7 @@ async fn call_tool(
         content: result.content,
         structured_content: result.structured_content,
         is_error: result.is_error.unwrap_or(false),
+        _meta: None,
     }))
 }
 
@@ -692,10 +661,6 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/agent/read_resource", post(read_resource))
         .route("/agent/call_tool", post(call_tool))
         .route("/agent/update_provider", post(update_agent_provider))
-        .route(
-            "/agent/update_router_tool_selector",
-            post(update_router_tool_selector),
-        )
         .route("/agent/update_from_session", post(update_from_session))
         .route("/agent/add_extension", post(agent_add_extension))
         .route("/agent/remove_extension", post(agent_remove_extension))

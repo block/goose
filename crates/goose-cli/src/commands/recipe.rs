@@ -45,39 +45,55 @@ pub fn handle_deeplink(recipe_name: &str, params: &[String]) -> Result<String> {
 }
 
 pub fn handle_open(recipe_name: &str, params: &[String]) -> Result<()> {
-    // Generate the deeplink using the helper function (no printing)
-    // This reuses all the validation and encoding logic
+    handle_open_with(
+        recipe_name,
+        params,
+        |url| open::that(url),
+        &mut std::io::stdout(),
+    )
+}
+
+fn handle_open_with<F, W>(
+    recipe_name: &str,
+    params: &[String],
+    opener: F,
+    out: &mut W,
+) -> Result<()>
+where
+    F: FnOnce(&str) -> std::io::Result<()>,
+    W: std::io::Write,
+{
     let params_map = parse_params(params)?;
     match generate_deeplink(recipe_name, params_map) {
-        Ok((deeplink_url, recipe)) => {
-            // Attempt to open the deeplink
-            match open::that(&deeplink_url) {
-                Ok(_) => {
-                    println!(
-                        "{} Opened recipe '{}' in Goose Desktop",
-                        style("✓").green().bold(),
-                        recipe.title
-                    );
-                    Ok(())
-                }
-                Err(err) => {
-                    println!(
-                        "{} Failed to open recipe in Goose Desktop: {}",
-                        style("✗").red().bold(),
-                        err
-                    );
-                    println!("Generated deeplink: {}", deeplink_url);
-                    println!("You can manually copy and open the URL above, or ensure Goose Desktop is installed.");
-                    Err(anyhow::anyhow!("Failed to open recipe: {}", err))
-                }
+        Ok((deeplink_url, recipe)) => match opener(&deeplink_url) {
+            Ok(_) => {
+                writeln!(
+                    out,
+                    "{} Opened recipe '{}' in Goose Desktop",
+                    style("✓").green().bold(),
+                    recipe.title
+                )?;
+                Ok(())
             }
-        }
+            Err(err) => {
+                writeln!(
+                    out,
+                    "{} Failed to open recipe in Goose Desktop: {}",
+                    style("✗").red().bold(),
+                    err
+                )?;
+                writeln!(out, "Generated deeplink: {}", deeplink_url)?;
+                writeln!(out, "You can manually copy and open the URL above, or ensure Goose Desktop is installed.")?;
+                Err(anyhow::anyhow!("Failed to open recipe: {}", err))
+            }
+        },
         Err(err) => {
-            println!(
+            writeln!(
+                out,
                 "{} Failed to encode recipe: {}",
                 style("✗").red().bold(),
                 err
-            );
+            )?;
             Err(err)
         }
     }
@@ -250,47 +266,82 @@ instructions: "Test instructions"
         assert!(result.is_err());
     }
 
+    fn run_handle_open(
+        recipe_path: &str,
+        params: &[String],
+        opener_result: std::io::Result<()>,
+    ) -> (Result<()>, String, String) {
+        let captured_url = std::cell::RefCell::new(String::new());
+        let mut out = Vec::new();
+        let result = handle_open_with(
+            recipe_path,
+            params,
+            |url| {
+                *captured_url.borrow_mut() = url.to_string();
+                opener_result
+            },
+            &mut out,
+        );
+        let output = String::from_utf8(out).unwrap();
+        (result, captured_url.into_inner(), output)
+    }
+
     #[test]
     fn test_handle_open_recipe() {
-        let temp_dir = TempDir::new().expect("Failed to create temp directory");
+        let temp_dir = TempDir::new().unwrap();
         let recipe_path =
             create_test_recipe_file(&temp_dir, "test_recipe.yaml", VALID_RECIPE_CONTENT);
 
-        // Test handle_open - should attempt to open but may fail (that's expected in test environment)
-        // We just want to ensure it doesn't panic and handles the error gracefully
-        let result = handle_open(&recipe_path, &[]);
-        // The result may be Ok or Err depending on whether the system can open the URL
-        // In a test environment, it will likely fail to open, but that's fine
-        // We're mainly testing that the function doesn't panic and processes the recipe correctly
-        match result {
-            Ok(_) => {
-                // Successfully opened (unlikely in test environment)
-            }
-            Err(_) => {
-                // Failed to open (expected in test environment) - this is fine
-            }
-        }
+        let (expected_url, _) = generate_deeplink(&recipe_path, HashMap::new()).unwrap();
+        let (result, captured_url, _) = run_handle_open(&recipe_path, &[], Ok(()));
+
+        assert!(result.is_ok());
+        assert_eq!(captured_url, expected_url);
     }
 
     #[test]
     fn test_handle_open_with_parameters() {
-        let temp_dir = TempDir::new().expect("Failed to create temp directory");
+        let temp_dir = TempDir::new().unwrap();
         let recipe_path =
             create_test_recipe_file(&temp_dir, "test_recipe.yaml", VALID_RECIPE_CONTENT);
 
+        let (base_url, _) = generate_deeplink(&recipe_path, HashMap::new()).unwrap();
+
         let params = vec!["name=Alice".to_string(), "role=developer".to_string()];
-        let result = handle_open(&recipe_path, &params);
-        // The result may be Ok or Err depending on whether the system can open the URL
-        // In a test environment, it will likely fail to open, but that's fine
-        // We're mainly testing that the function processes parameters correctly and doesn't panic
-        match result {
-            Ok(_) => {
-                // Successfully opened (unlikely in test environment)
-            }
-            Err(_) => {
-                // Failed to open (expected in test environment) - this is fine
-            }
-        }
+        let (result, captured_url, _) = run_handle_open(&recipe_path, &params, Ok(()));
+
+        assert!(result.is_ok());
+        assert!(captured_url.starts_with(&base_url));
+        assert!(captured_url.contains("&name=Alice"));
+        assert!(captured_url.contains("&role=developer"));
+    }
+
+    #[test]
+    fn test_handle_open_opener_fails() {
+        let temp_dir = TempDir::new().unwrap();
+        let recipe_path =
+            create_test_recipe_file(&temp_dir, "test_recipe.yaml", VALID_RECIPE_CONTENT);
+
+        let (expected_url, _) = generate_deeplink(&recipe_path, HashMap::new()).unwrap();
+        let opener_err = std::io::Error::new(std::io::ErrorKind::NotFound, "desktop not found");
+        let (result, _, output) = run_handle_open(&recipe_path, &[], Err(opener_err));
+
+        assert!(result.is_err());
+        assert!(output.contains("Failed to open recipe in Goose Desktop"));
+        assert!(output.contains("desktop not found"));
+        assert!(output.contains(&expected_url));
+    }
+
+    #[test]
+    fn test_handle_open_invalid_recipe() {
+        let temp_dir = TempDir::new().unwrap();
+        let recipe_path =
+            create_test_recipe_file(&temp_dir, "invalid.yaml", INVALID_RECIPE_CONTENT);
+
+        let (result, _, output) = run_handle_open(&recipe_path, &[], Ok(()));
+
+        assert!(result.is_err());
+        assert!(output.contains("Failed to encode recipe"));
     }
 
     #[test]
