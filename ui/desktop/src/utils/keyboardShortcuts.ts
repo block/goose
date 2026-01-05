@@ -7,5 +7,5 @@ export function getNavigationShortcutText(): string {
 }
 
 export function getSearchShortcutText(): string {
-  return isMac() ? '⌘F/Ctrl+F' : 'Ctrl+F';
+  return isMac() ? '⌘F' : 'Ctrl+F';
 }
