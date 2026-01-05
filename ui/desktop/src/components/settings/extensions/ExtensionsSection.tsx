@@ -13,10 +13,10 @@ import {
 } from './utils';
 
 import { activateExtension, deleteExtension, toggleExtension, updateExtension } from './index';
-import { ExtensionConfig } from '../../../api/types.gen';
+import { ExtensionConfig } from '../../../api';
 
 interface ExtensionSectionProps {
-  sessionId: string; // Add required sessionId prop
+  sessionId?: string;
   deepLinkConfig?: ExtensionConfig;
   showEnvVars?: boolean;
   hideButtons?: boolean;
@@ -110,7 +110,7 @@ export default function ExtensionsSection({
       extensionConfig: extensionConfig,
       addToConfig: addExtension,
       toastOptions: { silent: false },
-      sessionId: sessionId,
+      sessionId,
     });
 
     setPendingActivationExtensions((prev) => {
@@ -134,11 +134,7 @@ export default function ExtensionsSection({
 
     const extensionConfig = createExtensionConfig(formData);
     try {
-      await activateExtension({
-        addToConfig: addExtension,
-        extensionConfig: extensionConfig,
-        sessionId: sessionId,
-      });
+      await activateExtension(extensionConfig, addExtension, sessionId);
       setPendingActivationExtensions((prev) => {
         const updated = new Set(prev);
         updated.delete(extensionConfig.name);
@@ -205,7 +201,7 @@ export default function ExtensionsSection({
       await deleteExtension({
         name,
         removeFromConfig: removeExtension,
-        sessionId: sessionId,
+        sessionId,
         extensionConfig: extensionToDelete ?? undefined,
       });
     } catch (error) {

@@ -13,11 +13,7 @@ function isBuiltinExtension(config: ExtensionConfig): boolean {
   return config.type === 'builtin';
 }
 
-interface ActivateExtensionProps {
-  addToConfig: (name: string, extensionConfig: ExtensionConfig, enabled: boolean) => Promise<void>;
-  extensionConfig: ExtensionConfig;
-  sessionId: string;
-}
+type AddExtension = (name: string, config: ExtensionConfig, enabled: boolean) => Promise<void>;
 
 type ExtensionError = {
   message?: string;
@@ -60,40 +56,39 @@ async function retryWithBackoff<T>(fn: () => Promise<T>, options: RetryOptions =
 }
 
 /**
- * Activates an extension by adding it to both the config system and the API.
- * @param props The extension activation properties
- * @returns Promise that resolves when activation is complete
+ * Activates an extension by adding it config and if a session is set, to the agent
  */
-export async function activateExtension({
-  addToConfig,
-  extensionConfig,
-  sessionId,
-}: ActivateExtensionProps): Promise<void> {
+export async function activateExtension(
+  extensionConfig: ExtensionConfig,
+  addExtension: AddExtension,
+  sessionId?: string
+) {
   const isBuiltin = isBuiltinExtension(extensionConfig);
 
-  try {
-    // AddToAgent
-    await addToAgent(extensionConfig, sessionId, true);
-  } catch (error) {
-    console.error('Failed to add extension to agent:', error);
-    await addToConfig(extensionConfig.name, extensionConfig, false);
-    trackExtensionAdded(extensionConfig.name, false, getErrorType(error), isBuiltin);
-    throw error;
+  if (sessionId) {
+    try {
+      await addToAgent(extensionConfig, sessionId, true);
+    } catch (error) {
+      console.error('Failed to add extension to agent:', error);
+      await addExtension(extensionConfig.name, extensionConfig, false);
+      trackExtensionAdded(extensionConfig.name, false, getErrorType(error), isBuiltin);
+      throw error;
+    }
   }
 
   try {
-    await addToConfig(extensionConfig.name, extensionConfig, true);
+    await addExtension(extensionConfig.name, extensionConfig, true);
     trackExtensionAdded(extensionConfig.name, true, undefined, isBuiltin);
   } catch (error) {
     console.error('Failed to add extension to config:', error);
-    // remove from Agent
-    try {
-      await removeFromAgent(extensionConfig.name, sessionId, true);
-    } catch (removeError) {
-      console.error('Failed to remove extension from agent after config failure:', removeError);
+    if (sessionId) {
+      try {
+        await removeFromAgent(extensionConfig.name, sessionId, true);
+      } catch (removeError) {
+        console.error('Failed to remove extension from agent after config failure:', removeError);
+      }
     }
     trackExtensionAdded(extensionConfig.name, false, getErrorType(error), isBuiltin);
-    // Rethrow the error to inform the caller
     throw error;
   }
 }
@@ -135,7 +130,7 @@ interface UpdateExtensionProps {
   removeFromConfig: (name: string) => Promise<void>;
   extensionConfig: ExtensionConfig;
   originalName?: string;
-  sessionId: string;
+  sessionId?: string;
 }
 
 /**
@@ -161,7 +156,9 @@ export async function updateExtension({
 
     // First remove the old extension from agent (using original name)
     try {
-      await removeFromAgent(originalName!, sessionId, false);
+      if (sessionId) {
+        await removeFromAgent(originalName!, sessionId, false);
+      }
     } catch (error) {
       console.error('Failed to remove old extension from agent during rename:', error);
       // Continue with the process even if agent removal fails
@@ -182,7 +179,7 @@ export async function updateExtension({
     };
 
     // Add new extension with sanitized name
-    if (enabled) {
+    if (enabled && sessionId) {
       try {
         await addToAgent(sanitizedExtensionConfig, sessionId, false);
       } catch (error) {
@@ -211,7 +208,7 @@ export async function updateExtension({
       name: sanitizedNewName,
     };
 
-    if (enabled) {
+    if (enabled && sessionId) {
       try {
         await addToAgent(sanitizedExtensionConfig, sessionId, false);
       } catch (error) {
@@ -255,7 +252,7 @@ interface ToggleExtensionProps {
   extensionConfig: ExtensionConfig;
   addToConfig: (name: string, extensionConfig: ExtensionConfig, enabled: boolean) => Promise<void>;
   toastOptions?: ToastServiceOptions;
-  sessionId: string;
+  sessionId?: string;
 }
 
 /**
@@ -274,7 +271,9 @@ export async function toggleExtension({
   if (toggle == 'toggleOn') {
     try {
       // add to agent with toast options
-      await addToAgent(extensionConfig, sessionId, !toastOptions?.silent);
+      if (sessionId) {
+        await addToAgent(extensionConfig, sessionId, !toastOptions?.silent);
+      }
     } catch (error) {
       console.error('Error adding extension to agent. Attempting to toggle back off.');
       trackExtensionEnabled(extensionConfig.name, false, getErrorType(error), isBuiltin);
@@ -301,7 +300,9 @@ export async function toggleExtension({
       trackExtensionEnabled(extensionConfig.name, false, getErrorType(error), isBuiltin);
       // remove from agent
       try {
-        await removeFromAgent(extensionConfig.name, sessionId, !toastOptions?.silent);
+        if (sessionId) {
+          await removeFromAgent(extensionConfig.name, sessionId, !toastOptions?.silent);
+        }
       } catch (removeError) {
         console.error('Failed to remove extension from agent after config failure:', removeError);
       }
@@ -311,7 +312,9 @@ export async function toggleExtension({
     // enabled to disabled
     let agentRemoveError = null;
     try {
-      await removeFromAgent(extensionConfig.name, sessionId, !toastOptions?.silent);
+      if (sessionId) {
+        await removeFromAgent(extensionConfig.name, sessionId, !toastOptions?.silent);
+      }
     } catch (error) {
       // note there was an error, but attempt to remove from config anyway
       console.error('Error removing extension from agent', extensionConfig.name, error);
@@ -347,7 +350,7 @@ export async function toggleExtension({
 interface DeleteExtensionProps {
   name: string;
   removeFromConfig: (name: string) => Promise<void>;
-  sessionId: string;
+  sessionId?: string;
   extensionConfig?: ExtensionConfig;
 }
 
@@ -364,7 +367,9 @@ export async function deleteExtension({
 
   let agentRemoveError = null;
   try {
-    await removeFromAgent(name, sessionId, true);
+    if (sessionId) {
+      await removeFromAgent(name, sessionId, true);
+    }
   } catch (error) {
     console.error('Failed to remove extension from agent during deletion:', error);
     agentRemoveError = error;

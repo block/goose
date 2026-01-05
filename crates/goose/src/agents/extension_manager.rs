@@ -41,8 +41,8 @@ use crate::oauth::oauth_flow;
 use crate::prompt_template;
 use crate::subprocess::configure_command_no_window;
 use rmcp::model::{
-    CallToolRequestParam, Content, ErrorCode, ErrorData, GetPromptResult, Prompt,
-    Resource, ResourceContents, ServerInfo, Tool,
+    CallToolRequestParam, Content, ErrorCode, ErrorData, GetPromptResult, Prompt, Resource,
+    ResourceContents, ServerInfo, Tool,
 };
 use rmcp::transport::auth::AuthClient;
 use schemars::_private::NoSerialize;
@@ -778,11 +778,7 @@ impl ExtensionManager {
         // If extension name is provided, we can just look it up
         if extension_name.is_some() {
             let read_result = self
-                .read_resource(
-                    uri,
-                    extension_name.unwrap(),
-                    cancellation_token.clone(),
-                )
+                .read_resource(uri, extension_name.unwrap(), cancellation_token.clone())
                 .await?;
 
             let mut result = Vec::new();
@@ -805,11 +801,7 @@ impl ExtensionManager {
 
         for extension_name in extension_names {
             let read_result = self
-                .read_resource(
-                    uri,
-                    &extension_name,
-                    cancellation_token.clone(),
-                )
+                .read_resource(uri, &extension_name, cancellation_token.clone())
                 .await;
             match read_result {
                 Ok(read_result) => {

@@ -12,6 +12,7 @@ use axum::{
 };
 use goose::config::PermissionManager;
 
+use base64::Engine;
 use goose::agents::ExtensionConfig;
 use goose::config::{Config, GooseMode};
 use goose::model::ModelConfig;
@@ -28,7 +29,6 @@ use goose::{
 use rmcp::model::{CallToolRequestParam, Content};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use base64::Engine;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
@@ -664,8 +664,9 @@ async fn read_resource(
             meta,
         } => {
             let decoded = match base64::engine::general_purpose::STANDARD.decode(&blob) {
-                Ok(bytes) => String::from_utf8(bytes)
-                    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
+                Ok(bytes) => {
+                    String::from_utf8(bytes).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+                }
                 Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
             };
             (uri, mime_type, decoded, meta)
