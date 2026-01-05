@@ -28,7 +28,7 @@ Assign a custom command to a recipe.
    4. In the modal that pops up, type your custom command (without the leading `/`)
    5. Click `Save`
  
-  The command appears in purple text under the recipe in your `Recipes` menu. For recipes that aren't in your Recipe Library, follow the `goose CLI` steps.
+  The command appears under the recipe in your `Recipes` menu. For recipes that aren't in your Recipe Library, follow the `goose CLI` steps.
 
   </TabItem>
   <TabItem value="cli" label="goose CLI">
