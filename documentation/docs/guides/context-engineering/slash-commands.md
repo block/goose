@@ -9,13 +9,13 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import { PanelLeft, Terminal } from 'lucide-react';
 
-Custom slash commands are shortcuts that let you instantly apply instructions in any goose chat session:
+Custom slash commands let you instantly apply instructions using shortcuts like this:
 
 ```
 /daily-report
 ```
 
-Custom slash commands save you from retyping common instructions by linking to your [recipes](/docs/guides/recipes). After creating a command, you can send it in a message to run the recipe.
+Custom slash commands save you from retyping common instructions by linking to your [recipes](/docs/guides/recipes). After creating a command, use it in any goose chat session to run the recipe.
 
 ## Create Slash Commands
 
@@ -73,7 +73,7 @@ Context: ●○○○○○○○○○ 5% (9695/200000 tokens)
   </TabItem>
 </Tabs>
 
-You can also pass one parameter after the command (if needed):
+You can pass one parameter after the command (if needed):
 
 ```
 /deploy service-name
@@ -83,7 +83,7 @@ When you run a recipe using a slash command, the recipe's instructions and promp
 
 ## Limitations
 
-- Slash commands accept only one parameter. Any additional parameters in the recipe must have default values.
+- Slash commands accept only one [parameter](/docs/guides/recipes/recipe-reference#parameters). Any additional parameters in the recipe must have default values.
 - Command names are case-insensitive (`/Bug` and `/bug` are treated as the same command).
 - Command names must be unique and contain no spaces.
 - You cannot use names that conflict with [built-in CLI slash commands](/docs/guides/goose-cli-commands#slash-commands) like `/recipe`, `/compact`, or `/help`.
