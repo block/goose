@@ -46,6 +46,7 @@ jobs:
 
       - name: Checkout gh-pages branch
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        continue-on-error: true      # Branch may not exist on first deploy or in forks
         uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # pin@v3
         with:
           ref: gh-pages
