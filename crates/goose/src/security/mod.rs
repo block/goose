@@ -114,20 +114,25 @@ impl SecurityManager {
                     let above_threshold = analysis_result.confidence > config_threshold;
                     let finding_id = format!("SEC-{}", Uuid::new_v4().simple());
 
+                    let tool_call_json =
+                        serde_json::to_string(&tool_call).unwrap_or_else(|_| "{}".to_string());
+
                     tracing::warn!(
                         counter.goose.prompt_injection_finding = 1,
+                        threat_type = "command_injection",
                         above_threshold = above_threshold,
                         tool_name = %tool_call.name,
                         tool_request_id = %tool_request.id,
+                        tool_call_json = %tool_call_json,
                         confidence = analysis_result.confidence,
                         explanation = %sanitized_explanation,
                         finding_id = %finding_id,
                         threshold = config_threshold,
                         "{}",
                         if above_threshold {
-                            "Current tool call flagged as malicious after security analysis (above threshold)"
+                            "Prompt injection detection: Current tool call flagged as malicious after security analysis (above threshold)"
                         } else {
-                            "Security finding below threshold - logged but not blocking execution"
+                            "Prompt injection detection: Security finding below threshold (logged but not blocking execution)"
                         }
                     );
                     if above_threshold {
@@ -155,7 +160,7 @@ impl SecurityManager {
         tracing::info!(
             counter.goose.prompt_injection_analysis_performed = 1,
             security_issues_found = results.len(),
-            "Security analysis complete"
+            "Prompt injection detection: Security analysis complete"
         );
         Ok(results)
     }
