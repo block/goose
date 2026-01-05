@@ -9,12 +9,10 @@ reading_time: 10
 
 ![blog cover](agentic_guardrails_header.png)
 
-# Agent Guardrails and Controls: Applying the CORS Model to Agents
-
 # Background
 
 In [our previous blog post](https://block.github.io/goose/blog/2025/03/31/securing-mcp/) we detailed the Model Context Protocol (MCP) system and discussed some security concerns and mitigations. As a brief recap, MCP provides agents with a means to accomplish tasks using defined tools; reducing the burden of using complex and varied APIs and integrations on the agent.
-
+<!--truncate-->
 ![][image1]
 
 * *Sample agent MCP tool call workflow depicting a git tool and a simple clone operation*
