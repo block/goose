@@ -9,13 +9,17 @@ reading_time: 10
 
 ![blog cover](agentic_guardrails_header.png)
 
-## Background
 
 In [our previous blog post](https://block.github.io/goose/blog/2025/03/31/securing-mcp/) we detailed the Model Context Protocol (MCP) system and discussed some security concerns and mitigations. As a brief recap, MCP provides agents with a means to accomplish tasks using defined tools; reducing the burden of using complex and varied APIs and integrations on the agent.
 <!--truncate-->
+<div style={{textAlign: "center"}}>
+
 ![][image1]
 
-* *Sample agent MCP tool call workflow depicting a git tool and a simple clone operation*
+
+<em>Sample agent MCP tool call workflow depicting a git tool and a simple clone operation</em>
+
+</div>
 
 However, in our prior blog post we did not cover mitigations for injection attacks against LLMs that are performed by MCPs themselves. At the time, this was because we didn’t have any security advice we believed was helpful to offer. 
 
@@ -27,15 +31,25 @@ As a result, a malicious page could embed an image tag or auto-submitting form p
 
 That’s a lot of words, here’s a picture instead, *(Typos Provided for free\* by Nano Banana Pro):*
 
+<div style={{textAlign: "center"}}>
+
 ![][image2]
 
-* *Example of a successful CSRF attack chain with by a very devious hacker*
+
+<em>Example of a successful CSRF attack chain with by a very devious hacker</em>
+
+</div>
 
 Today, CSRF is largely mitigated by **browser-enforced CORS (Cross-Origin Resource Sharing)**. While other anti-CSRF techniques certainly do exist, for the purposes of this discussion CORS is the most relevant mitigation. CORS forces the browser to validate whether a target server explicitly permits a requesting origin before performing a credentialed request with either cookies or non-allowlisted content-types and headers (refer to [this](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS) for more information about CORS). Attackers cannot satisfy these requirements, nor can they forge the headers needed to pass CORS preflight checks, so modern APIs simply never receive valid cross-origin, credentialed, state-changing requests.
 
+<div style={{textAlign: "center"}}>
+
 ![][image3]
 
-* *CORS mitigated the CSRF attack leaving a very sad (but still devious) hacker. Note: in practice the CORS check would likely happen during preflight.*
+
+<em>CORS mitigated the CSRF attack leaving a very sad (but still devious) hacker. Note: in practice the CORS check would likely happen during preflight.</em>
+
+</div>
 
 We propose that agents can benefit from adopting a similar approach to CORS when assessing whether to conduct tool executions; specifically those that have not originated from “human in the loop” interactions.
 
@@ -55,9 +69,14 @@ In our model, treating these attacks similar to CSRF, we’re going to position 
 
 Let’s consider the following attack scenario. A user has prompted an agent to review their emails and summarise. As part of the email review process a payload has convinced, poisoned or otherwise injected content into the LLM context window that causes it to ask the agent to invoke a new MCP tool-call to execute code.
 
+<div style={{textAlign: "center"}}>
+
 ![][image4]
 
-* *Workflow of a standard content injection attack.*
+
+<em>Workflow of a standard content injection attack.</em>
+
+</div>
 
 The reason this attack is successful is because we *currently* do not have a consistent method of [separating \`data\` and \`instructions\`](https://www.ncsc.gov.uk/blog-post/prompt-injection-is-not-sql-injection) in a way LLMs are guaranteed to respect. This mirrors the behaviour of web-servers not distinguishing between user-invoked actions and automation invoked actions.
 
@@ -192,9 +211,14 @@ This runs into secondary concern where prompt injection could occur from older t
 
 To handle these threats we propose **removing** **all tool-call responses from the context window in-between user turns**. This significantly increases the difficulty of performing “inter-turn” manipulation at the cost of occasionally forcing it to re-run tool-calls if it requires more precise historical values.
 
+<div style={{textAlign: "center"}}>
+
 ![][image5]
 
-- *Our workflow imagined (mostly) correctly with ♥️ by ChatGPT* 
+
+<em>Our workflow imagined (mostly) correctly with ♥️ by ChatGPT</em>
+
+</div>
 
 We believe this model of authorising tools and flushing stale outputs provides robust defences to content injection attacks whilst retaining the majority of the utility provided by autonomous agentic technologies. 
 
