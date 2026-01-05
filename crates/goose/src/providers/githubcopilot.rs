@@ -172,19 +172,6 @@ impl GithubCopilotProvider {
     }
 
     async fn post(&self, payload: &mut Value) -> Result<Value, ProviderError> {
-        use crate::providers::utils_universal_openai_stream::{OAIStreamChunk, OAIStreamCollector};
-        use futures::StreamExt;
-        // Detect gpt-4.1 and stream
-        let model_name = payload.get("model").and_then(|v| v.as_str()).unwrap_or("");
-        let stream_only_model = GITHUB_COPILOT_STREAM_MODELS
-            .iter()
-            .any(|prefix| model_name.starts_with(prefix));
-        if stream_only_model {
-            payload
-                .as_object_mut()
-                .unwrap()
-                .insert("stream".to_string(), serde_json::Value::Bool(true));
-        }
         let (endpoint, token) = self.get_api_info().await?;
         let url = url::Url::parse(&format!("{}/chat/completions", endpoint))
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
@@ -203,36 +190,7 @@ impl GithubCopilotProvider {
 
         let response = request.json(payload).send().await?;
 
-        if stream_only_model {
-            let mut collector = OAIStreamCollector::new();
-            let mut stream = response.bytes_stream();
-            while let Some(chunk) = stream.next().await {
-                let chunk = chunk.map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
-                let text = String::from_utf8_lossy(&chunk);
-                for line in text.lines() {
-                    let tline = line.trim();
-                    if !tline.starts_with("data: ") {
-                        continue;
-                    }
-                    let Some(payload) = tline.get(6..) else {
-                        continue;
-                    };
-                    if payload == "[DONE]" {
-                        break;
-                    }
-                    match serde_json::from_str::<OAIStreamChunk>(payload) {
-                        Ok(ch) => collector.add_chunk(&ch),
-                        Err(_) => continue,
-                    }
-                }
-            }
-            let final_response = collector.build_response();
-            let value = serde_json::to_value(final_response)
-                .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
-            Ok(value)
-        } else {
-            handle_response_openai_compat(response).await
-        }
+        handle_response_openai_compat(response).await
     }
 
     async fn get_api_info(&self) -> Result<(String, String)> {
