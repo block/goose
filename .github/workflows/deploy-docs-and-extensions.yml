@@ -7,6 +7,10 @@ on:
     paths:
       - 'documentation/**'
 
+# Use same concurrency group as PR preview workflow to prevent race conditions
+# when both workflows try to modify gh-pages branch simultaneously
+concurrency: pr-preview
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
