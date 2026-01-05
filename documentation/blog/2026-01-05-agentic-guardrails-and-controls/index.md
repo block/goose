@@ -9,7 +9,7 @@ reading_time: 10
 
 ![blog cover](agentic_guardrails_header.png)
 
-# Background
+## Background
 
 In [our previous blog post](https://block.github.io/goose/blog/2025/03/31/securing-mcp/) we detailed the Model Context Protocol (MCP) system and discussed some security concerns and mitigations. As a brief recap, MCP provides agents with a means to accomplish tasks using defined tools; reducing the burden of using complex and varied APIs and integrations on the agent.
 <!--truncate-->
@@ -47,7 +47,7 @@ When an LLM decides to use a tool for task completion, it makes a request to the
 
 Technically, the content injection vulnerability exists because the context window contains instructions, that when delivered from the Agent to the LLM coerce it into attempting unauthorized actions via the Agent.
 
-# Threat model {#threat-model}
+## Threat model {#threat-model}
 
 Borrowing from [Securing the Model Context Protocol (MCP): Risks, Controls, and Governance](https://arxiv.org/pdf/2511.20920), our threat model attempts to describe and then mitigate the techniques of the “Adversary 1: Content Injection Adversaries” category. In short, Content Injection Adversaries refers to agents consuming inputs from non-user sources that lead to unintended behaviours with typically negative security outcomes.
 
@@ -67,14 +67,16 @@ An equivalent to this browser control does not currently exist in agents and as 
 
 But if we wanted autonomy and we wanted it to be safe and aligned with the Rule of Two, we would need a method of knowing:
 
-1. When is it plausible that an LLM is responding to non-user inputs;  
-   1. **A:** After it’s received a response from any non-user actor specifically MCP/ToolCalls  
-2. What is the list of plausible identities the LLM could be responding to  
-   1. **A:** The list of all the tools called since last communicating to the user  
-3. Would it be appropriate to trigger the tool call in response to *any* of these possible identities  
-   1. **A:** We’ll get there, but like at this point you probably know it’s gonna look like CORS 😉
+**Q1.** When is it plausible that an LLM is responding to non-user inputs;  
+**A1.** After it’s received a response from any non-user actor specifically MCP/ToolCalls 
 
-# Established techniques and controls
+**Q2.** What is the list of plausible identities the LLM could be responding to  
+**A2.** The list of all the tools called since last communicating to the user  
+
+**Q3.** Would it be appropriate to trigger the tool call in response to *any* of these possible identities  
+A3.** We’ll get there, but like at this point you probably know it’s gonna look like CORS 😉
+
+## Established techniques and controls
 
 Common mitigation techniques for indirect content injection recommend additional layers of authorisation for MCP Tool providers (e.g. OAuth) and encourage formal verification and distribution of tools (e.g. the app store model). These mitigations, while useful, do not prevent second order content injection attacks (e.g. where returned content from an untrusted source via an authorised session contains instructions) and do not address the supply chain risk (e.g. whereby a legitimate tool is compromised to contain instructions).
 
@@ -82,7 +84,7 @@ Another mitigation technique involves performing some analysis on returned conte
 
 Another mitigation is sandboxing. Ensuring the agent runs within a limited environment such as a well-hardened docker-container can limit the actions the agent and associated tools can perform on the underlying host (i.e. cannot delete all files unless that volume is mounted). This mitigation does not protect against attacks targeting other MCP available to the agent (i.e. using a poisoned email payload to commit malicious code)
 
-# Proposed design
+## Proposed design
 
 We feel that the CORS model is largely applicable here. In order to accomplish an untrusted tool execution, the agent must verify the origin of the tool call. Much like Browsers which are aware of the original cause of a request, agents are aware of what if any tools have been invoked throughout the chat context (prior to last talking to the user).
 
@@ -193,7 +195,7 @@ To handle these threats we propose **removing** **all tool-call responses from t
 
 We believe this model of authorising tools and flushing stale outputs provides robust defences to content injection attacks whilst retaining the majority of the utility provided by autonomous agentic technologies. 
 
-# Caveats and Limitations
+## Caveats and Limitations
 
 As a layer of defense, we believe the proposed approach will reduce the likelihood of exploitation by untrusted and compromised tools and tool output; however, we recognise that there are still caveats and limitations that will limit the effective protection.
 
@@ -212,7 +214,7 @@ Additionally, we acknowledge that the proposed approach does not solve the wider
 
 Finally, and this should not be a surprise, the proposed approach will not mitigate against *deliberate attempts* to misuse the agent by the operator.
 
-# Conclusions and Next Steps
+## Conclusions and Next Steps
 
 In this post we have contextualised the risks associated with LLM Content Injection from the point of view of browser security (and specifically anti-CSRF protections). We have proposed an approach, loosely inspired by the CORS model to attempt to mitigate such attacks.
 
