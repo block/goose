@@ -5,10 +5,9 @@ import {
   Message,
   MessageEvent,
   reply,
-  resumeAgent,
+  openSession,
   Session,
   TokenState,
-  updateFromSession,
   updateSessionUserRecipeValues,
 } from '../api';
 
@@ -125,7 +124,7 @@ async function streamFromResponse(
           break;
         }
         case 'UpdateConversation': {
-          // WARNING: Since Message handler uses this local variable, we need to update it here to avoid the client clobbering it.
+          // This event is emitted when the conversation is compacted.
           // Longterm fix is to only send the agent the new messages, not the entire conversation.
           currentMessages = event.conversation;
           updateMessages(event.conversation);
@@ -234,11 +233,11 @@ export function useChatStream({
 
     (async () => {
       try {
-        const response = await resumeAgent({
-          body: {
+        const response = await openSession({
+          path: {
             session_id: sessionId,
-            load_model_and_extensions: true,
           },
+          body: {},
           throwOnError: true,
         });
 
@@ -406,20 +405,6 @@ export function useChatStream({
     },
     [sessionId, session, setSessionLoadError]
   );
-
-  useEffect(() => {
-    // This should happen on the server when the session is loaded or changed
-    // use session.id to support changing of sessions rather than depending on the
-    // stable sessionId.
-    if (session) {
-      updateFromSession({
-        body: {
-          session_id: session.id,
-        },
-        throwOnError: true,
-      });
-    }
-  }, [session]);
 
   const stopStreaming = useCallback(() => {
     abortControllerRef.current?.abort();
