@@ -149,7 +149,7 @@ These variables control how goose manages conversation sessions and context.
 | `GOOSE_CONTEXT_STRATEGY` | Controls how goose handles context limit exceeded situations | "summarize", "truncate", "clear", "prompt" | "prompt" (interactive), "summarize" (headless) |
 | `GOOSE_MAX_TURNS` | [Maximum number of turns](/docs/guides/sessions/smart-context-management#maximum-turns) allowed without user input | Integer (e.g., 10, 50, 100) | 1000 |
 | `GOOSE_SUBAGENT_MAX_TURNS` | Sets the maximum turns allowed for a [subagent](/docs/guides/subagents) to complete before timeout | Integer (e.g., 25) | 25 |
-| `CONTEXT_FILE_NAMES` | Specifies custom filenames for [hint/context files](/docs/guides/using-goosehints#custom-context-files) | JSON array of strings (e.g., `["CLAUDE.md", ".goosehints"]`) | `[".goosehints"]` |
+| `CONTEXT_FILE_NAMES` | Specifies custom filenames for [hint/context files](/docs/guides/context-engineering/using-goosehints#custom-context-files) | JSON array of strings (e.g., `["CLAUDE.md", ".goosehints"]`) | `[".goosehints"]` |
 | `GOOSE_CLI_THEME` | [Theme](/docs/guides/goose-cli-commands#themes) for CLI response  markdown | "light", "dark", "ansi" | "dark" |
 | `GOOSE_RANDOM_THINKING_MESSAGES` | Controls whether to show amusing random messages during processing | "true", "false" | "true" |
 | `GOOSE_CLI_SHOW_COST` | Toggles display of model cost estimates in CLI output | "true", "1" (case insensitive) to enable | false |
@@ -226,7 +226,6 @@ These variables control how goose handles [tool execution](/docs/guides/goose-pe
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
 | `GOOSE_MODE` | Controls how goose handles tool execution | "auto", "approve", "chat", "smart_approve" | "smart_approve" |
-| `GOOSE_ENABLE_ROUTER` | Enables [intelligent tool selection strategy](/docs/guides/managing-tools/tool-router) | "true", "false" | "false" |
 | `GOOSE_TOOLSHIM` | Enables/disables tool call interpretation | "1", "true" (case insensitive) to enable | false |
 | `GOOSE_TOOLSHIM_OLLAMA_MODEL` | Specifies the model for [tool call interpretation](/docs/experimental/ollama) | Model name (e.g. llama3.2, qwen2.5) | System default |
 | `GOOSE_CLI_MIN_PRIORITY` | Controls verbosity of [tool output](/docs/guides/managing-tools/adjust-tool-output) | Float between 0.0 and 1.0 | 0.0 |
@@ -237,9 +236,6 @@ These variables control how goose handles [tool execution](/docs/guides/goose-pe
 **Examples**
 
 ```bash
-# Enable intelligent tool selection
-export GOOSE_ENABLE_ROUTER=true
-
 # Enable tool interpretation
 export GOOSE_TOOLSHIM=true
 export GOOSE_TOOLSHIM_OLLAMA_MODEL=llama3.2
@@ -423,17 +419,30 @@ These variables are automatically set by goose during command execution.
 
 ### Customizing Shell Behavior
 
-Sometimes you want goose to use different commands or have different shell behavior than your normal terminal usage. For example, you might want goose to use a different tool, or prevent goose from running long-running development servers that could hang the AI agent. This is most useful when using goose CLI, where shell commands are executed directly in your terminal environment.
+Sometimes you want goose to use different commands or have different shell behavior than your normal terminal usage. For example, you might want goose to use a different tool, prevent goose from running `git commit`, or block long-running development servers that could hang the AI agent. This is most useful when using goose CLI, where shell commands are executed directly in your terminal environment.
 
 **How it works:**
 1. When goose runs commands, `GOOSE_TERMINAL` is automatically set to "1"
-2. Your shell configuration can detect this and direct goose to change its default behavior while keeping your normal terminal usage unchanged
+2. Your shell configuration can detect this and change behavior while keeping your normal terminal usage unchanged
 
-**Example:**
+**Examples:**
 
 ```bash
-# In your ~/.bashrc or ~/.zshrc
+# In ~/.zshenv (for zsh users) or ~/.bashrc (for bash users)
 
+# Block git commit when run by goose
+if [[ -n "$GOOSE_TERMINAL" ]]; then
+  git() {
+    if [[ "$1" == "commit" ]]; then
+      echo "❌ BLOCKED: git commit is not allowed when run by goose"
+      return 1
+    fi
+    command git "$@"
+  }
+fi
+```
+
+```bash
 # Guide goose toward better tool choices
 if [[ -n "$GOOSE_TERMINAL" ]]; then
   alias find="echo 'Use rg instead: rg --files | rg <pattern> for filenames, or rg <pattern> for content search'"

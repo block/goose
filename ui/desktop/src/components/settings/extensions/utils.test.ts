@@ -79,31 +79,6 @@ describe('Extension Utils', () => {
       });
     });
 
-    it('should convert sse extension to form data', () => {
-      const extension: FixedExtensionEntry = {
-        type: 'sse',
-        name: 'sse-extension',
-        description: 'SSE description',
-        uri: 'http://localhost:8080/events',
-        enabled: false,
-        env_keys: ['TOKEN'],
-      };
-
-      const formData = extensionToFormData(extension);
-
-      expect(formData).toEqual({
-        name: 'sse-extension',
-        description: 'SSE description',
-        type: 'sse',
-        cmd: undefined,
-        endpoint: 'http://localhost:8080/events',
-        enabled: false,
-        timeout: undefined,
-        envVars: [{ key: 'TOKEN', value: '••••••••', isEdited: false }],
-        headers: [],
-      });
-    });
-
     it('should convert streamable_http extension to form data', () => {
       const extension: FixedExtensionEntry = {
         type: 'streamable_http',
@@ -211,31 +186,6 @@ describe('Extension Utils', () => {
         args: ['script.py', '--arg1', '--arg2'],
         timeout: 300,
         env_keys: ['API_KEY'],
-      });
-    });
-
-    it('should create sse extension config', () => {
-      const formData = {
-        name: 'test-sse',
-        description: 'Test SSE extension',
-        type: 'sse' as const,
-        cmd: '',
-        endpoint: 'http://localhost:8080/events',
-        enabled: true,
-        timeout: 600,
-        envVars: [{ key: 'TOKEN', value: 'abc123', isEdited: true }],
-        headers: [],
-      };
-
-      const config = createExtensionConfig(formData);
-
-      expect(config).toEqual({
-        type: 'sse',
-        name: 'test-sse',
-        description: 'Test SSE extension',
-        timeout: 600,
-        uri: 'http://localhost:8080/events',
-        env_keys: ['TOKEN'],
       });
     });
 

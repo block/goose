@@ -106,6 +106,19 @@ export const initializeSystem = async (
     const extensionLoadingPromises = enabledExtensions.map(async (extensionConfig) => {
       const extensionName = extensionConfig.name;
 
+      // SSE is unsupported - fail immediately without calling the backend
+      if (extensionConfig.type === 'sse') {
+        const errMsg = 'SSE is unsupported, migrate to streamable_http';
+        extensionStatuses.set(extensionName, {
+          name: extensionName,
+          status: 'error',
+          error: errMsg,
+          recoverHints: createExtensionRecoverHints(errMsg),
+        });
+        updateToast();
+        return;
+      }
+
       try {
         await addToAgentOnStartup({
           extensionConfig,

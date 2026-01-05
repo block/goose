@@ -6,7 +6,6 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 use crate::agents::extension::ExtensionInfo;
-use crate::agents::router_tools::llm_search_tool_prompt;
 use crate::hints::load_hints::{load_hint_files, AGENTS_MD_FILENAME, GOOSE_HINTS_FILENAME};
 use crate::{
     config::{Config, GooseMode},
@@ -33,8 +32,6 @@ impl Default for PromptManager {
 #[derive(Serialize)]
 struct SystemPromptContext {
     extensions: Vec<ExtensionInfo>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    tool_selection_strategy: Option<String>,
     current_date_time: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     extension_tool_limits: Option<(usize, usize)>,
@@ -52,7 +49,6 @@ pub struct SystemPromptBuilder<'a, M> {
     extensions_info: Vec<ExtensionInfo>,
     frontend_instructions: Option<String>,
     extension_tool_count: Option<(usize, usize)>,
-    router_enabled: bool,
     subagents_enabled: bool,
     hints: Option<String>,
     code_execution_mode: bool,
@@ -82,11 +78,6 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
         tool_count: usize,
     ) -> Self {
         self.extension_tool_count = Some((extension_count, tool_count));
-        self
-    }
-
-    pub fn with_router_enabled(mut self, enabled: bool) -> Self {
-        self.router_enabled = enabled;
         self
     }
 
@@ -158,7 +149,6 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
 
         let context = SystemPromptContext {
             extensions: sanitized_extensions_info,
-            tool_selection_strategy: self.router_enabled.then(llm_search_tool_prompt),
             current_date_time: self.manager.current_date_timestamp.clone(),
             extension_tool_limits,
             goose_mode,
@@ -247,7 +237,6 @@ impl PromptManager {
             extensions_info: vec![],
             frontend_instructions: None,
             extension_tool_count: None,
-            router_enabled: false,
             subagents_enabled: false,
             hints: None,
             code_execution_mode: false,
@@ -369,7 +358,6 @@ mod tests {
                 "how to use this extension",
                 true,
             ))
-            .with_router_enabled(true)
             .build();
 
         assert_snapshot!(system_prompt)
@@ -391,7 +379,6 @@ mod tests {
                 "<instructions on how to use extension B (no resources)>",
                 false,
             ))
-            .with_router_enabled(true)
             .with_extension_and_tool_counts(MAX_EXTENSIONS + 1, MAX_TOOLS + 1)
             .build();
 

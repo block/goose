@@ -20,3 +20,9 @@ impl ModelMapping {
         }
     }
 }
+
+pub fn maybe_get_canonical_model(provider: &str, model: &str) -> Option<CanonicalModel> {
+    let registry = CanonicalModelRegistry::bundled().ok()?;
+    let canonical_id = map_to_canonical_model(provider, model, registry)?;
+    registry.get(&canonical_id).cloned()
+}

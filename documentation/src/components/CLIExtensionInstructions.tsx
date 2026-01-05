@@ -162,7 +162,7 @@ ${
 
       <ol start={5}>
         <li>
-          Enter the number of seconds Goose should wait for actions to complete before timing out. Default is{' '}
+          Enter the number of seconds goose should wait for actions to complete before timing out. Default is{' '}
           <code>300</code> seconds.
         </li>
       </ol>

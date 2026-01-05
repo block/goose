@@ -33,6 +33,7 @@ import LauncherView from './components/LauncherView';
 import 'react-toastify/dist/ReactToastify.css';
 import { useConfig } from './components/ConfigContext';
 import { ModelAndProviderProvider } from './components/ModelAndProviderContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 import PermissionSettingsView from './components/settings/permission/PermissionSetting';
 
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
@@ -42,7 +43,7 @@ import { NoProviderOrModelError, useAgent } from './hooks/useAgent';
 import { useNavigation } from './hooks/useNavigation';
 import { errorMessage } from './utils/conversionUtils';
 import { usePageViewTracking } from './hooks/useAnalytics';
-import { trackOnboardingCompleted } from './utils/analytics';
+import { trackOnboardingCompleted, trackErrorWithContext } from './utils/analytics';
 
 function PageViewTracker() {
   usePageViewTracking();
@@ -128,6 +129,11 @@ const PairRouteWrapper = ({
           setActiveSessionId(newSession.id);
         } catch (error) {
           console.error('[PairRouteWrapper] Failed to create session:', error);
+          trackErrorWithContext(error, {
+            component: 'PairRouteWrapper',
+            action: 'create_session',
+            recoverable: true,
+          });
         } finally {
           setIsCreatingSession(false);
         }
@@ -371,7 +377,6 @@ export function AppInner() {
     sessionId: '',
     name: 'Pair Chat',
     messages: [],
-    messageHistoryIndex: 0,
     recipe: null,
   });
 
@@ -427,6 +432,11 @@ export function AppInner() {
         });
       } catch (error) {
         console.error('Unexpected error opening shared session:', error);
+        trackErrorWithContext(error, {
+          component: 'AppInner',
+          action: 'open_shared_session',
+          recoverable: true,
+        });
         // Navigate to shared session view with error
         const shareToken = link.replace('goose://sessions/', '');
         const options = {
@@ -555,47 +565,6 @@ export function AppInner() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!window.electron) return;
-
-    const handleThemeChanged = (_event: unknown, ...args: unknown[]) => {
-      const themeData = args[0] as { mode: string; useSystemTheme: boolean; theme: string };
-
-      if (themeData.useSystemTheme) {
-        localStorage.setItem('use_system_theme', 'true');
-      } else {
-        localStorage.setItem('use_system_theme', 'false');
-        localStorage.setItem('theme', themeData.theme);
-      }
-
-      const isDark = themeData.useSystemTheme
-        ? window.matchMedia('(prefers-color-scheme: dark)').matches
-        : themeData.mode === 'dark';
-
-      if (isDark) {
-        document.documentElement.classList.add('dark');
-        document.documentElement.classList.remove('light');
-      } else {
-        document.documentElement.classList.remove('dark');
-        document.documentElement.classList.add('light');
-      }
-
-      const storageEvent = new Event('storage') as Event & {
-        key: string | null;
-        newValue: string | null;
-      };
-      storageEvent.key = themeData.useSystemTheme ? 'use_system_theme' : 'theme';
-      storageEvent.newValue = themeData.useSystemTheme ? 'true' : themeData.theme;
-      window.dispatchEvent(storageEvent);
-    };
-
-    window.electron.on('theme-changed', handleThemeChanged);
-
-    return () => {
-      window.electron.off('theme-changed', handleThemeChanged);
-    };
-  }, []);
-
   // Handle initial message from launcher
   useEffect(() => {
     const handleSetInitialMessage = (_event: IpcRendererEvent, ...args: unknown[]) => {
@@ -707,12 +676,14 @@ export function AppInner() {
 
 export default function App() {
   return (
-    <ModelAndProviderProvider>
-      <HashRouter>
-        <AppInner />
-      </HashRouter>
-      <AnnouncementModal />
-      <TelemetryOptOutModal controlled={false} />
-    </ModelAndProviderProvider>
+    <ThemeProvider>
+      <ModelAndProviderProvider>
+        <HashRouter>
+          <AppInner />
+        </HashRouter>
+        <AnnouncementModal />
+        <TelemetryOptOutModal controlled={false} />
+      </ModelAndProviderProvider>
+    </ThemeProvider>
   );
 }

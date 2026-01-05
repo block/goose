@@ -12,20 +12,17 @@ use super::final_output_tool::FinalOutputTool;
 use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::action_required_manager::ActionRequiredManager;
-use crate::agents::extension::{ExtensionConfig, ExtensionError, ExtensionResult, ToolInfo};
+use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
 use crate::agents::extension_manager_extension::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
 use crate::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::retry::{RetryManager, RetryResult};
-use crate::agents::router_tools::ROUTER_LLM_SEARCH_TOOL_NAME;
 use crate::agents::subagent_task_config::TaskConfig;
 use crate::agents::subagent_tool::{
     create_subagent_tool, handle_subagent_tool, SUBAGENT_TOOL_NAME,
 };
-use crate::agents::tool_route_manager::ToolRouteManager;
-use crate::agents::tool_router_index_manager::ToolRouterIndexManager;
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, SharedProvider, ToolResultReceiver};
 use crate::config::{get_enabled_extensions, Config, GooseMode};
@@ -33,7 +30,8 @@ use crate::context_mgmt::{
     check_if_compaction_needed, compact_messages, DEFAULT_COMPACTION_THRESHOLD,
 };
 use crate::conversation::message::{
-    ActionRequiredData, Message, MessageContent, SystemNotificationType, ToolRequest,
+    ActionRequiredData, Message, MessageContent, ProviderMetadata, SystemNotificationType,
+    ToolRequest,
 };
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
 use crate::mcp_utils::ToolResult;
@@ -62,8 +60,6 @@ use tracing::{debug, error, info, instrument, warn};
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
 const COMPACTION_THINKING_TEXT: &str = "goose is compacting the conversation...";
-pub const MANUAL_COMPACT_TRIGGERS: &[&str] =
-    &["Please compact this conversation", "/compact", "/summarize"];
 
 /// Context needed for the reply function
 pub struct ReplyContext {
@@ -96,7 +92,6 @@ pub struct Agent {
     pub(super) tool_result_tx: mpsc::Sender<(String, ToolResult<CallToolResult>)>,
     pub(super) tool_result_rx: ToolResultReceiver,
 
-    pub tool_route_manager: Arc<ToolRouteManager>,
     pub(super) scheduler_service: Mutex<Option<Arc<dyn SchedulerTrait>>>,
     pub(super) retry_manager: RetryManager,
     pub(super) tool_inspection_manager: ToolInspectionManager,
@@ -170,7 +165,6 @@ impl Agent {
             confirmation_rx: Mutex::new(confirm_rx),
             tool_result_tx: tool_tx,
             tool_result_rx: Arc::new(Mutex::new(tool_rx)),
-            tool_route_manager: Arc::new(ToolRouteManager::new()),
             scheduler_service: Mutex::new(None),
             retry_manager: RetryManager::new(),
             tool_inspection_manager: Self::create_default_tool_inspection_manager(),
@@ -289,11 +283,11 @@ impl Agent {
     async fn categorize_tools(
         &self,
         response: &Message,
-        _tools: &[rmcp::model::Tool],
+        tools: &[rmcp::model::Tool],
     ) -> ToolCategorizeResult {
         // Categorize tool requests
         let (frontend_requests, remaining_requests, filtered_response) =
-            self.categorize_tool_requests(response).await;
+            self.categorize_tool_requests(response, tools).await;
 
         ToolCategorizeResult {
             frontend_requests,
@@ -351,7 +345,7 @@ impl Agent {
         for request in &permission_check_result.denied {
             if let Some(response_msg) = request_to_response_map.get(&request.id) {
                 let mut response = response_msg.lock().await;
-                *response = response.clone().with_tool_response(
+                *response = response.clone().with_tool_response_with_metadata(
                     request.id.clone(),
                     Ok(CallToolResult {
                         content: vec![rmcp::model::Content::text(DECLINED_RESPONSE)],
@@ -359,6 +353,7 @@ impl Agent {
                         is_error: Some(true),
                         meta: None,
                     }),
+                    request.metadata.as_ref(),
                 );
             }
         }
@@ -367,10 +362,6 @@ impl Agent {
     pub async fn set_scheduler(&self, scheduler: Arc<dyn SchedulerTrait>) {
         let mut scheduler_service = self.scheduler_service.lock().await;
         *scheduler_service = Some(scheduler);
-    }
-
-    pub async fn disable_router_for_recipe(&self) {
-        self.tool_route_manager.disable_router_for_recipe().await;
     }
 
     /// Get a reference count clone to the provider
@@ -518,15 +509,6 @@ impl Agent {
                 "Frontend tool execution required".to_string(),
                 None,
             )))
-        } else if tool_call.name == ROUTER_LLM_SEARCH_TOOL_NAME {
-            match self
-                .tool_route_manager
-                .dispatch_route_search_tool(tool_call.arguments.unwrap_or_default())
-                .await
-            {
-                Ok(tool_result) => tool_result,
-                Err(e) => return (request_id, Err(e)),
-            }
         } else {
             // Clone the result to ensure no references to extension_manager are returned
             let result = self
@@ -534,6 +516,10 @@ impl Agent {
                 .dispatch_tool_call(tool_call.clone(), cancellation_token.unwrap_or_default())
                 .await;
             result.unwrap_or_else(|e| {
+                crate::posthog::emit_error(
+                    "tool_execution_failed",
+                    &format!("{}: {}", tool_call.name, e),
+                );
                 ToolCallResult::from(Err(ErrorData::new(
                     ErrorCode::INTERNAL_ERROR,
                     e.to_string(),
@@ -613,28 +599,6 @@ impl Agent {
             }
         }
 
-        // If LLM tool selection is functional, index the tools
-        if self.tool_route_manager.is_router_functional().await {
-            let selector = self.tool_route_manager.get_router_tool_selector().await;
-            if let Some(selector) = selector {
-                let selector = Arc::new(selector);
-                if let Err(e) = ToolRouterIndexManager::update_extension_tools(
-                    &selector,
-                    &self.extension_manager,
-                    &extension.name(),
-                    "add",
-                )
-                .await
-                {
-                    return Err(ExtensionError::SetupError(format!(
-                        "Failed to index tools for extension {}: {}",
-                        extension.name(),
-                        e
-                    )));
-                }
-            }
-        }
-
         Ok(())
     }
 
@@ -698,29 +662,8 @@ impl Agent {
         prefixed_tools
     }
 
-    pub async fn list_tools_for_router(&self) -> Vec<Tool> {
-        self.tool_route_manager
-            .list_tools_for_router(&self.extension_manager)
-            .await
-    }
-
     pub async fn remove_extension(&self, name: &str) -> Result<()> {
         self.extension_manager.remove_extension(name).await?;
-
-        // If LLM tool selection is functional, remove tools from the index
-        if self.tool_route_manager.is_router_functional().await {
-            let selector = self.tool_route_manager.get_router_tool_selector().await;
-            if let Some(selector) = selector {
-                ToolRouterIndexManager::update_extension_tools(
-                    &selector,
-                    &self.extension_manager,
-                    name,
-                    "remove",
-                )
-                .await?;
-            }
-        }
-
         Ok(())
     }
 
@@ -777,50 +720,78 @@ impl Agent {
         }
 
         let message_text = user_message.as_concat_text();
-        let is_manual_compact = MANUAL_COMPACT_TRIGGERS.contains(&message_text.trim());
 
-        let slash_command_recipe = if message_text.trim().starts_with('/') {
+        // Track custom slash command usage (don't track command name for privacy)
+        if message_text.trim().starts_with('/') {
             let command = message_text.split_whitespace().next();
-
-            // Check if it's a builtin command first
-            let is_builtin = command
-                .map(|cmd| MANUAL_COMPACT_TRIGGERS.contains(&cmd))
-                .unwrap_or(false);
-
-            if is_builtin {
-                None
-            } else {
-                // Try to resolve as recipe command
-                let recipe = command.and_then(crate::slash_commands::resolve_slash_command);
-
-                // Track non-builtin slash command usage (don't track command name for privacy)
-                if recipe.is_some() {
+            if let Some(cmd) = command {
+                if crate::slash_commands::get_recipe_for_command(cmd).is_some() {
                     crate::posthog::emit_custom_slash_command_used();
                 }
-
-                recipe
             }
-        } else {
-            None
-        };
+        }
 
-        if let Some(recipe) = slash_command_recipe {
-            let prompt = [recipe.instructions.as_deref(), recipe.prompt.as_deref()]
-                .into_iter()
-                .flatten()
-                .collect::<Vec<_>>()
-                .join("\n\n");
-            let prompt_message = Message::user()
-                .with_text(prompt)
-                .with_visibility(false, true);
-            SessionManager::add_message(&session_config.id, &prompt_message).await?;
-            SessionManager::add_message(
-                &session_config.id,
-                &user_message.with_visibility(true, false),
-            )
-            .await?;
-        } else {
-            SessionManager::add_message(&session_config.id, &user_message).await?;
+        let command_result = self
+            .execute_command(&message_text, &session_config.id)
+            .await;
+
+        match command_result {
+            Err(e) => {
+                let error_message = Message::assistant()
+                    .with_text(e.to_string())
+                    .with_visibility(true, false);
+                return Ok(Box::pin(stream::once(async move {
+                    Ok(AgentEvent::Message(error_message))
+                })));
+            }
+            Ok(Some(response)) if response.role == rmcp::model::Role::Assistant => {
+                SessionManager::add_message(
+                    &session_config.id,
+                    &user_message.clone().with_visibility(true, false),
+                )
+                .await?;
+                SessionManager::add_message(
+                    &session_config.id,
+                    &response.clone().with_visibility(true, false),
+                )
+                .await?;
+
+                // Check if this was a command that modifies conversation history
+                let modifies_history = crate::agents::execute_commands::COMPACT_TRIGGERS
+                    .contains(&message_text.trim())
+                    || message_text.trim() == "/clear";
+
+                return Ok(Box::pin(async_stream::try_stream! {
+                    yield AgentEvent::Message(user_message);
+                    yield AgentEvent::Message(response);
+
+                    // After commands that modify history, notify UI that history was replaced
+                    if modifies_history {
+                        let updated_session = SessionManager::get_session(&session_config.id, true)
+                            .await
+                            .map_err(|e| anyhow!("Failed to fetch updated session: {}", e))?;
+                        let updated_conversation = updated_session
+                            .conversation
+                            .ok_or_else(|| anyhow!("Session has no conversation after history modification"))?;
+                        yield AgentEvent::HistoryReplaced(updated_conversation);
+                    }
+                }));
+            }
+            Ok(Some(resolved_message)) => {
+                SessionManager::add_message(
+                    &session_config.id,
+                    &user_message.clone().with_visibility(true, false),
+                )
+                .await?;
+                SessionManager::add_message(
+                    &session_config.id,
+                    &resolved_message.clone().with_visibility(false, true),
+                )
+                .await?;
+            }
+            Ok(None) => {
+                SessionManager::add_message(&session_config.id, &user_message).await?;
+            }
         }
         let session = SessionManager::get_session(&session_config.id, true).await?;
         let conversation = session
@@ -828,40 +799,37 @@ impl Agent {
             .clone()
             .ok_or_else(|| anyhow::anyhow!("Session {} has no conversation", session_config.id))?;
 
-        let needs_auto_compact = !is_manual_compact
-            && check_if_compaction_needed(
-                self.provider().await?.as_ref(),
-                &conversation,
-                None,
-                &session,
-            )
-            .await?;
+        let needs_auto_compact = check_if_compaction_needed(
+            self.provider().await?.as_ref(),
+            &conversation,
+            None,
+            &session,
+        )
+        .await?;
 
         let conversation_to_compact = conversation.clone();
 
         Ok(Box::pin(async_stream::try_stream! {
-            let final_conversation = if !needs_auto_compact && !is_manual_compact {
+            let final_conversation = if !needs_auto_compact {
                 conversation
             } else {
-                if !is_manual_compact {
-                    let config = crate::config::Config::global();
-                    let threshold = config
-                        .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
-                        .unwrap_or(DEFAULT_COMPACTION_THRESHOLD);
-                    let threshold_percentage = (threshold * 100.0) as u32;
+                let config = Config::global();
+                let threshold = config
+                    .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
+                    .unwrap_or(DEFAULT_COMPACTION_THRESHOLD);
+                let threshold_percentage = (threshold * 100.0) as u32;
 
-                    let inline_msg = format!(
-                        "Exceeded auto-compact threshold of {}%. Performing auto-compaction...",
-                        threshold_percentage
-                    );
+                let inline_msg = format!(
+                    "Exceeded auto-compact threshold of {}%. Performing auto-compaction...",
+                    threshold_percentage
+                );
 
-                    yield AgentEvent::Message(
-                        Message::assistant().with_system_notification(
-                            SystemNotificationType::InlineMessage,
-                            inline_msg,
-                        )
-                    );
-                }
+                yield AgentEvent::Message(
+                    Message::assistant().with_system_notification(
+                        SystemNotificationType::InlineMessage,
+                        inline_msg,
+                    )
+                );
 
                 yield AgentEvent::Message(
                     Message::assistant().with_system_notification(
@@ -870,7 +838,7 @@ impl Agent {
                     )
                 );
 
-                match compact_messages(self.provider().await?.as_ref(), &conversation_to_compact, is_manual_compact).await {
+                match compact_messages(self.provider().await?.as_ref(), &conversation_to_compact, false).await {
                     Ok((compacted_conversation, summarization_usage)) => {
                         SessionManager::replace_conversation(&session_config.id, &compacted_conversation).await?;
                         Self::update_session_metrics(&session_config, &summarization_usage, true).await?;
@@ -897,11 +865,9 @@ impl Agent {
                 }
             };
 
-            if !is_manual_compact {
-                let mut reply_stream = self.reply_internal(final_conversation, session_config, session, cancel_token).await?;
-                while let Some(event) = reply_stream.next().await {
-                    yield event?;
-                }
+            let mut reply_stream = self.reply_internal(final_conversation, session_config, session, cancel_token).await?;
+            while let Some(event) = reply_stream.next().await {
+                yield event?;
             }
         }))
     }
@@ -940,6 +906,7 @@ impl Agent {
             let _ = reply_span.enter();
             let mut turns_taken = 0u32;
             let max_turns = session_config.max_turns.unwrap_or(DEFAULT_MAX_TURNS);
+            let mut compaction_attempts = 0;
 
             loop {
                 if is_token_cancelled(&cancel_token) {
@@ -991,6 +958,8 @@ impl Agent {
 
                     match next {
                         Ok((response, usage)) => {
+                            compaction_attempts = 0;
+
                             // Emit model change event if provider is lead-worker
                             let provider = self.provider().await?;
                             if let Some(lead_worker) = provider.as_lead_worker() {
@@ -1022,10 +991,6 @@ impl Agent {
                                     remaining_requests,
                                     filtered_response,
                                 } = self.categorize_tools(&response, &tools).await;
-                                let requests_to_record: Vec<ToolRequest> = frontend_requests.iter().chain(remaining_requests.iter()).cloned().collect();
-                                self.tool_route_manager
-                                    .record_tool_requests(&requests_to_record)
-                                    .await;
 
                                 yield AgentEvent::Message(filtered_response.clone());
                                 tokio::task::yield_now().await;
@@ -1043,8 +1008,10 @@ impl Agent {
                                     .collect();
 
                                 let mut request_to_response_map = HashMap::new();
+                                let mut request_metadata: HashMap<String, Option<ProviderMetadata>> = HashMap::new();
                                 for (idx, request) in frontend_requests.iter().chain(remaining_requests.iter()).enumerate() {
                                     request_to_response_map.insert(request.id.clone(), tool_response_messages[idx].clone());
+                                    request_metadata.insert(request.id.clone(), request.metadata.clone());
                                 }
 
                                 for (idx, request) in frontend_requests.iter().enumerate() {
@@ -1062,7 +1029,7 @@ impl Agent {
                                     for request in remaining_requests.iter() {
                                         if let Some(response_msg) = request_to_response_map.get(&request.id) {
                                             let mut response = response_msg.lock().await;
-                                            *response = response.clone().with_tool_response(
+                                            *response = response.clone().with_tool_response_with_metadata(
                                                 request.id.clone(),
                                                 Ok(CallToolResult {
                                                     content: vec![Content::text(CHAT_MODE_TOOL_SKIPPED_RESPONSE)],
@@ -1070,6 +1037,7 @@ impl Agent {
                                                     is_error: Some(false),
                                                     meta: None,
                                                 }),
+                                                request.metadata.as_ref(),
                                             );
                                         }
                                     }
@@ -1161,8 +1129,9 @@ impl Agent {
                                                     all_install_successful = false;
                                                 }
                                                 if let Some(response_msg) = request_to_response_map.get(&request_id) {
+                                                    let metadata = request_metadata.get(&request_id).and_then(|m| m.as_ref());
                                                     let mut response = response_msg.lock().await;
-                                                    *response = response.clone().with_tool_response(request_id, output);
+                                                    *response = response.clone().with_tool_response_with_metadata(request_id, output, metadata);
                                                 }
                                             }
                                             ToolStreamItem::Message(msg) => {
@@ -1184,11 +1153,30 @@ impl Agent {
                                     }
                                 }
 
+                                // Preserve thinking content from the original response
+                                // Gemini (and other thinking models) require thinking to be echoed back
+                                let thinking_content: Vec<MessageContent> = response.content.iter()
+                                    .filter(|c| matches!(c, MessageContent::Thinking(_)))
+                                    .cloned()
+                                    .collect();
+                                if !thinking_content.is_empty() {
+                                    let thinking_msg = Message::new(
+                                        response.role.clone(),
+                                        response.created,
+                                        thinking_content,
+                                    ).with_id(format!("msg_{}", Uuid::new_v4()));
+                                    messages_to_add.push(thinking_msg);
+                                }
+
                                 for (idx, request) in frontend_requests.iter().chain(remaining_requests.iter()).enumerate() {
                                     if request.tool_call.is_ok() {
                                         let request_msg = Message::assistant()
                                             .with_id(format!("msg_{}", Uuid::new_v4()))
-                                            .with_tool_request(request.id.clone(), request.tool_call.clone());
+                                            .with_tool_request_with_metadata(
+                                                request.id.clone(),
+                                                request.tool_call.clone(),
+                                                request.metadata.as_ref(),
+                                            );
                                         messages_to_add.push(request_msg);
                                         let final_response = tool_response_messages[idx]
                                                                 .lock().await.clone();
@@ -1201,7 +1189,20 @@ impl Agent {
                             }
                         }
                         Err(ref provider_err @ ProviderError::ContextLengthExceeded(_)) => {
-                            crate::posthog::emit_error(provider_err.telemetry_type());
+                            crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
+                            compaction_attempts += 1;
+
+                            if compaction_attempts >= 2 {
+                                error!("Context limit exceeded after compaction - prompt too large");
+                                yield AgentEvent::Message(
+                                    Message::assistant().with_system_notification(
+                                        SystemNotificationType::InlineMessage,
+                                        "Unable to continue: Context limit still exceeded after compaction. Try using a shorter message, a model with a larger context window, or start a new session."
+                                    )
+                                );
+                                break;
+                            }
+
                             yield AgentEvent::Message(
                                 Message::assistant().with_system_notification(
                                     SystemNotificationType::InlineMessage,
@@ -1222,21 +1223,17 @@ impl Agent {
                                     conversation = compacted_conversation;
                                     did_recovery_compact_this_iteration = true;
                                     yield AgentEvent::HistoryReplaced(conversation.clone());
-                                    continue;
+                                    break;
                                 }
                                 Err(e) => {
-                                    error!("Error: {}", e);
-                                    yield AgentEvent::Message(
-                                        Message::assistant().with_text(
-                                            format!("Ran into this error trying to compact: {e}.\n\nPlease retry if you think this is a transient or recoverable error.")
-                                        )
-                                    );
+                                    crate::posthog::emit_error("compaction_failed", &e.to_string());
+                                    error!("Compaction failed: {}", e);
                                     break;
                                 }
                             }
                         }
                         Err(ref provider_err) => {
-                            crate::posthog::emit_error(provider_err.telemetry_type());
+                            crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
                             yield AgentEvent::Message(
                                 Message::assistant().with_text(
@@ -1315,31 +1312,12 @@ impl Agent {
         let mut current_provider = self.provider.lock().await;
         *current_provider = Some(provider.clone());
 
-        self.update_router_tool_selector(Some(provider.clone()), None)
-            .await?;
-
         SessionManager::update_session(session_id)
             .provider_name(provider.get_name())
             .model_config(provider.get_model_config())
             .apply()
             .await
             .context("Failed to persist provider config to session")
-    }
-
-    pub async fn update_router_tool_selector(
-        &self,
-        provider: Option<Arc<dyn Provider>>,
-        reindex_all: Option<bool>,
-    ) -> Result<()> {
-        let provider = match provider {
-            Some(p) => p,
-            None => self.provider().await?,
-        };
-
-        // Delegate to ToolRouteManager
-        self.tool_route_manager
-            .update_router_tool_selector(provider, reindex_all, &self.extension_manager)
-            .await
     }
 
     /// Override the system prompt with a custom template

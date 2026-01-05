@@ -2,7 +2,6 @@ import { useCallback, useRef, useState } from 'react';
 import { useConfig } from '../components/ConfigContext';
 import { ChatType } from '../types/chat';
 import { initializeSystem } from '../utils/providerUtils';
-import { initializeCostDatabase } from '../utils/costDatabase';
 import {
   backupConfig,
   initConfig,
@@ -13,7 +12,6 @@ import {
   startAgent,
   validateConfig,
 } from '../api';
-import { COST_TRACKING_ENABLED } from '../updates';
 
 export enum AgentState {
   UNINITIALIZED = 'uninitialized',
@@ -118,7 +116,6 @@ export function useAgent(): UseAgentReturn {
           return {
             sessionId: agentSession.id,
             name: agentSession.recipe?.title || agentSession.name,
-            messageHistoryIndex: 0,
             messages,
             recipe: agentSession.recipe,
             recipeParameterValues: agentSession.user_recipe_values || null,
@@ -235,14 +232,6 @@ export function useAgent(): UseAgentReturn {
             recipe: recipeForInit,
           });
 
-          if (COST_TRACKING_ENABLED) {
-            try {
-              await initializeCostDatabase();
-            } catch (error) {
-              console.error('Failed to initialize cost database:', error);
-            }
-          }
-
           const recipe = initContext.recipe || agentSession.recipe;
           const conversation = agentSession.conversation || [];
           // If we're loading a recipe from initContext (new recipe load), start with empty messages
@@ -251,7 +240,6 @@ export function useAgent(): UseAgentReturn {
           let initChat: ChatType = {
             sessionId: agentSession.id,
             name: agentSession.recipe?.title || agentSession.name,
-            messageHistoryIndex: 0,
             messages: messages,
             recipe: recipe,
             recipeParameterValues: agentSession.user_recipe_values || null,

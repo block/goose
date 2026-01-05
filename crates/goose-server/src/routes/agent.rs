@@ -54,11 +54,6 @@ pub struct GetToolsQuery {
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
-pub struct UpdateRouterToolSelectorRequest {
-    session_id: String,
-}
-
-#[derive(Deserialize, utoipa::ToSchema)]
 pub struct StartAgentRequest {
     working_dir: String,
     #[serde(default)]
@@ -116,6 +111,8 @@ pub struct CallToolResponse {
     content: Vec<Content>,
     structured_content: Option<Value>,
     is_error: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    _meta: Option<Value>,
 }
 
 #[utoipa::path(
@@ -147,6 +144,7 @@ async fn start_agent(
             Ok(recipe) => Some(recipe),
             Err(err) => {
                 error!("Failed to decode recipe deeplink: {}", err);
+                goose::posthog::emit_error("recipe_deeplink_decode_failed", &err.to_string());
                 return Err(ErrorResponse {
                     message: err.to_string(),
                     status: StatusCode::BAD_REQUEST,
@@ -179,6 +177,7 @@ async fn start_agent(
             .await
             .map_err(|err| {
                 error!("Failed to create session: {}", err);
+                goose::posthog::emit_error("session_create_failed", &err.to_string());
                 ErrorResponse {
                     message: format!("Failed to create session: {}", err),
                     status: StatusCode::BAD_REQUEST,
@@ -233,6 +232,7 @@ async fn resume_agent(
         .await
         .map_err(|err| {
             error!("Failed to resume session {}: {}", payload.session_id, err);
+            goose::posthog::emit_error("session_resume_failed", &err.to_string());
             ErrorResponse {
                 message: format!("Failed to resume session: {}", err),
                 status: StatusCode::NOT_FOUND,
@@ -304,6 +304,10 @@ async fn resume_agent(
                     async move {
                         if let Err(e) = agent_ref.add_extension(config_clone.clone()).await {
                             warn!("Failed to load extension {}: {}", config_clone.name(), e);
+                            goose::posthog::emit_error(
+                                "extension_load_failed",
+                                &format!("{}: {}", config_clone.name(), e),
+                            );
                         }
                         Ok::<_, ErrorResponse>(())
                     }
@@ -494,35 +498,6 @@ async fn update_agent_provider(
 
 #[utoipa::path(
     post,
-    path = "/agent/update_router_tool_selector",
-    request_body = UpdateRouterToolSelectorRequest,
-    responses(
-        (status = 200, description = "Tool selection strategy updated successfully", body = String),
-        (status = 401, description = "Unauthorized - invalid secret key"),
-        (status = 424, description = "Agent not initialized"),
-        (status = 500, description = "Internal server error")
-    )
-)]
-async fn update_router_tool_selector(
-    State(state): State<Arc<AppState>>,
-    Json(payload): Json<UpdateRouterToolSelectorRequest>,
-) -> Result<Json<String>, StatusCode> {
-    let agent = state.get_agent_for_route(payload.session_id).await?;
-    agent
-        .update_router_tool_selector(None, Some(true))
-        .await
-        .map_err(|e| {
-            error!("Failed to update tool selection strategy: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-
-    Ok(Json(
-        "Tool selection strategy updated successfully".to_string(),
-    ))
-}
-
-#[utoipa::path(
-    post,
     path = "/agent/add_extension",
     request_body = AddExtensionRequest,
     responses(
@@ -536,11 +511,15 @@ async fn agent_add_extension(
     State(state): State<Arc<AppState>>,
     Json(request): Json<AddExtensionRequest>,
 ) -> Result<StatusCode, ErrorResponse> {
+    let extension_name = request.config.name();
     let agent = state.get_agent(request.session_id).await?;
-    agent
-        .add_extension(request.config)
-        .await
-        .map_err(|e| ErrorResponse::internal(format!("Failed to add extension: {}", e)))?;
+    agent.add_extension(request.config).await.map_err(|e| {
+        goose::posthog::emit_error(
+            "extension_add_failed",
+            &format!("{}: {}", extension_name, e),
+        );
+        ErrorResponse::internal(format!("Failed to add extension: {}", e))
+    })?;
     Ok(StatusCode::OK)
 }
 
@@ -670,6 +649,7 @@ async fn call_tool(
         content: result.content,
         structured_content: result.structured_content,
         is_error: result.is_error.unwrap_or(false),
+        _meta: None,
     }))
 }
 
@@ -681,10 +661,6 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/agent/read_resource", post(read_resource))
         .route("/agent/call_tool", post(call_tool))
         .route("/agent/update_provider", post(update_agent_provider))
-        .route(
-            "/agent/update_router_tool_selector",
-            post(update_router_tool_selector),
-        )
         .route("/agent/update_from_session", post(update_from_session))
         .route("/agent/add_extension", post(agent_add_extension))
         .route("/agent/remove_extension", post(agent_remove_extension))

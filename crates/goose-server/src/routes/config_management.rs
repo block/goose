@@ -13,12 +13,13 @@ use goose::config::{Config, ConfigError};
 use goose::model::ModelConfig;
 use goose::providers::auto_detect::detect_provider_from_api_key;
 use goose::providers::base::{ProviderMetadata, ProviderType};
+use goose::providers::canonical::maybe_get_canonical_model;
 use goose::providers::create_with_default_model;
-use goose::providers::pricing::{
-    get_all_pricing, get_model_pricing, parse_model_id, refresh_pricing,
-};
 use goose::providers::providers as get_providers;
-use goose::{agents::ExtensionConfig, config::permission::PermissionLevel, slash_commands};
+use goose::{
+    agents::execute_commands, agents::ExtensionConfig, config::permission::PermissionLevel,
+    slash_commands,
+};
 use http::StatusCode;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -29,6 +30,8 @@ use utoipa::ToSchema;
 #[derive(Serialize, ToSchema)]
 pub struct ExtensionResponse {
     pub extensions: Vec<ExtensionEntry>,
+    #[serde(default)]
+    pub warnings: Vec<String>,
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -253,7 +256,11 @@ pub async fn read_config(
 )]
 pub async fn get_extensions() -> Result<Json<ExtensionResponse>, StatusCode> {
     let extensions = goose::config::get_all_extensions();
-    Ok(Json(ExtensionResponse { extensions }))
+    let warnings = goose::config::get_warnings();
+    Ok(Json(ExtensionResponse {
+        extensions,
+        warnings,
+    }))
 }
 
 #[utoipa::path(
@@ -437,11 +444,15 @@ pub async fn get_slash_commands() -> Result<Json<SlashCommandsResponse>, StatusC
             command_type: CommandType::Recipe,
         })
         .collect();
-    commands.push(SlashCommand {
-        command: "compact".to_string(),
-        help: "Compact the current conversation to save tokens".to_string(),
-        command_type: CommandType::Builtin,
-    });
+
+    for cmd_def in execute_commands::list_commands() {
+        commands.push(SlashCommand {
+            command: cmd_def.name.to_string(),
+            help: cmd_def.description.to_string(),
+            command_type: CommandType::Builtin,
+        });
+    }
+
     Ok(Json(SlashCommandsResponse { commands }))
 }
 
@@ -463,7 +474,8 @@ pub struct PricingResponse {
 
 #[derive(Deserialize, ToSchema)]
 pub struct PricingQuery {
-    pub configured_only: bool,
+    pub provider: String,
+    pub model: String,
 }
 
 #[utoipa::path(
@@ -477,84 +489,28 @@ pub struct PricingQuery {
 pub async fn get_pricing(
     Json(query): Json<PricingQuery>,
 ) -> Result<Json<PricingResponse>, StatusCode> {
-    let configured_only = query.configured_only;
-
-    // If refresh requested (configured_only = false), refresh the cache
-    if !configured_only {
-        if let Err(e) = refresh_pricing().await {
-            tracing::error!("Failed to refresh pricing data: {}", e);
-        }
-    }
+    let canonical_model =
+        maybe_get_canonical_model(&query.provider, &query.model).ok_or(StatusCode::NOT_FOUND)?;
 
     let mut pricing_data = Vec::new();
 
-    if !configured_only {
-        // Get ALL pricing data from the cache
-        let all_pricing = get_all_pricing().await;
-
-        for (provider, models) in all_pricing {
-            for (model, pricing) in models {
-                pricing_data.push(PricingData {
-                    provider: provider.clone(),
-                    model: model.clone(),
-                    input_token_cost: pricing.input_cost,
-                    output_token_cost: pricing.output_cost,
-                    currency: "$".to_string(),
-                    context_length: pricing.context_length,
-                });
-            }
-        }
-    } else {
-        for (metadata, provider_type) in get_providers().await {
-            // Skip unconfigured providers if filtering
-            if !check_provider_configured(&metadata, provider_type) {
-                continue;
-            }
-
-            for model_info in &metadata.known_models {
-                // Handle OpenRouter models specially - they store full provider/model names
-                let (lookup_provider, lookup_model) = if metadata.name == "openrouter" {
-                    // For OpenRouter, parse the model name to extract real provider/model
-                    if let Some((provider, model)) = parse_model_id(&model_info.name) {
-                        (provider, model)
-                    } else {
-                        // Fallback if parsing fails
-                        (metadata.name.clone(), model_info.name.clone())
-                    }
-                } else {
-                    // For other providers, use names as-is
-                    (metadata.name.clone(), model_info.name.clone())
-                };
-
-                // Only get pricing from OpenRouter cache
-                if let Some(pricing) = get_model_pricing(&lookup_provider, &lookup_model).await {
-                    pricing_data.push(PricingData {
-                        provider: metadata.name.clone(),
-                        model: model_info.name.clone(),
-                        input_token_cost: pricing.input_cost,
-                        output_token_cost: pricing.output_cost,
-                        currency: "$".to_string(),
-                        context_length: pricing.context_length,
-                    });
-                }
-                // No fallback to hardcoded prices
-            }
-        }
+    if let (Some(input_cost), Some(output_cost)) = (
+        canonical_model.pricing.prompt,
+        canonical_model.pricing.completion,
+    ) {
+        pricing_data.push(PricingData {
+            provider: query.provider.clone(),
+            model: query.model.clone(),
+            input_token_cost: input_cost,
+            output_token_cost: output_cost,
+            currency: "$".to_string(),
+            context_length: Some(canonical_model.context_length as u32),
+        });
     }
-
-    tracing::debug!(
-        "Returning pricing for {} models{}",
-        pricing_data.len(),
-        if configured_only {
-            " (configured providers only)"
-        } else {
-            " (all cached models)"
-        }
-    );
 
     Ok(Json(PricingResponse {
         pricing: pricing_data,
-        source: "openrouter".to_string(),
+        source: "canonical".to_string(),
     }))
 }
 

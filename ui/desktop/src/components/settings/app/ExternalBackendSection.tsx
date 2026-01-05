@@ -100,81 +100,81 @@ export default function ExternalBackendSection() {
       <Card className="pb-2">
         <CardHeader className="pb-0">
           <CardTitle>Goose Server</CardTitle>
-        <CardDescription>
-          By default goose launches a server for you, use this to connect to an external goose
-          server
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="pt-4 space-y-4 px-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-text-default text-xs">Use external server</h3>
-            <p className="text-xs text-text-muted max-w-md mt-[2px]">
-              Connect to a goose server running elsewhere (requires app restart)
-            </p>
-          </div>
-          <div className="flex items-center">
-            <Switch
-              checked={config.enabled}
-              onCheckedChange={(checked) => saveConfig(updateField('enabled', checked))}
-              disabled={isSaving}
-              variant="mono"
-            />
-          </div>
-        </div>
-
-        {config.enabled && (
-          <>
-            <div className="space-y-2">
-              <label htmlFor="external-url" className="text-text-default text-xs">
-                Server URL
-              </label>
-              <Input
-                id="external-url"
-                type="url"
-                placeholder="http://127.0.0.1:3000"
-                value={config.url}
-                onChange={(e) => handleUrlChange(e.target.value)}
-                onBlur={handleUrlBlur}
+          <CardDescription>
+            By default goose launches a server for you, use this to connect to an external goose
+            server
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-4 space-y-4 px-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-text-default text-xs">Use external server</h3>
+              <p className="text-xs text-text-muted max-w-md mt-[2px]">
+                Connect to a goose server running elsewhere (requires app restart)
+              </p>
+            </div>
+            <div className="flex items-center">
+              <Switch
+                checked={config.enabled}
+                onCheckedChange={(checked) => saveConfig(updateField('enabled', checked))}
                 disabled={isSaving}
-                className={urlError ? 'border-red-500' : ''}
+                variant="mono"
               />
-              {urlError && (
-                <p className="text-xs text-red-500 flex items-center gap-1">
-                  <AlertCircle size={12} />
-                  {urlError}
+            </div>
+          </div>
+
+          {config.enabled && (
+            <>
+              <div className="space-y-2">
+                <label htmlFor="external-url" className="text-text-default text-xs">
+                  Server URL
+                </label>
+                <Input
+                  id="external-url"
+                  type="url"
+                  placeholder="http://127.0.0.1:3000"
+                  value={config.url}
+                  onChange={(e) => handleUrlChange(e.target.value)}
+                  onBlur={handleUrlBlur}
+                  disabled={isSaving}
+                  className={urlError ? 'border-red-500' : ''}
+                />
+                {urlError && (
+                  <p className="text-xs text-red-500 flex items-center gap-1">
+                    <AlertCircle size={12} />
+                    {urlError}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="external-secret" className="text-text-default text-xs">
+                  Secret Key
+                </label>
+                <Input
+                  id="external-secret"
+                  type="password"
+                  placeholder="Enter the server's secret key"
+                  value={config.secret}
+                  onChange={(e) => updateField('secret', e.target.value)}
+                  onBlur={() => saveConfig(config)}
+                  disabled={isSaving}
+                />
+                <p className="text-xs text-text-muted">
+                  The secret key configured on the goosed server (GOOSE_SERVER__SECRET_KEY)
                 </p>
-              )}
-            </div>
+              </div>
 
-            <div className="space-y-2">
-              <label htmlFor="external-secret" className="text-text-default text-xs">
-                Secret Key
-              </label>
-              <Input
-                id="external-secret"
-                type="password"
-                placeholder="Enter the server's secret key"
-                value={config.secret}
-                onChange={(e) => updateField('secret', e.target.value)}
-                onBlur={() => saveConfig(config)}
-                disabled={isSaving}
-              />
-              <p className="text-xs text-text-muted">
-                The secret key configured on the goosed server (GOOSE_SERVER__SECRET_KEY)
-              </p>
-            </div>
-
-            <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-md p-3">
-              <p className="text-xs text-amber-800 dark:text-amber-200">
-                <strong>Note:</strong> Changes require restarting Goose to take effect. New chat
-                windows will connect to the external server.
-              </p>
-            </div>
-          </>
-        )}
-      </CardContent>
-    </Card>
+              <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-md p-3">
+                <p className="text-xs text-amber-800 dark:text-amber-200">
+                  <strong>Note:</strong> Changes require restarting Goose to take effect. New chat
+                  windows will connect to the external server.
+                </p>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
     </section>
   );
 }

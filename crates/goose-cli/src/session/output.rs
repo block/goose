@@ -5,11 +5,9 @@ use goose::config::Config;
 use goose::conversation::message::{
     ActionRequiredData, Message, MessageContent, ToolRequest, ToolResponse,
 };
-use goose::providers::pricing::get_model_pricing;
-use goose::providers::pricing::parse_model_id;
+use goose::providers::canonical::maybe_get_canonical_model;
 use goose::utils::safe_truncate;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use regex::Regex;
 use rmcp::model::{CallToolRequestParam, JsonObject, PromptArgument};
 use serde_json::Value;
 use std::cell::RefCell;
@@ -273,6 +271,7 @@ fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
         Ok(call) => match call.name.to_string().as_str() {
             "developer__text_editor" => render_text_editor_request(call, debug),
             "developer__shell" => render_shell_request(call, debug),
+            "code_execution__execute_code" => render_execute_code_request(call, debug),
             "subagent" => render_subagent_request(call, debug),
             "todo__write" => render_todo_request(call, debug),
             _ => render_default_request(call, debug),
@@ -444,6 +443,61 @@ fn render_text_editor_request(call: &CallToolRequestParam, debug: bool) {
 fn render_shell_request(call: &CallToolRequestParam, debug: bool) {
     print_tool_header(call);
     print_params(&call.arguments, 0, debug);
+    println!();
+}
+
+fn render_execute_code_request(call: &CallToolRequestParam, debug: bool) {
+    let tool_graph = call
+        .arguments
+        .as_ref()
+        .and_then(|args| args.get("tool_graph"))
+        .and_then(Value::as_array)
+        .filter(|arr| !arr.is_empty());
+
+    let Some(tool_graph) = tool_graph else {
+        return render_default_request(call, debug);
+    };
+
+    let count = tool_graph.len();
+    let plural = if count == 1 { "" } else { "s" };
+    println!();
+    println!(
+        "─── {} tool call{} | {} ──────────────────────────",
+        style(count).cyan(),
+        plural,
+        style("execute_code").magenta().dim()
+    );
+
+    for (i, node) in tool_graph.iter().filter_map(Value::as_object).enumerate() {
+        let tool = node
+            .get("tool")
+            .and_then(Value::as_str)
+            .unwrap_or("unknown");
+        let desc = node
+            .get("description")
+            .and_then(Value::as_str)
+            .unwrap_or("");
+        let deps: Vec<_> = node
+            .get("depends_on")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_u64)
+            .map(|d| (d + 1).to_string())
+            .collect();
+        let deps_str = if deps.is_empty() {
+            String::new()
+        } else {
+            format!(" (uses {})", deps.join(", "))
+        };
+        println!(
+            "  {}. {}: {}{}",
+            style(i + 1).dim(),
+            style(tool).cyan(),
+            style(desc).green(),
+            style(deps_str).dim()
+        );
+    }
     println!();
 }
 
@@ -795,69 +849,25 @@ pub fn display_context_usage(total_tokens: usize, context_limit: usize) {
     );
 }
 
-fn normalize_model_name(model: &str) -> String {
-    let mut result = model.to_string();
-
-    // Remove "-latest" suffix
-    if result.ends_with("-latest") {
-        result = result.strip_suffix("-latest").unwrap().to_string();
-    }
-
-    // Remove date-like suffixes: -YYYYMMDD
-    let re_date = Regex::new(r"-\d{8}$").unwrap();
-    if re_date.is_match(&result) {
-        result = re_date.replace(&result, "").to_string();
-    }
-
-    // Convert version numbers like -3-7- to -3.7- (e.g., claude-3-7-sonnet -> claude-3.7-sonnet)
-    let re_version = Regex::new(r"-(\d+)-(\d+)-").unwrap();
-    if re_version.is_match(&result) {
-        result = re_version.replace(&result, "-$1.$2-").to_string();
-    }
-
-    result
-}
-
-async fn estimate_cost_usd(
+fn estimate_cost_usd(
     provider: &str,
     model: &str,
     input_tokens: usize,
     output_tokens: usize,
 ) -> Option<f64> {
-    // For OpenRouter, parse the model name to extract real provider/model
-    let openrouter_data = if provider == "openrouter" {
-        parse_model_id(model)
-    } else {
-        None
-    };
+    let canonical_model = maybe_get_canonical_model(provider, model)?;
 
-    let (provider_to_use, model_to_use) = match &openrouter_data {
-        Some((real_provider, real_model)) => (real_provider.as_str(), real_model.as_str()),
-        None => (provider, model),
-    };
+    let input_cost_per_token = canonical_model.pricing.prompt?;
+    let output_cost_per_token = canonical_model.pricing.completion?;
 
-    // Use the pricing module's get_model_pricing which handles model name mapping internally
-    let cleaned_model = normalize_model_name(model_to_use);
-    let pricing_info = get_model_pricing(provider_to_use, &cleaned_model).await;
-
-    match pricing_info {
-        Some(pricing) => {
-            let input_cost = pricing.input_cost * input_tokens as f64;
-            let output_cost = pricing.output_cost * output_tokens as f64;
-            Some(input_cost + output_cost)
-        }
-        None => None,
-    }
+    let input_cost = input_cost_per_token * input_tokens as f64;
+    let output_cost = output_cost_per_token * output_tokens as f64;
+    Some(input_cost + output_cost)
 }
 
 /// Display cost information, if price data is available.
-pub async fn display_cost_usage(
-    provider: &str,
-    model: &str,
-    input_tokens: usize,
-    output_tokens: usize,
-) {
-    if let Some(cost) = estimate_cost_usd(provider, model, input_tokens, output_tokens).await {
+pub fn display_cost_usage(provider: &str, model: &str, input_tokens: usize, output_tokens: usize) {
+    if let Some(cost) = estimate_cost_usd(provider, model, input_tokens, output_tokens) {
         use console::style;
         eprintln!(
             "Cost: {} USD ({} tokens: in {}, out {})",

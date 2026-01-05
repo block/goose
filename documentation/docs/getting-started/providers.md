@@ -49,6 +49,7 @@ goose also supports special "pass-through" providers that work with existing CLI
 | Provider                                                                    | Description                                                                                                                                                                                                               | Requirements                                                                                                                                                                          |
 |-----------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | [Claude Code](https://www.anthropic.com/claude-code) (`claude-code`)                       | Uses Anthropic's Claude CLI tool with your Claude Code subscription. Provides access to Claude with 200K context limit.                                                                                      | Claude CLI installed and authenticated, active Claude Code subscription                                                                                                              |
+| [OpenAI Codex](https://developers.openai.com/codex/cli) (`codex`)          | Uses OpenAI's Codex CLI tool with your ChatGPT Plus/Pro subscription. Provides access to GPT-5 models with up to 400K context limit.                                                                         | Codex CLI installed and authenticated, active ChatGPT Plus/Pro subscription                                                                                                          |
 | [Cursor Agent](https://docs.cursor.com/en/cli/overview) (`cursor-agent`)   | Uses Cursor's AI CLI tool with your Cursor subscription. Provides access to GPT-5, Claude 4, and other models through the cursor-agent command-line interface.                                              | cursor-agent CLI installed and authenticated                                                                                                         |
 | [Gemini CLI](https://ai.google.dev/gemini-api/docs) (`gemini-cli`)         | Uses Google's Gemini CLI tool with your Google AI subscription. Provides access to Gemini with 1M context limit.                                                                                               | Gemini CLI installed and authenticated                                                                                                                |
 
@@ -803,7 +804,7 @@ Here are some local providers we support:
           ```
 
           :::tip Context Length
-          If you notice that goose is having trouble using extensions or is ignoring [.goosehints](/docs/guides/using-goosehints), it is likely that the model's default context length of 2048 tokens is too low. Use `ramalama serve` to set the `--ctx-size, -c` option to a [higher value](https://github.com/containers/ramalama/blob/main/docs/ramalama-serve.1.md#--ctx-size--c).
+          If you notice that goose is having trouble using extensions or is ignoring [.goosehints](/docs/guides/context-engineering/using-goosehints), it is likely that the model's default context length of 2048 tokens is too low. Use `ramalama serve` to set the `--ctx-size, -c` option to a [higher value](https://github.com/containers/ramalama/blob/main/docs/ramalama-serve.1.md#--ctx-size--c).
           :::
 
       </TabItem>
@@ -990,7 +991,7 @@ Here are some local providers we support:
         ```
 
         :::tip Context Length
-        If you notice that goose is having trouble using extensions or is ignoring [.goosehints](/docs/guides/using-goosehints), it is likely that the model's default context length of 4096 tokens is too low. Set the `OLLAMA_CONTEXT_LENGTH` environment variable to a [higher value](https://github.com/ollama/ollama/blob/main/docs/faq.mdx#how-can-i-specify-the-context-window-size).
+        If you notice that goose is having trouble using extensions or is ignoring [.goosehints](/docs/guides/context-engineering/using-goosehints), it is likely that the model's default context length of 4096 tokens is too low. Set the `OLLAMA_CONTEXT_LENGTH` environment variable to a [higher value](https://github.com/ollama/ollama/blob/main/docs/faq.mdx#how-can-i-specify-the-context-window-size).
         :::
         
       </TabItem>

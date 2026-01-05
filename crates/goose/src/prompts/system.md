@@ -43,7 +43,7 @@ No extensions are defined. You should let the user know that they should add ext
 {% endif %}
 {% endif %}
 
-{% if extension_tool_limits is defined %}
+{% if extension_tool_limits is defined and not code_execution_mode %}
 {% with (extension_count, tool_count) = extension_tool_limits  %}
 # Suggestion
 
@@ -57,8 +57,6 @@ List all the extensions available to disable in the response.
 Explain that minimizing extensions helps with the recall of the correct tools to use.
 {% endwith %}
 {% endif %}
-
-{{tool_selection_strategy}}
 
 # Response Guidelines
 

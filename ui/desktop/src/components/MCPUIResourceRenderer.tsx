@@ -10,6 +10,7 @@ import {
 import { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import { EmbeddedResource } from '../api';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface MCPUIResourceRendererProps {
   content: EmbeddedResource & { type: 'resource' };
@@ -91,13 +92,10 @@ export default function MCPUIResourceRenderer({
   content,
   appendPromptToChat,
 }: MCPUIResourceRendererProps) {
-  const [currentThemeValue, setCurrentThemeValue] = useState<string>('light');
+  const { resolvedTheme } = useTheme();
   const [proxyUrl, setProxyUrl] = useState<string | undefined>(undefined);
 
   useEffect(() => {
-    const theme = localStorage.getItem('theme') || 'light';
-    setCurrentThemeValue(theme);
-
     const fetchProxyUrl = async () => {
       try {
         const gooseApiHost = await window.electron.getGoosedHostPort();
@@ -124,7 +122,7 @@ export default function MCPUIResourceRenderer({
     ): Promise<UIActionHandlerResult> => {
       const { toolName, params } = actionEvent.payload;
       toast.info(<ToastComponent messageType="tool" message={toolName} isImplemented={false} />, {
-        theme: currentThemeValue,
+        theme: resolvedTheme,
       });
       return {
         status: 'error' as const,
@@ -232,7 +230,7 @@ export default function MCPUIResourceRenderer({
       const { message } = actionEvent.payload;
 
       toast.info(<ToastComponent messageType="notify" message={message} isImplemented={true} />, {
-        theme: currentThemeValue,
+        theme: resolvedTheme,
       });
       return {
         status: 'success' as const,
@@ -254,7 +252,7 @@ export default function MCPUIResourceRenderer({
           isImplemented={false}
         />,
         {
-          theme: currentThemeValue,
+          theme: resolvedTheme,
         }
       );
       return {
@@ -334,7 +332,7 @@ export default function MCPUIResourceRenderer({
               // MCP-UIs might find stuff like host and theme for conditional rendering
               // usage of this is experimental, leaving in place for demos
               host: 'goose',
-              theme: currentThemeValue,
+              theme: resolvedTheme,
             },
             proxy: proxyUrl, // refer to https://mcpui.dev/guide/client/using-a-proxy
           }}

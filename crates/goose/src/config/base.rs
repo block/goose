@@ -19,9 +19,6 @@ const KEYRING_SERVICE: &str = "goose";
 const KEYRING_USERNAME: &str = "secrets";
 pub const CONFIG_YAML_NAME: &str = "config.yaml";
 
-#[cfg(test)]
-const TEST_KEYRING_SERVICE: &str = "goose-test";
-
 #[derive(Error, Debug)]
 pub enum ConfigError {
     #[error("Configuration value not found: {0}")]
@@ -726,6 +723,31 @@ impl Config {
             .and_then(|v| Ok(serde_json::from_value(v.clone())?))
     }
 
+    /// Get secrets. If primary is in env, use env for all keys. Otherwise use secret storage.
+    pub fn get_secrets(
+        &self,
+        primary: &str,
+        maybe_secret: &[&str],
+    ) -> Result<HashMap<String, String>, ConfigError> {
+        let use_env = env::var(primary.to_uppercase()).is_ok();
+        let get_value = |key: &str| -> Result<String, ConfigError> {
+            if use_env {
+                env::var(key.to_uppercase()).map_err(|_| ConfigError::NotFound(key.to_string()))
+            } else {
+                self.get_secret(key)
+            }
+        };
+
+        let mut result = HashMap::new();
+        result.insert(primary.to_string(), get_value(primary)?);
+        for &key in maybe_secret {
+            if let Ok(v) = get_value(key) {
+                result.insert(key.to_string(), v);
+            }
+        }
+        Ok(result)
+    }
+
     /// Set a secret value in the system keyring.
     ///
     /// This will store the value in a single JSON object in the system keyring,
@@ -896,6 +918,10 @@ impl Config {
 config_value!(CLAUDE_CODE_COMMAND, OsString, "claude");
 config_value!(GEMINI_CLI_COMMAND, OsString, "gemini");
 config_value!(CURSOR_AGENT_COMMAND, OsString, "cursor-agent");
+config_value!(CODEX_COMMAND, OsString, "codex");
+config_value!(CODEX_REASONING_EFFORT, String, "high");
+config_value!(CODEX_ENABLE_SKILLS, String, "true");
+config_value!(CODEX_SKIP_GIT_CHECK, String, "false");
 
 config_value!(GOOSE_SEARCH_PATHS, Vec<String>);
 config_value!(GOOSE_MODE, GooseMode);
@@ -946,24 +972,9 @@ mod tests {
     use super::*;
     use serial_test::serial;
     use tempfile::NamedTempFile;
-
-    fn cleanup_keyring() -> Result<(), ConfigError> {
-        let entry = match Config::get_keyring_entry(TEST_KEYRING_SERVICE) {
-            Ok(entry) => entry,
-            Err(_) => return Ok(()), // If keyring is unavailable, nothing to clean up
-        };
-
-        match entry.delete_credential() {
-            Ok(_) => Ok(()),
-            Err(keyring::Error::NoEntry) => Ok(()),
-            Err(e) => Err(ConfigError::KeyringError(e.to_string())),
-        }
-    }
-
     #[test]
     fn test_basic_config() -> Result<(), ConfigError> {
-        let temp_file = NamedTempFile::new().unwrap();
-        let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
+        let config = new_test_config();
 
         // Set a simple string value
         config.set_param("test_key", "test_value")?;
@@ -988,8 +999,7 @@ mod tests {
             field2: i32,
         }
 
-        let temp_file = NamedTempFile::new().unwrap();
-        let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
+        let config = new_test_config();
 
         // Set a complex value
         config.set_param(
@@ -1009,8 +1019,7 @@ mod tests {
 
     #[test]
     fn test_missing_value() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE).unwrap();
+        let config = new_test_config();
 
         let result: Result<String, ConfigError> = config.get_param("nonexistent_key");
         assert!(matches!(result, Err(ConfigError::NotFound(_))));
@@ -1018,14 +1027,15 @@ mod tests {
 
     #[test]
     fn test_yaml_formatting() -> Result<(), ConfigError> {
-        let temp_file = NamedTempFile::new().unwrap();
-        let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
+        let config_file = NamedTempFile::new().unwrap();
+        let secrets_file = NamedTempFile::new().unwrap();
+        let config = Config::new_with_file_secrets(config_file.path(), secrets_file.path())?;
 
         config.set_param("key1", "value1")?;
         config.set_param("key2", 42)?;
 
         // Read the file directly to check YAML formatting
-        let content = std::fs::read_to_string(temp_file.path())?;
+        let content = std::fs::read_to_string(config_file.path())?;
         assert!(content.contains("key1: value1"));
         assert!(content.contains("key2: 42"));
 
@@ -1034,8 +1044,7 @@ mod tests {
 
     #[test]
     fn test_value_management() -> Result<(), ConfigError> {
-        let temp_file = NamedTempFile::new().unwrap();
-        let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
+        let config = new_test_config();
 
         config.set_param("test_key", "test_value")?;
         config.set_param("another_key", 42)?;
@@ -1051,9 +1060,7 @@ mod tests {
 
     #[test]
     fn test_file_based_secrets_management() -> Result<(), ConfigError> {
-        let config_file = NamedTempFile::new().unwrap();
-        let secrets_file = NamedTempFile::new().unwrap();
-        let config = Config::new_with_file_secrets(config_file.path(), secrets_file.path())?;
+        let config = new_test_config();
 
         config.set_secret("key", &"value")?;
 
@@ -1071,9 +1078,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_secret_management() -> Result<(), ConfigError> {
-        cleanup_keyring()?;
-        let temp_file = NamedTempFile::new().unwrap();
-        let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
+        let config = new_test_config();
 
         // Test setting and getting a simple secret
         config.set_secret("api_key", &Value::String("secret123".to_string()))?;
@@ -1091,16 +1096,13 @@ mod tests {
         let result: Result<String, ConfigError> = config.get_secret("api_key");
         assert!(matches!(result, Err(ConfigError::NotFound(_))));
 
-        cleanup_keyring()?;
         Ok(())
     }
 
     #[test]
     #[serial]
     fn test_multiple_secrets() -> Result<(), ConfigError> {
-        cleanup_keyring()?;
-        let temp_file = NamedTempFile::new().unwrap();
-        let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
+        let config = new_test_config();
 
         // Set multiple secrets
         config.set_secret("key1", &Value::String("secret1".to_string()))?;
@@ -1121,7 +1123,6 @@ mod tests {
         assert!(matches!(result1, Err(ConfigError::NotFound(_))));
         assert_eq!(value2, "secret2");
 
-        cleanup_keyring()?;
         Ok(())
     }
 
@@ -1130,8 +1131,7 @@ mod tests {
         use std::sync::{Arc, Barrier, Mutex};
         use std::thread;
 
-        let temp_file = NamedTempFile::new().unwrap();
-        let config = Arc::new(Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?);
+        let config = Arc::new(new_test_config());
         let barrier = Arc::new(Barrier::new(3)); // For 3 concurrent threads
         let values = Arc::new(Mutex::new(Mapping::new()));
         let mut handles = vec![];
@@ -1201,8 +1201,9 @@ mod tests {
 
     #[test]
     fn test_config_recovery_from_backup() -> Result<(), ConfigError> {
-        let temp_file = NamedTempFile::new().unwrap();
-        let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
+        let config_file = NamedTempFile::new().unwrap();
+        let secrets_file = NamedTempFile::new().unwrap();
+        let config = Config::new_with_file_secrets(config_file.path(), secrets_file.path())?;
 
         // Create a valid config first
         config.set_param("key1", "value1")?;
@@ -1227,7 +1228,7 @@ mod tests {
         }
 
         // Corrupt the main config file
-        std::fs::write(temp_file.path(), "invalid: yaml: content: [unclosed")?;
+        std::fs::write(config_file.path(), "invalid: yaml: content: [unclosed")?;
 
         // Try to load values - should recover from backup
         let recovered_values = config.all_values()?;
@@ -1244,11 +1245,12 @@ mod tests {
 
     #[test]
     fn test_config_recovery_creates_fresh_file() -> Result<(), ConfigError> {
-        let temp_file = NamedTempFile::new().unwrap();
-        let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
+        let config_file = NamedTempFile::new().unwrap();
+        let secrets_file = NamedTempFile::new().unwrap();
+        let config = Config::new_with_file_secrets(config_file.path(), secrets_file.path())?;
 
         // Create a corrupted config file with no backup
-        std::fs::write(temp_file.path(), "invalid: yaml: content: [unclosed")?;
+        std::fs::write(config_file.path(), "invalid: yaml: content: [unclosed")?;
 
         // Try to load values - should create a fresh default config
         let recovered_values = config.all_values()?;
@@ -1257,7 +1259,7 @@ mod tests {
         assert_eq!(recovered_values.len(), 0);
 
         // Verify that a clean config file was written to disk
-        let file_content = std::fs::read_to_string(temp_file.path())?;
+        let file_content = std::fs::read_to_string(config_file.path())?;
 
         // Should be valid YAML (empty object)
         let parsed: serde_yaml::Value = serde_yaml::from_str(&file_content)?;
@@ -1272,14 +1274,14 @@ mod tests {
 
     #[test]
     fn test_config_file_creation_when_missing() -> Result<(), ConfigError> {
-        let temp_file = NamedTempFile::new().unwrap();
-        let config_path = temp_file.path();
+        let config_file = NamedTempFile::new().unwrap();
+        let secrets_file = NamedTempFile::new().unwrap();
+        let config_path = config_file.path().to_path_buf();
+        let config = Config::new_with_file_secrets(&config_path, secrets_file.path())?;
 
         // Delete the file to simulate it not existing
-        std::fs::remove_file(config_path)?;
+        std::fs::remove_file(&config_path)?;
         assert!(!config_path.exists());
-
-        let config = Config::new(config_path, TEST_KEYRING_SERVICE)?;
 
         // Try to load values - should create a fresh default config file
         let values = config.all_values()?;
@@ -1291,7 +1293,7 @@ mod tests {
         assert!(config_path.exists());
 
         // Verify that it's valid YAML
-        let file_content = std::fs::read_to_string(config_path)?;
+        let file_content = std::fs::read_to_string(&config_path)?;
         let parsed: serde_yaml::Value = serde_yaml::from_str(&file_content)?;
         assert!(parsed.is_mapping());
 
@@ -1304,9 +1306,10 @@ mod tests {
 
     #[test]
     fn test_config_recovery_from_backup_when_missing() -> Result<(), ConfigError> {
-        let temp_file = NamedTempFile::new().unwrap();
-        let config_path = temp_file.path();
-        let config = Config::new(config_path, TEST_KEYRING_SERVICE)?;
+        let config_file = NamedTempFile::new().unwrap();
+        let secrets_file = NamedTempFile::new().unwrap();
+        let config_path = config_file.path().to_path_buf();
+        let config = Config::new_with_file_secrets(&config_path, secrets_file.path())?;
 
         // First, create a config with some data
         config.set_param("test_key_backup", "backup_value")?;
@@ -1321,7 +1324,7 @@ mod tests {
         assert!(primary_backup.exists(), "Backup should exist after writes");
 
         // Now delete the main config file to simulate it being lost
-        std::fs::remove_file(config_path)?;
+        std::fs::remove_file(&config_path)?;
         assert!(!config_path.exists());
 
         // Try to load values - should recover from backup
@@ -1349,19 +1352,20 @@ mod tests {
 
     #[test]
     fn test_atomic_write_prevents_corruption() -> Result<(), ConfigError> {
-        let temp_file = NamedTempFile::new().unwrap();
-        let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
+        let config_file = NamedTempFile::new().unwrap();
+        let secrets_file = NamedTempFile::new().unwrap();
+        let config = Config::new_with_file_secrets(config_file.path(), secrets_file.path())?;
 
         // Set initial values
         config.set_param("key1", "value1")?;
 
         // Verify the config file exists and is valid
-        assert!(temp_file.path().exists());
-        let content = std::fs::read_to_string(temp_file.path())?;
+        assert!(config_file.path().exists());
+        let content = std::fs::read_to_string(config_file.path())?;
         assert!(serde_yaml::from_str::<serde_yaml::Value>(&content).is_ok());
 
         // The temp file should not exist after successful write
-        let temp_path = temp_file.path().with_extension("tmp");
+        let temp_path = config_file.path().with_extension("tmp");
         assert!(!temp_path.exists(), "Temporary file should be cleaned up");
 
         Ok(())
@@ -1369,8 +1373,7 @@ mod tests {
 
     #[test]
     fn test_backup_rotation() -> Result<(), ConfigError> {
-        let temp_file = NamedTempFile::new().unwrap();
-        let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
+        let config = new_test_config();
 
         // Create multiple versions to test rotation
         for i in 1..=7 {
@@ -1565,8 +1568,7 @@ mod tests {
 
     #[test]
     fn test_env_var_with_config_integration() -> Result<(), ConfigError> {
-        let temp_file = NamedTempFile::new().unwrap();
-        let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
+        let config = new_test_config();
 
         // Test string environment variable (the original issue case)
         std::env::set_var("PROVIDER", "ANTHROPIC");
@@ -1605,8 +1607,7 @@ mod tests {
 
     #[test]
     fn test_env_var_precedence_over_config_file() -> Result<(), ConfigError> {
-        let temp_file = NamedTempFile::new().unwrap();
-        let config = Config::new(temp_file.path(), TEST_KEYRING_SERVICE)?;
+        let config = new_test_config();
 
         // Set value in config file
         config.set_param("test_precedence", "file_value")?;
@@ -1626,5 +1627,64 @@ mod tests {
         std::env::remove_var("TEST_PRECEDENCE");
 
         Ok(())
+    }
+
+    #[test]
+    fn get_secrets_primary_from_env_uses_env_for_secondary() {
+        temp_env::with_vars(
+            [
+                ("TEST_PRIMARY", Some("primary_env")),
+                ("TEST_SECONDARY", Some("secondary_env")),
+            ],
+            || {
+                let config = new_test_config();
+                let secrets = config
+                    .get_secrets("TEST_PRIMARY", &["TEST_SECONDARY"])
+                    .unwrap();
+
+                assert_eq!(secrets["TEST_PRIMARY"], "primary_env");
+                assert_eq!(secrets["TEST_SECONDARY"], "secondary_env");
+            },
+        );
+    }
+
+    #[test]
+    fn get_secrets_primary_from_secret_uses_secret_for_secondary() {
+        temp_env::with_vars(
+            [("TEST_PRIMARY", None::<&str>), ("TEST_SECONDARY", None)],
+            || {
+                let config = new_test_config();
+                config
+                    .set_secret("TEST_PRIMARY", &"primary_secret")
+                    .unwrap();
+                config
+                    .set_secret("TEST_SECONDARY", &"secondary_secret")
+                    .unwrap();
+
+                let secrets = config
+                    .get_secrets("TEST_PRIMARY", &["TEST_SECONDARY"])
+                    .unwrap();
+
+                assert_eq!(secrets["TEST_PRIMARY"], "primary_secret");
+                assert_eq!(secrets["TEST_SECONDARY"], "secondary_secret");
+            },
+        );
+    }
+
+    #[test]
+    fn get_secrets_primary_missing_returns_error() {
+        temp_env::with_vars([("TEST_PRIMARY", None::<&str>)], || {
+            let config = new_test_config();
+
+            let result = config.get_secrets("TEST_PRIMARY", &[]);
+
+            assert!(matches!(result, Err(ConfigError::NotFound(_))));
+        });
+    }
+
+    fn new_test_config() -> Config {
+        let config_file = NamedTempFile::new().unwrap();
+        let secrets_file = NamedTempFile::new().unwrap();
+        Config::new_with_file_secrets(config_file.path(), secrets_file.path()).unwrap()
     }
 }

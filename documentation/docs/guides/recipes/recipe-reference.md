@@ -378,7 +378,7 @@ The `response` field enables recipes to enforce a final structured JSON output. 
 1. **Validate the output**: Validates the output JSON against your JSON schema with basic JSON schema validations
 2. **Final structured output**: Ensure the final output of the agent is a response matching your JSON structure
 
-This feature is designed for **non-interactive automation** to ensure consistent, parseable output. Recipes can produce structured output when run from either the goose CLI or goose Desktop. See [use cases and ideas for automation workflows](/docs/guides/recipes/session-recipes#response).
+This feature is designed for **non-interactive automation** to ensure consistent, parseable output. Recipes can produce structured output when run from either the goose CLI or goose Desktop. See [use cases and ideas for automation workflows](/docs/guides/recipes/session-recipes#structured-output-for-automation).
 
 #### Response Schema
 

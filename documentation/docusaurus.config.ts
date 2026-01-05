@@ -184,6 +184,10 @@ const config: Config = {
             from: '/docs/guides/config-file',
             to: '/docs/guides/config-files',
           },
+          {
+            from: '/docs/guides/using-goosehints',
+            to: '/docs/guides/context-engineering/using-goosehints',
+          },
           // MCP tutorial redirects - moved from /docs/tutorials/ to /docs/mcp/
           {
             from: '/docs/tutorials/agentql-mcp',
@@ -506,14 +510,6 @@ const config: Config = {
         ],
         quickQuestions: ["What is goose?"],
       },
-    },
-    announcementBar: {
-      id: 'advent-of-ai',
-      content:
-        '❄️ Level up your AI skills with <a target="_blank" rel="noopener noreferrer" href="https://adventofai.dev">Advent of AI</a> ❄️',
-      backgroundColor: '#20232a',
-      textColor: '#fff',
-      isCloseable: false,
     },
     // announcementBar: {
     //   id: 'goose-grants',

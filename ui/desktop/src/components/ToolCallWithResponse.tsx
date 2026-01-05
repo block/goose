@@ -15,7 +15,13 @@ import { ChevronRight, FlaskConical } from 'lucide-react';
 import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
 import MCPUIResourceRenderer from './MCPUIResourceRenderer';
 import { isUIResource } from '@mcp-ui/client';
-import { Content, EmbeddedResource } from '../api';
+import { CallToolResponse, Content, EmbeddedResource } from '../api';
+
+interface ToolGraphNode {
+  tool: string;
+  description: string;
+  depends_on: number[];
+}
 
 interface ToolCallWithResponseProps {
   isCancelledMessage: boolean;
@@ -26,11 +32,15 @@ interface ToolCallWithResponseProps {
   append?: (value: string) => void; // Function to append messages to the chat
 }
 
-function getToolResultValue(toolResult: Record<string, unknown>): Content[] | null {
-  if ('value' in toolResult && Array.isArray(toolResult.value)) {
-    return toolResult.value as Content[];
+function getToolResultContent(toolResult: Record<string, unknown>): Content[] {
+  if (toolResult.status !== 'success') {
+    return [];
   }
-  return null;
+  const value = toolResult.value as CallToolResponse;
+  return value.content.filter((item) => {
+    const annotations = (item as { annotations?: { audience?: string[] } }).annotations;
+    return !annotations?.audience || annotations.audience.includes('user');
+  });
 }
 
 function isEmbeddedResource(content: Content): content is EmbeddedResource {
@@ -76,7 +86,7 @@ export default function ToolCallWithResponse({
       </div>
       {/* MCP UI — Inline */}
       {toolResponse?.toolResult &&
-        getToolResultValue(toolResponse.toolResult)?.map((content, index) => {
+        getToolResultContent(toolResponse.toolResult).map((content, index) => {
           const resourceContent = isEmbeddedResource(content)
             ? { ...content, type: 'resource' as const }
             : null;
@@ -96,6 +106,21 @@ export default function ToolCallWithResponse({
             return null;
           }
         })}
+
+      {/* MCP Apps - This data will be coming from a resources/read result. */}
+      {/* TODO Hook this up */}
+      {/* {toolResponse?.toolResult &&
+        mockResourceReadResult.contents.map((content) => {
+          return (
+            <McpAppRenderer
+              resource={content}
+              key={content.uri}
+              toolInput={{ arguments: toolCall.arguments }}
+              toolResult={toolResponse.toolResult.value as unknown as ToolResult}
+              append={append}
+            />
+          );
+        })} */}
     </>
   );
 }
@@ -183,6 +208,14 @@ const notificationToProgress = (notification: NotificationEvent): Progress => {
   return message.params as Progress;
 };
 
+// Helper function to extract toolcall name
+const getToolName = (toolCallName: string): string => {
+  const lastIndex = toolCallName.lastIndexOf('__');
+  if (lastIndex === -1) return toolCallName;
+
+  return toolCallName.substring(lastIndex + 2);
+};
+
 // Helper function to extract extension name for tooltip
 const getExtensionTooltip = (toolCallName: string): string | null => {
   const lastIndex = toolCallName.lastIndexOf('__');
@@ -253,12 +286,9 @@ function ToolCallView({
     }
   }, [toolResponse, startTime]);
 
-  const toolResults: Content[] =
-    loadingStatus === 'success' && Array.isArray(toolResponse?.toolResult.value)
-      ? toolResponse!.toolResult.value.filter((item) => {
-          const audience = item.annotations?.audience as string[] | undefined;
-          return !audience || audience.includes('user');
-        })
+  const toolResults =
+    loadingStatus === 'success' && toolResponse?.toolResult
+      ? getToolResultContent(toolResponse.toolResult)
       : [];
 
   const logs = notifications
@@ -293,7 +323,7 @@ function ToolCallView({
   // Function to create a descriptive representation of what the tool is doing
   const getToolDescription = (): string | null => {
     const args = toolCall.arguments as Record<string, ToolCallArgumentValue>;
-    const toolName = toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2);
+    const toolName = getToolName(toolCall.name);
 
     const getStringValue = (value: ToolCallArgumentValue): string => {
       return typeof value === 'string' ? value : JSON.stringify(value);
@@ -409,6 +439,20 @@ function ToolCallView({
       case 'computer_control':
         return `poking around...`;
 
+      case 'execute_code': {
+        const toolGraph = args.tool_graph as unknown as ToolGraphNode[] | undefined;
+        if (toolGraph && Array.isArray(toolGraph) && toolGraph.length > 0) {
+          if (toolGraph.length === 1) {
+            return `${toolGraph[0].description}`;
+          }
+          if (toolGraph.length === 2) {
+            return `${toolGraph[0].tool}, ${toolGraph[1].tool}`;
+          }
+          return `${toolGraph.length} tools used`;
+        }
+        return 'executing code';
+      }
+
       default: {
         // Generic fallback for unknown tools: ToolName + CompactArguments
         // This ensures any MCP tool works without explicit handling
@@ -445,7 +489,7 @@ function ToolCallView({
       return description;
     }
     // Fallback tool name formatting
-    return snakeToTitleCase(toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2));
+    return snakeToTitleCase(getToolName(toolCall.name));
   };
   // Map LoadingStatus to ToolCallStatus
   const getToolCallStatus = (loadingStatus: LoadingStatus): ToolCallStatus => {
@@ -488,12 +532,34 @@ function ToolCallView({
         )
       }
     >
-      {/* Tool Details */}
-      {isToolDetails && (
-        <div className="border-t border-borderSubtle">
-          <ToolDetailsView toolCall={toolCall} isStartExpanded={isExpandToolDetails} />
-        </div>
-      )}
+      {(() => {
+        const toolName = toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2);
+        const toolGraph = toolCall.arguments?.tool_graph as unknown as ToolGraphNode[] | undefined;
+        const code = toolCall.arguments?.code as unknown as string | undefined;
+        const hasToolGraph =
+          toolName === 'execute_code' &&
+          toolGraph &&
+          Array.isArray(toolGraph) &&
+          toolGraph.length > 0;
+
+        if (hasToolGraph) {
+          return (
+            <div className="border-t border-borderSubtle">
+              <ToolGraphView toolGraph={toolGraph} code={code} />
+            </div>
+          );
+        }
+
+        if (isToolDetails) {
+          return (
+            <div className="border-t border-borderSubtle">
+              <ToolDetailsView toolCall={toolCall} isStartExpanded={isExpandToolDetails} />
+            </div>
+          );
+        }
+
+        return null;
+      })()}
 
       {logs && logs.length > 0 && (
         <div className="border-t border-borderSubtle">
@@ -549,6 +615,45 @@ function ToolDetailsView({ toolCall, isStartExpanded }: ToolDetailsViewProps) {
         )}
       </div>
     </ToolCallExpandable>
+  );
+}
+
+interface ToolGraphViewProps {
+  toolGraph: ToolGraphNode[];
+  code?: string;
+}
+
+function ToolGraphView({ toolGraph, code }: ToolGraphViewProps) {
+  const renderGraph = () => {
+    if (toolGraph.length === 0) return null;
+
+    const lines: string[] = [];
+
+    toolGraph.forEach((node, index) => {
+      const deps =
+        node.depends_on.length > 0 ? ` (uses ${node.depends_on.map((d) => d + 1).join(', ')})` : '';
+      lines.push(`${index + 1}. ${node.tool}: ${node.description}${deps}`);
+    });
+
+    return lines.join('\n');
+  };
+
+  return (
+    <div className="px-4 py-2">
+      <pre className="font-mono text-xs text-textSubtle whitespace-pre-wrap">{renderGraph()}</pre>
+      {code && (
+        <div className="border-t border-borderSubtle -mx-4 mt-2">
+          <ToolCallExpandable
+            label={<span className="pl-4 font-sans text-sm">Code</span>}
+            isStartExpanded={false}
+          >
+            <pre className="font-mono text-xs text-textSubtle whitespace-pre-wrap overflow-x-auto px-4 py-2">
+              {code}
+            </pre>
+          </ToolCallExpandable>
+        </div>
+      )}
+    </div>
   );
 }
 
