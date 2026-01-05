@@ -9,7 +9,7 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import { PanelLeft, Terminal } from 'lucide-react';
 
-Custom slash commands are personalized shortcuts to run [recipes](/docs/guides/recipes). Given you have a recipe that runs a daily report, you can create a custom slash command to invoke that recipe from within a session:
+Custom slash commands are personalized shortcuts to run [recipes](/docs/guides/recipes). If you have a recipe that runs a daily report, you can create a custom slash command to invoke that recipe from within a session:
 
 ```
 /daily-report
@@ -72,10 +72,10 @@ Context: ●○○○○○○○○○ 5% (9695/200000 tokens)
   </TabItem>
 </Tabs>
 
-You can pass one parameter after the command (if needed):
+You can pass one parameter after the command (if needed). Quotation marks are optional:
 
 ```
-/deploy service-name
+/translator where is the library
 ```
 
 When you run a recipe using a slash command, the recipe's instructions and prompt fields are sent to your model and loaded into the conversation, but not displayed in chat. The model responds using the recipe's context and instructions just as if you opened it directly.
@@ -87,3 +87,24 @@ When you run a recipe using a slash command, the recipe's instructions and promp
 - Command names must be unique and contain no spaces.
 - You cannot use names that conflict with [built-in CLI slash commands](/docs/guides/goose-cli-commands#slash-commands) like `/recipe`, `/compact`, or `/help`.
 - If the recipe file is missing or invalid, the command will be treated as regular text sent to the model.
+
+## Additional Resources
+
+import ContentCardCarousel from '@site/src/components/ContentCardCarousel';
+
+<ContentCardCarousel
+  items={[
+    {
+      type: 'topic',
+      title: 'Recipes',
+      description: 'Check out the Recipes guide for more docs, tools, and resources to help you master goose recipes.',
+      linkUrl: '/goose/docs/guides/recipes'
+    },
+    {
+      type: 'topic',
+      title: 'Research → Plan → Implement Patterns',
+      description: 'See how slash commands make it easy to integrate instructions into interactive RPI workflows.',
+      linkUrl: '/goose/docs/tutorials/rpi'
+    }
+  ]}
+/>
