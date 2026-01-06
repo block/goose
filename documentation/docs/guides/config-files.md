@@ -50,10 +50,6 @@ The following settings can be configured at the root level of your config.yaml f
 <!-- | `SECURITY_PROMPT_CLASSIFIER_ENABLED` | Enable ML-based prompt injection detection for advanced threat identification | true/false | false | No | -->
 <!-- | `SECURITY_PROMPT_CLASSIFIER_MODEL` | Specify the BERT ML model to use for prompt injection detection | String | "ProtectAI DeBERTa" | No | -->
 
-:::info Automatic Multi-Model Configuration
-The experimental [AutoPilot](/docs/guides/multi-model/autopilot) feature provides intelligent, context-aware model switching. Configure models for different roles using the `x-advanced-models` setting.
-:::
-
 ## Experimental Features
 
 These settings enable experimental features that are in active development. These may change or be removed in future releases.
