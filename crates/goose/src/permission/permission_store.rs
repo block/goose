@@ -83,7 +83,8 @@ impl ToolPermissionStore {
 
         self.permissions.get(&key).and_then(|records| {
             records
-                .iter().rfind(|record| record.expiry.is_none_or(|exp| exp > Utc::now().timestamp()))
+                .iter()
+                .rfind(|record| record.expiry.is_none_or(|exp| exp > Utc::now().timestamp()))
                 .map(|record| record.allowed)
         })
     }
