@@ -186,23 +186,22 @@ impl ModelConfig {
     }
 
     fn parse_max_tokens() -> Result<Option<i32>, ConfigError> {
-        if let Ok(val) = std::env::var("GOOSE_MAX_TOKENS") {
-            let tokens = val.parse::<i32>().map_err(|_| {
-                ConfigError::InvalidValue(
-                    "GOOSE_MAX_TOKENS".to_string(),
-                    val.clone(),
-                    "must be a positive integer".to_string(),
-                )
-            })?;
-            if tokens <= 0 {
-                return Err(ConfigError::InvalidRange(
-                    "GOOSE_MAX_TOKENS".to_string(),
-                    "must be greater than 0".to_string(),
-                ));
+        match crate::config::Config::global().get_param::<i32>("GOOSE_MAX_TOKENS") {
+            Ok(tokens) => {
+                if tokens <= 0 {
+                    return Err(ConfigError::InvalidRange(
+                        "goose_max_tokens".to_string(),
+                        "must be greater than 0".to_string(),
+                    ));
+                }
+                Ok(Some(tokens))
             }
-            Ok(Some(tokens))
-        } else {
-            Ok(None)
+            Err(crate::config::ConfigError::NotFound(_)) => Ok(None),
+            Err(e) => Err(ConfigError::InvalidValue(
+                "goose_max_tokens".to_string(),
+                String::new(),
+                e.to_string(),
+            )),
         }
     }
 
