@@ -13,7 +13,7 @@ The MCP ecosystem is standardizing how servers deliver interactive UIs to hosts,
 
 ## What's Shipping
 
-This release brings a minimal-but-functional implementation of MCP Apps:
+This release ([v1.19.0](https://github.com/block/goose/releases/tag/v1.19.0)) brings a minimal-but-functional implementation of MCP Apps:
 
 - Discovery of MCP App resources connected to tools
 - HTML content rendering in sandboxed iframes
