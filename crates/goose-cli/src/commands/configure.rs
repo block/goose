@@ -501,7 +501,6 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
                 }
             }
             None => {
-                // No env var, check config/secret storage
                 let existing: Result<String, _> = if key.secret {
                     config.get_secret(&key.name)
                 } else {
