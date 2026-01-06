@@ -35,6 +35,7 @@ describe('RecipeFormFields', () => {
       model: undefined,
       provider: undefined,
       extensions: undefined,
+      subRecipes: [],
       ...initialValues,
     };
 
@@ -289,6 +290,7 @@ describe('RecipeFormFields', () => {
             model: undefined,
             provider: undefined,
             extensions: undefined,
+            subRecipes: [],
           } as RecipeFormData,
           onSubmit: async ({ value }) => {
             console.log('Form submitted:', value);
@@ -385,6 +387,7 @@ describe('RecipeFormFields', () => {
             model: undefined,
             provider: undefined,
             extensions: undefined,
+            subRecipes: [],
           } as RecipeFormData,
           onSubmit: async ({ value }) => {
             console.log('Form submitted:', value);
@@ -555,6 +558,7 @@ describe('RecipeFormFields', () => {
             model: undefined,
             provider: undefined,
             extensions: undefined,
+            subRecipes: [],
           } as RecipeFormData,
           onSubmit: async ({ value }) => {
             console.log('Form submitted:', value);
@@ -631,6 +635,7 @@ describe('RecipeFormFields', () => {
             model: undefined,
             provider: undefined,
             extensions: undefined,
+            subRecipes: [],
           } as RecipeFormData,
           onSubmit: async ({ value }) => {
             console.log('Form submitted:', value);
@@ -898,6 +903,7 @@ describe('RecipeFormFields', () => {
             model: undefined,
             provider: undefined,
             extensions: undefined,
+            subRecipes: [],
           } as RecipeFormData,
           onSubmit: async ({ value }) => {
             onSubmit(value);
@@ -929,6 +935,7 @@ describe('RecipeFormFields', () => {
             model: undefined,
             provider: undefined,
             extensions: undefined,
+            subRecipes: [],
           } as RecipeFormData,
           onSubmit: async ({ value }) => {
             console.log('Form submitted:', value);

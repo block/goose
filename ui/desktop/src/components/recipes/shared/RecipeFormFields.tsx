@@ -7,9 +7,10 @@ import ParameterInput from '../../parameter/ParameterInput';
 import RecipeActivityEditor from '../RecipeActivityEditor';
 import JsonSchemaEditor from './JsonSchemaEditor';
 import InstructionsEditor from './InstructionsEditor';
+import SubRecipeEditor from './SubRecipeEditor';
 import { Button } from '../../ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../ui/collapsible';
-import { RecipeFormApi, RecipeFormData } from './recipeFormSchema';
+import { RecipeFormApi, RecipeFormData, SubRecipeFormData } from './recipeFormSchema';
 import { RecipeModelSelector } from './RecipeModelSelector';
 import { RecipeExtensionSelector } from './RecipeExtensionSelector';
 
@@ -550,6 +551,18 @@ export function RecipeFormFields({
                   error={
                     field.state.meta.errors.length > 0 ? field.state.meta.errors[0] : undefined
                   }
+                />
+              </div>
+            )}
+          </form.Field>
+
+          {/* Subrecipes Field */}
+          <form.Field name="subRecipes">
+            {(field: FormFieldApi<SubRecipeFormData[]>) => (
+              <div>
+                <SubRecipeEditor
+                  subRecipes={field.state.value}
+                  onChange={(subRecipes) => field.handleChange(subRecipes)}
                 />
               </div>
             )}
