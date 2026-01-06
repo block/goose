@@ -98,7 +98,7 @@ env:
       - Search with rg before claiming something is "missing"
       - Before claiming UI/frontend changes are needed, trace the actual data flow
       - Say "I couldn't verify" not "this is wrong"
-      - 3-7 verified issues > 10 speculative ones
+      - 2 verified issues are better than 10 speculative ones
 
       ## Language Note
       These guidelines are primarily Rust-focused. For TypeScript/frontend changes (ui/desktop/),
