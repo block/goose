@@ -26,18 +26,19 @@ const PREVIEW_HEAD_LINES: usize = 20;
 /// Lines to show at tail of preview.
 const PREVIEW_TAIL_LINES: usize = 30;
 
-/// Marker delimiter used in wrapped commands.
-const ENV_MARKER: &str = "__GOOSE_ENV_MARKER__";
+/// Marker prefix used in wrapped commands (followed by UUID).
+const ENV_MARKER_PREFIX: &str = "__GOOSE_ENV_";
 
 /// Strip environment markers from raw output, returning just the command output.
+/// The marker format is __GOOSE_ENV_<uuid>__ so we find the first occurrence.
 fn strip_env_markers(raw: &str) -> String {
     // The format is: <command output>MARKER<cwd>MARKER<env>MARKER<exit_code>
     // We want just the command output (everything before the first marker)
-    raw.split(ENV_MARKER)
-        .next()
-        .unwrap_or(raw)
-        .trim_end()
-        .to_string()
+    if let Some(pos) = raw.find(ENV_MARKER_PREFIX) {
+        raw.get(..pos).unwrap_or(raw).trim_end().to_string()
+    } else {
+        raw.trim_end().to_string()
+    }
 }
 
 /// A managed process with its output buffer and metadata.
@@ -98,7 +99,7 @@ impl ProcessManager {
 
         // Build the wrapped command with env setup and capture
         let env_setup = env_state.setup_commands();
-        let (wrapped, _, delimiter) = EnvState::wrap_command(command);
+        let (wrapped, delimiter) = EnvState::wrap_command(command);
         let full_command = format!("{}{}", env_setup, wrapped);
 
         let cwd = env_state.cwd.clone();
@@ -164,7 +165,7 @@ impl ProcessManager {
 
                     let mut env_state = self.env_state.lock().unwrap();
                     let (actual_output, new_cwd, changed, unset, parsed_exit) =
-                        env_state.parse_wrapped_output(&raw_output, delimiter);
+                        env_state.parse_wrapped_output(&raw_output, &delimiter)?;
                     env_state.apply_changes(new_cwd, changed, unset);
                     drop(env_state);
 
@@ -512,7 +513,7 @@ mod tests {
                 // Get output - should NOT contain markers
                 let output = manager.output(&id.0, OutputQuery::default()).unwrap();
                 assert!(
-                    !output.contains(ENV_MARKER),
+                    !output.contains(ENV_MARKER_PREFIX),
                     "Output should not contain markers: {}",
                     output
                 );
@@ -528,7 +529,7 @@ mod tests {
             SpawnResult::Completed { output, .. } => {
                 // If it completed, output should still be clean
                 assert!(
-                    !output.contains(ENV_MARKER),
+                    !output.contains(ENV_MARKER_PREFIX),
                     "Output should not contain markers"
                 );
             }
@@ -537,10 +538,11 @@ mod tests {
 
     #[test]
     fn test_strip_env_markers() {
-        let raw = "hello world\n__GOOSE_ENV_MARKER__\n/tmp\n__GOOSE_ENV_MARKER__\nPATH=/bin\n__GOOSE_ENV_MARKER__\n0";
+        // Test with UUID-style marker
+        let raw = "hello world\n__GOOSE_ENV_abc123def456__\n/tmp\n__GOOSE_ENV_abc123def456__\nPATH=/bin\n__GOOSE_ENV_abc123def456__\n0";
         let clean = strip_env_markers(raw);
         assert_eq!(clean, "hello world");
-        assert!(!clean.contains("__GOOSE_ENV_MARKER__"));
+        assert!(!clean.contains("__GOOSE_ENV_"));
         assert!(!clean.contains("/tmp"));
         assert!(!clean.contains("PATH="));
     }

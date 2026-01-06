@@ -2,7 +2,46 @@
 
 use std::collections::{HashMap, HashSet};
 use std::env;
+use std::fmt;
 use std::path::PathBuf;
+
+use uuid::Uuid;
+
+/// Error type for shell output parsing failures.
+#[derive(Debug, Clone)]
+pub enum ParseError {
+    /// The delimiter appeared an unexpected number of times in the output.
+    /// This likely means the command output contained the delimiter pattern.
+    DelimiterMismatch { expected: usize, found: usize },
+}
+
+impl fmt::Display for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ParseError::DelimiterMismatch { expected, found } => {
+                write!(
+                    f,
+                    "Command output parsing failed: expected {} delimiter occurrences but found {}. \
+                    This is unexpected since the delimiter uses a UUID. \
+                    The command output may be corrupted.",
+                    expected, found
+                )
+            }
+        }
+    }
+}
+
+impl std::error::Error for ParseError {}
+
+/// Result of parsing wrapped shell output.
+/// Contains: (command_output, new_cwd, changed_env_vars, unset_env_vars, exit_code)
+pub type ParsedOutput = (
+    String,
+    Option<PathBuf>,
+    HashMap<String, String>,
+    HashSet<String>,
+    i32,
+);
 
 /// Environment variables to ignore when tracking changes.
 /// These change on every command or are internal shell state.
@@ -100,9 +139,11 @@ impl EnvState {
     }
 
     /// Generate shell commands to capture environment before/after user command.
-    /// Returns (wrapper_prefix, wrapper_suffix, delimiter).
-    pub fn wrap_command(command: &str) -> (String, String, &'static str) {
-        let delimiter = "__GOOSE_ENV_MARKER__";
+    /// Returns (wrapped_command, delimiter).
+    ///
+    /// The delimiter is a UUID to avoid collisions with command output.
+    pub fn wrap_command(command: &str) -> (String, String) {
+        let delimiter = format!("__GOOSE_ENV_{}__", Uuid::new_v4().as_simple());
 
         let prefix = r#"__goose_env_before=$(env | sort)
 __goose_cwd_before=$(pwd)
@@ -122,7 +163,7 @@ echo $__goose_exit_code"#,
         );
 
         let wrapped = format!("{}{}{}", prefix, command, suffix);
-        (wrapped, String::new(), delimiter)
+        (wrapped, delimiter)
     }
 
     /// Parse the output from a wrapped command, extracting:
@@ -130,28 +171,30 @@ echo $__goose_exit_code"#,
     /// - New cwd
     /// - Environment changes
     /// - Exit code
+    ///
+    /// Returns Err if the delimiter appears an unexpected number of times (should be exactly 3).
     pub fn parse_wrapped_output(
         &self,
         raw_output: &str,
         delimiter: &str,
-    ) -> (
-        String,
-        Option<PathBuf>,
-        HashMap<String, String>,
-        HashSet<String>,
-        i32,
-    ) {
+    ) -> Result<ParsedOutput, ParseError> {
+        let delimiter_count = raw_output.matches(delimiter).count();
+
+        if delimiter_count != 3 {
+            return Err(ParseError::DelimiterMismatch {
+                expected: 3,
+                found: delimiter_count,
+            });
+        }
+
         let parts: Vec<&str> = raw_output.split(delimiter).collect();
 
-        if parts.len() < 4 {
-            // Parsing failed, return raw output with no state changes
-            return (
-                raw_output.to_string(),
-                None,
-                HashMap::new(),
-                HashSet::new(),
-                1,
-            );
+        // With exactly 3 delimiters, we should have exactly 4 parts
+        if parts.len() != 4 {
+            return Err(ParseError::DelimiterMismatch {
+                expected: 3,
+                found: delimiter_count,
+            });
         }
 
         let command_output = parts[0].trim_end().to_string();
@@ -205,7 +248,7 @@ echo $__goose_exit_code"#,
             }
         }
 
-        (command_output, new_cwd_path, changed, unset, exit_code)
+        Ok((command_output, new_cwd_path, changed, unset, exit_code))
     }
 
     /// Apply changes from a command execution.
@@ -293,5 +336,82 @@ mod tests {
 
         let setup = state.setup_commands();
         assert!(setup.contains("export QUOTED='it'\\''s a test'"));
+    }
+
+    #[test]
+    fn test_wrap_command_generates_uuid_delimiter() {
+        let (wrapped1, delim1) = EnvState::wrap_command("echo hello");
+        let (_wrapped2, delim2) = EnvState::wrap_command("echo hello");
+
+        // Each call should generate a unique delimiter
+        assert_ne!(delim1, delim2);
+
+        // Delimiter should have the expected format
+        assert!(delim1.starts_with("__GOOSE_ENV_"));
+        assert!(delim1.ends_with("__"));
+
+        // Wrapped command should contain the delimiter
+        assert!(wrapped1.contains(&delim1));
+    }
+
+    #[test]
+    fn test_parse_wrapped_output_success() {
+        let state = EnvState::new();
+        let delimiter = "__GOOSE_ENV_test123__";
+        let raw_output = format!(
+            "hello world\n{}\n/tmp\n{}\nFOO=bar\n{}\n0",
+            delimiter, delimiter, delimiter
+        );
+
+        let result = state.parse_wrapped_output(&raw_output, delimiter);
+        assert!(result.is_ok());
+
+        let (output, new_cwd, _changed, _unset, exit_code) = result.unwrap();
+        assert_eq!(output, "hello world");
+        assert_eq!(new_cwd, Some(PathBuf::from("/tmp")));
+        assert_eq!(exit_code, 0);
+    }
+
+    #[test]
+    fn test_parse_wrapped_output_delimiter_mismatch() {
+        let state = EnvState::new();
+        let delimiter = "__GOOSE_ENV_test123__";
+
+        // Output with only 2 delimiters (missing one)
+        let raw_output = format!("hello world\n{}\n/tmp\n{}\n0", delimiter, delimiter);
+
+        let result = state.parse_wrapped_output(&raw_output, delimiter);
+        assert!(result.is_err());
+
+        match result {
+            Err(ParseError::DelimiterMismatch { expected, found }) => {
+                assert_eq!(expected, 3);
+                assert_eq!(found, 2);
+            }
+            Ok(_) => panic!("Expected delimiter mismatch error"),
+        }
+    }
+
+    #[test]
+    fn test_parse_wrapped_output_extra_delimiter_in_output() {
+        let state = EnvState::new();
+        let delimiter = "__GOOSE_ENV_test123__";
+
+        // Output where the command itself printed the delimiter (4 total)
+        let raw_output = format!(
+            "hello {} world\n{}\n/tmp\n{}\nFOO=bar\n{}\n0",
+            delimiter, delimiter, delimiter, delimiter
+        );
+
+        let result = state.parse_wrapped_output(&raw_output, delimiter);
+        assert!(result.is_err());
+
+        match result {
+            Err(ParseError::DelimiterMismatch { expected, found }) => {
+                assert_eq!(expected, 3);
+                assert_eq!(found, 4);
+            }
+            Ok(_) => panic!("Expected delimiter mismatch error"),
+        }
     }
 }
