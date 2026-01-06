@@ -566,7 +566,9 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
                             };
 
                             if key.secret {
-                                config.set_secret(&key.name, &value)?;
+                                if !try_store_secret(config, &key.name, value)? {
+                                    return Ok(false);
+                                }
                             } else {
                                 config.set_param(&key.name, &value)?;
                             }
