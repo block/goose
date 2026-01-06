@@ -1,9 +1,11 @@
 use crate::config::paths::Paths;
+use crate::providers::api_client::{ApiClient, AuthMethod};
+use crate::providers::utils::{handle_status_openai_compat, stream_openai_compat};
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use axum::http;
 use chrono::{DateTime, Utc};
-use reqwest::Client;
+use reqwest::{Client, Response};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::cell::RefCell;
@@ -21,7 +23,7 @@ use crate::config::{Config, ConfigError};
 use crate::conversation::message::Message;
 
 use crate::model::ModelConfig;
-use crate::providers::base::ConfigKey;
+use crate::providers::base::{ConfigKey, MessageStream};
 use rmcp::model::Tool;
 
 pub const GITHUB_COPILOT_DEFAULT_MODEL: &str = "gpt-4.1";
@@ -170,68 +172,19 @@ impl GithubCopilotProvider {
         })
     }
 
-    async fn post(&self, payload: &mut Value) -> Result<Value, ProviderError> {
-        use crate::providers::utils_universal_openai_stream::{OAIStreamChunk, OAIStreamCollector};
-        use futures::StreamExt;
-        // Detect gpt-4.1 and stream
-        let model_name = payload.get("model").and_then(|v| v.as_str()).unwrap_or("");
-        let stream_only_model = GITHUB_COPILOT_STREAM_MODELS
-            .iter()
-            .any(|prefix| model_name.starts_with(prefix));
-        if stream_only_model {
-            payload
-                .as_object_mut()
-                .unwrap()
-                .insert("stream".to_string(), serde_json::Value::Bool(true));
-        }
+    async fn post(&self, payload: &mut Value) -> Result<Response, ProviderError> {
         let (endpoint, token) = self.get_api_info().await?;
-        let url = url::Url::parse(&format!("{}/chat/completions", endpoint))
-            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
-
-        let headers = self.get_github_headers();
-
-        let mut request = self
-            .client
-            .post(url)
-            .headers(headers)
-            .header("Authorization", format!("Bearer {}", token));
-
+        let auth = AuthMethod::BearerToken(token);
+        let mut headers = self.get_github_headers();
         if Self::payload_contains_image(payload) {
-            request = request.header("Copilot-Vision-Request", "true");
+            headers.insert("Copilot-Vision-Request", "true".parse().unwrap());
         }
+        let api_client = ApiClient::new(endpoint.clone(), auth)?.with_headers(headers)?;
 
-        let response = request.json(payload).send().await?;
-
-        if stream_only_model {
-            let mut collector = OAIStreamCollector::new();
-            let mut stream = response.bytes_stream();
-            while let Some(chunk) = stream.next().await {
-                let chunk = chunk.map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
-                let text = String::from_utf8_lossy(&chunk);
-                for line in text.lines() {
-                    let tline = line.trim();
-                    if !tline.starts_with("data: ") {
-                        continue;
-                    }
-                    let Some(payload) = tline.get(6..) else {
-                        continue;
-                    };
-                    if payload == "[DONE]" {
-                        break;
-                    }
-                    match serde_json::from_str::<OAIStreamChunk>(payload) {
-                        Ok(ch) => collector.add_chunk(&ch),
-                        Err(_) => continue,
-                    }
-                }
-            }
-            let final_response = collector.build_response();
-            let value = serde_json::to_value(final_response)
-                .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
-            Ok(value)
-        } else {
-            handle_response_openai_compat(response).await
-        }
+        api_client
+            .response_post("chat/completions", payload)
+            .await
+            .map_err(|e| e.into())
     }
 
     async fn get_api_info(&self) -> Result<(String, String)> {
@@ -449,6 +402,12 @@ impl Provider for GithubCopilotProvider {
         self.model.clone()
     }
 
+    fn supports_streaming(&self) -> bool {
+        GITHUB_COPILOT_STREAM_MODELS
+            .iter()
+            .any(|prefix| self.model.model_name.starts_with(prefix))
+    }
+
     #[tracing::instrument(
         skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
@@ -478,6 +437,8 @@ impl Provider for GithubCopilotProvider {
             })
             .await?;
 
+        let response = handle_response_openai_compat(response).await?;
+
         // Parse response
         let message = response_to_message(&response)?;
         let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
@@ -489,7 +450,36 @@ impl Provider for GithubCopilotProvider {
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
 
-    /// Fetch supported models from GitHub Copliot; returns Err on failure, Ok(None) if not present
+    async fn stream(
+        &self,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+    ) -> Result<MessageStream, ProviderError> {
+        let payload = create_request(
+            &self.model,
+            system,
+            messages,
+            tools,
+            &ImageFormat::OpenAi,
+            true,
+        )?;
+        let mut log = RequestLog::start(&self.model, &payload)?;
+
+        let response = self
+            .with_retry(|| async {
+                let mut payload_clone = payload.clone();
+                let resp = self.post(&mut payload_clone).await?;
+                handle_status_openai_compat(resp).await
+            })
+            .await
+            .inspect_err(|e| {
+                let _ = log.error(e);
+            })?;
+
+        stream_openai_compat(response, log)
+    }
+
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         let (endpoint, token) = self.get_api_info().await?;
         let url = format!("{}/models", endpoint);

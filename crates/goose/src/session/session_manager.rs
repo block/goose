@@ -23,20 +23,15 @@ pub const CURRENT_SCHEMA_VERSION: i32 = 6;
 pub const SESSIONS_FOLDER: &str = "sessions";
 pub const DB_NAME: &str = "sessions.db";
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, ToSchema, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum SessionType {
+    #[default]
     User,
     Scheduled,
     SubAgent,
     Hidden,
     Terminal,
-}
-
-impl Default for SessionType {
-    fn default() -> Self {
-        Self::User
-    }
 }
 
 impl std::fmt::Display for SessionType {

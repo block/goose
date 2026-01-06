@@ -83,7 +83,7 @@ impl SkillsClient {
 
         if let Some(home) = dirs::home_dir() {
             dirs.push(home.join(".claude/skills"));
-            dirs.push(home.join(".config/agent/skills"));
+            dirs.push(home.join(".config/agents/skills"));
         }
 
         dirs.push(Paths::config_dir().join("skills"));

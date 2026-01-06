@@ -105,6 +105,53 @@ pub enum RunMode {
     Plan,
 }
 
+struct HistoryManager {
+    history_file: PathBuf,
+    old_history_file: PathBuf,
+}
+
+impl HistoryManager {
+    fn new() -> Self {
+        Self {
+            history_file: Paths::state_dir().join("history.txt"),
+            old_history_file: Paths::config_dir().join("history.txt"),
+        }
+    }
+
+    fn load(
+        &self,
+        editor: &mut rustyline::Editor<GooseCompleter, rustyline::history::DefaultHistory>,
+    ) {
+        if let Some(parent) = self.history_file.parent() {
+            if !parent.exists() {
+                if let Err(e) = std::fs::create_dir_all(parent) {
+                    eprintln!("Warning: Failed to create history directory: {}", e);
+                }
+            }
+        }
+
+        let history_files = [&self.history_file, &self.old_history_file];
+        if let Some(file) = history_files.iter().find(|f| f.exists()) {
+            if let Err(err) = editor.load_history(file) {
+                eprintln!("Warning: Failed to load command history: {}", err);
+            }
+        }
+    }
+
+    fn save(
+        &self,
+        editor: &mut rustyline::Editor<GooseCompleter, rustyline::history::DefaultHistory>,
+    ) {
+        if let Err(err) = editor.save_history(&self.history_file) {
+            eprintln!("Warning: Failed to save command history: {}", err);
+        } else if self.old_history_file.exists() {
+            if let Err(err) = std::fs::remove_file(&self.old_history_file) {
+                eprintln!("Warning: Failed to remove old history file: {}", err);
+            }
+        }
+    }
+}
+
 pub struct CliSession {
     agent: Agent,
     messages: Conversation,
@@ -380,316 +427,28 @@ impl CliSession {
 
     /// Start an interactive session, optionally with an initial message
     pub async fn interactive(&mut self, prompt: Option<String>) -> Result<()> {
-        // Process initial message if provided
         if let Some(prompt) = prompt {
             let msg = Message::user().with_text(&prompt);
             self.process_message(msg, CancellationToken::default())
                 .await?;
         }
 
-        // Initialize the completion cache
         self.update_completion_cache().await?;
 
-        // Create a new editor with our custom completer
-        let builder =
-            rustyline::Config::builder().completion_type(rustyline::CompletionType::Circular);
-        let builder = if let Some(edit_mode) = self.edit_mode {
-            builder.edit_mode(edit_mode)
-        } else {
-            // Default to Emacs mode if no edit mode is set
-            builder.edit_mode(EditMode::Emacs)
-        };
-        let config = builder.build();
-        let mut editor =
-            rustyline::Editor::<GooseCompleter, rustyline::history::DefaultHistory>::with_config(
-                config,
-            )?;
-
-        // Set up the completer with a reference to the completion cache
-        let completer = GooseCompleter::new(self.completion_cache.clone());
-        editor.set_helper(Some(completer));
-
-        let history_file = Paths::state_dir().join("history.txt");
-        let old_history_file = Paths::config_dir().join("history.txt");
-
-        if let Some(parent) = history_file.parent() {
-            if !parent.exists() {
-                std::fs::create_dir_all(parent)?;
-            }
-        }
-
-        let history_files = [&history_file, &old_history_file];
-        let load_from = history_files.iter().find(|f| f.exists());
-
-        if let Some(file) = load_from {
-            if let Err(err) = editor.load_history(file) {
-                eprintln!("Warning: Failed to load command history: {}", err);
-            }
-        }
-
-        let save_history =
-            |editor: &mut rustyline::Editor<GooseCompleter, rustyline::history::DefaultHistory>| {
-                if let Err(err) = editor.save_history(&history_file) {
-                    eprintln!("Warning: Failed to save command history: {}", err);
-                } else if old_history_file.exists() {
-                    if let Err(err) = std::fs::remove_file(&old_history_file) {
-                        eprintln!("Warning: Failed to remove old history file: {}", err);
-                    }
-                }
-            };
+        let mut editor = self.create_editor()?;
+        let history_manager = HistoryManager::new();
+        history_manager.load(&mut editor);
 
         output::display_greeting();
         loop {
-            // Display context usage before each prompt
             self.display_context_usage().await?;
 
-            match input::get_input(&mut editor)? {
-                InputResult::Message(content) => {
-                    match self.run_mode {
-                        RunMode::Normal => {
-                            save_history(&mut editor);
-
-                            self.push_message(Message::user().with_text(&content));
-
-                            // Track the current directory and last instruction in projects.json
-                            if let Err(e) = crate::project_tracker::update_project_tracker(
-                                Some(&content),
-                                Some(&self.session_id),
-                            ) {
-                                eprintln!("Warning: Failed to update project tracker with instruction: {}", e);
-                            }
-
-                            let _provider = self.agent.provider().await?;
-
-                            output::show_thinking();
-                            let start_time = Instant::now();
-                            self.process_agent_response(true, CancellationToken::default())
-                                .await?;
-                            output::hide_thinking();
-
-                            // Display elapsed time
-                            let elapsed = start_time.elapsed();
-                            let elapsed_str = format_elapsed_time(elapsed);
-                            println!(
-                                "\n{}",
-                                console::style(format!("⏱️  Elapsed time: {}", elapsed_str)).dim()
-                            );
-                        }
-                        RunMode::Plan => {
-                            let mut plan_messages = self.messages.clone();
-                            plan_messages.push(Message::user().with_text(&content));
-                            let reasoner = get_reasoner().await?;
-                            self.plan_with_reasoner_model(plan_messages, reasoner)
-                                .await?;
-                        }
-                    }
-                }
-                input::InputResult::Exit => break,
-                input::InputResult::AddExtension(cmd) => {
-                    save_history(&mut editor);
-
-                    match self.add_extension(cmd.clone()).await {
-                        Ok(_) => output::render_extension_success(&cmd),
-                        Err(e) => output::render_extension_error(&cmd, &e.to_string()),
-                    }
-                }
-                input::InputResult::AddBuiltin(names) => {
-                    save_history(&mut editor);
-
-                    match self.add_builtin(names.clone()).await {
-                        Ok(_) => output::render_builtin_success(&names),
-                        Err(e) => output::render_builtin_error(&names, &e.to_string()),
-                    }
-                }
-                input::InputResult::ToggleTheme => {
-                    save_history(&mut editor);
-
-                    let current = output::get_theme();
-                    let new_theme = match current {
-                        output::Theme::Ansi => {
-                            println!("Switching to Light theme");
-                            output::Theme::Light
-                        }
-                        output::Theme::Light => {
-                            println!("Switching to Dark theme");
-                            output::Theme::Dark
-                        }
-                        output::Theme::Dark => {
-                            println!("Switching to Ansi theme");
-                            output::Theme::Ansi
-                        }
-                    };
-                    output::set_theme(new_theme);
-                    continue;
-                }
-
-                input::InputResult::SelectTheme(theme_name) => {
-                    save_history(&mut editor);
-
-                    let new_theme = match theme_name.as_str() {
-                        "light" => {
-                            println!("Switching to Light theme");
-                            output::Theme::Light
-                        }
-                        "dark" => {
-                            println!("Switching to Dark theme");
-                            output::Theme::Dark
-                        }
-                        "ansi" => {
-                            println!("Switching to Ansi theme");
-                            output::Theme::Ansi
-                        }
-                        _ => output::Theme::Dark,
-                    };
-                    output::set_theme(new_theme);
-                    continue;
-                }
-                input::InputResult::Retry => continue,
-                input::InputResult::ListPrompts(extension) => {
-                    save_history(&mut editor);
-
-                    match self.list_prompts(extension).await {
-                        Ok(prompts) => output::render_prompts(&prompts),
-                        Err(e) => output::render_error(&e.to_string()),
-                    }
-                }
-                input::InputResult::GooseMode(mode) => {
-                    save_history(&mut editor);
-
-                    let config = Config::global();
-                    let mode = match GooseMode::from_str(&mode.to_lowercase()) {
-                        Ok(mode) => mode,
-                        Err(_) => {
-                            output::render_error(&format!(
-                                "Invalid mode '{}'. Mode must be one of: auto, approve, chat, smart_approve",
-                                mode
-                            ));
-                            continue;
-                        }
-                    };
-                    config.set_goose_mode(mode)?;
-                    output::goose_mode_message(&format!("Goose mode set to '{:?}'", mode));
-                    continue;
-                }
-                input::InputResult::Plan(options) => {
-                    self.run_mode = RunMode::Plan;
-                    output::render_enter_plan_mode();
-
-                    let message_text = options.message_text;
-                    if message_text.is_empty() {
-                        continue;
-                    }
-                    let mut plan_messages = self.messages.clone();
-                    plan_messages.push(Message::user().with_text(&message_text));
-
-                    let reasoner = get_reasoner().await?;
-                    self.plan_with_reasoner_model(plan_messages, reasoner)
-                        .await?;
-                }
-                input::InputResult::EndPlan => {
-                    self.run_mode = RunMode::Normal;
-                    output::render_exit_plan_mode();
-                    continue;
-                }
-                input::InputResult::Clear => {
-                    save_history(&mut editor);
-
-                    if let Err(e) = SessionManager::replace_conversation(
-                        &self.session_id,
-                        &Conversation::default(),
-                    )
-                    .await
-                    {
-                        output::render_error(&format!("Failed to clear session: {}", e));
-                        continue;
-                    }
-
-                    if let Err(e) = SessionManager::update_session(&self.session_id)
-                        .total_tokens(Some(0))
-                        .input_tokens(Some(0))
-                        .output_tokens(Some(0))
-                        .apply()
-                        .await
-                    {
-                        output::render_error(&format!("Failed to reset token counts: {}", e));
-                        continue;
-                    }
-
-                    self.messages.clear();
-
-                    tracing::info!("Chat context cleared by user.");
-                    output::render_message(
-                        &Message::assistant().with_text("Chat context cleared.\n"),
-                        self.debug,
-                    );
-
-                    continue;
-                }
-                input::InputResult::PromptCommand(opts) => {
-                    save_history(&mut editor);
-                    self.handle_prompt_command(opts).await?;
-                }
-                InputResult::Recipe(filepath_opt) => {
-                    println!("{}", console::style("Generating Recipe").green());
-
-                    output::show_thinking();
-                    let recipe = self.agent.create_recipe(self.messages.clone()).await;
-                    output::hide_thinking();
-
-                    match recipe {
-                        Ok(recipe) => {
-                            // Use provided filepath or default
-                            let filepath_str = filepath_opt.as_deref().unwrap_or("recipe.yaml");
-                            match self.save_recipe(&recipe, filepath_str) {
-                                Ok(path) => println!(
-                                    "{}",
-                                    console::style(format!("Saved recipe to {}", path.display()))
-                                        .green()
-                                ),
-                                Err(e) => {
-                                    println!("{}", console::style(e).red());
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            println!(
-                                "{}: {:?}",
-                                console::style("Failed to generate recipe").red(),
-                                e
-                            );
-                        }
-                    }
-
-                    continue;
-                }
-                InputResult::Compact => {
-                    save_history(&mut editor);
-
-                    let prompt = "Are you sure you want to compact this conversation? This will condense the message history.";
-                    let should_summarize =
-                        match cliclack::confirm(prompt).initial_value(true).interact() {
-                            Ok(choice) => choice,
-                            Err(e) => {
-                                if e.kind() == std::io::ErrorKind::Interrupted {
-                                    false
-                                } else {
-                                    return Err(e.into());
-                                }
-                            }
-                        };
-
-                    if should_summarize {
-                        self.push_message(Message::user().with_text(COMPACT_TRIGGERS[0]));
-                        output::show_thinking();
-                        self.process_agent_response(true, CancellationToken::default())
-                            .await?;
-                        output::hide_thinking();
-                    } else {
-                        println!("{}", console::style("Compaction cancelled.").yellow());
-                    }
-                    continue;
-                }
+            let input = input::get_input(&mut editor)?;
+            if matches!(input, InputResult::Exit) {
+                break;
             }
+            self.handle_input(input, &history_manager, &mut editor)
+                .await?;
         }
 
         println!(
@@ -697,6 +456,295 @@ impl CliSession {
             console::style(&self.session_id).cyan()
         );
 
+        Ok(())
+    }
+
+    fn create_editor(
+        &self,
+    ) -> Result<rustyline::Editor<GooseCompleter, rustyline::history::DefaultHistory>> {
+        let builder =
+            rustyline::Config::builder().completion_type(rustyline::CompletionType::Circular);
+        let builder = match self.edit_mode {
+            Some(mode) => builder.edit_mode(mode),
+            None => builder.edit_mode(EditMode::Emacs),
+        };
+        let config = builder.build();
+        let mut editor =
+            rustyline::Editor::<GooseCompleter, rustyline::history::DefaultHistory>::with_config(
+                config,
+            )?;
+        let completer = GooseCompleter::new(self.completion_cache.clone());
+        editor.set_helper(Some(completer));
+        Ok(editor)
+    }
+
+    async fn handle_input(
+        &mut self,
+        input: InputResult,
+        history: &HistoryManager,
+        editor: &mut rustyline::Editor<GooseCompleter, rustyline::history::DefaultHistory>,
+    ) -> Result<()> {
+        match input {
+            InputResult::Message(content) => {
+                self.handle_message_input(&content, history, editor).await?;
+            }
+            InputResult::Exit => unreachable!("Exit is handled in the main loop"),
+            InputResult::AddExtension(cmd) => {
+                history.save(editor);
+                match self.add_extension(cmd.clone()).await {
+                    Ok(_) => output::render_extension_success(&cmd),
+                    Err(e) => output::render_extension_error(&cmd, &e.to_string()),
+                }
+            }
+            InputResult::AddBuiltin(names) => {
+                history.save(editor);
+                match self.add_builtin(names.clone()).await {
+                    Ok(_) => output::render_builtin_success(&names),
+                    Err(e) => output::render_builtin_error(&names, &e.to_string()),
+                }
+            }
+            InputResult::ToggleTheme => {
+                history.save(editor);
+                self.handle_toggle_theme();
+            }
+            InputResult::SelectTheme(theme_name) => {
+                history.save(editor);
+                self.handle_select_theme(&theme_name);
+            }
+            InputResult::Retry => {}
+            InputResult::ListPrompts(extension) => {
+                history.save(editor);
+                match self.list_prompts(extension).await {
+                    Ok(prompts) => output::render_prompts(&prompts),
+                    Err(e) => output::render_error(&e.to_string()),
+                }
+            }
+            InputResult::GooseMode(mode) => {
+                history.save(editor);
+                self.handle_goose_mode(&mode)?;
+            }
+            InputResult::Plan(options) => {
+                self.handle_plan_mode(options).await?;
+            }
+            InputResult::EndPlan => {
+                self.run_mode = RunMode::Normal;
+                output::render_exit_plan_mode();
+            }
+            InputResult::Clear => {
+                history.save(editor);
+                self.handle_clear().await?;
+            }
+            InputResult::PromptCommand(opts) => {
+                history.save(editor);
+                self.handle_prompt_command(opts).await?;
+            }
+            InputResult::Recipe(filepath_opt) => {
+                history.save(editor);
+                self.handle_recipe(filepath_opt).await;
+            }
+            InputResult::Compact => {
+                history.save(editor);
+                self.handle_compact().await?;
+            }
+        }
+        Ok(())
+    }
+
+    async fn handle_message_input(
+        &mut self,
+        content: &str,
+        history: &HistoryManager,
+        editor: &mut rustyline::Editor<GooseCompleter, rustyline::history::DefaultHistory>,
+    ) -> Result<()> {
+        match self.run_mode {
+            RunMode::Normal => {
+                history.save(editor);
+                self.push_message(Message::user().with_text(content));
+
+                if let Err(e) = crate::project_tracker::update_project_tracker(
+                    Some(content),
+                    Some(&self.session_id),
+                ) {
+                    eprintln!(
+                        "Warning: Failed to update project tracker with instruction: {}",
+                        e
+                    );
+                }
+
+                let _provider = self.agent.provider().await?;
+
+                output::show_thinking();
+                let start_time = Instant::now();
+                self.process_agent_response(true, CancellationToken::default())
+                    .await?;
+                output::hide_thinking();
+
+                let elapsed = start_time.elapsed();
+                let elapsed_str = format_elapsed_time(elapsed);
+                println!(
+                    "\n{}",
+                    console::style(format!("⏱️  Elapsed time: {}", elapsed_str)).dim()
+                );
+            }
+            RunMode::Plan => {
+                let mut plan_messages = self.messages.clone();
+                plan_messages.push(Message::user().with_text(content));
+                let reasoner = get_reasoner().await?;
+                self.plan_with_reasoner_model(plan_messages, reasoner)
+                    .await?;
+            }
+        }
+        Ok(())
+    }
+
+    fn handle_toggle_theme(&self) {
+        let current = output::get_theme();
+        let new_theme = match current {
+            output::Theme::Ansi => {
+                println!("Switching to Light theme");
+                output::Theme::Light
+            }
+            output::Theme::Light => {
+                println!("Switching to Dark theme");
+                output::Theme::Dark
+            }
+            output::Theme::Dark => {
+                println!("Switching to Ansi theme");
+                output::Theme::Ansi
+            }
+        };
+        output::set_theme(new_theme);
+    }
+
+    fn handle_select_theme(&self, theme_name: &str) {
+        let new_theme = match theme_name {
+            "light" => {
+                println!("Switching to Light theme");
+                output::Theme::Light
+            }
+            "dark" => {
+                println!("Switching to Dark theme");
+                output::Theme::Dark
+            }
+            "ansi" => {
+                println!("Switching to Ansi theme");
+                output::Theme::Ansi
+            }
+            _ => output::Theme::Dark,
+        };
+        output::set_theme(new_theme);
+    }
+
+    fn handle_goose_mode(&self, mode: &str) -> Result<()> {
+        let config = Config::global();
+        let mode = match GooseMode::from_str(&mode.to_lowercase()) {
+            Ok(mode) => mode,
+            Err(_) => {
+                output::render_error(&format!(
+                    "Invalid mode '{}'. Mode must be one of: auto, approve, chat, smart_approve",
+                    mode
+                ));
+                return Ok(());
+            }
+        };
+        config.set_goose_mode(mode)?;
+        output::goose_mode_message(&format!("Goose mode set to '{:?}'", mode));
+        Ok(())
+    }
+
+    async fn handle_plan_mode(&mut self, options: input::PlanCommandOptions) -> Result<()> {
+        self.run_mode = RunMode::Plan;
+        output::render_enter_plan_mode();
+
+        if options.message_text.is_empty() {
+            return Ok(());
+        }
+
+        let mut plan_messages = self.messages.clone();
+        plan_messages.push(Message::user().with_text(&options.message_text));
+
+        let reasoner = get_reasoner().await?;
+        self.plan_with_reasoner_model(plan_messages, reasoner).await
+    }
+
+    async fn handle_clear(&mut self) -> Result<()> {
+        if let Err(e) =
+            SessionManager::replace_conversation(&self.session_id, &Conversation::default()).await
+        {
+            output::render_error(&format!("Failed to clear session: {}", e));
+            return Ok(());
+        }
+
+        if let Err(e) = SessionManager::update_session(&self.session_id)
+            .total_tokens(Some(0))
+            .input_tokens(Some(0))
+            .output_tokens(Some(0))
+            .apply()
+            .await
+        {
+            output::render_error(&format!("Failed to reset token counts: {}", e));
+            return Ok(());
+        }
+
+        self.messages.clear();
+        tracing::info!("Chat context cleared by user.");
+        output::render_message(
+            &Message::assistant().with_text("Chat context cleared.\n"),
+            self.debug,
+        );
+        Ok(())
+    }
+
+    async fn handle_recipe(&mut self, filepath_opt: Option<String>) {
+        println!("{}", console::style("Generating Recipe").green());
+
+        output::show_thinking();
+        let recipe = self.agent.create_recipe(self.messages.clone()).await;
+        output::hide_thinking();
+
+        match recipe {
+            Ok(recipe) => {
+                let filepath_str = filepath_opt.as_deref().unwrap_or("recipe.yaml");
+                match self.save_recipe(&recipe, filepath_str) {
+                    Ok(path) => println!(
+                        "{}",
+                        console::style(format!("Saved recipe to {}", path.display())).green()
+                    ),
+                    Err(e) => println!("{}", console::style(e).red()),
+                }
+            }
+            Err(e) => {
+                println!(
+                    "{}: {:?}",
+                    console::style("Failed to generate recipe").red(),
+                    e
+                );
+            }
+        }
+    }
+
+    async fn handle_compact(&mut self) -> Result<()> {
+        let prompt = "Are you sure you want to compact this conversation? This will condense the message history.";
+        let should_summarize = match cliclack::confirm(prompt).initial_value(true).interact() {
+            Ok(choice) => choice,
+            Err(e) => {
+                if e.kind() == std::io::ErrorKind::Interrupted {
+                    false
+                } else {
+                    return Err(e.into());
+                }
+            }
+        };
+
+        if should_summarize {
+            self.push_message(Message::user().with_text(COMPACT_TRIGGERS[0]));
+            output::show_thinking();
+            self.process_agent_response(true, CancellationToken::default())
+                .await?;
+            output::hide_thinking();
+        } else {
+            println!("{}", console::style("Compaction cancelled.").yellow());
+        }
         Ok(())
     }
 
