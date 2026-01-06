@@ -40,6 +40,13 @@ export default function CreateEditRecipeModal({
         jsonSchema: recipe.response?.json_schema
           ? JSON.stringify(recipe.response.json_schema, null, 2)
           : '',
+        subRecipes: (recipe.sub_recipes || []).map((sr) => ({
+          name: sr.name,
+          path: sr.path,
+          description: sr.description || undefined,
+          values: sr.values || undefined,
+          sequential_when_repeated: sr.sequential_when_repeated || undefined,
+        })),
       };
     }
     return {
@@ -50,6 +57,7 @@ export default function CreateEditRecipeModal({
       activities: [],
       parameters: [],
       jsonSchema: '',
+      subRecipes: [],
     };
   }, [recipe]);
 
@@ -65,6 +73,7 @@ export default function CreateEditRecipeModal({
   const [activities, setActivities] = useState(form.state.values.activities);
   const [parameters, setParameters] = useState(form.state.values.parameters);
   const [jsonSchema, setJsonSchema] = useState(form.state.values.jsonSchema);
+  const [subRecipes, setSubRecipes] = useState(form.state.values.subRecipes);
 
   // Subscribe to form changes to update local state
   useEffect(() => {
@@ -76,6 +85,7 @@ export default function CreateEditRecipeModal({
       setActivities(form.state.values.activities);
       setParameters(form.state.values.parameters);
       setJsonSchema(form.state.values.jsonSchema);
+      setSubRecipes(form.state.values.subRecipes);
     });
   }, [form]);
   const [copied, setCopied] = useState(false);
@@ -128,6 +138,19 @@ export default function CreateEditRecipeModal({
       }
     }
 
+    // Format subrecipes for API (convert from form data to API format)
+    const formattedSubRecipes =
+      subRecipes.length > 0
+        ? subRecipes.map((subRecipe) => ({
+            name: subRecipe.name,
+            path: subRecipe.path,
+            description: subRecipe.description || undefined,
+            values: subRecipe.values || undefined,
+            sequential_when_repeated: subRecipe.sequential_when_repeated || undefined,
+          }))
+        : undefined;
+
+    // Strip envs to avoid leaking secrets
     const extensions = recipeExtensions?.map((extension) =>
       'envs' in extension ? { ...extension, envs: undefined } : extension
     ) as ExtensionConfig[] | undefined;
@@ -141,6 +164,7 @@ export default function CreateEditRecipeModal({
       prompt: prompt || undefined,
       parameters: formattedParameters,
       response: responseConfig,
+      sub_recipes: formattedSubRecipes,
       extensions,
     };
   }, [
@@ -152,6 +176,7 @@ export default function CreateEditRecipeModal({
     prompt,
     parameters,
     jsonSchema,
+    subRecipes,
     recipeExtensions,
   ]);
 
@@ -224,6 +249,7 @@ export default function CreateEditRecipeModal({
     activities,
     parameters,
     jsonSchema,
+    subRecipes,
     recipeExtensions,
     getCurrentRecipe,
   ]);
