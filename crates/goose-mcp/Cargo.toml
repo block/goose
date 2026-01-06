@@ -73,6 +73,7 @@ libc = "0.2"
 mpatch = "=0.2.0"
 tokio-util = "0.7.16"
 clap = { version = "4", features = ["derive"] }
+uuid = { version = "1.19.0", features = ["v4"] }
 
 [dev-dependencies]
 sysinfo = "0.32.1"

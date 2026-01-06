@@ -66,9 +66,17 @@ impl DevelopServer {
         let map_tool = Arc::new(MapTool::new());
         let image_tool = Arc::new(ImageTool::new());
 
+        // TODO: The cwd/os info at the end breaks prompt caching since it changes per-session.
+        // Consider moving dynamic context to a separate mechanism (e.g., resources or a
+        // dedicated context tool) so the static instructions can be cached.
+        let cwd = std::env::current_dir()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|_| ".".to_string());
+        let os = std::env::consts::OS;
+
         let mut instructions = formatdoc! {r#"
             The develop extension provides tools for software development tasks.
-            
+
             Capabilities:
             - **Process**: Execute shell commands with `shell`. Working directory and 
               environment variables persist across calls. Long-running or large-output 
@@ -88,7 +96,13 @@ impl DevelopServer {
             is re-sent. It's often better to do something in one call rather than two or three,
             even if you read a bit more than strictly necessary. Reading extra context to save a
             round-trip is usually worth it.
-        "#};
+
+            operating system: {os}
+            current directory: {cwd}
+        "#,
+            os = os,
+            cwd = cwd,
+        };
 
         // Add shell warning if using fallback
         if let Some(warning) = manager.shell_warning() {
