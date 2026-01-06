@@ -1,13 +1,21 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Input } from '../../../../../ui/input';
-import { Select } from '../../../../../ui/Select';
-import { useConfig } from '../../../../../ConfigContext';
+import {
+  type ChangeEvent,
+  type Dispatch,
+  type SetStateAction,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import type { AuthModeChoice, ConfigKey, ProviderDetails } from '../../../../../../api';
+import { useConfig } from '../../../../../ConfigContext';
+import { Select } from '../../../../../ui/Select';
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from '../../../../../ui/collapsible';
+import { Input } from '../../../../../ui/input';
 
 type ValidationErrors = Record<string, string>;
 
@@ -22,7 +30,7 @@ type ConfigKeyWithAuth = ConfigKey;
 
 interface DefaultProviderSetupFormProps {
   configValues: Record<string, ConfigInput>;
-  setConfigValues: React.Dispatch<React.SetStateAction<Record<string, ConfigInput>>>;
+  setConfigValues: Dispatch<SetStateAction<Record<string, ConfigInput>>>;
   provider: ProviderDetails;
   validationErrors: ValidationErrors;
 }
@@ -51,7 +59,7 @@ export default function DefaultProviderSetupForm({
 }: DefaultProviderSetupFormProps) {
   const parameters = useMemo(
     () => (provider.metadata.config_keys || []) as ConfigKeyWithAuth[],
-    [provider.metadata.config_keys],
+    [provider.metadata.config_keys]
   );
   const [isLoading, setIsLoading] = useState(true);
   const [optionalExpanded, setOptionalExpanded] = useState(false);
@@ -167,7 +175,7 @@ export default function DefaultProviderSetupForm({
   );
 
   const currentAuthMode: AuthModeChoice | undefined =
-    authTypeParameter && authTypeParameter.auth_modes && authTypeParameter.auth_modes.length > 0
+    authTypeParameter?.auth_modes && authTypeParameter.auth_modes.length > 0
       ? (() => {
           const modes = authTypeParameter.auth_modes as AuthModeChoice[];
           const entry = configValues[authTypeParameter.name];
@@ -209,7 +217,7 @@ export default function DefaultProviderSetupForm({
             id={inputId}
             type="text"
             value={getRenderValue(parameter)}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+            onChange={(e: ChangeEvent<HTMLInputElement>) => {
               setConfigValues((prev) => {
                 const newValue = { ...(prev[parameter.name] || {}), value: e.target.value };
                 return {
@@ -251,9 +259,7 @@ export default function DefaultProviderSetupForm({
         </div>
       ) : (
         <div className="space-y-4">
-          {authTypeParameter &&
-            authTypeParameter.auth_modes &&
-            authTypeParameter.auth_modes.length > 0 &&
+          {authTypeParameter?.auth_modes?.length &&
             currentAuthMode && (
               <div className="space-y-2">
                 <div className="block text-sm font-medium text-textStandard mb-1">

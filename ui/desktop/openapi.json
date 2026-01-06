@@ -2660,20 +2660,20 @@
         "properties": {
           "description": {
             "type": "string",
-            "description": "Description optionnelle affichée sous le sélecteur",
+            "description": "Optional description shown under the selector",
             "nullable": true
           },
           "label": {
             "type": "string",
-            "description": "Libellé affiché dans l'UI (ex: \"Key Authentication\")"
+            "description": "Label displayed in the UI (e.g., \"Key Authentication\")"
           },
           "requires_api_key": {
             "type": "boolean",
-            "description": "Indique si ce mode requiert la présence d'une clé API (secret) côté configuration"
+            "description": "Indicates whether this mode requires an API key (secret) in configuration"
           },
           "value": {
             "type": "string",
-            "description": "Valeur stockée dans la configuration (ex: \"api_key\", \"entra_id\")"
+            "description": "Value stored in configuration (e.g., \"api_key\", \"entra_id\")"
           }
         }
       },

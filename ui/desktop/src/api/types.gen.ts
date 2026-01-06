@@ -41,19 +41,19 @@ export type Annotations = {
  */
 export type AuthModeChoice = {
     /**
-     * Description optionnelle affichée sous le sélecteur
+     * Optional description shown under the selector
      */
     description?: string | null;
     /**
-     * Libellé affiché dans l'UI (ex: "Key Authentication")
+     * Label displayed in the UI (e.g., "Key Authentication")
      */
     label: string;
     /**
-     * Indique si ce mode requiert la présence d'une clé API (secret) côté configuration
+     * Indicates whether this mode requires an API key (secret) in configuration
      */
     requires_api_key: boolean;
     /**
-     * Valeur stockée dans la configuration (ex: "api_key", "entra_id")
+     * Value stored in configuration (e.g., "api_key", "entra_id")
      */
     value: string;
 };
