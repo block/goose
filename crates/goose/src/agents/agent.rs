@@ -602,6 +602,42 @@ impl Agent {
         Ok(())
     }
 
+    /// Register an extension for lazy loading. The extension will not be loaded
+    /// until tools are first requested (e.g., when the user sends a message).
+    /// Frontend extensions are handled immediately since they don't require MCP connections.
+    pub async fn register_extension(&self, extension: ExtensionConfig) {
+        match &extension {
+            ExtensionConfig::Frontend {
+                tools,
+                instructions,
+                ..
+            } => {
+                // For frontend tools, handle immediately since they don't require MCP connections
+                let mut frontend_tools = self.frontend_tools.lock().await;
+                for tool in tools {
+                    let frontend_tool = FrontendTool {
+                        name: tool.name.to_string(),
+                        tool: tool.clone(),
+                    };
+                    frontend_tools.insert(tool.name.to_string(), frontend_tool);
+                }
+                let mut frontend_instructions = self.frontend_instructions.lock().await;
+                if let Some(instructions) = instructions {
+                    *frontend_instructions = Some(instructions.clone());
+                } else {
+                    *frontend_instructions = Some(
+                        "The following tools are provided directly by the frontend and will be executed by the frontend when called.".to_string(),
+                    );
+                }
+            }
+            _ => {
+                self.extension_manager
+                    .register_extension(extension.clone())
+                    .await;
+            }
+        }
+    }
+
     pub async fn subagents_enabled(&self) -> bool {
         let config = crate::config::Config::global();
         let is_autonomous = config.get_goose_mode().unwrap_or(GooseMode::Auto) == GooseMode::Auto;

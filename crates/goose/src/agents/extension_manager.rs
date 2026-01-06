@@ -94,6 +94,8 @@ impl Extension {
 /// Manages goose extensions / MCP clients and their interactions
 pub struct ExtensionManager {
     extensions: Mutex<HashMap<String, Extension>>,
+    /// Extension configs that are registered but not yet loaded (lazy loading)
+    pending_configs: Mutex<HashMap<String, ExtensionConfig>>,
     context: Mutex<PlatformExtensionContext>,
     provider: SharedProvider,
 }
@@ -445,6 +447,7 @@ impl ExtensionManager {
     pub fn new(provider: SharedProvider) -> Self {
         Self {
             extensions: Mutex::new(HashMap::new()),
+            pending_configs: Mutex::new(HashMap::new()),
             context: Mutex::new(PlatformExtensionContext {
                 session_id: None,
                 extension_manager: None,
@@ -456,6 +459,47 @@ impl ExtensionManager {
     /// Create a new ExtensionManager with no provider (useful for tests)
     pub fn new_without_provider() -> Self {
         Self::new(Arc::new(Mutex::new(None)))
+    }
+
+    /// Register an extension config for lazy loading. The extension will not be loaded
+    /// until `ensure_pending_extensions_loaded` is called or when tools are first requested.
+    pub async fn register_extension(&self, config: ExtensionConfig) {
+        let config_name = config.key().to_string();
+        let sanitized_name = normalize(config_name);
+
+        // Skip if already loaded or already pending
+        if self.extensions.lock().await.contains_key(&sanitized_name) {
+            return;
+        }
+
+        self.pending_configs
+            .lock()
+            .await
+            .insert(sanitized_name, config);
+    }
+
+    /// Load all pending extension configs. This is called automatically when tools are requested.
+    pub async fn ensure_pending_extensions_loaded(&self) {
+        // Take all pending configs
+        let pending: Vec<ExtensionConfig> = self
+            .pending_configs
+            .lock()
+            .await
+            .drain()
+            .map(|(_, v)| v)
+            .collect();
+
+        // Load each one
+        for config in pending {
+            if let Err(e) = self.add_extension(config.clone()).await {
+                warn!("Failed to load extension {}: {}", config.name(), e);
+            }
+        }
+    }
+
+    /// Check if there are pending extensions that haven't been loaded yet
+    pub async fn has_pending_extensions(&self) -> bool {
+        !self.pending_configs.lock().await.is_empty()
     }
 
     pub async fn set_context(&self, context: PlatformExtensionContext) {
@@ -664,11 +708,14 @@ impl ExtensionManager {
             .collect()
     }
 
-    /// Get all tools from all clients with proper prefixing
+    /// Get all tools from all clients with proper prefixing.
+    /// This will lazily load any pending extensions before returning tools.
     pub async fn get_prefixed_tools(
         &self,
         extension_name: Option<String>,
     ) -> ExtensionResult<Vec<Tool>> {
+        // Lazy load any pending extensions before getting tools
+        self.ensure_pending_extensions_loaded().await;
         self.get_prefixed_tools_impl(extension_name, None).await
     }
 

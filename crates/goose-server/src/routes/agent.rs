@@ -34,7 +34,7 @@ use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
-use tracing::{error, warn};
+use tracing::error;
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdateFromSessionRequest {
@@ -298,35 +298,13 @@ async fn resume_agent(
                 })
         };
 
-        let extensions_result = async {
-            let enabled_configs = goose::config::get_enabled_extensions();
-            let agent_clone = agent.clone();
+        // Register extensions for lazy loading - they will be loaded on first tool request
+        let enabled_configs = goose::config::get_enabled_extensions();
+        for config in enabled_configs {
+            agent.register_extension(config).await;
+        }
 
-            let extension_futures = enabled_configs
-                .into_iter()
-                .map(|config| {
-                    let config_clone = config.clone();
-                    let agent_ref = agent_clone.clone();
-
-                    async move {
-                        if let Err(e) = agent_ref.add_extension(config_clone.clone()).await {
-                            warn!("Failed to load extension {}: {}", config_clone.name(), e);
-                            goose::posthog::emit_error(
-                                "extension_load_failed",
-                                &format!("{}: {}", config_clone.name(), e),
-                            );
-                        }
-                        Ok::<_, ErrorResponse>(())
-                    }
-                })
-                .collect::<Vec<_>>();
-
-            futures::future::join_all(extension_futures).await;
-            Ok::<(), ErrorResponse>(()) // Fixed type annotation
-        };
-
-        let (provider_result, _) = tokio::join!(provider_result, extensions_result);
-        provider_result?;
+        provider_result.await?;
     }
 
     Ok(Json(session))
