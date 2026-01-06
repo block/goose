@@ -480,7 +480,6 @@ impl Provider for GithubCopilotProvider {
         stream_openai_compat(response, log)
     }
 
-    /// Fetch supported models from GitHub Copliot; returns Err on failure, Ok(None) if not present
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         let (endpoint, token) = self.get_api_info().await?;
         let url = format!("{}/models", endpoint);
