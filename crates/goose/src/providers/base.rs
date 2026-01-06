@@ -177,14 +177,14 @@ impl ProviderMetadata {
 /// Configuration key metadata for provider setup
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct AuthModeChoice {
-    /// Valeur stockée dans la configuration (ex: "api_key", "entra_id")
+    /// Value stored in configuration (e.g., "api_key", "entra_id")
     pub value: String,
-    /// Libellé affiché dans l'UI (ex: "Key Authentication")
+    /// Label displayed in the UI (e.g., "Key Authentication")
     pub label: String,
-    /// Description optionnelle affichée sous le sélecteur
+    /// Optional description shown under the selector
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    /// Indique si ce mode requiert la présence d'une clé API (secret) côté configuration
+    /// Indicates whether this mode requires an API key (secret) in configuration
     pub requires_api_key: bool,
 }
 
