@@ -58,26 +58,6 @@
     }
   },
   {
-    "id": "anthropic/claude-3-opus",
-    "name": "Anthropic: Claude 3 Opus",
-    "context_length": 200000,
-    "max_completion_tokens": 4096,
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
-    "pricing": {
-      "prompt": 0.000015,
-      "completion": 0.000075,
-      "request": 0.0,
-      "image": 0.024
-    }
-  },
-  {
     "id": "anthropic/claude-3.5-haiku",
     "name": "Anthropic: Claude 3.5 Haiku",
     "context_length": 200000,
@@ -205,7 +185,6 @@
     "id": "anthropic/claude-opus-4.1",
     "name": "Anthropic: Claude Opus 4.1",
     "context_length": 200000,
-    "max_completion_tokens": 32000,
     "input_modalities": [
       "image",
       "text",
@@ -365,7 +344,7 @@
     "id": "deepseek/deepseek",
     "name": "DeepSeek: DeepSeek V3.2",
     "context_length": 163840,
-    "max_completion_tokens": 163840,
+    "max_completion_tokens": 65536,
     "input_modalities": [
       "text"
     ],
@@ -374,7 +353,7 @@
     ],
     "supports_tools": true,
     "pricing": {
-      "prompt": 2.4e-7,
+      "prompt": 2.5e-7,
       "completion": 3.8e-7,
       "request": 0.0,
       "image": 0.0
@@ -421,6 +400,7 @@
     "id": "deepseek/deepseek-r1",
     "name": "DeepSeek: R1",
     "context_length": 163840,
+    "max_completion_tokens": 163840,
     "input_modalities": [
       "text"
     ],
@@ -429,8 +409,8 @@
     ],
     "supports_tools": true,
     "pricing": {
-      "prompt": 3e-7,
-      "completion": 1.2e-6,
+      "prompt": 7e-7,
+      "completion": 2.4e-6,
       "request": 0.0,
       "image": 0.0
     }
@@ -438,8 +418,8 @@
   {
     "id": "deepseek/deepseek-r1-0528-qwen3-8b",
     "name": "DeepSeek: DeepSeek R1 0528 Qwen3 8B",
-    "context_length": 32768,
-    "max_completion_tokens": 32768,
+    "context_length": 128000,
+    "max_completion_tokens": 32000,
     "input_modalities": [
       "text"
     ],
@@ -448,8 +428,8 @@
     ],
     "supports_tools": false,
     "pricing": {
-      "prompt": 2e-8,
-      "completion": 1e-7,
+      "prompt": 6e-8,
+      "completion": 9e-8,
       "request": 0.0,
       "image": 0.0
     }
@@ -468,7 +448,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 3e-8,
-      "completion": 1.3e-7,
+      "completion": 1.1e-7,
       "request": 0.0,
       "image": 0.0
     }
@@ -486,8 +466,8 @@
     ],
     "supports_tools": false,
     "pricing": {
-      "prompt": 1.2e-7,
-      "completion": 1.2e-7,
+      "prompt": 1.5e-7,
+      "completion": 1.5e-7,
       "request": 0.0,
       "image": 0.0
     }
@@ -495,8 +475,7 @@
   {
     "id": "deepseek/deepseek-r1-distill-qwen-32b",
     "name": "DeepSeek: R1 Distill Qwen 32B",
-    "context_length": 64000,
-    "max_completion_tokens": 32000,
+    "context_length": 131072,
     "input_modalities": [
       "text"
     ],
@@ -505,8 +484,8 @@
     ],
     "supports_tools": false,
     "pricing": {
-      "prompt": 2.4e-7,
-      "completion": 2.4e-7,
+      "prompt": 2.7e-7,
+      "completion": 2.7e-7,
       "request": 0.0,
       "image": 0.0
     }
@@ -810,8 +789,7 @@
   {
     "id": "google/gemma-3-27b-it",
     "name": "Google: Gemma 3 27B",
-    "context_length": 96000,
-    "max_completion_tokens": 96000,
+    "context_length": 131072,
     "input_modalities": [
       "text",
       "image"
@@ -821,8 +799,8 @@
     ],
     "supports_tools": true,
     "pricing": {
-      "prompt": 4e-8,
-      "completion": 1.5e-7,
+      "prompt": 3.6e-8,
+      "completion": 6.4e-8,
       "request": 0.0,
       "image": 0.0
     }
@@ -924,7 +902,7 @@
   {
     "id": "meta-llama/llama-3.1-405b-instruct",
     "name": "Meta: Llama 3.1 405B Instruct",
-    "context_length": 130815,
+    "context_length": 10000,
     "input_modalities": [
       "text"
     ],
@@ -960,7 +938,7 @@
   {
     "id": "meta-llama/llama-3.1-8b-instruct",
     "name": "Meta: Llama 3.1 8B Instruct",
-    "context_length": 131072,
+    "context_length": 16384,
     "max_completion_tokens": 16384,
     "input_modalities": [
       "text"
@@ -971,7 +949,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2e-8,
-      "completion": 3e-8,
+      "completion": 5e-8,
       "request": 0.0,
       "image": 0.0
     }
@@ -1198,8 +1176,8 @@
     ],
     "supports_tools": true,
     "pricing": {
-      "prompt": 1.5e-7,
-      "completion": 6e-7,
+      "prompt": 5e-8,
+      "completion": 2.2e-7,
       "request": 0.0,
       "image": 0.0
     }
@@ -2262,8 +2240,8 @@
     ],
     "supports_tools": true,
     "pricing": {
-      "prompt": 3.9e-8,
-      "completion": 1.9e-7,
+      "prompt": 2e-8,
+      "completion": 1e-7,
       "request": 0.0,
       "image": 0.0
     }
@@ -2280,8 +2258,8 @@
     ],
     "supports_tools": true,
     "pricing": {
-      "prompt": 3e-8,
-      "completion": 1.4e-7,
+      "prompt": 1.6e-8,
+      "completion": 6e-8,
       "request": 0.0,
       "image": 0.0
     }
@@ -2517,7 +2495,7 @@
     "id": "qwen/qwen-2.5-72b-instruct",
     "name": "Qwen2.5 72B Instruct",
     "context_length": 32768,
-    "max_completion_tokens": 32768,
+    "max_completion_tokens": 16384,
     "input_modalities": [
       "text"
     ],
@@ -2526,8 +2504,8 @@
     ],
     "supports_tools": true,
     "pricing": {
-      "prompt": 7e-8,
-      "completion": 2.6e-7,
+      "prompt": 1.2e-7,
+      "completion": 3.9e-7,
       "request": 0.0,
       "image": 0.0
     }
@@ -2756,8 +2734,8 @@
     ],
     "supports_tools": false,
     "pricing": {
-      "prompt": 3e-8,
-      "completion": 1.3e-7,
+      "prompt": 1.5e-7,
+      "completion": 6e-7,
       "request": 0.0,
       "image": 0.0
     }
@@ -2907,8 +2885,8 @@
     ],
     "supports_tools": true,
     "pricing": {
-      "prompt": 2.8e-8,
-      "completion": 1.104e-7,
+      "prompt": 3.5e-8,
+      "completion": 1.38e-7,
       "request": 0.0,
       "image": 0.0
     }
@@ -2935,8 +2913,8 @@
   {
     "id": "qwen/qwen3-coder-30b-a3b-instruct",
     "name": "Qwen: Qwen3 Coder 30B A3B Instruct",
-    "context_length": 262144,
-    "max_completion_tokens": 262144,
+    "context_length": 160000,
+    "max_completion_tokens": 32768,
     "input_modalities": [
       "text"
     ],
@@ -2945,8 +2923,8 @@
     ],
     "supports_tools": true,
     "pricing": {
-      "prompt": 6e-8,
-      "completion": 2.5e-7,
+      "prompt": 7e-8,
+      "completion": 2.7e-7,
       "request": 0.0,
       "image": 0.0
     }
@@ -3020,8 +2998,8 @@
     ],
     "supports_tools": true,
     "pricing": {
-      "prompt": 9e-8,
-      "completion": 1.1e-6,
+      "prompt": 6e-8,
+      "completion": 6e-7,
       "request": 0.0,
       "image": 0.0
     }
@@ -3029,8 +3007,8 @@
   {
     "id": "qwen/qwen3-next-80b-a3b-thinking",
     "name": "Qwen: Qwen3 Next 80B A3B Thinking",
-    "context_length": 131072,
-    "max_completion_tokens": 32768,
+    "context_length": 262144,
+    "max_completion_tokens": 262144,
     "input_modalities": [
       "text"
     ],
@@ -3039,7 +3017,7 @@
     ],
     "supports_tools": true,
     "pricing": {
-      "prompt": 1.2e-7,
+      "prompt": 1.5e-7,
       "completion": 1.2e-6,
       "request": 0.0,
       "image": 0.0
@@ -3058,8 +3036,8 @@
     ],
     "supports_tools": true,
     "pricing": {
-      "prompt": 2e-7,
-      "completion": 1.2e-6,
+      "prompt": 1.2e-7,
+      "completion": 5.6e-7,
       "request": 0.0,
       "image": 0.0
     }
@@ -3078,8 +3056,8 @@
     ],
     "supports_tools": true,
     "pricing": {
-      "prompt": 3e-7,
-      "completion": 1.2e-6,
+      "prompt": 4.5e-7,
+      "completion": 3.5e-6,
       "request": 0.0,
       "image": 0.0
     }
@@ -3117,8 +3095,8 @@
     ],
     "supports_tools": true,
     "pricing": {
-      "prompt": 1.6e-7,
-      "completion": 8e-7,
+      "prompt": 2e-7,
+      "completion": 1e-6,
       "request": 0.0,
       "image": 0.0
     }
@@ -3156,8 +3134,8 @@
     ],
     "supports_tools": true,
     "pricing": {
-      "prompt": 6.4e-8,
-      "completion": 4e-7,
+      "prompt": 8e-8,
+      "completion": 5e-7,
       "request": 0.0,
       "image": 0.0
     }
