@@ -1431,6 +1431,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "clap_complete"
+version = "4.5.62"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "004eef6b14ce34759aa7de4aea3217e368f463f46a3ed3764ca4b5a4404003b4"
+dependencies = [
+ "clap",
+]
+
+[[package]]
 name = "clap_derive"
 version = "4.5.49"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2953,7 +2962,7 @@ dependencies = [
 
 [[package]]
 name = "goose"
-version = "1.17.0"
+version = "1.18.0"
 dependencies = [
  "agent-client-protocol-schema",
  "ahash",
@@ -3044,7 +3053,7 @@ dependencies = [
 
 [[package]]
 name = "goose-bench"
-version = "1.17.0"
+version = "1.18.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3067,7 +3076,7 @@ dependencies = [
 
 [[package]]
 name = "goose-cli"
-version = "1.17.0"
+version = "1.18.0"
 dependencies = [
  "agent-client-protocol-schema",
  "anstream",
@@ -3078,6 +3087,7 @@ dependencies = [
  "bat",
  "chrono",
  "clap",
+ "clap_complete",
  "cliclack",
  "console 0.16.2",
  "dotenvy",
@@ -3122,7 +3132,7 @@ dependencies = [
 
 [[package]]
 name = "goose-mcp"
-version = "1.17.0"
+version = "1.18.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3187,7 +3197,7 @@ dependencies = [
 
 [[package]]
 name = "goose-server"
-version = "1.17.0"
+version = "1.18.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3233,7 +3243,7 @@ dependencies = [
 
 [[package]]
 name = "goose-test"
-version = "1.17.0"
+version = "1.18.0"
 dependencies = [
  "clap",
  "serde_json",

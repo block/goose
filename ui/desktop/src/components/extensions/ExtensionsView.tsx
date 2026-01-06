@@ -35,11 +35,7 @@ export default function ExtensionsView({
   const [searchTerm, setSearchTerm] = useState('');
   const { addExtension } = useConfig();
   const chatContext = useChatContext();
-  const sessionId = chatContext?.chat.sessionId || '';
-
-  if (!sessionId) {
-    console.error('ExtensionsView: No session ID available');
-  }
+  const sessionId = chatContext?.chat.sessionId;
 
   // Only trigger refresh when deep link config changes AND we don't need to show env vars
   useEffect(() => {
@@ -80,20 +76,10 @@ export default function ExtensionsView({
     // Close the modal immediately
     handleModalClose();
 
-    if (!sessionId) {
-      console.warn('Cannot activate extension without session');
-      setRefreshKey((prevKey) => prevKey + 1);
-      return;
-    }
-
     const extensionConfig = createExtensionConfig(formData);
 
     try {
-      await activateExtension({
-        addToConfig: addExtension,
-        extensionConfig: extensionConfig,
-        sessionId: sessionId,
-      });
+      await activateExtension(extensionConfig, addExtension, sessionId);
       // Trigger a refresh of the extensions list
       setRefreshKey((prevKey) => prevKey + 1);
     } catch (error) {

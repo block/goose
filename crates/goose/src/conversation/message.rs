@@ -68,6 +68,9 @@ pub struct ToolRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(value_type = Object)]
     pub metadata: Option<ProviderMetadata>,
+    #[serde(rename = "_meta", skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Object)]
+    pub tool_meta: Option<serde_json::Value>,
 }
 
 impl ToolRequest {
@@ -259,6 +262,7 @@ impl MessageContent {
             id: id.into(),
             tool_call,
             metadata: None,
+            tool_meta: None,
         })
     }
 
@@ -271,6 +275,7 @@ impl MessageContent {
             id: id.into(),
             tool_call,
             metadata: metadata.cloned(),
+            tool_meta: None,
         })
     }
 
@@ -667,10 +672,14 @@ impl Message {
         id: S,
         tool_call: ToolResult<CallToolRequestParam>,
         metadata: Option<&ProviderMetadata>,
+        tool_meta: Option<serde_json::Value>,
     ) -> Self {
-        self.with_content(MessageContent::tool_request_with_metadata(
-            id, tool_call, metadata,
-        ))
+        self.with_content(MessageContent::ToolRequest(ToolRequest {
+            id: id.into(),
+            tool_call,
+            metadata: metadata.cloned(),
+            tool_meta,
+        }))
     }
 
     /// Add a tool response to the message

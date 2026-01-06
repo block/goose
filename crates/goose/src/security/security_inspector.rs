@@ -114,6 +114,7 @@ mod tests {
                 arguments: Some(object!({"command": "rm -rf /"})),
             }),
             metadata: None,
+            tool_meta: None,
         }];
 
         let results = inspector.inspect(&tool_requests, &[]).await.unwrap();
