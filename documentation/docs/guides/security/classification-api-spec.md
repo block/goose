@@ -1,4 +1,7 @@
-# Classification API Specification
+---
+title: Classification API Specification
+unlisted: true
+---
 
 This document defines the API that Goose uses for ML-based prompt injection detection.
 
