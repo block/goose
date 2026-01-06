@@ -1,4 +1,3 @@
-# Link https://github.com/marketplace/actions/cargo-audit-your-rust-dependencies
 name: "Cargo Audit"
 on:
   push:
@@ -24,7 +23,8 @@ jobs:
       issues: write
     steps:
       - uses: actions/checkout@v4
-      - uses: actions-rust-lang/audit@v1
+        # https://github.com/marketplace/actions/cargo-audit-your-rust-dependencies
+      - uses: actions-rust-lang/audit@72c09e02f132669d52284a3323acdb503cfc1a24
         name: Audit Rust Dependencies
         # with:
           # Comma separated list of issues to ignore
