@@ -5,8 +5,9 @@ import ParameterInput from '../../parameter/ParameterInput';
 import RecipeActivityEditor from '../RecipeActivityEditor';
 import JsonSchemaEditor from './JsonSchemaEditor';
 import InstructionsEditor from './InstructionsEditor';
+import SubRecipeEditor from './SubRecipeEditor';
 import { Button } from '../../ui/button';
-import { RecipeFormApi } from './recipeFormSchema';
+import { RecipeFormApi, SubRecipeFormData } from './recipeFormSchema';
 
 // Type for field API to avoid linting issues - use any to bypass complex type constraints
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -481,6 +482,18 @@ export function RecipeFormFields({
                 onJsonSchemaChange?.(value);
               }}
               error={field.state.meta.errors.length > 0 ? field.state.meta.errors[0] : undefined}
+            />
+          </div>
+        )}
+      </form.Field>
+
+      {/* Subrecipes Field */}
+      <form.Field name="subRecipes">
+        {(field: FormFieldApi<SubRecipeFormData[]>) => (
+          <div>
+            <SubRecipeEditor
+              subRecipes={field.state.value}
+              onChange={(subRecipes) => field.handleChange(subRecipes)}
             />
           </div>
         )}

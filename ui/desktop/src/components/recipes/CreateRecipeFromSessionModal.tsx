@@ -39,6 +39,7 @@ export default function CreateRecipeFromSessionModal({
       activities: [] as string[],
       parameters: [] as RecipeParameter[],
       jsonSchema: '',
+      subRecipes: [],
       recipeName: '',
       global: true,
     } as RecipeFormData,
