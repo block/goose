@@ -2,17 +2,11 @@
 
 Thank you for your interest in contributing to the goose Recipe Cookbook! This guide will walk you through the process of submitting your own recipe.
 
-## 💰 Get Rewarded
-
-**Approved recipe submissions receive $10 in OpenRouter LLM credits!** 🎉
-
 ## 🚀 Quick Start
 
 1. [Fork this repository](https://github.com/block/goose/fork)
 2. Add your recipe file here: `documentation/src/pages/recipes/data/recipes/`
 3. Create a pull request
-4. Include your email, in the PR description for credits
-5. Get paid when approved & merged! 💸
 
 ## 📋 Step-by-Step Guide
 
@@ -74,13 +68,7 @@ parameters:
 
 1. **Commit your changes** in your forked repository
 2. **Go to the original repository** and click "New Pull Request"
-3. **Fill out the PR template** - especially include your email for credits!
-
-**Important**: Make sure to include your email in the PR description:
-
-```markdown
-**Email**: your.email@example.com
-```
+3. **Fill out the PR template**
 
 ### Step 5: Wait for Review
 
@@ -88,7 +76,7 @@ Our team will:
 1. ✅ **Validate** your recipe automatically
 2. 👀 **Review** for quality and usefulness
 3. 🔒 **Security scan** (if approved for review)
-4. 🎉 **Merge** and send you $10 credits!
+4. 🎉 **Merge** your recipe!
 
 ## ✅ Recipe Requirements
 
@@ -135,8 +123,6 @@ Need inspiration? Consider recipes for:
 
 ## 🤝 Community Guidelines
 
-- Be respectful and helpful
-- Follow our code of conduct
 - Keep recipes focused and practical
 - Share knowledge and learn from others
 

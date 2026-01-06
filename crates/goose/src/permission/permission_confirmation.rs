@@ -15,7 +15,7 @@ pub enum PrincipalType {
     Tool,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct PermissionConfirmation {
     pub principal_type: PrincipalType,
     pub permission: Permission,

@@ -7,7 +7,7 @@ import 'swiper/css/pagination';
 import 'swiper/css/free-mode';
 import ContentCard from './ContentCard';
 
-type ContentType = 'video' | 'blog' ;
+type ContentType = 'video' | 'blog' | 'topic';
 
 interface ContentItem {
   type: ContentType;

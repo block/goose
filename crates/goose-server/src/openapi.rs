@@ -361,7 +361,6 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::agent::agent_add_extension,
         super::routes::agent::agent_remove_extension,
         super::routes::agent::update_agent_provider,
-        super::routes::agent::update_router_tool_selector,
         super::routes::action_required::confirm_tool_action,
         super::routes::reply::reply,
         super::routes::session::list_sessions,
@@ -393,6 +392,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::recipe::set_recipe_slash_command,
         super::routes::recipe::save_recipe,
         super::routes::recipe::parse_recipe,
+        super::routes::recipe::recipe_to_yaml,
         super::routes::setup::start_openrouter_setup,
         super::routes::setup::start_tetrate_setup,
         super::routes::tunnel::start_tunnel,
@@ -509,6 +509,8 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::errors::ErrorResponse,
         super::routes::recipe::ParseRecipeRequest,
         super::routes::recipe::ParseRecipeResponse,
+        super::routes::recipe::RecipeToYamlRequest,
+        super::routes::recipe::RecipeToYamlResponse,
         goose::recipe::Recipe,
         goose::recipe::Author,
         goose::recipe::Settings,
@@ -525,7 +527,6 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::agent::ReadResourceResponse,
         super::routes::agent::CallToolRequest,
         super::routes::agent::CallToolResponse,
-        super::routes::agent::UpdateRouterToolSelectorRequest,
         super::routes::agent::StartAgentRequest,
         super::routes::agent::ResumeAgentRequest,
         super::routes::agent::UpdateFromSessionRequest,
@@ -535,6 +536,10 @@ derive_utoipa!(Icon as IconSchema);
         super::tunnel::TunnelInfo,
         super::tunnel::TunnelState,
         super::routes::telemetry::TelemetryEventRequest,
+        goose::goose_apps::McpAppResource,
+        goose::goose_apps::CspMetadata,
+        goose::goose_apps::UiMetadata,
+        goose::goose_apps::ResourceMetadata,
     ))
 )]
 pub struct ApiDoc;

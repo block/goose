@@ -106,7 +106,6 @@ const SessionMessages: React.FC<{
                   messages={filteredMessages}
                   chat={{
                     sessionId: 'session-preview',
-                    messageHistoryIndex: filteredMessages.length,
                   }}
                   toolCallNotifications={new Map()}
                   append={() => {}} // Read-only for session history

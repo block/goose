@@ -53,6 +53,7 @@ export type CallToolRequest = {
 };
 
 export type CallToolResponse = {
+    _meta?: unknown;
     content: Array<Content>;
     is_error: boolean;
     structured_content?: unknown;
@@ -137,6 +138,21 @@ export type CreateScheduleRequest = {
     recipe_source: string;
 };
 
+/**
+ * Content Security Policy metadata for MCP Apps
+ * Specifies allowed domains for network connections and resource loading
+ */
+export type CspMetadata = {
+    /**
+     * Domains allowed for connect-src (fetch, XHR, WebSocket)
+     */
+    connectDomains?: Array<string> | null;
+    /**
+     * Domains allowed for resource loading (scripts, styles, images, fonts, media)
+     */
+    resourceDomains?: Array<string> | null;
+};
+
 export type DeclarativeProviderConfig = {
     api_key_env: string;
     base_url: string;
@@ -214,18 +230,10 @@ export type ErrorResponse = {
  * Represents the different types of MCP extensions that can be added to the manager
  */
 export type ExtensionConfig = {
-    available_tools?: Array<string>;
-    bundled?: boolean | null;
     description: string;
-    env_keys?: Array<string>;
-    envs?: Envs;
-    /**
-     * The name used to identify this extension
-     */
     name: string;
-    timeout?: number | null;
     type: 'sse';
-    uri: string;
+    uri?: string | null;
 } | {
     args: Array<string>;
     available_tools?: Array<string>;
@@ -335,6 +343,7 @@ export type ExtensionQuery = {
 
 export type ExtensionResponse = {
     extensions: Array<ExtensionEntry>;
+    warnings?: Array<string>;
 };
 
 export type FrontendToolRequest = {
@@ -395,6 +404,38 @@ export type ListSchedulesResponse = {
 export type LoadedProvider = {
     config: DeclarativeProviderConfig;
     is_editable: boolean;
+};
+
+/**
+ * MCP App Resource
+ * Represents a UI resource that can be rendered in an MCP App
+ */
+export type McpAppResource = {
+    _meta?: ResourceMetadata | null;
+    /**
+     * Base64-encoded binary content (alternative to text)
+     */
+    blob?: string | null;
+    /**
+     * Optional description of what this resource does
+     */
+    description?: string | null;
+    /**
+     * MIME type (should be "text/html;profile=mcp-app" for MCP Apps)
+     */
+    mimeType: string;
+    /**
+     * Human-readable name of the resource
+     */
+    name: string;
+    /**
+     * Text content of the resource (HTML for MCP Apps)
+     */
+    text?: string | null;
+    /**
+     * URI of the resource (must use ui:// scheme)
+     */
+    uri: string;
 };
 
 /**
@@ -619,6 +660,9 @@ export type RawImageContent = {
 };
 
 export type RawResource = {
+    _meta?: {
+        [key: string]: unknown;
+    };
     description?: string;
     icons?: Array<Icon>;
     mimeType?: string;
@@ -642,7 +686,12 @@ export type ReadResourceRequest = {
 };
 
 export type ReadResourceResponse = {
-    html: string;
+    _meta?: {
+        [key: string]: unknown;
+    } | null;
+    mimeType?: string | null;
+    text: string;
+    uri: string;
 };
 
 export type Recipe = {
@@ -683,6 +732,14 @@ export type RecipeParameterInputType = 'string' | 'number' | 'boolean' | 'date' 
 
 export type RecipeParameterRequirement = 'required' | 'optional' | 'user_prompt';
 
+export type RecipeToYamlRequest = {
+    recipe: Recipe;
+};
+
+export type RecipeToYamlResponse = {
+    yaml: string;
+};
+
 export type RedactedThinkingContent = {
     data: string;
 };
@@ -706,6 +763,13 @@ export type ResourceContents = {
     blob: string;
     mimeType?: string;
     uri: string;
+};
+
+/**
+ * Resource metadata containing UI configuration
+ */
+export type ResourceMetadata = {
+    ui?: UiMetadata | null;
 };
 
 export type Response = {
@@ -988,6 +1052,9 @@ export type ToolPermission = {
 };
 
 export type ToolRequest = {
+    _meta?: {
+        [key: string]: unknown;
+    };
     id: string;
     metadata?: {
         [key: string]: unknown;
@@ -1016,6 +1083,21 @@ export type TunnelInfo = {
 
 export type TunnelState = 'idle' | 'starting' | 'running' | 'error' | 'disabled';
 
+/**
+ * UI-specific metadata for MCP resources
+ */
+export type UiMetadata = {
+    csp?: CspMetadata | null;
+    /**
+     * Preferred domain for the app (used for CORS)
+     */
+    domain?: string | null;
+    /**
+     * Whether the app prefers to have a border around it
+     */
+    prefersBorder?: boolean | null;
+};
+
 export type UpdateCustomProviderRequest = {
     api_key: string;
     api_url: string;
@@ -1035,10 +1117,6 @@ export type UpdateFromSessionRequest = {
 export type UpdateProviderRequest = {
     model?: string | null;
     provider: string;
-    session_id: string;
-};
-
-export type UpdateRouterToolSelectorRequest = {
     session_id: string;
 };
 
@@ -1394,37 +1472,6 @@ export type UpdateAgentProviderResponses = {
      */
     200: unknown;
 };
-
-export type UpdateRouterToolSelectorData = {
-    body: UpdateRouterToolSelectorRequest;
-    path?: never;
-    query?: never;
-    url: '/agent/update_router_tool_selector';
-};
-
-export type UpdateRouterToolSelectorErrors = {
-    /**
-     * Unauthorized - invalid secret key
-     */
-    401: unknown;
-    /**
-     * Agent not initialized
-     */
-    424: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type UpdateRouterToolSelectorResponses = {
-    /**
-     * Tool selection strategy updated successfully
-     */
-    200: string;
-};
-
-export type UpdateRouterToolSelectorResponse = UpdateRouterToolSelectorResponses[keyof UpdateRouterToolSelectorResponses];
 
 export type ReadAllConfigData = {
     body?: never;
@@ -2285,6 +2332,31 @@ export type SetRecipeSlashCommandResponses = {
      */
     200: unknown;
 };
+
+export type RecipeToYamlData = {
+    body: RecipeToYamlRequest;
+    path?: never;
+    query?: never;
+    url: '/recipes/to-yaml';
+};
+
+export type RecipeToYamlErrors = {
+    /**
+     * Bad request - Failed to convert recipe to YAML
+     */
+    400: ErrorResponse;
+};
+
+export type RecipeToYamlError = RecipeToYamlErrors[keyof RecipeToYamlErrors];
+
+export type RecipeToYamlResponses = {
+    /**
+     * Recipe converted to YAML successfully
+     */
+    200: RecipeToYamlResponse;
+};
+
+export type RecipeToYamlResponse2 = RecipeToYamlResponses[keyof RecipeToYamlResponses];
 
 export type ReplyData = {
     body: ChatRequest;

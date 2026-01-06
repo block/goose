@@ -41,7 +41,6 @@ use rmcp::model::{ErrorCode, ErrorData};
 
 use goose::config::paths::Paths;
 use goose::conversation::message::{ActionRequiredData, Message, MessageContent};
-use rand::{distributions::Alphanumeric, Rng};
 use rustyline::EditMode;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -65,9 +64,92 @@ struct JsonMetadata {
     status: String,
 }
 
+#[derive(Serialize, Debug)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum StreamEvent {
+    Message {
+        message: Message,
+    },
+    Notification {
+        extension_id: String,
+        #[serde(flatten)]
+        data: NotificationData,
+    },
+    ModelChange {
+        model: String,
+        mode: String,
+    },
+    Error {
+        error: String,
+    },
+    Complete {
+        total_tokens: Option<i32>,
+    },
+}
+
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "snake_case")]
+enum NotificationData {
+    Log {
+        message: String,
+    },
+    Progress {
+        progress: f64,
+        total: Option<f64>,
+        message: Option<String>,
+    },
+}
+
 pub enum RunMode {
     Normal,
     Plan,
+}
+
+struct HistoryManager {
+    history_file: PathBuf,
+    old_history_file: PathBuf,
+}
+
+impl HistoryManager {
+    fn new() -> Self {
+        Self {
+            history_file: Paths::state_dir().join("history.txt"),
+            old_history_file: Paths::config_dir().join("history.txt"),
+        }
+    }
+
+    fn load(
+        &self,
+        editor: &mut rustyline::Editor<GooseCompleter, rustyline::history::DefaultHistory>,
+    ) {
+        if let Some(parent) = self.history_file.parent() {
+            if !parent.exists() {
+                if let Err(e) = std::fs::create_dir_all(parent) {
+                    eprintln!("Warning: Failed to create history directory: {}", e);
+                }
+            }
+        }
+
+        let history_files = [&self.history_file, &self.old_history_file];
+        if let Some(file) = history_files.iter().find(|f| f.exists()) {
+            if let Err(err) = editor.load_history(file) {
+                eprintln!("Warning: Failed to load command history: {}", err);
+            }
+        }
+    }
+
+    fn save(
+        &self,
+        editor: &mut rustyline::Editor<GooseCompleter, rustyline::history::DefaultHistory>,
+    ) {
+        if let Err(err) = editor.save_history(&self.history_file) {
+            eprintln!("Warning: Failed to save command history: {}", err);
+        } else if self.old_history_file.exists() {
+            if let Err(err) = std::fs::remove_file(&self.old_history_file) {
+                eprintln!("Warning: Failed to remove old history file: {}", err);
+            }
+        }
+    }
 }
 
 pub struct CliSession {
@@ -135,32 +217,6 @@ pub async fn classify_planner_response(
     }
 }
 
-fn generate_extension_name(extension_command: &str) -> String {
-    let cmd_name: String = extension_command
-        .split([' ', '/'])
-        .next_back()
-        .unwrap_or("")
-        .chars()
-        .filter(|c| c.is_alphanumeric())
-        .collect();
-
-    let prefix: String = cmd_name.chars().take(16).collect();
-
-    let random_suffix: String = rand::thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(8)
-        .map(char::from)
-        .collect();
-
-    let name = format!("{}_{}", prefix, random_suffix);
-
-    if name.chars().next().is_none_or(|c| !c.is_alphabetic()) {
-        format!("g{}", name)
-    } else {
-        name
-    }
-}
-
 impl CliSession {
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
@@ -220,43 +276,12 @@ impl CliSession {
         }
 
         let cmd = parts.remove(0).to_string();
-        let name = generate_extension_name(&extension_command);
 
         let config = ExtensionConfig::Stdio {
-            name,
+            name: String::new(),
             cmd,
             args: parts.iter().map(|s| s.to_string()).collect(),
             envs: Envs::new(envs),
-            env_keys: Vec::new(),
-            description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
-            // TODO: should set timeout
-            timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
-            bundled: None,
-            available_tools: Vec::new(),
-        };
-
-        self.agent
-            .add_extension(config)
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to start extension: {}", e))?;
-
-        // Invalidate the completion cache when a new extension is added
-        self.invalidate_completion_cache().await;
-
-        Ok(())
-    }
-
-    /// Add a remote extension to the session
-    ///
-    /// # Arguments
-    /// * `extension_url` - URL of the server
-    pub async fn add_remote_extension(&mut self, extension_url: String) -> Result<()> {
-        let name = generate_extension_name(&extension_url);
-
-        let config = ExtensionConfig::Sse {
-            name,
-            uri: extension_url,
-            envs: Envs::new(HashMap::new()),
             env_keys: Vec::new(),
             description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
             // TODO: should set timeout
@@ -281,10 +306,8 @@ impl CliSession {
     /// # Arguments
     /// * `extension_url` - URL of the server
     pub async fn add_streamable_http_extension(&mut self, extension_url: String) -> Result<()> {
-        let name = generate_extension_name(&extension_url);
-
         let config = ExtensionConfig::StreamableHttp {
-            name,
+            name: String::new(),
             uri: extension_url,
             envs: Envs::new(HashMap::new()),
             env_keys: Vec::new(),
@@ -404,316 +427,28 @@ impl CliSession {
 
     /// Start an interactive session, optionally with an initial message
     pub async fn interactive(&mut self, prompt: Option<String>) -> Result<()> {
-        // Process initial message if provided
         if let Some(prompt) = prompt {
             let msg = Message::user().with_text(&prompt);
             self.process_message(msg, CancellationToken::default())
                 .await?;
         }
 
-        // Initialize the completion cache
         self.update_completion_cache().await?;
 
-        // Create a new editor with our custom completer
-        let builder =
-            rustyline::Config::builder().completion_type(rustyline::CompletionType::Circular);
-        let builder = if let Some(edit_mode) = self.edit_mode {
-            builder.edit_mode(edit_mode)
-        } else {
-            // Default to Emacs mode if no edit mode is set
-            builder.edit_mode(EditMode::Emacs)
-        };
-        let config = builder.build();
-        let mut editor =
-            rustyline::Editor::<GooseCompleter, rustyline::history::DefaultHistory>::with_config(
-                config,
-            )?;
-
-        // Set up the completer with a reference to the completion cache
-        let completer = GooseCompleter::new(self.completion_cache.clone());
-        editor.set_helper(Some(completer));
-
-        let history_file = Paths::state_dir().join("history.txt");
-        let old_history_file = Paths::config_dir().join("history.txt");
-
-        if let Some(parent) = history_file.parent() {
-            if !parent.exists() {
-                std::fs::create_dir_all(parent)?;
-            }
-        }
-
-        let history_files = [&history_file, &old_history_file];
-        let load_from = history_files.iter().find(|f| f.exists());
-
-        if let Some(file) = load_from {
-            if let Err(err) = editor.load_history(file) {
-                eprintln!("Warning: Failed to load command history: {}", err);
-            }
-        }
-
-        let save_history =
-            |editor: &mut rustyline::Editor<GooseCompleter, rustyline::history::DefaultHistory>| {
-                if let Err(err) = editor.save_history(&history_file) {
-                    eprintln!("Warning: Failed to save command history: {}", err);
-                } else if old_history_file.exists() {
-                    if let Err(err) = std::fs::remove_file(&old_history_file) {
-                        eprintln!("Warning: Failed to remove old history file: {}", err);
-                    }
-                }
-            };
+        let mut editor = self.create_editor()?;
+        let history_manager = HistoryManager::new();
+        history_manager.load(&mut editor);
 
         output::display_greeting();
         loop {
-            // Display context usage before each prompt
             self.display_context_usage().await?;
 
-            match input::get_input(&mut editor)? {
-                InputResult::Message(content) => {
-                    match self.run_mode {
-                        RunMode::Normal => {
-                            save_history(&mut editor);
-
-                            self.push_message(Message::user().with_text(&content));
-
-                            // Track the current directory and last instruction in projects.json
-                            if let Err(e) = crate::project_tracker::update_project_tracker(
-                                Some(&content),
-                                Some(&self.session_id),
-                            ) {
-                                eprintln!("Warning: Failed to update project tracker with instruction: {}", e);
-                            }
-
-                            let _provider = self.agent.provider().await?;
-
-                            output::show_thinking();
-                            let start_time = Instant::now();
-                            self.process_agent_response(true, CancellationToken::default())
-                                .await?;
-                            output::hide_thinking();
-
-                            // Display elapsed time
-                            let elapsed = start_time.elapsed();
-                            let elapsed_str = format_elapsed_time(elapsed);
-                            println!(
-                                "\n{}",
-                                console::style(format!("⏱️  Elapsed time: {}", elapsed_str)).dim()
-                            );
-                        }
-                        RunMode::Plan => {
-                            let mut plan_messages = self.messages.clone();
-                            plan_messages.push(Message::user().with_text(&content));
-                            let reasoner = get_reasoner().await?;
-                            self.plan_with_reasoner_model(plan_messages, reasoner)
-                                .await?;
-                        }
-                    }
-                }
-                input::InputResult::Exit => break,
-                input::InputResult::AddExtension(cmd) => {
-                    save_history(&mut editor);
-
-                    match self.add_extension(cmd.clone()).await {
-                        Ok(_) => output::render_extension_success(&cmd),
-                        Err(e) => output::render_extension_error(&cmd, &e.to_string()),
-                    }
-                }
-                input::InputResult::AddBuiltin(names) => {
-                    save_history(&mut editor);
-
-                    match self.add_builtin(names.clone()).await {
-                        Ok(_) => output::render_builtin_success(&names),
-                        Err(e) => output::render_builtin_error(&names, &e.to_string()),
-                    }
-                }
-                input::InputResult::ToggleTheme => {
-                    save_history(&mut editor);
-
-                    let current = output::get_theme();
-                    let new_theme = match current {
-                        output::Theme::Ansi => {
-                            println!("Switching to Light theme");
-                            output::Theme::Light
-                        }
-                        output::Theme::Light => {
-                            println!("Switching to Dark theme");
-                            output::Theme::Dark
-                        }
-                        output::Theme::Dark => {
-                            println!("Switching to Ansi theme");
-                            output::Theme::Ansi
-                        }
-                    };
-                    output::set_theme(new_theme);
-                    continue;
-                }
-
-                input::InputResult::SelectTheme(theme_name) => {
-                    save_history(&mut editor);
-
-                    let new_theme = match theme_name.as_str() {
-                        "light" => {
-                            println!("Switching to Light theme");
-                            output::Theme::Light
-                        }
-                        "dark" => {
-                            println!("Switching to Dark theme");
-                            output::Theme::Dark
-                        }
-                        "ansi" => {
-                            println!("Switching to Ansi theme");
-                            output::Theme::Ansi
-                        }
-                        _ => output::Theme::Dark,
-                    };
-                    output::set_theme(new_theme);
-                    continue;
-                }
-                input::InputResult::Retry => continue,
-                input::InputResult::ListPrompts(extension) => {
-                    save_history(&mut editor);
-
-                    match self.list_prompts(extension).await {
-                        Ok(prompts) => output::render_prompts(&prompts),
-                        Err(e) => output::render_error(&e.to_string()),
-                    }
-                }
-                input::InputResult::GooseMode(mode) => {
-                    save_history(&mut editor);
-
-                    let config = Config::global();
-                    let mode = match GooseMode::from_str(&mode.to_lowercase()) {
-                        Ok(mode) => mode,
-                        Err(_) => {
-                            output::render_error(&format!(
-                                "Invalid mode '{}'. Mode must be one of: auto, approve, chat, smart_approve",
-                                mode
-                            ));
-                            continue;
-                        }
-                    };
-                    config.set_goose_mode(mode)?;
-                    output::goose_mode_message(&format!("Goose mode set to '{:?}'", mode));
-                    continue;
-                }
-                input::InputResult::Plan(options) => {
-                    self.run_mode = RunMode::Plan;
-                    output::render_enter_plan_mode();
-
-                    let message_text = options.message_text;
-                    if message_text.is_empty() {
-                        continue;
-                    }
-                    let mut plan_messages = self.messages.clone();
-                    plan_messages.push(Message::user().with_text(&message_text));
-
-                    let reasoner = get_reasoner().await?;
-                    self.plan_with_reasoner_model(plan_messages, reasoner)
-                        .await?;
-                }
-                input::InputResult::EndPlan => {
-                    self.run_mode = RunMode::Normal;
-                    output::render_exit_plan_mode();
-                    continue;
-                }
-                input::InputResult::Clear => {
-                    save_history(&mut editor);
-
-                    if let Err(e) = SessionManager::replace_conversation(
-                        &self.session_id,
-                        &Conversation::default(),
-                    )
-                    .await
-                    {
-                        output::render_error(&format!("Failed to clear session: {}", e));
-                        continue;
-                    }
-
-                    if let Err(e) = SessionManager::update_session(&self.session_id)
-                        .total_tokens(Some(0))
-                        .input_tokens(Some(0))
-                        .output_tokens(Some(0))
-                        .apply()
-                        .await
-                    {
-                        output::render_error(&format!("Failed to reset token counts: {}", e));
-                        continue;
-                    }
-
-                    self.messages.clear();
-
-                    tracing::info!("Chat context cleared by user.");
-                    output::render_message(
-                        &Message::assistant().with_text("Chat context cleared.\n"),
-                        self.debug,
-                    );
-
-                    continue;
-                }
-                input::InputResult::PromptCommand(opts) => {
-                    save_history(&mut editor);
-                    self.handle_prompt_command(opts).await?;
-                }
-                InputResult::Recipe(filepath_opt) => {
-                    println!("{}", console::style("Generating Recipe").green());
-
-                    output::show_thinking();
-                    let recipe = self.agent.create_recipe(self.messages.clone()).await;
-                    output::hide_thinking();
-
-                    match recipe {
-                        Ok(recipe) => {
-                            // Use provided filepath or default
-                            let filepath_str = filepath_opt.as_deref().unwrap_or("recipe.yaml");
-                            match self.save_recipe(&recipe, filepath_str) {
-                                Ok(path) => println!(
-                                    "{}",
-                                    console::style(format!("Saved recipe to {}", path.display()))
-                                        .green()
-                                ),
-                                Err(e) => {
-                                    println!("{}", console::style(e).red());
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            println!(
-                                "{}: {:?}",
-                                console::style("Failed to generate recipe").red(),
-                                e
-                            );
-                        }
-                    }
-
-                    continue;
-                }
-                InputResult::Compact => {
-                    save_history(&mut editor);
-
-                    let prompt = "Are you sure you want to compact this conversation? This will condense the message history.";
-                    let should_summarize =
-                        match cliclack::confirm(prompt).initial_value(true).interact() {
-                            Ok(choice) => choice,
-                            Err(e) => {
-                                if e.kind() == std::io::ErrorKind::Interrupted {
-                                    false
-                                } else {
-                                    return Err(e.into());
-                                }
-                            }
-                        };
-
-                    if should_summarize {
-                        self.push_message(Message::user().with_text(COMPACT_TRIGGERS[0]));
-                        output::show_thinking();
-                        self.process_agent_response(true, CancellationToken::default())
-                            .await?;
-                        output::hide_thinking();
-                    } else {
-                        println!("{}", console::style("Compaction cancelled.").yellow());
-                    }
-                    continue;
-                }
+            let input = input::get_input(&mut editor)?;
+            if matches!(input, InputResult::Exit) {
+                break;
             }
+            self.handle_input(input, &history_manager, &mut editor)
+                .await?;
         }
 
         println!(
@@ -721,6 +456,295 @@ impl CliSession {
             console::style(&self.session_id).cyan()
         );
 
+        Ok(())
+    }
+
+    fn create_editor(
+        &self,
+    ) -> Result<rustyline::Editor<GooseCompleter, rustyline::history::DefaultHistory>> {
+        let builder =
+            rustyline::Config::builder().completion_type(rustyline::CompletionType::Circular);
+        let builder = match self.edit_mode {
+            Some(mode) => builder.edit_mode(mode),
+            None => builder.edit_mode(EditMode::Emacs),
+        };
+        let config = builder.build();
+        let mut editor =
+            rustyline::Editor::<GooseCompleter, rustyline::history::DefaultHistory>::with_config(
+                config,
+            )?;
+        let completer = GooseCompleter::new(self.completion_cache.clone());
+        editor.set_helper(Some(completer));
+        Ok(editor)
+    }
+
+    async fn handle_input(
+        &mut self,
+        input: InputResult,
+        history: &HistoryManager,
+        editor: &mut rustyline::Editor<GooseCompleter, rustyline::history::DefaultHistory>,
+    ) -> Result<()> {
+        match input {
+            InputResult::Message(content) => {
+                self.handle_message_input(&content, history, editor).await?;
+            }
+            InputResult::Exit => unreachable!("Exit is handled in the main loop"),
+            InputResult::AddExtension(cmd) => {
+                history.save(editor);
+                match self.add_extension(cmd.clone()).await {
+                    Ok(_) => output::render_extension_success(&cmd),
+                    Err(e) => output::render_extension_error(&cmd, &e.to_string()),
+                }
+            }
+            InputResult::AddBuiltin(names) => {
+                history.save(editor);
+                match self.add_builtin(names.clone()).await {
+                    Ok(_) => output::render_builtin_success(&names),
+                    Err(e) => output::render_builtin_error(&names, &e.to_string()),
+                }
+            }
+            InputResult::ToggleTheme => {
+                history.save(editor);
+                self.handle_toggle_theme();
+            }
+            InputResult::SelectTheme(theme_name) => {
+                history.save(editor);
+                self.handle_select_theme(&theme_name);
+            }
+            InputResult::Retry => {}
+            InputResult::ListPrompts(extension) => {
+                history.save(editor);
+                match self.list_prompts(extension).await {
+                    Ok(prompts) => output::render_prompts(&prompts),
+                    Err(e) => output::render_error(&e.to_string()),
+                }
+            }
+            InputResult::GooseMode(mode) => {
+                history.save(editor);
+                self.handle_goose_mode(&mode)?;
+            }
+            InputResult::Plan(options) => {
+                self.handle_plan_mode(options).await?;
+            }
+            InputResult::EndPlan => {
+                self.run_mode = RunMode::Normal;
+                output::render_exit_plan_mode();
+            }
+            InputResult::Clear => {
+                history.save(editor);
+                self.handle_clear().await?;
+            }
+            InputResult::PromptCommand(opts) => {
+                history.save(editor);
+                self.handle_prompt_command(opts).await?;
+            }
+            InputResult::Recipe(filepath_opt) => {
+                history.save(editor);
+                self.handle_recipe(filepath_opt).await;
+            }
+            InputResult::Compact => {
+                history.save(editor);
+                self.handle_compact().await?;
+            }
+        }
+        Ok(())
+    }
+
+    async fn handle_message_input(
+        &mut self,
+        content: &str,
+        history: &HistoryManager,
+        editor: &mut rustyline::Editor<GooseCompleter, rustyline::history::DefaultHistory>,
+    ) -> Result<()> {
+        match self.run_mode {
+            RunMode::Normal => {
+                history.save(editor);
+                self.push_message(Message::user().with_text(content));
+
+                if let Err(e) = crate::project_tracker::update_project_tracker(
+                    Some(content),
+                    Some(&self.session_id),
+                ) {
+                    eprintln!(
+                        "Warning: Failed to update project tracker with instruction: {}",
+                        e
+                    );
+                }
+
+                let _provider = self.agent.provider().await?;
+
+                output::show_thinking();
+                let start_time = Instant::now();
+                self.process_agent_response(true, CancellationToken::default())
+                    .await?;
+                output::hide_thinking();
+
+                let elapsed = start_time.elapsed();
+                let elapsed_str = format_elapsed_time(elapsed);
+                println!(
+                    "\n{}",
+                    console::style(format!("⏱️  Elapsed time: {}", elapsed_str)).dim()
+                );
+            }
+            RunMode::Plan => {
+                let mut plan_messages = self.messages.clone();
+                plan_messages.push(Message::user().with_text(content));
+                let reasoner = get_reasoner().await?;
+                self.plan_with_reasoner_model(plan_messages, reasoner)
+                    .await?;
+            }
+        }
+        Ok(())
+    }
+
+    fn handle_toggle_theme(&self) {
+        let current = output::get_theme();
+        let new_theme = match current {
+            output::Theme::Ansi => {
+                println!("Switching to Light theme");
+                output::Theme::Light
+            }
+            output::Theme::Light => {
+                println!("Switching to Dark theme");
+                output::Theme::Dark
+            }
+            output::Theme::Dark => {
+                println!("Switching to Ansi theme");
+                output::Theme::Ansi
+            }
+        };
+        output::set_theme(new_theme);
+    }
+
+    fn handle_select_theme(&self, theme_name: &str) {
+        let new_theme = match theme_name {
+            "light" => {
+                println!("Switching to Light theme");
+                output::Theme::Light
+            }
+            "dark" => {
+                println!("Switching to Dark theme");
+                output::Theme::Dark
+            }
+            "ansi" => {
+                println!("Switching to Ansi theme");
+                output::Theme::Ansi
+            }
+            _ => output::Theme::Dark,
+        };
+        output::set_theme(new_theme);
+    }
+
+    fn handle_goose_mode(&self, mode: &str) -> Result<()> {
+        let config = Config::global();
+        let mode = match GooseMode::from_str(&mode.to_lowercase()) {
+            Ok(mode) => mode,
+            Err(_) => {
+                output::render_error(&format!(
+                    "Invalid mode '{}'. Mode must be one of: auto, approve, chat, smart_approve",
+                    mode
+                ));
+                return Ok(());
+            }
+        };
+        config.set_goose_mode(mode)?;
+        output::goose_mode_message(&format!("Goose mode set to '{:?}'", mode));
+        Ok(())
+    }
+
+    async fn handle_plan_mode(&mut self, options: input::PlanCommandOptions) -> Result<()> {
+        self.run_mode = RunMode::Plan;
+        output::render_enter_plan_mode();
+
+        if options.message_text.is_empty() {
+            return Ok(());
+        }
+
+        let mut plan_messages = self.messages.clone();
+        plan_messages.push(Message::user().with_text(&options.message_text));
+
+        let reasoner = get_reasoner().await?;
+        self.plan_with_reasoner_model(plan_messages, reasoner).await
+    }
+
+    async fn handle_clear(&mut self) -> Result<()> {
+        if let Err(e) =
+            SessionManager::replace_conversation(&self.session_id, &Conversation::default()).await
+        {
+            output::render_error(&format!("Failed to clear session: {}", e));
+            return Ok(());
+        }
+
+        if let Err(e) = SessionManager::update_session(&self.session_id)
+            .total_tokens(Some(0))
+            .input_tokens(Some(0))
+            .output_tokens(Some(0))
+            .apply()
+            .await
+        {
+            output::render_error(&format!("Failed to reset token counts: {}", e));
+            return Ok(());
+        }
+
+        self.messages.clear();
+        tracing::info!("Chat context cleared by user.");
+        output::render_message(
+            &Message::assistant().with_text("Chat context cleared.\n"),
+            self.debug,
+        );
+        Ok(())
+    }
+
+    async fn handle_recipe(&mut self, filepath_opt: Option<String>) {
+        println!("{}", console::style("Generating Recipe").green());
+
+        output::show_thinking();
+        let recipe = self.agent.create_recipe(self.messages.clone()).await;
+        output::hide_thinking();
+
+        match recipe {
+            Ok(recipe) => {
+                let filepath_str = filepath_opt.as_deref().unwrap_or("recipe.yaml");
+                match self.save_recipe(&recipe, filepath_str) {
+                    Ok(path) => println!(
+                        "{}",
+                        console::style(format!("Saved recipe to {}", path.display())).green()
+                    ),
+                    Err(e) => println!("{}", console::style(e).red()),
+                }
+            }
+            Err(e) => {
+                println!(
+                    "{}: {:?}",
+                    console::style("Failed to generate recipe").red(),
+                    e
+                );
+            }
+        }
+    }
+
+    async fn handle_compact(&mut self) -> Result<()> {
+        let prompt = "Are you sure you want to compact this conversation? This will condense the message history.";
+        let should_summarize = match cliclack::confirm(prompt).initial_value(true).interact() {
+            Ok(choice) => choice,
+            Err(e) => {
+                if e.kind() == std::io::ErrorKind::Interrupted {
+                    false
+                } else {
+                    return Err(e.into());
+                }
+            }
+        };
+
+        if should_summarize {
+            self.push_message(Message::user().with_text(COMPACT_TRIGGERS[0]));
+            output::show_thinking();
+            self.process_agent_response(true, CancellationToken::default())
+                .await?;
+            output::hide_thinking();
+        } else {
+            println!("{}", console::style("Compaction cancelled.").yellow());
+        }
         Ok(())
     }
 
@@ -812,8 +836,15 @@ impl CliSession {
         interactive: bool,
         cancel_token: CancellationToken,
     ) -> Result<()> {
-        // Cache the output format check to avoid repeated string comparisons in the hot loop
         let is_json_mode = self.output_format == "json";
+        let is_stream_json_mode = self.output_format == "stream-json";
+
+        // Helper to emit a streaming JSON event
+        let emit_stream_event = |event: &StreamEvent| {
+            if let Ok(json) = serde_json::to_string(event) {
+                println!("{}", json);
+            }
+        };
 
         let session_config = SessionConfig {
             id: self.session_id.clone(),
@@ -1027,13 +1058,15 @@ impl CliSession {
                                 if interactive {output::hide_thinking()};
                                 let _ = progress_bars.hide();
 
-                                // Don't render in JSON mode
-                                if !is_json_mode {
+                                // Handle different output formats
+                                if is_stream_json_mode {
+                                    emit_stream_event(&StreamEvent::Message { message: message.clone() });
+                                } else if !is_json_mode {
                                     output::render_message(&message, self.debug);
                                 }
                             }
                         }
-                        Some(Ok(AgentEvent::McpNotification((_id, message)))) => {
+                        Some(Ok(AgentEvent::McpNotification((extension_id, message)))) => {
                             match &message {
                                 ServerNotification::LoggingMessageNotification(notification) => {
                                     let data = &notification.params.data;
@@ -1101,9 +1134,14 @@ impl CliSession {
                                         },
                                     };
 
+                                    if is_stream_json_mode {
+                                        emit_stream_event(&StreamEvent::Notification {
+                                            extension_id: extension_id.clone(),
+                                            data: NotificationData::Log { message: formatted_message.clone() },
+                                        });
+                                    }
                                     // Handle subagent notifications - show immediately
-                                    if let Some(_id) = subagent_id {
-                                        // TODO: proper display for subagent notifications
+                                    else if let Some(_id) = subagent_id {
                                         if interactive {
                                             let _ = progress_bars.hide();
                                             if !is_json_mode {
@@ -1125,7 +1163,6 @@ impl CliSession {
                                                 std::io::stdout().flush().unwrap();
                                             }
                                         } else if notification_type == "shell_output" {
-                                            // Hide spinner, print shell output, spinner will resume
                                             if interactive {
                                                 let _ = progress_bars.hide();
                                             }
@@ -1145,12 +1182,24 @@ impl CliSession {
                                     let text = notification.params.message.as_deref();
                                     let total = notification.params.total;
                                     let token = &notification.params.progress_token;
-                                    progress_bars.update(
-                                        &token.0.to_string(),
-                                        progress,
-                                        total,
-                                        text,
-                                    );
+
+                                    if is_stream_json_mode {
+                                        emit_stream_event(&StreamEvent::Notification {
+                                            extension_id: extension_id.clone(),
+                                            data: NotificationData::Progress {
+                                                progress,
+                                                total,
+                                                message: text.map(String::from),
+                                            },
+                                        });
+                                    } else {
+                                        progress_bars.update(
+                                            &token.0.to_string(),
+                                            progress,
+                                            total,
+                                            text,
+                                        );
+                                    }
                                 },
                                 _ => (),
                             }
@@ -1159,32 +1208,44 @@ impl CliSession {
                             self.messages = updated_conversation;
                         }
                         Some(Ok(AgentEvent::ModelChange { model, mode })) => {
-                            // Log model change if in debug mode
-                            if self.debug {
+                            if is_stream_json_mode {
+                                emit_stream_event(&StreamEvent::ModelChange {
+                                    model: model.clone(),
+                                    mode: mode.clone(),
+                                });
+                            } else if self.debug {
                                 eprintln!("Model changed to {} in {} mode", model, mode);
                             }
                         }
 
                         Some(Err(e)) => {
-                            // TODO(Douwe): Delete this
-                            // Check if it's a ProviderError::ContextLengthExceeded
+                            let error_msg = e.to_string();
+
+                            if is_stream_json_mode {
+                                emit_stream_event(&StreamEvent::Error { error: error_msg.clone() });
+                            }
+
                             if e.downcast_ref::<goose::providers::errors::ProviderError>()
                                 .map(|provider_error| matches!(provider_error, goose::providers::errors::ProviderError::ContextLengthExceeded(_)))
                                 .unwrap_or(false) {
 
-                                output::render_text(
-                                    "Compaction requested. Should have happened in the agent!",
-                                    Some(Color::Yellow),
-                                    true
-                                );
+                                if !is_stream_json_mode {
+                                    output::render_text(
+                                        "Compaction requested. Should have happened in the agent!",
+                                        Some(Color::Yellow),
+                                        true
+                                    );
+                                }
                                 warn!("Compaction requested. Should have happened in the agent!");
                             }
-                            eprintln!("Error: {}", e);
+                            if !is_stream_json_mode {
+                                eprintln!("Error: {}", error_msg);
+                            }
                             cancel_token_clone.cancel();
                             drop(stream);
                             if let Err(e) = self.handle_interrupted_messages(false).await {
                                 eprintln!("Error handling interruption: {}", e);
-                            } else {
+                            } else if !is_stream_json_mode {
                                 output::render_error(
                                     "The error above was an exception we were not able to handle.\n\
                                     These errors are often related to connection or authentication\n\
@@ -1207,7 +1268,7 @@ impl CliSession {
             }
         }
 
-        // Output JSON if requested
+        // Output based on format
         if is_json_mode {
             let metadata = match SessionManager::get_session(&self.session_id, false).await {
                 Ok(session) => JsonMetadata {
@@ -1226,6 +1287,12 @@ impl CliSession {
             };
 
             println!("{}", serde_json::to_string_pretty(&json_output)?);
+        } else if is_stream_json_mode {
+            let total_tokens = SessionManager::get_session(&self.session_id, false)
+                .await
+                .ok()
+                .and_then(|s| s.total_tokens);
+            emit_stream_event(&StreamEvent::Complete { total_tokens });
         } else {
             println!();
         }

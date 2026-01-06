@@ -338,6 +338,9 @@ pub trait LeadWorkerProviderTrait {
 
     /// Get the currently active model name
     fn get_active_model(&self) -> String;
+
+    /// Get (lead_turns, failure_threshold, fallback_turns)
+    fn get_settings(&self) -> (usize, usize, usize);
 }
 
 /// Base trait for AI providers (OpenAI, Anthropic, etc)

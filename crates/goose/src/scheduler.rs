@@ -260,7 +260,10 @@ impl Scheduler {
 
                 match result {
                     Ok(_) => tracing::info!("Job '{}' completed", task_job_id),
-                    Err(e) => tracing::error!("Job '{}' failed: {}", task_job_id, e),
+                    Err(ref e) => {
+                        tracing::error!("Job '{}' failed: {}", task_job_id, e);
+                        crate::posthog::emit_error("scheduler_job_failed", &e.to_string());
+                    }
                 }
             })
         })

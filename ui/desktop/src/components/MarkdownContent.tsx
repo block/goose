@@ -155,7 +155,6 @@ const MarkdownContent = memo(function MarkdownContent({
       setProcessedContent(processed);
     } catch (error) {
       console.error('Error processing content:', error);
-      // Fallback to original content if processing fails
       setProcessedContent(content);
     }
   }, [content]);
@@ -180,7 +179,7 @@ const MarkdownContent = memo(function MarkdownContent({
       prose-li:m-0 prose-li:font-sans ${className}`}
     >
       <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkBreaks, remarkMath]}
+        remarkPlugins={[remarkGfm, remarkBreaks, [remarkMath, { singleDollarTextMath: false }]]}
         rehypePlugins={[
           [
             rehypeKatex,

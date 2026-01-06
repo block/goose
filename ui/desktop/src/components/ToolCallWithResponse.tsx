@@ -16,14 +16,44 @@ import { TooltipWrapper } from './settings/providers/subcomponents/buttons/Toolt
 import MCPUIResourceRenderer from './MCPUIResourceRenderer';
 import { isUIResource } from '@mcp-ui/client';
 import { CallToolResponse, Content, EmbeddedResource } from '../api';
+import McpAppRenderer from './McpApps/McpAppRenderer';
+
+interface ToolGraphNode {
+  tool: string;
+  description: string;
+  depends_on: number[];
+}
+
+type ToolResultWithMeta = {
+  status?: string;
+  value?: CallToolResponse & {
+    _meta?: {
+      'ui/resourceUri'?: string;
+    };
+  };
+};
+
+type ToolRequestWithMeta = ToolRequestMessageContent & {
+  _meta?: {
+    'ui/resourceUri'?: string;
+  };
+  toolCall: {
+    status: 'success';
+    value: {
+      name: string;
+      arguments?: Record<string, unknown>;
+    };
+  };
+};
 
 interface ToolCallWithResponseProps {
+  sessionId?: string;
   isCancelledMessage: boolean;
   toolRequest: ToolRequestMessageContent;
   toolResponse?: ToolResponseMessageContent;
   notifications?: NotificationEvent[];
   isStreamingMessage?: boolean;
-  append?: (value: string) => void; // Function to append messages to the chat
+  append?: (value: string) => void;
 }
 
 function getToolResultContent(toolResult: Record<string, unknown>): Content[] {
@@ -41,7 +71,57 @@ function isEmbeddedResource(content: Content): content is EmbeddedResource {
   return 'resource' in content && typeof (content as Record<string, unknown>).resource === 'object';
 }
 
+function maybeRenderMCPApp(
+  toolRequest: ToolRequestMessageContent,
+  toolResponse: ToolResponseMessageContent | undefined,
+  sessionId: string,
+  append?: (value: string) => void
+): React.ReactNode {
+  const requestWithMeta = toolRequest as ToolRequestWithMeta;
+  let resourceUri = requestWithMeta._meta?.['ui/resourceUri'];
+
+  if (!resourceUri && toolResponse) {
+    const resultWithMeta = toolResponse.toolResult as ToolResultWithMeta;
+    if (resultWithMeta?.status === 'success' && resultWithMeta.value) {
+      resourceUri = resultWithMeta.value._meta?.['ui/resourceUri'];
+    }
+  }
+
+  if (!resourceUri) return null;
+  if (requestWithMeta.toolCall.status !== 'success') return null;
+
+  const extensionName = requestWithMeta.toolCall.value.name.split('__')[0];
+
+  let toolResult: CallToolResponse | undefined;
+  if (toolResponse) {
+    const resultWithMeta = toolResponse.toolResult as ToolResultWithMeta;
+    if (resultWithMeta?.status === 'success' && resultWithMeta.value) {
+      toolResult = resultWithMeta.value;
+    }
+  }
+
+  return (
+    <div className="mt-3">
+      <McpAppRenderer
+        resourceUri={resourceUri}
+        toolInput={{ arguments: requestWithMeta.toolCall.value.arguments || {} }}
+        toolResult={toolResult}
+        extensionName={extensionName}
+        sessionId={sessionId}
+        append={append}
+      />
+      <div className="mt-3 p-4 py-3 border border-borderSubtle rounded-lg bg-background-muted flex items-center">
+        <FlaskConical className="mr-2" size={20} />
+        <div className="text-sm font-sans">
+          MCP Apps are experimental and may change at any time.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ToolCallWithResponse({
+  sessionId,
   isCancelledMessage,
   toolRequest,
   toolResponse,
@@ -100,6 +180,8 @@ export default function ToolCallWithResponse({
             return null;
           }
         })}
+
+      {sessionId && maybeRenderMCPApp(toolRequest, toolResponse, sessionId, append)}
     </>
   );
 }
@@ -185,6 +267,14 @@ const logToString = (logMessage: NotificationEvent) => {
 const notificationToProgress = (notification: NotificationEvent): Progress => {
   const message = notification.message as { method: string; params: unknown };
   return message.params as Progress;
+};
+
+// Helper function to extract toolcall name
+const getToolName = (toolCallName: string): string => {
+  const lastIndex = toolCallName.lastIndexOf('__');
+  if (lastIndex === -1) return toolCallName;
+
+  return toolCallName.substring(lastIndex + 2);
 };
 
 // Helper function to extract extension name for tooltip
@@ -294,7 +384,7 @@ function ToolCallView({
   // Function to create a descriptive representation of what the tool is doing
   const getToolDescription = (): string | null => {
     const args = toolCall.arguments as Record<string, ToolCallArgumentValue>;
-    const toolName = toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2);
+    const toolName = getToolName(toolCall.name);
 
     const getStringValue = (value: ToolCallArgumentValue): string => {
       return typeof value === 'string' ? value : JSON.stringify(value);
@@ -410,6 +500,20 @@ function ToolCallView({
       case 'computer_control':
         return `poking around...`;
 
+      case 'execute_code': {
+        const toolGraph = args.tool_graph as unknown as ToolGraphNode[] | undefined;
+        if (toolGraph && Array.isArray(toolGraph) && toolGraph.length > 0) {
+          if (toolGraph.length === 1) {
+            return `${toolGraph[0].description}`;
+          }
+          if (toolGraph.length === 2) {
+            return `${toolGraph[0].tool}, ${toolGraph[1].tool}`;
+          }
+          return `${toolGraph.length} tools used`;
+        }
+        return 'executing code';
+      }
+
       default: {
         // Generic fallback for unknown tools: ToolName + CompactArguments
         // This ensures any MCP tool works without explicit handling
@@ -446,7 +550,7 @@ function ToolCallView({
       return description;
     }
     // Fallback tool name formatting
-    return snakeToTitleCase(toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2));
+    return snakeToTitleCase(getToolName(toolCall.name));
   };
   // Map LoadingStatus to ToolCallStatus
   const getToolCallStatus = (loadingStatus: LoadingStatus): ToolCallStatus => {
@@ -489,12 +593,34 @@ function ToolCallView({
         )
       }
     >
-      {/* Tool Details */}
-      {isToolDetails && (
-        <div className="border-t border-borderSubtle">
-          <ToolDetailsView toolCall={toolCall} isStartExpanded={isExpandToolDetails} />
-        </div>
-      )}
+      {(() => {
+        const toolName = toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2);
+        const toolGraph = toolCall.arguments?.tool_graph as unknown as ToolGraphNode[] | undefined;
+        const code = toolCall.arguments?.code as unknown as string | undefined;
+        const hasToolGraph =
+          toolName === 'execute_code' &&
+          toolGraph &&
+          Array.isArray(toolGraph) &&
+          toolGraph.length > 0;
+
+        if (hasToolGraph) {
+          return (
+            <div className="border-t border-borderSubtle">
+              <ToolGraphView toolGraph={toolGraph} code={code} />
+            </div>
+          );
+        }
+
+        if (isToolDetails) {
+          return (
+            <div className="border-t border-borderSubtle">
+              <ToolDetailsView toolCall={toolCall} isStartExpanded={isExpandToolDetails} />
+            </div>
+          );
+        }
+
+        return null;
+      })()}
 
       {logs && logs.length > 0 && (
         <div className="border-t border-borderSubtle">
@@ -550,6 +676,45 @@ function ToolDetailsView({ toolCall, isStartExpanded }: ToolDetailsViewProps) {
         )}
       </div>
     </ToolCallExpandable>
+  );
+}
+
+interface ToolGraphViewProps {
+  toolGraph: ToolGraphNode[];
+  code?: string;
+}
+
+function ToolGraphView({ toolGraph, code }: ToolGraphViewProps) {
+  const renderGraph = () => {
+    if (toolGraph.length === 0) return null;
+
+    const lines: string[] = [];
+
+    toolGraph.forEach((node, index) => {
+      const deps =
+        node.depends_on.length > 0 ? ` (uses ${node.depends_on.map((d) => d + 1).join(', ')})` : '';
+      lines.push(`${index + 1}. ${node.tool}: ${node.description}${deps}`);
+    });
+
+    return lines.join('\n');
+  };
+
+  return (
+    <div className="px-4 py-2">
+      <pre className="font-mono text-xs text-textSubtle whitespace-pre-wrap">{renderGraph()}</pre>
+      {code && (
+        <div className="border-t border-borderSubtle -mx-4 mt-2">
+          <ToolCallExpandable
+            label={<span className="pl-4 font-sans text-sm">Code</span>}
+            isStartExpanded={false}
+          >
+            <pre className="font-mono text-xs text-textSubtle whitespace-pre-wrap overflow-x-auto px-4 py-2">
+              {code}
+            </pre>
+          </ToolCallExpandable>
+        </div>
+      )}
+    </div>
   );
 }
 

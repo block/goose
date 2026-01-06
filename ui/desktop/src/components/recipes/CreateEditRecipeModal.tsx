@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useForm } from '@tanstack/react-form';
 import { Recipe, generateDeepLink, Parameter } from '../../recipe';
+import { Check, ExternalLink, Play, Save, X } from 'lucide-react';
 import { Geese } from '../icons/Geese';
 import Copy from '../icons/Copy';
-import { Check, Save, X, Play } from 'lucide-react';
 import { ExtensionConfig } from '../ConfigContext';
 import { Button } from '../ui/button';
 
@@ -342,8 +342,17 @@ export default function CreateEditRecipeModal({
               </h1>
               <p className="text-textSubtle text-sm">
                 {isCreateMode
-                  ? 'Create a new recipe to define agent behavior and capabilities.'
-                  : "You can edit the recipe below to change the agent's behavior in a new session."}
+                  ? 'Create a new recipe to define agent behavior and capabilities for reusable chat sessions.'
+                  : "You can edit the recipe below to change the agent's behavior in a new session."}{' '}
+                <a
+                  href="https://block.github.io/goose/docs/guides/recipes/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-blue-500 hover:text-blue-600 hover:underline"
+                >
+                  Learn more
+                  <ExternalLink className="w-3 h-3" />
+                </a>
               </p>
             </div>
           </div>

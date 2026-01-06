@@ -19,38 +19,33 @@ When a session starts, goose adds any skills that it discovers to its instructio
 
 You can also ask goose what skills are available.
 
-:::tip Other goose features that support reuse
-- [.goosehints](/docs/guides/context-engineering/using-goosehints): Best for general preferences, project context, and repeated instructions like "Always use TypeScript"
-- [recipes](/docs/guides/recipes/session-recipes): Shareable configurations that package instructions, prompts, and settings together
+:::info Claude Compatibility
+goose skills are compatible with Claude Desktop and other [agents that support Agent Skills](https://agentskills.io/home#adoption).
 :::
 
-## Claude Compatibility
+## Skill Locations
 
-goose skills use the same format as Claude Desktop skills. goose discovers skills from both `.claude/skills/` and `.goose/skills/` directories, so you can share skills between both tools or create tool-specific versions as needed.
+Skills can be stored globally and/or per-project. goose checks all of these directories in order and combines what it finds. If the same skill name exists in multiple directories, later directories take priority:
 
-When the same skill name exists in multiple directories, goose follows the priority order listed in [Skill Locations](#skill-locations). Later directories override earlier ones regardless of whether they're `.claude` or `.goose` directories.
+1. `~/.claude/skills/` — Global, shared with Claude Desktop
+2. `~/.config/agents/skills/` — Global, portable across AI coding agents
+3. `~/.config/goose/skills/` — Global, goose-specific
+4. `./.claude/skills/` — Project-level, shared with Claude Desktop
+5. `./.goose/skills/` — Project-level, goose-specific
+6. `./.agents/skills/` — Project-level, portable across AI coding agents
+
+Use global skills for workflows you use across projects. Use project-level skills for procedures unique to a codebase.
 
 ## Creating a Skill
 
 Create a skill when you have a repeatable workflow that involves multiple steps, specialized knowledge, or supporting files.
-
-### Skill Locations
-
-Skills can be stored globally and/or per-project. goose checks all of these directories in order and combines what it finds. If the same skill name exists in multiple directories, the latest directory takes priority:
-
-1. `~/.claude/skills/` — Global, shared with Claude Desktop
-2. `~/.config/goose/skills/` — Global, goose-specific
-3. `./.claude/skills/` — Current directory, shared with Claude Desktop
-4. `./.goose/skills/` — Current directory, goose-specific (highest priority)
-
-Use global skills for workflows you use across projects. Use project-specific skills for procedures unique to a codebase.
 
 ### Skill File Structure
 
 Each skill lives in its own directory with a `SKILL.md` file:
 
 ```
-~/.config/goose/skills/
+~/.config/agents/skills/
 └── code-review/
     └── SKILL.md
 ```
@@ -93,7 +88,7 @@ When reviewing code, check each of these areas:
 Skills can include supporting files like scripts, templates, or configuration files. Place them in the skill directory:
 
 ```
-~/.config/goose/skills/
+~/.config/agents/skills/
 └── api-setup/
     ├── SKILL.md
     ├── setup.sh
@@ -259,8 +254,32 @@ Always verify webhook signatures. See `src/webhooks/square.js` for our handler p
 
 </details>
 
+:::tip Other goose features that support reuse
+- [.goosehints](/docs/guides/context-engineering/using-goosehints): Best for general preferences, project context, and repeated instructions like "Always use TypeScript"
+- [recipes](/docs/guides/recipes/session-recipes): Shareable configurations that package instructions, prompts, and settings together
+:::
+
 ## Best Practices
 
 - **Keep skills focused** — One skill per workflow or domain. If a skill is getting long, consider splitting it.
 - **Write for clarity** — Skills are instructions for goose. Use clear, direct language and numbered steps.
 - **Include verification steps** — Help goose confirm the workflow completed successfully.
+
+## Additional Resources
+
+import ContentCardCarousel from '@site/src/components/ContentCardCarousel';
+import skillsvsmcp from '@site/blog/2025-12-22-agent-skills-vs-mcp/skills-vs-mcp.png';
+
+<ContentCardCarousel
+  items={[
+    {
+      type: 'blog',
+      title: 'Did Skills Kill MCP?',
+      description: 'An overview of Agent Skills vs MCP',
+      thumbnailUrl: skillsvsmcp,
+      linkUrl: '/goose/blog/2025/12/22/agent-skills-vs-mcp',
+      date: '2025-12-22',
+      duration: '4 min read'
+    }
+  ]}
+/>

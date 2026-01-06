@@ -191,7 +191,7 @@ Search allows you to find specific content within sessions or find specific sess
     goose will search your session history and show relevant conversations with context from matching sessions. 
     
     :::info
-    This functionality requires the built-in `Chatrecall` extension to be enabled (it's enabled by default).
+    This functionality requires the built-in [Chatrecall extension](/docs/mcp/chatrecall-mcp) to be enabled.
     :::
 
     #### Search Within Historical Session
@@ -243,7 +243,7 @@ Search allows you to find specific content within sessions or find specific sess
     goose will search your session history and show relevant conversations with context from matching sessions.
     
     :::info
-    This functionality requires the built-in `Chatrecall` extension to be enabled (it's enabled by default).
+    This functionality requires the built-in [Chatrecall extension](/docs/mcp/chatrecall-mcp) to be enabled.
     :::
 
     #### Search Session Data Directly
