@@ -1,11 +1,11 @@
 use crate::config::paths::Paths;
-use crate::providers::api_client::{self, ApiClient, AuthMethod};
+use crate::providers::api_client::{ApiClient, AuthMethod};
 use crate::providers::utils::{handle_status_openai_compat, stream_openai_compat};
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use axum::http;
 use chrono::{DateTime, Utc};
-use reqwest::Client;
+use reqwest::{Client, Response};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::cell::RefCell;
@@ -172,7 +172,7 @@ impl GithubCopilotProvider {
         })
     }
 
-    async fn post(&self, payload: &mut Value) -> Result<Value, ProviderError> {
+    async fn post(&self, payload: &mut Value) -> Result<Response, ProviderError> {
         let (endpoint, token) = self.get_api_info().await?;
         let auth = AuthMethod::BearerToken(token);
         let mut headers = self.get_github_headers();
@@ -181,9 +181,10 @@ impl GithubCopilotProvider {
         }
         let api_client = ApiClient::new(endpoint.clone(), auth)?.with_headers(headers)?;
 
-        let response = api_client.response_post("chat/completions", payload).await?;
-
-        handle_response_openai_compat(response).await
+        api_client
+            .response_post("chat/completions", payload)
+            .await
+            .map_err(|e| e.into())
     }
 
     async fn get_api_info(&self) -> Result<(String, String)> {
@@ -436,6 +437,8 @@ impl Provider for GithubCopilotProvider {
             })
             .await?;
 
+        let response = handle_response_openai_compat(response).await?;
+
         // Parse response
         let message = response_to_message(&response)?;
         let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
@@ -465,15 +468,8 @@ impl Provider for GithubCopilotProvider {
 
         let response = self
             .with_retry(|| async {
-                let (endpoint, token) = self.get_api_info().await?;
-                let auth = AuthMethod::BearerToken(token);
-                let mut headers = self.get_github_headers();
-                if Self::payload_contains_image(&payload) {
-                    headers.insert("Copilot-Vision-Request", "true".parse().unwrap());
-                }
-                let api_client = ApiClient::new(endpoint.clone(), auth)?.with_headers(headers)?;
-
-                let resp = api_client.response_post("chat/completions", &payload).await?;
+                let mut payload_clone = payload.clone();
+                let resp = self.post(&mut payload_clone).await?;
                 handle_status_openai_compat(resp).await
             })
             .await
