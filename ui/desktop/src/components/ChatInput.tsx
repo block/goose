@@ -1385,7 +1385,7 @@ export default function ChatInput({
                         : isTranscribing
                           ? 'Transcribing...'
                           : chatState === ChatState.RestartingAgent
-                            ? 'Restarting agent...'
+                            ? 'Restarting session...'
                             : 'Send'}
                 </p>
               </TooltipContent>
