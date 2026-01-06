@@ -132,6 +132,40 @@ async function ensureTempDirExists(): Promise<string> {
   return gooseTempDir;
 }
 
+// Configure HTTP proxy settings for the application
+async function configureProxy() {
+  try {
+    // Check for proxy environment variables
+    const httpsProxy = process.env.HTTPS_PROXY || process.env.https_proxy;
+    const httpProxy = process.env.HTTP_PROXY || process.env.http_proxy;
+    const noProxy = process.env.NO_PROXY || process.env.no_proxy || '';
+    
+    const proxyUrl = httpsProxy || httpProxy;
+    
+    if (proxyUrl) {
+      console.log('[Main] Configuring proxy:', proxyUrl);
+      
+      // Set proxy configuration for the default session
+      await session.defaultSession.setProxy({
+        proxyRules: proxyUrl,
+        proxyBypassRules: noProxy
+      });
+      
+      console.log('[Main] Proxy configured successfully');
+    } else {
+      // Try to resolve system proxy settings
+      const systemProxy = await session.defaultSession.resolveProxy('https://example.com');
+      if (systemProxy && systemProxy !== 'DIRECT') {
+        console.log('[Main] Using system proxy:', systemProxy);
+      } else {
+        console.log('[Main] No proxy configured');
+      }
+    }
+  } catch (error) {
+    console.error('[Main] Failed to configure proxy:', error);
+  }
+}
+
 if (started) app.quit();
 
 if (process.env.ENABLE_PLAYWRIGHT) {
@@ -1797,6 +1831,9 @@ const focusWindow = () => {
 };
 
 async function appMain() {
+  // Configure HTTP proxy settings before initializing the app
+  await configureProxy();
+
   // Ensure Windows shims are available before any MCP processes are spawned
   await ensureWinShims();
 
