@@ -439,7 +439,7 @@ impl Provider for GcpVertexAIProvider {
     where
         Self: Sized,
     {
-        let model_strings: Vec<String> = vec![
+        let model_strings: Vec<String> = [
             GcpVertexAIModel::Claude(ClaudeVersion::Sonnet37),
             GcpVertexAIModel::Claude(ClaudeVersion::Sonnet4),
             GcpVertexAIModel::Claude(ClaudeVersion::Opus4),

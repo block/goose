@@ -544,7 +544,7 @@ mod tests {
 
     #[test]
     fn test_valid_conversation() {
-        let all_messages = vec![
+        let all_messages = [
             Message::user().with_text("Can you help me search for something?"),
             Message::assistant()
                 .with_text("I'll help you search.")

@@ -10,7 +10,7 @@ use rmcp::model::{
     object, AnnotateAble, CallToolRequestParam, Content, ErrorCode, ErrorData, RawContent,
     ResourceContents, Role, Tool,
 };
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::{json, Value};
 use std::borrow::Cow;
 
@@ -370,43 +370,6 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
     ))
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-struct DeltaToolCallFunction {
-    name: Option<String>,
-    arguments: String, // chunk of encoded JSON,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct DeltaToolCall {
-    id: Option<String>,
-    function: DeltaToolCallFunction,
-    index: Option<i32>,
-    r#type: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct Delta {
-    content: Option<String>,
-    role: Option<String>,
-    tool_calls: Option<Vec<DeltaToolCall>>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct StreamingChoice {
-    delta: Delta,
-    index: Option<i32>,
-    finish_reason: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct StreamingChunk {
-    choices: Vec<StreamingChoice>,
-    created: Option<i64>,
-    id: Option<String>,
-    usage: Option<Value>,
-    model: String,
-}
-
 /// Check if the model name indicates a Claude/Anthropic model that supports cache control.
 fn is_claude_model(model_name: &str) -> bool {
     model_name.contains("claude")
@@ -740,13 +703,13 @@ mod tests {
             }),
         );
 
-        let spec = format_tools(&[tool.clone()], "gpt-4o")?;
+        let spec = format_tools(std::slice::from_ref(&tool), "gpt-4o")?;
         assert_eq!(
             spec[0]["function"]["parameters"]["$schema"],
             "http://json-schema.org/draft-07/schema#"
         );
 
-        let spec = format_tools(&[tool.clone()], "gemini-2-5-flash")?;
+        let spec = format_tools(std::slice::from_ref(&tool), "gemini-2-5-flash")?;
         assert!(spec[0]["function"]["parameters"].get("$schema").is_none());
         assert_eq!(spec[0]["function"]["parameters"]["type"], "object");
 
