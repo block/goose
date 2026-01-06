@@ -82,7 +82,7 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
             skills_extension::EXTENSION_NAME,
             PlatformExtensionDef {
                 name: skills_extension::EXTENSION_NAME,
-description: "Load and use skills from relevant directories",
+                description: "Load and use skills from relevant directories",
                 default_enabled: true,
                 client_factory: |ctx| Box::new(skills_extension::SkillsClient::new(ctx).unwrap()),
             },
