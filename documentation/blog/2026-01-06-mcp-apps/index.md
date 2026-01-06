@@ -55,10 +55,10 @@ If you build or port an app, we want to hear from you. File issues, share demos,
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2026/01/06/mcp-apps" />
   <meta property="og:description" content="goose ships early support for the draft MCP Apps specification, aligning with the emerging standard for interactive UIs in MCP." />
-  <meta property="og:image" content="http://block.github.io/goose/assets/images/goose-lands-mcp-apps-header-image.png" />
+<meta property="og:image" content="http://block.github.io/goose/assets/images/goose-lands-mcp-apps-header-image-eb1f899d6de24f21cc2c45e46727f11d.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="goose Lands MCP Apps" />
   <meta name="twitter:description" content="goose ships early support for the draft MCP Apps specification, aligning with the emerging standard for interactive UIs in MCP." />
-  <meta name="twitter:image" content="http://block.github.io/goose/assets/images/goose-lands-mcp-apps-header-image.png" />
+  <meta name="twitter:image" content="http://block.github.io/goose/assets/images/goose-lands-mcp-apps-header-image-eb1f899d6de24f21cc2c45e46727f11d.png" />
 </head>
