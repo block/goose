@@ -1,28 +1,24 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Input } from '../../../../../ui/input';
 import { Select } from '../../../../../ui/Select';
 import { useConfig } from '../../../../../ConfigContext';
-import { ProviderDetails, ConfigKey } from '../../../../../../api';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../../../../ui/collapsible';
+import type { AuthModeChoice, ConfigKey, ProviderDetails } from '../../../../../../api';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '../../../../../ui/collapsible';
 
 type ValidationErrors = Record<string, string>;
 
 type ConfigValue = string | { maskedValue: string };
+
 export interface ConfigInput {
   serverValue?: ConfigValue;
   value?: string;
 }
 
-type AuthModeChoice = {
-  value: string;
-  label: string;
-  description?: string | null;
-  requires_api_key: boolean;
-};
-
-type ConfigKeyWithAuth = ConfigKey & {
-  auth_modes?: AuthModeChoice[] | null;
-};
+type ConfigKeyWithAuth = ConfigKey;
 
 interface DefaultProviderSetupFormProps {
   configValues: Record<string, ConfigInput>;
@@ -55,9 +51,8 @@ export default function DefaultProviderSetupForm({
 }: DefaultProviderSetupFormProps) {
   const parameters = useMemo(
     () => (provider.metadata.config_keys || []) as ConfigKeyWithAuth[],
-    [provider.metadata.config_keys]
+    [provider.metadata.config_keys],
   );
-  const isAzureProvider = provider.name === 'azure_openai';
   const [isLoading, setIsLoading] = useState(true);
   const [optionalExpanded, setOptionalExpanded] = useState(false);
   const { read } = useConfig();
@@ -67,16 +62,6 @@ export default function DefaultProviderSetupForm({
       ...prev,
       [parameter.name]: {
         ...(prev[parameter.name] || {}),
-        value,
-      },
-    }));
-  };
-
-  const handleAzureEndpointChange = (value: string) => {
-    setConfigValues((prev) => ({
-      ...prev,
-      AZURE_OPENAI_ENDPOINT: {
-        ...(prev.AZURE_OPENAI_ENDPOINT || {}),
         value,
       },
     }));
@@ -109,101 +94,7 @@ export default function DefaultProviderSetupForm({
 
   useEffect(() => {
     loadConfigValues();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Azure-specific UX: after a short human delay, normalize the endpoint field.
-  // Cases:
-  //  a) value == endpoint (no path, no api-version): do nothing
-  //  b) value == endpoint + path: set Endpoint to endpoint only
-  //  c) value == endpoint + path + api-version: set Endpoint to endpoint only and
-  //     update API Version from the query parameter
-  useEffect(() => {
-    if (!isAzureProvider) {
-      return;
-    }
-
-    const entry = configValues['AZURE_OPENAI_ENDPOINT'];
-    const rawValue =
-      ((entry?.value as string | undefined) ??
-        (typeof entry?.serverValue === 'string'
-          ? (entry.serverValue as string)
-          : undefined)) ||
-      '';
-    const trimmed = rawValue.trim();
-
-    if (!trimmed) {
-      // User cleared the field or hasn't entered anything meaningful yet
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      try {
-        const normalized = trimmed.startsWith('http://') || trimmed.startsWith('https://')
-          ? trimmed
-          : `https://${trimmed}`;
-
-        const url = new URL(normalized);
-        const origin = url.origin; // scheme + host + optional port
-        const hasPath = url.pathname && url.pathname !== '/';
-        const apiVersion = url.searchParams.get('api-version');
-        const hasApiVersion = !!apiVersion;
-
-        // Case a) value == endpoint: no path and no api-version → do nothing
-        if (!hasPath && !hasApiVersion) {
-          return;
-        }
-
-        setConfigValues((prev) => {
-          const next: Record<string, ConfigInput> = { ...prev };
-          let changed = false;
-
-          const prevEndpointEntry = prev.AZURE_OPENAI_ENDPOINT;
-          const prevEndpointValue =
-            ((prevEndpointEntry?.value as string | undefined) ??
-              (typeof prevEndpointEntry?.serverValue === 'string'
-                ? (prevEndpointEntry.serverValue as string)
-                : undefined)) ||
-            '';
-
-          // Case b/c: value had a path → set endpoint field to origin only
-          if (hasPath && origin && prevEndpointValue !== origin) {
-            next.AZURE_OPENAI_ENDPOINT = {
-              ...(prevEndpointEntry || {}),
-              value: origin,
-            };
-            changed = true;
-          }
-
-          // Case c: if api-version is present in the URL, update API Version field
-          if (hasApiVersion && apiVersion) {
-            const prevApiEntry = prev.AZURE_OPENAI_API_VERSION;
-            const prevApiValue =
-              ((prevApiEntry?.value as string | undefined) ??
-                (typeof prevApiEntry?.serverValue === 'string'
-                  ? (prevApiEntry.serverValue as string)
-                  : undefined)) ||
-              '';
-
-            if (prevApiValue !== apiVersion) {
-              next.AZURE_OPENAI_API_VERSION = {
-                ...(prevApiEntry || {}),
-                value: apiVersion,
-              };
-              changed = true;
-            }
-          }
-
-          return changed ? next : prev;
-        });
-      } catch {
-        // Ignore parse errors; user may still be typing an incomplete URL or has pasted invalid text.
-        // We avoid being intrusive in these cases.
-      }
-    }, 800); // ~0.8s debounce to allow human typing
-
-    return () => clearTimeout(timer);
-  }, [isAzureProvider, configValues, setConfigValues]);
+  }, [loadConfigValues]);
 
   const getPlaceholder = (parameter: ConfigKey): string => {
     if (parameter.secret) {
@@ -233,12 +124,12 @@ export default function DefaultProviderSetupForm({
     if (name.includes('api_key')) return 'API Key';
     if (name.includes('api_url') || name.includes('host')) return 'API Host';
     if (name.includes('models')) return 'Models';
- 
-    let parameter_name = parameter.name.toUpperCase();
-    if (parameter_name.startsWith(provider.name.toUpperCase().replace('-', '_'))) {
-      parameter_name = parameter_name.slice(provider.name.length + 1);
+
+    let parameterName = parameter.name.toUpperCase();
+    if (parameterName.startsWith(provider.name.toUpperCase().replace('-', '_'))) {
+      parameterName = parameterName.slice(provider.name.length + 1);
     }
-    let pretty = envToPrettyName(parameter_name);
+    const pretty = envToPrettyName(parameterName);
     return (
       <span>
         <span>{pretty}</span>
@@ -246,7 +137,7 @@ export default function DefaultProviderSetupForm({
       </span>
     );
   };
- 
+
   if (isLoading) {
     return <div className="text-center py-4">Loading configuration values...</div>;
   }
@@ -258,8 +149,8 @@ export default function DefaultProviderSetupForm({
 
     const entry = configValues[parameter.name];
 
-    // Important: si l'utilisateur a déjà saisi quelque chose (y compris une chaîne vide),
-    // on respecte toujours `value` et on ne retombe jamais sur `serverValue`.
+    // Important: if the user has already entered something (including an empty string),
+    // always prefer `value` and never fall back to `serverValue`.
     if (entry && 'value' in entry && entry.value !== undefined) {
       return entry.value ?? '';
     }
@@ -272,7 +163,7 @@ export default function DefaultProviderSetupForm({
   }
 
   const authTypeParameter: ConfigKeyWithAuth | undefined = parameters.find(
-    (p) => p.auth_modes && p.auth_modes.length > 0
+    (p) => p.auth_modes && p.auth_modes.length > 0,
   );
 
   const currentAuthMode: AuthModeChoice | undefined =
@@ -303,30 +194,29 @@ export default function DefaultProviderSetupForm({
         return null;
       }
 
-      const isAzureEndpointField =
-        isAzureProvider && parameter.name === 'AZURE_OPENAI_ENDPOINT';
+      const inputId = `config-${parameter.name}`;
 
       return (
         <div key={parameter.name}>
-          <label className="block text-sm font-medium text-textStandard mb-1">
+          <label
+            className="block text-sm font-medium text-textStandard mb-1"
+            htmlFor={inputId}
+          >
             {getFieldLabel(parameter)}
             {parameter.required && <span className="text-red-500 ml-1">*</span>}
           </label>
           <Input
+            id={inputId}
             type="text"
             value={getRenderValue(parameter)}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-              if (isAzureEndpointField) {
-                handleAzureEndpointChange(e.target.value);
-              } else {
-                setConfigValues((prev) => {
-                  const newValue = { ...(prev[parameter.name] || {}), value: e.target.value };
-                  return {
-                    ...prev,
-                    [parameter.name]: newValue,
-                  };
-                });
-              }
+              setConfigValues((prev) => {
+                const newValue = { ...(prev[parameter.name] || {}), value: e.target.value };
+                return {
+                  ...prev,
+                  [parameter.name]: newValue,
+                };
+              });
             }}
             placeholder={getPlaceholder(parameter)}
             className={`w-full h-14 px-4 font-regular rounded-lg shadow-none ${
@@ -352,7 +242,7 @@ export default function DefaultProviderSetupForm({
   }
 
   const expandCtaText = `${optionalExpanded ? 'Hide' : 'Show'} ${belowFoldParameters.length} options `;
- 
+
   return (
     <div className="mt-4 space-y-4">
       {aboveFoldParameters.length === 0 && belowFoldParameters.length === 0 ? (
@@ -366,9 +256,9 @@ export default function DefaultProviderSetupForm({
             authTypeParameter.auth_modes.length > 0 &&
             currentAuthMode && (
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-textStandard mb-1">
+                <div className="block text-sm font-medium text-textStandard mb-1">
                   Authentication Type
-                </label>
+                </div>
                 <Select
                   options={authTypeParameter.auth_modes.map((mode) => ({
                     value: mode.value,
