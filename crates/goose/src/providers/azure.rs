@@ -261,8 +261,7 @@ impl Provider for AzureProvider {
             model_config.clone()
         };
 
-        let payload =
-            create_responses_request(&request_model_config, system, messages, tools)?;
+        let payload = create_responses_request(&request_model_config, system, messages, tools)?;
         let mut log = RequestLog::start(model_config, &payload)?;
 
         let json_response = self
