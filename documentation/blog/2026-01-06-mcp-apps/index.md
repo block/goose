@@ -49,3 +49,16 @@ MCP-UI isn't going away overnight. We'll keep supporting it while the community 
 - **Join the conversation:** [GitHub discussion](https://github.com/block/goose/discussions/6069) · [MCP-UI Discord](https://discord.gg/CEAG4KW7ZH)
 
 If you build or port an app, we want to hear from you. File issues, share demos, tell us what's broken. Early feedback shapes what comes next.
+
+<head>
+  <meta property="og:title" content="goose Lands MCP Apps" />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://block.github.io/goose/blog/2026/01/06/mcp-apps" />
+  <meta property="og:description" content="goose ships early support for the draft MCP Apps specification, aligning with the emerging standard for interactive UIs in MCP." />
+  <meta property="og:image" content="http://block.github.io/goose/assets/images/goose-lands-mcp-apps-header-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta property="twitter:domain" content="block.github.io/goose" />
+  <meta name="twitter:title" content="goose Lands MCP Apps" />
+  <meta name="twitter:description" content="goose ships early support for the draft MCP Apps specification, aligning with the emerging standard for interactive UIs in MCP." />
+  <meta name="twitter:image" content="http://block.github.io/goose/assets/images/goose-lands-mcp-apps-header-image.png" />
+</head>
