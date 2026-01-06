@@ -35,7 +35,6 @@ pub mod tetrate;
 pub mod toolshim;
 pub mod usage_estimator;
 pub mod utils;
-pub mod utils_universal_openai_stream;
 pub mod venice;
 pub mod xai;
 

@@ -146,7 +146,7 @@ GOOSE_SEARCH_PATHS:
 These paths are prepended to the system PATH when running extension commands, ensuring your custom tools are found without modifying your global PATH.
 
 ## Recipe Command Configuration
-You can optionally set up [custom slash commands](/docs/guides/recipes/session-recipes.md#custom-recipe-commands) to run recipes that you create. List the command (without the leading `/`) along with the path to the recipe:
+You can optionally set up [custom slash commands](/docs/guides/context-engineering/slash-commands) to run recipes that you create. List the command (without the leading `/`) along with the path to the recipe:
 
 ```yaml
 slash_commands:
