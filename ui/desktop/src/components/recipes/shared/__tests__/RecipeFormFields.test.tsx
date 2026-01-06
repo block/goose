@@ -24,6 +24,7 @@ describe('RecipeFormFields', () => {
       activities: [],
       parameters: [],
       jsonSchema: '',
+      subRecipes: [],
       ...initialValues,
     };
 
@@ -275,6 +276,7 @@ describe('RecipeFormFields', () => {
             activities: [],
             parameters: [],
             jsonSchema: '',
+            subRecipes: [],
           } as RecipeFormData,
           onSubmit: async ({ value }) => {
             console.log('Form submitted:', value);
@@ -368,6 +370,7 @@ describe('RecipeFormFields', () => {
               },
             ],
             jsonSchema: '',
+            subRecipes: [],
           } as RecipeFormData,
           onSubmit: async ({ value }) => {
             console.log('Form submitted:', value);
@@ -535,6 +538,7 @@ describe('RecipeFormFields', () => {
               },
             ],
             jsonSchema: '',
+            subRecipes: [],
           } as RecipeFormData,
           onSubmit: async ({ value }) => {
             console.log('Form submitted:', value);
@@ -608,6 +612,7 @@ describe('RecipeFormFields', () => {
               },
             ],
             jsonSchema: '',
+            subRecipes: [],
           } as RecipeFormData,
           onSubmit: async ({ value }) => {
             console.log('Form submitted:', value);
