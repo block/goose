@@ -213,6 +213,7 @@ impl Provider for AzureProvider {
                     Some(AZURE_DEFAULT_API_VERSION),
                 ),
                 auth_type_key,
+                ConfigKey::new("AZURE_OPENAI_DEPLOYMENT_NAME", false, false, None),
                 ConfigKey::new("AZURE_OPENAI_API_KEY", false, true, Some("")),
             ],
         )
@@ -238,10 +239,30 @@ impl Provider for AzureProvider {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         // Use Azure OpenAI Responses API.
-        // We follow the OpenAI Responses API contract: the `model` field is set
-        // by create_responses_request() from model_config.model_name.
-        // On Azure, this model identifier should be configured as the deployment name.
-        let payload = create_responses_request(model_config, system, messages, tools)?;
+        // By default we follow the OpenAI Responses API contract and use
+        // model_config.model_name for the `model` field.
+        // For Azure, AZURE_OPENAI_DEPLOYMENT_NAME can override this to allow
+        // custom deployment names without changing the logical model name.
+        let config = crate::config::Config::global();
+        let deployment_override = config
+            .get_param::<String>("AZURE_OPENAI_DEPLOYMENT_NAME")
+            .ok()
+            .filter(|value| !value.trim().is_empty());
+
+        let request_model_config = if let Some(deployment_name) = deployment_override {
+            tracing::debug!(
+                "Azure OpenAI: using deployment override for model field: {}",
+                deployment_name
+            );
+            let mut overridden = model_config.clone();
+            overridden.model_name = deployment_name;
+            overridden
+        } else {
+            model_config.clone()
+        };
+
+        let payload =
+            create_responses_request(&request_model_config, system, messages, tools)?;
         let mut log = RequestLog::start(model_config, &payload)?;
 
         let json_response = self
