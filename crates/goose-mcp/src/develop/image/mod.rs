@@ -98,11 +98,17 @@ impl ImageTool {
         };
 
         // Filter to windows with non-empty titles, excluding common system UI
+        // Collect (window, title) pairs where title is successfully retrieved
         let candidates: Vec<_> = windows
             .iter()
-            .filter(|w| {
-                let title = w.title();
-                !title.is_empty() && !is_system_ui(title)
+            .filter_map(|w| {
+                w.title().ok().and_then(|title| {
+                    if !title.is_empty() && !is_system_ui(&title) {
+                        Some((w, title))
+                    } else {
+                        None
+                    }
+                })
             })
             .collect();
 
@@ -110,13 +116,14 @@ impl ImageTool {
         let query_lower = query.to_lowercase();
         let matches: Vec<_> = candidates
             .iter()
-            .filter(|w| w.title().to_lowercase().contains(&query_lower))
+            .filter(|(_, title)| title.to_lowercase().contains(&query_lower))
             .collect();
 
         match matches.len() {
             0 => {
                 // No match - list available windows
-                let available: Vec<_> = candidates.iter().map(|w| w.title()).collect();
+                let available: Vec<_> =
+                    candidates.iter().map(|(_, title)| title.as_str()).collect();
                 let list = if available.is_empty() {
                     "No windows available".to_string()
                 } else {
@@ -129,8 +136,7 @@ impl ImageTool {
             }
             1 => {
                 // Exact match - capture it
-                let window = matches[0];
-                let title = window.title();
+                let (window, title) = matches[0];
                 match window.capture_image() {
                     Ok(captured) => {
                         let dynamic = img::DynamicImage::ImageRgba8(captured);
@@ -144,7 +150,7 @@ impl ImageTool {
             }
             _ => {
                 // Multiple matches - ask for clarification
-                let titles: Vec<_> = matches.iter().map(|w| w.title()).collect();
+                let titles: Vec<_> = matches.iter().map(|(_, title)| title.as_str()).collect();
                 CallToolResult::error(vec![Content::text(format!(
                     "Multiple windows match '{}'. Be more specific:\n  {}",
                     query,

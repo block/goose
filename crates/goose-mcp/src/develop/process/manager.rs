@@ -18,7 +18,7 @@ use crate::develop::process::types::*;
 const EPHEMERAL_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// Line count threshold for promotion.
-const EPHEMERAL_LINE_LIMIT: usize = 100;
+const EPHEMERAL_LINE_LIMIT: usize = 1000;
 
 /// Lines to show at head of preview.
 const PREVIEW_HEAD_LINES: usize = 20;
@@ -93,19 +93,128 @@ impl ProcessManager {
         ProcessId::new(n)
     }
 
+    /// Handle a completed process: parse output, update env state, and return result.
+    fn handle_completed_process(
+        &self,
+        command: &str,
+        buffer: &Arc<Mutex<OutputBuffer>>,
+        delimiter: &str,
+        start: Instant,
+    ) -> Result<SpawnResult> {
+        let buf = buffer.lock().unwrap();
+        let raw_output = buf.full_output();
+        drop(buf);
+
+        let mut env_state = self.env_state.lock().unwrap();
+        let (actual_output, new_cwd, changed, unset, parsed_exit) =
+            env_state.parse_wrapped_output(&raw_output, delimiter)?;
+        env_state.apply_changes(new_cwd, changed, unset);
+        drop(env_state);
+
+        let actual_line_count = actual_output.lines().count();
+
+        if actual_line_count > EPHEMERAL_LINE_LIMIT {
+            let id = self.next_process_id();
+            let mut buf = OutputBuffer::new();
+            buf.append(&actual_output);
+            let (preview, omitted) = buf.preview(PREVIEW_HEAD_LINES, PREVIEW_TAIL_LINES);
+
+            let proc = ManagedProcess {
+                id: id.clone(),
+                command: command.to_string(),
+                status: Arc::new(Mutex::new(ProcessStatus::Exited(parsed_exit))),
+                buffer: Arc::new(Mutex::new(buf)),
+                stdin: None,
+                started_at: start,
+                child: None,
+                needs_parsing: Arc::new(Mutex::new(false)),
+            };
+            self.processes.lock().unwrap().insert(id.0.clone(), proc);
+
+            Ok(SpawnResult::Promoted {
+                id,
+                output_preview: preview,
+                lines_omitted: omitted,
+            })
+        } else {
+            Ok(SpawnResult::Completed {
+                output: actual_output,
+                exit_code: parsed_exit,
+            })
+        }
+    }
+
+    /// Promote a long-running process to the manager.
+    #[allow(clippy::too_many_arguments)]
+    fn promote_to_manager(
+        &self,
+        command: &str,
+        child: Child,
+        stdin: Option<std::process::ChildStdin>,
+        buffer: Arc<Mutex<OutputBuffer>>,
+        status: Arc<Mutex<ProcessStatus>>,
+        start: Instant,
+        stdout_handle: thread::JoinHandle<()>,
+        stderr_handle: thread::JoinHandle<()>,
+    ) -> SpawnResult {
+        let id = self.next_process_id();
+
+        let buf = buffer.lock().unwrap();
+        let (preview, omitted) = buf.preview(PREVIEW_HEAD_LINES, PREVIEW_TAIL_LINES);
+        drop(buf);
+
+        let stdin_arc = stdin.map(|s| Arc::new(Mutex::new(s)));
+
+        let proc = ManagedProcess {
+            id: id.clone(),
+            command: command.to_string(),
+            status: Arc::clone(&status),
+            buffer,
+            stdin: stdin_arc,
+            started_at: start,
+            child: Some(Arc::new(Mutex::new(child))),
+            needs_parsing: Arc::new(Mutex::new(true)),
+        };
+        self.processes.lock().unwrap().insert(id.0.clone(), proc);
+
+        let status_clone = Arc::clone(&status);
+        let child_arc = self
+            .processes
+            .lock()
+            .unwrap()
+            .get(&id.0)
+            .and_then(|p| p.child.clone());
+
+        if let Some(child_arc) = child_arc {
+            thread::spawn(move || {
+                let _ = stdout_handle.join();
+                let _ = stderr_handle.join();
+
+                if let Ok(mut child) = child_arc.lock() {
+                    if let Ok(exit_status) = child.wait() {
+                        let code = exit_status.code().unwrap_or(1);
+                        *status_clone.lock().unwrap() = ProcessStatus::Exited(code);
+                    }
+                }
+            });
+        }
+
+        SpawnResult::Promoted {
+            id,
+            output_preview: preview,
+            lines_omitted: omitted,
+        }
+    }
+
     /// Spawn a command and either return immediately or promote to manager.
     pub fn spawn(&self, command: &str) -> Result<SpawnResult> {
         let env_state = self.env_state.lock().unwrap();
-
-        // Build the wrapped command with env setup and capture
         let env_setup = env_state.setup_commands();
         let (wrapped, delimiter) = EnvState::wrap_command(command);
         let full_command = format!("{}{}", env_setup, wrapped);
-
         let cwd = env_state.cwd.clone();
-        drop(env_state); // Release lock before spawning
+        drop(env_state);
 
-        // Spawn the process
         let mut child = Command::new(&self.shell_config.shell_path)
             .arg("-c")
             .arg(&full_command)
@@ -128,7 +237,6 @@ impl ProcessManager {
         let buffer = Arc::new(Mutex::new(OutputBuffer::new()));
         let status = Arc::new(Mutex::new(ProcessStatus::Running));
 
-        // Spawn reader threads
         let buffer_clone = Arc::clone(&buffer);
         let stdout_handle = thread::spawn(move || {
             let reader = BufReader::new(stdout);
@@ -145,122 +253,30 @@ impl ProcessManager {
             }
         });
 
-        // Wait for ephemeral timeout
         let start = Instant::now();
         loop {
-            // Check if process has exited
             match child.try_wait() {
                 Ok(Some(exit_status)) => {
-                    // Process finished - wait for readers to complete
                     let _ = stdout_handle.join();
                     let _ = stderr_handle.join();
 
                     let exit_code = exit_status.code().unwrap_or(1);
                     *status.lock().unwrap() = ProcessStatus::Exited(exit_code);
 
-                    // Parse the wrapped output to extract actual output and env changes
-                    let buf = buffer.lock().unwrap();
-                    let raw_output = buf.full_output();
-                    drop(buf);
-
-                    let mut env_state = self.env_state.lock().unwrap();
-                    let (actual_output, new_cwd, changed, unset, parsed_exit) =
-                        env_state.parse_wrapped_output(&raw_output, &delimiter)?;
-                    env_state.apply_changes(new_cwd, changed, unset);
-                    drop(env_state);
-
-                    // Check line count of ACTUAL output (not raw with env dump)
-                    let actual_line_count = actual_output.lines().count();
-
-                    // Check if should promote due to large output
-                    if actual_line_count > EPHEMERAL_LINE_LIMIT {
-                        let id = self.next_process_id();
-                        let mut buf = OutputBuffer::new();
-                        buf.append(&actual_output);
-                        let (preview, omitted) =
-                            buf.preview(PREVIEW_HEAD_LINES, PREVIEW_TAIL_LINES);
-
-                        // Store in manager (already parsed, no markers)
-                        let proc = ManagedProcess {
-                            id: id.clone(),
-                            command: command.to_string(),
-                            status: Arc::new(Mutex::new(ProcessStatus::Exited(parsed_exit))),
-                            buffer: Arc::new(Mutex::new(buf)),
-                            stdin: None,
-                            started_at: start,
-                            child: None,
-                            needs_parsing: Arc::new(Mutex::new(false)),
-                        };
-                        self.processes.lock().unwrap().insert(id.0.clone(), proc);
-
-                        return Ok(SpawnResult::Promoted {
-                            id,
-                            output_preview: preview,
-                            lines_omitted: omitted,
-                        });
-                    }
-
-                    return Ok(SpawnResult::Completed {
-                        output: actual_output,
-                        exit_code: parsed_exit,
-                    });
+                    return self.handle_completed_process(command, &buffer, &delimiter, start);
                 }
                 Ok(None) => {
-                    // Still running
                     if start.elapsed() >= EPHEMERAL_TIMEOUT {
-                        // Promote to manager
-                        let id = self.next_process_id();
-
-                        let buf = buffer.lock().unwrap();
-                        let (preview, omitted) =
-                            buf.preview(PREVIEW_HEAD_LINES, PREVIEW_TAIL_LINES);
-                        drop(buf);
-
-                        let stdin_arc = stdin.map(|s| Arc::new(Mutex::new(s)));
-                        let needs_parsing = Arc::new(Mutex::new(true));
-
-                        let proc = ManagedProcess {
-                            id: id.clone(),
-                            command: command.to_string(),
-                            status: Arc::clone(&status),
-                            buffer: Arc::clone(&buffer),
-                            stdin: stdin_arc,
-                            started_at: start,
-                            child: Some(Arc::new(Mutex::new(child))),
-                            needs_parsing: Arc::clone(&needs_parsing),
-                        };
-                        self.processes.lock().unwrap().insert(id.0.clone(), proc);
-
-                        // Spawn background thread to monitor completion
-                        let status_clone = Arc::clone(&status);
-                        let child_arc = self
-                            .processes
-                            .lock()
-                            .unwrap()
-                            .get(&id.0)
-                            .and_then(|p| p.child.clone());
-
-                        if let Some(child_arc) = child_arc {
-                            thread::spawn(move || {
-                                // Wait for readers to finish (they'll finish when process exits)
-                                let _ = stdout_handle.join();
-                                let _ = stderr_handle.join();
-
-                                // Get exit status
-                                if let Ok(mut child) = child_arc.lock() {
-                                    if let Ok(exit_status) = child.wait() {
-                                        let code = exit_status.code().unwrap_or(1);
-                                        *status_clone.lock().unwrap() = ProcessStatus::Exited(code);
-                                    }
-                                }
-                            });
-                        }
-
-                        return Ok(SpawnResult::Promoted {
-                            id,
-                            output_preview: preview,
-                            lines_omitted: omitted,
-                        });
+                        return Ok(self.promote_to_manager(
+                            command,
+                            child,
+                            stdin,
+                            buffer,
+                            status,
+                            start,
+                            stdout_handle,
+                            stderr_handle,
+                        ));
                     }
                     thread::sleep(Duration::from_millis(50));
                 }
