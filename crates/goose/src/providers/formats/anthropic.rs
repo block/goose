@@ -396,7 +396,7 @@ pub fn create_request(
 
     // https://platform.claude.com/docs/en/about-claude/models/overview
     // 64k output tokens works for most claude models:
-    let max_tokens = model_config.max_tokens.unwrap_or(64 * 1024);
+    let max_tokens = model_config.max_tokens.unwrap_or(64000);
     let mut payload = json!({
         "model": model_config.model_name,
         "messages": anthropic_messages,
