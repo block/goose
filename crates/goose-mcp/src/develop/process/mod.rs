@@ -37,6 +37,11 @@ const MAX_AWAIT_TIMEOUT_SECS: u64 = 300;
 pub struct ShellParams {
     /// The shell command to execute.
     command: String,
+    /// Optional timeout in seconds before promoting to background process.
+    /// Default is 2 seconds. Use higher values for commands you know will take
+    /// time (builds, tests, installs). Max is 300 seconds.
+    #[serde(default)]
+    timeout_secs: Option<u64>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -98,7 +103,10 @@ impl ProcessTools {
 
     /// Execute a shell command.
     pub fn shell(&self, params: ShellParams) -> CallToolResult {
-        match self.manager.spawn(&params.command) {
+        let timeout = params
+            .timeout_secs
+            .map(|s| Duration::from_secs(s.min(MAX_AWAIT_TIMEOUT_SECS)));
+        match self.manager.spawn(&params.command, timeout) {
             Ok(SpawnResult::Completed { output, exit_code }) => {
                 let text = if exit_code == 0 {
                     output

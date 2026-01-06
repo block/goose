@@ -207,7 +207,9 @@ impl ProcessManager {
     }
 
     /// Spawn a command and either return immediately or promote to manager.
-    pub fn spawn(&self, command: &str) -> Result<SpawnResult> {
+    /// If `timeout` is provided, use it instead of the default EPHEMERAL_TIMEOUT.
+    pub fn spawn(&self, command: &str, timeout: Option<Duration>) -> Result<SpawnResult> {
+        let timeout = timeout.unwrap_or(EPHEMERAL_TIMEOUT);
         let env_state = self.env_state.lock().unwrap();
         let env_setup = env_state.setup_commands();
         let (wrapped, delimiter) = EnvState::wrap_command(command);
@@ -266,7 +268,7 @@ impl ProcessManager {
                     return self.handle_completed_process(command, &buffer, &delimiter, start);
                 }
                 Ok(None) => {
-                    if start.elapsed() >= EPHEMERAL_TIMEOUT {
+                    if start.elapsed() >= timeout {
                         return Ok(self.promote_to_manager(
                             command,
                             child,
@@ -437,7 +439,7 @@ mod tests {
     #[test]
     fn test_ephemeral_command() {
         let manager = ProcessManager::new();
-        let result = manager.spawn("echo hello").unwrap();
+        let result = manager.spawn("echo hello", None).unwrap();
 
         match result {
             SpawnResult::Completed { output, exit_code } => {
@@ -459,14 +461,14 @@ mod tests {
         let manager = ProcessManager::new();
 
         // Change directory
-        let _ = manager.spawn("cd /tmp").unwrap();
+        let _ = manager.spawn("cd /tmp", None).unwrap();
 
         // Verify cwd changed
         let cwd = manager.cwd();
         assert_eq!(cwd.to_string_lossy(), "/tmp");
 
         // Next command should run in /tmp
-        let result = manager.spawn("pwd").unwrap();
+        let result = manager.spawn("pwd", None).unwrap();
         match result {
             SpawnResult::Completed { output, .. } => {
                 assert!(output.contains("/tmp") || output.contains("/private/tmp"));
@@ -480,10 +482,10 @@ mod tests {
         let manager = ProcessManager::new();
 
         // Set env var
-        let _ = manager.spawn("export TEST_VAR=hello123").unwrap();
+        let _ = manager.spawn("export TEST_VAR=hello123", None).unwrap();
 
         // Read it back
-        let result = manager.spawn("echo $TEST_VAR").unwrap();
+        let result = manager.spawn("echo $TEST_VAR", None).unwrap();
         match result {
             SpawnResult::Completed { output, .. } => {
                 assert!(output.contains("hello123"));
@@ -497,7 +499,7 @@ mod tests {
         let manager = ProcessManager::new();
 
         // Start a long-running process
-        let result = manager.spawn("sleep 10").unwrap();
+        let result = manager.spawn("sleep 10", None).unwrap();
 
         match result {
             SpawnResult::Promoted { id, .. } => {
@@ -519,7 +521,7 @@ mod tests {
         let manager = ProcessManager::new();
 
         // Start a process that outputs something then sleeps
-        let result = manager.spawn("echo 'test output'; sleep 10").unwrap();
+        let result = manager.spawn("echo 'test output'; sleep 10", None).unwrap();
 
         match result {
             SpawnResult::Promoted { id, .. } => {
@@ -548,6 +550,26 @@ mod tests {
                     !output.contains(ENV_MARKER_PREFIX),
                     "Output should not contain markers"
                 );
+            }
+        }
+    }
+
+    #[test]
+    fn test_custom_timeout() {
+        let manager = ProcessManager::new();
+
+        // With a very short timeout (10ms), even a fast command might get promoted
+        // But with a long timeout (10s), a 3s sleep should complete inline
+        let result = manager
+            .spawn("sleep 3", Some(Duration::from_secs(10)))
+            .unwrap();
+
+        match result {
+            SpawnResult::Completed { exit_code, .. } => {
+                assert_eq!(exit_code, 0);
+            }
+            SpawnResult::Promoted { .. } => {
+                panic!("Expected completion with 10s timeout for 3s sleep");
             }
         }
     }
