@@ -151,6 +151,7 @@ export default function GooseMessage({
                 {toolRequests.map((toolRequest) => (
                   <div className="goose-message-tool" key={toolRequest.id}>
                     <ToolCallWithResponse
+                      sessionId={sessionId}
                       isCancelledMessage={false}
                       toolRequest={toolRequest}
                       toolResponse={toolResponsesMap.get(toolRequest.id)}

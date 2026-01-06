@@ -257,7 +257,7 @@ impl ExtensionManagerClient {
                     .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
 
                 match extension_manager
-                    .read_resource(params, tokio_util::sync::CancellationToken::default())
+                    .read_resource_tool(params, tokio_util::sync::CancellationToken::default())
                     .await
                 {
                     Ok(content) => Ok(content),

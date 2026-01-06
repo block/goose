@@ -6,14 +6,25 @@
  * @see SEP-1865 https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/draft/apps.mdx
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useSandboxBridge } from './useSandboxBridge';
-import { McpAppResource, ToolInput, ToolInputPartial, ToolResult, ToolCancelled } from './types';
+import {
+  ToolInput,
+  ToolInputPartial,
+  ToolResult,
+  ToolCancelled,
+  CspMetadata,
+  McpMethodParams,
+  McpMethodResponse,
+} from './types';
 import { cn } from '../../utils';
 import { DEFAULT_IFRAME_HEIGHT } from './utils';
+import { readResource, callTool } from '../../api';
 
 interface McpAppRendererProps {
-  resource: McpAppResource;
+  resourceUri: string;
+  extensionName: string;
+  sessionId: string;
   toolInput?: ToolInput;
   toolInputPartial?: ToolInputPartial;
   toolResult?: ToolResult;
@@ -22,60 +33,126 @@ interface McpAppRendererProps {
 }
 
 export default function McpAppRenderer({
-  resource,
+  resourceUri,
+  extensionName,
+  sessionId,
   toolInput,
   toolInputPartial,
   toolResult,
   toolCancelled,
   append,
 }: McpAppRendererProps) {
-  const prefersBorder = resource._meta?.ui?.prefersBorder ?? true;
+  const [resourceHtml, setResourceHtml] = useState<string | null>(null);
+  const [resourceCsp, setResourceCsp] = useState<CspMetadata | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [iframeHeight, setIframeHeight] = useState(DEFAULT_IFRAME_HEIGHT);
 
-  // Handle MCP requests from the guest app
+  useEffect(() => {
+    const fetchResource = async () => {
+      try {
+        const response = await readResource({
+          body: {
+            session_id: sessionId,
+            uri: resourceUri,
+            extension_name: extensionName,
+          },
+        });
+
+        if (response.data) {
+          const content = response.data;
+
+          setResourceHtml(content.text);
+
+          const meta = content._meta as { ui?: { csp?: CspMetadata } } | undefined;
+          setResourceCsp(meta?.ui?.csp || null);
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load resource');
+      }
+    };
+
+    fetchResource();
+  }, [resourceUri, extensionName, sessionId]);
+
   const handleMcpRequest = useCallback(
-    async (method: string, params: unknown, id?: string | number): Promise<unknown> => {
-      console.log(`[MCP App] Request: ${method}`, { params, id });
-
+    async (
+      method: string,
+      params: Record<string, unknown> = {},
+      _id?: string | number
+    ): Promise<unknown> => {
       switch (method) {
-        case 'ui/open-link':
-          if (params && typeof params === 'object' && 'url' in params) {
-            const { url } = params as { url: string };
-            window.electron.openExternal(url).catch(console.error);
-            return { status: 'success', message: 'Link opened successfully' };
-          }
-          throw new Error('Invalid params for ui/open-link');
+        case 'ui/open-link': {
+          const { url } = params as McpMethodParams['ui/open-link'];
+          await window.electron.openExternal(url);
+          return {
+            status: 'success',
+            message: 'Link opened successfully',
+          } satisfies McpMethodResponse['ui/open-link'];
+        }
 
-        case 'ui/message':
-          if (params && typeof params === 'object' && 'content' in params) {
-            const content = params.content as { type: string; text: string };
-            if (!append) {
-              throw new Error('Message handler not available in this context');
-            }
-            if (!content.text) {
-              throw new Error('Missing message text');
-            }
-            append(content.text);
-            window.dispatchEvent(new CustomEvent('scroll-chat-to-bottom'));
-            return { status: 'success', message: 'Message appended successfully' };
+        case 'ui/message': {
+          const { content } = params as McpMethodParams['ui/message'];
+          if (!append) {
+            throw new Error('Message handler not available in this context');
           }
-          throw new Error('Invalid params for ui/message');
+          append(content.text);
+          window.dispatchEvent(new CustomEvent('scroll-chat-to-bottom'));
+          return {
+            status: 'success',
+            message: 'Message appended successfully',
+          } satisfies McpMethodResponse['ui/message'];
+        }
 
-        case 'notifications/message':
-        case 'tools/call':
-        case 'resources/list':
-        case 'resources/templates/list':
-        case 'resources/read':
-        case 'prompts/list':
+        case 'tools/call': {
+          const { name, arguments: args } = params as McpMethodParams['tools/call'];
+          const fullToolName = `${extensionName}__${name}`;
+          const response = await callTool({
+            body: {
+              session_id: sessionId,
+              name: fullToolName,
+              arguments: args || {},
+            },
+          });
+          return {
+            content: response.data?.content || [],
+            isError: response.data?.is_error || false,
+            structuredContent: (response.data as Record<string, unknown>)?.structured_content as
+              | Record<string, unknown>
+              | undefined,
+          } satisfies McpMethodResponse['tools/call'];
+        }
+
+        case 'resources/read': {
+          const { uri } = params as McpMethodParams['resources/read'];
+          const response = await readResource({
+            body: {
+              session_id: sessionId,
+              uri,
+              extension_name: extensionName,
+            },
+          });
+          return {
+            contents: response.data ? [response.data] : [],
+          } satisfies McpMethodResponse['resources/read'];
+        }
+
+        case 'notifications/message': {
+          const { level, logger, data } = params as McpMethodParams['notifications/message'];
+          console.log(
+            `[MCP App Notification]${logger ? ` [${logger}]` : ''} ${level || 'info'}:`,
+            data
+          );
+          return {} satisfies McpMethodResponse['notifications/message'];
+        }
+
         case 'ping':
-          console.warn(`[MCP App] TODO: ${method} not yet implemented`);
-          throw new Error(`Method not implemented: ${method}`);
+          return {} satisfies McpMethodResponse['ping'];
 
         default:
           throw new Error(`Unknown method: ${method}`);
       }
     },
-    [append]
+    [append, sessionId, extensionName]
   );
 
   const handleSizeChanged = useCallback((height: number, _width?: number) => {
@@ -84,9 +161,9 @@ export default function McpAppRenderer({
   }, []);
 
   const { iframeRef, proxyUrl } = useSandboxBridge({
-    resourceHtml: resource.text || '',
-    resourceCsp: resource._meta?.ui?.csp || null,
-    resourceUri: resource.uri,
+    resourceHtml: resourceHtml || '',
+    resourceCsp,
+    resourceUri,
     toolInput,
     toolInputPartial,
     toolResult,
@@ -95,17 +172,26 @@ export default function McpAppRenderer({
     onSizeChanged: handleSizeChanged,
   });
 
-  if (!resource) {
-    return null;
+  if (error) {
+    return (
+      <div className="mt-3 p-4 border border-red-500 rounded-lg bg-red-50 dark:bg-red-900/20">
+        <div className="text-red-700 dark:text-red-300">Failed to load MCP app: {error}</div>
+      </div>
+    );
+  }
+
+  if (!resourceHtml) {
+    return (
+      <div className="mt-3 p-4 border border-borderSubtle rounded-lg bg-bgApp">
+        <div className="flex items-center justify-center" style={{ minHeight: '200px' }}>
+          Loading MCP app...
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div
-      className={cn(
-        'mt-3 bg-bgApp',
-        prefersBorder && 'border border-borderSubtle rounded-lg overflow-hidden'
-      )}
-    >
+    <div className={cn('mt-3 bg-bgApp', 'border border-borderSubtle rounded-lg overflow-hidden')}>
       {proxyUrl ? (
         <iframe
           ref={iframeRef}

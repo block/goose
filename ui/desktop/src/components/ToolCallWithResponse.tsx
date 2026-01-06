@@ -16,6 +16,7 @@ import { TooltipWrapper } from './settings/providers/subcomponents/buttons/Toolt
 import MCPUIResourceRenderer from './MCPUIResourceRenderer';
 import { isUIResource } from '@mcp-ui/client';
 import { CallToolResponse, Content, EmbeddedResource } from '../api';
+import McpAppRenderer from './McpApps/McpAppRenderer';
 
 interface ToolGraphNode {
   tool: string;
@@ -23,13 +24,36 @@ interface ToolGraphNode {
   depends_on: number[];
 }
 
+type ToolResultWithMeta = {
+  status?: string;
+  value?: CallToolResponse & {
+    _meta?: {
+      'ui/resourceUri'?: string;
+    };
+  };
+};
+
+type ToolRequestWithMeta = ToolRequestMessageContent & {
+  _meta?: {
+    'ui/resourceUri'?: string;
+  };
+  toolCall: {
+    status: 'success';
+    value: {
+      name: string;
+      arguments?: Record<string, unknown>;
+    };
+  };
+};
+
 interface ToolCallWithResponseProps {
+  sessionId?: string;
   isCancelledMessage: boolean;
   toolRequest: ToolRequestMessageContent;
   toolResponse?: ToolResponseMessageContent;
   notifications?: NotificationEvent[];
   isStreamingMessage?: boolean;
-  append?: (value: string) => void; // Function to append messages to the chat
+  append?: (value: string) => void;
 }
 
 function getToolResultContent(toolResult: Record<string, unknown>): Content[] {
@@ -47,7 +71,57 @@ function isEmbeddedResource(content: Content): content is EmbeddedResource {
   return 'resource' in content && typeof (content as Record<string, unknown>).resource === 'object';
 }
 
+function maybeRenderMCPApp(
+  toolRequest: ToolRequestMessageContent,
+  toolResponse: ToolResponseMessageContent | undefined,
+  sessionId: string,
+  append?: (value: string) => void
+): React.ReactNode {
+  const requestWithMeta = toolRequest as ToolRequestWithMeta;
+  let resourceUri = requestWithMeta._meta?.['ui/resourceUri'];
+
+  if (!resourceUri && toolResponse) {
+    const resultWithMeta = toolResponse.toolResult as ToolResultWithMeta;
+    if (resultWithMeta?.status === 'success' && resultWithMeta.value) {
+      resourceUri = resultWithMeta.value._meta?.['ui/resourceUri'];
+    }
+  }
+
+  if (!resourceUri) return null;
+  if (requestWithMeta.toolCall.status !== 'success') return null;
+
+  const extensionName = requestWithMeta.toolCall.value.name.split('__')[0];
+
+  let toolResult: CallToolResponse | undefined;
+  if (toolResponse) {
+    const resultWithMeta = toolResponse.toolResult as ToolResultWithMeta;
+    if (resultWithMeta?.status === 'success' && resultWithMeta.value) {
+      toolResult = resultWithMeta.value;
+    }
+  }
+
+  return (
+    <div className="mt-3">
+      <McpAppRenderer
+        resourceUri={resourceUri}
+        toolInput={{ arguments: requestWithMeta.toolCall.value.arguments || {} }}
+        toolResult={toolResult}
+        extensionName={extensionName}
+        sessionId={sessionId}
+        append={append}
+      />
+      <div className="mt-3 p-4 py-3 border border-borderSubtle rounded-lg bg-background-muted flex items-center">
+        <FlaskConical className="mr-2" size={20} />
+        <div className="text-sm font-sans">
+          MCP Apps are experimental and may change at any time.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ToolCallWithResponse({
+  sessionId,
   isCancelledMessage,
   toolRequest,
   toolResponse,
@@ -107,20 +181,7 @@ export default function ToolCallWithResponse({
           }
         })}
 
-      {/* MCP Apps - This data will be coming from a resources/read result. */}
-      {/* TODO Hook this up */}
-      {/* {toolResponse?.toolResult &&
-        mockResourceReadResult.contents.map((content) => {
-          return (
-            <McpAppRenderer
-              resource={content}
-              key={content.uri}
-              toolInput={{ arguments: toolCall.arguments }}
-              toolResult={toolResponse.toolResult.value as unknown as ToolResult}
-              append={append}
-            />
-          );
-        })} */}
+      {sessionId && maybeRenderMCPApp(toolRequest, toolResponse, sessionId, append)}
     </>
   );
 }
@@ -214,7 +275,7 @@ const getToolName = (toolCallName: string): string => {
   if (lastIndex === -1) return toolCallName;
 
   return toolCallName.substring(lastIndex + 2);
-}
+};
 
 // Helper function to extract extension name for tooltip
 const getExtensionTooltip = (toolCallName: string): string | null => {
