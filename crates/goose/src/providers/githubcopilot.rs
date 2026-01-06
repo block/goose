@@ -1,4 +1,5 @@
 use crate::config::paths::Paths;
+use crate::providers::api_client::{self, ApiClient, AuthMethod};
 use crate::providers::utils::{handle_status_openai_compat, stream_openai_compat};
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
@@ -173,22 +174,14 @@ impl GithubCopilotProvider {
 
     async fn post(&self, payload: &mut Value) -> Result<Value, ProviderError> {
         let (endpoint, token) = self.get_api_info().await?;
-        let url = url::Url::parse(&format!("{}/chat/completions", endpoint))
-            .map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
-
-        let headers = self.get_github_headers();
-
-        let mut request = self
-            .client
-            .post(url)
-            .headers(headers)
-            .header("Authorization", format!("Bearer {}", token));
-
+        let auth = AuthMethod::BearerToken(token);
+        let mut headers = self.get_github_headers();
         if Self::payload_contains_image(payload) {
-            request = request.header("Copilot-Vision-Request", "true");
+            headers.insert("Copilot-Vision-Request", "true".parse().unwrap());
         }
+        let api_client = ApiClient::new(endpoint.clone(), auth)?.with_headers(headers)?;
 
-        let response = request.json(payload).send().await?;
+        let response = api_client.response_post("chat/completions", payload).await?;
 
         handle_response_openai_compat(response).await
     }
@@ -460,7 +453,7 @@ impl Provider for GithubCopilotProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let mut payload = create_request(
+        let payload = create_request(
             &self.model,
             system,
             messages,
@@ -473,20 +466,14 @@ impl Provider for GithubCopilotProvider {
         let response = self
             .with_retry(|| async {
                 let (endpoint, token) = self.get_api_info().await?;
-                let url = url::Url::parse(&format!("{}/chat/completions", endpoint)).map_err(|e| ProviderError::RequestFailed(format!("Invalid base URL: {e}")))?;
-
-                let headers = self.get_github_headers();
-
-                let mut request = self
-                    .client
-                    .post(url)
-                    .headers(headers)
-                    .header("Authorization", format!("Bearer {}", token));
-
+                let auth = AuthMethod::BearerToken(token);
+                let mut headers = self.get_github_headers();
                 if Self::payload_contains_image(&payload) {
-                    request = request.header("Copilot-Vision-Request", "true");
+                    headers.insert("Copilot-Vision-Request", "true".parse().unwrap());
                 }
-                let resp = request.json(&payload).send().await?;
+                let api_client = ApiClient::new(endpoint.clone(), auth)?.with_headers(headers)?;
+
+                let resp = api_client.response_post("chat/completions", &payload).await?;
                 handle_status_openai_compat(resp).await
             })
             .await
