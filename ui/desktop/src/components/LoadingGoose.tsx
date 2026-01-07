@@ -15,7 +15,7 @@ const STATE_MESSAGES: Record<ChatState, string> = {
   [ChatState.WaitingForUserInput]: 'goose is waiting…',
   [ChatState.Compacting]: 'goose is compacting the conversation...',
   [ChatState.Idle]: 'goose is working on it…',
-  [ChatState.RestartingAgent]: 'restarting agent...',
+  [ChatState.RestartingAgent]: 'restarting session...',
 };
 
 const STATE_ICONS: Record<ChatState, React.ReactNode> = {

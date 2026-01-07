@@ -50,7 +50,7 @@ export default function Hub({
       try {
         const session = await createSession(workingDir, {
           extensionConfigs,
-          allExtensions: extensionConfigs ? undefined : extensionsList,
+          allExtensions: extensionConfigs.length > 0 ? undefined : extensionsList,
         });
 
         setView('pair', {
