@@ -308,25 +308,22 @@ goose supports advanced MCP features that can enhance your extensions.
 
 **Learn More:** See the [MCP Specification](https://modelcontextprotocol.io/specification/draft/client/sampling) for technical details.
 
-### MCP-UI: Interactive Extensions
+### MCP Apps: Interactive Extensions
 
-**[MCP-UI Extensions](/docs/guides/interactive-chat/mcp-ui)** enable rich, interactive user interfaces instead of text-only responses, transforming static MCP servers into dynamic, engaging experiences.
+**[MCP Apps](/docs/tutorials/building-mcp-apps)** enable rich, interactive user interfaces instead of text-only responses.
 
 **Key Benefits:**
-- Your MCP server can return interactive UI components alongside or instead of text
-- Components render securely in isolated environments within goose Desktop
-- Real-time user interactions trigger callbacks to your MCP server
-- Standardized protocol ensures consistent behavior across different clients
+- Return interactive UI components from your MCP server tools
+- Components render securely in isolated sandboxes within goose Desktop
+- Real-time user interactions trigger callbacks to your server
 
-**Getting Started:**
-- Use MCP-UI SDKs in multiple programming languages to create `UIResource` objects in your MCP server
-- Return UI components from tools or resources using the standardized specification
-- goose Desktop automatically renders MCP-UI components when detected
-- Components support multiple rendering approaches for flexible styling
+**Use Cases:** Interactive forms, data visualizations, booking interfaces, configuration wizards
 
-**Use Cases:** Interactive forms, seat selection maps, data visualization dashboards, booking interfaces, configuration wizards
+**Learn More:** [Building MCP Apps Tutorial](/docs/tutorials/building-mcp-apps)
 
-**Learn More:** See the [MCP-UI Specification](https://mcpui.dev/guide/introduction) for technical details and implementation examples.
+:::note
+goose also supports [MCP-UI](/docs/guides/interactive-chat/mcp-ui), but MCP Apps is the recommended path for new extensions.
+:::
 
 [mcp-docs]: https://modelcontextprotocol.io/
 [mcp-python]: https://github.com/modelcontextprotocol/python-sdk

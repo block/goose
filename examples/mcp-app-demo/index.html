@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MCP App Demo</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      padding: 20px;
+      min-height: 100vh;
+      transition: background-color 0.3s, color 0.3s;
+    }
+    
+    body.light {
+      background: #f5f5f7;
+      color: #1d1d1f;
+    }
+    
+    body.dark {
+      background: #1d1d1f;
+      color: #f5f5f7;
+    }
+    
+    .container {
+      max-width: 500px;
+      margin: 0 auto;
+      padding: 24px;
+      border-radius: 16px;
+    }
+    
+    body.light .container {
+      background: #ffffff;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+    
+    body.dark .container {
+      background: #2d2d2f;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    }
+    
+    h1 {
+      font-size: 24px;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .subtitle {
+      opacity: 0.7;
+      margin-bottom: 20px;
+      font-size: 14px;
+    }
+    
+    .counter-section {
+      text-align: center;
+      padding: 24px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+    }
+    
+    body.light .counter-section {
+      background: #f5f5f7;
+    }
+    
+    body.dark .counter-section {
+      background: #1d1d1f;
+    }
+    
+    .counter-value {
+      font-size: 64px;
+      font-weight: bold;
+      color: #0071e3;
+    }
+    
+    .counter-label {
+      font-size: 14px;
+      opacity: 0.6;
+      margin-top: 4px;
+    }
+    
+    .button-row {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      margin-top: 16px;
+    }
+    
+    button {
+      padding: 12px 24px;
+      font-size: 18px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: opacity 0.2s;
+    }
+    
+    button:hover {
+      opacity: 0.85;
+    }
+    
+    button:active {
+      opacity: 0.7;
+    }
+    
+    .btn-increment {
+      background: #0071e3;
+      color: white;
+    }
+    
+    .btn-decrement {
+      background: #ff3b30;
+      color: white;
+    }
+    
+    .btn-reset {
+      background: #86868b;
+      color: white;
+    }
+    
+    .message-section {
+      margin-top: 20px;
+    }
+    
+    .message-section h3 {
+      font-size: 16px;
+      margin-bottom: 12px;
+    }
+    
+    .message-input {
+      display: flex;
+      gap: 8px;
+    }
+    
+    input[type="text"] {
+      flex: 1;
+      padding: 12px 16px;
+      border-radius: 8px;
+      border: 2px solid transparent;
+      font-size: 14px;
+      transition: border-color 0.2s;
+    }
+    
+    body.light input[type="text"] {
+      background: #f5f5f7;
+      color: #1d1d1f;
+    }
+    
+    body.dark input[type="text"] {
+      background: #1d1d1f;
+      color: #f5f5f7;
+    }
+
+    input[type="text"]:focus {
+      outline: none;
+      border-color: #0071e3;
+    }
+
+    .btn-send {
+      padding: 12px 20px;
+      background: #34c759;
+      color: white;
+    }
+
+    .status {
+      margin-top: 16px;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      display: none;
+    }
+
+    .status.show {
+      display: block;
+    }
+
+    .status.success {
+      background: rgba(52, 199, 89, 0.15);
+      color: #34c759;
+    }
+
+    .status.error {
+      background: rgba(255, 59, 48, 0.15);
+      color: #ff3b30;
+    }
+
+    .info-section {
+      margin-top: 20px;
+      padding: 16px;
+      border-radius: 8px;
+      font-size: 12px;
+      opacity: 0.8;
+    }
+
+    body.light .info-section {
+      background: #f5f5f7;
+    }
+
+    body.dark .info-section {
+      background: #1d1d1f;
+    }
+
+    .info-section code {
+      background: rgba(0, 113, 227, 0.1);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'SF Mono', Monaco, monospace;
+    }
+  </style>
+</head>
+<body class="light">
+  <div class="container">
+    <h1>🎮 MCP App Demo</h1>
+    <p class="subtitle">An interactive UI running inside goose</p>
+    
+    <div class="counter-section">
+      <div class="counter-value" id="counter">0</div>
+      <div class="counter-label">Counter Value</div>
+      <div class="button-row">
+        <button class="btn-decrement" onclick="updateCounter(-1)">−</button>
+        <button class="btn-reset" onclick="resetCounter()">Reset</button>
+        <button class="btn-increment" onclick="updateCounter(1)">+</button>
+      </div>
+    </div>
+    
+    <div class="message-section">
+      <h3>💬 Send a message to goose</h3>
+      <div class="message-input">
+        <input type="text" id="messageInput" placeholder="Type a message..." />
+        <button class="btn-send" onclick="sendMessage()">Send</button>
+      </div>
+      <div class="status" id="status"></div>
+    </div>
+    
+    <div class="info-section">
+      <strong>How this works:</strong><br><br>
+      This UI is served as an MCP resource with the <code>ui://</code> scheme. 
+      It communicates with goose via JSON-RPC messages through the sandbox bridge.
+      <br><br>
+      • Counter uses local state<br>
+      • "Send" calls <code>ui/message</code> to append text to chat<br>
+      • Theme syncs with goose's theme setting
+    </div>
+  </div>
+
+  <script>
+    class McpAppClient {
+      constructor() {
+        this.pendingRequests = new Map();
+        this.requestId = 0;
+        this.initialized = false;
+        this.hostContext = null;
+        
+        window.addEventListener('message', (event) => this.handleMessage(event));
+        this.initialize();
+      }
+      
+      async initialize() {
+        try {
+          const result = await this.request('ui/initialize', {});
+          this.hostContext = result.hostContext;
+          this.initialized = true;
+          
+          if (this.hostContext?.theme) {
+            this.applyTheme(this.hostContext.theme);
+          }
+          
+          this.notify('ui/notifications/initialized', {});
+          this.reportSize();
+        } catch (error) {
+          console.error('Failed to initialize MCP App:', error);
+        }
+      }
+      
+      handleMessage(event) {
+        const data = event.data;
+        if (!data || typeof data !== 'object') return;
+        
+        if ('id' in data && this.pendingRequests.has(data.id)) {
+          const { resolve, reject } = this.pendingRequests.get(data.id);
+          this.pendingRequests.delete(data.id);
+          
+          if (data.error) {
+            reject(new Error(data.error.message));
+          } else {
+            resolve(data.result);
+          }
+          return;
+        }
+        
+        if (data.method === 'ui/notifications/host-context-changed') {
+          if (data.params?.theme) {
+            this.applyTheme(data.params.theme);
+          }
+        }
+      }
+      
+      request(method, params) {
+        return new Promise((resolve, reject) => {
+          const id = ++this.requestId;
+          this.pendingRequests.set(id, { resolve, reject });
+          
+          window.parent.postMessage({
+            jsonrpc: '2.0',
+            id,
+            method,
+            params
+          }, '*');
+          
+          setTimeout(() => {
+            if (this.pendingRequests.has(id)) {
+              this.pendingRequests.delete(id);
+              reject(new Error('Request timed out'));
+            }
+          }, 30000);
+        });
+      }
+      
+      notify(method, params) {
+        window.parent.postMessage({
+          jsonrpc: '2.0',
+          method,
+          params
+        }, '*');
+      }
+      
+      applyTheme(theme) {
+        document.body.className = theme;
+      }
+      
+      reportSize() {
+        const height = document.body.scrollHeight;
+        this.notify('ui/notifications/size-changed', { height });
+      }
+      
+      async sendMessageToChat(text) {
+        return this.request('ui/message', {
+          content: { type: 'text', text }
+        });
+      }
+    }
+    
+    const mcpApp = new McpAppClient();
+    
+    let counter = 0;
+    
+    function updateCounter(delta) {
+      counter += delta;
+      document.getElementById('counter').textContent = counter;
+      mcpApp.reportSize();
+    }
+    
+    function resetCounter() {
+      counter = 0;
+      document.getElementById('counter').textContent = counter;
+      mcpApp.reportSize();
+    }
+    
+    async function sendMessage() {
+      const input = document.getElementById('messageInput');
+      const status = document.getElementById('status');
+      const message = input.value.trim();
+      
+      if (!message) {
+        showStatus('Please enter a message', 'error');
+        return;
+      }
+      
+      try {
+        await mcpApp.sendMessageToChat(message);
+        showStatus('Message sent to chat!', 'success');
+        input.value = '';
+      } catch (error) {
+        showStatus('Failed to send: ' + error.message, 'error');
+      }
+    }
+    
+    function showStatus(message, type) {
+      const status = document.getElementById('status');
+      status.textContent = message;
+      status.className = 'status show ' + type;
+      
+      setTimeout(() => {
+        status.className = 'status';
+      }, 3000);
+    }
+    
+    document.getElementById('messageInput').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendMessage();
+    });
+  </script>
+</body>
+</html>

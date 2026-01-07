@@ -11,6 +11,10 @@ import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 import { PanelLeft } from 'lucide-react';
 
+:::info MCP-UI is transitioning to MCP Apps
+[MCP Apps](/docs/tutorials/building-mcp-apps) is now the official specification for interactive UIs in MCP. MCP-UI extensions still work in goose, but MCP Apps is the recommended path for new extensions.
+:::
+
 Extensions built on MCP-UI allow goose Desktop to provide interactive and engaging user experiences. Imagine using a graphical, clickable UI instead of reading text responses and typing all your prompts:
 
 <div style={{ width: '100%', maxWidth: '800px', margin: '0 auto' }}>
