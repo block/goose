@@ -6,7 +6,7 @@ use thiserror::Error;
 use utoipa::ToSchema;
 
 pub mod message;
-mod tool_result_serde;
+pub mod tool_result_serde;
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]
 pub struct Conversation(Vec<Message>);
