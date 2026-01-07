@@ -311,13 +311,15 @@ mod tests {
     #[tokio::test]
     async fn test_openai_compatible_providers_config_keys() {
         let providers_list = providers().await;
+        // (provider_name, expected_api_key, api_key_required)
+        // Note: OpenAI API key is not required because it supports Entra ID auth as alternative
         let cases = vec![
-            ("openai", "OPENAI_API_KEY"),
-            ("groq", "GROQ_API_KEY"),
-            ("mistral", "MISTRAL_API_KEY"),
-            ("custom_deepseek", "DEEPSEEK_API_KEY"),
+            ("openai", "OPENAI_API_KEY", false),
+            ("groq", "GROQ_API_KEY", true),
+            ("mistral", "MISTRAL_API_KEY", true),
+            ("custom_deepseek", "DEEPSEEK_API_KEY", true),
         ];
-        for (name, expected_key) in cases {
+        for (name, expected_key, expected_required) in cases {
             if let Some((meta, _)) = providers_list.iter().find(|(m, _)| m.name == name) {
                 assert!(
                     !meta.config_keys.is_empty(),
@@ -328,9 +330,9 @@ mod tests {
                     "First config key for {name} should be {expected_key}, got {}",
                     meta.config_keys[0].name
                 );
-                assert!(
-                    meta.config_keys[0].required,
-                    "{expected_key} should be required"
+                assert_eq!(
+                    meta.config_keys[0].required, expected_required,
+                    "{expected_key} required should be {expected_required}"
                 );
                 assert!(
                     meta.config_keys[0].secret,

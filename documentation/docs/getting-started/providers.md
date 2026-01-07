@@ -24,7 +24,7 @@ goose is compatible with a wide range of LLM providers, allowing you to choose a
 | [Amazon Bedrock](https://aws.amazon.com/bedrock/)                           | Offers a variety of foundation models, including Claude, Jurassic-2, and others. **AWS environment variables must be set in advance, not configured through `goose configure`**                                           | `AWS_PROFILE`, or `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`                                                                                                 |
 | [Amazon SageMaker TGI](https://docs.aws.amazon.com/sagemaker/latest/dg/realtime-endpoints.html) | Run Text Generation Inference models through Amazon SageMaker endpoints. **AWS credentials must be configured in advance.** | `SAGEMAKER_ENDPOINT_NAME`, `AWS_REGION` (optional), `AWS_PROFILE` (optional)  |
 | [Anthropic](https://www.anthropic.com/)                                     | Offers Claude, an advanced AI model for natural language tasks.                                                                                                                                                           | `ANTHROPIC_API_KEY`, `ANTHROPIC_HOST` (optional)                                                                                                                                                                 |
-| [Azure OpenAI](https://learn.microsoft.com/en-us/azure/ai-services/openai/) | Access Azure-hosted OpenAI models, including GPT-4 and GPT-3.5. Supports both API key and Azure credential chain authentication.                                                                                          | `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_DEPLOYMENT_NAME`, `AZURE_OPENAI_API_KEY` (optional)                                                                                           |
+| [Azure OpenAI](https://learn.microsoft.com/en-us/azure/ai-services/openai/) | Access Azure-hosted OpenAI models, including GPT-4 and GPT-3.5. Supports [multiple authentication methods](#azure-entra-id-authentication): API key, Azure CLI, managed identity, client secret, and client certificate.  | `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_DEPLOYMENT_NAME`, `AZURE_OPENAI_API_KEY` (optional)                                                                                           |
 | [Databricks](https://www.databricks.com/)                                   | Unified data analytics and AI platform for building and deploying models.                                                                                                                                                 | `DATABRICKS_HOST`, `DATABRICKS_TOKEN` |
 | [Docker Model Runner](https://docs.docker.com/ai/model-runner/)                             | Local models running in Docker Desktop or Docker CE with OpenAI-compatible API endpoints. **Because this provider runs locally, you must first [download a model](#local-llms).**                     | `OPENAI_HOST`, `OPENAI_BASE_PATH`   |
 | [Gemini](https://ai.google.dev/gemini-api/docs)                             | Advanced LLMs by Google with multimodal capabilities (text, images).                                                                                                                                                      | `GOOGLE_API_KEY`                                                                                                                                                                    |
@@ -1100,19 +1100,108 @@ GitHub Copilot uses a device flow for authentication, so no API keys are require
 4. Paste the code to authorize the application
 5. When you return to goose, GitHub Copilot will be available as a provider in both CLI and Desktop.
 
-## Azure OpenAI Credential Chain
+## Azure Entra ID Authentication
 
-goose supports two authentication methods for Azure OpenAI:
+goose supports Azure Entra ID (Azure AD) authentication for both the **Azure OpenAI** provider and the **OpenAI** provider (when using OpenAI endpoints protected by Entra ID).
 
-1. **API Key Authentication** - Uses the `AZURE_OPENAI_API_KEY` for direct authentication
-2. **Azure Credential Chain** - Uses Azure CLI credentials automatically without requiring an API key
+:::info Design Pattern
+This implementation follows the pattern established by the **OpenAI Python SDK's `azure_ad_token_provider`** parameter, providing automatic token caching and refresh with a 30-second buffer before expiry.
+:::
 
-To use the Azure Credential Chain:
-- Ensure you're logged in with `az login`
-- Have appropriate Azure role assignments for the Azure OpenAI service
-- Configure with `goose configure` and select Azure OpenAI, leaving the API key field empty
+### Supported Authentication Methods
 
-This method simplifies authentication and enhances security for enterprise environments.
+The following methods are supported, in priority order:
+
+| Method | Description | Use Case |
+|--------|-------------|----------|
+| **Managed Identity** | System or user-assigned managed identity | Azure-hosted workloads (VMs, App Service, AKS) |
+| **Client Certificate** | Service principal with X.509 certificate | Secure server-to-server authentication |
+| **Client Secret** | Service principal with client secret | Server-to-server authentication |
+| **API Key** | Traditional API key | Azure OpenAI only |
+| **Default Credential** | Azure CLI credentials | Local development |
+
+### Environment Variables
+
+#### For Azure OpenAI Provider
+
+Use the `AZURE_OPENAI_*` prefix:
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `AZURE_OPENAI_ENDPOINT` | Azure OpenAI endpoint URL | Yes |
+| `AZURE_OPENAI_DEPLOYMENT_NAME` | Deployment name | Yes |
+| `AZURE_OPENAI_API_KEY` | API key (alternative to Entra auth) | For API key auth |
+| `AZURE_OPENAI_TENANT_ID` | Azure AD tenant ID | For client secret/certificate auth |
+| `AZURE_OPENAI_CLIENT_ID` | Application (client) ID | For client secret/certificate/user-assigned MI |
+| `AZURE_OPENAI_CLIENT_SECRET` | Client secret value | For client secret auth |
+| `AZURE_OPENAI_CERTIFICATE_PATH` | Path to PEM certificate file | For certificate auth (file) |
+| `AZURE_OPENAI_CERTIFICATE` | PEM certificate content | For certificate auth (inline) |
+| `AZURE_OPENAI_TOKEN_SCOPE` | Custom token scope/resource | Optional |
+| `AZURE_OPENAI_USE_MANAGED_IDENTITY` | Set to "true" or "1" | For managed identity auth |
+
+#### For OpenAI Provider with Entra ID Protection
+
+Use the `OPENAI_AZURE_*` prefix when your OpenAI-compatible endpoint is protected by Entra ID:
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `OPENAI_AZURE_TENANT_ID` | Azure AD tenant ID | For client secret/certificate auth |
+| `OPENAI_AZURE_CLIENT_ID` | Application (client) ID | For client secret/certificate/user-assigned MI |
+| `OPENAI_AZURE_CLIENT_SECRET` | Client secret value | For client secret auth |
+| `OPENAI_AZURE_CERTIFICATE_PATH` | Path to PEM certificate file | For certificate auth (file) |
+| `OPENAI_AZURE_CERTIFICATE` | PEM certificate content | For certificate auth (inline) |
+| `OPENAI_AZURE_TOKEN_SCOPE` | Custom token scope/resource | Optional |
+| `OPENAI_AZURE_USE_MANAGED_IDENTITY` | Set to "true" or "1" | For managed identity auth |
+
+### Configuration Examples
+
+<Tabs groupId="auth-method">
+  <TabItem value="client-secret" label="Client Secret" default>
+    ```bash
+    # Azure OpenAI with client secret
+    export AZURE_OPENAI_ENDPOINT="https://your-resource.openai.azure.com"
+    export AZURE_OPENAI_DEPLOYMENT_NAME="your-deployment"
+    export AZURE_OPENAI_TENANT_ID="your-tenant-id"
+    export AZURE_OPENAI_CLIENT_ID="your-client-id"
+    export AZURE_OPENAI_CLIENT_SECRET="your-client-secret"
+    ```
+  </TabItem>
+  <TabItem value="managed-identity" label="Managed Identity">
+    ```bash
+    # System-assigned managed identity
+    export AZURE_OPENAI_ENDPOINT="https://your-resource.openai.azure.com"
+    export AZURE_OPENAI_DEPLOYMENT_NAME="your-deployment"
+    export AZURE_OPENAI_USE_MANAGED_IDENTITY="true"
+
+    # User-assigned managed identity
+    export AZURE_OPENAI_USE_MANAGED_IDENTITY="true"
+    export AZURE_OPENAI_CLIENT_ID="your-managed-identity-client-id"
+    ```
+  </TabItem>
+  <TabItem value="certificate" label="Client Certificate">
+    ```bash
+    # Certificate from file
+    export AZURE_OPENAI_ENDPOINT="https://your-resource.openai.azure.com"
+    export AZURE_OPENAI_DEPLOYMENT_NAME="your-deployment"
+    export AZURE_OPENAI_TENANT_ID="your-tenant-id"
+    export AZURE_OPENAI_CLIENT_ID="your-client-id"
+    export AZURE_OPENAI_CERTIFICATE_PATH="/path/to/certificate.pem"
+    ```
+  </TabItem>
+  <TabItem value="azure-cli" label="Azure CLI">
+    ```bash
+    # Use Azure CLI credentials (no API key needed)
+    az login
+    export AZURE_OPENAI_ENDPOINT="https://your-resource.openai.azure.com"
+    export AZURE_OPENAI_DEPLOYMENT_NAME="your-deployment"
+    # Leave AZURE_OPENAI_API_KEY unset
+    ```
+  </TabItem>
+</Tabs>
+
+### Token Caching
+
+Tokens are automatically cached and refreshed 30 seconds before expiry. The implementation uses thread-safe double-checked locking for concurrent access.
 
 ## Multi-Model Configuration
 

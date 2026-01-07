@@ -580,6 +580,25 @@ async fn test_xai_provider() -> Result<()> {
     test_provider("Xai", XAI_DEFAULT_MODEL, &["XAI_API_KEY"], None).await
 }
 
+#[tokio::test]
+async fn test_openai_provider_entra_auth() -> Result<()> {
+    // Clear the API key to force Entra auth
+    let env_mods = HashMap::from_iter([("OPENAI_API_KEY", None)]);
+
+    test_provider(
+        "openai (Entra)",
+        OPEN_AI_DEFAULT_MODEL,
+        &[
+            "OPENAI_AZURE_TENANT_ID",
+            "OPENAI_AZURE_CLIENT_ID",
+            "OPENAI_AZURE_CLIENT_SECRET",
+            "OPENAI_HOST", // Custom host required for Entra-protected endpoints
+        ],
+        Some(env_mods),
+    )
+    .await
+}
+
 #[ctor::dtor]
 fn print_test_report() {
     TEST_REPORT.print_summary();

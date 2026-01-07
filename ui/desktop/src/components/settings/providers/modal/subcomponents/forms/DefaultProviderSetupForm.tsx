@@ -102,6 +102,74 @@ export default function DefaultProviderSetupForm({
       .trim();
   };
 
+  // Group parameters by their group field (must be before any early returns)
+  const groupedParameters = useMemo(() => {
+    const groups = new Map<string | undefined | null, ConfigKey[]>();
+
+    parameters.forEach((p) => {
+      const groupKey = p.group;
+      if (!groups.has(groupKey)) {
+        groups.set(groupKey, []);
+      }
+      groups.get(groupKey)!.push(p);
+    });
+
+    return groups;
+  }, [parameters]);
+
+  // Separate required fields and ungrouped optional fields (must be before any early returns)
+  // Note: ungrouped params can be under either undefined or null
+  const ungroupedParams = groupedParameters.get(undefined) || groupedParameters.get(null) || [];
+  const aboveFoldParameters = ungroupedParams.filter((p) => p.required);
+
+  // Determine which fields should show above the fold
+  let finalAboveFoldParameters: ConfigKey[];
+
+  if (aboveFoldParameters.length > 0) {
+    // If there are required ungrouped fields, show them
+    finalAboveFoldParameters = aboveFoldParameters;
+  } else {
+    // Otherwise, check if there are any required fields anywhere (including in groups)
+    const allRequiredParams = parameters.filter((p) => p.required);
+
+    if (allRequiredParams.length > 0) {
+      // Show all required fields above the fold
+      finalAboveFoldParameters = allRequiredParams;
+    } else {
+      // No required fields at all - show priority fields (API key, endpoint, etc.)
+      const priorityFieldNames = ['API_KEY', 'ENDPOINT', 'HOST', 'URL', 'BASE_URL', 'BASE_PATH'];
+      const priorityFields = ungroupedParams.filter((p) => {
+        const upperName = p.name.toUpperCase();
+        return priorityFieldNames.some(name => upperName.includes(name));
+      });
+
+      // If we found priority fields, use them. Otherwise, just show the first few ungrouped params
+      if (priorityFields.length > 0) {
+        finalAboveFoldParameters = priorityFields;
+      } else if (ungroupedParams.length > 0) {
+        // Fall back to showing first 3 ungrouped params
+        finalAboveFoldParameters = ungroupedParams.slice(0, Math.min(3, ungroupedParams.length));
+      } else {
+        finalAboveFoldParameters = [];
+      }
+    }
+  }
+
+  // For below-fold parameters, exclude any that are now showing above the fold
+  const finalAboveFoldParamNames = new Set(finalAboveFoldParameters.map(p => p.name));
+  const belowFoldParameters = ungroupedParams.filter(
+    (p) => !p.required && !finalAboveFoldParamNames.has(p.name)
+  );
+
+  // Get all grouped parameters (exclude undefined/null group AND exclude any shown above fold) (must be before any early returns)
+  const groupedSections = Array.from(groupedParameters.entries())
+    .filter(([groupName]) => groupName !== undefined && groupName !== null)
+    .map(([groupName, params]) => [
+      groupName,
+      params.filter(p => !finalAboveFoldParamNames.has(p.name))
+    ] as [string | undefined, typeof params])
+    .filter(([, params]) => params.length > 0);
+
   const getFieldLabel = (parameter: ConfigKey) => {
     const name = parameter.name.toLowerCase();
     if (name.includes('api_key')) return 'API Key';
@@ -120,6 +188,11 @@ export default function DefaultProviderSetupForm({
       </span>
     );
   };
+
+  // Calculate total count of all below-fold parameters (ungrouped + grouped)
+  const totalBelowFoldCount = belowFoldParameters.length +
+    groupedSections.reduce((sum, [, params]) => sum + params.length, 0);
+  const expandCtaText = `${optionalExpanded ? 'Hide' : 'Show'} ${totalBelowFoldCount} options `;
 
   if (isLoading) {
     return <div className="text-center py-4">Loading configuration values...</div>;
@@ -168,38 +241,45 @@ export default function DefaultProviderSetupForm({
     ));
   };
 
-  let aboveFoldParameters = parameters.filter((p) => p.required);
-  let belowFoldParameters = parameters.filter((p) => !p.required);
-  if (aboveFoldParameters.length === 0) {
-    aboveFoldParameters = belowFoldParameters;
-    belowFoldParameters = [];
-  }
-
-  const expandCtaText = `${optionalExpanded ? 'Hide' : 'Show'} ${belowFoldParameters.length} options `;
-
   return (
     <div className="mt-4 space-y-4">
-      {aboveFoldParameters.length === 0 && belowFoldParameters.length === 0 ? (
+      {finalAboveFoldParameters.length === 0 && belowFoldParameters.length === 0 && groupedSections.length === 0 ? (
         <div className="text-center text-gray-500">
           No configuration parameters for this provider.
         </div>
       ) : (
-        <div>
-          <div>{renderParametersList(aboveFoldParameters)}</div>
-          {belowFoldParameters.length > 0 && (
+        <div className="space-y-4">
+          {/* Only render the above-fold section if there are parameters */}
+          {finalAboveFoldParameters.length > 0 && (
+            <div className="space-y-4">{renderParametersList(finalAboveFoldParameters)}</div>
+          )}
+
+          {/* Render all below-fold parameters in a single collapsible */}
+          {totalBelowFoldCount > 0 && (
             <Collapsible
               open={optionalExpanded}
               onOpenChange={setOptionalExpanded}
-              className="my-4 border-2 border-dashed border-secondary rounded-lg bg-secondary/10"
+              className="border-2 border-dashed border-secondary rounded-lg bg-secondary/10"
             >
-              <CollapsibleTrigger className="m-3 w-full">
-                <div>
+              <CollapsibleTrigger className="px-3 py-2 w-full text-left">
+                <div className="flex items-center">
                   <span className="text-sm">{expandCtaText}</span>
-                  <span className="text-sm">{optionalExpanded ? '↑' : '↓'}</span>
+                  <span className="text-sm ml-2">{optionalExpanded ? '↑' : '↓'}</span>
                 </div>
               </CollapsibleTrigger>
-              <CollapsibleContent className="mx-3 mb-3">
-                {renderParametersList(belowFoldParameters)}
+              <CollapsibleContent className="px-3 pb-3 space-y-4">
+                {/* Render ungrouped optional parameters first */}
+                {belowFoldParameters.length > 0 && renderParametersList(belowFoldParameters)}
+
+                {/* Render grouped parameters with section headers */}
+                {groupedSections.map(([groupName, groupParams]) => (
+                  <div key={groupName} className="space-y-4">
+                    <div className="pt-2 border-t border-secondary">
+                      <h4 className="text-sm font-medium text-textStandard mb-2">{groupName}</h4>
+                    </div>
+                    {renderParametersList(groupParams)}
+                  </div>
+                ))}
               </CollapsibleContent>
             </Collapsible>
           )}

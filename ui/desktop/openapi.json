@@ -2918,6 +2918,11 @@
             "description": "Optional default value for the key",
             "nullable": true
           },
+          "group": {
+            "type": "string",
+            "description": "Optional group name for organizing related configuration fields in the UI\nFields with the same group name will be rendered together in a collapsible section",
+            "nullable": true
+          },
           "name": {
             "type": "string",
             "description": "The name of the configuration key (e.g., \"API_KEY\")"

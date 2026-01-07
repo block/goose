@@ -188,6 +188,9 @@ pub struct ConfigKey {
     /// Whether this key should be configured using OAuth device code flow
     /// When true, the provider's configure_oauth() method will be called instead of prompting for manual input
     pub oauth_flow: bool,
+    /// Optional group name for organizing related configuration fields in the UI
+    /// Fields with the same group name will be rendered together in a collapsible section
+    pub group: Option<String>,
 }
 
 impl ConfigKey {
@@ -199,6 +202,25 @@ impl ConfigKey {
             secret,
             default: default.map(|s| s.to_string()),
             oauth_flow: false,
+            group: None,
+        }
+    }
+
+    /// Create a new ConfigKey with a group assignment
+    pub fn new_with_group(
+        name: &str,
+        required: bool,
+        secret: bool,
+        default: Option<&str>,
+        group: Option<&str>,
+    ) -> Self {
+        Self {
+            name: name.to_string(),
+            required,
+            secret,
+            default: default.map(|s| s.to_string()),
+            oauth_flow: false,
+            group: group.map(|s| s.to_string()),
         }
     }
 
@@ -209,6 +231,7 @@ impl ConfigKey {
             secret,
             default: Some(T::DEFAULT.to_string()),
             oauth_flow: false,
+            group: None,
         }
     }
 
@@ -223,6 +246,7 @@ impl ConfigKey {
             secret,
             default: default.map(|s| s.to_string()),
             oauth_flow: true,
+            group: None,
         }
     }
 }
