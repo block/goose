@@ -77,7 +77,7 @@ export default function BaseChat({
 
   const disableAnimation = location.state?.disableAnimation || false;
   const [hasStartedUsingRecipe, setHasStartedUsingRecipe] = React.useState(false);
-  const [hasNotAcceptedRecipe, setHasNotAcceptedRecipe] = useState<boolean>();
+  const [hasNotAcceptedRecipe, setHasNotAcceptedRecipe] = useState<boolean>(true);
   const [hasRecipeSecurityWarnings, setHasRecipeSecurityWarnings] = useState(false);
 
   const isMobile = useIsMobile();
@@ -161,8 +161,20 @@ export default function BaseChat({
       .reverse();
   }, [messages]);
 
+<<<<<<< HEAD
   const chatInputSubmit = (input: UserInput) => {
     if (recipe && input.msg.trim()) {
+=======
+  const recipe = session?.recipe;
+
+  const autoSubmit = useMemo(() => {
+    if (!session || initialMessage) return false;
+    const hasMessages = (session.conversation?.length ?? 0) > 0;
+    return !!(recipe?.prompt && !hasMessages && hasNotAcceptedRecipe === false);
+  }, [session, recipe, hasNotAcceptedRecipe, initialMessage]);
+
+  useEffect(() => {
+>>>>>>> d906c78a9f (fix: addressed copilot suggestions)
     if (!session || hasAutoSubmittedRef.current) {
       return;
     }
