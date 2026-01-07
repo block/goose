@@ -37,6 +37,7 @@ import {
   trackCreateRecipeOpened,
   trackEditRecipeOpened,
 } from '../utils/analytics';
+import { getNavigationShortcutText } from '../utils/keyboardShortcuts';
 
 interface QueuedMessage {
   id: string;
@@ -1212,7 +1213,7 @@ export default function ChatInput({
             data-testid="chat-input"
             autoFocus
             id="dynamic-textarea"
-            placeholder={isRecording ? '' : '⌘↑/⌘↓ to navigate messages'}
+            placeholder={isRecording ? '' : getNavigationShortcutText()}
             value={displayValue}
             onChange={handleChange}
             onCompositionStart={handleCompositionStart}

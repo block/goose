@@ -30,6 +30,7 @@ import {
   Session,
   updateSessionName,
 } from '../../api';
+import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
 
 interface EditSessionModalProps {
   session: Session | null;
@@ -740,7 +741,8 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                   </Button>
                 </div>
                 <p className="text-sm text-text-muted mb-4">
-                  View and search your past conversations with Goose. ⌘F/Ctrl+F to search.
+                  View and search your past conversations with Goose. {getSearchShortcutText()} to
+                  search.
                 </p>
               </div>
             </div>
