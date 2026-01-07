@@ -557,10 +557,7 @@ impl Provider for GithubCopilotProvider {
 // This function ensures the first choice contains tool metadata so the shared formatter emits a
 // `ToolRequest` instead of returning only the plain-text choice.
 fn promote_tool_choice(response: Value) -> Value {
-    let Some(choices) = response
-        .get("choices")
-        .and_then(|c| c.as_array())
-    else {
+    let Some(choices) = response.get("choices").and_then(|c| c.as_array()) else {
         return response;
     };
 
@@ -605,7 +602,13 @@ mod tests {
         });
 
         let promoted = promote_tool_choice(response);
-        assert_eq!(promoted.get("choices").and_then(|c| c.as_array()).map(|c| c.len()), Some(2));
+        assert_eq!(
+            promoted
+                .get("choices")
+                .and_then(|c| c.as_array())
+                .map(|c| c.len()),
+            Some(2)
+        );
         let first_choice = promoted
             .get("choices")
             .and_then(|c| c.as_array())
