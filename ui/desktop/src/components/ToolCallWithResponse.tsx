@@ -1,6 +1,6 @@
 import { ToolIconWithStatus, ToolCallStatus } from './ToolCallStatusIndicator';
 import { getToolCallIcon } from '../utils/toolIconMapping';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Button } from './ui/button';
 import { ToolCallArguments, ToolCallArgumentValue } from './ToolCallArguments';
 import MarkdownContent from './MarkdownContent';
@@ -71,12 +71,19 @@ function isEmbeddedResource(content: Content): content is EmbeddedResource {
   return 'resource' in content && typeof (content as Record<string, unknown>).resource === 'object';
 }
 
-function maybeRenderMCPApp(
-  toolRequest: ToolRequestMessageContent,
-  toolResponse: ToolResponseMessageContent | undefined,
-  sessionId: string,
-  append?: (value: string) => void
-): React.ReactNode {
+interface McpAppWrapperProps {
+  toolRequest: ToolRequestMessageContent;
+  toolResponse?: ToolResponseMessageContent;
+  sessionId: string;
+  append?: (value: string) => void;
+}
+
+function McpAppWrapper({
+  toolRequest,
+  toolResponse,
+  sessionId,
+  append,
+}: McpAppWrapperProps): React.ReactNode {
   const requestWithMeta = toolRequest as ToolRequestWithMeta;
   let resourceUri = requestWithMeta._meta?.['ui/resourceUri'];
 
@@ -87,24 +94,37 @@ function maybeRenderMCPApp(
     }
   }
 
-  if (!resourceUri) return null;
-  if (requestWithMeta.toolCall.status !== 'success') return null;
+  const extensionName =
+    requestWithMeta.toolCall.status === 'success'
+      ? requestWithMeta.toolCall.value.name.split('__')[0]
+      : '';
 
-  const extensionName = requestWithMeta.toolCall.value.name.split('__')[0];
+  const toolArguments =
+    requestWithMeta.toolCall.status === 'success'
+      ? requestWithMeta.toolCall.value.arguments
+      : undefined;
 
-  let toolResult: CallToolResponse | undefined;
-  if (toolResponse) {
+  // Memoize toolInput to prevent unnecessary re-renders
+  const toolInput = useMemo(() => ({ arguments: toolArguments || {} }), [toolArguments]);
+
+  // Memoize toolResult to prevent unnecessary re-renders
+  const toolResult = useMemo(() => {
+    if (!toolResponse) return undefined;
     const resultWithMeta = toolResponse.toolResult as ToolResultWithMeta;
     if (resultWithMeta?.status === 'success' && resultWithMeta.value) {
-      toolResult = resultWithMeta.value;
+      return resultWithMeta.value;
     }
-  }
+    return undefined;
+  }, [toolResponse]);
+
+  if (!resourceUri) return null;
+  if (requestWithMeta.toolCall.status !== 'success') return null;
 
   return (
     <div className="mt-3">
       <McpAppRenderer
         resourceUri={resourceUri}
-        toolInput={{ arguments: requestWithMeta.toolCall.value.arguments || {} }}
+        toolInput={toolInput}
         toolResult={toolResult}
         extensionName={extensionName}
         sessionId={sessionId}
@@ -181,7 +201,14 @@ export default function ToolCallWithResponse({
           }
         })}
 
-      {sessionId && maybeRenderMCPApp(toolRequest, toolResponse, sessionId, append)}
+      {sessionId && (
+        <McpAppWrapper
+          toolRequest={toolRequest}
+          toolResponse={toolResponse}
+          sessionId={sessionId}
+          append={append}
+        />
+      )}
     </>
   );
 }
