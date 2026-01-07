@@ -203,7 +203,7 @@ mod tests {
         );
     }
     #[test]
-    fn test_validate_return_error_for_invalid_calltoolresult() {
+    fn test_validate_returns_error_for_invalid_calltoolresult() {
         let valid_result = CallToolResult {
             content: vec![],
             is_error: Some(false),
