@@ -4,6 +4,8 @@ description: Create your own custom MCP Server to use as a goose extension
 ---
 
 import { PanelLeft } from 'lucide-react';
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
 
 # Building Custom Extensions with goose
 
@@ -12,14 +14,21 @@ goose allows you to extend its functionality by creating your own custom extensi
 
 In this guide, we build an MCP server using the [Python SDK for MCP][mcp-python]. We’ll demonstrate how to create an MCP server that reads Wikipedia articles and converts them to Markdown, integrate it as an extension in goose. You can follow a similar process to develop your own custom extensions for goose.
 
-You can checkout other examples in this [MCP servers repository][mcp-servers]. MCP SDKs are also available in [Typescript][mcp-typescript] and [Kotlin][mcp-kotlin].
+You can check out other example servers in the [MCP servers repository][mcp-servers]. MCP SDKs are also available for other common languages, such as [Typescript][mcp-typescript] and [Kotlin][mcp-kotlin].
 
 :::info
-
-goose currently supports Tools and Resources for [MCP Server features](https://spec.modelcontextprotocol.io/specification/2024-11-05/server/). 
-We will be adding support for MCP Prompts soon.
-
+goose supports Tools, Resources, and Prompts from the [Model Context Protocol](https://modelcontextprotocol.io/). See [`mcp_client.rs`](https://github.com/block/goose/blob/main/crates/goose/src/agents/mcp_client.rs) for the supported protocol version and client capabilities.
 :::
+
+---
+
+## Prerequisites
+
+Before you begin, ensure you have the following installed on your system:
+
+- **Python 3.13 or higher** - Required for the MCP server
+- **[uv](https://docs.astral.sh/uv/)** - Python package manager used in this tutorial
+- **Node.js and npm** - Only required if you want to use the MCP Inspector development tool in [Step 4](#step-4-test-your-mcp-server).
 
 ---
 
@@ -44,13 +53,12 @@ Your project directory structure should look like this:
 .
 ├── README.md
 ├── pyproject.toml
-├── src
-│   └── mcp_wiki
-│       ├── __init__.py   # Primary CLI entry point
-│       ├── __main__.py   # To enable running as a Python module
-│       ├── py.typed      # Indicates the package supports type hints
-│       └── server.py     # Your MCP server code (tool, resources, prompts)
-└── uv.lock
+└── src
+    └── mcp_wiki
+        ├── __init__.py   # Primary CLI entry point
+        ├── __main__.py   # To enable running as a Python module
+        ├── py.typed      # Indicates the package supports type hints
+        └── server.py     # Your MCP server code (tool, resources, prompts)
 ```
 
 ---
@@ -93,12 +101,16 @@ def read_wikipedia_article(url: str) -> str:
         if not url.startswith("http"):
             raise ValueError("URL must start with http or https.")
 
-        response = requests.get(url, timeout=10)
+        # Add User-Agent header to avoid 403 from Wikipedia
+        headers = {
+            'User-Agent': 'MCP-Wiki/1.0 (Educational purposes; Python requests)'
+        }
+        response = requests.get(url, headers=headers, timeout=10)
         if response.status_code != 200:
             raise McpError(
                 ErrorData(
-                    INTERNAL_ERROR,
-                    f"Failed to retrieve the article. HTTP status code: {response.status_code}"
+                    code=INTERNAL_ERROR,
+                    message=f"Failed to retrieve the article. HTTP status code: {response.status_code}"
                 )
             )
 
@@ -107,8 +119,8 @@ def read_wikipedia_article(url: str) -> str:
         if not content_div:
             raise McpError(
                 ErrorData(
-                    INVALID_PARAMS,
-                    "Could not find the main content on the provided Wikipedia URL."
+                    code=INVALID_PARAMS,
+                    message="Could not find the main content on the provided Wikipedia URL."
                 )
             )
 
@@ -117,11 +129,11 @@ def read_wikipedia_article(url: str) -> str:
         return markdown_text
 
     except ValueError as e:
-        raise McpError(ErrorData(INVALID_PARAMS, str(e))) from e
+        raise McpError(ErrorData(code=INVALID_PARAMS, message=str(e))) from e
     except RequestException as e:
-        raise McpError(ErrorData(INTERNAL_ERROR, f"Request error: {str(e)}")) from e
+        raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"Request error: {str(e)}")) from e
     except Exception as e:
-        raise McpError(ErrorData(INTERNAL_ERROR, f"Unexpected error: {str(e)}")) from e
+        raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"Unexpected error: {str(e)}")) from e
 ```
 
 ### `__init__.py`
@@ -164,9 +176,9 @@ description = "MCP Server for Wikipedia"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "beautifulsoup4>=4.12.3",
-    "html2text>=2024.2.26",
-    "mcp[cli]>=1.2.0",
+    "beautifulsoup4>=4.14.0",
+    "html2text>=2025.4.15",
+    "mcp[cli]>=1.25.0", 
     "requests>=2.32.3",
 ]
 
@@ -182,7 +194,13 @@ build-backend = "hatchling.build"
 
 ## Step 4: Test Your MCP Server
 
-### Using MCP Inspector
+Verify that your MCP server is running in the MCP Inspector (a browser-based development tool) or the server CLI.
+
+<Tabs>
+  <TabItem value="ui" label="In MCP Inspector" default>
+:::info
+MCP Inspector requires Node.js and npm installed on your computer. 
+:::
 
 1. Setup the project environment:
 
@@ -196,34 +214,42 @@ build-backend = "hatchling.build"
    source .venv/bin/activate
    ```
 
-3. Run your server in development mode:
+3. Run your server in development mode: 
 
    ```bash
    mcp dev src/mcp_wiki/server.py
    ```
+   
+   MCP Inspector should open automatically in your browser. On first run, you'll be prompted to install `@modelcontextprotocol/inspector`.
 
-4. Go to `http://localhost:5173` in your browser to open the MCP Inspector UI.
+4. Test the tool:
+   1. Click `Connect` to initialize your MCP server
+   2. On the `Tools` tab, click `List Tools` and click the `read_wikipedia_article` tool
+   3. Enter `https://en.wikipedia.org/wiki/Bangladesh` for the URL and click `Run Tool` 
 
-5. In the UI, you can click "Connect" to initialize your MCP server. Then click on "Tools" tab > "List Tools" and you should see the `read_wikipedia_article` tool. 
-   Then you can try to call the `read_wikipedia_article` tool with URL set to "https://en.wikipedia.org/wiki/Bangladesh" and click "Run Tool". 
+[![MCP Inspector UI](../assets/guides/custom-extension-mcp-inspector.png)](../assets/guides/custom-extension-mcp-inspector.png)
 
-![MCP Inspector UI](../assets/guides/custom-extension-mcp-inspector.png)
+  </TabItem>
+  <TabItem value="cli" label="In the CLI">
+1. Setup the project environment:
 
-### Testing the CLI
+   ```bash
+   uv sync
+   ```
 
-1. Install your project locally:
+2. Activate your virtual environment:
+
+   ```bash
+   source .venv/bin/activate
+   ```
+   
+3. Install your project locally:
 
    ```bash
    uv pip install .
    ```
 
-2. Check the executable in your virtual environment:
-
-   ```bash
-   ls .venv/bin/  # Verify your CLI is available
-   ```
-
-3. Test the CLI:
+4. Verify the CLI:
 
    ```bash
    mcp-wiki --help
@@ -240,6 +266,8 @@ build-backend = "hatchling.build"
    options:
      -h, --help  show this help message and exit
    ```
+  </TabItem>
+</Tabs>
 
 ---
 
