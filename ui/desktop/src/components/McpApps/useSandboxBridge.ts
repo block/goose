@@ -54,6 +54,10 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
   const isGuestInitializedRef = useRef(false);
   const [proxyUrl, setProxyUrl] = useState<string | null>(null);
 
+  // Track last sent values to prevent duplicate notifications
+  const lastSentToolInputRef = useRef<string | null>(null);
+  const lastSentToolResultRef = useRef<string | null>(null);
+
   useEffect(() => {
     fetchMcpAppProxyUrl(resourceCsp).then(setProxyUrl);
   }, [resourceCsp]);
@@ -61,6 +65,8 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
   // Reset initialization state when resource changes
   useEffect(() => {
     isGuestInitializedRef.current = false;
+    lastSentToolInputRef.current = null;
+    lastSentToolResultRef.current = null;
   }, [resourceUri]);
 
   const sendToSandbox = useCallback((message: JsonRpcMessage) => {
@@ -176,8 +182,12 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
   }, [handleJsonRpcMessage]);
 
   // Send tool input notification when it changes
+  // Use JSON stringification to compare values and prevent duplicate notifications
   useEffect(() => {
     if (!isGuestInitializedRef.current || !toolInput) return;
+    const serialized = JSON.stringify(toolInput.arguments);
+    if (serialized === lastSentToolInputRef.current) return;
+    lastSentToolInputRef.current = serialized;
     sendToSandbox({
       jsonrpc: '2.0',
       method: 'ui/notifications/tool-input',
@@ -194,8 +204,13 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
     });
   }, [toolInputPartial, sendToSandbox]);
 
+  // Send tool result notification when it changes
+  // Use JSON stringification to compare values and prevent duplicate notifications
   useEffect(() => {
     if (!isGuestInitializedRef.current || !toolResult) return;
+    const serialized = JSON.stringify(toolResult);
+    if (serialized === lastSentToolResultRef.current) return;
+    lastSentToolResultRef.current = serialized;
     sendToSandbox({
       jsonrpc: '2.0',
       method: 'ui/notifications/tool-result',
