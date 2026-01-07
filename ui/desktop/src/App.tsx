@@ -363,7 +363,6 @@ const ExtensionsRoute = () => {
 
 export function AppInner() {
   const [fatalError, setFatalError] = useState<string | null>(null);
-  const [agentWaitingMessage] = useState<string | null>(null);
   const [isLoadingSharedSession, setIsLoadingSharedSession] = useState(false);
   const [sharedSessionError, setSharedSessionError] = useState<string | null>(null);
   const [isExtensionsLoading] = useState(false);
@@ -395,9 +394,6 @@ export function AppInner() {
       );
     }
   }, []);
-
-  // Don't pre-load session/extensions on Hub - wait until user actually starts chatting
-  // This avoids the slow extension loading on app startup
 
   useEffect(() => {
     const handleOpenSharedSession = async (_event: IpcRendererEvent, ...args: unknown[]) => {
@@ -595,12 +591,7 @@ export function AppInner() {
             path="/"
             element={
               <ProviderGuard didSelectProvider={didSelectProvider}>
-                <ChatProvider
-                  chat={chat}
-                  setChat={setChat}
-                  contextKey="hub"
-                  agentWaitingMessage={agentWaitingMessage}
-                >
+                <ChatProvider chat={chat} setChat={setChat} contextKey="hub">
                   <AppLayout />
                 </ChatProvider>
               </ProviderGuard>
@@ -622,12 +613,7 @@ export function AppInner() {
             <Route
               path="extensions"
               element={
-                <ChatProvider
-                  chat={chat}
-                  setChat={setChat}
-                  contextKey="extensions"
-                  agentWaitingMessage={agentWaitingMessage}
-                >
+                <ChatProvider chat={chat} setChat={setChat} contextKey="extensions">
                   <ExtensionsRoute />
                 </ChatProvider>
               }
