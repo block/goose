@@ -1103,7 +1103,8 @@ export default function ChatInput({
     isAnyDroppedFileLoading ||
     isRecording ||
     isTranscribing ||
-    chatState === ChatState.RestartingAgent;
+    chatState === ChatState.RestartingAgent ||
+    _isExtensionsLoading;
 
   const getSubmitButtonTooltip = (): string => {
     if (isAnyImageLoading) return 'Waiting for images to save...';
