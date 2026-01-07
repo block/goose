@@ -95,7 +95,9 @@ impl DevelopServer {
             **Efficiency Tip**: Each tool call has overhead because the full conversation history
             is re-sent. It's often better to do something in one call rather than two or three,
             even if you read a bit more than strictly necessary. Reading extra context to save a
-            round-trip is usually worth it.
+            round-trip is usually worth it. Avoid tool calls that give you information you already
+            have in context - re-reading files or sections you've already seen uses tokens and
+            adds round trips.
 
             operating system: {os}
             current directory: {cwd}
