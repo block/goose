@@ -24,19 +24,21 @@ interface ToolGraphNode {
   depends_on: number[];
 }
 
+type UiMeta = {
+  ui?: {
+    resourceUri?: string;
+  };
+};
+
 type ToolResultWithMeta = {
   status?: string;
   value?: CallToolResponse & {
-    _meta?: {
-      'ui/resourceUri'?: string;
-    };
+    _meta?: UiMeta;
   };
 };
 
 type ToolRequestWithMeta = ToolRequestMessageContent & {
-  _meta?: {
-    'ui/resourceUri'?: string;
-  };
+  _meta?: UiMeta;
   toolCall: {
     status: 'success';
     value: {
@@ -78,12 +80,12 @@ function maybeRenderMCPApp(
   append?: (value: string) => void
 ): React.ReactNode {
   const requestWithMeta = toolRequest as ToolRequestWithMeta;
-  let resourceUri = requestWithMeta._meta?.['ui/resourceUri'];
+  let resourceUri = requestWithMeta._meta?.ui?.resourceUri;
 
   if (!resourceUri && toolResponse) {
     const resultWithMeta = toolResponse.toolResult as ToolResultWithMeta;
     if (resultWithMeta?.status === 'success' && resultWithMeta.value) {
-      resourceUri = resultWithMeta.value._meta?.['ui/resourceUri'];
+      resourceUri = resultWithMeta.value._meta?.ui?.resourceUri;
     }
   }
 
