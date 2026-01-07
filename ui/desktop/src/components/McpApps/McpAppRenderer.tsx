@@ -6,7 +6,7 @@
  * @see SEP-1865 https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/draft/apps.mdx
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useSandboxBridge } from './useSandboxBridge';
 import {
   ToolInput,
@@ -160,13 +160,30 @@ export default function McpAppRenderer({
     setIframeHeight(newHeight);
   }, []);
 
+  // Memoize tool props to prevent unnecessary re-renders and duplicate notifications
+  // These props are often passed as inline objects which create new references on each render
+  const memoizedToolInput = useMemo(
+    () => toolInput,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [JSON.stringify(toolInput)]
+  );
+  const memoizedToolInputPartial = useMemo(
+    () => toolInputPartial,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [JSON.stringify(toolInputPartial)]
+  );
+  const memoizedToolResult = useMemo(
+    () => toolResult,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [JSON.stringify(toolResult)]
+  );
   const { iframeRef, proxyUrl } = useSandboxBridge({
     resourceHtml: resourceHtml || '',
     resourceCsp,
     resourceUri,
-    toolInput,
-    toolInputPartial,
-    toolResult,
+    toolInput: memoizedToolInput,
+    toolInputPartial: memoizedToolInputPartial,
+    toolResult: memoizedToolResult,
     toolCancelled,
     onMcpRequest: handleMcpRequest,
     onSizeChanged: handleSizeChanged,
