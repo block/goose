@@ -1438,4 +1438,87 @@ mod tests {
             panic!("Expected ToolResponse content");
         }
     }
+
+    #[test]
+    fn test_tool_request_with_value_arguments_backward_compatibility() {
+        struct TestCase {
+            name: &'static str,
+            arguments_json: &'static str,
+            expected: Option<Value>,
+        }
+
+        let test_cases = [
+            TestCase {
+                name: "string",
+                arguments_json: r#""string_argument""#,
+                expected: Some(serde_json::json!({"value": "string_argument"})),
+            },
+            TestCase {
+                name: "array",
+                arguments_json: r#"["a", "b", "c"]"#,
+                expected: Some(serde_json::json!({"value": ["a", "b", "c"]})),
+            },
+            TestCase {
+                name: "number",
+                arguments_json: "42",
+                expected: Some(serde_json::json!({"value": 42})),
+            },
+            TestCase {
+                name: "null",
+                arguments_json: "null",
+                expected: None,
+            },
+            TestCase {
+                name: "object",
+                arguments_json: r#"{"key": "value", "number": 123}"#,
+                expected: Some(serde_json::json!({"key": "value", "number": 123})),
+            },
+        ];
+
+        for tc in test_cases {
+            let json = format!(
+                r#"{{
+                    "role": "assistant",
+                    "created": 1640995200,
+                    "content": [{{
+                        "type": "toolRequest",
+                        "id": "tool123",
+                        "toolCall": {{
+                            "status": "success",
+                            "value": {{
+                                "name": "test_tool",
+                                "arguments": {}
+                            }}
+                        }}
+                    }}],
+                    "metadata": {{ "agentVisible": true, "userVisible": true }}
+                }}"#,
+                tc.arguments_json
+            );
+
+            let message: Message = serde_json::from_str(&json)
+                .unwrap_or_else(|e| panic!("{}: parse failed: {}", tc.name, e));
+
+            let MessageContent::ToolRequest(request) = &message.content[0] else {
+                panic!("{}: expected ToolRequest content", tc.name);
+            };
+
+            let Ok(tool_call) = &request.tool_call else {
+                panic!("{}: expected successful tool call", tc.name);
+            };
+
+            assert_eq!(tool_call.name, "test_tool", "{}: wrong tool name", tc.name);
+
+            match (&tool_call.arguments, &tc.expected) {
+                (None, None) => {}
+                (Some(args), Some(expected)) => {
+                    let args_value = serde_json::to_value(args).unwrap();
+                    assert_eq!(&args_value, expected, "{}: arguments mismatch", tc.name);
+                }
+                (actual, expected) => {
+                    panic!("{}: expected {:?}, got {:?}", tc.name, expected, actual);
+                }
+            }
+        }
+    }
 }
