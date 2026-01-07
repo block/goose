@@ -1151,7 +1151,8 @@ export default function ChatInput({
     isAnyDroppedFileLoading ||
     isRecording ||
     isTranscribing ||
-    chatState === ChatState.RestartingAgent;
+    chatState === ChatState.RestartingAgent ||
+    _isExtensionsLoading;
 
   // Queue management functions - no storage persistence, only in-memory
   const handleRemoveQueuedMessage = (messageId: string) => {
