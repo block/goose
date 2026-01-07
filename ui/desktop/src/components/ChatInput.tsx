@@ -348,6 +348,11 @@ export default function ChatInput({
   const timeoutRefsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
   const [didAutoSubmit, setDidAutoSubmit] = useState<boolean>(false);
 
+  // Reset auto-submit state when the active session changes so recipes can auto-submit again
+  useEffect(() => {
+    setDidAutoSubmit(false);
+  }, [sessionId]);
+
   // Use shared file drop hook for ChatInput
   const {
     droppedFiles: localDroppedFiles,
@@ -1014,9 +1019,9 @@ export default function ChatInput({
   useEffect(() => {
     if (!!autoSubmit && !didAutoSubmit) {
       setDidAutoSubmit(true);
-      performSubmitRef.current(initialValue);
+      performSubmitRef.current(displayValue);
     }
-  }, [autoSubmit, didAutoSubmit, initialValue]);
+  }, [autoSubmit, didAutoSubmit, displayValue]);
 
   const handleKeyDown = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // If mention popover is open, handle arrow keys and enter
