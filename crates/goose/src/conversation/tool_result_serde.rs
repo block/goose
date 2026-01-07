@@ -25,15 +25,13 @@ where
     }
 }
 
-/// Legacy ToolCall format from older sessions (pre-rmcp migration).
-/// The old format had `arguments: Value` instead of `arguments: Option<JsonObject>`.
 #[derive(Deserialize)]
-struct LegacyToolCall {
+struct ToolCallWithValueArguments {
     name: String,
     arguments: serde_json::Value,
 }
 
-impl LegacyToolCall {
+impl ToolCallWithValueArguments {
     fn into_call_tool_request_param(self) -> CallToolRequestParam {
         let arguments = match self.arguments {
             serde_json::Value::Object(map) => Some(map),
@@ -51,8 +49,6 @@ impl LegacyToolCall {
     }
 }
 
-/// Deserialize ToolResult<CallToolRequestParam> with backward compatibility for legacy ToolCall format.
-/// This handles old sessions where `arguments` could be any JSON value, not just an object.
 pub fn deserialize<'de, D>(deserializer: D) -> Result<ToolResult<CallToolRequestParam>, D::Error>
 where
     D: Deserializer<'de>,
@@ -60,13 +56,13 @@ where
     #[derive(Deserialize)]
     #[serde(untagged)]
     enum ResultFormat {
-        NewSuccess {
+        SuccessWithCallToolRequestParam {
             status: String,
             value: CallToolRequestParam,
         },
-        LegacySuccess {
+        SuccessWithToolCallValueArguments {
             status: String,
-            value: LegacyToolCall,
+            value: ToolCallWithValueArguments,
         },
         Error {
             status: String,
@@ -77,7 +73,7 @@ where
     let format = ResultFormat::deserialize(deserializer)?;
 
     match format {
-        ResultFormat::NewSuccess { status, value } => {
+        ResultFormat::SuccessWithCallToolRequestParam { status, value } => {
             if status == "success" {
                 Ok(Ok(value))
             } else {
@@ -87,7 +83,7 @@ where
                 )))
             }
         }
-        ResultFormat::LegacySuccess { status, value } => {
+        ResultFormat::SuccessWithToolCallValueArguments { status, value } => {
             if status == "success" {
                 Ok(Ok(value.into_call_tool_request_param()))
             } else {
@@ -135,11 +131,11 @@ pub mod call_tool_result {
         #[derive(Deserialize)]
         #[serde(untagged)]
         enum ResultFormat {
-            NewSuccess {
+            SuccessWithCallToolResult {
                 status: String,
                 value: CallToolResult,
             },
-            LegacySuccess {
+            SuccessWithContentVec {
                 status: String,
                 value: Vec<Content>,
             },
@@ -152,7 +148,7 @@ pub mod call_tool_result {
         let format = ResultFormat::deserialize(deserializer)?;
 
         match format {
-            ResultFormat::NewSuccess { status, value } => {
+            ResultFormat::SuccessWithCallToolResult { status, value } => {
                 if status == "success" {
                     Ok(Ok(value))
                 } else {
@@ -162,7 +158,7 @@ pub mod call_tool_result {
                     )))
                 }
             }
-            ResultFormat::LegacySuccess { status, value } => {
+            ResultFormat::SuccessWithContentVec { status, value } => {
                 if status == "success" {
                     Ok(Ok(CallToolResult::success(value)))
                 } else {
