@@ -75,7 +75,7 @@ Try out other demos:
 
 ## For Extension Developers
 
-Want to add interactivity to your own extensions? 
+Add interactivity to your own extensions:
 
 - [Building MCP Apps](/docs/tutorials/building-mcp-apps) - Step-by-step tutorial (recommended)
 - [MCP-UI Documentation](https://mcpui.dev/guide/introduction) - MCP-UI specification
