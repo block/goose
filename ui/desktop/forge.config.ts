@@ -93,6 +93,19 @@ module.exports = {
         },
       },
     },
+    {
+      name: '@electron-forge/maker-flatpak',
+      config: {
+        options: {
+          categories: ['Development'],
+          icon: 'src/images/icon.png',
+          homepage: 'https://block.github.io/goose/',
+          runtimeVersion: '25.08',
+          baseVersion: '25.08',
+          modules: [],
+        },
+      },
+    },
   ],
   plugins: [
     {

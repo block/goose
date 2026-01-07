@@ -76,7 +76,14 @@ jobs:
             rpm \
             fakeroot \
             dpkg-dev \
-            protobuf-compiler
+            protobuf-compiler \
+            flatpak \
+            flatpak-builder \
+            elfutils
+
+      - name: Add Flathub remote
+        run: |
+          flatpak remote-add --if-not-exists --user flathub https://dl.flathub.org/repo/flathub.flatpakrepo
 
       - name: Activate hermit and set CARGO_HOME
         run: |
@@ -151,10 +158,10 @@ jobs:
           find ui/desktop/out/ -type f | head -20
           echo ""
           echo "=== Package files specifically ==="
-          find ui/desktop/out/ -name "*.deb" -o -name "*.rpm"
+          find ui/desktop/out/ \( -name "*.deb" -o -name "*.rpm" -o -name "*.flatpak" \)
           echo ""
           echo "=== File sizes ==="
-          find ui/desktop/out/ -name "*.deb" -o -name "*.rpm" -exec ls -lh {} \;
+          find ui/desktop/out/ \( -name "*.deb" -o -name "*.rpm" -o -name "*.flatpak" \) -exec ls -lh {} \;
 
       - name: Upload .deb package
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -177,4 +184,11 @@ jobs:
           path: |
             ui/desktop/out/make/deb/x64/*.deb
             ui/desktop/out/make/rpm/x64/*.rpm
+          if-no-files-found: error
+
+      - name: Upload .flatpak package
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: Goose-linux-x64-flatpak
+          path: ui/desktop/out/make/flatpak/**/*.flatpak
           if-no-files-found: error
