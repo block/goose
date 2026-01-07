@@ -164,7 +164,10 @@ export default function ToolCallWithResponse({
   }
 
   const requestWithMeta = toolRequest as ToolRequestWithMeta;
-  const hasMcpAppResourceURI = Boolean(requestWithMeta._meta?.ui?.resourceUri);
+  const resultWithMeta = toolResponse?.toolResult as ToolResultWithMeta;
+  const hasMcpAppResourceURI = Boolean(
+    requestWithMeta._meta?.ui?.resourceUri || resultWithMeta?.value?._meta?.ui?.resourceUri
+  );
 
   return (
     <>
