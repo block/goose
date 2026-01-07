@@ -56,6 +56,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from '../ui/dropdown-menu';
+import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
 
 export default function RecipesView() {
   const setView = useNavigation();
@@ -695,7 +696,7 @@ export default function RecipesView() {
               </div>
               <p className="text-sm text-text-muted mb-1">
                 View and manage your saved recipes to quickly start new sessions with predefined
-                configurations. ⌘F/Ctrl+F to search.
+                configurations. {getSearchShortcutText()} to search.
               </p>
             </div>
           </div>

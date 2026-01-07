@@ -484,6 +484,10 @@ impl ExtensionManager {
     ) -> ExtensionResult<()> {
         let config_name = config.key().to_string();
         let sanitized_name = normalize(&config_name);
+
+        if self.extensions.lock().await.contains_key(&sanitized_name) {
+            return Ok(());
+        }
         let mut temp_dir = None;
 
         let client: Box<dyn McpClientTrait> = match &config {
