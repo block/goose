@@ -51,10 +51,10 @@ function PageViewTracker() {
 }
 
 // Route Components
-const HubRouteWrapper = ({ isExtensionsLoading }: { isExtensionsLoading: boolean }) => {
+const HubRouteWrapper = () => {
   const setView = useNavigation();
 
-  return <Hub setView={setView} isExtensionsLoading={isExtensionsLoading} />;
+  return <Hub setView={setView} />;
 };
 
 const PairRouteWrapper = ({
@@ -365,7 +365,6 @@ export function AppInner() {
   const [fatalError, setFatalError] = useState<string | null>(null);
   const [isLoadingSharedSession, setIsLoadingSharedSession] = useState(false);
   const [sharedSessionError, setSharedSessionError] = useState<string | null>(null);
-  const [isExtensionsLoading] = useState(false);
   const [didSelectProvider, setDidSelectProvider] = useState<boolean>(false);
 
   const navigate = useNavigate();
@@ -597,7 +596,7 @@ export function AppInner() {
               </ProviderGuard>
             }
           >
-            <Route index element={<HubRouteWrapper isExtensionsLoading={isExtensionsLoading} />} />
+            <Route index element={<HubRouteWrapper />} />
             <Route
               path="pair"
               element={
