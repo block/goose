@@ -1,6 +1,6 @@
 import { ToolIconWithStatus, ToolCallStatus } from './ToolCallStatusIndicator';
 import { getToolCallIcon } from '../utils/toolIconMapping';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Button } from './ui/button';
 import { ToolCallArguments, ToolCallArgumentValue } from './ToolCallArguments';
 import MarkdownContent from './MarkdownContent';
@@ -24,19 +24,21 @@ interface ToolGraphNode {
   depends_on: number[];
 }
 
+type UiMeta = {
+  ui?: {
+    resourceUri?: string;
+  };
+};
+
 type ToolResultWithMeta = {
   status?: string;
   value?: CallToolResponse & {
-    _meta?: {
-      'ui/resourceUri'?: string;
-    };
+    _meta?: UiMeta;
   };
 };
 
 type ToolRequestWithMeta = ToolRequestMessageContent & {
-  _meta?: {
-    'ui/resourceUri'?: string;
-  };
+  _meta?: UiMeta;
   toolCall: {
     status: 'success';
     value: {
@@ -71,40 +73,60 @@ function isEmbeddedResource(content: Content): content is EmbeddedResource {
   return 'resource' in content && typeof (content as Record<string, unknown>).resource === 'object';
 }
 
-function maybeRenderMCPApp(
-  toolRequest: ToolRequestMessageContent,
-  toolResponse: ToolResponseMessageContent | undefined,
-  sessionId: string,
-  append?: (value: string) => void
-): React.ReactNode {
+interface McpAppWrapperProps {
+  toolRequest: ToolRequestMessageContent;
+  toolResponse?: ToolResponseMessageContent;
+  sessionId: string;
+  append?: (value: string) => void;
+}
+
+function McpAppWrapper({
+  toolRequest,
+  toolResponse,
+  sessionId,
+  append,
+}: McpAppWrapperProps): React.ReactNode {
   const requestWithMeta = toolRequest as ToolRequestWithMeta;
-  let resourceUri = requestWithMeta._meta?.['ui/resourceUri'];
+  let resourceUri = requestWithMeta._meta?.ui?.resourceUri;
 
   if (!resourceUri && toolResponse) {
     const resultWithMeta = toolResponse.toolResult as ToolResultWithMeta;
     if (resultWithMeta?.status === 'success' && resultWithMeta.value) {
-      resourceUri = resultWithMeta.value._meta?.['ui/resourceUri'];
+      resourceUri = resultWithMeta.value._meta?.ui?.resourceUri;
     }
   }
+
+  const extensionName =
+    requestWithMeta.toolCall.status === 'success'
+      ? requestWithMeta.toolCall.value.name.split('__')[0]
+      : '';
+
+  const toolArguments =
+    requestWithMeta.toolCall.status === 'success'
+      ? requestWithMeta.toolCall.value.arguments
+      : undefined;
+
+  // Memoize toolInput to prevent unnecessary re-renders
+  const toolInput = useMemo(() => ({ arguments: toolArguments || {} }), [toolArguments]);
+
+  // Memoize toolResult to prevent unnecessary re-renders
+  const toolResult = useMemo(() => {
+    if (!toolResponse) return undefined;
+    const resultWithMeta = toolResponse.toolResult as ToolResultWithMeta;
+    if (resultWithMeta?.status === 'success' && resultWithMeta.value) {
+      return resultWithMeta.value;
+    }
+    return undefined;
+  }, [toolResponse]);
 
   if (!resourceUri) return null;
   if (requestWithMeta.toolCall.status !== 'success') return null;
-
-  const extensionName = requestWithMeta.toolCall.value.name.split('__')[0];
-
-  let toolResult: CallToolResponse | undefined;
-  if (toolResponse) {
-    const resultWithMeta = toolResponse.toolResult as ToolResultWithMeta;
-    if (resultWithMeta?.status === 'success' && resultWithMeta.value) {
-      toolResult = resultWithMeta.value;
-    }
-  }
 
   return (
     <div className="mt-3">
       <McpAppRenderer
         resourceUri={resourceUri}
-        toolInput={{ arguments: requestWithMeta.toolCall.value.arguments || {} }}
+        toolInput={toolInput}
         toolResult={toolResult}
         extensionName={extensionName}
         sessionId={sessionId}
@@ -141,6 +163,12 @@ export default function ToolCallWithResponse({
     return null;
   }
 
+  const requestWithMeta = toolRequest as ToolRequestWithMeta;
+  const resultWithMeta = toolResponse?.toolResult as ToolResultWithMeta;
+  const hasMcpAppResourceURI = Boolean(
+    requestWithMeta._meta?.ui?.resourceUri || resultWithMeta?.value?._meta?.ui?.resourceUri
+  );
+
   return (
     <>
       <div
@@ -159,7 +187,8 @@ export default function ToolCallWithResponse({
         />
       </div>
       {/* MCP UI — Inline */}
-      {toolResponse?.toolResult &&
+      {!hasMcpAppResourceURI &&
+        toolResponse?.toolResult &&
         getToolResultContent(toolResponse.toolResult).map((content, index) => {
           const resourceContent = isEmbeddedResource(content)
             ? { ...content, type: 'resource' as const }
@@ -181,7 +210,14 @@ export default function ToolCallWithResponse({
           }
         })}
 
-      {sessionId && maybeRenderMCPApp(toolRequest, toolResponse, sessionId, append)}
+      {hasMcpAppResourceURI && sessionId && (
+        <McpAppWrapper
+          toolRequest={toolRequest}
+          toolResponse={toolResponse}
+          sessionId={sessionId}
+          append={append}
+        />
+      )}
     </>
   );
 }
