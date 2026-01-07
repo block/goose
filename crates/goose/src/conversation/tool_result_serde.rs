@@ -108,7 +108,8 @@ pub mod call_tool_result {
             tracing::debug!(
                 "Failed to deserialize call_tool_result: {}. Original data: {}",
                 e,
-                serde_json::to_string(&original_value).unwrap_or_else(|_| "<invalid json>".to_string())
+                serde_json::to_string(&original_value)
+                    .unwrap_or_else(|_| "<invalid json>".to_string())
             );
             serde::de::Error::custom(e)
         })?;
@@ -153,31 +154,27 @@ pub mod call_tool_result {
 
     pub fn validate(result: ToolResult<CallToolResult>) -> ToolResult<CallToolResult> {
         match &result {
-            Ok(call_tool_result) => {
-                match serde_json::to_string(call_tool_result) {
-                    Ok(json_str) => {
-                        match serde_json::from_str::<CallToolResult>(&json_str) {
-                            Ok(_) => result,
-                            Err(e) => {
-                                tracing::error!("CallToolResult failed validation by deserialization: {}. Original data: {}", e, json_str);
-                                Err(ErrorData {
-                                    code: ErrorCode::INTERNAL_ERROR,
-                                    message: Cow::from(format!("Tool result validation failed: {}", e)),
-                                    data: None,
-                                })
-                            }
-                        }
-                    }
+            Ok(call_tool_result) => match serde_json::to_string(call_tool_result) {
+                Ok(json_str) => match serde_json::from_str::<CallToolResult>(&json_str) {
+                    Ok(_) => result,
                     Err(e) => {
-                        tracing::error!("CallToolResult failed serialization: {}", e);
+                        tracing::error!("CallToolResult failed validation by deserialization: {}. Original data: {}", e, json_str);
                         Err(ErrorData {
                             code: ErrorCode::INTERNAL_ERROR,
-                            message: Cow::from(format!("Tool result serialization failed: {}", e)),
+                            message: Cow::from(format!("Tool result validation failed: {}", e)),
                             data: None,
                         })
                     }
+                },
+                Err(e) => {
+                    tracing::error!("CallToolResult failed serialization: {}", e);
+                    Err(ErrorData {
+                        code: ErrorCode::INTERNAL_ERROR,
+                        message: Cow::from(format!("Tool result serialization failed: {}", e)),
+                        data: None,
+                    })
                 }
-            }
+            },
             Err(_) => result,
         }
     }
@@ -200,7 +197,10 @@ mod tests {
         let tool_result: ToolResult<CallToolResult> = Ok(valid_result);
         let validated = call_tool_result::validate(tool_result);
 
-        assert!(validated.is_ok(), "Expected validation to pass for valid CallToolResult");
+        assert!(
+            validated.is_ok(),
+            "Expected validation to pass for valid CallToolResult"
+        );
     }
     #[test]
     fn test_validate_return_error_for_invalid_calltoolresult() {
@@ -215,7 +215,10 @@ mod tests {
         let validated = call_tool_result::validate(tool_result);
 
         assert!(validated.is_err());
-        assert!(validated.unwrap_err().message.contains("Tool result validation failed"))
+        assert!(validated
+            .unwrap_err()
+            .message
+            .contains("Tool result validation failed"))
     }
 
     #[test]
@@ -229,9 +232,6 @@ mod tests {
         let validated = call_tool_result::validate(error_result.clone());
 
         assert!(validated.is_err());
-        assert_eq!(
-            validated.unwrap_err().message,
-            "test error"
-        );
+        assert_eq!(validated.unwrap_err().message, "test error");
     }
 }
