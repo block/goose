@@ -1,5 +1,5 @@
 use crate::mcp_utils::ToolResult;
-use rmcp::model::{ErrorCode, ErrorData};
+use rmcp::model::{CallToolRequestParam, ErrorCode, ErrorData, JsonObject};
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::borrow::Cow;
@@ -25,24 +25,71 @@ where
     }
 }
 
-pub fn deserialize<'de, T, D>(deserializer: D) -> Result<ToolResult<T>, D::Error>
+/// Legacy ToolCall format from older sessions (pre-rmcp migration).
+/// The old format had `arguments: Value` instead of `arguments: Option<JsonObject>`.
+#[derive(Deserialize)]
+struct LegacyToolCall {
+    name: String,
+    arguments: serde_json::Value,
+}
+
+impl LegacyToolCall {
+    fn into_call_tool_request_param(self) -> CallToolRequestParam {
+        let arguments = match self.arguments {
+            serde_json::Value::Object(map) => Some(map),
+            serde_json::Value::Null => None,
+            other => {
+                let mut map = JsonObject::new();
+                map.insert("value".to_string(), other);
+                Some(map)
+            }
+        };
+        CallToolRequestParam {
+            name: Cow::Owned(self.name),
+            arguments,
+        }
+    }
+}
+
+/// Deserialize ToolResult<CallToolRequestParam> with backward compatibility for legacy ToolCall format.
+/// This handles old sessions where `arguments` could be any JSON value, not just an object.
+pub fn deserialize<'de, D>(deserializer: D) -> Result<ToolResult<CallToolRequestParam>, D::Error>
 where
-    T: Deserialize<'de>,
     D: Deserializer<'de>,
 {
     #[derive(Deserialize)]
     #[serde(untagged)]
-    enum ResultFormat<T> {
-        Success { status: String, value: T },
-        Error { status: String, error: String },
+    enum ResultFormat {
+        NewSuccess {
+            status: String,
+            value: CallToolRequestParam,
+        },
+        LegacySuccess {
+            status: String,
+            value: LegacyToolCall,
+        },
+        Error {
+            status: String,
+            error: String,
+        },
     }
 
     let format = ResultFormat::deserialize(deserializer)?;
 
     match format {
-        ResultFormat::Success { status, value } => {
+        ResultFormat::NewSuccess { status, value } => {
             if status == "success" {
                 Ok(Ok(value))
+            } else {
+                Err(serde::de::Error::custom(format!(
+                    "Expected status 'success', got '{}'",
+                    status
+                )))
+            }
+        }
+        ResultFormat::LegacySuccess { status, value } => {
+            if status == "success" {
+                Ok(Ok(value.into_call_tool_request_param()))
             } else {
                 Err(serde::de::Error::custom(format!(
                     "Expected status 'success', got '{}'",

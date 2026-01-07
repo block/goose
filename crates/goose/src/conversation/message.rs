@@ -1438,4 +1438,198 @@ mod tests {
             panic!("Expected ToolResponse content");
         }
     }
+
+    #[test]
+    fn test_legacy_tool_request_with_value_arguments() {
+        // Old ToolCall format had arguments as serde_json::Value, not Option<JsonObject>
+        // This tests backward compatibility with sessions that had non-object arguments
+        let legacy_json = r#"{
+            "role": "assistant",
+            "created": 1640995200,
+            "content": [{
+                "type": "toolRequest",
+                "id": "tool123",
+                "toolCall": {
+                    "status": "success",
+                    "value": {
+                        "name": "test_tool",
+                        "arguments": "string_argument"
+                    }
+                }
+            }],
+            "metadata": { "agentVisible": true, "userVisible": true }
+        }"#;
+
+        let message: Message = serde_json::from_str(legacy_json).unwrap();
+        assert_eq!(message.content.len(), 1);
+
+        if let MessageContent::ToolRequest(request) = &message.content[0] {
+            assert_eq!(request.id, "tool123");
+            if let Ok(tool_call) = &request.tool_call {
+                assert_eq!(tool_call.name, "test_tool");
+                // Non-object arguments should be wrapped in {"value": ...}
+                assert!(tool_call.arguments.is_some());
+                let args = tool_call.arguments.as_ref().unwrap();
+                assert_eq!(
+                    args.get("value"),
+                    Some(&serde_json::json!("string_argument"))
+                );
+            } else {
+                panic!("Expected successful tool call");
+            }
+        } else {
+            panic!("Expected ToolRequest content");
+        }
+    }
+
+    #[test]
+    fn test_legacy_tool_request_with_array_arguments() {
+        let legacy_json = r#"{
+            "role": "assistant",
+            "created": 1640995200,
+            "content": [{
+                "type": "toolRequest",
+                "id": "tool123",
+                "toolCall": {
+                    "status": "success",
+                    "value": {
+                        "name": "test_tool",
+                        "arguments": ["a", "b", "c"]
+                    }
+                }
+            }],
+            "metadata": { "agentVisible": true, "userVisible": true }
+        }"#;
+
+        let message: Message = serde_json::from_str(legacy_json).unwrap();
+        assert_eq!(message.content.len(), 1);
+
+        if let MessageContent::ToolRequest(request) = &message.content[0] {
+            assert_eq!(request.id, "tool123");
+            if let Ok(tool_call) = &request.tool_call {
+                assert_eq!(tool_call.name, "test_tool");
+                // Array arguments should be wrapped in {"value": [...]}
+                assert!(tool_call.arguments.is_some());
+                let args = tool_call.arguments.as_ref().unwrap();
+                assert_eq!(args.get("value"), Some(&serde_json::json!(["a", "b", "c"])));
+            } else {
+                panic!("Expected successful tool call");
+            }
+        } else {
+            panic!("Expected ToolRequest content");
+        }
+    }
+
+    #[test]
+    fn test_legacy_tool_request_with_number_arguments() {
+        let legacy_json = r#"{
+            "role": "assistant",
+            "created": 1640995200,
+            "content": [{
+                "type": "toolRequest",
+                "id": "tool123",
+                "toolCall": {
+                    "status": "success",
+                    "value": {
+                        "name": "test_tool",
+                        "arguments": 42
+                    }
+                }
+            }],
+            "metadata": { "agentVisible": true, "userVisible": true }
+        }"#;
+
+        let message: Message = serde_json::from_str(legacy_json).unwrap();
+        assert_eq!(message.content.len(), 1);
+
+        if let MessageContent::ToolRequest(request) = &message.content[0] {
+            assert_eq!(request.id, "tool123");
+            if let Ok(tool_call) = &request.tool_call {
+                assert_eq!(tool_call.name, "test_tool");
+                // Number arguments should be wrapped in {"value": 42}
+                assert!(tool_call.arguments.is_some());
+                let args = tool_call.arguments.as_ref().unwrap();
+                assert_eq!(args.get("value"), Some(&serde_json::json!(42)));
+            } else {
+                panic!("Expected successful tool call");
+            }
+        } else {
+            panic!("Expected ToolRequest content");
+        }
+    }
+
+    #[test]
+    fn test_legacy_tool_request_with_null_arguments() {
+        let legacy_json = r#"{
+            "role": "assistant",
+            "created": 1640995200,
+            "content": [{
+                "type": "toolRequest",
+                "id": "tool123",
+                "toolCall": {
+                    "status": "success",
+                    "value": {
+                        "name": "test_tool",
+                        "arguments": null
+                    }
+                }
+            }],
+            "metadata": { "agentVisible": true, "userVisible": true }
+        }"#;
+
+        let message: Message = serde_json::from_str(legacy_json).unwrap();
+        assert_eq!(message.content.len(), 1);
+
+        if let MessageContent::ToolRequest(request) = &message.content[0] {
+            assert_eq!(request.id, "tool123");
+            if let Ok(tool_call) = &request.tool_call {
+                assert_eq!(tool_call.name, "test_tool");
+                // Null arguments should become None
+                assert!(tool_call.arguments.is_none());
+            } else {
+                panic!("Expected successful tool call");
+            }
+        } else {
+            panic!("Expected ToolRequest content");
+        }
+    }
+
+    #[test]
+    fn test_legacy_tool_request_with_object_arguments() {
+        // Object arguments should work with both old and new format
+        let legacy_json = r#"{
+            "role": "assistant",
+            "created": 1640995200,
+            "content": [{
+                "type": "toolRequest",
+                "id": "tool123",
+                "toolCall": {
+                    "status": "success",
+                    "value": {
+                        "name": "test_tool",
+                        "arguments": {"key": "value", "number": 123}
+                    }
+                }
+            }],
+            "metadata": { "agentVisible": true, "userVisible": true }
+        }"#;
+
+        let message: Message = serde_json::from_str(legacy_json).unwrap();
+        assert_eq!(message.content.len(), 1);
+
+        if let MessageContent::ToolRequest(request) = &message.content[0] {
+            assert_eq!(request.id, "tool123");
+            if let Ok(tool_call) = &request.tool_call {
+                assert_eq!(tool_call.name, "test_tool");
+                assert!(tool_call.arguments.is_some());
+                let args = tool_call.arguments.as_ref().unwrap();
+                assert_eq!(args.get("key"), Some(&serde_json::json!("value")));
+                assert_eq!(args.get("number"), Some(&serde_json::json!(123)));
+            } else {
+                panic!("Expected successful tool call");
+            }
+        } else {
+            panic!("Expected ToolRequest content");
+        }
+    }
 }
