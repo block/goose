@@ -36,6 +36,9 @@ import { substituteParameters } from '../utils/providerUtils';
 import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal';
 import { toastSuccess } from '../toasts';
 import { Recipe } from '../recipe';
+import { createSession } from '../sessions';
+import { getInitialWorkingDir } from '../utils/workingDir';
+import { useConfig } from './ConfigContext';
 
 // Context for sharing current model info
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
@@ -66,11 +69,13 @@ function BaseChatContent({
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const scrollRef = useRef<ScrollAreaHandle>(null);
+  const { extensionsList } = useConfig();
 
   const disableAnimation = location.state?.disableAnimation || false;
   const [hasStartedUsingRecipe, setHasStartedUsingRecipe] = React.useState(false);
   const [hasNotAcceptedRecipe, setHasNotAcceptedRecipe] = useState<boolean>();
   const [hasRecipeSecurityWarnings, setHasRecipeSecurityWarnings] = useState(false);
+  const [isCreatingSession, setIsCreatingSession] = useState(false);
 
   const isMobile = useIsMobile();
   const { state: sidebarState } = useSidebar();
@@ -145,9 +150,26 @@ function BaseChatContent({
     }
   }, [session, initialMessage, searchParams, handleSubmit, navigate, location]);
 
-  const handleFormSubmit = (e: React.FormEvent) => {
+  const handleFormSubmit = async (e: React.FormEvent) => {
     const customEvent = e as unknown as CustomEvent;
     const textValue = customEvent.detail?.value || '';
+
+    // If no session exists, create one and navigate with the initial message
+    if (!session && !sessionId && textValue.trim() && !isCreatingSession) {
+      setIsCreatingSession(true);
+      try {
+        const newSession = await createSession(getInitialWorkingDir(), {
+          allExtensions: extensionsList,
+        });
+        navigate(`/pair?resumeSessionId=${newSession.id}`, {
+          replace: true,
+          state: { resumeSessionId: newSession.id, initialMessage: textValue },
+        });
+      } catch {
+        setIsCreatingSession(false);
+      }
+      return;
+    }
 
     if (recipe && textValue.trim()) {
       setHasStartedUsingRecipe(true);

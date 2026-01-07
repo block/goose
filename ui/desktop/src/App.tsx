@@ -69,18 +69,46 @@ const PairRouteWrapper = ({
   const navigate = useNavigate();
   const routeState = (location.state as PairRouteState) || {};
   const [searchParams] = useSearchParams();
+  const [isCreatingSession, setIsCreatingSession] = useState(false);
+
+  // Capture initialMessage in local state to survive route state being cleared
+  const [capturedInitialMessage, setCapturedInitialMessage] = useState<string | undefined>(
+    undefined
+  );
+
   const resumeSessionId = searchParams.get('resumeSessionId') ?? undefined;
   const recipeId = searchParams.get('recipeId') ?? undefined;
   const recipeDeeplinkFromConfig = window.appConfig?.get('recipeDeeplink') as string | undefined;
 
   // Session ID and initialMessage come from route state (Hub, fork) or URL params (refresh, deeplink)
   const sessionIdFromState = routeState.resumeSessionId;
-  const initialMessage = routeState.initialMessage;
   const sessionId = sessionIdFromState || resumeSessionId || chat.sessionId || undefined;
 
-  // Handle recipe deeplinks - create session if needed
+  // Use route state if available, otherwise use captured state
+  const initialMessage = routeState.initialMessage || capturedInitialMessage;
+
+  // Capture initialMessage when it comes from route state
   useEffect(() => {
-    if ((recipeId || recipeDeeplinkFromConfig) && !sessionId) {
+    console.log(
+      '[PairRouteWrapper] capture effect:',
+      JSON.stringify({
+        routeStateInitialMessage: routeState.initialMessage,
+      })
+    );
+    if (routeState.initialMessage) {
+      setCapturedInitialMessage(routeState.initialMessage);
+    }
+  }, [routeState.initialMessage]);
+
+  // Create session if we have an initialMessage, recipeId, or recipeDeeplink but no sessionId
+  useEffect(() => {
+    if (
+      (initialMessage || recipeId || recipeDeeplinkFromConfig) &&
+      !sessionId &&
+      !isCreatingSession
+    ) {
+      setIsCreatingSession(true);
+
       (async () => {
         try {
           const newSession = await createSession(getInitialWorkingDir(), {
@@ -90,19 +118,29 @@ const PairRouteWrapper = ({
           });
           navigate(`/pair?resumeSessionId=${newSession.id}`, {
             replace: true,
-            state: { resumeSessionId: newSession.id },
+            state: { resumeSessionId: newSession.id, initialMessage },
           });
         } catch (error) {
-          console.error('Failed to create session for recipe:', error);
+          console.error('Failed to create session:', error);
           trackErrorWithContext(error, {
             component: 'PairRouteWrapper',
             action: 'create_session',
             recoverable: true,
           });
+        } finally {
+          setIsCreatingSession(false);
         }
       })();
     }
-  }, [recipeId, recipeDeeplinkFromConfig, sessionId, extensionsList, navigate]);
+  }, [
+    initialMessage,
+    recipeId,
+    recipeDeeplinkFromConfig,
+    sessionId,
+    isCreatingSession,
+    extensionsList,
+    navigate,
+  ]);
 
   // Sync URL with session ID for refresh support (only if not already in URL)
   useEffect(() => {
@@ -113,6 +151,17 @@ const PairRouteWrapper = ({
       });
     }
   }, [sessionId, resumeSessionId, navigate, sessionIdFromState, initialMessage]);
+
+  // Clear captured initialMessage when session changes (to prevent re-sending on navigation)
+  useEffect(() => {
+    if (sessionId && capturedInitialMessage && sessionIdFromState) {
+      const timer = setTimeout(() => {
+        setCapturedInitialMessage(undefined);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+    return undefined;
+  }, [sessionId, capturedInitialMessage, sessionIdFromState]);
 
   return (
     <Pair
