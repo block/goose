@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { FileText, Clock, Home, Puzzle, History } from 'lucide-react';
+import { FileText, Clock, Home, Puzzle, History, AppWindow } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
   SidebarContent,
@@ -83,6 +83,13 @@ const menuItems: NavigationEntry[] = [
     label: 'Extensions',
     icon: Puzzle,
     tooltip: 'Manage your extensions',
+  },
+  {
+    type: 'item',
+    path: '/apps',
+    label: 'Apps',
+    icon: AppWindow,
+    tooltip: 'Browse and launch MCP apps',
   },
   { type: 'separator' },
   {

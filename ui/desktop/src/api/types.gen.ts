@@ -358,6 +358,20 @@ export type GetToolsQuery = {
     session_id: string;
 };
 
+/**
+ * GooseApp represents an app that can be launched in a standalone window
+ */
+export type GooseApp = {
+    description?: string | null;
+    height?: number | null;
+    html: string;
+    mcpServer?: string | null;
+    name: string;
+    resizable?: boolean | null;
+    resourceUri: string;
+    width?: number | null;
+};
+
 export type Icon = {
     mimeType?: string;
     sizes?: Array<string>;
@@ -391,6 +405,14 @@ export type JsonObject = {
 
 export type KillJobResponse = {
     message: string;
+};
+
+export type ListAppsRequest = {
+    session_id: string;
+};
+
+export type ListAppsResponse = {
+    apps: Array<GooseApp>;
 };
 
 export type ListRecipeResponse = {
@@ -1244,6 +1266,37 @@ export type CallToolResponses = {
 };
 
 export type CallToolResponse2 = CallToolResponses[keyof CallToolResponses];
+
+export type ListAppsData = {
+    body?: never;
+    path?: never;
+    query: {
+        session_id: string;
+    };
+    url: '/agent/list_apps';
+};
+
+export type ListAppsErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type ListAppsError = ListAppsErrors[keyof ListAppsErrors];
+
+export type ListAppsResponses = {
+    /**
+     * List of apps retrieved successfully
+     */
+    200: ListAppsResponse;
+};
+
+export type ListAppsResponse2 = ListAppsResponses[keyof ListAppsResponses];
 
 export type ReadResourceData = {
     body: ReadResourceRequest;

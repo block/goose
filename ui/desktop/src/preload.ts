@@ -1,5 +1,6 @@
 import Electron, { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { Recipe } from './recipe';
+import { GooseApp } from './api';
 
 interface NotificationData {
   title: string;
@@ -134,6 +135,7 @@ type ElectronAPI = {
   hasAcceptedRecipeBefore: (recipe: Recipe) => Promise<boolean>;
   recordRecipeHash: (recipe: Recipe) => Promise<boolean>;
   openDirectoryInExplorer: (directoryPath: string) => Promise<boolean>;
+  launchApp: (app: GooseApp) => Promise<void>;
 };
 
 type AppConfigAPI = {
@@ -270,6 +272,7 @@ const electronAPI: ElectronAPI = {
   recordRecipeHash: (recipe: Recipe) => ipcRenderer.invoke('record-recipe-hash', recipe),
   openDirectoryInExplorer: (directoryPath: string) =>
     ipcRenderer.invoke('open-directory-in-explorer', directoryPath),
+  launchApp: (app: GooseApp) => ipcRenderer.invoke('launch-app', app),
 };
 
 const appConfigAPI: AppConfigAPI = {

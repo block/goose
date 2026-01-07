@@ -38,6 +38,8 @@ import PermissionSettingsView from './components/settings/permission/PermissionS
 
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
 import RecipesView from './components/recipes/RecipesView';
+import AppsView from './components/apps/AppsView';
+import StandaloneAppView from './components/apps/StandaloneAppView';
 import { View, ViewOptions } from './utils/navigationUtils';
 import { NoProviderOrModelError, useAgent } from './hooks/useAgent';
 import { useNavigation } from './hooks/useNavigation';
@@ -612,6 +614,7 @@ export function AppInner() {
             element={<WelcomeRoute onSelectProvider={() => setDidSelectProvider(true)} />}
           />
           <Route path="configure-providers" element={<ConfigureProvidersRoute />} />
+          <Route path="standalone-app" element={<StandaloneAppView />} />
           <Route
             path="/"
             element={
@@ -653,6 +656,7 @@ export function AppInner() {
                 </ChatProvider>
               }
             />
+            <Route path="apps" element={<AppsView />} />
             <Route path="sessions" element={<SessionsRoute />} />
             <Route path="schedules" element={<SchedulesRoute />} />
             <Route path="recipes" element={<RecipesRoute />} />
