@@ -30,6 +30,22 @@ pub fn get_thought_signature(metadata: &Option<ProviderMetadata>) -> Option<&str
 
 /// Convert internal Message format to Google's API message specification
 pub fn format_messages(messages: &[Message]) -> Vec<Value> {
+    // Build a map of request_id -> function_name from all ToolRequests
+    // This is needed because Gemini requires functionResponse.name to be the function name,
+    // not the internal tracking ID
+    let mut request_id_to_name: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
+    for message in messages {
+        for content in &message.content {
+            if let MessageContent::ToolRequest(request) = content {
+                if let Ok(tool_call) = &request.tool_call {
+                    request_id_to_name
+                        .insert(request.id.clone(), sanitize_function_name(&tool_call.name));
+                }
+            }
+        }
+    }
+
     messages
         .iter()
         .filter(|m| m.is_agent_visible())
@@ -84,6 +100,13 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                         }
                     },
                     MessageContent::ToolResponse(response) => {
+                        // Look up the function name from the request_id -> name map
+                        // Gemini requires the function name, not the internal ID
+                        let function_name = request_id_to_name
+                            .get(&response.id)
+                            .cloned()
+                            .unwrap_or_else(|| response.id.clone());
+
                         match &response.tool_result {
                             Ok(result) => {
                                 // Send only contents with no audience or with Assistant in the audience
@@ -134,7 +157,8 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                                 }
                                 let mut part = Map::new();
                                 let mut function_response = Map::new();
-                                function_response.insert("name".to_string(), json!(response.id));
+                                function_response
+                                    .insert("name".to_string(), json!(function_name.clone()));
                                 function_response.insert(
                                     "response".to_string(),
                                     json!({"content": {"text": text}}),
@@ -154,7 +178,7 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                             Err(e) => {
                                 let mut part = Map::new();
                                 let mut function_response = Map::new();
-                                function_response.insert("name".to_string(), json!(response.id));
+                                function_response.insert("name".to_string(), json!(function_name));
                                 function_response.insert(
                                     "response".to_string(),
                                     json!({"content": {"text": format!("Error: {}", e)}}),
@@ -1039,6 +1063,68 @@ mod tests {
         assert!(
             final_native.content[0].as_text().is_some(),
             "Text-only = final answer"
+        );
+    }
+
+    #[test]
+    fn test_function_response_uses_function_name_not_id() {
+        // This test validates the fix for issue #6293:
+        // Gemini requires functionResponse.name to be the function name,
+        // NOT the internal tracking ID.
+
+        // Create a tool request with a specific ID and function name
+        let request_id = "abc12345";
+        let function_name = "developer__text_editor";
+        let tool_request = Message::assistant().with_tool_request(
+            request_id,
+            Ok(CallToolRequestParam {
+                name: function_name.into(),
+                arguments: Some(object!({"command": "view"})),
+            }),
+        );
+
+        // Create a tool response with the same ID
+        let tool_response = Message::user().with_tool_response(
+            request_id,
+            Ok(CallToolResult {
+                content: vec![Content::text("File contents here")],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
+        );
+
+        // Format both messages
+        let payload = format_messages(&[tool_request, tool_response]);
+
+        // The functionResponse.name should be the function name, not the ID
+        assert_eq!(payload.len(), 2);
+        assert_eq!(
+            payload[1]["parts"][0]["functionResponse"]["name"], function_name,
+            "functionResponse.name should be the function name, not the ID"
+        );
+    }
+
+    #[test]
+    fn test_function_response_falls_back_to_id_when_no_request() {
+        // When there's no matching ToolRequest, we fall back to using the ID
+        // This maintains backward compatibility
+        let tool_response = Message::user().with_tool_response(
+            "orphan_id",
+            Ok(CallToolResult {
+                content: vec![Content::text("Result")],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
+        );
+
+        let payload = format_messages(&[tool_response]);
+
+        // Should fall back to the ID since there's no matching request
+        assert_eq!(
+            payload[0]["parts"][0]["functionResponse"]["name"],
+            "orphan_id"
         );
     }
 }
