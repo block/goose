@@ -1124,7 +1124,8 @@ export default function ChatInput({
     isAnyImageLoading ||
     isAnyDroppedFileLoading ||
     isRecording ||
-    isTranscribing;
+    isTranscribing ||
+    isExtensionsLoading;
 
   // Queue management functions - no storage persistence, only in-memory
   const handleRemoveQueuedMessage = (messageId: string) => {
