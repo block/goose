@@ -163,6 +163,9 @@ export default function ToolCallWithResponse({
     return null;
   }
 
+  const requestWithMeta = toolRequest as ToolRequestWithMeta;
+  const hasMcpAppResourceURI = Boolean(requestWithMeta._meta?.ui?.resourceUri);
+
   return (
     <>
       <div
@@ -181,7 +184,8 @@ export default function ToolCallWithResponse({
         />
       </div>
       {/* MCP UI — Inline */}
-      {toolResponse?.toolResult &&
+      {!hasMcpAppResourceURI &&
+        toolResponse?.toolResult &&
         getToolResultContent(toolResponse.toolResult).map((content, index) => {
           const resourceContent = isEmbeddedResource(content)
             ? { ...content, type: 'resource' as const }
@@ -203,7 +207,7 @@ export default function ToolCallWithResponse({
           }
         })}
 
-      {sessionId && (
+      {hasMcpAppResourceURI && sessionId && (
         <McpAppWrapper
           toolRequest={toolRequest}
           toolResponse={toolResponse}
