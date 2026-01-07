@@ -15,6 +15,10 @@ import { PanelLeft } from 'lucide-react';
 
 Extensions built with MCP Apps or MCP-UI allow goose Desktop to provide interactive and engaging user experiences. Imagine using a graphical, clickable UI instead of reading text responses and typing all your prompts. These extensions return content that goose can render as embedded UI elements for rich, dynamic, and streamlined interactions.
 
+:::info MCP Apps is the official specification
+[MCP Apps](/docs/tutorials/building-mcp-apps) is now the official MCP specification for interactive UIs. MCP-UI extensions still work in goose, but MCP Apps is the recommended path for new extensions.
+:::
+
 <div style={{ width: '100%', maxWidth: '800px', margin: '0 auto' }}>
   <video 
     controls 
@@ -29,10 +33,6 @@ Extensions built with MCP Apps or MCP-UI allow goose Desktop to provide interact
     Your browser does not support the video tag.
   </video>
 </div>
-
-:::info MCP Apps is the official specification
-[MCP Apps](/docs/tutorials/building-mcp-apps) is now the official MCP specification for interactive UIs. MCP-UI extensions still work in goose, but MCP Apps is the recommended path for new extensions.
-:::
 
 ## Try It Out
 
