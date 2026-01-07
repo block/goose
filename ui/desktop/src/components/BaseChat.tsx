@@ -69,7 +69,7 @@ function BaseChatContent({
 
   const disableAnimation = location.state?.disableAnimation || false;
   const [hasStartedUsingRecipe, setHasStartedUsingRecipe] = React.useState(false);
-  const [hasNotAcceptedRecipe, setHasNotAcceptedRecipe] = useState<boolean>();
+  const [hasNotAcceptedRecipe, setHasNotAcceptedRecipe] = useState<boolean>(true);
   const [hasRecipeSecurityWarnings, setHasRecipeSecurityWarnings] = useState(false);
 
   const isMobile = useIsMobile();
@@ -128,7 +128,7 @@ function BaseChatContent({
   const autoSubmit = useMemo(() => {
     if (!session || initialMessage) return false;
     const hasMessages = (session.conversation?.length ?? 0) > 0;
-    return !!(recipe?.prompt && !hasMessages && !hasNotAcceptedRecipe);
+    return !!(recipe?.prompt && !hasMessages && hasNotAcceptedRecipe === false);
   }, [session, recipe, hasNotAcceptedRecipe, initialMessage]);
 
   useEffect(() => {
