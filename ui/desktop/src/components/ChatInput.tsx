@@ -901,6 +901,21 @@ export default function ChatInput({
     ]
   );
 
+<<<<<<< HEAD
+=======
+  const performSubmitRef = useRef(performSubmit);
+  useEffect(() => {
+    performSubmitRef.current = performSubmit;
+  }, [performSubmit]);
+
+  useEffect(() => {
+    if (!!autoSubmit && !didAutoSubmit) {
+      setDidAutoSubmit(true);
+      performSubmitRef.current(initialValue);
+    }
+  }, [autoSubmit, didAutoSubmit, initialValue]);
+
+>>>>>>> 8455243b38 (fix: addressed copilot suggestions)
   const handleKeyDown = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (mentionPopover.isOpen && mentionPopoverRef.current) {
       if (evt.key === 'ArrowDown') {

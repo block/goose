@@ -163,6 +163,49 @@ export default function BaseChat({
 
   const chatInputSubmit = (input: UserInput) => {
     if (recipe && input.msg.trim()) {
+    if (!session || hasAutoSubmittedRef.current) {
+      return;
+    }
+
+    const shouldStartAgent = searchParams.get('shouldStartAgent') === 'true';
+
+    if (initialMessage) {
+      hasAutoSubmittedRef.current = true;
+      handleSubmit(initialMessage);
+      // Clear initialMessage from navigation state to prevent re-sending on refresh
+      navigate(location.pathname + location.search, {
+        replace: true,
+        state: { ...location.state, initialMessage: undefined },
+      });
+    } else if (shouldStartAgent) {
+      hasAutoSubmittedRef.current = true;
+      handleSubmit('');
+    }
+  }, [session, initialMessage, searchParams, handleSubmit, navigate, location]);
+
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    const customEvent = e as unknown as CustomEvent;
+    const textValue = customEvent.detail?.value || '';
+
+    // If no session exists, create one and navigate with the initial message
+    if (!session && !sessionId && textValue.trim() && !isCreatingSession) {
+      setIsCreatingSession(true);
+      try {
+        const newSession = await createSession(getInitialWorkingDir(), {
+          allExtensions: extensionsList,
+        });
+        navigate(`/pair?resumeSessionId=${newSession.id}`, {
+          replace: true,
+          state: { resumeSessionId: newSession.id, initialMessage: textValue },
+        });
+      } catch {
+        setIsCreatingSession(false);
+      }
+      return;
+    }
+
+    if (recipe && textValue.trim()) {
+>>>>>>> 8455243b38 (fix: addressed copilot suggestions)
       setHasStartedUsingRecipe(true);
     }
     handleSubmit(input);
