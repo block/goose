@@ -616,7 +616,7 @@ impl Agent {
             .map(|config| {
                 let config_clone = config.clone();
                 let agent_ref = self.clone();
-                let wd = Some(working_dir.clone());
+                let wd = working_dir.clone();
 
                 async move {
                     let name = config_clone.name().to_string();
@@ -658,10 +658,12 @@ impl Agent {
         futures::future::join_all(extension_futures).await
     }
 
+    /// Add an extension to the agent.
+    /// TODO: working_dir should be looked up from the session instead of passed explicitly
     pub async fn add_extension(
         &self,
         extension: ExtensionConfig,
-        working_dir: Option<std::path::PathBuf>,
+        working_dir: std::path::PathBuf,
     ) -> ExtensionResult<()> {
         match &extension {
             ExtensionConfig::Frontend {

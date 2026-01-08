@@ -475,7 +475,7 @@ mod tests {
                     bundled: None,
                     available_tools: vec![],
                 },
-                None,
+                std::path::PathBuf::default(),
             )
             .await
             .unwrap();

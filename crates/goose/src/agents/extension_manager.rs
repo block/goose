@@ -477,10 +477,12 @@ impl ExtensionManager {
             .any(|ext| ext.supports_resources())
     }
 
+    /// Add an extension to the manager.
+    /// TODO: working_dir should be looked up from the session instead of passed explicitly
     pub async fn add_extension(
         &self,
         config: ExtensionConfig,
-        working_dir: Option<PathBuf>,
+        working_dir: PathBuf,
     ) -> ExtensionResult<()> {
         let config_name = config.key().to_string();
         let sanitized_name = normalize(&config_name);
@@ -539,7 +541,7 @@ impl ExtensionManager {
                     command,
                     timeout,
                     self.provider.clone(),
-                    working_dir.as_ref(),
+                    Some(&working_dir),
                 )
                 .await?;
                 Box::new(client)
@@ -567,7 +569,7 @@ impl ExtensionManager {
                     command,
                     timeout,
                     self.provider.clone(),
-                    working_dir.as_ref(),
+                    Some(&working_dir),
                 )
                 .await?;
                 Box::new(client)
@@ -606,7 +608,7 @@ impl ExtensionManager {
                     command,
                     timeout,
                     self.provider.clone(),
-                    working_dir.as_ref(),
+                    Some(&working_dir),
                 )
                 .await?;
 

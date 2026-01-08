@@ -574,7 +574,7 @@ async fn agent_add_extension(
     let agent = state.get_agent(request.session_id.clone()).await?;
 
     agent
-        .add_extension(request.config, Some(session.working_dir))
+        .add_extension(request.config, session.working_dir)
         .await
         .map_err(|e| {
             goose::posthog::emit_error(

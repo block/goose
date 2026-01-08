@@ -158,7 +158,7 @@ async fn offer_extension_debugging_help(
 
     // Add the developer extension if available to help with debugging
     let extensions = get_all_extensions();
-    let working_dir = std::env::current_dir().ok();
+    let working_dir = std::env::current_dir().unwrap_or_default();
     for ext_wrapper in extensions {
         if ext_wrapper.enabled && ext_wrapper.config.name() == "developer" {
             if let Err(e) = debug_agent
@@ -457,7 +457,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     for extension in extensions_to_run {
         waiting_on.insert(extension.name());
         let agent_ptr = agent_ptr.clone();
-        let wd = Some(working_dir.clone());
+        let wd = working_dir.clone();
         set.spawn(async move {
             (
                 extension.name(),

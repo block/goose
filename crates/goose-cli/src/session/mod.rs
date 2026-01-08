@@ -290,7 +290,7 @@ impl CliSession {
             available_tools: Vec::new(),
         };
 
-        let working_dir = std::env::current_dir().ok();
+        let working_dir = std::env::current_dir().unwrap_or_default();
         self.agent
             .add_extension(config, working_dir)
             .await
@@ -320,7 +320,7 @@ impl CliSession {
             available_tools: Vec::new(),
         };
 
-        let working_dir = std::env::current_dir().ok();
+        let working_dir = std::env::current_dir().unwrap_or_default();
         self.agent
             .add_extension(config, working_dir)
             .await
@@ -337,7 +337,7 @@ impl CliSession {
     /// # Arguments
     /// * `builtin_name` - Name of the builtin extension(s), comma separated
     pub async fn add_builtin(&mut self, builtin_name: String) -> Result<()> {
-        let working_dir = std::env::current_dir().ok();
+        let working_dir = std::env::current_dir().unwrap_or_default();
         for name in builtin_name.split(',') {
             let extension_name = name.trim();
 

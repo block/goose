@@ -241,7 +241,7 @@ fn format_tool_name(tool_name: &str) -> String {
 }
 
 async fn add_builtins(agent: &Agent, builtins: Vec<String>) {
-    let working_dir = std::env::current_dir().ok();
+    let working_dir = std::env::current_dir().unwrap_or_default();
     for builtin in builtins {
         let config = if PLATFORM_EXTENSIONS.contains_key(builtin.as_str()) {
             ExtensionConfig::Platform {
@@ -319,7 +319,7 @@ impl GooseAcpAgent {
 
         let mut set = JoinSet::new();
         let mut waiting_on = HashSet::new();
-        let working_dir = std::env::current_dir().ok();
+        let working_dir = std::env::current_dir().unwrap_or_default();
 
         for extension in extensions_to_run {
             waiting_on.insert(extension.name());
@@ -713,7 +713,7 @@ impl GooseAcpAgent {
         debug!(?args, "new session request");
 
         let goose_session = SessionManager::create_session(
-            std::env::current_dir().unwrap_or_default(),
+            args.cwd.clone(),
             "ACP Session".to_string(), // just an initial name - may be replaced by maybe_update_name
             SessionType::User,
         )
@@ -735,7 +735,7 @@ impl GooseAcpAgent {
         sessions.insert(goose_session.id.clone(), session);
 
         // Add MCP servers specified in the session request
-        let working_dir = std::env::current_dir().ok();
+        let working_dir = args.cwd;
         for mcp_server in args.mcp_servers {
             let config = match mcp_server_to_extension_config(mcp_server) {
                 Ok(c) => c,

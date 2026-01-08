@@ -207,8 +207,18 @@ impl ExtensionManagerClient {
             }
         };
 
+        // Get working_dir from session if available, otherwise use current directory
+        let working_dir = if let Some(session_id) = &self.context.session_id {
+            crate::session::SessionManager::get_session(session_id, false)
+                .await
+                .map(|s| s.working_dir)
+                .unwrap_or_else(|_| std::env::current_dir().unwrap_or_default())
+        } else {
+            std::env::current_dir().unwrap_or_default()
+        };
+
         extension_manager
-            .add_extension(config, None)
+            .add_extension(config, working_dir)
             .await
             .map(|_| {
                 vec![Content::text(format!(

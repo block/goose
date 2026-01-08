@@ -140,7 +140,7 @@ fn get_agent_messages(
         let working_dir = task_config.parent_working_dir.clone();
         for extension in task_config.extensions {
             if let Err(e) = agent
-                .add_extension(extension.clone(), Some(working_dir.clone()))
+                .add_extension(extension.clone(), working_dir.clone())
                 .await
             {
                 debug!(
