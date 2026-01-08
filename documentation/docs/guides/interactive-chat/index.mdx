@@ -1,14 +1,14 @@
 ---
-title: Rich Interactive Chat
+title: Rich Interactive Chat with MCP Apps and MCP-UI
 hide_title: true
-description: Transform text-based responses into graphical components and interactive elements
+description: Build interactive UI applications that render inside goose Desktop using MCP Apps and MCP-UI
 ---
 
 import Card from '@site/src/components/Card';
 import styles from '@site/src/components/Card/styles.module.css';
 import VideoCarousel from '@site/src/components/VideoCarousel';
 
-<h1 className={styles.pageTitle}>Rich Interactive Chat with MCP-UI</h1>
+<h1 className={styles.pageTitle}>Rich Interactive Chat with MCP Apps and MCP-UI</h1>
 <p className={styles.pageDescription}>
   goose Desktop supports extensions that transform text-only responses into graphical, interactive experiences. Instead of reading through lists and descriptions, you can click, explore, and interact with UI components directly in your conversations.
 </p>
@@ -28,6 +28,11 @@ import VideoCarousel from '@site/src/components/VideoCarousel';
   <h2 className={styles.categoryTitle}>📚 Documentation & Guides</h2>
   <div className={styles.cardGrid}>
     <Card 
+      title="Building MCP Apps"
+      description="Step-by-step tutorial to create interactive UI applications that render inside goose Desktop."
+      link="/docs/tutorials/building-mcp-apps"
+    />
+    <Card 
       title="MCP-UI Extensions"
       description="goose transforms text-based responses into engaging graphical and interactive user experiences."
       link="/docs/guides/interactive-chat/mcp-ui"
@@ -43,6 +48,11 @@ import VideoCarousel from '@site/src/components/VideoCarousel';
 <div className={styles.categorySection}>
   <h2 className={styles.categoryTitle}>📝 Featured Blog Posts</h2>
   <div className={styles.cardGrid}>
+    <Card      
+      title="goose Lands MCP Apps"
+      description="goose ships early support for the draft MCP Apps specification, aligning with the emerging standard for interactive UIs."
+      link="/blog/2026/01/06/mcp-apps"
+    />
     <Card      
       title="MCP UI: Bringing the Browser into the Agent"
       description="MCP-UI servers return content that goose Desktop renders as rich, embeddable UI."

@@ -1,4 +1,5 @@
 use crate::model::ModelConfig;
+use crate::providers::retry::{retry_operation, RetryConfig};
 
 pub async fn detect_provider_from_api_key(api_key: &str) -> Option<(String, Vec<String>)> {
     let provider_tests = vec![
@@ -24,10 +25,16 @@ pub async fn detect_provider_from_api_key(api_key: &str) -> Option<(String, Vec<
                 )
                 .await
                 {
-                    Ok(provider) => match provider.fetch_supported_models().await {
-                        Ok(Some(models)) => Some((provider_name.to_string(), models)),
-                        _ => None,
-                    },
+                    Ok(provider) => {
+                        match retry_operation(&RetryConfig::default(), || async {
+                            provider.fetch_supported_models().await
+                        })
+                        .await
+                        {
+                            Ok(Some(models)) => Some((provider_name.to_string(), models)),
+                            _ => None,
+                        }
+                    }
                     Err(_) => None,
                 };
 

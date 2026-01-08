@@ -439,7 +439,7 @@ impl Provider for GcpVertexAIProvider {
     where
         Self: Sized,
     {
-        let model_strings: Vec<String> = vec![
+        let model_strings: Vec<String> = [
             GcpVertexAIModel::Claude(ClaudeVersion::Sonnet37),
             GcpVertexAIModel::Claude(ClaudeVersion::Sonnet4),
             GcpVertexAIModel::Claude(ClaudeVersion::Opus4),
@@ -462,9 +462,7 @@ impl Provider for GcpVertexAIProvider {
             "gcp_vertex_ai",
             "GCP Vertex AI",
             "Access variety of AI models such as Claude, Gemini through Vertex AI",
-            GcpVertexAIModel::Gemini(GeminiVersion::Flash25)
-                .to_string()
-                .as_str(),
+            "gemini-2.5-flash",
             known_models,
             GCP_VERTEX_AI_DOC_URL,
             vec![

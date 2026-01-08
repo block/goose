@@ -600,7 +600,7 @@ Once you're in an interactive session (via `goose session` or `goose run --inter
 # Clear the current conversation history
 /clear
 ```
-You can also create [custom slash commands for running recipes](/docs/guides/recipes/session-recipes.md#custom-recipe-commands) in goose Desktop or the CLI. 
+You can also create [custom slash commands for running recipes](/docs/guides/context-engineering/slash-commands) in goose Desktop or the CLI. 
 
 ---
 

@@ -296,6 +296,7 @@ mod tests {
                 arguments: Some(object!({})),
             }),
             metadata: None,
+            tool_meta: None,
         };
 
         let permission_result = PermissionCheckResult {

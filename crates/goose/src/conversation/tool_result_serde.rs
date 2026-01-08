@@ -1,5 +1,5 @@
 use crate::mcp_utils::ToolResult;
-use rmcp::model::{ErrorCode, ErrorData};
+use rmcp::model::{CallToolRequestParam, ErrorCode, ErrorData, JsonObject};
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::borrow::Cow;
@@ -25,24 +25,67 @@ where
     }
 }
 
-pub fn deserialize<'de, T, D>(deserializer: D) -> Result<ToolResult<T>, D::Error>
+#[derive(Deserialize)]
+struct ToolCallWithValueArguments {
+    name: String,
+    arguments: serde_json::Value,
+}
+
+impl ToolCallWithValueArguments {
+    fn into_call_tool_request_param(self) -> CallToolRequestParam {
+        let arguments = match self.arguments {
+            serde_json::Value::Object(map) => Some(map),
+            serde_json::Value::Null => None,
+            other => {
+                let mut map = JsonObject::new();
+                map.insert("value".to_string(), other);
+                Some(map)
+            }
+        };
+        CallToolRequestParam {
+            name: Cow::Owned(self.name),
+            arguments,
+        }
+    }
+}
+
+pub fn deserialize<'de, D>(deserializer: D) -> Result<ToolResult<CallToolRequestParam>, D::Error>
 where
-    T: Deserialize<'de>,
     D: Deserializer<'de>,
 {
     #[derive(Deserialize)]
     #[serde(untagged)]
-    enum ResultFormat<T> {
-        Success { status: String, value: T },
-        Error { status: String, error: String },
+    enum ResultFormat {
+        SuccessWithCallToolRequestParam {
+            status: String,
+            value: CallToolRequestParam,
+        },
+        SuccessWithToolCallValueArguments {
+            status: String,
+            value: ToolCallWithValueArguments,
+        },
+        Error {
+            status: String,
+            error: String,
+        },
     }
 
     let format = ResultFormat::deserialize(deserializer)?;
 
     match format {
-        ResultFormat::Success { status, value } => {
+        ResultFormat::SuccessWithCallToolRequestParam { status, value } => {
             if status == "success" {
                 Ok(Ok(value))
+            } else {
+                Err(serde::de::Error::custom(format!(
+                    "Expected status 'success', got '{}'",
+                    status
+                )))
+            }
+        }
+        ResultFormat::SuccessWithToolCallValueArguments { status, value } => {
+            if status == "success" {
+                Ok(Ok(value.into_call_tool_request_param()))
             } else {
                 Err(serde::de::Error::custom(format!(
                     "Expected status 'success', got '{}'",
@@ -88,11 +131,11 @@ pub mod call_tool_result {
         #[derive(Deserialize)]
         #[serde(untagged)]
         enum ResultFormat {
-            NewSuccess {
+            SuccessWithCallToolResult {
                 status: String,
                 value: CallToolResult,
             },
-            LegacySuccess {
+            SuccessWithContentVec {
                 status: String,
                 value: Vec<Content>,
             },
@@ -105,7 +148,7 @@ pub mod call_tool_result {
         let format = ResultFormat::deserialize(deserializer)?;
 
         match format {
-            ResultFormat::NewSuccess { status, value } => {
+            ResultFormat::SuccessWithCallToolResult { status, value } => {
                 if status == "success" {
                     Ok(Ok(value))
                 } else {
@@ -115,7 +158,7 @@ pub mod call_tool_result {
                     )))
                 }
             }
-            ResultFormat::LegacySuccess { status, value } => {
+            ResultFormat::SuccessWithContentVec { status, value } => {
                 if status == "success" {
                     Ok(Ok(CallToolResult::success(value)))
                 } else {

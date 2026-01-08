@@ -66,6 +66,8 @@ const config: Config = {
         },
         blog: {
           showReadingTime: true,
+          readingTime: ({ content, frontMatter, defaultReadingTime }) =>
+            frontMatter.reading_time ?? defaultReadingTime({ content }),
           feedOptions: {
             type: ["rss", "atom"],
             xslt: true,

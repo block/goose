@@ -37,10 +37,6 @@ const ANTHROPIC_KNOWN_MODELS: &[&str] = &[
     "claude-sonnet-4-20250514",
     "claude-opus-4-0",
     "claude-opus-4-20250514",
-    // Legacy Claude 3.x models
-    "claude-3-7-sonnet-latest",
-    "claude-3-7-sonnet-20250219",
-    "claude-3-opus-latest",
 ];
 
 const ANTHROPIC_DOC_URL: &str = "https://docs.anthropic.com/en/docs/about-claude/models";

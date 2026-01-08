@@ -1,6 +1,7 @@
 import React from 'react';
+import { BookOpen } from 'lucide-react';
 
-type ContentType = 'video' | 'blog';
+type ContentType = 'video' | 'blog' | 'topic';
 
 interface ContentCardProps {
   type: ContentType;
@@ -113,6 +114,13 @@ const styles = {
     justifyContent: 'space-between',
     marginTop: 'auto',
   },
+
+  hoverBookIcon: {
+    width: '20px',
+    height: '20px',
+    color: 'white',
+    marginLeft: '4px',
+  },
 };
 
 export default function ContentCard({
@@ -182,6 +190,41 @@ export default function ContentCard({
       day: 'numeric'
     });
   };
+
+  if (type === 'topic') {
+    const topicOverlayStyle = {
+      ...styles.hoverOverlay,
+      opacity: 1,
+      ...(size === 'large' ? {
+        padding: '2.00rem',
+      } : {}),
+    };
+
+    return (
+      <a
+        href={linkUrl}
+        style={containerStyle}
+        onMouseEnter={() => !isTouchDevice && setIsHovering(true)}
+        onMouseLeave={() => !isTouchDevice && setIsHovering(false)}
+      >
+        <div style={styles.mainArea}>
+          <div style={topicOverlayStyle}>
+            <h3 style={hoverTitleStyle}>{title}</h3>
+            <p style={hoverDescriptionStyle}>{description}</p>
+            <div style={hoverMetadataStyle}>
+              <div>
+                <span>DOCUMENTATION</span>
+              </div>
+              <div></div>
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <BookOpen style={styles.hoverBookIcon} />
+              </div>
+            </div>
+          </div>
+        </div>
+      </a>
+    );
+  }
 
   return (
     <a

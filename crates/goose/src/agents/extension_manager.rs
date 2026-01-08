@@ -41,8 +41,8 @@ use crate::oauth::oauth_flow;
 use crate::prompt_template;
 use crate::subprocess::configure_command_no_window;
 use rmcp::model::{
-    CallToolRequestParam, Content, ErrorCode, ErrorData, GetPromptResult, Prompt, RawContent,
-    Resource, ResourceContents, ServerInfo, Tool,
+    CallToolRequestParam, Content, ErrorCode, ErrorData, GetPromptResult, Prompt, Resource,
+    ResourceContents, ServerInfo, Tool,
 };
 use rmcp::transport::auth::AuthClient;
 use schemars::_private::NoSerialize;
@@ -477,6 +477,11 @@ impl ExtensionManager {
     pub async fn add_extension(&self, config: ExtensionConfig) -> ExtensionResult<()> {
         let config_name = config.key().to_string();
         let sanitized_name = normalize(config_name.clone());
+
+        if self.extensions.lock().await.contains_key(&sanitized_name) {
+            return Ok(());
+        }
+
         let mut temp_dir = None;
 
         let client: Box<dyn McpClientTrait> = match &config {
@@ -713,14 +718,13 @@ impl ExtensionManager {
                                 input_schema: tool.input_schema,
                                 annotations: tool.annotations,
                                 output_schema: tool.output_schema,
-                                icons: None,
-                                title: None,
-                                meta: None,
+                                icons: tool.icons,
+                                title: tool.title,
+                                meta: tool.meta,
                             });
                         }
                     }
 
-                    // Exit loop when there are no more pages
                     if client_tools.next_cursor.is_none() {
                         break;
                     }
@@ -773,7 +777,7 @@ impl ExtensionManager {
     }
 
     // Function that gets executed for read_resource tool
-    pub async fn read_resource(
+    pub async fn read_resource_tool(
         &self,
         params: Value,
         cancellation_token: CancellationToken,
@@ -783,15 +787,18 @@ impl ExtensionManager {
         let extension_name = params.get("extension_name").and_then(|v| v.as_str());
 
         // If extension name is provided, we can just look it up
-        if extension_name.is_some() {
-            let result = self
-                .read_resource_from_extension(
-                    uri,
-                    extension_name.unwrap(),
-                    cancellation_token.clone(),
-                    true,
-                )
+        if let Some(ext_name) = extension_name {
+            let read_result = self
+                .read_resource(uri, ext_name, cancellation_token.clone())
                 .await?;
+
+            let mut result = Vec::new();
+            for content in read_result.contents {
+                if let ResourceContents::TextResourceContents { text, .. } = content {
+                    let content_str = format!("{}\n\n{}", uri, text);
+                    result.push(Content::text(content_str));
+                }
+            }
             return Ok(result);
         }
 
@@ -804,16 +811,20 @@ impl ExtensionManager {
         let extension_names: Vec<String> = self.extensions.lock().await.keys().cloned().collect();
 
         for extension_name in extension_names {
-            let result = self
-                .read_resource_from_extension(
-                    uri,
-                    &extension_name,
-                    cancellation_token.clone(),
-                    true,
-                )
+            let read_result = self
+                .read_resource(uri, &extension_name, cancellation_token.clone())
                 .await;
-            match result {
-                Ok(result) => return Ok(result),
+            match read_result {
+                Ok(read_result) => {
+                    let mut result = Vec::new();
+                    for content in read_result.contents {
+                        if let ResourceContents::TextResourceContents { text, .. } = content {
+                            let content_str = format!("{}\n\n{}", uri, text);
+                            result.push(Content::text(content_str));
+                        }
+                    }
+                    return Ok(result);
+                }
                 Err(_) => continue,
             }
         }
@@ -839,13 +850,12 @@ impl ExtensionManager {
         ))
     }
 
-    async fn read_resource_from_extension(
+    pub async fn read_resource(
         &self,
         uri: &str,
         extension_name: &str,
         cancellation_token: CancellationToken,
-        format_with_uri: bool,
-    ) -> Result<Vec<Content>, ErrorData> {
+    ) -> Result<rmcp::model::ReadResourceResult, ErrorData> {
         let available_extensions = self
             .extensions
             .lock()
@@ -865,7 +875,7 @@ impl ExtensionManager {
             .ok_or(ErrorData::new(ErrorCode::INVALID_PARAMS, error_msg, None))?;
 
         let client_guard = client.lock().await;
-        let read_result = client_guard
+        client_guard
             .read_resource(uri, cancellation_token)
             .await
             .map_err(|_| {
@@ -874,21 +884,7 @@ impl ExtensionManager {
                     format!("Could not read resource with uri: {}", uri),
                     None,
                 )
-            })?;
-
-        let mut result = Vec::new();
-        for content in read_result.contents {
-            if let ResourceContents::TextResourceContents { text, .. } = content {
-                let content_str = if format_with_uri {
-                    format!("{}\n\n{}", uri, text)
-                } else {
-                    text
-                };
-                result.push(Content::text(content_str));
-            }
-        }
-
-        Ok(result)
+            })
     }
 
     pub async fn get_ui_resources(&self) -> Result<Vec<(String, Resource)>, ErrorData> {
@@ -923,31 +919,6 @@ impl ExtensionManager {
         }
 
         Ok(ui_resources)
-    }
-
-    pub async fn read_ui_resource(
-        &self,
-        uri: &str,
-        extension_name: &str,
-        cancellation_token: CancellationToken,
-    ) -> Result<String, ErrorData> {
-        let contents = self
-            .read_resource_from_extension(uri, extension_name, cancellation_token, false)
-            .await?;
-
-        contents
-            .into_iter()
-            .find_map(|c| match c.raw {
-                RawContent::Text(text_content) => Some(text_content.text),
-                _ => None,
-            })
-            .ok_or_else(|| {
-                ErrorData::new(
-                    ErrorCode::RESOURCE_NOT_FOUND,
-                    format!("No text content in resource '{}'", uri),
-                    None,
-                )
-            })
     }
 
     async fn list_resources_from_extension(
@@ -1277,7 +1248,8 @@ impl ExtensionManager {
     }
 
     pub async fn collect_moim(&self) -> Option<String> {
-        let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        // Use minute-level granularity to prevent conversation changes every second
+        let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:00").to_string();
         let mut content = format!("<info-msg>\nIt is currently {}\n", timestamp);
 
         let platform_clients: Vec<(String, McpClientBox)> = {
@@ -1321,7 +1293,7 @@ mod tests {
     use rmcp::model::ListToolsResult;
     use rmcp::model::ReadResourceResult;
     use rmcp::model::ServerNotification;
-    use serde_json::json;
+
     use tokio::sync::mpsc;
 
     impl ExtensionManager {
@@ -1782,6 +1754,19 @@ mod tests {
             let result = generate_extension_name(info.as_ref(), |n| collision == Some(n));
             let re = regex::Regex::new(expected).unwrap();
             assert!(re.is_match(&result));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_collect_moim_uses_minute_granularity() {
+        let em = ExtensionManager::new_without_provider();
+
+        if let Some(moim) = em.collect_moim().await {
+            // Timestamp should end with :00 (seconds fixed to 00)
+            assert!(
+                moim.contains(":00\n"),
+                "Timestamp should use minute granularity"
+            );
         }
     }
 }

@@ -39,7 +39,7 @@ import PermissionSettingsView from './components/settings/permission/PermissionS
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
 import RecipesView from './components/recipes/RecipesView';
 import { View, ViewOptions } from './utils/navigationUtils';
-import { NoProviderOrModelError, useAgent } from './hooks/useAgent';
+
 import { useNavigation } from './hooks/useNavigation';
 import { errorMessage } from './utils/conversionUtils';
 import { usePageViewTracking } from './hooks/useAnalytics';
@@ -51,10 +51,10 @@ function PageViewTracker() {
 }
 
 // Route Components
-const HubRouteWrapper = ({ isExtensionsLoading }: { isExtensionsLoading: boolean }) => {
+const HubRouteWrapper = () => {
   const setView = useNavigation();
 
-  return <Hub setView={setView} isExtensionsLoading={isExtensionsLoading} />;
+  return <Hub setView={setView} />;
 };
 
 const PairRouteWrapper = ({
@@ -363,15 +363,12 @@ const ExtensionsRoute = () => {
 
 export function AppInner() {
   const [fatalError, setFatalError] = useState<string | null>(null);
-  const [agentWaitingMessage, setAgentWaitingMessage] = useState<string | null>(null);
   const [isLoadingSharedSession, setIsLoadingSharedSession] = useState(false);
   const [sharedSessionError, setSharedSessionError] = useState<string | null>(null);
-  const [isExtensionsLoading, setIsExtensionsLoading] = useState(false);
   const [didSelectProvider, setDidSelectProvider] = useState<boolean>(false);
 
   const navigate = useNavigate();
   const setView = useNavigation();
-  const location = useLocation();
 
   const [chat, setChat] = useState<ChatType>({
     sessionId: '',
@@ -384,7 +381,6 @@ export function AppInner() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
 
   const { addExtension } = useConfig();
-  const { loadCurrentChat } = useAgent();
 
   useEffect(() => {
     console.log('Sending reactReady signal to Electron');
@@ -397,28 +393,6 @@ export function AppInner() {
       );
     }
   }, []);
-
-  // Handle URL parameters and deeplinks on app startup
-  const loadingHub = location.pathname === '/';
-  useEffect(() => {
-    if (loadingHub) {
-      (async () => {
-        try {
-          const loadedChat = await loadCurrentChat({
-            setAgentWaitingMessage,
-            setIsExtensionsLoading,
-          });
-          setChat(loadedChat);
-        } catch (e) {
-          if (e instanceof NoProviderOrModelError) {
-            // the onboarding flow will trigger
-          } else {
-            throw e;
-          }
-        }
-      })();
-    }
-  }, [loadCurrentChat, setAgentWaitingMessage, navigate, loadingHub, setChat]);
 
   useEffect(() => {
     const handleOpenSharedSession = async (_event: IpcRendererEvent, ...args: unknown[]) => {
@@ -616,18 +590,13 @@ export function AppInner() {
             path="/"
             element={
               <ProviderGuard didSelectProvider={didSelectProvider}>
-                <ChatProvider
-                  chat={chat}
-                  setChat={setChat}
-                  contextKey="hub"
-                  agentWaitingMessage={agentWaitingMessage}
-                >
+                <ChatProvider chat={chat} setChat={setChat} contextKey="hub">
                   <AppLayout />
                 </ChatProvider>
               </ProviderGuard>
             }
           >
-            <Route index element={<HubRouteWrapper isExtensionsLoading={isExtensionsLoading} />} />
+            <Route index element={<HubRouteWrapper />} />
             <Route
               path="pair"
               element={
@@ -643,12 +612,7 @@ export function AppInner() {
             <Route
               path="extensions"
               element={
-                <ChatProvider
-                  chat={chat}
-                  setChat={setChat}
-                  contextKey="extensions"
-                  agentWaitingMessage={agentWaitingMessage}
-                >
+                <ChatProvider chat={chat} setChat={setChat} contextKey="extensions">
                   <ExtensionsRoute />
                 </ChatProvider>
               }

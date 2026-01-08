@@ -184,9 +184,8 @@ new file mode 100644
             // mpatch may add a trailing newline
             let content = std::fs::read_to_string(&file_path).unwrap();
             assert!(content == "different\ncontent" || content == "different\ncontent\n");
-        } else {
+        } else if let Err(err) = result {
             // Or it might return an error
-            let err = result.unwrap_err();
             assert!(
                 err.message.contains("diff")
                     || err.message.contains("version")
@@ -213,8 +212,7 @@ new file mode 100644
 
         // The behavior might be different with patcher - it might create the file
         // or it might fail. Let's check what happens.
-        if result.is_err() {
-            let err = result.unwrap_err();
+        if let Err(err) = result {
             // Could be "Failed to read" or similar
             assert!(err.message.contains("Failed") || err.message.contains("exist"));
         } else {

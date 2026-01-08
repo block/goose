@@ -559,6 +559,7 @@ const createChat = async (
           recipeDeeplink: recipeDeeplink,
           recipeParameters: recipeParameters,
           scheduledJobId: scheduledJobId,
+          SECURITY_ML_MODEL_MAPPING: process.env.SECURITY_ML_MODEL_MAPPING,
         }),
       ],
       partition: 'persist:goose',
@@ -1766,9 +1767,12 @@ ipcMain.handle('list-files', async (_event, dirPath, extension) => {
   }
 });
 
-// Handle message box dialogs
 ipcMain.handle('show-message-box', async (_event, options) => {
   return dialog.showMessageBox(options);
+});
+
+ipcMain.handle('show-save-dialog', async (_event, options) => {
+  return dialog.showSaveDialog(options);
 });
 
 ipcMain.handle('get-allowed-extensions', async () => {

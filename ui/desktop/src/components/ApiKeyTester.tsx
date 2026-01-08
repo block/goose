@@ -69,7 +69,7 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
       {/* Recommended pill */}
       <div className="absolute -top-2 -right-2 sm:-top-3 sm:-right-3 z-20">
         <span className="inline-block px-2 py-1 text-xs font-medium bg-blue-600 text-white rounded-full">
-          Recommended
+          Recommended if you have API access already
         </span>
       </div>
 

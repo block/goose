@@ -12,6 +12,7 @@ use axum::{
 };
 use goose::config::PermissionManager;
 
+use base64::Engine;
 use goose::agents::ExtensionConfig;
 use goose::config::{Config, GooseMode};
 use goose::model::ModelConfig;
@@ -94,9 +95,15 @@ pub struct ReadResourceRequest {
     uri: String,
 }
 
-#[derive(Serialize, Deserialize, utoipa::ToSchema)]
+#[derive(Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct ReadResourceResponse {
-    html: String,
+    uri: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    mime_type: Option<String>,
+    text: String,
+    #[serde(rename = "_meta", skip_serializing_if = "Option::is_none")]
+    meta: Option<serde_json::Map<String, Value>>,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -587,13 +594,15 @@ async fn read_resource(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<ReadResourceRequest>,
 ) -> Result<Json<ReadResourceResponse>, StatusCode> {
+    use rmcp::model::ResourceContents;
+
     let agent = state
         .get_agent_for_route(payload.session_id.clone())
         .await?;
 
-    let html = agent
+    let read_result = agent
         .extension_manager
-        .read_ui_resource(
+        .read_resource(
             &payload.uri,
             &payload.extension_name,
             CancellationToken::default(),
@@ -601,7 +610,43 @@ async fn read_resource(
         .await
         .map_err(|_e| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    Ok(Json(ReadResourceResponse { html }))
+    let content = read_result
+        .contents
+        .into_iter()
+        .next()
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    let (uri, mime_type, text, meta) = match content {
+        ResourceContents::TextResourceContents {
+            uri,
+            mime_type,
+            text,
+            meta,
+        } => (uri, mime_type, text, meta),
+        ResourceContents::BlobResourceContents {
+            uri,
+            mime_type,
+            blob,
+            meta,
+        } => {
+            let decoded = match base64::engine::general_purpose::STANDARD.decode(&blob) {
+                Ok(bytes) => {
+                    String::from_utf8(bytes).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+                }
+                Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+            };
+            (uri, mime_type, decoded, meta)
+        }
+    };
+
+    let meta_map = meta.map(|m| m.0);
+
+    Ok(Json(ReadResourceResponse {
+        uri,
+        mime_type,
+        text,
+        meta: meta_map,
+    }))
 }
 
 #[utoipa::path(
@@ -649,7 +694,7 @@ async fn call_tool(
         content: result.content,
         structured_content: result.structured_content,
         is_error: result.is_error.unwrap_or(false),
-        _meta: None,
+        _meta: result.meta.and_then(|m| serde_json::to_value(m).ok()),
     }))
 }
 

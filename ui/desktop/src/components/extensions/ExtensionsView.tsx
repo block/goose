@@ -17,6 +17,7 @@ import {
 import { activateExtension } from '../settings/extensions';
 import { useConfig } from '../ConfigContext';
 import { SearchView } from '../conversation/SearchView';
+import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
 
 export type ExtensionsViewOptions = {
   deepLinkConfig?: ExtensionConfig;
@@ -35,11 +36,7 @@ export default function ExtensionsView({
   const [searchTerm, setSearchTerm] = useState('');
   const { addExtension } = useConfig();
   const chatContext = useChatContext();
-  const sessionId = chatContext?.chat.sessionId || '';
-
-  if (!sessionId) {
-    console.error('ExtensionsView: No session ID available');
-  }
+  const sessionId = chatContext?.chat.sessionId;
 
   // Only trigger refresh when deep link config changes AND we don't need to show env vars
   useEffect(() => {
@@ -80,20 +77,10 @@ export default function ExtensionsView({
     // Close the modal immediately
     handleModalClose();
 
-    if (!sessionId) {
-      console.warn('Cannot activate extension without session');
-      setRefreshKey((prevKey) => prevKey + 1);
-      return;
-    }
-
     const extensionConfig = createExtensionConfig(formData);
 
     try {
-      await activateExtension({
-        addToConfig: addExtension,
-        extensionConfig: extensionConfig,
-        sessionId: sessionId,
-      });
+      await activateExtension(extensionConfig, addExtension, sessionId);
       // Trigger a refresh of the extensions list
       setRefreshKey((prevKey) => prevKey + 1);
     } catch (error) {
@@ -115,8 +102,8 @@ export default function ExtensionsView({
             </div>
             <p className="text-sm text-text-muted mb-6">
               These extensions use the Model Context Protocol (MCP). They can expand Goose's
-              capabilities using three main components: Prompts, Resources, and Tools. ⌘F/Ctrl+F to
-              search.
+              capabilities using three main components: Prompts, Resources, and Tools.{' '}
+              {getSearchShortcutText()} to search.
             </p>
 
             {/* Action Buttons */}

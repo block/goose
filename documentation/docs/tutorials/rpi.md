@@ -10,7 +10,7 @@ import planDoc from '../../static/files/thoughts/plans/2025-12-23-remove-tool-se
 
 Most people use AI agents by jumping straight to execution: "refactor this code", "remove this feature", "add this new feature". While sometimes this works well, especially for smaller changes or codebases, it often falls apart on complex changes. 
 
-**RPI (Research, Plan, Implement)** is a mental model that proposes a different way of working with AI agents. This approach trades speed for clarity, predictability, and correctness.
+**[RPI (Research, Plan, Implement)](https://github.com/humanlayer/advanced-context-engineering-for-coding-agents/blob/main/ace-fca.md)**, introduced by HumanLayer, proposes a different way of working with AI agents. This approach trades speed for clarity, predictability, and correctness.
 
 This tutorial walks through how RPI works via a real demonstration. By the end, you should be able to run this same workflow on your own codebase.
 
@@ -38,7 +38,7 @@ curl -sL https://raw.githubusercontent.com/block/goose/main/documentation/src/pa
 <details>
 <summary>2. Add Custom Slash Commands</summary>
 
-Now that the recipes are imported, to quickly invoke them in-session [add custom slash commands](/docs/guides/recipes/session-recipes/#custom-recipe-commands) for each of the following recipes:
+Now that the recipes are imported, to quickly invoke them in-session [add custom slash commands](/docs/guides/context-engineering/slash-commands) for each of the following recipes:
 
 | Recipe | Slash Command |
 |--------|---------------|
