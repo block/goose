@@ -487,7 +487,7 @@ mod tests {
             };
 
             agent
-                .add_extension(ext_config, std::path::PathBuf::default())
+                .add_extension(ext_config)
                 .await
                 .expect("Failed to add extension manager");
             agent

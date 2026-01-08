@@ -469,6 +469,22 @@ impl ExtensionManager {
         self.context.lock().await.clone()
     }
 
+    /// Resolve the working directory for an extension.
+    /// Priority: session working_dir > current_dir
+    async fn resolve_working_dir(&self) -> PathBuf {
+        // Try to get working_dir from session via context
+        if let Some(ref session_id) = self.context.lock().await.session_id {
+            if let Ok(session) =
+                crate::session::SessionManager::get_session(session_id, false).await
+            {
+                return session.working_dir;
+            }
+        }
+
+        // Fall back to current_dir
+        std::env::current_dir().unwrap_or_default()
+    }
+
     pub async fn supports_resources(&self) -> bool {
         self.extensions
             .lock()
@@ -478,18 +494,19 @@ impl ExtensionManager {
     }
 
     /// Add an extension to the manager.
-    /// TODO: working_dir should be looked up from the session instead of passed explicitly
-    pub async fn add_extension(
-        &self,
-        config: ExtensionConfig,
-        working_dir: PathBuf,
-    ) -> ExtensionResult<()> {
+    /// The working_dir is resolved from the session (via context's session_id) if available,
+    /// otherwise falls back to current_dir().
+    pub async fn add_extension(&self, config: ExtensionConfig) -> ExtensionResult<()> {
         let config_name = config.key().to_string();
         let sanitized_name = normalize(&config_name);
 
         if self.extensions.lock().await.contains_key(&sanitized_name) {
             return Ok(());
         }
+
+        // Resolve working_dir: session > current_dir
+        let effective_working_dir = self.resolve_working_dir().await;
+
         let mut temp_dir = None;
 
         let client: Box<dyn McpClientTrait> = match &config {
@@ -541,7 +558,7 @@ impl ExtensionManager {
                     command,
                     timeout,
                     self.provider.clone(),
-                    Some(&working_dir),
+                    Some(&effective_working_dir),
                 )
                 .await?;
                 Box::new(client)
@@ -569,7 +586,7 @@ impl ExtensionManager {
                     command,
                     timeout,
                     self.provider.clone(),
-                    Some(&working_dir),
+                    Some(&effective_working_dir),
                 )
                 .await?;
                 Box::new(client)
@@ -608,7 +625,7 @@ impl ExtensionManager {
                     command,
                     timeout,
                     self.provider.clone(),
-                    Some(&working_dir),
+                    Some(&effective_working_dir),
                 )
                 .await?;
 

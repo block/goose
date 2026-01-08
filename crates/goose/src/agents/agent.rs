@@ -599,8 +599,6 @@ impl Agent {
         self: &Arc<Self>,
         session: &Session,
     ) -> Vec<ExtensionLoadResult> {
-        let working_dir = session.working_dir.clone();
-
         // Try to load session-specific extensions first, fall back to global config
         let session_extensions =
             EnabledExtensionsState::from_extension_data(&session.extension_data);
@@ -616,7 +614,6 @@ impl Agent {
             .map(|config| {
                 let config_clone = config.clone();
                 let agent_ref = self.clone();
-                let wd = working_dir.clone();
 
                 async move {
                     let name = config_clone.name().to_string();
@@ -635,7 +632,7 @@ impl Agent {
                         };
                     }
 
-                    match agent_ref.add_extension(config_clone, wd).await {
+                    match agent_ref.add_extension(config_clone).await {
                         Ok(_) => ExtensionLoadResult {
                             name,
                             success: true,
@@ -659,12 +656,8 @@ impl Agent {
     }
 
     /// Add an extension to the agent.
-    /// TODO: working_dir should be looked up from the session instead of passed explicitly
-    pub async fn add_extension(
-        &self,
-        extension: ExtensionConfig,
-        working_dir: std::path::PathBuf,
-    ) -> ExtensionResult<()> {
+    /// The working_dir is resolved from the session if available, otherwise falls back to current_dir().
+    pub async fn add_extension(&self, extension: ExtensionConfig) -> ExtensionResult<()> {
         match &extension {
             ExtensionConfig::Frontend {
                 tools,
@@ -693,7 +686,7 @@ impl Agent {
             }
             _ => {
                 self.extension_manager
-                    .add_extension(extension.clone(), working_dir)
+                    .add_extension(extension.clone())
                     .await?;
             }
         }

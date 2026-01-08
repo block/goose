@@ -466,17 +466,14 @@ mod tests {
         ];
 
         agent
-            .add_extension(
-                crate::agents::extension::ExtensionConfig::Frontend {
-                    name: "frontend".to_string(),
-                    description: "desc".to_string(),
-                    tools: frontend_tools,
-                    instructions: None,
-                    bundled: None,
-                    available_tools: vec![],
-                },
-                std::path::PathBuf::default(),
-            )
+            .add_extension(crate::agents::extension::ExtensionConfig::Frontend {
+                name: "frontend".to_string(),
+                description: "desc".to_string(),
+                tools: frontend_tools,
+                instructions: None,
+                bundled: None,
+                available_tools: vec![],
+            })
             .await
             .unwrap();
 

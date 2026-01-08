@@ -560,29 +560,16 @@ async fn agent_add_extension(
     State(state): State<Arc<AppState>>,
     Json(request): Json<AddExtensionRequest>,
 ) -> Result<StatusCode, ErrorResponse> {
-    let session = SessionManager::get_session(&request.session_id, false)
-        .await
-        .map_err(|err| {
-            error!("Failed to get session for add_extension: {}", err);
-            ErrorResponse {
-                message: format!("Failed to get session: {}", err),
-                status: StatusCode::NOT_FOUND,
-            }
-        })?;
-
     let extension_name = request.config.name();
     let agent = state.get_agent(request.session_id.clone()).await?;
 
-    agent
-        .add_extension(request.config, session.working_dir)
-        .await
-        .map_err(|e| {
-            goose::posthog::emit_error(
-                "extension_add_failed",
-                &format!("{}: {}", extension_name, e),
-            );
-            ErrorResponse::internal(format!("Failed to add extension: {}", e))
-        })?;
+    agent.add_extension(request.config).await.map_err(|e| {
+        goose::posthog::emit_error(
+            "extension_add_failed",
+            &format!("{}: {}", extension_name, e),
+        );
+        ErrorResponse::internal(format!("Failed to add extension: {}", e))
+    })?;
 
     agent
         .persist_extension_state(&request.session_id)

@@ -165,12 +165,8 @@ pub async fn handle_web(
     agent.update_provider(provider, &init_session.id).await?;
 
     let enabled_configs = goose::config::get_enabled_extensions();
-    let working_dir = std::env::current_dir().unwrap_or_default();
     for config in enabled_configs {
-        if let Err(e) = agent
-            .add_extension(config.clone(), working_dir.clone())
-            .await
-        {
+        if let Err(e) = agent.add_extension(config.clone()).await {
             eprintln!("Warning: Failed to load extension {}: {}", config.name(), e);
         }
     }
