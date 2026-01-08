@@ -493,9 +493,6 @@ impl ExtensionManager {
             .any(|ext| ext.supports_resources())
     }
 
-    /// Add an extension to the manager.
-    /// The working_dir is resolved from the session (via context's session_id) if available,
-    /// otherwise falls back to current_dir().
     pub async fn add_extension(&self, config: ExtensionConfig) -> ExtensionResult<()> {
         let config_name = config.key().to_string();
         let sanitized_name = normalize(&config_name);

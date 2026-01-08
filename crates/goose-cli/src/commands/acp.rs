@@ -710,7 +710,7 @@ impl GooseAcpAgent {
         debug!(?args, "new session request");
 
         let goose_session = SessionManager::create_session(
-            args.cwd.clone(),
+            std::env::current_dir().unwrap_or_default(),
             "ACP Session".to_string(), // just an initial name - may be replaced by maybe_update_name
             SessionType::User,
         )

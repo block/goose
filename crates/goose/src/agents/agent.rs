@@ -658,7 +658,6 @@ impl Agent {
         futures::future::join_all(extension_futures).await
     }
 
-    /// Add an extension to the agent.
     pub async fn add_extension(&self, extension: ExtensionConfig) -> ExtensionResult<()> {
         match &extension {
             ExtensionConfig::Frontend {
