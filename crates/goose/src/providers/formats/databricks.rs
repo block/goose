@@ -583,7 +583,6 @@ pub fn create_request(
             .insert("tools".to_string(), json!(tools_spec));
     }
 
-    // Add thinking parameters for Claude 3.7 Sonnet model when requested
     let is_thinking_enabled = std::env::var("CLAUDE_THINKING_ENABLED").is_ok();
     if is_claude_sonnet && is_thinking_enabled {
         // Minimum budget_tokens is 1024
@@ -608,7 +607,6 @@ pub fn create_request(
             }),
         );
 
-        // Temperature is fixed to 2 when using claude 3.7 thinking with Databricks
         payload
             .as_object_mut()
             .unwrap()

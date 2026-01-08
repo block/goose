@@ -668,4 +668,8 @@ goose session --with-streamable-http-extension "https://example.com/streamable"
 
 goose extensions are implemented with MCP, a standard protocol that allows AI models and agents to securely connect with local or remote resources. Learn how to build your own [extension as an MCP server](https://modelcontextprotocol.io/quickstart/server).
 
+**Tutorials:**
+- [Building Custom Extensions](/docs/tutorials/custom-extensions) - Create a Python-based MCP extension
+- [Building MCP Apps](/docs/tutorials/building-mcp-apps) - Create interactive UI apps
+
 [extensions-directory]: /extensions

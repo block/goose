@@ -424,7 +424,7 @@ fn has_tool_response(message: &Message) -> bool {
         .any(|content| matches!(content, MessageContent::ToolResponse(_)))
 }
 
-fn effective_role(message: &Message) -> String {
+pub fn effective_role(message: &Message) -> String {
     if message.role == Role::User && has_tool_response(message) {
         "tool".to_string()
     } else {

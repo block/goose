@@ -23,10 +23,8 @@ import { startNewSession } from '../sessions';
 
 export default function Hub({
   setView,
-  isExtensionsLoading,
 }: {
   setView: (view: View, viewOptions?: ViewOptions) => void;
-  isExtensionsLoading: boolean;
 }) {
   const handleSubmit = async (e: React.FormEvent) => {
     const customEvent = e as unknown as CustomEvent;
@@ -59,7 +57,6 @@ export default function Hub({
         messages={[]}
         disableAnimation={false}
         sessionCosts={undefined}
-        isExtensionsLoading={isExtensionsLoading}
         toolCount={0}
       />
     </div>
