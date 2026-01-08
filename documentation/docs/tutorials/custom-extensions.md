@@ -184,7 +184,7 @@ requires-python = ">=3.13"
 dependencies = [
     "beautifulsoup4>=4.14.0",
     "html2text>=2025.4.15",
-    "mcp[cli]>=1.25.0", 
+    "mcp[cli]>=1.25.0",
     "requests>=2.32.3",
 ]
 
