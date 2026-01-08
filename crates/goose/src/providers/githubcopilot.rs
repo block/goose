@@ -45,9 +45,6 @@ pub const GITHUB_COPILOT_STREAM_MODELS: &[&str] = &[
     "gpt-5",
     "gpt-5-mini",
     "gpt-5-codex",
-    "claude-sonnet-4",
-    "claude-sonnet-4.5",
-    "claude-haiku-4.5",
     "gemini-2.5-pro",
     "grok-code-fast-1",
 ];
@@ -436,8 +433,9 @@ impl Provider for GithubCopilotProvider {
                 self.post(&mut payload_clone).await
             })
             .await?;
-
         let response = handle_response_openai_compat(response).await?;
+
+        let response = promote_tool_choice(response);
 
         // Parse response
         let message = response_to_message(&response)?;
@@ -547,5 +545,92 @@ impl Provider for GithubCopilotProvider {
             .map_err(|e| ProviderError::ExecutionError(format!("Failed to save token: {}", e)))?;
 
         Ok(())
+    }
+}
+
+// Copilot sometimes returns multiple choices in a completion response for
+// Claude models and places the `tool_calls` payload in a non-zero index choice.
+// Example:
+// - Choice 0: {"finish_reason":"stop","message":{"content":"I'll check the Desktop directory…"}}
+// - Choice 1: {"finish_reason":"tool_calls","message":{"tool_calls":[{"function":{"arguments":"{\"command\":
+//   \"ls -1 ~/Desktop | wc -l\"}","name":"developer__shell"},…}]}}
+// This function ensures the first choice contains tool metadata so the shared formatter emits a
+// `ToolRequest` instead of returning only the plain-text choice.
+fn promote_tool_choice(response: Value) -> Value {
+    let Some(choices) = response.get("choices").and_then(|c| c.as_array()) else {
+        return response;
+    };
+
+    let tool_choice_idx = choices.iter().position(|choice| {
+        choice
+            .get("message")
+            .and_then(|m| m.get("tool_calls"))
+            .and_then(|tc| tc.as_array())
+            .map(|arr| !arr.is_empty())
+            .unwrap_or(false)
+    });
+
+    if let Some(idx) = tool_choice_idx {
+        if idx != 0 {
+            let mut new_response = response;
+            if let Some(new_choices) = new_response
+                .get_mut("choices")
+                .and_then(|c| c.as_array_mut())
+            {
+                let choice = new_choices.remove(idx);
+                new_choices.insert(0, choice);
+            }
+            return new_response;
+        }
+    }
+
+    response
+}
+
+#[cfg(test)]
+mod tests {
+    use super::promote_tool_choice;
+    use serde_json::json;
+
+    #[test]
+    fn promotes_choice_with_tool_call() {
+        let response = json!({
+            "choices": [
+                {"message": {"content": "plain text"}},
+                {"message": {"tool_calls": [{"function": {"name": "foo", "arguments": "{}"}}]}}
+            ]
+        });
+
+        let promoted = promote_tool_choice(response);
+        assert_eq!(
+            promoted
+                .get("choices")
+                .and_then(|c| c.as_array())
+                .map(|c| c.len()),
+            Some(2)
+        );
+        let first_choice = promoted
+            .get("choices")
+            .and_then(|c| c.as_array())
+            .and_then(|c| c.first())
+            .unwrap();
+
+        assert!(first_choice
+            .get("message")
+            .and_then(|m| m.get("tool_calls"))
+            .is_some());
+    }
+
+    #[test]
+    fn leaves_response_when_tool_choice_first() {
+        let response = json!({
+            "choices": [
+                {"message": {"tool_calls": [{"function": {"name": "foo", "arguments": "{}"}}]}},
+                {"message": {"content": "plain text"}}
+            ]
+        });
+
+        let promoted = promote_tool_choice(response.clone());
+        assert_eq!(promoted, response);
     }
 }
