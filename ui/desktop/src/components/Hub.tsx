@@ -58,6 +58,7 @@ export default function Hub({
         disableAnimation={false}
         sessionCosts={undefined}
         toolCount={0}
+        autoSubmit={false}
       />
     </div>
   );
