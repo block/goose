@@ -80,6 +80,7 @@ import requests
 from requests.exceptions import RequestException
 from bs4 import BeautifulSoup
 from html2text import html2text
+from urllib.parse import urlparse
 
 from mcp.server.fastmcp import FastMCP
 from mcp.shared.exceptions import McpError
@@ -100,6 +101,11 @@ def read_wikipedia_article(url: str) -> str:
         # Validate input
         if not url.startswith("http"):
             raise ValueError("URL must start with http or https.")
+
+        # SSRF protection: only allow Wikipedia domains
+        parsed = urlparse(url)
+        if not parsed.netloc.endswith('wikipedia.org'):
+            raise ValueError(f"Only Wikipedia URLs are allowed. Got: {parsed.netloc}")
 
         # Add User-Agent header to avoid 403 from Wikipedia
         headers = {
@@ -275,11 +281,17 @@ MCP Inspector requires Node.js and npm installed on your computer.
 
 To add your MCP server as an extension in goose:
 
-1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-2. Click `Extensions` in the sidebar
-3. Set the `Type` to `STDIO`
-4. Provide a name and description for your extension
-5. In the `Command` field, provide the absolute path to your executable:
+1. Build the extension binary:
+
+   ```bash
+   uv pip install .
+   ```
+
+2. Open goose Desktop and click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+3. Click `Extensions` in the sidebar
+4. Set the `Type` to `STDIO`
+5. Provide a name and description for your extension
+6. In the `Command` field, provide the absolute path to your executable:
    ```plaintext
    uv run /full/path/to/mcp-wiki/.venv/bin/mcp-wiki
    ```
@@ -288,6 +300,10 @@ To add your MCP server as an extension in goose:
    ```plaintext
    uv run /Users/smohammed/Development/mcp/mcp-wiki/.venv/bin/mcp-wiki
    ```
+
+:::tip Rebuild binary after changes
+To see any changes you make to your MCP server code after integrating with goose, re-run `uv pip install .` and then restart goose Desktop.
+:::
 
 For the purposes on this guide, we'll run the local version. Alternatively, you can publish your package to PyPI. Once published, the server can be run directly using `uvx`. For example:
 
