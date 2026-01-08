@@ -37,9 +37,9 @@ impl RiskLevel {
     pub fn confidence_score(&self) -> f32 {
         match self {
             RiskLevel::Critical => 0.95,
-            RiskLevel::High => 0.85,
-            RiskLevel::Medium => 0.70,
-            RiskLevel::Low => 0.55,
+            RiskLevel::High => 0.75,
+            RiskLevel::Medium => 0.60,
+            RiskLevel::Low => 0.45,
         }
     }
 }
@@ -87,21 +87,21 @@ pub const THREAT_PATTERNS: &[ThreatPattern] = &[
         name: "bash_process_substitution",
         pattern: r"bash\s*<\s*\(\s*(curl|wget)",
         description: "Bash process substitution with remote content",
-        risk_level: RiskLevel::Critical,
+        risk_level: RiskLevel::High,
         category: ThreatCategory::RemoteCodeExecution,
     },
     ThreatPattern {
         name: "python_remote_exec",
         pattern: r"python[23]?\s+-c\s+.*urllib|requests.*exec",
         description: "Python remote code execution",
-        risk_level: RiskLevel::Critical,
+        risk_level: RiskLevel::High,
         category: ThreatCategory::RemoteCodeExecution,
     },
     ThreatPattern {
         name: "powershell_download_exec",
         pattern: r"powershell.*DownloadString.*Invoke-Expression",
         description: "PowerShell remote script execution",
-        risk_level: RiskLevel::Critical,
+        risk_level: RiskLevel::High,
         category: ThreatCategory::RemoteCodeExecution,
     },
     // Data exfiltration patterns
