@@ -14,11 +14,25 @@ export default function StandaloneAppView() {
   const appName = searchParams.get('appName');
   const workingDir = searchParams.get('workingDir');
 
-  console.log('[StandaloneAppView] Rendering with:', { resourceUri, extensionName, appName, workingDir, loading, error, sessionId });
+  console.log('[StandaloneAppView] Rendering with:', {
+    resourceUri,
+    extensionName,
+    appName,
+    workingDir,
+    loading,
+    error,
+    sessionId,
+  });
 
   useEffect(() => {
     async function initSession() {
-      if (!resourceUri || !extensionName || !workingDir || resourceUri === 'undefined' || extensionName === 'undefined') {
+      if (
+        !resourceUri ||
+        !extensionName ||
+        !workingDir ||
+        resourceUri === 'undefined' ||
+        extensionName === 'undefined'
+      ) {
         setError('Missing required parameters');
         setLoading(false);
         return;
@@ -102,6 +116,7 @@ export default function StandaloneAppView() {
         resourceUri={resourceUri!}
         extensionName={extensionName!}
         sessionId={sessionId}
+        fullscreen={true}
       />
     </div>
   );

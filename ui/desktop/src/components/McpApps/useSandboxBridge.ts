@@ -64,6 +64,9 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
   }, [resourceUri]);
 
   const sendToSandbox = useCallback((message: JsonRpcMessage) => {
+    console.log('[useSandboxBridge] Sending to sandbox:', message);
+    console.log('[useSandboxBridge] iframe ref:', iframeRef.current);
+    console.log('[useSandboxBridge] contentWindow:', iframeRef.current?.contentWindow);
     iframeRef.current?.contentWindow?.postMessage(message, '*');
   }, []);
 

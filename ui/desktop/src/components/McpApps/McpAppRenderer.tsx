@@ -30,6 +30,7 @@ interface McpAppRendererProps {
   toolResult?: ToolResult;
   toolCancelled?: ToolCancelled;
   append?: (text: string) => void;
+  fullscreen?: boolean;
 }
 
 export default function McpAppRenderer({
@@ -41,6 +42,7 @@ export default function McpAppRenderer({
   toolResult,
   toolCancelled,
   append,
+  fullscreen = false,
 }: McpAppRendererProps) {
   const [resourceHtml, setResourceHtml] = useState<string | null>(null);
   const [resourceCsp, setResourceCsp] = useState<CspMetadata | null>(null);
@@ -186,6 +188,33 @@ export default function McpAppRenderer({
         <div className="flex items-center justify-center" style={{ minHeight: '200px' }}>
           Loading MCP app...
         </div>
+      </div>
+    );
+  }
+
+  if (fullscreen) {
+    return proxyUrl ? (
+      <iframe
+        ref={iframeRef}
+        src={proxyUrl}
+        style={{
+          width: '100%',
+          height: '100%',
+          border: 'none',
+        }}
+        sandbox="allow-scripts allow-same-origin"
+      />
+    ) : (
+      <div
+        style={{
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        Loading...
       </div>
     );
   }
