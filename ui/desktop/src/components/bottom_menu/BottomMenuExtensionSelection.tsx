@@ -26,9 +26,26 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [pendingSort, setPendingSort] = useState(false);
   const [togglingExtension, setTogglingExtension] = useState<string | null>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const sortTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { extensionsList: allExtensions } = useConfig();
   const isHubView = !sessionId;
+
+  useEffect(() => {
+    const handleSessionLoaded = () => {
+      setTimeout(() => {
+        setRefreshTrigger((prev) => prev + 1);
+      }, 500);
+    };
+
+    window.addEventListener('session-created', handleSessionLoaded);
+    window.addEventListener('message-stream-finished', handleSessionLoaded);
+
+    return () => {
+      window.removeEventListener('session-created', handleSessionLoaded);
+      window.removeEventListener('message-stream-finished', handleSessionLoaded);
+    };
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -59,7 +76,7 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
     };
 
     fetchExtensions();
-  }, [sessionId, isOpen]);
+  }, [sessionId, isOpen, refreshTrigger]);
 
   const handleToggle = useCallback(
     async (extensionConfig: FixedExtensionEntry) => {
