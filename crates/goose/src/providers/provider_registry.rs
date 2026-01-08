@@ -159,4 +159,24 @@ impl ProviderRegistry {
     pub fn remove_custom_providers(&mut self) {
         self.entries.retain(|name, _| !name.starts_with("custom_"));
     }
+
+    /// Register a provider with custom metadata (for generic HTTP providers)
+    pub fn register_with_metadata<F>(
+        &mut self,
+        name: &str,
+        metadata: ProviderMetadata,
+        provider_type: ProviderType,
+        constructor: F,
+    ) where
+        F: Fn(ModelConfig) -> BoxFuture<'static, Result<Arc<dyn Provider>>> + Send + Sync + 'static,
+    {
+        self.entries.insert(
+            name.to_string(),
+            ProviderEntry {
+                metadata,
+                constructor: Arc::new(constructor),
+                provider_type,
+            },
+        );
+    }
 }
