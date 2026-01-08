@@ -700,19 +700,19 @@ where
                 )
             } else if chunk.choices[0].delta.content.is_some() || chunk.choices[0].delta.reasoning_content.is_some() {
                 let mut content = Vec::new();
-                
+
                 if let Some(reasoning) = &chunk.choices[0].delta.reasoning_content {
                     if !reasoning.is_empty() {
                         content.push(MessageContent::reasoning(reasoning));
                     }
                 }
-                
+
                 if let Some(text) = &chunk.choices[0].delta.content {
                     if !text.is_empty() {
                         content.push(MessageContent::text(text));
                     }
                 }
-                
+
                 if !content.is_empty() {
                     let mut msg = Message::new(
                         Role::Assistant,
@@ -1894,14 +1894,14 @@ data: [DONE]"#;
 
         let message = response_to_message(&response)?;
         assert_eq!(message.content.len(), 2);
-        
+
         // First should be reasoning content
         if let MessageContent::Reasoning(reasoning) = &message.content[0] {
             assert_eq!(reasoning.text, "Let me think about this step by step...");
         } else {
             panic!("Expected Reasoning content");
         }
-        
+
         // Second should be text content
         if let MessageContent::Text(text) = &message.content[1] {
             assert_eq!(text.text, "The answer is 9.11 is greater than 9.8");
@@ -1918,7 +1918,7 @@ data: [DONE]"#;
         let mut message = Message::assistant()
             .with_content(MessageContent::reasoning("Thinking through the problem..."))
             .with_text("The result is 42");
-        
+
         // Add a tool call to test that reasoning_content works with tool calls
         message = message.with_tool_request(
             "tool1",
@@ -1934,14 +1934,17 @@ data: [DONE]"#;
 
         assert_eq!(spec.len(), 1);
         assert_eq!(spec[0]["role"], "assistant");
-        
+
         // Should have reasoning_content field
         assert!(spec[0].get("reasoning_content").is_some());
-        assert_eq!(spec[0]["reasoning_content"], "Thinking through the problem...");
-        
+        assert_eq!(
+            spec[0]["reasoning_content"],
+            "Thinking through the problem..."
+        );
+
         // Should have content
         assert_eq!(spec[0]["content"], "The result is 42");
-        
+
         // Should have tool_calls
         assert!(spec[0]["tool_calls"].is_array());
         assert_eq!(spec[0]["tool_calls"][0]["function"]["name"], "test_tool");
