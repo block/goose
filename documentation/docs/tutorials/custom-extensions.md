@@ -104,7 +104,10 @@ def read_wikipedia_article(url: str) -> str:
 
         # SSRF protection: only allow Wikipedia domains
         parsed = urlparse(url)
-        if not parsed.netloc.endswith('wikipedia.org'):
+        hostname = parsed.netloc.lower()
+        
+        # Allow wikipedia.org or *.wikipedia.org subdomains only
+        if hostname != 'wikipedia.org' and not hostname.endswith('.wikipedia.org'):
             raise ValueError(f"Only Wikipedia URLs are allowed. Got: {parsed.netloc}")
 
         # Add User-Agent header to avoid 403 from Wikipedia
@@ -305,7 +308,7 @@ To add your MCP server as an extension in goose:
 To see any changes you make to your MCP server code after integrating with goose, re-run `uv pip install .` and then restart goose Desktop.
 :::
 
-For the purposes on this guide, we'll run the local version. Alternatively, you can publish your package to PyPI. Once published, the server can be run directly using `uvx`. For example:
+For the purposes of this guide, we'll run the local version. Alternatively, you can publish your package to PyPI. Once published, the server can be run directly using `uvx`. For example:
 
 ```
 uvx mcp-wiki
