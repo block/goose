@@ -273,12 +273,6 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
             converted["content"] = json!(text_array.join("\n"));
         }
 
-        if let Some(reasoning) = reasoning_text {
-            if !reasoning.is_empty() {
-                converted["reasoning_content"] = json!(reasoning);
-            }
-        }
-
         // Some strict OpenAI-compatible providers require "content" to be present
         // (even as null) when tool_calls are provided. See #6717.
         if message.role == Role::Assistant
@@ -286,6 +280,17 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
             && converted.get("content").is_none()
         {
             converted["content"] = json!(null);
+        }
+
+        // DeepSeek requires reasoning_content field when tool_calls are present
+        // Set it to the captured reasoning text, or empty string if not present
+        if converted.get("tool_calls").is_some() {
+            let reasoning = reasoning_text.unwrap_or_default();
+            converted["reasoning_content"] = json!(reasoning);
+        } else if let Some(reasoning) = reasoning_text {
+            if !reasoning.is_empty() {
+                converted["reasoning_content"] = json!(reasoning);
+            }
         }
 
         if converted.get("content").is_some() || converted.get("tool_calls").is_some() {
