@@ -39,7 +39,7 @@ export const SecurityToggle = () => {
 
   const {
     SECURITY_PROMPT_ENABLED: enabled = false,
-    SECURITY_PROMPT_THRESHOLD: configThreshold = 0.7,
+    SECURITY_PROMPT_THRESHOLD: configThreshold = 0.8,
     SECURITY_PROMPT_CLASSIFIER_ENABLED: mlEnabled = false,
     SECURITY_PROMPT_CLASSIFIER_MODEL: mlModel = '',
     SECURITY_PROMPT_CLASSIFIER_ENDPOINT: mlEndpoint = '',
@@ -154,7 +154,7 @@ export const SecurityToggle = () => {
                   ? 'border-border-default bg-background-default text-text-default'
                   : 'border-border-muted bg-background-muted text-text-muted cursor-not-allowed'
               }`}
-              placeholder="0.70"
+              placeholder="0.80"
             />
           </div>
 
