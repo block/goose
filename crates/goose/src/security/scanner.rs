@@ -31,7 +31,7 @@ impl PromptInjectionScanner {
             return threshold as f32;
         }
 
-        0.7 // Default threshold
+        0.8 // Default threshold
     }
 
     /// Analyze tool call with conversation context
