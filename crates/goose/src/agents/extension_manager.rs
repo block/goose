@@ -477,6 +477,11 @@ impl ExtensionManager {
     pub async fn add_extension(&self, config: ExtensionConfig) -> ExtensionResult<()> {
         let config_name = config.key().to_string();
         let sanitized_name = normalize(config_name.clone());
+
+        if self.extensions.lock().await.contains_key(&sanitized_name) {
+            return Ok(());
+        }
+
         let mut temp_dir = None;
 
         let client: Box<dyn McpClientTrait> = match &config {
@@ -782,9 +787,9 @@ impl ExtensionManager {
         let extension_name = params.get("extension_name").and_then(|v| v.as_str());
 
         // If extension name is provided, we can just look it up
-        if extension_name.is_some() {
+        if let Some(ext_name) = extension_name {
             let read_result = self
-                .read_resource(uri, extension_name.unwrap(), cancellation_token.clone())
+                .read_resource(uri, ext_name, cancellation_token.clone())
                 .await?;
 
             let mut result = Vec::new();
@@ -1288,7 +1293,7 @@ mod tests {
     use rmcp::model::ListToolsResult;
     use rmcp::model::ReadResourceResult;
     use rmcp::model::ServerNotification;
-    use serde_json::json;
+
     use tokio::sync::mpsc;
 
     impl ExtensionManager {
