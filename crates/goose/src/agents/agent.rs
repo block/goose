@@ -599,15 +599,18 @@ impl Agent {
         self: &Arc<Self>,
         session: &Session,
     ) -> Vec<ExtensionLoadResult> {
-        // Try to load session-specific extensions first, fall back to global config
         let session_extensions =
             EnabledExtensionsState::from_extension_data(&session.extension_data);
-        let enabled_configs = session_extensions
-            .map(|state| state.extensions)
-            .unwrap_or_else(|| {
-                tracing::info!("load_extensions_from_session: falling back to global config");
-                get_enabled_extensions()
-            });
+        let enabled_configs = match session_extensions {
+            Some(state) => state.extensions,
+            None => {
+                tracing::warn!(
+                    "No extensions found in session {}. This is unexpected.",
+                    session.id
+                );
+                return vec![];
+            }
+        };
 
         let extension_futures = enabled_configs
             .into_iter()
