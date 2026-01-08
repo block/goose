@@ -91,9 +91,9 @@ pub fn get_theme() -> Theme {
 
 pub fn toggle_full_tool_output() -> bool {
     SHOW_FULL_TOOL_OUTPUT.with(|s| {
-        let new_value = !*s.borrow();
-        *s.borrow_mut() = new_value;
-        new_value
+        let mut val = s.borrow_mut();
+        *val = !*val;
+        *val
     })
 }
 
