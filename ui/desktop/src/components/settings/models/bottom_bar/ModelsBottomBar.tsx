@@ -16,6 +16,8 @@ import { getProviderMetadata } from '../modelInterface';
 import { Alert } from '../../../alerts';
 import BottomMenuAlertPopover from '../../../bottom_menu/BottomMenuAlertPopover';
 
+const MODEL_LOCK_USER_PREF_KEY = 'GOOSE_MODEL_LOCK_USER_PREF';
+
 interface ModelsBottomBarProps {
   sessionId: string | null;
   dropdownRef: React.RefObject<HTMLDivElement>;
@@ -44,8 +46,40 @@ export default function ModelsBottomBar({
   const [isLeadWorkerModalOpen, setIsLeadWorkerModalOpen] = useState(false);
   const [isLeadWorkerActive, setIsLeadWorkerActive] = useState(false);
   const [providerDefaultModel, setProviderDefaultModel] = useState<string | null>(null);
+  const [isModelLocked, setIsModelLocked] = useState(false);
 
-  // Check if lead/worker mode is active
+  useEffect(() => {
+    const loadLockState = async () => {
+      try {
+        const savedState = await read(MODEL_LOCK_USER_PREF_KEY, false);
+        
+        if (savedState === null || savedState === undefined) {
+          // No user preference, use env var default
+          const envDefault = window.appConfig.get('GOOSE_MODEL_LOCK');
+          setIsModelLocked(envDefault === true);
+        } else {
+          // User has saved preference
+          const isLocked = savedState === true || savedState === 'true';
+          setIsModelLocked(isLocked);
+        }
+      } catch (error) {
+        console.error('Error loading model lock state:', error);
+        setIsModelLocked(false);
+      }
+    };
+    loadLockState();
+
+    const handleLockChange = () => {
+      loadLockState();
+    };
+
+    window.addEventListener('model-lock-changed', handleLockChange);
+
+    return () => {
+      window.removeEventListener('model-lock-changed', handleLockChange);
+    };
+  }, [read]);
+
   useEffect(() => {
     const checkLeadWorker = async () => {
       try {
@@ -59,10 +93,8 @@ export default function ModelsBottomBar({
     checkLeadWorker();
   }, [read]);
 
-  // Refresh lead/worker status when modal closes
   const handleLeadWorkerModalClose = () => {
     setIsLeadWorkerModalOpen(false);
-    // Refresh the lead/worker status after modal closes
     const checkLeadWorker = async () => {
       try {
         const leadModel = await read('GOOSE_LEAD_MODEL', false);
@@ -78,12 +110,9 @@ export default function ModelsBottomBar({
     checkLeadWorker();
   };
 
-  // Since currentModelInfo.mode is not working, let's determine mode differently
-  // We'll need to get the lead model and compare it with the current model
   const [leadModelName, setLeadModelName] = useState<string>('');
   const [currentActiveModel, setCurrentActiveModel] = useState<string>('');
 
-  // Get lead model name and current model for comparison
   useEffect(() => {
     const getModelInfo = async () => {
       try {
@@ -98,20 +127,17 @@ export default function ModelsBottomBar({
     getModelInfo();
   }, [read]);
 
-  // Determine the mode based on which model is currently active
   const modelMode = isLeadWorkerActive
     ? currentActiveModel === leadModelName
       ? 'lead'
       : 'worker'
     : undefined;
 
-  // Determine which model to display - activeModel takes priority when lead/worker is active
   const displayModel =
     isLeadWorkerActive && currentModelInfo?.model
       ? currentModelInfo.model
       : currentModel || providerDefaultModel || displayModelName;
 
-  // Update display provider when current provider changes
   useEffect(() => {
     if (currentProvider) {
       (async () => {
@@ -126,7 +152,6 @@ export default function ModelsBottomBar({
     }
   }, [currentProvider, getCurrentProviderDisplayName, getCurrentModelAndProviderForDisplay]);
 
-  // Fetch provider default model when provider changes and no current model
   useEffect(() => {
     if (currentProvider && !currentModel) {
       (async () => {
@@ -139,12 +164,10 @@ export default function ModelsBottomBar({
         }
       })();
     } else if (currentModel) {
-      // Clear provider default when we have a current model
       setProviderDefaultModel(null);
     }
   }, [currentProvider, currentModel, getProviders]);
 
-  // Update display model name when current model changes
   useEffect(() => {
     (async () => {
       const displayName = await getCurrentModelDisplayName();
@@ -152,20 +175,35 @@ export default function ModelsBottomBar({
     })();
   }, [currentModel, getCurrentModelDisplayName]);
 
+  const modelDisplay = (
+    <div className="flex items-center truncate max-w-[130px] md:max-w-[200px] lg:max-w-[360px] min-w-0">
+      <Bot className="mr-1 h-4 w-4 flex-shrink-0" />
+      <span className="truncate text-xs">
+        {displayModel}
+        {isLeadWorkerActive && modelMode && (
+          <span className="ml-1 text-[10px] opacity-60">({modelMode})</span>
+        )}
+      </span>
+    </div>
+  );
+
+  if (isModelLocked) {
+    return (
+      <div className="relative flex items-center" ref={dropdownRef}>
+        <BottomMenuAlertPopover alerts={alerts} />
+        <div className="flex items-center max-w-[180px] md:max-w-[200px] lg:max-w-[380px] min-w-0 text-text-default/70">
+          {modelDisplay}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="relative flex items-center" ref={dropdownRef}>
       <BottomMenuAlertPopover alerts={alerts} />
       <DropdownMenu>
         <DropdownMenuTrigger className="flex items-center hover:cursor-pointer max-w-[180px] md:max-w-[200px] lg:max-w-[380px] min-w-0 text-text-default/70 hover:text-text-default transition-colors">
-          <div className="flex items-center truncate max-w-[130px] md:max-w-[200px] lg:max-w-[360px] min-w-0">
-            <Bot className="mr-1 h-4 w-4 flex-shrink-0" />
-            <span className="truncate text-xs">
-              {displayModel}
-              {isLeadWorkerActive && modelMode && (
-                <span className="ml-1 text-[10px] opacity-60">({modelMode})</span>
-              )}
-            </span>
-          </div>
+          {modelDisplay}
         </DropdownMenuTrigger>
         <DropdownMenuContent side="top" align="center" className="w-64 text-sm">
           <h6 className="text-xs text-textProminent mt-2 ml-2">Current model</h6>

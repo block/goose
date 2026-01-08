@@ -486,6 +486,8 @@ let appConfig = {
   GOOSE_WORKING_DIR: '',
   // If GOOSE_ALLOWLIST_WARNING env var is not set, defaults to false (strict blocking mode)
   GOOSE_ALLOWLIST_WARNING: process.env.GOOSE_ALLOWLIST_WARNING === 'true',
+  // If GOOSE_MODEL_LOCK env var is set to 'true', model lock is enabled by default
+  GOOSE_MODEL_LOCK: process.env.GOOSE_MODEL_LOCK === 'true',
 };
 
 const windowMap = new Map<number, BrowserWindow>();

@@ -6,9 +6,10 @@ import { shouldShowPredefinedModels } from '../predefinedModelsUtils';
 
 interface ConfigureModelButtonsProps {
   setView: (view: View) => void;
+  isModelLocked?: boolean;
 }
 
-export default function ModelSettingsButtons({ setView }: ConfigureModelButtonsProps) {
+export default function ModelSettingsButtons({ setView, isModelLocked = false }: ConfigureModelButtonsProps) {
   const [isAddModelModalOpen, setIsAddModelModalOpen] = useState(false);
   const hasPredefinedModels = shouldShowPredefinedModels();
 
@@ -19,6 +20,7 @@ export default function ModelSettingsButtons({ setView }: ConfigureModelButtonsP
         variant="default"
         size="sm"
         onClick={() => setIsAddModelModalOpen(true)}
+        disabled={isModelLocked}
       >
         Switch models
       </Button>
