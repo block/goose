@@ -571,16 +571,6 @@ async fn agent_add_extension(
         ErrorResponse::internal(format!("Failed to add extension: {}", e))
     })?;
 
-    agent
-        .persist_extension_state(&request.session_id)
-        .await
-        .map_err(|e| {
-            error!("Failed to persist extension state: {}", e);
-            ErrorResponse {
-                message: format!("Failed to persist extension state: {}", e),
-                status: StatusCode::INTERNAL_SERVER_ERROR,
-            }
-        })?;
     Ok(StatusCode::OK)
 }
 

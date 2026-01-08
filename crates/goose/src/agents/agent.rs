@@ -656,7 +656,6 @@ impl Agent {
     }
 
     /// Add an extension to the agent.
-    /// The working_dir is resolved from the session if available, otherwise falls back to current_dir().
     pub async fn add_extension(&self, extension: ExtensionConfig) -> ExtensionResult<()> {
         match &extension {
             ExtensionConfig::Frontend {
@@ -688,6 +687,12 @@ impl Agent {
                 self.extension_manager
                     .add_extension(extension.clone())
                     .await?;
+            }
+        }
+
+        if let Some(ref session_id) = self.extension_manager.get_context().await.session_id {
+            if let Err(e) = self.persist_extension_state(session_id).await {
+                warn!("Failed to persist extension state: {}", e);
             }
         }
 
