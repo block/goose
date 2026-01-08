@@ -2,6 +2,7 @@ pub mod base;
 pub mod declarative_providers;
 mod experiments;
 pub mod extensions;
+pub mod generic_provider_config;
 pub mod goose_mode;
 pub mod paths;
 pub mod permission;

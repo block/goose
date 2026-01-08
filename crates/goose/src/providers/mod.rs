@@ -17,6 +17,7 @@ pub mod formats;
 mod gcpauth;
 pub mod gcpvertexai;
 pub mod gemini_cli;
+pub mod generic_http;
 pub mod githubcopilot;
 pub mod google;
 pub mod lead_worker;
