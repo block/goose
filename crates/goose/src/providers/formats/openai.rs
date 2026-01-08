@@ -251,7 +251,12 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
             converted["content"] = json!(text_array.join("\n"));
         }
 
-        if let Some(reasoning) = reasoning_text {
+        // DeepSeek requires reasoning_content field when tool_calls are present
+        // Set it to the captured reasoning text, or empty string if not present
+        if converted.get("tool_calls").is_some() {
+            let reasoning = reasoning_text.unwrap_or_default();
+            converted["reasoning_content"] = json!(reasoning);
+        } else if let Some(reasoning) = reasoning_text {
             if !reasoning.is_empty() {
                 converted["reasoning_content"] = json!(reasoning);
             }

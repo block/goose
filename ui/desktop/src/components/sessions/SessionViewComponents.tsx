@@ -9,6 +9,7 @@ import ToolCallWithResponse from '../ToolCallWithResponse';
 import ImagePreview from '../ImagePreview';
 import {
   getTextContent,
+  getReasoningContent,
   ToolRequestMessageContent,
   ToolResponseMessageContent,
 } from '../../types/message';
@@ -112,6 +113,7 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
               messages
                 .map((message, index) => {
                   const textContent = getTextContent(message);
+                  const reasoningContent = getReasoningContent(message);
                   // Extract image paths from the message
                   const imagePaths = extractImagePaths(textContent);
 
@@ -157,6 +159,18 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
                       </div>
 
                       <div className="flex flex-col w-full">
+                        {/* Reasoning content */}
+                        {reasoningContent && (
+                          <details className="bg-bgSubtle border border-borderSubtle rounded p-2 mb-2">
+                            <summary className="cursor-pointer text-sm text-textSubtle select-none">
+                              Show reasoning
+                            </summary>
+                            <div className="mt-2">
+                              <MarkdownContent content={reasoningContent} />
+                            </div>
+                          </details>
+                        )}
+
                         {/* Text content */}
                         {displayText && (
                           <div
