@@ -51,7 +51,7 @@ pub const THREAT_PATTERNS: &[ThreatPattern] = &[
         name: "rm_rf_root",
         pattern: r"rm\s+(-[rf]*[rf][rf]*|--recursive|--force).*[/\\]",
         description: "Recursive file deletion with rm -rf",
-        risk_level: RiskLevel::Critical,
+        risk_level: RiskLevel::High,
         category: ThreatCategory::FileSystemDestruction,
     },
     ThreatPattern {
