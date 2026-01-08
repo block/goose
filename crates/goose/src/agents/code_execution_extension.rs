@@ -693,9 +693,10 @@ impl CodeExecutionClient {
                                 result
                                     .content
                                     .iter()
-                                    .filter_map(|c| match &c.raw {
-                                        RawContent::Text(t) => Some(t.text.clone()),
-                                        _ => None,
+                                    .map(|c| match &c.raw {
+                                        RawContent::Text(t) => t.text.clone(),
+                                        other => serde_json::to_string(other)
+                                            .unwrap_or_else(|_| "[Non-text content]".to_string()),
                                     })
                                     .collect::<Vec<_>>()
                                     .join("\n")
