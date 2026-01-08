@@ -36,7 +36,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({
       sessionId: '',
       name: DEFAULT_CHAT_TITLE,
       messages: [],
-      messageHistoryIndex: 0,
       recipe: null,
       recipeParameterValues: null,
     });

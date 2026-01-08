@@ -296,7 +296,6 @@ function BaseChatContent({
 
   const chat: ChatType = {
     messages,
-    messageHistoryIndex: 0,
     recipe,
     sessionId,
     name: session?.name || 'No Session',
