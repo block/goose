@@ -33,6 +33,7 @@ use crate::conversation::message::{
     ActionRequiredData, Message, MessageContent, ProviderMetadata, SystemNotificationType,
     ToolRequest,
 };
+use crate::conversation::tool_result_serde::call_tool_result;
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
 use crate::mcp_utils::ToolResult;
 use crate::permission::permission_inspector::PermissionInspector;
@@ -1123,6 +1124,8 @@ impl Agent {
 
                                         match item {
                                             ToolStreamItem::Result(output) => {
+                                                let output = call_tool_result::validate(output);
+
                                                 if enable_extension_request_ids.contains(&request_id)
                                                     && output.is_err()
                                                 {
