@@ -120,6 +120,59 @@ impl AgentManager {
     pub async fn session_count(&self) -> usize {
         self.sessions.read().await.len()
     }
+
+    pub async fn refresh_provider_for_sessions(&self, provider_name: &str) -> Result<()> {
+        use crate::providers::create;
+        use crate::session::session_manager::SessionManager;
+
+        let sessions = self.sessions.read().await;
+        let session_ids: Vec<String> = sessions.iter().map(|(id, _)| id.clone()).collect();
+        drop(sessions);
+
+        for session_id in session_ids {
+            let session = match SessionManager::get_session(&session_id, false).await {
+                Ok(s) => s,
+                Err(e) => {
+                    tracing::warn!(
+                        "Failed to get session {} for provider refresh: {}",
+                        session_id,
+                        e
+                    );
+                    continue;
+                }
+            };
+
+            if session.provider_name.as_deref() == Some(provider_name) {
+                if let Some(model_config) = session.model_config {
+                    match create(provider_name, model_config).await {
+                        Ok(new_provider) => {
+                            let sessions = self.sessions.read().await;
+                            if let Some(agent) = sessions.peek(&session_id) {
+                                if let Err(e) =
+                                    agent.update_provider(new_provider, &session_id).await
+                                {
+                                    tracing::warn!(
+                                        "Failed to update provider for session {}: {}",
+                                        session_id,
+                                        e
+                                    );
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            tracing::warn!(
+                                "Failed to create new provider instance for session {}: {}",
+                                session_id,
+                                e
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -346,5 +399,45 @@ mod tests {
         let result = manager.remove_session(&session).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("not found"));
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_refresh_provider_for_sessions() {
+        use crate::providers::testprovider::TestProvider;
+        use crate::session::session_manager::SessionManager;
+        use crate::session::SessionType;
+
+        AgentManager::reset_for_test();
+        let manager = AgentManager::instance().await.unwrap();
+
+        let temp_file = format!(
+            "{}/test_provider_{}.json",
+            std::env::temp_dir().display(),
+            std::process::id()
+        );
+
+        let test_provider = TestProvider::new_replaying(&temp_file)
+            .unwrap_or_else(|_| TestProvider::new_replaying("/tmp/dummy.json").unwrap());
+
+        let session = SessionManager::create_session(
+            std::env::current_dir().unwrap(),
+            "Test Session".to_string(),
+            SessionType::User,
+        )
+        .await
+        .unwrap();
+
+        let agent = manager
+            .get_or_create_agent(session.id.clone())
+            .await
+            .unwrap();
+        agent
+            .update_provider(Arc::new(test_provider), &session.id)
+            .await
+            .unwrap();
+
+        let result = manager.refresh_provider_for_sessions("test").await;
+        assert!(result.is_ok());
     }
 }
