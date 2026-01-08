@@ -1168,10 +1168,6 @@ export type UpdateSessionUserRecipeValuesResponse = {
     recipe: Recipe;
 };
 
-export type UpdateSessionWorkingDirRequest = {
-    workingDir: string;
-};
-
 export type UpdateWorkingDirRequest = {
     session_id: string;
     working_dir: string;
@@ -3124,44 +3120,6 @@ export type UpdateSessionUserRecipeValuesResponses = {
 };
 
 export type UpdateSessionUserRecipeValuesResponse2 = UpdateSessionUserRecipeValuesResponses[keyof UpdateSessionUserRecipeValuesResponses];
-
-export type UpdateSessionWorkingDirData = {
-    body: UpdateSessionWorkingDirRequest;
-    path: {
-        /**
-         * Unique identifier for the session
-         */
-        session_id: string;
-    };
-    query?: never;
-    url: '/sessions/{session_id}/working_dir';
-};
-
-export type UpdateSessionWorkingDirErrors = {
-    /**
-     * Bad request - Invalid directory path
-     */
-    400: unknown;
-    /**
-     * Unauthorized - Invalid or missing API key
-     */
-    401: unknown;
-    /**
-     * Session not found
-     */
-    404: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type UpdateSessionWorkingDirResponses = {
-    /**
-     * Session working directory updated successfully
-     */
-    200: unknown;
-};
 
 export type StatusData = {
     body?: never;

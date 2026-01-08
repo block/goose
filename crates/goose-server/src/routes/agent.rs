@@ -38,47 +38,6 @@ use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 use tracing::error;
 
-use goose::agents::Agent;
-
-/// Restore the provider from session into the agent
-async fn restore_agent_provider(
-    agent: &Arc<Agent>,
-    session: &Session,
-) -> Result<(), ErrorResponse> {
-    agent
-        .restore_provider_from_session(session)
-        .await
-        .map_err(|e| ErrorResponse {
-            message: e.to_string(),
-            status: StatusCode::INTERNAL_SERVER_ERROR,
-        })
-}
-
-/// Load extensions from session into the agent
-async fn restore_agent_extensions(
-    agent: Arc<Agent>,
-    session: &Session,
-) -> Vec<ExtensionLoadResult> {
-    agent.load_extensions_from_session(session).await
-}
-
-/// Persist current extension state to session
-async fn persist_session_extensions(
-    agent: &Arc<Agent>,
-    session_id: &str,
-) -> Result<(), ErrorResponse> {
-    agent
-        .persist_extension_state(session_id)
-        .await
-        .map_err(|e| {
-            error!("Failed to persist extension state: {}", e);
-            ErrorResponse {
-                message: format!("Failed to persist extension state: {}", e),
-                status: StatusCode::INTERNAL_SERVER_ERROR,
-            }
-        })
-}
-
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdateFromSessionRequest {
     session_id: String,
@@ -317,7 +276,7 @@ async fn start_agent(
             .await
         {
             Ok(agent) => {
-                let results = restore_agent_extensions(agent, &session_for_spawn).await;
+                let results = agent.load_extensions_from_session(&session_for_spawn).await;
                 tracing::debug!(
                     "Background extension loading completed for session {}",
                     session_for_spawn.id
@@ -378,7 +337,13 @@ async fn resume_agent(
                 status: code,
             })?;
 
-        restore_agent_provider(&agent, &session).await?;
+        agent
+            .restore_provider_from_session(&session)
+            .await
+            .map_err(|e| ErrorResponse {
+                message: e.to_string(),
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+            })?;
 
         let extension_results =
             if let Some(results) = state.take_extension_loading_task(&payload.session_id).await {
@@ -395,7 +360,7 @@ async fn resume_agent(
                     "No background task found, loading extensions for session {}",
                     payload.session_id
                 );
-                restore_agent_extensions(agent.clone(), &session).await
+                agent.load_extensions_from_session(&session).await
             };
 
         Some(extension_results)
@@ -619,7 +584,16 @@ async fn agent_add_extension(
             ErrorResponse::internal(format!("Failed to add extension: {}", e))
         })?;
 
-    persist_session_extensions(&agent, &request.session_id).await?;
+    agent
+        .persist_extension_state(&request.session_id)
+        .await
+        .map_err(|e| {
+            error!("Failed to persist extension state: {}", e);
+            ErrorResponse {
+                message: format!("Failed to persist extension state: {}", e),
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+            }
+        })?;
     Ok(StatusCode::OK)
 }
 
@@ -641,7 +615,16 @@ async fn agent_remove_extension(
     let agent = state.get_agent(request.session_id.clone()).await?;
     agent.remove_extension(&request.name).await?;
 
-    persist_session_extensions(&agent, &request.session_id).await?;
+    agent
+        .persist_extension_state(&request.session_id)
+        .await
+        .map_err(|e| {
+            error!("Failed to persist extension state: {}", e);
+            ErrorResponse {
+                message: format!("Failed to persist extension state: {}", e),
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+            }
+        })?;
 
     Ok(StatusCode::OK)
 }
@@ -690,11 +673,14 @@ async fn restart_agent_internal(
             status: code,
         })?;
 
-    let provider_result = restore_agent_provider(&agent, session);
-    let extensions_future = restore_agent_extensions(agent.clone(), session);
+    let provider_future = agent.restore_provider_from_session(session);
+    let extensions_future = agent.load_extensions_from_session(session);
 
-    let (provider_result, extension_results) = tokio::join!(provider_result, extensions_future);
-    provider_result?;
+    let (provider_result, extension_results) = tokio::join!(provider_future, extensions_future);
+    provider_result.map_err(|e| ErrorResponse {
+        message: e.to_string(),
+        status: StatusCode::INTERNAL_SERVER_ERROR,
+    })?;
 
     let context: HashMap<&str, Value> = HashMap::new();
     let desktop_prompt =

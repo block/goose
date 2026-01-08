@@ -2511,57 +2511,6 @@
         ]
       }
     },
-    "/sessions/{session_id}/working_dir": {
-      "put": {
-        "tags": [
-          "Session Management"
-        ],
-        "operationId": "update_session_working_dir",
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "description": "Unique identifier for the session",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateSessionWorkingDirRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Session working directory updated successfully"
-          },
-          "400": {
-            "description": "Bad request - Invalid directory path"
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing API key"
-          },
-          "404": {
-            "description": "Session not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
     "/status": {
       "get": {
         "tags": [
@@ -6224,17 +6173,6 @@
         "properties": {
           "recipe": {
             "$ref": "#/components/schemas/Recipe"
-          }
-        }
-      },
-      "UpdateSessionWorkingDirRequest": {
-        "type": "object",
-        "required": [
-          "workingDir"
-        ],
-        "properties": {
-          "workingDir": {
-            "type": "string"
           }
         }
       },

@@ -16,7 +16,6 @@ use goose::session::session_manager::SessionInsights;
 use goose::session::{EnabledExtensionsState, Session, SessionManager};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::Arc;
 use utoipa::ToSchema;
 
@@ -39,12 +38,6 @@ pub struct UpdateSessionNameRequest {
 pub struct UpdateSessionUserRecipeValuesRequest {
     /// Recipe parameter values entered by the user
     user_recipe_values: HashMap<String, String>,
-}
-
-#[derive(Deserialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct UpdateSessionWorkingDirRequest {
-    working_dir: String,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -186,51 +179,6 @@ async fn update_session_name(
         .apply()
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    Ok(StatusCode::OK)
-}
-
-#[utoipa::path(
-    put,
-    path = "/sessions/{session_id}/working_dir",
-    request_body = UpdateSessionWorkingDirRequest,
-    params(
-        ("session_id" = String, Path, description = "Unique identifier for the session")
-    ),
-    responses(
-        (status = 200, description = "Session working directory updated successfully"),
-        (status = 400, description = "Bad request - Invalid directory path"),
-        (status = 401, description = "Unauthorized - Invalid or missing API key"),
-        (status = 404, description = "Session not found"),
-        (status = 500, description = "Internal server error")
-    ),
-    security(
-        ("api_key" = [])
-    ),
-    tag = "Session Management"
-)]
-async fn update_session_working_dir(
-    Path(session_id): Path<String>,
-    Json(request): Json<UpdateSessionWorkingDirRequest>,
-) -> Result<StatusCode, StatusCode> {
-    let working_dir = request.working_dir.trim();
-    if working_dir.is_empty() {
-        return Err(StatusCode::BAD_REQUEST);
-    }
-
-    let path = PathBuf::from(working_dir);
-    if !path.exists() || !path.is_dir() {
-        return Err(StatusCode::BAD_REQUEST);
-    }
-
-    SessionManager::update_session(&session_id)
-        .working_dir(path)
-        .apply()
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to update session working directory: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
 
     Ok(StatusCode::OK)
 }
@@ -494,10 +442,6 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/sessions/import", post(import_session))
         .route("/sessions/insights", get(get_session_insights))
         .route("/sessions/{session_id}/name", put(update_session_name))
-        .route(
-            "/sessions/{session_id}/working_dir",
-            put(update_session_working_dir),
-        )
         .route(
             "/sessions/{session_id}/user_recipe_values",
             put(update_session_user_recipe_values),

@@ -574,7 +574,6 @@ impl Agent {
     }
 
     /// Save current extension state to session by session_id
-    /// Simpler version of save_extension_state that just takes a session_id
     pub async fn persist_extension_state(&self, session_id: &str) -> Result<()> {
         let extension_configs = self.extension_manager.get_extension_configs().await;
         let extensions_state = EnabledExtensionsState::new(extension_configs);
