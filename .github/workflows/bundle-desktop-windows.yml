@@ -261,7 +261,7 @@ jobs:
             --certfile "${GITHUB_WORKSPACE}/block-codesign-cert.pem" \
             --tsaurl "http://timestamp.digicert.com" \
             --name "Goose" \
-            --url "https://github.com/block/goose" \
+            --url "https://github.com/aaif/goose" \
             "Goose.exe"
 
           osslsigncode verify Goose.exe
@@ -279,7 +279,7 @@ jobs:
             --certfile "${GITHUB_WORKSPACE}/block-codesign-cert.pem" \
             --tsaurl "http://timestamp.digicert.com" \
             --name "Goose Backend" \
-            --url "https://github.com/block/goose" \
+            --url "https://github.com/aaif/goose" \
             "goosed.exe"
 
           osslsigncode verify goosed.exe

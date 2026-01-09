@@ -1,6 +1,6 @@
-# CODEOWNERS file for block/goose repository
+# CODEOWNERS file for aaif/goose repository
 # See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
 
 # Documentation owned by DevRel team
-/documentation/ @block/goose-devrel
+/documentation/ @aaif/goose-devrel
 

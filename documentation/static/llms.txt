@@ -36,7 +36,7 @@ goose is available as both a desktop application and a command-line interface (C
 ### macOS/Linux/Windows (CLI)
 
 ```sh
-curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash
+curl -fsSL https://github.com/aaif/goose/releases/download/stable/download_cli.sh | bash
 ```
 
 ### macOS (Homebrew)
@@ -76,11 +76,11 @@ Project-specific hints can be added via `.goosehints` and/or `AGENT.md` files.
 
 ## Links
 
-- Website: https://block.github.io/goose/
-- GitHub: https://github.com/block/goose
+- Website: https://aaif.github.io/goose/
+- GitHub: https://github.com/aaif/goose
 - Discord: https://discord.gg/goose-oss
-- Extensions Registry: https://block.github.io/goose/extensions/
-- Blog: https://block.github.io/goose/blog/
+- Extensions Registry: https://aaif.github.io/goose/extensions/
+- Blog: https://aaif.github.io/goose/blog/
 
 ## About
 

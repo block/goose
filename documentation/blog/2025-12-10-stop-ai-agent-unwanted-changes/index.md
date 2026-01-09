@@ -46,12 +46,12 @@ Try out this method with [goose](/) to help you build your next project. Your fu
 <head>
   <meta property="og:title" content="How to Stop Your AI Agent From Making Unwanted Changes" />
   <meta property="og:type" content="article" />
-  <meta property="og:url" content="https://block.github.io/goose/blog/2025/12/10/stop-ai-agent-unwanted-changes" />
+  <meta property="og:url" content="https://aaif.github.io/goose/blog/2025/12/10/stop-ai-agent-unwanted-changes" />
   <meta property="og:description" content="AI agents are often described as brilliant, overeager interns. Learn how to keep them in control with simple version control practices." />
-  <meta property="og:image" content="https://block.github.io/goose/assets/images/header-image-ce224702149226ea0924fac736eef2fa.png" />
+  <meta property="og:image" content="https://aaif.github.io/goose/assets/images/header-image-ce224702149226ea0924fac736eef2fa.png" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta property="twitter:domain" content="block.github.io/goose" />
+  <meta property="twitter:domain" content="aaif.github.io/goose" />
   <meta name="twitter:title" content="How to Stop Your AI Agent From Making Unwanted Changes" />
   <meta name="twitter:description" content="AI agents are often described as brilliant, overeager interns. Learn how to keep them in control with simple version control practices." />
-  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/header-image-ce224702149226ea0924fac736eef2fa.png" />
+  <meta name="twitter:image" content="https://aaif.github.io/goose/assets/images/header-image-ce224702149226ea0924fac736eef2fa.png" />
 </head>

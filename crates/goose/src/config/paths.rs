@@ -14,6 +14,8 @@ impl Paths {
             }
         } else {
             let strategy = choose_app_strategy(AppStrategyArgs {
+                // These should remain as "block" even after AAIF transfer
+                // until we can handle migrating config file disk locations
                 top_level_domain: "Block".to_string(),
                 author: "Block".to_string(),
                 app_name: "goose".to_string(),

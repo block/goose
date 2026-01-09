@@ -49,19 +49,19 @@ also provide an open source implementation of this emerging approach.
 
 * Try out the feature by enabling the "Code Execution" extension in v1.17.0 or later of goose by clicking extensions on the left side of the desktop app or running `goose configure` on cli
 * Please give us feedback on how it works for you by joining our [discord](https://discord.gg/goose-oss).
-* The source code is [here](https://github.com/block/goose/blob/main/crates/goose/src/agents/code_execution_extension.rs)
+* The source code is [here](https://github.com/aaif/goose/blob/main/crates/goose/src/agents/code_execution_extension.rs)
 
 Kudos to my colleague [Mic Neale](https://github.com/michaelneale) for collaborating with me on the implementation!
 
 <head>
   <meta property="og:title" content="Code Mode MCP in goose" />
   <meta property="og:type" content="article" />
-  <meta property="og:url" content="https://block.github.io/goose/blog/2025/12/15/code-mode-mcp-in-goose" />
+  <meta property="og:url" content="https://aaif.github.io/goose/blog/2025/12/15/code-mode-mcp-in-goose" />
   <meta property="og:description" content="An emerging approach to MCP tool calling gets an open source implementation in goose" />
-  <meta property="og:image" content="https://block.github.io/goose/assets/images/header-image-1fa39f1d26aea7722e2c10fc424804f5.jpg" />
+  <meta property="og:image" content="https://aaif.github.io/goose/assets/images/header-image-1fa39f1d26aea7722e2c10fc424804f5.jpg" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta property="twitter:domain" content="block.github.io/goose" />
+  <meta property="twitter:domain" content="aaif.github.io/goose" />
   <meta name="twitter:title" content="Code Mode MCP in goose" />
   <meta name="twitter:description" content="An emerging approach to MCP tool calling gets an open source implementation in goose" />
-  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/header-image-1fa39f1d26aea7722e2c10fc424804f5.jpg" />
+  <meta name="twitter:image" content="https://aaif.github.io/goose/assets/images/header-image-1fa39f1d26aea7722e2c10fc424804f5.jpg" />
 </head>

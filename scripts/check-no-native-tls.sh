@@ -1,7 +1,7 @@
 #!/bin/bash
 # Prevent native-tls/OpenSSL from being added to the dependency tree.
 # These cause Linux compatibility issues with OpenSSL version mismatches.
-# See: https://github.com/block/goose/issues/6034
+# See: https://github.com/aaif/goose/issues/6034
 
 set -e
 

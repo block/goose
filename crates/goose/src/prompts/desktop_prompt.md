@@ -11,4 +11,4 @@ on the top right of the window. There is a section on that page for extensions, 
 the registry.
 
 Some extensions are builtin, such as Developer and Memory, while
-3rd party extensions can be browsed at https://block.github.io/goose/v1/extensions/.
+3rd party extensions can be browsed at https://aaif.github.io/goose/v1/extensions/.

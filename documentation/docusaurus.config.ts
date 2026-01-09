@@ -18,14 +18,14 @@ const config: Config = {
   favicon: "img/favicon.ico",
 
   // Set the production url of your site here
-  url: "https://block.github.io/",
+  url: "https://aaif.github.io/",
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
   baseUrl: process.env.TARGET_PATH || "/goose/",
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
-  organizationName: "block", // Usually your GitHub org/user name.
+  organizationName: "aaif", // Usually your GitHub org/user name.
   projectName: "goose", // Usually your repo name.
 
   onBrokenLinks: "throw",
@@ -416,7 +416,7 @@ const config: Config = {
           position: "right",
         },
         {
-          href: "https://github.com/block/goose",
+          href: "https://github.com/aaif/goose",
           label: "GitHub",
           position: "right",
         },
@@ -479,12 +479,12 @@ const config: Config = {
             },
             {
               label: "GitHub",
-              href: "https://github.com/block/goose",
+              href: "https://github.com/aaif/goose",
             },
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} Block, Inc.`,
+      copyright: `Copyright © ${new Date().getFullYear()} AAIF`,
     },
     prism: {
       theme: prismThemes.github,
@@ -504,7 +504,7 @@ const config: Config = {
         getHelpCallToActions: [
           {
             name: "GitHub",
-            url: "https://github.com/block/goose",
+            url: "https://github.com/aaif/goose",
             icon: {
               builtIn: "FaGithub",
             },

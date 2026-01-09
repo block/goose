@@ -11,8 +11,8 @@ _a local, extensible, open source AI agent that automates engineering tasks_
   <a href="https://discord.gg/goose-oss">
     <img src="https://img.shields.io/discord/1287729918100246654?logo=discord&logoColor=white&label=Join+Us&color=blueviolet" alt="Discord">
   </a>
-  <a href="https://github.com/block/goose/actions/workflows/ci.yml">
-     <img src="https://img.shields.io/github/actions/workflow/status/block/goose/ci.yml?branch=main" alt="CI">
+  <a href="https://github.com/aaif/goose/actions/workflows/ci.yml">
+     <img src="https://img.shields.io/github/actions/workflow/status/aaif/goose/ci.yml?branch=main" alt="CI">
   </a>
 </p>
 </div>
@@ -26,16 +26,16 @@ Designed for maximum flexibility, goose works with any LLM and supports multi-mo
 [![Watch the video](https://github.com/user-attachments/assets/ddc71240-3928-41b5-8210-626dfb28af7a)](https://youtu.be/D-DpDunrbpo)
 
 # Quick Links
-- [Quickstart](https://block.github.io/goose/docs/quickstart)
-- [Installation](https://block.github.io/goose/docs/getting-started/installation)
-- [Tutorials](https://block.github.io/goose/docs/category/tutorials)
-- [Documentation](https://block.github.io/goose/docs/category/getting-started)
-- [Responsible AI-Assisted Coding Guide](https://github.com/block/goose/blob/main/HOWTOAI.md)
-- [Governance](https://github.com/block/goose/blob/main/GOVERNANCE.md)
+- [Quickstart](https://aaif.github.io/goose/docs/quickstart)
+- [Installation](https://aaif.github.io/goose/docs/getting-started/installation)
+- [Tutorials](https://aaif.github.io/goose/docs/category/tutorials)
+- [Documentation](https://aaif.github.io/goose/docs/category/getting-started)
+- [Responsible AI-Assisted Coding Guide](https://github.com/aaif/goose/blob/main/HOWTOAI.md)
+- [Governance](https://github.com/aaif/goose/blob/main/GOVERNANCE.md)
 
 ## Need Help?
-- [Diagnostics & Reporting](https://block.github.io/goose/docs/troubleshooting/diagnostics-and-reporting)
-- [Known Issues](https://block.github.io/goose/docs/troubleshooting/known-issues)
+- [Diagnostics & Reporting](https://aaif.github.io/goose/docs/troubleshooting/diagnostics-and-reporting)
+- [Known Issues](https://aaif.github.io/goose/docs/troubleshooting/known-issues)
 
 # a little goose humor 🦢
 

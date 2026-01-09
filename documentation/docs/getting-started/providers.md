@@ -1119,7 +1119,7 @@ Beyond single-model setups, goose supports [multi-model configurations](/docs/gu
 
 ---
 
-If you have any questions or need help with a specific provider, feel free to reach out to us on [Discord](https://discord.gg/goose-oss) or on the [goose repo](https://github.com/block/goose).
+If you have any questions or need help with a specific provider, feel free to reach out to us on [Discord](https://discord.gg/goose-oss) or on the [goose repo](https://github.com/aaif/goose).
 
 
 [providers]: /docs/getting-started/providers

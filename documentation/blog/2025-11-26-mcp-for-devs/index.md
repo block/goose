@@ -132,12 +132,12 @@ P.S. Happy first birthday, MCP! 🎉
 <head>
   <meta property="og:title" content="MCPs for Developers Who Think They Don't Need MCPs" />
   <meta property="og:type" content="article" />
-  <meta property="og:url" content="https://block.github.io/goose/blog/2025/11/26/mcp-for-devs" />
+  <meta property="og:url" content="https://aaif.github.io/goose/blog/2025/11/26/mcp-for-devs" />
   <meta property="og:description" content="If you think MCPs are overhyped, here's what you're missing" />
-  <meta property="og:image" content="https://block.github.io/goose/assets/images/mcp-for-devs-0cbea02edffded1a26cec5f19a2a61b1.png" />
+  <meta property="og:image" content="https://aaif.github.io/goose/assets/images/mcp-for-devs-0cbea02edffded1a26cec5f19a2a61b1.png" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta property="twitter:domain" content="block.github.io/goose" />
+  <meta property="twitter:domain" content="aaif.github.io/goose" />
   <meta name="twitter:title" content="MCPs for Developers Who Think They Don't Need MCPs" />
   <meta name="twitter:description" content="If you think MCPs are overhyped, here's what you're missing" />
-  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/mcp-for-devs-0cbea02edffded1a26cec5f19a2a61b1.png" />
+  <meta name="twitter:image" content="https://aaif.github.io/goose/assets/images/mcp-for-devs-0cbea02edffded1a26cec5f19a2a61b1.png" />
 </head>

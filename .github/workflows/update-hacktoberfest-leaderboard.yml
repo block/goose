@@ -28,7 +28,7 @@ jobs:
 
             // Track the Goose repo only
             const REPOS = [
-              'block/goose'
+              'aaif/goose'
             ];
 
             const POINT_VALUES = { small: 5, medium: 10, large: 15 };
