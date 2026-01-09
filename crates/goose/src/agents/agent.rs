@@ -799,11 +799,19 @@ impl Agent {
             .clone()
             .ok_or_else(|| anyhow::anyhow!("Session {} has no conversation", session_config.id))?;
 
+        // Prepare tools and system prompt BEFORE compaction check
+        // This ensures the token count includes system_prompt + tools overhead
+        let (tools_for_check, _toolshim_tools_for_check, system_prompt_for_check) = self
+            .prepare_tools_and_prompt(&session.working_dir)
+            .await?;
+
         let needs_auto_compact = check_if_compaction_needed(
             self.provider().await?.as_ref(),
             &conversation,
             None,
             &session,
+            &system_prompt_for_check,
+            &tools_for_check,
         )
         .await?;
 
