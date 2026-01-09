@@ -100,6 +100,7 @@ interface ChatInputProps {
   toolCount: number;
   append?: (message: Message) => void;
   onWorkingDirChange?: (newDir: string) => void;
+  inputRef?: React.RefObject<HTMLTextAreaElement | null>;
 }
 
 export default function ChatInput({
@@ -126,6 +127,7 @@ export default function ChatInput({
   toolCount,
   append: _append,
   onWorkingDirChange,
+  inputRef,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
@@ -297,30 +299,27 @@ export default function ChatInput({
     },
   });
 
-  // Get dictation settings to check configuration status
   const { settings: dictationSettings } = useDictationSettings();
+  const internalTextAreaRef = useRef<HTMLTextAreaElement>(null);
+  const textAreaRef = inputRef || internalTextAreaRef;
+  const timeoutRefsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
 
-  // Update internal value when initialValue changes
   useEffect(() => {
     setValue(initialValue);
     setDisplayValue(initialValue);
-
-    // Use a functional update to get the current pastedImages
-    // and perform cleanup. This avoids needing pastedImages in the deps.
     setPastedImages((currentPastedImages) => {
       currentPastedImages.forEach((img) => {
         if (img.filePath) {
           window.electron.deleteTempFile(img.filePath);
         }
       });
-      return []; // Return a new empty array
+      return [];
     });
 
-    // Reset history index when input is cleared
     setHistoryIndex(-1);
     setIsInGlobalHistory(false);
     setHasUserTyped(false);
-  }, [initialValue]); // Keep only initialValue as a dependency
+  }, [initialValue]);
 
   // Handle recipe prompt updates
   useEffect(() => {
@@ -332,16 +331,13 @@ export default function ChatInput({
         textAreaRef.current?.focus();
       }, 0);
     }
-  }, [recipeAccepted, initialPrompt, messages.length]);
+  }, [recipeAccepted, initialPrompt, messages.length, textAreaRef]);
 
-  // State to track if the IME is composing (i.e., in the middle of Japanese IME input)
   const [isComposing, setIsComposing] = useState(false);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [savedInput, setSavedInput] = useState('');
   const [isInGlobalHistory, setIsInGlobalHistory] = useState(false);
   const [hasUserTyped, setHasUserTyped] = useState(false);
-  const textAreaRef = useRef<HTMLTextAreaElement>(null);
-  const timeoutRefsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
 
   // Use shared file drop hook for ChatInput
   const {
@@ -409,7 +405,7 @@ export default function ChatInput({
     if (textAreaRef.current) {
       textAreaRef.current.focus();
     }
-  }, []);
+  }, [textAreaRef]);
 
   // Load model limits from the API
   const getModelLimits = async () => {
@@ -583,14 +579,14 @@ export default function ChatInput({
     if (textAreaRef.current) {
       debouncedAutosize(textAreaRef.current);
     }
-  }, [debouncedAutosize, displayValue]);
+  }, [debouncedAutosize, displayValue, textAreaRef]);
 
   // Reset textarea height when displayValue is empty
   useEffect(() => {
     if (textAreaRef.current && displayValue === '') {
       textAreaRef.current.style.height = 'auto';
     }
-  }, [displayValue]);
+  }, [displayValue, textAreaRef]);
 
   const handleChange = (evt: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = evt.target.value;

@@ -36,9 +36,7 @@ import { substituteParameters } from '../utils/providerUtils';
 import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal';
 import { toastSuccess } from '../toasts';
 import { Recipe } from '../recipe';
-import { createSession } from '../sessions';
-import { getInitialWorkingDir } from '../utils/workingDir';
-import { useConfig } from './ConfigContext';
+import { useSessionStatusContext } from '../contexts/SessionStatusContext';
 
 // Context for sharing current model info
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
@@ -55,6 +53,7 @@ interface BaseChatProps {
   showPopularTopics?: boolean;
   suppressEmptyState: boolean;
   sessionId: string;
+  isActiveSession?: boolean;
   initialMessage?: string;
 }
 
@@ -64,27 +63,32 @@ function BaseChatContent({
   customMainLayoutProps = {},
   sessionId,
   initialMessage,
+  isActiveSession = false,
 }: BaseChatProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const scrollRef = useRef<ScrollAreaHandle>(null);
-  const { extensionsList } = useConfig();
+  const chatInputRef = useRef<HTMLTextAreaElement>(null);
 
   const disableAnimation = location.state?.disableAnimation || false;
   const [hasStartedUsingRecipe, setHasStartedUsingRecipe] = React.useState(false);
   const [hasNotAcceptedRecipe, setHasNotAcceptedRecipe] = useState<boolean>();
   const [hasRecipeSecurityWarnings, setHasRecipeSecurityWarnings] = useState(false);
-  const [isCreatingSession, setIsCreatingSession] = useState(false);
 
   const isMobile = useIsMobile();
   const { state: sidebarState } = useSidebar();
   const setView = useNavigation();
+  const { markSessionActive } = useSessionStatusContext();
 
   const contentClassName = cn('pr-1 pb-10', (isMobile || sidebarState === 'collapsed') && 'pt-11');
-
-  // Use shared file drop
   const { droppedFiles, setDroppedFiles, handleDrop, handleDragOver } = useFileDrop();
+
+  useEffect(() => {
+    if (sessionId && isActiveSession) {
+      markSessionActive(sessionId);
+    }
+  }, [sessionId, isActiveSession, markSessionActive]);
 
   const onStreamFinish = useCallback(() => {}, []);
 
@@ -114,6 +118,31 @@ function BaseChatContent({
     onStreamFinish,
   });
 
+  useEffect(() => {
+    let streamState: 'idle' | 'loading' | 'streaming' | 'error' = 'idle';
+    if (chatState === ChatState.LoadingConversation) {
+      streamState = 'loading';
+    } else if (
+      chatState === ChatState.Streaming ||
+      chatState === ChatState.Thinking ||
+      chatState === ChatState.Compacting
+    ) {
+      streamState = 'streaming';
+    } else if (sessionLoadError) {
+      streamState = 'error';
+    }
+
+    window.dispatchEvent(
+      new CustomEvent('session-status-update', {
+        detail: {
+          sessionId,
+          streamState,
+          messageCount: messages.length,
+        },
+      })
+    );
+  }, [sessionId, chatState, messages.length, sessionLoadError]);
+
   // Generate command history from user messages (most recent first)
   const commandHistory = useMemo(() => {
     return messages
@@ -134,42 +163,47 @@ function BaseChatContent({
       return;
     }
 
-    const shouldStartAgent = searchParams.get('shouldStartAgent') === 'true';
+    const currentSessionId = searchParams.get('resumeSessionId');
+    const isCurrentSession = currentSessionId === sessionId;
+    const shouldStartAgent = isCurrentSession && searchParams.get('shouldStartAgent') === 'true';
 
-    if (initialMessage) {
+    // Handle different scenarios:
+    // 1. Forked session with edited message - shouldStartAgent is true and we have initialMessage
+    // 2. Brand new session with initial message - no messages yet
+    // 3. Resume with shouldStartAgent - continue existing conversation
+
+    if (shouldStartAgent && initialMessage) {
+      // This is a forked session with an edited message to submit
       hasAutoSubmittedRef.current = true;
       handleSubmit(initialMessage);
-      // Clear initialMessage from navigation state to prevent re-sending on refresh
-      navigate(location.pathname + location.search, {
-        replace: true,
-        state: { ...location.state, initialMessage: undefined },
-      });
-    } else if (shouldStartAgent) {
+
+      // Clear the initial message from active sessions to prevent re-submission
+      window.dispatchEvent(
+        new CustomEvent('clear-initial-message', {
+          detail: { sessionId },
+        })
+      );
+    } else if (initialMessage && session.message_count === 0 && messages.length === 0) {
+      // Submit the initial message only for brand new sessions
+      hasAutoSubmittedRef.current = true;
+      handleSubmit(initialMessage);
+
+      // Clear the initial message from active sessions to prevent re-submission
+      window.dispatchEvent(
+        new CustomEvent('clear-initial-message', {
+          detail: { sessionId },
+        })
+      );
+    } else if (shouldStartAgent && !initialMessage) {
+      // Trigger agent to continue with existing conversation (no new message)
       hasAutoSubmittedRef.current = true;
       handleSubmit('');
     }
-  }, [session, initialMessage, searchParams, handleSubmit, navigate, location]);
+  }, [session, initialMessage, searchParams, handleSubmit, sessionId, messages.length]);
 
-  const handleFormSubmit = async (e: React.FormEvent) => {
+  const handleFormSubmit = (e: React.FormEvent) => {
     const customEvent = e as unknown as CustomEvent;
     const textValue = customEvent.detail?.value || '';
-
-    // If no session exists, create one and navigate with the initial message
-    if (!session && !sessionId && textValue.trim() && !isCreatingSession) {
-      setIsCreatingSession(true);
-      try {
-        const newSession = await createSession(getInitialWorkingDir(), {
-          allExtensions: extensionsList,
-        });
-        navigate(`/pair?resumeSessionId=${newSession.id}`, {
-          replace: true,
-          state: { resumeSessionId: newSession.id, initialMessage: textValue },
-        });
-      } catch {
-        setIsCreatingSession(false);
-      }
-      return;
-    }
 
     if (recipe && textValue.trim()) {
       setHasStartedUsingRecipe(true);
@@ -246,6 +280,21 @@ function BaseChatContent({
   }, []);
 
   useEffect(() => {
+    if (
+      isActiveSession &&
+      sessionId &&
+      chatInputRef.current &&
+      chatState !== ChatState.LoadingConversation
+    ) {
+      const timeoutId = setTimeout(() => {
+        chatInputRef.current?.focus();
+      }, 100);
+      return () => clearTimeout(timeoutId);
+    }
+    return undefined;
+  }, [isActiveSession, sessionId, chatState]);
+
+  useEffect(() => {
     const handleMakeAgent = () => {
       setIsCreateRecipeModalOpen(true);
     };
@@ -261,6 +310,7 @@ function BaseChatContent({
         shouldStartAgent?: boolean;
         editedMessage?: string;
       }>;
+      window.dispatchEvent(new CustomEvent('session-created'));
       const { newSessionId, shouldStartAgent, editedMessage } = customEvent.detail;
 
       const params = new URLSearchParams();
@@ -424,6 +474,7 @@ function BaseChatContent({
           className={`relative z-10 ${disableAnimation ? '' : 'animate-[fadein_400ms_ease-in_forwards]'}`}
         >
           <ChatInput
+            inputRef={chatInputRef}
             sessionId={sessionId}
             handleSubmit={handleFormSubmit}
             chatState={chatState}
