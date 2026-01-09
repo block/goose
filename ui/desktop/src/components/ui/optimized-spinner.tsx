@@ -24,7 +24,6 @@ const sizeClasses = {
  */
 export const OptimizedSpinner = React.memo<OptimizedSpinnerProps>(
   ({ className = '', size = 'sm', color, 'aria-label': ariaLabel = 'Loading' }) => {
-    // Inject optimized keyframes on first mount
     React.useEffect(() => {
       const styleId = 'optimized-spin-keyframes';
       if (!document.getElementById(styleId)) {

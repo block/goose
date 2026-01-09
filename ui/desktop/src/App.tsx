@@ -355,17 +355,14 @@ export function AppInner() {
       const { sessionId, initialMessage } = event.detail;
 
       setActiveSessions((prev) => {
-        // Check if session already exists
         const existingIndex = prev.findIndex((s) => s.sessionId === sessionId);
 
         let updated: Array<{ sessionId: string; initialMessage?: string }>;
 
         if (existingIndex !== -1) {
-          // Session exists - move it to the end (most recently used)
           const existing = prev[existingIndex];
           updated = [...prev.slice(0, existingIndex), ...prev.slice(existingIndex + 1), existing];
         } else {
-          // New session - add to the end
           const newSession = { sessionId, initialMessage };
           updated = [...prev, newSession];
         }
@@ -386,7 +383,6 @@ export function AppInner() {
       setActiveSessions((prev) => {
         return prev.map((session) => {
           if (session.sessionId === sessionId) {
-            // Clear the initial message after it's been submitted
             return { ...session, initialMessage: undefined };
           }
           return session;

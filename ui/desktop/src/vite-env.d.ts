@@ -45,13 +45,11 @@ declare module '*.md?raw' {
   export default value;
 }
 
-// Extend Window interface to include global recipe creation flag
 declare global {
   interface Window {
     isCreatingRecipe?: boolean;
   }
 
-  // Augment WindowEventMap to include custom events
   interface WindowEventMap {
     'add-active-session': CustomEvent<{
       sessionId: string;

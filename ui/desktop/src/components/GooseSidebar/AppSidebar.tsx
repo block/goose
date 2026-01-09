@@ -205,8 +205,8 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
       }
 
       isPolling = true;
-      const pollIntervalMs = 300; // Poll every 300ms
-      const maxPollDurationMs = 10000; // Poll for up to 10 seconds
+      const pollIntervalMs = 300;
+      const maxPollDurationMs = 10000;
       const maxPolls = maxPollDurationMs / pollIntervalMs;
       let pollCount = 0;
 
