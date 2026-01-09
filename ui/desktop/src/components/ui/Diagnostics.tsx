@@ -151,7 +151,9 @@ Add any other context about the problem here.
               <strong>Warning:</strong> If your session contains sensitive information, do not share
               the diagnostics file publicly.
             </p>
-            <p>If you file a bug, consider attaching the diagnostics report to it.</p>
+            <p className="text-sm text-textSubtle">
+              If you file a bug, consider attaching the diagnostics report to it.
+            </p>
           </div>
         </div>
         <div className="flex gap-2 justify-end">
