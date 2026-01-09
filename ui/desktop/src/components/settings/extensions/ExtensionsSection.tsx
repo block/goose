@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Button } from '../../ui/button';
-import { Plus, AlertTriangle } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { GPSIcon } from '../../ui/icons';
 import { useConfig, FixedExtensionEntry } from '../../ConfigContext';
 import ExtensionList from './subcomponents/ExtensionList';
@@ -12,11 +12,10 @@ import {
   getDefaultFormData,
 } from './utils';
 
-import { activateExtension, deleteExtension, toggleExtension, updateExtension } from './index';
-import { ExtensionConfig } from '../../../api';
+import { activateExtensionDefault, deleteExtension, toggleExtensionDefault } from './index';
+import { ExtensionConfig } from '../../../api/types.gen';
 
 interface ExtensionSectionProps {
-  sessionId?: string;
   deepLinkConfig?: ExtensionConfig;
   showEnvVars?: boolean;
   hideButtons?: boolean;
@@ -28,7 +27,6 @@ interface ExtensionSectionProps {
 }
 
 export default function ExtensionsSection({
-  sessionId,
   deepLinkConfig,
   showEnvVars,
   hideButtons,
@@ -38,8 +36,7 @@ export default function ExtensionsSection({
   onModalClose,
   searchTerm = '',
 }: ExtensionSectionProps) {
-  const { getExtensions, addExtension, removeExtension, extensionsList, extensionWarnings } =
-    useConfig();
+  const { getExtensions, addExtension, removeExtension, extensionsList } = useConfig();
   const [selectedExtension, setSelectedExtension] = useState<FixedExtensionEntry | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -49,25 +46,12 @@ export default function ExtensionsSection({
   const [showEnvVarsStateVar, setShowEnvVarsStateVar] = useState<boolean | undefined | null>(
     showEnvVars
   );
-  const [pendingActivationExtensions, setPendingActivationExtensions] = useState<Set<string>>(
-    new Set()
-  );
 
-  // Update deep link state when props change
   useEffect(() => {
     setDeepLinkConfigStateVar(deepLinkConfig);
     setShowEnvVarsStateVar(showEnvVars);
-
-    if (deepLinkConfig && !showEnvVars) {
-      setPendingActivationExtensions((prev) => {
-        const updated = new Set(prev);
-        updated.add(deepLinkConfig.name);
-        return updated;
-      });
-    }
   }, [deepLinkConfig, showEnvVars]);
 
-  // Process extensions from context - this automatically updates when extensionsList changes
   const extensions = useMemo(() => {
     if (extensionsList.length === 0) return [];
 
@@ -103,21 +87,12 @@ export default function ExtensionsSection({
       return true;
     }
 
-    // If extension is enabled, we are trying to toggle if off, otherwise on
     const toggleDirection = extensionConfig.enabled ? 'toggleOff' : 'toggleOn';
 
-    await toggleExtension({
+    await toggleExtensionDefault({
       toggle: toggleDirection,
       extensionConfig: extensionConfig,
       addToConfig: addExtension,
-      toastOptions: { silent: false },
-      sessionId,
-    });
-
-    setPendingActivationExtensions((prev) => {
-      const updated = new Set(prev);
-      updated.delete(extensionConfig.name);
-      return updated;
     });
 
     await fetchExtensions();
@@ -135,22 +110,12 @@ export default function ExtensionsSection({
 
     const extensionConfig = createExtensionConfig(formData);
     try {
-      await activateExtension(extensionConfig, addExtension, sessionId);
-      setPendingActivationExtensions((prev) => {
-        const updated = new Set(prev);
-        updated.delete(extensionConfig.name);
-        return updated;
+      await activateExtensionDefault({
+        addToConfig: addExtension,
+        extensionConfig: extensionConfig,
       });
     } catch (error) {
-      console.error('Failed to activate extension:', error);
-      // If activation fails, mark as pending if it's enabled in config
-      if (formData.enabled) {
-        setPendingActivationExtensions((prev) => {
-          const updated = new Set(prev);
-          updated.add(extensionConfig.name);
-          return updated;
-        });
-      }
+      console.error('Failed to add extension:', error);
     } finally {
       await fetchExtensions();
       if (onModalClose) {
@@ -174,42 +139,28 @@ export default function ExtensionsSection({
     const originalName = selectedExtension.name;
 
     try {
-      await updateExtension({
-        enabled: formData.enabled,
-        extensionConfig: extensionConfig,
-        addToConfig: addExtension,
-        removeFromConfig: removeExtension,
-        originalName: originalName,
-        sessionId: sessionId,
-      });
+      if (originalName !== extensionConfig.name) {
+        await removeExtension(originalName);
+      }
+      await addExtension(extensionConfig.name, extensionConfig, formData.enabled);
     } catch (error) {
       console.error('Failed to update extension:', error);
-      // We don't reopen the modal on failure
     } finally {
-      // Refresh the extensions list regardless of success or failure
       await fetchExtensions();
     }
   };
 
   const handleDeleteExtension = async (name: string) => {
-    // Capture the selected extension before closing the modal
-    const extensionToDelete = selectedExtension;
-
-    // Close the modal immediately
     handleModalClose();
 
     try {
       await deleteExtension({
         name,
         removeFromConfig: removeExtension,
-        sessionId,
-        extensionConfig: extensionToDelete ?? undefined,
       });
     } catch (error) {
       console.error('Failed to delete extension:', error);
-      // We don't reopen the modal on failure
     } finally {
-      // Refresh the extensions list regardless of success or failure
       await fetchExtensions();
     }
   };
@@ -231,29 +182,12 @@ export default function ExtensionsSection({
   return (
     <section id="extensions">
       <div className="">
-        {/* Unsupported extension warnings */}
-        {extensionWarnings.length > 0 && (
-          <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-            <div className="flex items-start gap-2">
-              <AlertTriangle className="h-5 w-5 text-yellow-500 flex-shrink-0 mt-0.5" />
-              <div className="text-sm text-yellow-500">
-                {extensionWarnings.map((warning, index) => (
-                  <p key={index} className={index > 0 ? 'mt-1' : ''}>
-                    {warning}
-                  </p>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
         <ExtensionList
           extensions={extensions}
           onToggle={handleExtensionToggle}
           onConfigure={handleConfigureClick}
           disableConfiguration={disableConfiguration}
           searchTerm={searchTerm}
-          pendingActivationExtensions={pendingActivationExtensions}
         />
 
         {!hideButtons && (

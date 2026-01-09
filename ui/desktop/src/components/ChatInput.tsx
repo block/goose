@@ -27,9 +27,10 @@ import { Recipe } from '../recipe';
 import MessageQueue from './MessageQueue';
 import { detectInterruption } from '../utils/interruptionDetector';
 import { DiagnosticsModal } from './ui/DownloadDiagnostics';
-import { Message } from '../api';
+import { getSession, Message } from '../api';
 import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal';
 import CreateEditRecipeModal from './recipes/CreateEditRecipeModal';
+import { getInitialWorkingDir } from '../utils/workingDir';
 import {
   trackFileAttached,
   trackVoiceDictation,
@@ -73,6 +74,7 @@ interface ChatInputProps {
   sessionId: string | null;
   handleSubmit: (e: React.FormEvent) => void;
   chatState: ChatState;
+  setChatState?: (state: ChatState) => void;
   onStop?: () => void;
   commandHistory?: string[];
   initialValue?: string;
@@ -97,12 +99,14 @@ interface ChatInputProps {
   initialPrompt?: string;
   toolCount: number;
   append?: (message: Message) => void;
+  onWorkingDirChange?: (newDir: string) => void;
 }
 
 export default function ChatInput({
   sessionId,
   handleSubmit,
   chatState = ChatState.Idle,
+  setChatState,
   onStop,
   commandHistory = [],
   initialValue = '',
@@ -121,6 +125,7 @@ export default function ChatInput({
   initialPrompt,
   toolCount,
   append: _append,
+  onWorkingDirChange,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
@@ -149,6 +154,26 @@ export default function ChatInput({
   const [showCreateRecipeModal, setShowCreateRecipeModal] = useState(false);
   const [showEditRecipeModal, setShowEditRecipeModal] = useState(false);
   const [isFilePickerOpen, setIsFilePickerOpen] = useState(false);
+  const [sessionWorkingDir, setSessionWorkingDir] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!sessionId) {
+      return;
+    }
+
+    const fetchSessionWorkingDir = async () => {
+      try {
+        const response = await getSession({ path: { session_id: sessionId } });
+        if (response.data?.working_dir) {
+          setSessionWorkingDir(response.data.working_dir);
+        }
+      } catch (error) {
+        console.error('[ChatInput] Failed to fetch session working dir:', error);
+      }
+    };
+
+    fetchSessionWorkingDir();
+  }, [sessionId]);
 
   // Save queue state (paused/interrupted) to storage
   useEffect(() => {
@@ -1108,7 +1133,8 @@ export default function ChatInput({
     isAnyImageLoading ||
     isAnyDroppedFileLoading ||
     isRecording ||
-    isTranscribing;
+    isTranscribing ||
+    chatState === ChatState.RestartingAgent;
 
   // Queue management functions - no storage persistence, only in-memory
   const handleRemoveQueuedMessage = (messageId: string) => {
@@ -1359,7 +1385,9 @@ export default function ChatInput({
                         ? 'Recording...'
                         : isTranscribing
                           ? 'Transcribing...'
-                          : 'Send'}
+                          : chatState === ChatState.RestartingAgent
+                            ? 'Restarting session...'
+                            : 'Send'}
                 </p>
               </TooltipContent>
             </Tooltip>
@@ -1499,8 +1527,19 @@ export default function ChatInput({
 
       {/* Secondary actions and controls row below input */}
       <div className="flex flex-row items-center gap-1 p-2 relative">
-        {/* Directory path */}
-        <DirSwitcher className="mr-0" />
+        <DirSwitcher
+          className="mr-0"
+          sessionId={sessionId ?? undefined}
+          workingDir={sessionWorkingDir ?? getInitialWorkingDir()}
+          onWorkingDirChange={(newDir) => {
+            setSessionWorkingDir(newDir);
+            if (onWorkingDirChange) {
+              onWorkingDirChange(newDir);
+            }
+          }}
+          onRestartStart={() => setChatState?.(ChatState.RestartingAgent)}
+          onRestartEnd={() => setChatState?.(ChatState.Idle)}
+        />
         <div className="w-px h-4 bg-border-default mx-2" />
         <Tooltip>
           <TooltipTrigger asChild>
@@ -1544,12 +1583,8 @@ export default function ChatInput({
           </Tooltip>
           <div className="w-px h-4 bg-border-default mx-2" />
           <BottomMenuModeSelection />
-          {sessionId && process.env.ALPHA && (
-            <>
-              <div className="w-px h-4 bg-border-default mx-2" />
-              <BottomMenuExtensionSelection sessionId={sessionId} />
-            </>
-          )}
+          <div className="w-px h-4 bg-border-default mx-2" />
+          <BottomMenuExtensionSelection sessionId={sessionId} />
           {sessionId && messages.length > 0 && (
             <>
               <div className="w-px h-4 bg-border-default mx-2" />
@@ -1619,6 +1654,7 @@ export default function ChatInput({
           onSelectedIndexChange={(index) =>
             setMentionPopover((prev) => ({ ...prev, selectedIndex: index }))
           }
+          workingDir={sessionWorkingDir ?? getInitialWorkingDir()}
         />
 
         {sessionId && showCreateRecipeModal && (
