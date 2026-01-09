@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Clock, FileText, History, Home, Plus, Puzzle } from 'lucide-react';
+import { Clock, FileText, History, Home, MessageSquarePlus, Puzzle } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   SidebarContent,
@@ -320,7 +320,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     <>
       <SidebarContent className="pt-16">
         <SidebarMenu>
-          {/* Home */}
+          {/* Home and New Chat */}
           <SidebarGroup className="px-2">
             <SidebarGroupContent className="space-y-1">
               <div className="sidebar-item">
@@ -337,14 +337,6 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </div>
-            </SidebarGroupContent>
-          </SidebarGroup>
-
-          <SidebarSeparator />
-
-          {/* New Chat Button */}
-          <SidebarGroup className="px-2">
-            <SidebarGroupContent className="space-y-1">
               <div className="sidebar-item">
                 <SidebarMenuItem>
                   <SidebarMenuButton
@@ -353,7 +345,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                     tooltip="Start a new chat"
                     className="w-full justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200"
                   >
-                    <Plus className="w-4 h-4" />
+                    <MessageSquarePlus className="w-4 h-4" />
                     <span>New Chat</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

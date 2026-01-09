@@ -60,7 +60,6 @@ const HubRouteWrapper = () => {
 
 const PairRouteWrapper = ({
   activeSessions,
-  setActiveSessions,
 }: {
   activeSessions: Array<{ sessionId: string; initialMessage?: string }>;
   setActiveSessions: (sessions: Array<{ sessionId: string; initialMessage?: string }>) => void;
@@ -94,13 +93,15 @@ const PairRouteWrapper = ({
             allExtensions: extensionsList,
           });
 
-          setActiveSessions([
-            ...activeSessions,
-            {
-              sessionId: newSession.id,
-              initialMessage,
-            },
-          ]);
+          // Use event dispatch to add session (centralizes LRU logic)
+          window.dispatchEvent(
+            new CustomEvent('add-active-session', {
+              detail: {
+                sessionId: newSession.id,
+                initialMessage,
+              },
+            })
+          );
 
           setSearchParams((prev) => {
             prev.set('resumeSessionId', newSession.id);
@@ -126,24 +127,23 @@ const PairRouteWrapper = ({
     resumeSessionId,
     isCreatingSession,
     setSearchParams,
-    activeSessions,
-    setActiveSessions,
     extensionsList,
   ]);
 
   // Add resumed session to active sessions if not already there
   useEffect(() => {
     if (resumeSessionId && !activeSessions.some((s) => s.sessionId === resumeSessionId)) {
-      const resumedSession = {
-        sessionId: resumeSessionId,
-        // Pass initialMessage from route state if it exists (e.g., for forked sessions)
-        // BaseChat will determine whether to submit it based on session state
-        initialMessage: initialMessage,
-      };
-
-      setActiveSessions([...activeSessions, resumedSession]);
+      // Use event dispatch to add session (centralizes LRU logic)
+      window.dispatchEvent(
+        new CustomEvent('add-active-session', {
+          detail: {
+            sessionId: resumeSessionId,
+            initialMessage: initialMessage,
+          },
+        })
+      );
     }
-  }, [resumeSessionId, activeSessions, setActiveSessions, initialMessage]);
+  }, [resumeSessionId, activeSessions, initialMessage]);
 
   return null;
 };
@@ -344,6 +344,8 @@ export function AppInner() {
     recipe: null,
   });
 
+  const MAX_ACTIVE_SESSIONS = 10;
+
   const [activeSessions, setActiveSessions] = useState<
     Array<{ sessionId: string; initialMessage?: string }>
   >([]);
@@ -353,14 +355,28 @@ export function AppInner() {
       const { sessionId, initialMessage } = event.detail;
 
       setActiveSessions((prev) => {
-        const existingSession = prev.find((s) => s.sessionId === sessionId);
-        if (existingSession) {
-          return prev;
+        // Check if session already exists
+        const existingIndex = prev.findIndex((s) => s.sessionId === sessionId);
+
+        let updated: Array<{ sessionId: string; initialMessage?: string }>;
+
+        if (existingIndex !== -1) {
+          // Session exists - move it to the end (most recently used)
+          const existing = prev[existingIndex];
+          updated = [...prev.slice(0, existingIndex), ...prev.slice(existingIndex + 1), existing];
+        } else {
+          // New session - add to the end
+          const newSession = { sessionId, initialMessage };
+          updated = [...prev, newSession];
         }
 
-        const newSession = { sessionId, initialMessage };
+        // LRU eviction: keep only the last MAX_ACTIVE_SESSIONS
+        if (updated.length > MAX_ACTIVE_SESSIONS) {
+          // Remove oldest sessions (from the front), but the new/accessed session is always at the end
+          updated = updated.slice(updated.length - MAX_ACTIVE_SESSIONS);
+        }
 
-        return [...prev, newSession];
+        return updated;
       });
     };
 
