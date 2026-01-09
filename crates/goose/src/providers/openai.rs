@@ -156,12 +156,10 @@ impl OpenAiProvider {
         let base_path = url.path().trim_start_matches('/').to_string();
         let base_path = if base_path.is_empty() {
             "v1/chat/completions".to_string()
-        } else if base_path.ends_with("/chat/completions") {
-            base_path
-        } else if base_path.ends_with('/') {
-            format!("{}chat/completions", base_path)
+        } else if base_path == "v1" || base_path == "v1/" {
+            "v1/chat/completions".to_string()
         } else {
-            format!("{}/chat/completions", base_path)
+            base_path
         };
 
         let timeout_secs = config.timeout_seconds.unwrap_or(600);
