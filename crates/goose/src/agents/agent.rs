@@ -692,12 +692,6 @@ impl Agent {
             }
         }
 
-        if let Some(ref session_id) = self.extension_manager.get_context().await.session_id {
-            if let Err(e) = self.persist_extension_state(session_id).await {
-                warn!("Failed to persist extension state: {}", e);
-            }
-        }
-
         Ok(())
     }
 

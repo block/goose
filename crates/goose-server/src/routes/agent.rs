@@ -571,6 +571,17 @@ async fn agent_add_extension(
         ErrorResponse::internal(format!("Failed to add extension: {}", e))
     })?;
 
+    // Persist here rather than in add_extension to ensure we only save state
+    // after the extension successfully loads. This prevents failed extensions
+    // from being persisted as enabled in the session.
+    agent
+        .persist_extension_state(&request.session_id)
+        .await
+        .map_err(|e| {
+            error!("Failed to persist extension state: {}", e);
+            ErrorResponse::internal(format!("Failed to persist extension state: {}", e))
+        })?;
+
     Ok(StatusCode::OK)
 }
 
