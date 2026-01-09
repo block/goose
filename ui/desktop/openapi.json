@@ -937,27 +937,6 @@
             }
           }
         }
-      },
-      "delete": {
-        "tags": [
-          "super::routes::prompts"
-        ],
-        "operationId": "reset_all_prompts",
-        "responses": {
-          "200": {
-            "description": "All prompts reset to defaults successfully",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Failed to reset prompts"
-          }
-        }
       }
     },
     "/config/prompts/{name}": {
@@ -4700,26 +4679,6 @@
           }
         }
       },
-      "PromptInfo": {
-        "type": "object",
-        "description": "Information about a prompt template",
-        "required": [
-          "name",
-          "description",
-          "is_customized"
-        ],
-        "properties": {
-          "description": {
-            "type": "string"
-          },
-          "is_customized": {
-            "type": "boolean"
-          },
-          "name": {
-            "type": "string"
-          }
-        }
-      },
       "PromptsListResponse": {
         "type": "object",
         "required": [
@@ -4729,7 +4688,7 @@
           "prompts": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/PromptInfo"
+              "$ref": "#/components/schemas/Template"
             }
           }
         }
@@ -5968,6 +5927,34 @@
           "properties": {
             "type": "object",
             "additionalProperties": {}
+          }
+        }
+      },
+      "Template": {
+        "type": "object",
+        "description": "Information about a template including its content and customization status",
+        "required": [
+          "name",
+          "description",
+          "default_content",
+          "is_customized"
+        ],
+        "properties": {
+          "default_content": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "is_customized": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "user_content": {
+            "type": "string",
+            "nullable": true
           }
         }
       },

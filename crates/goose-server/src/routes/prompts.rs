@@ -3,7 +3,9 @@ use axum::{
     routing::{delete, get, put},
     Json, Router,
 };
-use goose::prompt_template::{get_template, list_templates, reset_template, save_template, Template};
+use goose::prompt_template::{
+    get_template, list_templates, reset_template, save_template, Template,
+};
 use http::StatusCode;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -55,7 +57,10 @@ pub async fn get_prompt(
 ) -> Result<Json<PromptContentResponse>, StatusCode> {
     let template = get_template(&name).ok_or(StatusCode::NOT_FOUND)?;
 
-    let content = template.user_content.as_ref().unwrap_or(&template.default_content);
+    let content = template
+        .user_content
+        .as_ref()
+        .unwrap_or(&template.default_content);
 
     Ok(Json(PromptContentResponse {
         name: template.name,

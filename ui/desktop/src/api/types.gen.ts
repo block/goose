@@ -603,17 +603,8 @@ export type PromptContentResponse = {
     name: string;
 };
 
-/**
- * Information about a prompt template
- */
-export type PromptInfo = {
-    description: string;
-    is_customized: boolean;
-    name: string;
-};
-
 export type PromptsListResponse = {
-    prompts: Array<PromptInfo>;
+    prompts: Array<Template>;
 };
 
 export type ProviderDetails = {
@@ -1024,6 +1015,17 @@ export type TelemetryEventRequest = {
     properties?: {
         [key: string]: unknown;
     };
+};
+
+/**
+ * Information about a template including its content and customization status
+ */
+export type Template = {
+    default_content: string;
+    description: string;
+    is_customized: boolean;
+    name: string;
+    user_content?: string | null;
 };
 
 export type TextContent = {
@@ -1917,29 +1919,6 @@ export type GetPricingResponses = {
 };
 
 export type GetPricingResponse = GetPricingResponses[keyof GetPricingResponses];
-
-export type ResetAllPromptsData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/config/prompts';
-};
-
-export type ResetAllPromptsErrors = {
-    /**
-     * Failed to reset prompts
-     */
-    500: unknown;
-};
-
-export type ResetAllPromptsResponses = {
-    /**
-     * All prompts reset to defaults successfully
-     */
-    200: string;
-};
-
-export type ResetAllPromptsResponse = ResetAllPromptsResponses[keyof ResetAllPromptsResponses];
 
 export type GetPromptsData = {
     body?: never;

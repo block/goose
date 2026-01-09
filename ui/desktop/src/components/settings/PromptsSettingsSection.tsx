@@ -3,7 +3,7 @@ import {
   getPrompt,
   getPrompts,
   PromptContentResponse,
-  PromptInfo,
+  Template,
   resetPrompt,
   savePrompt,
 } from '../../api';
@@ -13,7 +13,7 @@ import { AlertTriangle, RotateCcw, ArrowLeft } from 'lucide-react';
 import { toast } from 'react-toastify';
 
 export default function PromptsSettingsSection() {
-  const [prompts, setPrompts] = useState<PromptInfo[]>([]);
+  const [prompts, setPrompts] = useState<Template[]>([]);
   const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null);
   const [promptData, setPromptData] = useState<PromptContentResponse | null>(null);
   const [content, setContent] = useState('');

@@ -7,14 +7,38 @@ use std::path::PathBuf;
 static CORE_PROMPTS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/prompts");
 
 static TEMPLATE_REGISTRY: &[(&str, &str)] = &[
-    ("system.md", "Main system prompt that defines goose's personality and behavior"),
-    ("compaction.md", "Prompt for summarizing conversation history when context limits are reached"),
-    ("subagent_system.md", "System prompt for subagents spawned to handle specific tasks"),
-    ("recipe.md", "Prompt for generating recipe files from conversations"),
-    ("permission_judge.md", "Prompt for analyzing tool operations for read-only detection"),
-    ("desktop_prompt.md", "Additional context provided when using the desktop application"),
-    ("desktop_recipe_instruction.md", "Prompt template for recipe instructions in desktop mode"),
-    ("plan.md", "Prompt used when goose creates step-by-step plans. CLI only"),
+    (
+        "system.md",
+        "Main system prompt that defines goose's personality and behavior",
+    ),
+    (
+        "compaction.md",
+        "Prompt for summarizing conversation history when context limits are reached",
+    ),
+    (
+        "subagent_system.md",
+        "System prompt for subagents spawned to handle specific tasks",
+    ),
+    (
+        "recipe.md",
+        "Prompt for generating recipe files from conversations",
+    ),
+    (
+        "permission_judge.md",
+        "Prompt for analyzing tool operations for read-only detection",
+    ),
+    (
+        "desktop_prompt.md",
+        "Additional context provided when using the desktop application",
+    ),
+    (
+        "desktop_recipe_instruction.md",
+        "Prompt template for recipe instructions in desktop mode",
+    ),
+    (
+        "plan.md",
+        "Prompt used when goose creates step-by-step plans. CLI only",
+    ),
 ];
 
 /// Information about a template including its content and customization status
@@ -50,10 +74,7 @@ pub fn render_string<T: Serialize>(
     Ok(rendered.trim().to_string())
 }
 
-pub fn render_template<T: Serialize>(
-    name: &str,
-    context: &T,
-) -> Result<String, MiniJinjaError> {
+pub fn render_template<T: Serialize>(name: &str, context: &T) -> Result<String, MiniJinjaError> {
     if !is_registered(name) {
         return Err(MiniJinjaError::new(
             minijinja::ErrorKind::TemplateNotFound,
@@ -203,8 +224,14 @@ mod tests {
 
         // Verify all have descriptions and content
         for template in templates {
-            assert!(!template.description.is_empty(), "Each template should have a description");
-            assert!(!template.default_content.is_empty(), "Each template should have content");
+            assert!(
+                !template.description.is_empty(),
+                "Each template should have a description"
+            );
+            assert!(
+                !template.default_content.is_empty(),
+                "Each template should have content"
+            );
         }
     }
 }
