@@ -143,7 +143,7 @@ jobs:
         run: |
           source ./bin/activate-hermit
           cd ui/desktop
-          echo "Building Linux packages (.deb and .rpm)..."
+          echo "Building Linux packages (.deb, .rpm, and .flatpak)..."
 
           # Build both .deb and .rpm packages
           npm run make -- --platform=linux --arch=x64
