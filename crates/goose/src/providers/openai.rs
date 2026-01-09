@@ -154,9 +154,7 @@ impl OpenAiProvider {
             format!("{}://{}", url.scheme(), url.host_str().unwrap_or(""))
         };
         let base_path = url.path().trim_start_matches('/').to_string();
-        let base_path = if base_path.is_empty() {
-            "v1/chat/completions".to_string()
-        } else if base_path == "v1" || base_path == "v1/" {
+        let base_path = if base_path.is_empty() || base_path == "v1" || base_path == "v1/" {
             "v1/chat/completions".to_string()
         } else {
             base_path
