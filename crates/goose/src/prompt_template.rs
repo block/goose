@@ -1,3 +1,4 @@
+use crate::config::paths::Paths;
 use include_dir::{include_dir, Dir};
 use minijinja::{Environment, Error as MiniJinjaError, Value as MJValue};
 use once_cell::sync::Lazy;
@@ -38,12 +39,130 @@ static GLOBAL_ENV: Lazy<Arc<RwLock<Environment<'static>>>> = Lazy::new(|| {
     Arc::new(RwLock::new(env))
 });
 
-/// Renders a prompt from the global environment by name.
+/// Returns the path to the user prompts directory
+pub fn user_prompts_dir() -> PathBuf {
+    Paths::config_dir().join("prompts")
+}
+
+/// Returns the path to a user-customized prompt file if it exists
+fn get_user_prompt_path(template_name: &str) -> Option<PathBuf> {
+    let user_path = user_prompts_dir().join(template_name);
+    if user_path.exists() {
+        Some(user_path)
+    } else {
+        None
+    }
+}
+
+/// Get the default (built-in) content for a prompt template
+pub fn get_default_prompt_content(template_name: &str) -> Option<String> {
+    CORE_PROMPTS_DIR
+        .get_file(template_name)
+        .map(|file| String::from_utf8_lossy(file.contents()).to_string())
+}
+
+/// Get the user-customized content for a prompt template if it exists
+pub fn get_user_prompt_content(template_name: &str) -> Option<String> {
+    get_user_prompt_path(template_name).and_then(|path| std::fs::read_to_string(path).ok())
+}
+
+/// Save a user-customized prompt
+pub fn save_user_prompt(template_name: &str, content: &str) -> std::io::Result<()> {
+    let prompts_dir = user_prompts_dir();
+    std::fs::create_dir_all(&prompts_dir)?;
+    let path = prompts_dir.join(template_name);
+    std::fs::write(path, content)
+}
+
+/// Delete a user-customized prompt (reset to default)
+pub fn reset_user_prompt(template_name: &str) -> std::io::Result<()> {
+    let path = user_prompts_dir().join(template_name);
+    if path.exists() {
+        std::fs::remove_file(path)
+    } else {
+        Ok(())
+    }
+}
+
+/// Reset all user-customized prompts
+pub fn reset_all_user_prompts() -> std::io::Result<()> {
+    let prompts_dir = user_prompts_dir();
+    if prompts_dir.exists() {
+        for entry in std::fs::read_dir(&prompts_dir)? {
+            let entry = entry?;
+            if entry.path().is_file() {
+                std::fs::remove_file(entry.path())?;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// List all available prompt templates with their customization status
+pub fn list_prompts() -> Vec<PromptInfo> {
+    let mut prompts = Vec::new();
+
+    for file in CORE_PROMPTS_DIR.files() {
+        let name = file.path().to_string_lossy().to_string();
+        // Skip the mock.md test file
+        if name == "mock.md" {
+            continue;
+        }
+        let is_customized = get_user_prompt_path(&name).is_some();
+        let description = get_prompt_description(&name);
+        prompts.push(PromptInfo {
+            name,
+            description,
+            is_customized,
+        });
+    }
+
+    prompts
+}
+
+/// Information about a prompt template
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+pub struct PromptInfo {
+    pub name: String,
+    pub description: String,
+    pub is_customized: bool,
+}
+
+/// Get a human-readable description for a prompt
+fn get_prompt_description(name: &str) -> String {
+    match name {
+        "system.md" => {
+            "Main system prompt that defines goose's personality and behavior".to_string()
+        }
+        "system_gpt_4.1.md" => "Alternative system prompt optimized for GPT-4.1 models".to_string(),
+        "plan.md" => "Prompt used when goose creates step-by-step plans".to_string(),
+        "summarize_oneshot.md" => {
+            "Prompt for summarizing conversation history when context limits are reached"
+                .to_string()
+        }
+        "subagent_system.md" => {
+            "System prompt for subagents spawned to handle specific tasks".to_string()
+        }
+        "recipe.md" => "Prompt for generating recipe files from conversations".to_string(),
+        "permission_judge.md" => {
+            "Prompt for analyzing tool operations for read-only detection".to_string()
+        }
+        "desktop_prompt.md" => {
+            "Additional context provided when using the desktop application".to_string()
+        }
+        "desktop_recipe_instruction.md" => {
+            "Prompt template for recipe instructions in desktop mode".to_string()
+        }
+        _ => "Custom prompt template".to_string(),
+    }
+}
+
+/// Renders a prompt from the global environment by name (built-in templates only).
 ///
 /// # Arguments
 /// * `template_name` - The name of the template (usually the file path or a custom ID).
 /// * `context_data`  - Data to be inserted into the template (must be `Serialize`).
-pub fn render_global_template<T: Serialize>(
+fn render_builtin_template<T: Serialize>(
     template_name: &str,
     context_data: &T,
 ) -> Result<String, MiniJinjaError> {
@@ -54,14 +173,36 @@ pub fn render_global_template<T: Serialize>(
     Ok(rendered.trim().to_string())
 }
 
+/// Renders a prompt, checking for user customization first.
+///
+/// This function first checks if a user-customized version exists in the config directory.
+/// If found, it renders that version. Otherwise, it falls back to the built-in template.
+///
+/// # Arguments
+/// * `template_name` - The name of the template (e.g. "system.md").
+/// * `context_data`  - Data to be inserted into the template (must be `Serialize`).
+pub fn render_global_template<T: Serialize>(
+    template_name: &str,
+    context_data: &T,
+) -> Result<String, MiniJinjaError> {
+    // Check for user-customized prompt first
+    if let Some(user_content) = get_user_prompt_content(template_name) {
+        return render_inline_once(&user_content, context_data);
+    }
+
+    // Fall back to built-in template
+    render_builtin_template(template_name, context_data)
+}
+
 /// Renders a file from `CORE_PROMPTS_DIR` within the global environment.
+///
+/// This function first checks if a user-customized version exists in the config directory
+/// (`~/.config/goose/prompts/` on Linux/macOS). If found, it renders that version.
+/// Otherwise, it falls back to the built-in template.
 ///
 /// # Arguments
 /// * `template_file` - The file path within the embedded directory (e.g. "system.md").
 /// * `context_data`  - Data to be inserted into the template (must be `Serialize`).
-///
-/// This function **assumes** the file is already in `CORE_PROMPTS_DIR`. If it wasn't
-/// added to the global environment at startup (due to parse errors, etc.), this will error out.
 pub fn render_global_file<T: Serialize>(
     template_file: impl Into<PathBuf>,
     context_data: &T,
