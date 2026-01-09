@@ -367,9 +367,8 @@
     "id": "jetbrains",
     "name": "JetBrains",
     "description": "Integrate with any JetBrains IDE (requires local setup, dependent on your IDE version)",
-    "command": "npx -y @jetbrains/mcp-proxy",
     "link": "https://github.com/JetBrains/mcp-jetbrains",
-    "installation_notes": "Requires IDE v2025.2+. Use Streamable HTTP from Settings > Tools > MCP Server.",
+    "installation_notes": "Requires IDE v2025.2+. Use STDIO from Settings > Tools > MCP Server.",
     "is_builtin": false,
     "endorsed": true,
     "environmentVariables": []
