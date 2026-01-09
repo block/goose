@@ -123,11 +123,21 @@ export default function PromptsSettingsSection() {
 
   const handleRestoreDefault = () => {
     if (promptData) {
+      if (hasChanges) {
+        if (!window.confirm('Replace current content with default? Your changes will be lost.')) {
+          return;
+        }
+      }
       setContent(promptData.default_content);
     }
   };
 
   const handleBack = () => {
+    if (hasChanges) {
+      if (!window.confirm('You have unsaved changes. Are you sure you want to go back?')) {
+        return;
+      }
+    }
     setSelectedPrompt(null);
     setPromptData(null);
     setContent('');
@@ -199,7 +209,7 @@ export default function PromptsSettingsSection() {
                     onClick={handleRestoreDefault}
                     className="text-xs"
                   >
-                    View Default
+                    Restore Default
                   </Button>
                 )}
               </div>
@@ -235,7 +245,7 @@ export default function PromptsSettingsSection() {
                 Customize the prompts that define goose's behavior in different contexts. These
                 prompts use Jinja2 templating syntax. Be careful when modifying template variables,
                 as incorrect changes can break functionality. Please share any improvements with the
-                community
+                community.
               </p>
             </div>
             {hasCustomizedPrompts && (
