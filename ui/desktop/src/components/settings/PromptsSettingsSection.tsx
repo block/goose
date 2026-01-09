@@ -9,22 +9,14 @@ import {
 } from '../../api';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
-import { AlertTriangle, RotateCcw, ArrowLeft, Check } from 'lucide-react';
+import { AlertTriangle, RotateCcw, ArrowLeft } from 'lucide-react';
 import { toast } from 'react-toastify';
 
 export default function PromptsSettingsSection() {
   const [prompts, setPrompts] = useState<PromptInfo[]>([]);
-  const [loading, setLoading] = useState(true);
   const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null);
-  const [isResettingAll, setIsResettingAll] = useState(false);
-
-  // Editor state
   const [promptData, setPromptData] = useState<PromptContentResponse | null>(null);
   const [content, setContent] = useState('');
-  const [editorLoading, setEditorLoading] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isResetting, setIsResetting] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
 
   const fetchPrompts = async () => {
@@ -36,8 +28,6 @@ export default function PromptsSettingsSection() {
     } catch (error) {
       console.error('Failed to fetch prompts:', error);
       toast.error('Failed to load prompts');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -48,7 +38,6 @@ export default function PromptsSettingsSection() {
   useEffect(() => {
     if (selectedPrompt) {
       const fetchPrompt = async () => {
-        setEditorLoading(true);
         try {
           const response = await getPrompt({ path: { name: selectedPrompt } });
           if (response.data) {
@@ -58,8 +47,6 @@ export default function PromptsSettingsSection() {
         } catch (error) {
           console.error('Failed to fetch prompt:', error);
           toast.error('Failed to load prompt');
-        } finally {
-          setEditorLoading(false);
         }
       };
       fetchPrompt();
@@ -81,9 +68,7 @@ export default function PromptsSettingsSection() {
       return;
     }
 
-    setIsResettingAll(true);
     try {
-      // Reset each customized prompt individually
       const customizedPrompts = prompts.filter((p) => p.is_customized);
       for (const prompt of customizedPrompts) {
         await resetPrompt({ path: { name: prompt.name } });
@@ -93,29 +78,22 @@ export default function PromptsSettingsSection() {
     } catch (error) {
       console.error('Failed to reset all prompts:', error);
       toast.error('Failed to reset prompts');
-    } finally {
-      setIsResettingAll(false);
     }
   };
 
   const handleSave = async () => {
     if (!selectedPrompt) return;
-    setIsSaving(true);
-    setSaveSuccess(false);
     try {
       await savePrompt({
         path: { name: selectedPrompt },
         body: { content },
       });
-      setSaveSuccess(true);
+      toast.success('Prompt saved');
       setPromptData((prev) => (prev ? { ...prev, content, is_customized: true } : null));
       fetchPrompts();
-      setTimeout(() => setSaveSuccess(false), 3000);
     } catch (error) {
       console.error('Failed to save prompt:', error);
       toast.error('Failed to save prompt');
-    } finally {
-      setIsSaving(false);
     }
   };
 
@@ -129,7 +107,6 @@ export default function PromptsSettingsSection() {
       return;
     }
 
-    setIsResetting(true);
     try {
       await resetPrompt({ path: { name: selectedPrompt } });
       if (promptData) {
@@ -141,8 +118,6 @@ export default function PromptsSettingsSection() {
     } catch (error) {
       console.error('Failed to reset prompt:', error);
       toast.error('Failed to reset prompt');
-    } finally {
-      setIsResetting(false);
     }
   };
 
@@ -156,37 +131,11 @@ export default function PromptsSettingsSection() {
     setSelectedPrompt(null);
     setPromptData(null);
     setContent('');
-    setSaveSuccess(false);
   };
 
   const hasCustomizedPrompts = prompts.some((p) => p.is_customized);
 
-  if (loading) {
-    return (
-      <div className="space-y-4 pr-4 pb-8 mt-1">
-        <Card className="pb-2 rounded-lg">
-          <CardContent className="px-4 py-8">
-            <div className="text-center text-text-muted">Loading prompts...</div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // Editor View
   if (selectedPrompt) {
-    if (editorLoading) {
-      return (
-        <div className="space-y-4 pr-4 pb-8 mt-1">
-          <Card className="pb-2 rounded-lg">
-            <CardContent className="px-4 py-8">
-              <div className="text-center text-text-muted">Loading prompt...</div>
-            </CardContent>
-          </Card>
-        </div>
-      );
-    }
-
     return (
       <div className="space-y-4 pr-4 pb-8 mt-1">
         <Card className="pb-2 rounded-lg">
@@ -202,26 +151,19 @@ export default function PromptsSettingsSection() {
                 Back to List
               </Button>
               <div className="flex items-center gap-2">
-                {saveSuccess && (
-                  <span className="text-green-600 text-sm flex items-center gap-1">
-                    <Check className="w-4 h-4" />
-                    Saved successfully
-                  </span>
-                )}
                 {promptData?.is_customized && (
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={handleReset}
-                    disabled={isResetting}
                     className="flex items-center gap-2"
                   >
                     <RotateCcw className="h-4 w-4" />
-                    {isResetting ? 'Resetting...' : 'Reset to Default'}
+                    Reset to Default
                   </Button>
                 )}
-                <Button onClick={handleSave} disabled={isSaving || !hasChanges} size="sm">
-                  {isSaving ? 'Saving...' : 'Save'}
+                <Button onClick={handleSave} disabled={!hasChanges} size="sm">
+                  Save
                 </Button>
               </div>
             </div>
@@ -235,7 +177,6 @@ export default function PromptsSettingsSection() {
             </div>
           </CardHeader>
           <CardContent className="px-4 space-y-4 flex flex-col h-full">
-            {/* Help text */}
             <div className="text-sm text-text-muted bg-background-subtle p-3 rounded-lg">
               <p>
                 <strong>Tip:</strong> Template variables like{' '}
@@ -248,7 +189,6 @@ export default function PromptsSettingsSection() {
               </p>
             </div>
 
-            {/* Editor */}
             <div className="space-y-2 flex-1 flex flex-col min-h-0">
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium">Editing: {selectedPrompt}</label>
@@ -272,7 +212,6 @@ export default function PromptsSettingsSection() {
               />
             </div>
 
-            {/* Show diff indicator */}
             {hasChanges && (
               <div className="text-sm text-yellow-600 dark:text-yellow-400">
                 You have unsaved changes
@@ -284,7 +223,6 @@ export default function PromptsSettingsSection() {
     );
   }
 
-  // List View
   return (
     <div className="space-y-4 pr-4 pb-8 mt-1">
       <Card className="pb-2 rounded-lg border-yellow-500/50 bg-yellow-500/10">
@@ -294,9 +232,10 @@ export default function PromptsSettingsSection() {
             <div className="flex-1">
               <CardTitle className="text-yellow-600 dark:text-yellow-400">Prompt Editing</CardTitle>
               <p className="text-sm text-text-muted mt-2">
-                Customize the prompts that control goose's behavior in different contexts. These
+                Customize the prompts that define goose's behavior in different contexts. These
                 prompts use Jinja2 templating syntax. Be careful when modifying template variables,
-                as incorrect changes can cause unexpected behavior.
+                as incorrect changes can break functionality. Please share any improvements with the
+                community
               </p>
             </div>
             {hasCustomizedPrompts && (
@@ -304,11 +243,10 @@ export default function PromptsSettingsSection() {
                 variant="outline"
                 size="sm"
                 onClick={handleResetAll}
-                disabled={isResettingAll}
                 className="flex items-center gap-2 border-yellow-500/50 hover:bg-yellow-500/20"
               >
                 <RotateCcw className="h-4 w-4" />
-                {isResettingAll ? 'Resetting...' : 'Reset All'}
+                Reset All
               </Button>
             )}
           </div>
