@@ -964,6 +964,13 @@ export type SuccessCheck = {
     type: 'Shell';
 };
 
+export type SystemInfo = {
+    app_version: string;
+    architecture: string;
+    os: string;
+    os_version: string;
+};
+
 export type SystemNotificationContent = {
     msg: string;
     notificationType: SystemNotificationType;
@@ -3007,6 +3014,22 @@ export type StatusResponses = {
 };
 
 export type StatusResponse = StatusResponses[keyof StatusResponses];
+
+export type SystemInfoData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/system_info';
+};
+
+export type SystemInfoResponses = {
+    /**
+     * System information
+     */
+    200: SystemInfo;
+};
+
+export type SystemInfoResponse = SystemInfoResponses[keyof SystemInfoResponses];
 
 export type SendTelemetryEventData = {
     body: TelemetryEventRequest;

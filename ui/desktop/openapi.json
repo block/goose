@@ -2412,6 +2412,26 @@
         }
       }
     },
+    "/system_info": {
+      "get": {
+        "tags": [
+          "super::routes::status"
+        ],
+        "operationId": "system_info",
+        "responses": {
+          "200": {
+            "description": "System information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemInfo"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/telemetry/event": {
       "post": {
         "tags": [
@@ -5507,6 +5527,29 @@
         "description": "A single success check to validate recipe completion",
         "discriminator": {
           "propertyName": "type"
+        }
+      },
+      "SystemInfo": {
+        "type": "object",
+        "required": [
+          "app_version",
+          "os",
+          "os_version",
+          "architecture"
+        ],
+        "properties": {
+          "app_version": {
+            "type": "string"
+          },
+          "architecture": {
+            "type": "string"
+          },
+          "os": {
+            "type": "string"
+          },
+          "os_version": {
+            "type": "string"
+          }
         }
       },
       "SystemNotificationContent": {

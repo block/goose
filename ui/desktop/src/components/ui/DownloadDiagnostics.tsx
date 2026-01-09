@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Download, Github } from 'lucide-react';
 import { Button } from './button';
 import { toastError } from '../../toasts';
-import { diagnostics } from '../../api';
+import { diagnostics, systemInfo } from '../../api';
 
 interface DiagnosticsModalProps {
   isOpen: boolean;
@@ -16,6 +16,7 @@ export const DiagnosticsModal: React.FC<DiagnosticsModalProps> = ({
   sessionId,
 }) => {
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isFilingBug, setIsFilingBug] = useState(false);
 
   const handleDownload = async () => {
     setIsDownloading(true);
@@ -47,6 +48,75 @@ export const DiagnosticsModal: React.FC<DiagnosticsModalProps> = ({
     }
   };
 
+  const handleFileGitHubIssue = async () => {
+    setIsFilingBug(true);
+
+    try {
+      const response = await systemInfo({ throwOnError: true });
+      const info = response.data;
+
+      const body = `**Describe the bug**
+
+💡 Before filing, please check common issues:  
+https://block.github.io/goose/docs/troubleshooting  
+
+📦 To help us debug faster, attach your **diagnostics zip** if possible.  
+👉 How to capture it: https://block.github.io/goose/docs/troubleshooting/diagnostics-and-reporting/
+
+A clear and concise description of what the bug is.
+
+---
+
+**To Reproduce**
+Steps to reproduce the behavior:
+1. Go to '...'
+2. Click on '....'
+3. Scroll down to '....'
+4. See error
+
+---
+
+**Expected behavior**
+A clear and concise description of what you expected to happen.
+
+---
+
+**Screenshots**
+If applicable, add screenshots to help explain your problem.
+
+---
+
+**Please provide the following information**
+- **OS & Arch:** ${info.os} ${info.os_version} ${info.architecture}
+- **Interface:** UI
+- **Version:** ${info.app_version}
+- **Extensions enabled:** [e.g. Computer Controller, Figma]
+- **Provider & Model:** [e.g. Google – gemini-1.5-pro]
+
+---
+
+**Additional context**
+Add any other context about the problem here.
+`;
+
+      const params = new URLSearchParams({
+        template: 'bug_report.md',
+        body: body,
+        labels: 'bug',
+      });
+
+      window.open(`https://github.com/block/goose/issues/new?${params.toString()}`, '_blank');
+      onClose();
+    } catch {
+      toastError({
+        title: 'Error',
+        msg: 'Failed to get system information',
+      });
+    } finally {
+      setIsFilingBug(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -55,11 +125,10 @@ export const DiagnosticsModal: React.FC<DiagnosticsModalProps> = ({
         <div className="flex items-start gap-3 mb-4">
           <AlertTriangle className="text-orange-500 flex-shrink-0 mt-1" size={20} />
           <div>
-            <h3 className="text-lg font-semibold text-textStandard mb-2">Download Diagnostics</h3>
+            <h3 className="text-lg font-semibold text-textStandard mb-2">Report a Problem</h3>
             <p className="text-sm text-textSubtle mb-3">
-              Hit the download button to get a zip file containing all the important information to
-              diagnose a problem in goose. You can share this file with the team or if you are a
-              developer look at it yourself.
+              You can download a diagnostics zip file to share with the team, or file a bug directly
+              on GitHub with your system details pre-filled.
             </p>
             <ul className="text-sm text-textSubtle list-disc list-inside space-y-1 mb-3">
               <li>Basic system info</li>
@@ -69,22 +138,32 @@ export const DiagnosticsModal: React.FC<DiagnosticsModalProps> = ({
             </ul>
             <p className="text-sm text-textSubtle">
               <strong>Warning:</strong> If your session contains sensitive information, do not share
-              this file publicly.
+              the diagnostics file publicly.
             </p>
           </div>
         </div>
         <div className="flex gap-2 justify-end">
-          <Button onClick={onClose} variant="outline" size="sm" disabled={isDownloading}>
+          <Button onClick={onClose} variant="outline" size="sm" disabled={isDownloading || isFilingBug}>
             Cancel
           </Button>
           <Button
             onClick={handleDownload}
             variant="outline"
             size="sm"
-            disabled={isDownloading}
+            disabled={isDownloading || isFilingBug}
+          >
+            <Download size={16} className="mr-1" />
+            {isDownloading ? 'Downloading...' : 'Download'}
+          </Button>
+          <Button
+            onClick={handleFileGitHubIssue}
+            variant="outline"
+            size="sm"
+            disabled={isDownloading || isFilingBug}
             className="bg-slate-600 text-white hover:bg-slate-700"
           >
-            {isDownloading ? 'Downloading...' : 'Download'}
+            <Github size={16} className="mr-1" />
+            {isFilingBug ? 'Opening...' : 'File Bug on GitHub'}
           </Button>
         </div>
       </div>
