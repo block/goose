@@ -133,7 +133,7 @@ const SessionList = React.memo<{
               <div className="absolute left-0 w-2 h-px bg-border-default top-1/2" />
               <button
                 onClick={() => onSessionClick(session)}
-                className={`w-full text-left ml-3 px-1.5 py-1.5 pr-2 rounded-md text-sm transition-colors flex items-center gap-2 min-w-0 ${
+                className={`w-full text-left ml-3 px-1.5 py-1.5 pr-2 rounded-md text-sm transition-colors flex items-center gap-1 min-w-0 ${
                   activeSessionId === session.id
                     ? 'bg-background-medium text-text-default'
                     : 'text-text-muted hover:bg-background-medium/50 hover:text-text-default'
@@ -299,12 +299,28 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
       pollForUpdates();
     };
 
+    const handleSessionDeleted = (event: CustomEvent<{ sessionId: string }>) => {
+      const { sessionId } = event.detail;
+      setRecentSessions((prev) => prev.filter((s) => s.id !== sessionId));
+    };
+
+    const handleSessionRenamed = (event: CustomEvent<{ sessionId: string; newName: string }>) => {
+      const { sessionId, newName } = event.detail;
+      setRecentSessions((prev) =>
+        prev.map((s) => (s.id === sessionId ? { ...s, name: newName } : s))
+      );
+    };
+
     window.addEventListener('session-created', handleSessionCreated);
     window.addEventListener('session-needs-name-update', handleSessionCreated);
+    window.addEventListener('session-deleted', handleSessionDeleted as (event: Event) => void);
+    window.addEventListener('session-renamed', handleSessionRenamed as (event: Event) => void);
 
     return () => {
       window.removeEventListener('session-created', handleSessionCreated);
       window.removeEventListener('session-needs-name-update', handleSessionCreated);
+      window.removeEventListener('session-deleted', handleSessionDeleted as (event: Event) => void);
+      window.removeEventListener('session-renamed', handleSessionRenamed as (event: Event) => void);
       pollingTimeouts.forEach(clearTimeout);
       isPolling = false;
     };

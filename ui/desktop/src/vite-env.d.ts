@@ -60,6 +60,8 @@ declare global {
     }>;
     responseStyleChanged: CustomEvent;
     'session-created': CustomEvent;
+    'session-deleted': CustomEvent<{ sessionId: string }>;
+    'session-renamed': CustomEvent<{ sessionId: string; newName: string }>;
   }
 }
 

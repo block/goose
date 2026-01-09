@@ -418,6 +418,10 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       setSessions((prevSessions) =>
         prevSessions.map((s) => (s.id === sessionId ? { ...s, name: newDescription } : s))
       );
+      // Notify sidebar of the rename
+      window.dispatchEvent(
+        new CustomEvent('session-renamed', { detail: { sessionId, newName: newDescription } })
+      );
     }, []);
 
     const handleEditSession = useCallback((session: Session) => {
@@ -444,6 +448,10 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           throwOnError: true,
         });
         toast.success('Session deleted successfully');
+        // Notify sidebar of the deletion
+        window.dispatchEvent(
+          new CustomEvent('session-deleted', { detail: { sessionId: sessionToDeleteId } })
+        );
       } catch (error) {
         console.error('Error deleting session:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
