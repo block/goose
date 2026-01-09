@@ -39,6 +39,7 @@ import { Recipe } from '../recipe';
 import { createSession } from '../sessions';
 import { getInitialWorkingDir } from '../utils/workingDir';
 import { useConfig } from './ConfigContext';
+import { notifyTaskCompletion } from '../utils/taskCompletionNotification';
 
 // Context for sharing current model info
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
@@ -87,14 +88,7 @@ function BaseChatContent({
   const { droppedFiles, setDroppedFiles, handleDrop, handleDragOver } = useFileDrop();
 
   const onStreamFinish = useCallback(() => {
-    // Show native OS notification when Goose completes a task
-    // Only notify if the window is not focused (user is doing something else)
-    if (!document.hasFocus()) {
-      window.electron.showNotification({
-        title: 'Goose',
-        body: 'Task completed',
-      });
-    }
+    notifyTaskCompletion();
   }, []);
 
   const [isCreateRecipeModalOpen, setIsCreateRecipeModalOpen] = useState(false);
