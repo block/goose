@@ -531,7 +531,7 @@ goose web --port 8080
 goose web --host 192.168.1.7 --port 8080
 
 # Start web interface with authentication required
-goose web --auth-token my-password
+goose web --auth-token <TOKEN>
 ```
 
 :::info
