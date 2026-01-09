@@ -47,6 +47,8 @@ The following settings can be configured at the root level of your config.yaml f
 | `otel_exporter_otlp_timeout` | Export timeout in milliseconds for [observability](/docs/guides/environment-variables#opentelemetry-protocol-otlp) | Integer (ms) | 10000 | No |
 | `SECURITY_PROMPT_ENABLED` | Enable [prompt injection detection](/docs/guides/security/prompt-injection-detection) to identify potentially harmful commands | true/false | false | No |
 | `SECURITY_PROMPT_THRESHOLD` | Sensitivity threshold for [prompt injection detection](/docs/guides/security/prompt-injection-detection) (higher = stricter) | Float between 0.01 and 1.0 | 0.7 | No |
+<!-- | `SECURITY_PROMPT_CLASSIFIER_ENABLED` | Enable ML-based prompt injection detection for advanced threat identification | true/false | false | No | -->
+<!-- | `SECURITY_PROMPT_CLASSIFIER_MODEL` | Specify the BERT ML model to use for prompt injection detection | String | "ProtectAI DeBERTa" | No | -->
 
 ## Experimental Features
 
@@ -146,7 +148,7 @@ GOOSE_SEARCH_PATHS:
 These paths are prepended to the system PATH when running extension commands, ensuring your custom tools are found without modifying your global PATH.
 
 ## Recipe Command Configuration
-You can optionally set up [custom slash commands](/docs/guides/recipes/session-recipes.md#custom-recipe-commands) to run recipes that you create. List the command (without the leading `/`) along with the path to the recipe:
+You can optionally set up [custom slash commands](/docs/guides/context-engineering/slash-commands) to run recipes that you create. List the command (without the leading `/`) along with the path to the recipe:
 
 ```yaml
 slash_commands:

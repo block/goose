@@ -9,6 +9,8 @@ export async function fetchMcpAppProxyUrl(
   csp?: {
     connectDomains?: string[] | null;
     resourceDomains?: string[] | null;
+    frameDomains?: string[] | null;
+    baseUriDomains?: string[] | null;
   } | null
 ): Promise<string | null> {
   try {
@@ -27,6 +29,12 @@ export async function fetchMcpAppProxyUrl(
     }
     if (csp?.resourceDomains?.length) {
       params.set('resource_domains', csp.resourceDomains.join(','));
+    }
+    if (csp?.frameDomains?.length) {
+      params.set('frame_domains', csp.frameDomains.join(','));
+    }
+    if (csp?.baseUriDomains?.length) {
+      params.set('base_uri_domains', csp.baseUriDomains.join(','));
     }
 
     return `${baseUrl}/mcp-app-proxy?${params.toString()}`;

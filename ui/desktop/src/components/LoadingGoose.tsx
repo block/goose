@@ -15,6 +15,7 @@ const STATE_MESSAGES: Record<ChatState, string> = {
   [ChatState.WaitingForUserInput]: 'goose is waiting…',
   [ChatState.Compacting]: 'goose is compacting the conversation...',
   [ChatState.Idle]: 'goose is working on it…',
+  [ChatState.RestartingAgent]: 'restarting session...',
 };
 
 const STATE_ICONS: Record<ChatState, React.ReactNode> = {
@@ -26,6 +27,7 @@ const STATE_ICONS: Record<ChatState, React.ReactNode> = {
   ),
   [ChatState.Compacting]: <AnimatedIcons className="flex-shrink-0" cycleInterval={600} />,
   [ChatState.Idle]: <GooseLogo size="small" hover={false} />,
+  [ChatState.RestartingAgent]: <AnimatedIcons className="flex-shrink-0" cycleInterval={600} />,
 };
 
 const LoadingGoose = ({ message, chatState = ChatState.Idle }: LoadingGooseProps) => {

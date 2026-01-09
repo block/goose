@@ -33,12 +33,13 @@ goose operates autonomously by default. Combined with the Developer extension's 
 
 ### Built-in Platform Extensions
 
-Platform extensions are built-in extensions that provide global features like conversation search, task tracking, and extension management. These extensions are always available, enabled by default, and can be toggled on or off.
+Platform extensions are built-in extensions that provide global features like conversation search, task tracking, and extension management. These extensions are always available and can be toggled on or off as needed.
 
 - [Chat Recall](/docs/mcp/chatrecall-mcp): Search conversation content across all your session history
-- [Extension Manager](/docs/mcp/extension-manager-mcp): Discover, enable, and disable extensions dynamically during sessions
-- [Skills](/docs/mcp/skills-mcp): Load and use skills from the `.claude/skills` or `.goose/skills` directories
-- [Todo](/docs/mcp/todo-mcp): Manage task lists and track progress across sessions
+- [Code Execution](/docs/mcp/code-execution-mcp): Execute JavaScript code for tool discovery and tool calling
+- [Extension Manager](/docs/mcp/extension-manager-mcp): Discover, enable, and disable extensions dynamically during sessions (enabled by default)
+- [Skills](/docs/mcp/skills-mcp): Load and use agent skills from various project and global skill directories (enabled by default)
+- [Todo](/docs/mcp/todo-mcp): Manage task lists and track progress across sessions (enabled by default)
 
 ### Toggling Built-in Extensions
 
@@ -666,5 +667,9 @@ goose session --with-streamable-http-extension "https://example.com/streamable"
 ## Developing Extensions
 
 goose extensions are implemented with MCP, a standard protocol that allows AI models and agents to securely connect with local or remote resources. Learn how to build your own [extension as an MCP server](https://modelcontextprotocol.io/quickstart/server).
+
+**Tutorials:**
+- [Building Custom Extensions](/docs/tutorials/custom-extensions) - Create a Python-based MCP extension
+- [Building MCP Apps](/docs/tutorials/building-mcp-apps) - Create interactive UI apps
 
 [extensions-directory]: /extensions

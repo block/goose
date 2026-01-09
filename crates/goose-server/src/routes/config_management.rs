@@ -15,7 +15,9 @@ use goose::providers::auto_detect::detect_provider_from_api_key;
 use goose::providers::base::{ProviderMetadata, ProviderType};
 use goose::providers::canonical::maybe_get_canonical_model;
 use goose::providers::create_with_default_model;
+use goose::providers::errors::ProviderError;
 use goose::providers::providers as get_providers;
+use goose::providers::{retry_operation, RetryConfig};
 use goose::{
     agents::execute_commands, agents::ExtensionConfig, config::permission::PermissionLevel,
     slash_commands,
@@ -30,6 +32,8 @@ use utoipa::ToSchema;
 #[derive(Serialize, ToSchema)]
 pub struct ExtensionResponse {
     pub extensions: Vec<ExtensionEntry>,
+    #[serde(default)]
+    pub warnings: Vec<String>,
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -254,7 +258,11 @@ pub async fn read_config(
 )]
 pub async fn get_extensions() -> Result<Json<ExtensionResponse>, StatusCode> {
     let extensions = goose::config::get_all_extensions();
-    Ok(Json(ExtensionResponse { extensions }))
+    let warnings = goose::config::get_warnings();
+    Ok(Json(ExtensionResponse {
+        extensions,
+        warnings,
+    }))
 }
 
 #[utoipa::path(
@@ -393,13 +401,15 @@ pub async fn get_provider_models(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let models_result = provider.fetch_recommended_models().await;
+    let models_result = retry_operation(&RetryConfig::default(), || async {
+        provider.fetch_recommended_models().await
+    })
+    .await;
 
     match models_result {
         Ok(Some(models)) => Ok(Json(models)),
         Ok(None) => Ok(Json(Vec::new())),
         Err(provider_error) => {
-            use goose::providers::errors::ProviderError;
             let status_code = match provider_error {
                 // Permanent misconfigurations - client should fix configuration
                 ProviderError::Authentication(_) => StatusCode::BAD_REQUEST,

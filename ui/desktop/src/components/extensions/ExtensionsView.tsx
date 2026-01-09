@@ -1,5 +1,4 @@
 import { View, ViewOptions } from '../../utils/navigationUtils';
-import { useChatContext } from '../../contexts/ChatContext';
 import ExtensionsSection from '../settings/extensions/ExtensionsSection';
 import { ExtensionConfig } from '../../api';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
@@ -14,9 +13,10 @@ import {
   ExtensionFormData,
   createExtensionConfig,
 } from '../settings/extensions/utils';
-import { activateExtension } from '../settings/extensions';
+import { activateExtensionDefault } from '../settings/extensions';
 import { useConfig } from '../ConfigContext';
 import { SearchView } from '../conversation/SearchView';
+import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
 
 export type ExtensionsViewOptions = {
   deepLinkConfig?: ExtensionConfig;
@@ -34,12 +34,6 @@ export default function ExtensionsView({
   const [refreshKey, setRefreshKey] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const { addExtension } = useConfig();
-  const chatContext = useChatContext();
-  const sessionId = chatContext?.chat.sessionId || '';
-
-  if (!sessionId) {
-    console.error('ExtensionsView: No session ID available');
-  }
 
   // Only trigger refresh when deep link config changes AND we don't need to show env vars
   useEffect(() => {
@@ -80,19 +74,12 @@ export default function ExtensionsView({
     // Close the modal immediately
     handleModalClose();
 
-    if (!sessionId) {
-      console.warn('Cannot activate extension without session');
-      setRefreshKey((prevKey) => prevKey + 1);
-      return;
-    }
-
     const extensionConfig = createExtensionConfig(formData);
 
     try {
-      await activateExtension({
+      await activateExtensionDefault({
         addToConfig: addExtension,
         extensionConfig: extensionConfig,
-        sessionId: sessionId,
       });
       // Trigger a refresh of the extensions list
       setRefreshKey((prevKey) => prevKey + 1);
@@ -113,10 +100,14 @@ export default function ExtensionsView({
             <div className="flex justify-between items-center mb-1">
               <h1 className="text-4xl font-light">Extensions</h1>
             </div>
-            <p className="text-sm text-text-muted mb-6">
+            <p className="text-sm text-text-muted mb-2">
               These extensions use the Model Context Protocol (MCP). They can expand Goose's
-              capabilities using three main components: Prompts, Resources, and Tools. ⌘F/Ctrl+F to
-              search.
+              capabilities using three main components: Prompts, Resources, and Tools.{' '}
+              {getSearchShortcutText()} to search.
+            </p>
+            <p className="text-sm text-text-muted mb-6">
+              Extensions enabled here are used as the default for new chats. You can also toggle
+              active extensions during chat.
             </p>
 
             {/* Action Buttons */}
@@ -147,7 +138,6 @@ export default function ExtensionsView({
           <SearchView onSearch={(term) => setSearchTerm(term)} placeholder="Search extensions...">
             <ExtensionsSection
               key={refreshKey}
-              sessionId={sessionId}
               deepLinkConfig={viewOptions.deepLinkConfig}
               showEnvVars={viewOptions.showEnvVars}
               hideButtons={true}

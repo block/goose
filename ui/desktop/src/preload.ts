@@ -20,6 +20,21 @@ interface MessageBoxResponse {
   checkboxChecked?: boolean;
 }
 
+interface SaveDialogOptions {
+  title?: string;
+  defaultPath?: string;
+  buttonLabel?: string;
+  filters?: Array<{ name: string; extensions: string[] }>;
+  message?: string;
+  nameFieldLabel?: string;
+  showsTagField?: boolean;
+}
+
+interface SaveDialogResponse {
+  canceled: boolean;
+  filePath?: string;
+}
+
 interface FileResponse {
   file: string;
   filePath: string;
@@ -46,7 +61,7 @@ type ElectronAPI = {
   reactReady: () => void;
   getConfig: () => Record<string, unknown>;
   hideWindow: () => void;
-  directoryChooser: (replace?: boolean) => Promise<Electron.OpenDialogReturnValue>;
+  directoryChooser: () => Promise<Electron.OpenDialogReturnValue>;
   createChatWindow: (
     query?: string,
     dir?: string,
@@ -58,6 +73,7 @@ type ElectronAPI = {
   logInfo: (txt: string) => void;
   showNotification: (data: NotificationData) => void;
   showMessageBox: (options: MessageBoxOptions) => Promise<MessageBoxResponse>;
+  showSaveDialog: (options: SaveDialogOptions) => Promise<SaveDialogResponse>;
   openInChrome: (url: string) => void;
   fetchMetadata: (url: string) => Promise<string>;
   reloadApp: () => void;
@@ -118,6 +134,7 @@ type ElectronAPI = {
   hasAcceptedRecipeBefore: (recipe: Recipe) => Promise<boolean>;
   recordRecipeHash: (recipe: Recipe) => Promise<boolean>;
   openDirectoryInExplorer: (directoryPath: string) => Promise<boolean>;
+  addRecentDir: (dir: string) => Promise<boolean>;
 };
 
 type AppConfigAPI = {
@@ -158,6 +175,7 @@ const electronAPI: ElectronAPI = {
   logInfo: (txt: string) => ipcRenderer.send('logInfo', txt),
   showNotification: (data: NotificationData) => ipcRenderer.send('notify', data),
   showMessageBox: (options: MessageBoxOptions) => ipcRenderer.invoke('show-message-box', options),
+  showSaveDialog: (options: SaveDialogOptions) => ipcRenderer.invoke('show-save-dialog', options),
   openInChrome: (url: string) => ipcRenderer.send('open-in-chrome', url),
   fetchMetadata: (url: string) => ipcRenderer.invoke('fetch-metadata', url),
   reloadApp: () => ipcRenderer.send('reload-app'),
@@ -253,6 +271,7 @@ const electronAPI: ElectronAPI = {
   recordRecipeHash: (recipe: Recipe) => ipcRenderer.invoke('record-recipe-hash', recipe),
   openDirectoryInExplorer: (directoryPath: string) =>
     ipcRenderer.invoke('open-directory-in-explorer', directoryPath),
+  addRecentDir: (dir: string) => ipcRenderer.invoke('add-recent-dir', dir),
 };
 
 const appConfigAPI: AppConfigAPI = {

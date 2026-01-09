@@ -76,12 +76,14 @@ export const SwitchModelModal = ({
   titleOverride,
 }: SwitchModelModalProps) => {
   const { getProviders, getProviderModels, read } = useConfig();
-  const { changeModel } = useModelAndProvider();
+  const { changeModel, currentModel, currentProvider } = useModelAndProvider();
   const [providerOptions, setProviderOptions] = useState<{ value: string; label: string }[]>([]);
   type ModelOption = { value: string; label: string; provider: string; isDisabled?: boolean };
   const [modelOptions, setModelOptions] = useState<{ options: ModelOption[] }[]>([]);
-  const [provider, setProvider] = useState<string | null>(initialProvider || null);
-  const [model, setModel] = useState<string>('');
+  const [provider, setProvider] = useState<string | null>(
+    initialProvider || currentProvider || null
+  );
+  const [model, setModel] = useState<string>(currentModel || '');
   const [isCustomModel, setIsCustomModel] = useState(false);
   const [validationErrors, setValidationErrors] = useState({
     provider: '',

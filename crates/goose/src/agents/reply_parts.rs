@@ -274,6 +274,10 @@ impl Agent {
                             let schema_value = Value::Object(tool.input_schema.as_ref().clone());
                             tool_call.arguments =
                                 coerce_tool_arguments(tool_call.arguments.clone(), &schema_value);
+
+                            if let Some(ref meta) = tool.meta {
+                                coerced_req.tool_meta = serde_json::to_value(meta).ok();
+                            }
                         }
                     }
 
@@ -286,22 +290,29 @@ impl Agent {
 
         // Create a filtered message with frontend tool requests removed
         let mut filtered_content = Vec::new();
+        let mut tool_request_index = 0;
 
-        // Process each content item one by one
         for content in &response.content {
-            let should_include = match content {
-                MessageContent::ToolRequest(req) => {
-                    if let Ok(tool_call) = &req.tool_call {
-                        !self.is_frontend_tool(&tool_call.name).await
-                    } else {
-                        true
+            match content {
+                MessageContent::ToolRequest(_) => {
+                    if tool_request_index < tool_requests.len() {
+                        let coerced_req = &tool_requests[tool_request_index];
+                        tool_request_index += 1;
+
+                        let should_include = if let Ok(tool_call) = &coerced_req.tool_call {
+                            !self.is_frontend_tool(&tool_call.name).await
+                        } else {
+                            true
+                        };
+
+                        if should_include {
+                            filtered_content.push(MessageContent::ToolRequest(coerced_req.clone()));
+                        }
                     }
                 }
-                _ => true,
-            };
-
-            if should_include {
-                filtered_content.push(content.clone());
+                _ => {
+                    filtered_content.push(content.clone());
+                }
             }
         }
 

@@ -6,6 +6,7 @@ use super::{
     base::{Provider, ProviderMetadata},
     bedrock::BedrockProvider,
     claude_code::ClaudeCodeProvider,
+    codex::CodexProvider,
     cursor_agent::CursorAgentProvider,
     databricks::DatabricksProvider,
     gcpvertexai::GcpVertexAIProvider,
@@ -47,6 +48,7 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         registry.register::<BedrockProvider, _>(|m| Box::pin(BedrockProvider::from_env(m)), false);
         registry
             .register::<ClaudeCodeProvider, _>(|m| Box::pin(ClaudeCodeProvider::from_env(m)), true);
+        registry.register::<CodexProvider, _>(|m| Box::pin(CodexProvider::from_env(m)), true);
         registry.register::<CursorAgentProvider, _>(
             |m| Box::pin(CursorAgentProvider::from_env(m)),
             false,

@@ -9,9 +9,11 @@ use axum::{
     routing::{delete, get, put},
     Json, Router,
 };
+use goose::agents::ExtensionConfig;
 use goose::recipe::Recipe;
+use goose::session::extension_data::ExtensionState;
 use goose::session::session_manager::SessionInsights;
-use goose::session::{Session, SessionManager};
+use goose::session::{EnabledExtensionsState, Session, SessionManager};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -405,6 +407,44 @@ async fn fork_session(
     }))
 }
 
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionExtensionsResponse {
+    extensions: Vec<ExtensionConfig>,
+}
+
+#[utoipa::path(
+    get,
+    path = "/sessions/{session_id}/extensions",
+    params(
+        ("session_id" = String, Path, description = "Unique identifier for the session")
+    ),
+    responses(
+        (status = 200, description = "Session extensions retrieved successfully", body = SessionExtensionsResponse),
+        (status = 401, description = "Unauthorized - Invalid or missing API key"),
+        (status = 404, description = "Session not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(
+        ("api_key" = [])
+    ),
+    tag = "Session Management"
+)]
+async fn get_session_extensions(
+    Path(session_id): Path<String>,
+) -> Result<Json<SessionExtensionsResponse>, StatusCode> {
+    let session = SessionManager::get_session(&session_id, false)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    // Try to get session-specific extensions, fall back to global config
+    let extensions = EnabledExtensionsState::from_extension_data(&session.extension_data)
+        .map(|state| state.extensions)
+        .unwrap_or_else(goose::config::get_enabled_extensions);
+
+    Ok(Json(SessionExtensionsResponse { extensions }))
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/sessions", get(list_sessions))
@@ -419,5 +459,9 @@ pub fn routes(state: Arc<AppState>) -> Router {
             put(update_session_user_recipe_values),
         )
         .route("/sessions/{session_id}/fork", post(fork_session))
+        .route(
+            "/sessions/{session_id}/extensions",
+            get(get_session_extensions),
+        )
         .with_state(state)
 }

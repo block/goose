@@ -1,6 +1,6 @@
 import { ToolIconWithStatus, ToolCallStatus } from './ToolCallStatusIndicator';
 import { getToolCallIcon } from '../utils/toolIconMapping';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Button } from './ui/button';
 import { ToolCallArguments, ToolCallArgumentValue } from './ToolCallArguments';
 import MarkdownContent from './MarkdownContent';
@@ -16,6 +16,7 @@ import { TooltipWrapper } from './settings/providers/subcomponents/buttons/Toolt
 import MCPUIResourceRenderer from './MCPUIResourceRenderer';
 import { isUIResource } from '@mcp-ui/client';
 import { CallToolResponse, Content, EmbeddedResource } from '../api';
+import McpAppRenderer from './McpApps/McpAppRenderer';
 
 interface ToolGraphNode {
   tool: string;
@@ -23,13 +24,38 @@ interface ToolGraphNode {
   depends_on: number[];
 }
 
+type UiMeta = {
+  ui?: {
+    resourceUri?: string;
+  };
+};
+
+type ToolResultWithMeta = {
+  status?: string;
+  value?: CallToolResponse & {
+    _meta?: UiMeta;
+  };
+};
+
+type ToolRequestWithMeta = ToolRequestMessageContent & {
+  _meta?: UiMeta;
+  toolCall: {
+    status: 'success';
+    value: {
+      name: string;
+      arguments?: Record<string, unknown>;
+    };
+  };
+};
+
 interface ToolCallWithResponseProps {
+  sessionId?: string;
   isCancelledMessage: boolean;
   toolRequest: ToolRequestMessageContent;
   toolResponse?: ToolResponseMessageContent;
   notifications?: NotificationEvent[];
   isStreamingMessage?: boolean;
-  append?: (value: string) => void; // Function to append messages to the chat
+  append?: (value: string) => void;
 }
 
 function getToolResultContent(toolResult: Record<string, unknown>): Content[] {
@@ -47,7 +73,77 @@ function isEmbeddedResource(content: Content): content is EmbeddedResource {
   return 'resource' in content && typeof (content as Record<string, unknown>).resource === 'object';
 }
 
+interface McpAppWrapperProps {
+  toolRequest: ToolRequestMessageContent;
+  toolResponse?: ToolResponseMessageContent;
+  sessionId: string;
+  append?: (value: string) => void;
+}
+
+function McpAppWrapper({
+  toolRequest,
+  toolResponse,
+  sessionId,
+  append,
+}: McpAppWrapperProps): React.ReactNode {
+  const requestWithMeta = toolRequest as ToolRequestWithMeta;
+  let resourceUri = requestWithMeta._meta?.ui?.resourceUri;
+
+  if (!resourceUri && toolResponse) {
+    const resultWithMeta = toolResponse.toolResult as ToolResultWithMeta;
+    if (resultWithMeta?.status === 'success' && resultWithMeta.value) {
+      resourceUri = resultWithMeta.value._meta?.ui?.resourceUri;
+    }
+  }
+
+  const extensionName =
+    requestWithMeta.toolCall.status === 'success'
+      ? requestWithMeta.toolCall.value.name.split('__')[0]
+      : '';
+
+  const toolArguments =
+    requestWithMeta.toolCall.status === 'success'
+      ? requestWithMeta.toolCall.value.arguments
+      : undefined;
+
+  // Memoize toolInput to prevent unnecessary re-renders
+  const toolInput = useMemo(() => ({ arguments: toolArguments || {} }), [toolArguments]);
+
+  // Memoize toolResult to prevent unnecessary re-renders
+  const toolResult = useMemo(() => {
+    if (!toolResponse) return undefined;
+    const resultWithMeta = toolResponse.toolResult as ToolResultWithMeta;
+    if (resultWithMeta?.status === 'success' && resultWithMeta.value) {
+      return resultWithMeta.value;
+    }
+    return undefined;
+  }, [toolResponse]);
+
+  if (!resourceUri) return null;
+  if (requestWithMeta.toolCall.status !== 'success') return null;
+
+  return (
+    <div className="mt-3">
+      <McpAppRenderer
+        resourceUri={resourceUri}
+        toolInput={toolInput}
+        toolResult={toolResult}
+        extensionName={extensionName}
+        sessionId={sessionId}
+        append={append}
+      />
+      <div className="mt-3 p-4 py-3 border border-borderSubtle rounded-lg bg-background-muted flex items-center">
+        <FlaskConical className="mr-2" size={20} />
+        <div className="text-sm font-sans">
+          MCP Apps are experimental and may change at any time.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ToolCallWithResponse({
+  sessionId,
   isCancelledMessage,
   toolRequest,
   toolResponse,
@@ -67,6 +163,12 @@ export default function ToolCallWithResponse({
     return null;
   }
 
+  const requestWithMeta = toolRequest as ToolRequestWithMeta;
+  const resultWithMeta = toolResponse?.toolResult as ToolResultWithMeta;
+  const hasMcpAppResourceURI = Boolean(
+    requestWithMeta._meta?.ui?.resourceUri || resultWithMeta?.value?._meta?.ui?.resourceUri
+  );
+
   return (
     <>
       <div
@@ -85,7 +187,8 @@ export default function ToolCallWithResponse({
         />
       </div>
       {/* MCP UI — Inline */}
-      {toolResponse?.toolResult &&
+      {!hasMcpAppResourceURI &&
+        toolResponse?.toolResult &&
         getToolResultContent(toolResponse.toolResult).map((content, index) => {
           const resourceContent = isEmbeddedResource(content)
             ? { ...content, type: 'resource' as const }
@@ -107,20 +210,14 @@ export default function ToolCallWithResponse({
           }
         })}
 
-      {/* MCP Apps - This data will be coming from a resources/read result. */}
-      {/* TODO Hook this up */}
-      {/* {toolResponse?.toolResult &&
-        mockResourceReadResult.contents.map((content) => {
-          return (
-            <McpAppRenderer
-              resource={content}
-              key={content.uri}
-              toolInput={{ arguments: toolCall.arguments }}
-              toolResult={toolResponse.toolResult.value as unknown as ToolResult}
-              append={append}
-            />
-          );
-        })} */}
+      {hasMcpAppResourceURI && sessionId && (
+        <McpAppWrapper
+          toolRequest={toolRequest}
+          toolResponse={toolResponse}
+          sessionId={sessionId}
+          append={append}
+        />
+      )}
     </>
   );
 }
@@ -206,6 +303,14 @@ const logToString = (logMessage: NotificationEvent) => {
 const notificationToProgress = (notification: NotificationEvent): Progress => {
   const message = notification.message as { method: string; params: unknown };
   return message.params as Progress;
+};
+
+// Helper function to extract toolcall name
+const getToolName = (toolCallName: string): string => {
+  const lastIndex = toolCallName.lastIndexOf('__');
+  if (lastIndex === -1) return toolCallName;
+
+  return toolCallName.substring(lastIndex + 2);
 };
 
 // Helper function to extract extension name for tooltip
@@ -315,7 +420,7 @@ function ToolCallView({
   // Function to create a descriptive representation of what the tool is doing
   const getToolDescription = (): string | null => {
     const args = toolCall.arguments as Record<string, ToolCallArgumentValue>;
-    const toolName = toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2);
+    const toolName = getToolName(toolCall.name);
 
     const getStringValue = (value: ToolCallArgumentValue): string => {
       return typeof value === 'string' ? value : JSON.stringify(value);
@@ -481,7 +586,7 @@ function ToolCallView({
       return description;
     }
     // Fallback tool name formatting
-    return snakeToTitleCase(toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2));
+    return snakeToTitleCase(getToolName(toolCall.name));
   };
   // Map LoadingStatus to ToolCallStatus
   const getToolCallStatus = (loadingStatus: LoadingStatus): ToolCallStatus => {

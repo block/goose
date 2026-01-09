@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.17.0"
+    "version": "1.19.0"
   },
   "paths": {
     "/action-required/tool-confirmation": {
@@ -209,6 +209,45 @@
         }
       }
     },
+    "/agent/restart": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "restart_agent",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestartAgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Agent restarted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestartAgentResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/agent/resume": {
       "post": {
         "tags": [
@@ -231,7 +270,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Session"
+                  "$ref": "#/components/schemas/ResumeAgentResponse"
                 }
               }
             }
@@ -411,6 +450,41 @@
           },
           "424": {
             "description": "Agent not initialized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/agent/update_working_dir": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "update_working_dir",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWorkingDirRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Working directory updated and agent restarted successfully"
+          },
+          "400": {
+            "description": "Bad request - invalid directory path"
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "404": {
+            "description": "Session not found"
           },
           "500": {
             "description": "Internal server error"
@@ -1558,6 +1632,46 @@
         }
       }
     },
+    "/recipes/to-yaml": {
+      "post": {
+        "tags": [
+          "Recipe Management"
+        ],
+        "operationId": "recipe_to_yaml",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecipeToYamlRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Recipe converted to YAML successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecipeToYamlResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - Failed to convert recipe to YAML",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/reply": {
       "post": {
         "tags": [
@@ -2153,6 +2267,51 @@
               "text/plain": {
                 "schema": {
                   "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/sessions/{session_id}/extensions": {
+      "get": {
+        "tags": [
+          "Session Management"
+        ],
+        "operationId": "get_session_extensions",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Unique identifier for the session",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session extensions retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionExtensionsResponse"
                 }
               }
             }
@@ -3114,45 +3273,18 @@
         "oneOf": [
           {
             "type": "object",
-            "description": "Server-sent events client with a URI endpoint",
+            "description": "SSE transport is no longer supported - kept only for config file compatibility",
             "required": [
               "name",
               "description",
-              "uri",
               "type"
             ],
             "properties": {
-              "available_tools": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "bundled": {
-                "type": "boolean",
-                "nullable": true
-              },
               "description": {
                 "type": "string"
               },
-              "env_keys": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "envs": {
-                "$ref": "#/components/schemas/Envs"
-              },
               "name": {
-                "type": "string",
-                "description": "The name used to identify this extension"
-              },
-              "timeout": {
-                "type": "integer",
-                "format": "int64",
-                "nullable": true,
-                "minimum": 0
+                "type": "string"
               },
               "type": {
                 "type": "string",
@@ -3161,7 +3293,8 @@
                 ]
               },
               "uri": {
-                "type": "string"
+                "type": "string",
+                "nullable": true
               }
             }
           },
@@ -3488,6 +3621,25 @@
           }
         ]
       },
+      "ExtensionLoadResult": {
+        "type": "object",
+        "required": [
+          "name",
+          "success"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          }
+        }
+      },
       "ExtensionQuery": {
         "type": "object",
         "required": [
@@ -3517,6 +3669,12 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ExtensionEntry"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
             }
           }
         }
@@ -4521,6 +4679,10 @@
           "name"
         ],
         "properties": {
+          "_meta": {
+            "type": "object",
+            "additionalProperties": true
+          },
           "description": {
             "type": "string"
           },
@@ -4585,10 +4747,23 @@
       "ReadResourceResponse": {
         "type": "object",
         "required": [
-          "html"
+          "uri",
+          "text"
         ],
         "properties": {
-          "html": {
+          "_meta": {
+            "type": "object",
+            "additionalProperties": {},
+            "nullable": true
+          },
+          "mimeType": {
+            "type": "string",
+            "nullable": true
+          },
+          "text": {
+            "type": "string"
+          },
+          "uri": {
             "type": "string"
           }
         }
@@ -4763,6 +4938,28 @@
           "user_prompt"
         ]
       },
+      "RecipeToYamlRequest": {
+        "type": "object",
+        "required": [
+          "recipe"
+        ],
+        "properties": {
+          "recipe": {
+            "$ref": "#/components/schemas/Recipe"
+          }
+        }
+      },
+      "RecipeToYamlResponse": {
+        "type": "object",
+        "required": [
+          "yaml"
+        ],
+        "properties": {
+          "yaml": {
+            "type": "string"
+          }
+        }
+      },
       "RedactedThinkingContent": {
         "type": "object",
         "required": [
@@ -4859,6 +5056,31 @@
           }
         }
       },
+      "RestartAgentRequest": {
+        "type": "object",
+        "required": [
+          "session_id"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
+          }
+        }
+      },
+      "RestartAgentResponse": {
+        "type": "object",
+        "required": [
+          "extension_results"
+        ],
+        "properties": {
+          "extension_results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExtensionLoadResult"
+            }
+          }
+        }
+      },
       "ResumeAgentRequest": {
         "type": "object",
         "required": [
@@ -4871,6 +5093,24 @@
           },
           "session_id": {
             "type": "string"
+          }
+        }
+      },
+      "ResumeAgentResponse": {
+        "type": "object",
+        "required": [
+          "session"
+        ],
+        "properties": {
+          "extension_results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExtensionLoadResult"
+            },
+            "nullable": true
+          },
+          "session": {
+            "$ref": "#/components/schemas/Session"
           }
         }
       },
@@ -5214,6 +5454,20 @@
           }
         }
       },
+      "SessionExtensionsResponse": {
+        "type": "object",
+        "required": [
+          "extensions"
+        ],
+        "properties": {
+          "extensions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExtensionConfig"
+            }
+          }
+        }
+      },
       "SessionInsights": {
         "type": "object",
         "required": [
@@ -5370,6 +5624,13 @@
           "working_dir"
         ],
         "properties": {
+          "extension_overrides": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExtensionConfig"
+            },
+            "nullable": true
+          },
           "recipe": {
             "allOf": [
               {
@@ -5704,6 +5965,9 @@
           "toolCall"
         ],
         "properties": {
+          "_meta": {
+            "type": "object"
+          },
           "id": {
             "type": "string"
           },
@@ -5907,6 +6171,21 @@
         "properties": {
           "recipe": {
             "$ref": "#/components/schemas/Recipe"
+          }
+        }
+      },
+      "UpdateWorkingDirRequest": {
+        "type": "object",
+        "required": [
+          "session_id",
+          "working_dir"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
+          },
+          "working_dir": {
+            "type": "string"
           }
         }
       },

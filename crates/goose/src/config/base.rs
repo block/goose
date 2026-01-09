@@ -824,6 +824,10 @@ impl Config {
 config_value!(CLAUDE_CODE_COMMAND, OsString, "claude");
 config_value!(GEMINI_CLI_COMMAND, OsString, "gemini");
 config_value!(CURSOR_AGENT_COMMAND, OsString, "cursor-agent");
+config_value!(CODEX_COMMAND, OsString, "codex");
+config_value!(CODEX_REASONING_EFFORT, String, "high");
+config_value!(CODEX_ENABLE_SKILLS, String, "true");
+config_value!(CODEX_SKIP_GIT_CHECK, String, "false");
 
 config_value!(GOOSE_SEARCH_PATHS, Vec<String>);
 config_value!(GOOSE_MODE, GooseMode);

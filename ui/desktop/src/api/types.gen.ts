@@ -219,18 +219,10 @@ export type ErrorResponse = {
  * Represents the different types of MCP extensions that can be added to the manager
  */
 export type ExtensionConfig = {
-    available_tools?: Array<string>;
-    bundled?: boolean | null;
     description: string;
-    env_keys?: Array<string>;
-    envs?: Envs;
-    /**
-     * The name used to identify this extension
-     */
     name: string;
-    timeout?: number | null;
     type: 'sse';
-    uri: string;
+    uri?: string | null;
 } | {
     args: Array<string>;
     available_tools?: Array<string>;
@@ -332,6 +324,12 @@ export type ExtensionEntry = ExtensionConfig & {
     enabled: boolean;
 };
 
+export type ExtensionLoadResult = {
+    error?: string | null;
+    name: string;
+    success: boolean;
+};
+
 export type ExtensionQuery = {
     config: ExtensionConfig;
     enabled: boolean;
@@ -340,6 +338,7 @@ export type ExtensionQuery = {
 
 export type ExtensionResponse = {
     extensions: Array<ExtensionEntry>;
+    warnings?: Array<string>;
 };
 
 export type ForkRequest = {
@@ -666,6 +665,9 @@ export type RawImageContent = {
 };
 
 export type RawResource = {
+    _meta?: {
+        [key: string]: unknown;
+    };
     description?: string;
     icons?: Array<Icon>;
     mimeType?: string;
@@ -689,7 +691,12 @@ export type ReadResourceRequest = {
 };
 
 export type ReadResourceResponse = {
-    html: string;
+    _meta?: {
+        [key: string]: unknown;
+    } | null;
+    mimeType?: string | null;
+    text: string;
+    uri: string;
 };
 
 export type Recipe = {
@@ -730,6 +737,14 @@ export type RecipeParameterInputType = 'string' | 'number' | 'boolean' | 'date' 
 
 export type RecipeParameterRequirement = 'required' | 'optional' | 'user_prompt';
 
+export type RecipeToYamlRequest = {
+    recipe: Recipe;
+};
+
+export type RecipeToYamlResponse = {
+    yaml: string;
+};
+
 export type RedactedThinkingContent = {
     data: string;
 };
@@ -766,9 +781,22 @@ export type Response = {
     json_schema?: unknown;
 };
 
+export type RestartAgentRequest = {
+    session_id: string;
+};
+
+export type RestartAgentResponse = {
+    extension_results: Array<ExtensionLoadResult>;
+};
+
 export type ResumeAgentRequest = {
     load_model_and_extensions: boolean;
     session_id: string;
+};
+
+export type ResumeAgentResponse = {
+    extension_results?: Array<ExtensionLoadResult> | null;
+    session: Session;
 };
 
 /**
@@ -877,6 +905,10 @@ export type SessionDisplayInfo = {
     workingDir: string;
 };
 
+export type SessionExtensionsResponse = {
+    extensions: Array<ExtensionConfig>;
+};
+
 export type SessionInsights = {
     totalSessions: number;
     totalTokens: number;
@@ -927,6 +959,7 @@ export type SlashCommandsResponse = {
 };
 
 export type StartAgentRequest = {
+    extension_overrides?: Array<ExtensionConfig> | null;
     recipe?: Recipe | null;
     recipe_deeplink?: string | null;
     recipe_id?: string | null;
@@ -1042,6 +1075,9 @@ export type ToolPermission = {
 };
 
 export type ToolRequest = {
+    _meta?: {
+        [key: string]: unknown;
+    };
     id: string;
     metadata?: {
         [key: string]: unknown;
@@ -1129,6 +1165,11 @@ export type UpdateSessionUserRecipeValuesRequest = {
 
 export type UpdateSessionUserRecipeValuesResponse = {
     recipe: Recipe;
+};
+
+export type UpdateWorkingDirRequest = {
+    session_id: string;
+    working_dir: string;
 };
 
 export type UpsertConfigQuery = {
@@ -1298,6 +1339,37 @@ export type AgentRemoveExtensionResponses = {
 
 export type AgentRemoveExtensionResponse = AgentRemoveExtensionResponses[keyof AgentRemoveExtensionResponses];
 
+export type RestartAgentData = {
+    body: RestartAgentRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/restart';
+};
+
+export type RestartAgentErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type RestartAgentResponses = {
+    /**
+     * Agent restarted successfully
+     */
+    200: RestartAgentResponse;
+};
+
+export type RestartAgentResponse2 = RestartAgentResponses[keyof RestartAgentResponses];
+
 export type ResumeAgentData = {
     body: ResumeAgentRequest;
     path?: never;
@@ -1324,10 +1396,10 @@ export type ResumeAgentResponses = {
     /**
      * Agent started successfully
      */
-    200: Session;
+    200: ResumeAgentResponse;
 };
 
-export type ResumeAgentResponse = ResumeAgentResponses[keyof ResumeAgentResponses];
+export type ResumeAgentResponse2 = ResumeAgentResponses[keyof ResumeAgentResponses];
 
 export type StartAgentData = {
     body: StartAgentRequest;
@@ -1456,6 +1528,39 @@ export type UpdateAgentProviderErrors = {
 export type UpdateAgentProviderResponses = {
     /**
      * Provider updated successfully
+     */
+    200: unknown;
+};
+
+export type UpdateWorkingDirData = {
+    body: UpdateWorkingDirRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/update_working_dir';
+};
+
+export type UpdateWorkingDirErrors = {
+    /**
+     * Bad request - invalid directory path
+     */
+    400: unknown;
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type UpdateWorkingDirResponses = {
+    /**
+     * Working directory updated and agent restarted successfully
      */
     200: unknown;
 };
@@ -2320,6 +2425,31 @@ export type SetRecipeSlashCommandResponses = {
     200: unknown;
 };
 
+export type RecipeToYamlData = {
+    body: RecipeToYamlRequest;
+    path?: never;
+    query?: never;
+    url: '/recipes/to-yaml';
+};
+
+export type RecipeToYamlErrors = {
+    /**
+     * Bad request - Failed to convert recipe to YAML
+     */
+    400: ErrorResponse;
+};
+
+export type RecipeToYamlError = RecipeToYamlErrors[keyof RecipeToYamlErrors];
+
+export type RecipeToYamlResponses = {
+    /**
+     * Recipe converted to YAML successfully
+     */
+    200: RecipeToYamlResponse;
+};
+
+export type RecipeToYamlResponse2 = RecipeToYamlResponses[keyof RecipeToYamlResponses];
+
 export type ReplyData = {
     body: ChatRequest;
     path?: never;
@@ -2837,6 +2967,42 @@ export type ExportSessionResponses = {
 };
 
 export type ExportSessionResponse = ExportSessionResponses[keyof ExportSessionResponses];
+
+export type GetSessionExtensionsData = {
+    body?: never;
+    path: {
+        /**
+         * Unique identifier for the session
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/sessions/{session_id}/extensions';
+};
+
+export type GetSessionExtensionsErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type GetSessionExtensionsResponses = {
+    /**
+     * Session extensions retrieved successfully
+     */
+    200: SessionExtensionsResponse;
+};
+
+export type GetSessionExtensionsResponse = GetSessionExtensionsResponses[keyof GetSessionExtensionsResponses];
 
 export type ForkSessionData = {
     body: ForkRequest;

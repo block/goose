@@ -36,8 +36,6 @@ pub struct SessionBuilderConfig {
     pub no_session: bool,
     /// List of stdio extension commands to add
     pub extensions: Vec<String>,
-    /// List of remote extension commands to add
-    pub remote_extensions: Vec<String>,
     /// List of streamable HTTP extension commands to add
     pub streamable_http_extensions: Vec<String>,
     /// List of builtin extension commands to add
@@ -84,7 +82,6 @@ impl Default for SessionBuilderConfig {
             fork: false,
             no_session: false,
             extensions: Vec::new(),
-            remote_extensions: Vec::new(),
             streamable_http_extensions: Vec::new(),
             builtins: Vec::new(),
             extensions_override: None,
@@ -425,6 +422,11 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
 
     // Setup extensions for the agent
     // Extensions need to be added after the session is created because we change directory when resuming a session
+
+    for warning in goose::config::get_warnings() {
+        eprintln!("{}", style(format!("Warning: {}", warning)).yellow());
+    }
+
     // If we get extensions_override, only run those extensions and none other
     let extensions_to_run: Vec<_> = if let Some(extensions) = session_config.extensions_override {
         extensions.into_iter().collect()
@@ -532,32 +534,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
                 "{}",
                 style(format!(
                     "Warning: Failed to start stdio extension '{}' ({}), continuing without it",
-                    extension_str, e
-                ))
-                .yellow()
-            );
-
-            // Offer debugging help
-            if let Err(debug_err) = offer_extension_debugging_help(
-                &extension_str,
-                &e.to_string(),
-                Arc::clone(&provider_for_display),
-                session_config.interactive,
-            )
-            .await
-            {
-                eprintln!("Note: Could not start debugging session: {}", debug_err);
-            }
-        }
-    }
-
-    // Add remote extensions if provided
-    for extension_str in session_config.remote_extensions {
-        if let Err(e) = session.add_remote_extension(extension_str.clone()).await {
-            eprintln!(
-                "{}",
-                style(format!(
-                    "Warning: Failed to start remote extension '{}' ({}), continuing without it",
                     extension_str, e
                 ))
                 .yellow()
@@ -690,8 +666,7 @@ mod tests {
             fork: false,
             no_session: false,
             extensions: vec!["echo test".to_string()],
-            remote_extensions: vec!["http://example.com".to_string()],
-            streamable_http_extensions: vec!["http://example.com/streamable".to_string()],
+            streamable_http_extensions: vec!["http://localhost:8080/mcp".to_string()],
             builtins: vec!["developer".to_string()],
             extensions_override: None,
             additional_system_prompt: Some("Test prompt".to_string()),
@@ -711,7 +686,6 @@ mod tests {
         };
 
         assert_eq!(config.extensions.len(), 1);
-        assert_eq!(config.remote_extensions.len(), 1);
         assert_eq!(config.streamable_http_extensions.len(), 1);
         assert_eq!(config.builtins.len(), 1);
         assert!(config.debug);
@@ -730,7 +704,6 @@ mod tests {
         assert!(!config.resume);
         assert!(!config.no_session);
         assert!(config.extensions.is_empty());
-        assert!(config.remote_extensions.is_empty());
         assert!(config.streamable_http_extensions.is_empty());
         assert!(config.builtins.is_empty());
         assert!(config.extensions_override.is_none());

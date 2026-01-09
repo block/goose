@@ -320,30 +320,19 @@ impl Provider for OpenAiProvider {
 
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         let models_path = self.base_path.replace("v1/chat/completions", "v1/models");
-        let response = self
-            .with_retry(|| async {
-                let response = self.api_client.response_get(&models_path).await?;
-                let json = handle_response_openai_compat(response).await?;
-                if let Some(err_obj) = json.get("error") {
-                    let msg = err_obj
-                        .get("message")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("unknown error");
-                    return Err(ProviderError::Authentication(msg.to_string()));
-                }
-                Ok(json)
-            })
-            .await
-            .inspect_err(|e| {
-                tracing::warn!("Failed to fetch supported models from OpenAI: {:?}", e);
-            })?;
+        let response = self.api_client.response_get(&models_path).await?;
+        let json = handle_response_openai_compat(response).await?;
+        if let Some(err_obj) = json.get("error") {
+            let msg = err_obj
+                .get("message")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown error");
+            return Err(ProviderError::Authentication(msg.to_string()));
+        }
 
-        let data = response
-            .get("data")
-            .and_then(|v| v.as_array())
-            .ok_or_else(|| {
-                ProviderError::UsageError("Missing data field in JSON response".into())
-            })?;
+        let data = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
+            ProviderError::UsageError("Missing data field in JSON response".into())
+        })?;
         let mut models: Vec<String> = data
             .iter()
             .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(str::to_string))
