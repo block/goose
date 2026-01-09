@@ -314,7 +314,7 @@ Execute commands from an instruction file or stdin. Check out the [full guide](/
 - **`--explain`**: Show a recipe's title, description, and parameters
 - **`--render-recipe`**: Print the rendered recipe instead of running it
 - **`-q, --quiet`**: Quiet mode. Suppress non-response output, printing only the model response to stdout
-- **`--output-format <FORMAT>`**: Output format (`text` or `json`). Default is `text`. Use `json` for automation and scripting
+- **`--output-format <FORMAT>`**: Output format (`text`, `json`, or `stream-json`). Default is `text`. Use JSON structured output for automation and scripting: `json` for results after completion, `stream-json` for events as they occur
 - **`--provider`**: Specify the provider to use for this session (overrides environment variable)
 - **`--model`**: Specify the model to use for this session (overrides environment variable)
 
@@ -517,6 +517,7 @@ Don't expose the web interface to the internet without proper security measures.
 - **`-p, --port <PORT>`**: Port number to run the web server on. Default is `3000`
 - **`--host <HOST>`**: Host to bind the web server to. Default is `127.0.0.1`
 - **`--open`**: Automatically open the browser when the server starts
+- **`--auth-token <TOKEN>`**: Require a password to access the web interface
 
 **Usage:**
 ```bash
@@ -528,6 +529,9 @@ goose web --port 8080
 
 # Start web interface accessible from local network at `http://192.168.1.7:8080`
 goose web --host 192.168.1.7 --port 8080
+
+# Start web interface with authentication required
+goose web --auth-token <TOKEN>
 ```
 
 :::info
