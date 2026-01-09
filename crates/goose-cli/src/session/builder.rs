@@ -3,12 +3,14 @@ use super::CliSession;
 use console::style;
 use goose::agents::types::{RetryConfig, SessionConfig};
 use goose::agents::Agent;
+use goose::config::paths::Paths;
 use goose::config::{
     extensions::get_extension_by_name, get_all_extensions, get_enabled_extensions, Config,
     ExtensionConfig,
 };
 use goose::providers::create;
 use goose::recipe::{Response, SubRecipe};
+use goose::scheduler::Scheduler;
 
 use goose::agents::extension::PlatformExtensionContext;
 use goose::session::session_manager::SessionType;
@@ -146,6 +148,10 @@ async fn offer_extension_debugging_help(
 
     // Create a minimal agent for debugging
     let debug_agent = Agent::new();
+    let schedule_file_path = Paths::data_dir().join("schedule.json");
+    if let Ok(scheduler) = Scheduler::new(schedule_file_path).await {
+        debug_agent.set_scheduler(scheduler).await;
+    }
 
     let session = SessionManager::create_session(
         std::env::current_dir()?,
@@ -300,6 +306,10 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     };
 
     let agent: Agent = Agent::new();
+    let schedule_file_path = Paths::data_dir().join("schedule.json");
+    if let Ok(scheduler) = Scheduler::new(schedule_file_path).await {
+        agent.set_scheduler(scheduler).await;
+    }
 
     agent
         .apply_recipe_components(
