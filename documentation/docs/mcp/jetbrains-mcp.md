@@ -23,15 +23,15 @@ This tutorial covers how to add the JetBrains extension to integrate with any Je
 
     Versions 2025.2 and later have built-in MCP server support and generate a dynamic configuration specific to your IDE instance.
 
-    The instructions in this tutorial show how to configure the recommended Streamable HTTP extension. See your IDE's documentation for more details (e.g. [MCP Server](https://www.jetbrains.com/help/idea/mcp-server.html) for IntelliJ IDEA).
+    See your IDE's documentation for more details (e.g. [MCP Server](https://www.jetbrains.com/help/idea/mcp-server.html) for IntelliJ IDEA).
 
     :::tip TLDR
     <Tabs groupId="interface">
       <TabItem value="ui" label="goose Desktop" default>
-      Use `Add custom extension` in Settings → Extensions to add a `Remote Extension (Streamable HTTP)` extension type with your IDE-specific config.
+      Use `Add custom extension` in Settings → Extensions with the command from `Copy Stdio Config` in your IDE.
       </TabItem>
       <TabItem value="cli" label="goose CLI">
-      Use `goose configure` to add a `Remote Extension (Streamable HTTP)` extension type with your IDE-specific config.
+      Use `goose configure` with the command from `Copy Stdio Config` in your IDE.
       </TabItem>
     </Tabs>
     :::
@@ -43,11 +43,11 @@ This tutorial covers how to add the JetBrains extension to integrate with any Je
 
        1. Go to `Settings > Tools > MCP Server` in your IDE
        2. If needed, click `Enable MCP Server` to enable the MCP server
-       3. Click `Copy Streamable HTTP Config`
+       3. Click `Copy Stdio Config`
        4. Click `OK` to save your changes and start the server
-       5. Copy the `url` value from the config
+       5. Copy the `command`, `args`, and `env` values from the config
 
-    2. Add the JetBrains extension to goose, replacing "YOUR_IDE_SPECIFIC_URL" in the instructions with the URL you copied:
+    2. Add the JetBrains extension to goose using the command from the config:
        <Tabs groupId="interface">
          <TabItem value="ui" label="goose Desktop" default>
            1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
@@ -55,8 +55,10 @@ This tutorial covers how to add the JetBrains extension to integrate with any Je
            3. Click `Add custom extension`
            4. On the `Add custom extension` modal, enter the following:
               - **Extension Name**: JetBrains
-              - **Type**: Remote Extension (Streamable HTTP)
-              - **Endpoint**: YOUR_IDE_SPECIFIC_URL
+              - **Type**: STDIO
+              - **Description**: Integrate goose with any JetBrains IDE
+              - **Command**: Combine the `command` and `args` from your IDE's Stdio config into a single command string
+              - **Environment Variables**: Add `IJ_MCP_SERVER_PORT` with the port value from the `env` section of your copied Stdio config
            5. Click `Add Extension` to save the extension
            6. Navigate to the chat
          </TabItem>
@@ -64,9 +66,15 @@ This tutorial covers how to add the JetBrains extension to integrate with any Je
            <CLIExtensionInstructions
              name="jetbrains"
              description="Integrate goose with any JetBrains IDE"
-             type="http"
-             url="YOUR_IDE_SPECIFIC_URL"
+             type="stdio"
+             command="YOUR_COMMAND_AND_ARGS_FROM_IDE"
              timeout={300}
+             envVars={[{ key: "IJ_MCP_SERVER_PORT", value: "YOUR_PORT_FROM_IDE" }]}
+             commandNote={
+               <>
+                 Combine <code>command</code> and <code>args</code> into a single string. The port value comes from the <code>env</code> section of your copied Stdio config.
+               </>
+             }
            />
          </TabItem>
        </Tabs>

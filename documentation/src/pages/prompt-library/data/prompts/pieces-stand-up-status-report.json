@@ -9,7 +9,7 @@
  "extensions": [
     {
       "name": "Pieces",
-      "command": "uvx pieces-cli mcp start",
+      "command": "uvx --from pieces-cli pieces --ignore-onboarding mcp start",
       "is_builtin": false
     }
   ]

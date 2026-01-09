@@ -26,7 +26,7 @@ This tutorial covers how to add the [Pieces for Developers MCP Server](https://d
     extensionName="Pieces for Developers"
     description="Provides access to your Pieces Long-Term Memory. You need to have Pieces installed to use this."
     command="uvx"
-    args={["pieces-cli", "mcp", "start"]}
+    args={["--from", "pieces-cli", "pieces", "--ignore-onboarding", "mcp", "start"]}
   />
   </TabItem>
   <TabItem value="cli" label="goose CLI">
@@ -34,7 +34,7 @@ This tutorial covers how to add the [Pieces for Developers MCP Server](https://d
       name="Pieces"
       description="Provides access to your Pieces Long-Term Memory"
       type="stdio"
-      command="uvx pieces-cli mcp start"
+      command="uvx --from pieces-cli pieces --ignore-onboarding mcp start"
     />
   </TabItem>
 </Tabs>
