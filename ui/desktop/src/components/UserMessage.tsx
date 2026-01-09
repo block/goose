@@ -19,7 +19,6 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState('');
-  const [hasBeenEdited, setHasBeenEdited] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Extract text content from the message
@@ -100,7 +99,6 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
 
       if (onMessageUpdate && message.id) {
         onMessageUpdate(message.id, editContent, editType);
-        setHasBeenEdited(true);
       }
     },
     [editContent, displayText, onMessageUpdate, message.id]
@@ -253,13 +251,6 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
                 </div>
               </div>
             </div>
-          </div>
-        )}
-
-        {/* Edited indicator */}
-        {hasBeenEdited && !isEditing && (
-          <div className="text-xs text-text-subtle mt-1 text-right transition-opacity duration-200">
-            Edited
           </div>
         )}
       </div>

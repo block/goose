@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Clock, FileText, History, Home, MessageSquarePlus, Puzzle } from 'lucide-react';
+import { ChefHat, Clock, FileText, History, Home, MessageSquarePlus, Puzzle } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   SidebarContent,
@@ -77,6 +77,20 @@ const menuItems: NavigationEntry[] = [
   },
 ];
 
+// Get the display name for a session, considering recipe titles
+const getSessionDisplayName = (session: Session): string => {
+  // If user has set a custom name, use it
+  if (!isDefaultSessionName(session.name)) {
+    return session.name;
+  }
+  // If session has a recipe, show the recipe title
+  if (session.recipe?.title) {
+    return session.recipe.title;
+  }
+  // Otherwise show default "New Chat"
+  return DEFAULT_CHAT_TITLE;
+};
+
 const SessionList = React.memo<{
   sessions: Session[];
   activeSessionId: string | undefined;
@@ -86,38 +100,58 @@ const SessionList = React.memo<{
   onSessionClick: (session: Session) => void;
 }>(
   ({ sessions, activeSessionId, getSessionStatus, onSessionClick }) => {
+    // Sort sessions so empty new chats always appear at the top
+    const sortedSessions = React.useMemo(() => {
+      return [...sessions].sort((a, b) => {
+        const aIsEmptyNew = isDefaultSessionName(a.name) && a.message_count === 0;
+        const bIsEmptyNew = isDefaultSessionName(b.name) && b.message_count === 0;
+        if (aIsEmptyNew && !bIsEmptyNew) return -1;
+        if (!aIsEmptyNew && bIsEmptyNew) return 1;
+        return 0;
+      });
+    }, [sessions]);
+
     return (
-      <>
-        {sessions.map((session) => {
+      <div className="relative ml-3">
+        {sortedSessions.map((session, index) => {
           const status = getSessionStatus(session.id);
           const isStreaming = status?.streamState === 'streaming';
           const hasError = status?.streamState === 'error';
           const hasUnread = status?.hasUnreadActivity ?? false;
-          const displayName = isDefaultSessionName(session.name)
-            ? DEFAULT_CHAT_TITLE
-            : session.name;
+          const displayName = getSessionDisplayName(session);
+          const isLast = index === sortedSessions.length - 1;
 
           return (
-            <button
-              key={session.id}
-              onClick={() => onSessionClick(session)}
-              className={`w-full text-left px-3 py-1.5 pr-2 rounded-md text-sm transition-colors flex items-center gap-2 min-w-0 ${
-                activeSessionId === session.id
-                  ? 'bg-background-medium text-text-default'
-                  : 'text-text-muted hover:bg-background-medium/50 hover:text-text-default'
-              }`}
-              title={displayName}
-            >
-              <span className="flex-1 truncate min-w-0 block">{displayName}</span>
-              <SessionIndicators
-                isStreaming={isStreaming}
-                hasUnread={hasUnread}
-                hasError={hasError}
+            <div key={session.id} className="relative flex items-center">
+              {/* Vertical line segment - full height except last item stops at middle */}
+              <div
+                className={`absolute left-0 w-px bg-border-default ${
+                  isLast ? 'top-0 h-1/2' : 'top-0 h-full'
+                }`}
               />
-            </button>
+              {/* Horizontal branch line */}
+              <div className="absolute left-0 w-2 h-px bg-border-default top-1/2" />
+              <button
+                onClick={() => onSessionClick(session)}
+                className={`w-full text-left ml-3 px-1.5 py-1.5 pr-2 rounded-md text-sm transition-colors flex items-center gap-2 min-w-0 ${
+                  activeSessionId === session.id
+                    ? 'bg-background-medium text-text-default'
+                    : 'text-text-muted hover:bg-background-medium/50 hover:text-text-default'
+                }`}
+                title={displayName}
+              >
+                {session.recipe && <ChefHat className="w-3.5 h-3.5 flex-shrink-0" />}
+                <span className="flex-1 truncate min-w-0 block">{displayName}</span>
+                <SessionIndicators
+                  isStreaming={isStreaming}
+                  hasUnread={hasUnread}
+                  hasError={hasError}
+                />
+              </button>
+            </div>
           );
         })}
-      </>
+      </div>
     );
   },
   (prevProps, nextProps) => {
@@ -157,6 +191,35 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   const [isLoadingSessions, setIsLoadingSessions] = useState(false);
   const { getSessionStatus, markSessionActive, trackSession } = useSessionStatusContext();
   const activeSessionId = searchParams.get('resumeSessionId') ?? undefined;
+
+  // When activeSessionId changes, ensure it's in the recent sessions list
+  // This handles the case where a session is loaded from history that's older than the top 10
+  useEffect(() => {
+    if (!activeSessionId) return;
+
+    const isInRecentSessions = recentSessions.some((s) => s.id === activeSessionId);
+    if (isInRecentSessions) return;
+
+    // Fetch the active session and add it to the top of the list
+    const fetchAndAddSession = async () => {
+      try {
+        const { getSession } = await import('../../api');
+        const response = await getSession({ path: { session_id: activeSessionId } });
+        if (response.data) {
+          setRecentSessions((prev) => {
+            // Don't add if it's already there (race condition check)
+            if (prev.some((s) => s.id === activeSessionId)) return prev;
+            // Add to the beginning and keep max 10
+            return [response.data as Session, ...prev].slice(0, 10);
+          });
+        }
+      } catch (error) {
+        console.error('Failed to fetch active session:', error);
+      }
+    };
+
+    fetchAndAddSession();
+  }, [activeSessionId, recentSessions]);
 
   useEffect(() => {
     recentSessions.forEach((session) => {
@@ -272,8 +335,17 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   };
 
   const handleNewChat = React.useCallback(async () => {
-    await startNewSession('', setView, getInitialWorkingDir());
-  }, [setView]);
+    const emptyNewSession = recentSessions.find(
+      (s) => isDefaultSessionName(s.name) && s.message_count === 0
+    );
+
+    if (emptyNewSession) {
+      markSessionActive(emptyNewSession.id);
+      resumeSession(emptyNewSession, setView);
+    } else {
+      await startNewSession('', setView, getInitialWorkingDir());
+    }
+  }, [setView, recentSessions, markSessionActive]);
 
   const handleSessionClick = React.useCallback(
     async (session: Session) => {
@@ -346,7 +418,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                     className="w-full justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200"
                   >
                     <MessageSquarePlus className="w-4 h-4" />
-                    <span>New Chat</span>
+                    <span>Chat</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </div>

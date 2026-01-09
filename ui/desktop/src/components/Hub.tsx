@@ -53,6 +53,13 @@ export default function Hub({
           allExtensions: extensionConfigs.length > 0 ? undefined : extensionsList,
         });
 
+        window.dispatchEvent(new CustomEvent('session-created'));
+        window.dispatchEvent(
+          new CustomEvent('add-active-session', {
+            detail: { sessionId: session.id, initialMessage: combinedTextFromInput },
+          })
+        );
+
         setView('pair', {
           disableAnimation: true,
           resumeSessionId: session.id,

@@ -360,8 +360,14 @@ export function AppInner() {
         let updated: Array<{ sessionId: string; initialMessage?: string }>;
 
         if (existingIndex !== -1) {
+          // Session exists - move to end and update initialMessage if provided
           const existing = prev[existingIndex];
-          updated = [...prev.slice(0, existingIndex), ...prev.slice(existingIndex + 1), existing];
+          const updatedSession = initialMessage ? { ...existing, initialMessage } : existing;
+          updated = [
+            ...prev.slice(0, existingIndex),
+            ...prev.slice(existingIndex + 1),
+            updatedSession,
+          ];
         } else {
           const newSession = { sessionId, initialMessage };
           updated = [...prev, newSession];

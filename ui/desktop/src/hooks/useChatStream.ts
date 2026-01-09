@@ -158,8 +158,10 @@ export function useChatStream({
   const [messages, setMessages] = useState<Message[]>([]);
   const messagesRef = useRef<Message[]>([]);
   const [session, setSession] = useState<Session>();
+  const sessionRef = useRef<Session | undefined>(undefined);
   const [sessionLoadError, setSessionLoadError] = useState<string>();
   const [chatState, setChatState] = useState<ChatState>(ChatState.Idle);
+  const chatStateRef = useRef<ChatState>(ChatState.Idle);
   const [tokenState, setTokenState] = useState<TokenState>({
     inputTokens: 0,
     outputTokens: 0,
@@ -170,6 +172,28 @@ export function useChatStream({
   });
   const [notifications, setNotifications] = useState<NotificationEvent[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Keep refs in sync with state for use in callbacks
+  // Note: We also update these synchronously when setting state to avoid stale closures
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
+
+  useEffect(() => {
+    chatStateRef.current = chatState;
+  }, [chatState]);
+
+  // Helper to update session and ref together
+  const updateSession = useCallback((newSession: Session | undefined) => {
+    sessionRef.current = newSession;
+    setSession(newSession);
+  }, []);
+
+  // Helper to update chatState and ref together
+  const updateChatState = useCallback((newState: ChatState) => {
+    chatStateRef.current = newState;
+    setChatState(newState);
+  }, []);
 
   useEffect(() => {
     if (session) {
@@ -200,10 +224,10 @@ export function useChatStream({
         window.dispatchEvent(new CustomEvent('message-stream-finished'));
       }
 
-      setChatState(ChatState.Idle);
+      updateChatState(ChatState.Idle);
       onStreamFinish();
     },
-    [onStreamFinish, sessionId]
+    [onStreamFinish, sessionId, updateChatState]
   );
 
   // Load session on mount or sessionId change
@@ -212,7 +236,7 @@ export function useChatStream({
 
     const cached = resultsCache.get(sessionId);
     if (cached) {
-      setSession(cached.session);
+      updateSession(cached.session);
       updateMessages(cached.messages);
       setTokenState({
         inputTokens: cached.session?.input_tokens ?? 0,
@@ -222,16 +246,16 @@ export function useChatStream({
         accumulatedOutputTokens: cached.session?.accumulated_output_tokens ?? 0,
         accumulatedTotalTokens: cached.session?.accumulated_total_tokens ?? 0,
       });
-      setChatState(ChatState.Idle);
+      updateChatState(ChatState.Idle);
       onSessionLoaded?.();
       return;
     }
 
     // Reset state when sessionId changes
     updateMessages([]);
-    setSession(undefined);
+    updateSession(undefined);
     setSessionLoadError(undefined);
-    setChatState(ChatState.LoadingConversation);
+    updateChatState(ChatState.LoadingConversation);
 
     let cancelled = false;
 
@@ -254,7 +278,7 @@ export function useChatStream({
         const extensionResults = resumeData?.extension_results;
 
         showExtensionLoadResults(extensionResults);
-        setSession(loadedSession);
+        updateSession(loadedSession);
         updateMessages(loadedSession?.conversation || []);
         setTokenState({
           inputTokens: loadedSession?.input_tokens ?? 0,
@@ -264,25 +288,29 @@ export function useChatStream({
           accumulatedOutputTokens: loadedSession?.accumulated_output_tokens ?? 0,
           accumulatedTotalTokens: loadedSession?.accumulated_total_tokens ?? 0,
         });
-        setChatState(ChatState.Idle);
+        updateChatState(ChatState.Idle);
         onSessionLoaded?.();
       } catch (error) {
         if (cancelled) return;
 
         setSessionLoadError(errorMessage(error));
-        setChatState(ChatState.Idle);
+        updateChatState(ChatState.Idle);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [sessionId, updateMessages, onSessionLoaded]);
+  }, [sessionId, updateMessages, onSessionLoaded, updateSession, updateChatState]);
 
   const handleSubmit = useCallback(
     async (userMessage: string) => {
+      // Use refs to get the latest values (avoids stale closure issues)
+      const currentSession = sessionRef.current;
+      const currentChatState = chatStateRef.current;
+
       // Guard: Don't submit if session hasn't been loaded yet
-      if (!session || chatState === ChatState.LoadingConversation) {
+      if (!currentSession || currentChatState === ChatState.LoadingConversation) {
         return;
       }
 
@@ -311,6 +339,7 @@ export function useChatStream({
       }
 
       setChatState(ChatState.Streaming);
+      chatStateRef.current = ChatState.Streaming;
       setNotifications([]);
       abortControllerRef.current = new AbortController();
 
@@ -343,7 +372,7 @@ export function useChatStream({
         }
       }
     },
-    [sessionId, session, chatState, updateMessages, updateNotifications, onFinish]
+    [sessionId, updateMessages, updateNotifications, onFinish]
   );
 
   const submitElicitationResponse = useCallback(

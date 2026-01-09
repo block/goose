@@ -16,8 +16,13 @@ import type { FixedExtensionEntry } from './components/ConfigContext';
 export function isDefaultSessionName(name: string | undefined | null): boolean {
   if (!name) return false;
 
-  // Check if it's exactly the default title or starts with it (for numbered versions)
-  return name === DEFAULT_CHAT_TITLE || name.startsWith(DEFAULT_CHAT_TITLE);
+  // Check for backend default name pattern "New session X" or frontend default "New Chat"
+  const backendDefaultPattern = /^New session \d+$/i;
+  return (
+    name === DEFAULT_CHAT_TITLE ||
+    name.startsWith(DEFAULT_CHAT_TITLE) ||
+    backendDefaultPattern.test(name)
+  );
 }
 
 export function resumeSession(session: Session, setView: setViewType) {

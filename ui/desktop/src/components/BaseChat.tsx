@@ -38,7 +38,6 @@ import { toastSuccess } from '../toasts';
 import { Recipe } from '../recipe';
 import { useSessionStatusContext } from '../contexts/SessionStatusContext';
 
-// Context for sharing current model info
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
 export const useCurrentModelInfo = () => useContext(CurrentModelContext);
 
@@ -158,48 +157,52 @@ function BaseChatContent({
       .reverse();
   }, [messages]);
 
+  // Auto-submit initial message for new sessions or forked sessions
   useEffect(() => {
-    if (!session || hasAutoSubmittedRef.current) {
-      return;
-    }
-
     const currentSessionId = searchParams.get('resumeSessionId');
     const isCurrentSession = currentSessionId === sessionId;
     const shouldStartAgent = isCurrentSession && searchParams.get('shouldStartAgent') === 'true';
 
-    // Handle different scenarios:
-    // 1. Forked session with edited message - shouldStartAgent is true and we have initialMessage
-    // 2. Brand new session with initial message - no messages yet
-    // 3. Resume with shouldStartAgent - continue existing conversation
+    if (!session || hasAutoSubmittedRef.current) {
+      return;
+    }
 
+    // Don't submit if already streaming or loading
+    if (chatState !== ChatState.Idle) {
+      return;
+    }
+
+    // Scenario 1: New session with initial message from Hub
+    // Hub always creates new sessions, so message_count will be 0
+    if (initialMessage && session.message_count === 0 && messages.length === 0) {
+      hasAutoSubmittedRef.current = true;
+      handleSubmit(initialMessage);
+      window.dispatchEvent(
+        new CustomEvent('clear-initial-message', {
+          detail: { sessionId },
+        })
+      );
+      return;
+    }
+
+    // Scenario 2: Forked session with edited message
     if (shouldStartAgent && initialMessage) {
-      // This is a forked session with an edited message to submit
       hasAutoSubmittedRef.current = true;
       handleSubmit(initialMessage);
-
-      // Clear the initial message from active sessions to prevent re-submission
       window.dispatchEvent(
         new CustomEvent('clear-initial-message', {
           detail: { sessionId },
         })
       );
-    } else if (initialMessage && session.message_count === 0 && messages.length === 0) {
-      // Submit the initial message only for brand new sessions
-      hasAutoSubmittedRef.current = true;
-      handleSubmit(initialMessage);
+      return;
+    }
 
-      // Clear the initial message from active sessions to prevent re-submission
-      window.dispatchEvent(
-        new CustomEvent('clear-initial-message', {
-          detail: { sessionId },
-        })
-      );
-    } else if (shouldStartAgent && !initialMessage) {
-      // Trigger agent to continue with existing conversation (no new message)
+    // Scenario 3: Resume with shouldStartAgent (continue existing conversation)
+    if (shouldStartAgent) {
       hasAutoSubmittedRef.current = true;
       handleSubmit('');
     }
-  }, [session, initialMessage, searchParams, handleSubmit, sessionId, messages.length]);
+  }, [session, initialMessage, searchParams, handleSubmit, sessionId, messages.length, chatState]);
 
   const handleFormSubmit = (e: React.FormEvent) => {
     const customEvent = e as unknown as CustomEvent;
