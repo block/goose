@@ -3,12 +3,14 @@ use super::CliSession;
 use console::style;
 use goose::agents::types::{RetryConfig, SessionConfig};
 use goose::agents::Agent;
+use goose::config::paths::Paths;
 use goose::config::{
     extensions::get_extension_by_name, get_all_extensions, get_enabled_extensions, Config,
     ExtensionConfig,
 };
 use goose::providers::create;
 use goose::recipe::{Response, SubRecipe};
+use goose::scheduler::Scheduler;
 
 use goose::agents::extension::PlatformExtensionContext;
 use goose::session::session_manager::SessionType;
@@ -300,6 +302,16 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     };
 
     let agent: Agent = Agent::new();
+
+    let schedule_file_path = Paths::data_dir().join("schedule.json");
+    match Scheduler::new(schedule_file_path).await {
+        Ok(scheduler) => {
+            agent.set_scheduler(scheduler).await;
+        }
+        Err(e) => {
+            tracing::warn!("Failed to initialize scheduler: {}", e);
+        }
+    }
 
     agent
         .apply_recipe_components(
