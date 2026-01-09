@@ -408,7 +408,8 @@ export type KillJobResponse = {
 };
 
 export type ListAppsRequest = {
-    session_id: string;
+    session_id?: string | null;
+    use_cache?: boolean;
 };
 
 export type ListAppsResponse = {
@@ -1270,8 +1271,9 @@ export type CallToolResponse2 = CallToolResponses[keyof CallToolResponses];
 export type ListAppsData = {
     body?: never;
     path?: never;
-    query: {
-        session_id: string;
+    query?: {
+        session_id?: string | null;
+        use_cache?: boolean;
     };
     url: '/agent/list_apps';
 };

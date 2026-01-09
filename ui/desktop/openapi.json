@@ -138,9 +138,18 @@
           {
             "name": "session_id",
             "in": "query",
-            "required": true,
+            "required": false,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "use_cache",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
             }
           }
         ],
@@ -3798,12 +3807,13 @@
       },
       "ListAppsRequest": {
         "type": "object",
-        "required": [
-          "session_id"
-        ],
         "properties": {
           "session_id": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
+          },
+          "use_cache": {
+            "type": "boolean"
           }
         }
       },

@@ -11,7 +11,7 @@ use axum::{
     Json, Router,
 };
 use goose::config::PermissionManager;
-use goose::goose_apps::{list_mcp_apps, GooseApp};
+use goose::goose_apps::{list_mcp_apps_with_cache, McpAppCache, GooseApp};
 
 use base64::Engine;
 use goose::agents::ExtensionConfig;
@@ -701,7 +701,9 @@ async fn call_tool(
 
 #[derive(Deserialize, utoipa::IntoParams, utoipa::ToSchema)]
 pub struct ListAppsRequest {
-    session_id: String,
+    session_id: Option<String>,
+    #[serde(default)]
+    use_cache: bool,
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
@@ -730,14 +732,28 @@ async fn list_apps(
     State(state): State<Arc<AppState>>,
     Query(params): Query<ListAppsRequest>,
 ) -> Result<Json<ListAppsResponse>, ErrorResponse> {
+    let cache = McpAppCache::new().ok();
+
+    // If use_cache is true or session_id is not provided, return cached apps
+    if params.use_cache || params.session_id.is_none() {
+        let apps = cache
+            .as_ref()
+            .and_then(|c| c.list_cached_apps().ok())
+            .unwrap_or_default();
+        return Ok(Json(ListAppsResponse { apps }));
+    }
+
+    // Otherwise fetch fresh apps from the session
     let agent = state
-        .get_agent_for_route(params.session_id)
+        .get_agent_for_route(params.session_id.unwrap())
         .await
         .map_err(|status| ErrorResponse {
             message: "Failed to get agent".to_string(),
             status,
         })?;
-    let apps = list_mcp_apps(&agent.extension_manager)
+
+    // Fetch apps and cache them
+    let apps = list_mcp_apps_with_cache(&agent.extension_manager, cache.as_ref())
         .await
         .map_err(|e| ErrorResponse {
             message: format!("Failed to list apps: {}", e.message),

@@ -7,8 +7,11 @@
 pub mod resource;
 
 use crate::agents::ExtensionManager;
+use crate::config::paths::Paths;
 use rmcp::model::ErrorData;
 use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::PathBuf;
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
 use utoipa::ToSchema;
@@ -34,9 +37,95 @@ pub struct GooseApp {
     pub html: String,
 }
 
+/// Manager for caching MCP apps to disk
+pub struct McpAppCache {
+    cache_dir: PathBuf,
+}
+
+impl McpAppCache {
+    pub fn new() -> Result<Self, std::io::Error> {
+        let config_dir = Paths::config_dir();
+        let cache_dir = config_dir.join("mcp-apps-cache");
+        Ok(Self { cache_dir })
+    }
+
+    /// Get the cache key for an app (extension_name + resource_uri)
+    fn cache_key(extension_name: &str, resource_uri: &str) -> String {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        let mut hasher = DefaultHasher::new();
+        format!("{}::{}", extension_name, resource_uri).hash(&mut hasher);
+        format!("{}_{:x}", extension_name, hasher.finish())
+    }
+
+    /// List all cached apps
+    pub fn list_cached_apps(&self) -> Result<Vec<GooseApp>, std::io::Error> {
+        let mut apps = Vec::new();
+
+        if !self.cache_dir.exists() {
+            return Ok(apps);
+        }
+
+        for entry in fs::read_dir(&self.cache_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+
+            if path.extension().and_then(|s| s.to_str()) == Some("json") {
+                match fs::read_to_string(&path) {
+                    Ok(content) => match serde_json::from_str::<GooseApp>(&content) {
+                        Ok(app) => apps.push(app),
+                        Err(e) => warn!("Failed to parse cached app from {:?}: {}", path, e),
+                    },
+                    Err(e) => warn!("Failed to read cached app from {:?}: {}", path, e),
+                }
+            }
+        }
+
+        Ok(apps)
+    }
+
+    /// Cache an app to disk
+    pub fn cache_app(&self, app: &GooseApp) -> Result<(), std::io::Error> {
+        fs::create_dir_all(&self.cache_dir)?;
+
+        if let Some(ref extension_name) = app.mcp_server {
+            let cache_key = Self::cache_key(extension_name, &app.resource_uri);
+            let app_path = self.cache_dir.join(format!("{}.json", cache_key));
+            let json = serde_json::to_string_pretty(app)
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+            fs::write(app_path, json)?;
+        }
+
+        Ok(())
+    }
+
+    /// Get a cached app by extension name and resource URI
+    pub fn get_cached_app(&self, extension_name: &str, resource_uri: &str) -> Option<GooseApp> {
+        let cache_key = Self::cache_key(extension_name, resource_uri);
+        let app_path = self.cache_dir.join(format!("{}.json", cache_key));
+
+        if !app_path.exists() {
+            return None;
+        }
+
+        fs::read_to_string(&app_path)
+            .ok()
+            .and_then(|content| serde_json::from_str::<GooseApp>(&content).ok())
+    }
+}
+
 /// List all MCP apps from loaded extensions
 pub async fn list_mcp_apps(
     extension_manager: &ExtensionManager,
+) -> Result<Vec<GooseApp>, ErrorData> {
+    list_mcp_apps_with_cache(extension_manager, None).await
+}
+
+/// List all MCP apps from loaded extensions, optionally caching them
+pub async fn list_mcp_apps_with_cache(
+    extension_manager: &ExtensionManager,
+    cache: Option<&McpAppCache>,
 ) -> Result<Vec<GooseApp>, ErrorData> {
     let mut apps = Vec::new();
 
@@ -59,7 +148,7 @@ pub async fn list_mcp_apps(
                 }
 
                 if !html.is_empty() {
-                    apps.push(GooseApp {
+                    let app = GooseApp {
                         name: format_resource_name(resource.name.clone()),
                         description: resource.description.clone(),
                         resource_uri: resource.uri.clone(),
@@ -68,7 +157,16 @@ pub async fn list_mcp_apps(
                         height: None,
                         resizable: Some(true),
                         mcp_server: Some(extension_name),
-                    });
+                    };
+
+                    // Cache the app if cache is provided
+                    if let Some(cache) = cache {
+                        if let Err(e) = cache.cache_app(&app) {
+                            warn!("Failed to cache app {}: {}", app.name, e);
+                        }
+                    }
+
+                    apps.push(app);
                 }
             }
             Err(e) => {

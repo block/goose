@@ -26,6 +26,52 @@ export default function AppsView() {
   const chatContext = useChatContext();
   const sessionId = chatContext?.chat.sessionId;
 
+  // Load cached apps immediately on mount
+  useEffect(() => {
+    const loadCachedApps = async () => {
+      try {
+        const response = await listApps({
+          throwOnError: false,
+          query: { use_cache: true },
+        });
+        const cachedApps = response.data?.apps || [];
+        setApps(cachedApps);
+      } catch (err) {
+        console.warn('Failed to load cached apps:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadCachedApps();
+  }, []);
+
+  // When sessionId is available, fetch fresh apps in the background
+  useEffect(() => {
+    if (!sessionId) return;
+
+    const loadFreshApps = async () => {
+      try {
+        const response = await listApps({
+          throwOnError: true,
+          query: { session_id: sessionId },
+        });
+        const freshApps = response.data?.apps || [];
+        setApps(freshApps);
+        setError(null);
+      } catch (err) {
+        console.warn('Failed to load fresh apps:', err);
+        // Don't set error if we already have cached apps
+        if (apps.length === 0) {
+          setError(err instanceof Error ? err.message : 'Failed to load apps');
+        }
+      }
+    };
+
+    loadFreshApps();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId]);
+
   const loadApps = useCallback(async () => {
     if (!sessionId) return;
 
@@ -44,10 +90,6 @@ export default function AppsView() {
       setLoading(false);
     }
   }, [sessionId]);
-
-  useEffect(() => {
-    loadApps();
-  }, [loadApps]);
 
   const handleLaunchApp = async (app: GooseApp) => {
     try {

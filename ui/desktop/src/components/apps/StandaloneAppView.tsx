@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import McpAppRenderer from '../McpApps/McpAppRenderer';
-import { startAgent, resumeAgent } from '../../api';
+import { startAgent, resumeAgent, listApps } from '../../api';
 
 export default function StandaloneAppView() {
   const [searchParams] = useSearchParams();
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [cachedHtml, setCachedHtml] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,8 +23,48 @@ export default function StandaloneAppView() {
     loading,
     error,
     sessionId,
+    hasCachedHtml: !!cachedHtml,
   });
 
+  // Load cached HTML immediately
+  useEffect(() => {
+    async function loadCachedHtml() {
+      if (
+        !resourceUri ||
+        !extensionName ||
+        resourceUri === 'undefined' ||
+        extensionName === 'undefined'
+      ) {
+        setError('Missing required parameters');
+        setLoading(false);
+        return;
+      }
+
+      try {
+        // Try to get cached app HTML
+        const response = await listApps({
+          throwOnError: false,
+          query: { use_cache: true },
+        });
+
+        const apps = response.data?.apps || [];
+        const cachedApp = apps.find(
+          (app) => app.resourceUri === resourceUri && app.mcpServer === extensionName
+        );
+
+        if (cachedApp?.html) {
+          setCachedHtml(cachedApp.html);
+          setLoading(false);
+        }
+      } catch (err) {
+        console.warn('Failed to load cached HTML:', err);
+      }
+    }
+
+    loadCachedHtml();
+  }, [resourceUri, extensionName]);
+
+  // Initialize session in the background (don't block on it)
   useEffect(() => {
     async function initSession() {
       if (
@@ -33,8 +74,6 @@ export default function StandaloneAppView() {
         resourceUri === 'undefined' ||
         extensionName === 'undefined'
       ) {
-        setError('Missing required parameters');
-        setLoading(false);
         return;
       }
 
@@ -57,15 +96,19 @@ export default function StandaloneAppView() {
         });
 
         setSessionId(sid);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to initialize session');
-      } finally {
         setLoading(false);
+      } catch (err) {
+        console.error('Failed to initialize session:', err);
+        // Only set error if we don't have cached HTML to display
+        if (!cachedHtml) {
+          setError(err instanceof Error ? err.message : 'Failed to initialize session');
+          setLoading(false);
+        }
       }
     }
 
     initSession();
-  }, [resourceUri, extensionName, workingDir]);
+  }, [resourceUri, extensionName, workingDir, cachedHtml]);
 
   // Update window title when app name is available
   useEffect(() => {
@@ -74,7 +117,7 @@ export default function StandaloneAppView() {
     }
   }, [appName]);
 
-  if (error) {
+  if (error && !cachedHtml) {
     return (
       <div
         style={{
@@ -94,7 +137,7 @@ export default function StandaloneAppView() {
     );
   }
 
-  if (loading || !sessionId) {
+  if (loading && !cachedHtml) {
     return (
       <div
         style={{
@@ -110,14 +153,32 @@ export default function StandaloneAppView() {
     );
   }
 
+  // Show the app if we have either cached HTML or a session ready
+  if (cachedHtml || sessionId) {
+    return (
+      <div style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
+        <McpAppRenderer
+          resourceUri={resourceUri!}
+          extensionName={extensionName!}
+          sessionId={sessionId || 'loading'} // Pass 'loading' placeholder if session not ready yet
+          fullscreen={true}
+          cachedHtml={cachedHtml || undefined}
+        />
+      </div>
+    );
+  }
+
   return (
-    <div style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
-      <McpAppRenderer
-        resourceUri={resourceUri!}
-        extensionName={extensionName!}
-        sessionId={sessionId}
-        fullscreen={true}
-      />
+    <div
+      style={{
+        width: '100vw',
+        height: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <p style={{ color: 'var(--text-muted, #6b7280)' }}>Initializing app...</p>
     </div>
   );
 }

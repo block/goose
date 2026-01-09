@@ -45,7 +45,7 @@ export const callTool = <ThrowOnError extends boolean = false>(options: Options<
     }
 });
 
-export const listApps = <ThrowOnError extends boolean = false>(options: Options<ListAppsData, ThrowOnError>) => (options.client ?? client).get<ListAppsResponses, ListAppsErrors, ThrowOnError>({ url: '/agent/list_apps', ...options });
+export const listApps = <ThrowOnError extends boolean = false>(options?: Options<ListAppsData, ThrowOnError>) => (options?.client ?? client).get<ListAppsResponses, ListAppsErrors, ThrowOnError>({ url: '/agent/list_apps', ...options });
 
 export const readResource = <ThrowOnError extends boolean = false>(options: Options<ReadResourceData, ThrowOnError>) => (options.client ?? client).post<ReadResourceResponses, ReadResourceErrors, ThrowOnError>({
     url: '/agent/read_resource',

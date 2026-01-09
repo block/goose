@@ -31,6 +31,7 @@ interface McpAppRendererProps {
   toolCancelled?: ToolCancelled;
   append?: (text: string) => void;
   fullscreen?: boolean;
+  cachedHtml?: string;
 }
 
 export default function McpAppRenderer({
@@ -43,13 +44,26 @@ export default function McpAppRenderer({
   toolCancelled,
   append,
   fullscreen = false,
+  cachedHtml,
 }: McpAppRendererProps) {
-  const [resourceHtml, setResourceHtml] = useState<string | null>(null);
+  const [resourceHtml, setResourceHtml] = useState<string | null>(cachedHtml || null);
   const [resourceCsp, setResourceCsp] = useState<CspMetadata | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [iframeHeight, setIframeHeight] = useState(DEFAULT_IFRAME_HEIGHT);
 
+  // Set cached HTML immediately if provided
   useEffect(() => {
+    if (cachedHtml) {
+      setResourceHtml(cachedHtml);
+    }
+  }, [cachedHtml]);
+
+  useEffect(() => {
+    // Skip fetching if session is not ready yet (placeholder value)
+    if (sessionId === 'loading') {
+      return;
+    }
+
     const fetchResource = async () => {
       try {
         const response = await readResource({
@@ -63,18 +77,26 @@ export default function McpAppRenderer({
         if (response.data) {
           const content = response.data;
 
-          setResourceHtml(content.text);
+          // Only update if HTML is different from cached version
+          if (content.text !== cachedHtml) {
+            setResourceHtml(content.text);
+          }
 
           const meta = content._meta as { ui?: { csp?: CspMetadata } } | undefined;
           setResourceCsp(meta?.ui?.csp || null);
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load resource');
+        // Only set error if we don't have cached HTML to display
+        if (!cachedHtml) {
+          setError(err instanceof Error ? err.message : 'Failed to load resource');
+        } else {
+          console.warn('Failed to fetch fresh resource, using cached version:', err);
+        }
       }
     };
 
     fetchResource();
-  }, [resourceUri, extensionName, sessionId]);
+  }, [resourceUri, extensionName, sessionId, cachedHtml]);
 
   const handleMcpRequest = useCallback(
     async (
