@@ -1,0 +1,133 @@
+<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/VIDEO_ID" />
+
+This tutorial covers how to add the [{Extension Name} MCP Server](/) as a goose extension to enable ________________.
+
+:::tip TLDR
+<Tabs groupId="interface">
+  <TabItem value="ui" label="goose Desktop" default>
+  [Launch the installer]({goose_url})
+  </TabItem>
+  <TabItem value="cli" label="goose CLI">
+  **Command**
+  ```sh
+  {command}
+  ```
+  </TabItem>
+</Tabs>
+  **Environment Variable**
+  ```
+  {env_var}: <ENV_VALUE>
+  ```
+:::
+
+## Configuration
+
+:::info
+Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses `npx`.
+:::
+
+:::info
+Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on your system to run this command, as it uses `uvx`.
+:::
+
+<Tabs groupId="interface">
+  <TabItem value="ui" label="goose Desktop" default>
+
+    <!-- For built-in extensions -->
+    <GooseBuiltinInstaller
+      extensionName="{Extension Name}"
+      description="{Extension description}"
+      extensionId="{extension_id}"
+    />
+
+    <!-- For external STDIO MCP servers (npx, uvx, git, etc.) -->
+    <GooseDesktopInstaller
+      extensionId="{extension_id}"
+      extensionName="{Extension Name}"
+      description="{Extension description}"
+      type="stdio"
+      command="npx"
+      args={["-y", "@package/name"]}
+      timeout={300}
+      envVars={[
+        { name: "API_KEY", label: "Description or placeholder value" }
+      ]}
+      apiKeyLink="https://example.com/api-keys"
+      apiKeyLinkText="Service Access Token"
+    />
+
+    <!-- For external SSE or HTTP MCP servers -->
+    <GooseDesktopInstaller
+      extensionId="{extension_id}"
+      extensionName="{Extension Name}"
+      description="{Extension description}"
+      type="sse"                                    // or "http"
+      url="https://example-server.com/endpoint"
+      envVars={[                                    // also used for http request headers
+        { name: "SOME_KEY", label: "Description or placeholder value" }
+      ]}
+      apiKeyLink="https://example.com/api-keys"
+      apiKeyLinkText="Service Access Token"
+    />
+
+  </TabItem>
+  <TabItem value="cli" label="goose CLI">
+
+    <!-- For external STDIO MCP servers (npx, uvx, git, etc.) -->
+    <CLIExtensionInstructions
+      name="{Extension Name}"
+      description="{Extension description}"
+      type="stdio"
+      command="{full command with args}"
+      timeout={300}
+      envVars={[
+        { key: "API_KEY", value: "▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪" }
+      ]}
+      infoNote={
+        <>
+          Get your API key from 
+          <a href="https://example.com/api-keys" target="_blank" rel="noopener noreferrer">
+            example.com
+          </a> and paste it in.
+        </>
+      }
+    />
+
+    <!-- For external SSE or HTTP MCP servers -->
+    <CLIExtensionInstructions
+      name="{Extension Name}"
+      description="{Extension description}"
+      type="sse"                                    // or "http"
+      url="https://example-server.com/endpoint"
+      timeout={300}
+      envVars={[                                    // also used for http request headers
+        { key: "API_KEY", value: "▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪" }
+      ]}
+      infoNote={
+        <>
+          Get your API key from{" "}
+          <a href="https://example.com/api-keys" target="_blank" rel="noopener noreferrer">
+            example.com
+          </a>.
+        </>
+      }
+    />
+    
+  </TabItem>
+</Tabs>
+
+## Example Usage
+
+{describe any environment setup, access controls, and what you want to accomplish.}
+
+### goose Prompt
+
+> _exact prompt_
+
+### goose Output
+
+:::note Desktop
+
+{exact output}
+
+:::

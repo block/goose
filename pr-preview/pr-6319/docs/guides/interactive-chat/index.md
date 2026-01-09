@@ -1,0 +1,96 @@
+<h1 className={styles.pageTitle}>Rich Interactive Chat with MCP Apps and MCP-UI</h1>
+<p className={styles.pageDescription}>
+  goose Desktop supports extensions that transform text-only responses into graphical, interactive experiences. Instead of reading through lists and descriptions, you can click, explore, and interact with UI components directly in your conversations.
+</p>
+
+ <div className="video-container margin-bottom--lg">
+  <iframe 
+    class="aspect-ratio"
+    src="https://www.youtube.com/embed/QJHGvsVXhjw"
+    title="Turn Any AI Chat Into an Interactive Experience | MCP-UI"
+    frameBorder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+    allowFullScreen
+  ></iframe>
+</div> 
+
+<div className={styles.categorySection}>
+  <h2 className={styles.categoryTitle}>📚 Documentation & Guides</h2>
+  <div className={styles.cardGrid}>
+    <Card 
+      title="Building MCP Apps"
+      description="Step-by-step tutorial to create interactive UI applications that render inside goose Desktop."
+      link="/docs/tutorials/building-mcp-apps"
+    />
+    <Card 
+      title="MCP-UI Extensions"
+      description="goose transforms text-based responses into engaging graphical and interactive user experiences."
+      link="/docs/guides/interactive-chat/mcp-ui"
+    />
+    <Card 
+      title="Auto Visualiser Extension"
+      description="Generate interactive data visualizations automatically in goose."
+      link="/docs/mcp/autovisualiser-mcp"
+    />
+  </div>
+</div>
+
+<div className={styles.categorySection}>
+  <h2 className={styles.categoryTitle}>📝 Featured Blog Posts</h2>
+  <div className={styles.cardGrid}>
+    <Card      
+      title="goose Lands MCP Apps"
+      description="goose ships early support for the draft MCP Apps specification, aligning with the emerging standard for interactive UIs."
+      link="/blog/2026/01/06/mcp-apps"
+    />
+    <Card      
+      title="MCP UI: Bringing the Browser into the Agent"
+      description="MCP-UI servers return content that goose Desktop renders as rich, embeddable UI."
+      link="/blog/2025/08/11/mcp-ui-post-browser-world"
+    />
+    <Card      
+      title="MCP-UI: The Future of Agentic Interfaces"
+      description="AI agents need to move beyond walls of text to rich and interactive UX."
+      link="/blog/2025/08/25/mcp-ui-future-agentic-interfaces"
+    />
+    <Card      
+      title="Auto Visualiser with MCP-UI"
+      description="Automatically render visual representations of data as you interact with it, powered by MCP-UI"
+      link="/blog/2025/08/27/autovisualiser-with-mcp-ui"
+    />
+    <Card      
+      title="How to Make An MCP Server MCP-UI Compatible"
+      description="Making an MCP server MCP-UI compatible requires just a few lines of code"
+      link="/blog/2025/09/08/turn-any-mcp-server-mcp-ui-compatible"
+    />
+    <Card      
+      title="Designing AI for Users, Not Just LLMs"
+      description="Building intent-based AI experiences with MCP-UI."
+      link="/blog/2025/10/14/designing-ai-for-humans"
+    />
+  </div>
+</div>
+
+<div className={styles.categorySection}>
+  <h2 className={styles.categoryTitle}>🎥 More Videos</h2>
+
+<VideoCarousel
+  id="more-videos"
+  videos={[
+    { 
+      type: 'iframe', 
+      src: 'https://youtube.com/embed/Kxj-vFBO_9U',
+      title: 'Building A MCP-UI Server',
+      description: 'Learn how to build your own MCP-UI server from scratch',
+      duration: '40:07'
+    },
+    { 
+      type: 'iframe', 
+      src: 'https://youtube.com/embed/GS-kmreZDgU',
+      title: 'Livestream - MCP-UI: The Future of Agentic Interfaces',
+      description: 'The goose team talks with MCP-UI creators about the future of visual interfaces',
+      duration: '55:32'
+    }
+  ]}
+/>
+</div>
