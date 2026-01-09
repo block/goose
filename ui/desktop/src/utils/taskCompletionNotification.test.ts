@@ -3,14 +3,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { notifyTaskCompletion } from './taskCompletionNotification';
 
-/**
- * Tests for task completion notification functionality.
- *
- * When Goose finishes a task (stream finishes), a native OS notification
- * should be shown if the window is not focused. This helps users who
- * switch to other apps while waiting for Goose to complete.
- */
-
 describe('notifyTaskCompletion', () => {
   let mockShowNotification: ReturnType<typeof vi.fn>;
   let originalHasFocus: typeof document.hasFocus;
@@ -41,7 +33,7 @@ describe('notifyTaskCompletion', () => {
 
     expect(mockShowNotification).toHaveBeenCalledTimes(1);
     expect(mockShowNotification).toHaveBeenCalledWith({
-      title: 'Goose',
+      title: 'goose',
       body: 'Task completed',
     });
   });
