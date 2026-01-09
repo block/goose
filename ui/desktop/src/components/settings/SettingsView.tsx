@@ -6,7 +6,7 @@ import SessionSharingSection from './sessions/SessionSharingSection';
 import ExternalBackendSection from './app/ExternalBackendSection';
 import AppSettingsSection from './app/AppSettingsSection';
 import ConfigSettings from './config/ConfigSettings';
-import PromptsSettingsSection from './prompts/PromptsSettingsSection';
+import PromptsSettingsSection from './PromptsSettingsSection';
 import { ExtensionConfig } from '../../api';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
 import { Bot, Share2, Monitor, MessageSquare, FileText } from 'lucide-react';

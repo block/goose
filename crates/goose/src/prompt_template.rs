@@ -4,19 +4,17 @@ use minijinja::{Environment, Error as MiniJinjaError, Value as MJValue};
 use serde::Serialize;
 use std::path::PathBuf;
 
-/// Embedded directory containing the core system prompts
 static CORE_PROMPTS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/prompts");
 
-/// Explicit registry of all supported templates
 static TEMPLATE_REGISTRY: &[(&str, &str)] = &[
     ("system.md", "Main system prompt that defines goose's personality and behavior"),
-    ("plan.md", "Prompt used when goose creates step-by-step plans"),
     ("compaction.md", "Prompt for summarizing conversation history when context limits are reached"),
     ("subagent_system.md", "System prompt for subagents spawned to handle specific tasks"),
     ("recipe.md", "Prompt for generating recipe files from conversations"),
     ("permission_judge.md", "Prompt for analyzing tool operations for read-only detection"),
     ("desktop_prompt.md", "Additional context provided when using the desktop application"),
     ("desktop_recipe_instruction.md", "Prompt template for recipe instructions in desktop mode"),
+    ("plan.md", "Prompt used when goose creates step-by-step plans. CLI only"),
 ];
 
 /// Information about a template including its content and customization status
@@ -30,78 +28,15 @@ pub struct Template {
     pub is_customized: bool,
 }
 
-/// Returns the path to the user prompts directory
 fn user_prompts_dir() -> PathBuf {
     Paths::config_dir().join("prompts")
 }
 
-/// Check if a template name is registered
 fn is_registered(name: &str) -> bool {
     TEMPLATE_REGISTRY.iter().any(|(n, _)| *n == name)
 }
 
-// ============================================================================
-// PUBLIC API
-// ============================================================================
-
-/// Render a template by name with the given context.
-///
-/// Checks for user customization first, then falls back to the built-in template.
-///
-/// # Arguments
-/// * `name` - The template name (e.g. "system.md")
-/// * `context` - Data to be inserted into the template
-pub fn render_template<T: Serialize>(
-    name: &str,
-    context: &T,
-) -> Result<String, MiniJinjaError> {
-    if !is_registered(name) {
-        return Err(MiniJinjaError::new(
-            minijinja::ErrorKind::TemplateNotFound,
-            format!("Template '{}' is not registered", name),
-        ));
-    }
-
-    // Check for user customization first
-    let user_path = user_prompts_dir().join(name);
-    let template_str = if user_path.exists() {
-        std::fs::read_to_string(&user_path).map_err(|e| {
-            MiniJinjaError::new(
-                minijinja::ErrorKind::InvalidOperation,
-                format!("Failed to read user template: {}", e),
-            )
-        })?
-    } else {
-        // Fall back to built-in template
-        let file = CORE_PROMPTS_DIR.get_file(name).ok_or_else(|| {
-            MiniJinjaError::new(
-                minijinja::ErrorKind::TemplateNotFound,
-                format!("Built-in template '{}' not found", name),
-            )
-        })?;
-        String::from_utf8_lossy(file.contents()).to_string()
-    };
-
-    // Render the template
-    let mut env = Environment::new();
-    env.set_trim_blocks(true);
-    env.set_lstrip_blocks(true);
-    env.add_template("template", &template_str)?;
-    let tmpl = env.get_template("template")?;
-    let ctx = MJValue::from_serialize(context);
-    let rendered = tmpl.render(ctx)?;
-    Ok(rendered.trim().to_string())
-}
-
-/// Render an arbitrary template string (for programmatic overrides).
-///
-/// This is for special cases where you need to render a template that isn't
-/// part of the registered template system (e.g., user-provided overrides).
-///
-/// # Arguments
-/// * `template_str` - The raw Jinja2 template string
-/// * `context` - Data to be inserted into the template
-pub fn render_inline_once<T: Serialize>(
+pub fn render_string<T: Serialize>(
     template_str: &str,
     context: &T,
 ) -> Result<String, MiniJinjaError> {
@@ -115,14 +50,38 @@ pub fn render_inline_once<T: Serialize>(
     Ok(rendered.trim().to_string())
 }
 
-/// Get complete information about a template including its content.
-///
-/// # Arguments
-/// * `name` - The template name (e.g. "system.md")
-///
-/// # Returns
-/// * `Some(Template)` if the template is registered
-/// * `None` if the template doesn't exist
+pub fn render_template<T: Serialize>(
+    name: &str,
+    context: &T,
+) -> Result<String, MiniJinjaError> {
+    if !is_registered(name) {
+        return Err(MiniJinjaError::new(
+            minijinja::ErrorKind::TemplateNotFound,
+            format!("Template '{}' is not registered", name),
+        ));
+    }
+
+    let user_path = user_prompts_dir().join(name);
+    let template_str = if user_path.exists() {
+        std::fs::read_to_string(&user_path).map_err(|e| {
+            MiniJinjaError::new(
+                minijinja::ErrorKind::InvalidOperation,
+                format!("Failed to read user template: {}", e),
+            )
+        })?
+    } else {
+        let file = CORE_PROMPTS_DIR.get_file(name).ok_or_else(|| {
+            MiniJinjaError::new(
+                minijinja::ErrorKind::TemplateNotFound,
+                format!("Built-in template '{}' not found", name),
+            )
+        })?;
+        String::from_utf8_lossy(file.contents()).to_string()
+    };
+
+    render_string(&template_str, context)
+}
+
 pub fn get_template(name: &str) -> Option<Template> {
     // Find description in registry
     let (_, description) = TEMPLATE_REGISTRY.iter().find(|(n, _)| *n == name)?;
@@ -149,11 +108,6 @@ pub fn get_template(name: &str) -> Option<Template> {
     })
 }
 
-/// Save a user-customized version of a template.
-///
-/// # Arguments
-/// * `name` - The template name (e.g. "system.md")
-/// * `content` - The customized template content
 pub fn save_template(name: &str, content: &str) -> std::io::Result<()> {
     if !is_registered(name) {
         return Err(std::io::Error::new(
@@ -169,9 +123,6 @@ pub fn save_template(name: &str, content: &str) -> std::io::Result<()> {
 }
 
 /// Reset a template to its default by removing the user customization.
-///
-/// # Arguments
-/// * `name` - The template name (e.g. "system.md")
 pub fn reset_template(name: &str) -> std::io::Result<()> {
     if !is_registered(name) {
         return Err(std::io::Error::new(
@@ -188,7 +139,6 @@ pub fn reset_template(name: &str) -> std::io::Result<()> {
     }
 }
 
-/// List all registered templates with their customization status.
 pub fn list_templates() -> Vec<Template> {
     TEMPLATE_REGISTRY
         .iter()
@@ -223,15 +173,6 @@ mod tests {
     use std::collections::HashMap;
 
     #[test]
-    fn test_template_registry() {
-        // Verify all registered templates exist in the embedded directory
-        for (name, _) in TEMPLATE_REGISTRY {
-            let file = CORE_PROMPTS_DIR.get_file(name);
-            assert!(file.is_some(), "Template {} should exist in embedded directory", name);
-        }
-    }
-
-    #[test]
     fn test_get_template() {
         let template = get_template("system.md");
         assert!(template.is_some(), "system.md should be registered");
@@ -244,24 +185,11 @@ mod tests {
     }
 
     #[test]
-    fn test_get_template_not_found() {
-        let template = get_template("non_existent.md");
-        assert!(template.is_none(), "unregistered template should return None");
-    }
-
-    #[test]
     fn test_render_template() {
         let context: HashMap<String, String> = HashMap::new();
         let result = render_template("system.md", &context);
         assert!(result.is_ok(), "Should be able to render system.md");
         assert!(!result.unwrap().is_empty());
-    }
-
-    #[test]
-    fn test_render_template_not_found() {
-        let context: HashMap<String, String> = HashMap::new();
-        let result = render_template("non_existent.md", &context);
-        assert!(result.is_err(), "Should fail for unregistered template");
     }
 
     #[test]

@@ -161,7 +161,7 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
 
         let base_prompt = if let Some(override_prompt) = &self.manager.system_prompt_override {
             let sanitized_override_prompt = sanitize_unicode_tags(override_prompt);
-            prompt_template::render_inline_once(&sanitized_override_prompt, &context)
+            prompt_template::render_string(&sanitized_override_prompt, &context)
         } else {
             prompt_template::render_template("system.md", &context)
         }
