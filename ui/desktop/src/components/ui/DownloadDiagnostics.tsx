@@ -55,6 +55,14 @@ export const DiagnosticsModal: React.FC<DiagnosticsModalProps> = ({
       const response = await systemInfo({ throwOnError: true });
       const info = response.data;
 
+      const providerModel = info.provider && info.model 
+        ? `${info.provider} – ${info.model}`
+        : info.provider || info.model || '[e.g. Google – gemini-1.5-pro]';
+
+      const extensions = info.enabled_extensions.length > 0
+        ? info.enabled_extensions.join(', ')
+        : '[e.g. Computer Controller, Figma]';
+
       const body = `**Describe the bug**
 
 💡 Before filing, please check common issues:  
@@ -90,8 +98,8 @@ If applicable, add screenshots to help explain your problem.
 - **OS & Arch:** ${info.os} ${info.os_version} ${info.architecture}
 - **Interface:** UI
 - **Version:** ${info.app_version}
-- **Extensions enabled:** [e.g. Computer Controller, Figma]
-- **Provider & Model:** [e.g. Google – gemini-1.5-pro]
+- **Extensions enabled:** ${extensions}
+- **Provider & Model:** ${providerModel}
 
 ---
 

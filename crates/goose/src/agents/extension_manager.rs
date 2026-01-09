@@ -133,7 +133,7 @@ impl ResourceItem {
 
 /// Sanitizes a string by replacing invalid characters with underscores.
 /// Valid characters match [a-zA-Z0-9_-]
-fn normalize(input: String) -> String {
+pub fn normalize(input: &str) -> String {
     let mut result = String::with_capacity(input.len());
     for c in input.chars() {
         result.push(match c {
@@ -153,7 +153,7 @@ fn generate_extension_name(
     let base = server_info
         .and_then(|info| {
             let name = info.server_info.name.as_str();
-            (!name.is_empty()).then(|| normalize(name.to_string()))
+            (!name.is_empty()).then(|| normalize(name))
         })
         .unwrap_or_else(|| "unnamed".to_string());
 
@@ -219,6 +219,7 @@ async fn child_process_client(
     mut command: Command,
     timeout: &Option<u64>,
     provider: SharedProvider,
+    working_dir: Option<&PathBuf>,
 ) -> ExtensionResult<McpClient> {
     #[cfg(unix)]
     command.process_group(0);
@@ -226,6 +227,27 @@ async fn child_process_client(
 
     if let Ok(path) = SearchPaths::builder().path() {
         command.env("PATH", path);
+    }
+
+    // Use explicitly passed working_dir, falling back to GOOSE_WORKING_DIR env var
+    let effective_working_dir = working_dir
+        .map(|p| p.to_path_buf())
+        .or_else(|| std::env::var("GOOSE_WORKING_DIR").ok().map(PathBuf::from));
+
+    if let Some(ref dir) = effective_working_dir {
+        if dir.exists() && dir.is_dir() {
+            tracing::info!("Setting MCP process working directory: {:?}", dir);
+            command.current_dir(dir);
+            // Also set GOOSE_WORKING_DIR env var for the child process
+            command.env("GOOSE_WORKING_DIR", dir);
+        } else {
+            tracing::warn!(
+                "Working directory doesn't exist or isn't a directory: {:?}",
+                dir
+            );
+        }
+    } else {
+        tracing::info!("No working directory specified, using default");
     }
 
     let (transport, mut stderr) = TokioChildProcess::builder(command)
@@ -422,25 +444,6 @@ async fn create_streamable_http_client(
     }
 }
 
-async fn create_stdio_client(
-    cmd: &str,
-    args: &[String],
-    all_envs: HashMap<String, String>,
-    timeout: &Option<u64>,
-    provider: SharedProvider,
-) -> ExtensionResult<Box<dyn McpClientTrait>> {
-    extension_malware_check::deny_if_malicious_cmd_args(cmd, args).await?;
-
-    let resolved_cmd = resolve_command(cmd);
-    let command = Command::new(resolved_cmd).configure(|command| {
-        command.args(args).envs(all_envs);
-    });
-
-    Ok(Box::new(
-        child_process_client(command, timeout, provider).await?,
-    ))
-}
-
 impl ExtensionManager {
     pub fn new(provider: SharedProvider) -> Self {
         Self {
@@ -466,6 +469,22 @@ impl ExtensionManager {
         self.context.lock().await.clone()
     }
 
+    /// Resolve the working directory for an extension.
+    /// Priority: session working_dir > current_dir
+    async fn resolve_working_dir(&self) -> PathBuf {
+        // Try to get working_dir from session via context
+        if let Some(ref session_id) = self.context.lock().await.session_id {
+            if let Ok(session) =
+                crate::session::SessionManager::get_session(session_id, false).await
+            {
+                return session.working_dir;
+            }
+        }
+
+        // Fall back to current_dir
+        std::env::current_dir().unwrap_or_default()
+    }
+
     pub async fn supports_resources(&self) -> bool {
         self.extensions
             .lock()
@@ -476,11 +495,14 @@ impl ExtensionManager {
 
     pub async fn add_extension(&self, config: ExtensionConfig) -> ExtensionResult<()> {
         let config_name = config.key().to_string();
-        let sanitized_name = normalize(config_name.clone());
+        let sanitized_name = normalize(&config_name);
 
         if self.extensions.lock().await.contains_key(&sanitized_name) {
             return Ok(());
         }
+
+        // Resolve working_dir: session > current_dir
+        let effective_working_dir = self.resolve_working_dir().await;
 
         let mut temp_dir = None;
 
@@ -519,7 +541,24 @@ impl ExtensionManager {
                 ..
             } => {
                 let all_envs = merge_environments(envs, env_keys, &sanitized_name).await?;
-                create_stdio_client(cmd, args, all_envs, timeout, self.provider.clone()).await?
+
+                // Check for malicious packages before launching the process
+                extension_malware_check::deny_if_malicious_cmd_args(cmd, args).await?;
+
+                let cmd = resolve_command(cmd);
+
+                let command = Command::new(cmd).configure(|command| {
+                    command.args(args).envs(all_envs);
+                });
+
+                let client = child_process_client(
+                    command,
+                    timeout,
+                    self.provider.clone(),
+                    Some(&effective_working_dir),
+                )
+                .await?;
+                Box::new(client)
             }
             ExtensionConfig::Builtin { name, timeout, .. } => {
                 let cmd = std::env::current_exe()
@@ -540,10 +579,17 @@ impl ExtensionManager {
                 let command = Command::new(cmd).configure(|command| {
                     command.arg("mcp").arg(name);
                 });
-                Box::new(child_process_client(command, timeout, self.provider.clone()).await?)
+                let client = child_process_client(
+                    command,
+                    timeout,
+                    self.provider.clone(),
+                    Some(&effective_working_dir),
+                )
+                .await?;
+                Box::new(client)
             }
             ExtensionConfig::Platform { name, .. } => {
-                let normalized_key = normalize(name.clone());
+                let normalized_key = normalize(name);
                 let def = PLATFORM_EXTENSIONS
                     .get(normalized_key.as_str())
                     .ok_or_else(|| {
@@ -572,7 +618,15 @@ impl ExtensionManager {
                     command.arg("python").arg(file_path.to_str().unwrap());
                 });
 
-                Box::new(child_process_client(command, timeout, self.provider.clone()).await?)
+                let client = child_process_client(
+                    command,
+                    timeout,
+                    self.provider.clone(),
+                    Some(&effective_working_dir),
+                )
+                .await?;
+
+                Box::new(client)
             }
             ExtensionConfig::Frontend { .. } => {
                 return Err(ExtensionError::ConfigError(
@@ -630,7 +684,7 @@ impl ExtensionManager {
 
     /// Get aggregated usage statistics
     pub async fn remove_extension(&self, name: &str) -> ExtensionResult<()> {
-        let sanitized_name = normalize(name.to_string());
+        let sanitized_name = normalize(name);
         self.extensions.lock().await.remove(&sanitized_name);
         Ok(())
     }
@@ -1247,10 +1301,14 @@ impl ExtensionManager {
             .map(|ext| ext.get_client())
     }
 
-    pub async fn collect_moim(&self) -> Option<String> {
+    pub async fn collect_moim(&self, working_dir: &std::path::Path) -> Option<String> {
         // Use minute-level granularity to prevent conversation changes every second
         let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:00").to_string();
-        let mut content = format!("<info-msg>\nIt is currently {}\n", timestamp);
+        let mut content = format!(
+            "<info-msg>\nIt is currently {}\nWorking directory: {}\n",
+            timestamp,
+            working_dir.display()
+        );
 
         let platform_clients: Vec<(String, McpClientBox)> = {
             let extensions = self.extensions.lock().await;
@@ -1308,7 +1366,7 @@ mod tests {
             client: McpClientBox,
             available_tools: Vec<String>,
         ) {
-            let sanitized_name = normalize(name.clone());
+            let sanitized_name = normalize(&name);
             let config = ExtensionConfig::Builtin {
                 name: name.clone(),
                 display_name: Some(name.clone()),
@@ -1760,8 +1818,9 @@ mod tests {
     #[tokio::test]
     async fn test_collect_moim_uses_minute_granularity() {
         let em = ExtensionManager::new_without_provider();
+        let working_dir = std::path::Path::new("/tmp");
 
-        if let Some(moim) = em.collect_moim().await {
+        if let Some(moim) = em.collect_moim(working_dir).await {
             // Timestamp should end with :00 (seconds fixed to 00)
             assert!(
                 moim.contains(":00\n"),
