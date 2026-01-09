@@ -163,7 +163,7 @@ impl<'a> SystemPromptBuilder<'a, PromptManager> {
             let sanitized_override_prompt = sanitize_unicode_tags(override_prompt);
             prompt_template::render_inline_once(&sanitized_override_prompt, &context)
         } else {
-            prompt_template::render_global_file("system.md", &context)
+            prompt_template::render_template("system.md", &context)
         }
         .unwrap_or_else(|_| {
             "You are a general-purpose AI agent called goose, created by Block".to_string()
@@ -245,7 +245,7 @@ impl PromptManager {
 
     pub async fn get_recipe_prompt(&self) -> String {
         let context: HashMap<&str, Value> = HashMap::new();
-        prompt_template::render_global_file("recipe.md", &context)
+        prompt_template::render_template("recipe.md", &context)
             .unwrap_or_else(|_| "The recipe prompt is busted. Tell the user.".to_string())
     }
 }
