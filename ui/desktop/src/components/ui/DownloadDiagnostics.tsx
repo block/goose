@@ -55,13 +55,15 @@ export const DiagnosticsModal: React.FC<DiagnosticsModalProps> = ({
       const response = await systemInfo({ throwOnError: true });
       const info = response.data;
 
-      const providerModel = info.provider && info.model 
-        ? `${info.provider} – ${info.model}`
-        : info.provider || info.model || '[e.g. Google – gemini-1.5-pro]';
+      const providerModel =
+        info.provider && info.model
+          ? `${info.provider} – ${info.model}`
+          : info.provider || info.model || '[e.g. Google – gemini-1.5-pro]';
 
-      const extensions = info.enabled_extensions.length > 0
-        ? info.enabled_extensions.join(', ')
-        : '[e.g. Computer Controller, Figma]';
+      const extensions =
+        info.enabled_extensions.length > 0
+          ? info.enabled_extensions.join(', ')
+          : '[e.g. Computer Controller, Figma]';
 
       const body = `**Describe the bug**
 
@@ -136,7 +138,8 @@ Add any other context about the problem here.
             <h3 className="text-lg font-semibold text-textStandard mb-2">Report a Problem</h3>
             <p className="text-sm text-textSubtle mb-3">
               You can download a diagnostics zip file to share with the team, or file a bug directly
-              on GitHub with your system details pre-filled.
+              on GitHub with your system details pre-filled. A diagnostics report contains the
+              following:
             </p>
             <ul className="text-sm text-textSubtle list-disc list-inside space-y-1 mb-3">
               <li>Basic system info</li>
@@ -148,10 +151,16 @@ Add any other context about the problem here.
               <strong>Warning:</strong> If your session contains sensitive information, do not share
               the diagnostics file publicly.
             </p>
+            <p>If you file a bug, consider attaching the diagnostics report to it.</p>
           </div>
         </div>
         <div className="flex gap-2 justify-end">
-          <Button onClick={onClose} variant="outline" size="sm" disabled={isDownloading || isFilingBug}>
+          <Button
+            onClick={onClose}
+            variant="outline"
+            size="sm"
+            disabled={isDownloading || isFilingBug}
+          >
             Cancel
           </Button>
           <Button
