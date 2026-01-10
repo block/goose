@@ -8,6 +8,18 @@ use serde_json::Value;
 
 use std::fmt;
 
+pub type StreamingMessageStream = std::pin::Pin<
+    Box<
+        dyn futures::Stream<
+                Item = anyhow::Result<(
+                    Option<Message>,
+                    Option<crate::providers::base::ProviderUsage>,
+                )>,
+            > + Send
+            + 'static,
+    >,
+>;
+
 /// Sensible default values of Google Cloud Platform (GCP) locations for model deployment.
 ///
 /// Each variant corresponds to a specific GCP region where models can be hosted.
@@ -364,6 +376,21 @@ pub fn get_usage(data: &Value, request_context: &RequestContext) -> Result<Usage
         ModelProvider::Anthropic => anthropic::get_usage(data),
         ModelProvider::Google => google::get_usage(data),
         ModelProvider::MaaS(_) => google::get_usage(data),
+    }
+}
+
+pub fn response_to_streaming_message<S>(
+    stream: S,
+    request_context: &RequestContext,
+) -> StreamingMessageStream
+where
+    S: futures::Stream<Item = anyhow::Result<String>> + Unpin + Send + 'static,
+{
+    match request_context.provider() {
+        ModelProvider::Anthropic => Box::pin(anthropic::response_to_streaming_message(stream)),
+        ModelProvider::Google | ModelProvider::MaaS(_) => {
+            Box::pin(google::response_to_streaming_message(stream))
+        }
     }
 }
 
