@@ -41,9 +41,16 @@ export const createNavigationHandler = (navigate: NavigateFunction) => {
       case 'chat':
         navigate('/', { state: options });
         break;
-      case 'pair':
-        navigate('/pair', { state: options });
+      case 'pair': {
+        // Build URL with search params if resumeSessionId is provided
+        const searchParams = new URLSearchParams();
+        if (options?.resumeSessionId) {
+          searchParams.set('resumeSessionId', options.resumeSessionId);
+        }
+        const url = searchParams.toString() ? `/pair?${searchParams.toString()}` : '/pair';
+        navigate(url, { state: options });
         break;
+      }
       case 'settings':
         navigate('/settings', { state: options });
         break;

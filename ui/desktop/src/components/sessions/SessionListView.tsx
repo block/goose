@@ -36,6 +36,8 @@ import {
 } from '../../api';
 import { formatExtensionName } from '../settings/extensions/subcomponents/ExtensionList';
 import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
+import { isDefaultSessionName } from '../../sessions';
+import { DEFAULT_CHAT_TITLE } from '../../contexts/ChatContext';
 
 function getSessionExtensionNames(extensionData: ExtensionData): string[] {
   try {
@@ -416,6 +418,10 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       setSessions((prevSessions) =>
         prevSessions.map((s) => (s.id === sessionId ? { ...s, name: newDescription } : s))
       );
+      // Notify sidebar of the rename
+      window.dispatchEvent(
+        new CustomEvent('session-renamed', { detail: { sessionId, newName: newDescription } })
+      );
     }, []);
 
     const handleEditSession = useCallback((session: Session) => {
@@ -442,6 +448,10 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           throwOnError: true,
         });
         toast.success('Session deleted successfully');
+        // Notify sidebar of the deletion
+        window.dispatchEvent(
+          new CustomEvent('session-deleted', { detail: { sessionId: sessionToDeleteId } })
+        );
       } catch (error) {
         console.error('Error deleting session:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -563,6 +573,8 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         [onOpenInNewWindow, session]
       );
 
+      const displayName = isDefaultSessionName(session.name) ? DEFAULT_CHAT_TITLE : session.name;
+
       // Get extension names for this session
       const extensionNames = useMemo(
         () => getSessionExtensionNames(session.extension_data),
@@ -576,7 +588,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           ref={(el) => setSessionRefs(session.id, el)}
         >
           <div className="flex items-start justify-between gap-2 mb-1">
-            <h3 className="text-base break-words line-clamp-2 flex-1 min-w-0">{session.name}</h3>
+            <h3 className="text-base break-words line-clamp-2 flex-1 min-w-0">{displayName}</h3>
             <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
               <button
                 onClick={handleOpenInNewWindowClick}

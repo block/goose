@@ -1139,7 +1139,7 @@ impl SessionStorage {
                    s.provider_name, s.model_config_json,
                    COUNT(m.id) as message_count
             FROM sessions s
-            INNER JOIN messages m ON s.id = m.session_id
+            LEFT JOIN messages m ON s.id = m.session_id
             WHERE s.session_type IN ({})
             GROUP BY s.id
             ORDER BY s.updated_at DESC

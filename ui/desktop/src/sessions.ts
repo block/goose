@@ -1,5 +1,6 @@
 import { Session, startAgent, ExtensionConfig } from './api';
 import type { setViewType } from './hooks/useNavigation';
+import { DEFAULT_CHAT_TITLE } from './contexts/ChatContext';
 import {
   getExtensionConfigsWithOverrides,
   clearExtensionOverrides,
@@ -7,7 +8,35 @@ import {
 } from './store/extensionOverrides';
 import type { FixedExtensionEntry } from './components/ConfigContext';
 
+/**
+ * Check if a session name is a default/temporary name that should be updated
+ * @param name - The session name to check
+ * @returns true if the name is a default/temporary name
+ */
+export function isDefaultSessionName(name: string | undefined | null): boolean {
+  if (!name) return false;
+
+  // Check for backend default name pattern "New session X" or frontend default "New Chat"
+  const backendDefaultPattern = /^New session \d+$/i;
+  return (
+    name === DEFAULT_CHAT_TITLE ||
+    name.startsWith(DEFAULT_CHAT_TITLE) ||
+    backendDefaultPattern.test(name)
+  );
+}
+
 export function resumeSession(session: Session, setView: setViewType) {
+  const eventDetail = {
+    sessionId: session.id,
+    initialMessage: undefined,
+  };
+
+  window.dispatchEvent(
+    new CustomEvent('add-active-session', {
+      detail: eventDetail,
+    })
+  );
+
   setView('pair', {
     disableAnimation: true,
     resumeSessionId: session.id,
@@ -54,14 +83,13 @@ export async function createSession(
     body,
     throwOnError: true,
   });
-
   return newAgent.data;
 }
 
 export async function startNewSession(
-  workingDir: string,
   initialText: string | undefined,
   setView: setViewType,
+  workingDir: string,
   options?: {
     recipeId?: string;
     recipeDeeplink?: string;
@@ -70,11 +98,23 @@ export async function startNewSession(
 ): Promise<Session> {
   const session = await createSession(workingDir, options);
 
+  window.dispatchEvent(new CustomEvent('session-created'));
+
+  const eventDetail = {
+    sessionId: session.id,
+    initialMessage: initialText,
+  };
+
+  window.dispatchEvent(
+    new CustomEvent('add-active-session', {
+      detail: eventDetail,
+    })
+  );
+
   setView('pair', {
     disableAnimation: true,
     initialMessage: initialText,
     resumeSessionId: session.id,
   });
-
   return session;
 }

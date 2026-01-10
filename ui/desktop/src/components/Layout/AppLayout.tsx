@@ -5,13 +5,26 @@ import { View, ViewOptions } from '../../utils/navigationUtils';
 import { AppWindowMac, AppWindow } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Sidebar, SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from '../ui/sidebar';
-import { getInitialWorkingDir } from '../../utils/workingDir';
+import ChatSessionsContainer from '../ChatSessionsContainer';
+import { useChatContext } from '../../contexts/ChatContext';
 
-const AppLayoutContent: React.FC = () => {
+interface AppLayoutContentProps {
+  activeSessions: Array<{ sessionId: string; initialMessage?: string }>;
+}
+
+const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const safeIsMacOS = (window?.electron?.platform || 'darwin') === 'darwin';
   const { isMobile, openMobile } = useSidebar();
+  const chatContext = useChatContext();
+  const isOnPairRoute = location.pathname === '/pair';
+
+  if (!chatContext) {
+    throw new Error('AppLayoutContent must be used within ChatProvider');
+  }
+
+  const { setChat } = chatContext;
 
   // Calculate padding based on sidebar state and macOS
   const headerPadding = safeIsMacOS ? 'pl-21' : 'pl-4';
@@ -67,7 +80,10 @@ const AppLayoutContent: React.FC = () => {
   };
 
   const handleNewWindow = () => {
-    window.electron.createChatWindow(undefined, getInitialWorkingDir());
+    window.electron.createChatWindow(
+      undefined,
+      window.appConfig.get('GOOSE_WORKING_DIR') as string | undefined
+    );
   };
 
   return (
@@ -96,16 +112,27 @@ const AppLayoutContent: React.FC = () => {
         />
       </Sidebar>
       <SidebarInset>
-        <Outlet />
+        {isOnPairRoute ? (
+          <>
+            <Outlet />
+            <ChatSessionsContainer setChat={setChat} activeSessions={activeSessions} />
+          </>
+        ) : (
+          <Outlet />
+        )}
       </SidebarInset>
     </div>
   );
 };
 
-export const AppLayout: React.FC = () => {
+interface AppLayoutProps {
+  activeSessions: Array<{ sessionId: string; initialMessage?: string }>;
+}
+
+export const AppLayout: React.FC<AppLayoutProps> = ({ activeSessions }) => {
   return (
     <SidebarProvider>
-      <AppLayoutContent />
+      <AppLayoutContent activeSessions={activeSessions} />
     </SidebarProvider>
   );
 };
