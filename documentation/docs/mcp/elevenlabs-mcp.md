@@ -96,7 +96,7 @@ Go goose, go goose!
 
 If that’s not amazing idk what is …
 
-🚀 to get started visit block.github.io/goose_
+🚀 to get started visit aaif.github.io/goose_
 
 
 ### goose Output

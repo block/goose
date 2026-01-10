@@ -175,7 +175,7 @@ This governance model may evolve as goose grows. Any proposed modification to th
 
 ## Current Membership
 
-Core Maintainers and Maintainers are listed in the main goose repository's [MAINTAINERS.md](https://github.com/block/goose/blob/main/MAINTAINERS.md) file with their areas of expertise where applicable.
+Core Maintainers and Maintainers are listed in the main goose repository's [MAINTAINERS.md](https://github.com/aaif/goose/blob/main/MAINTAINERS.md) file with their areas of expertise where applicable.
 
 ## Summary
 

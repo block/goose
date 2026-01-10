@@ -43,7 +43,7 @@ module.exports = {
       name: '@electron-forge/publisher-github',
       config: {
         repository: {
-          owner: 'block',
+          owner: 'aaif',
           name: 'goose',
         },
         prerelease: false,
@@ -67,8 +67,8 @@ module.exports = {
       config: {
         name: 'Goose',
         bin: 'Goose',
-        maintainer: 'Block, Inc.',
-        homepage: 'https://block.github.io/goose/',
+        maintainer: 'AAIF',
+        homepage: 'https://aaif.github.io/goose/',
         categories: ['Development'],
         desktopTemplate: './forge.deb.desktop',
         options: {
@@ -82,8 +82,8 @@ module.exports = {
       config: {
         name: 'Goose',
         bin: 'Goose',
-        maintainer: 'Block, Inc.',
-        homepage: 'https://block.github.io/goose/',
+        maintainer: 'AAIF',
+        homepage: 'https://aaif.github.io/goose/',
         categories: ['Development'],
         desktopTemplate: './forge.rpm.desktop',
         options: {

@@ -55,14 +55,14 @@ import { PanelLeft } from 'lucide-react';
         Run the following command to install the latest version of goose on macOS:
 
         ```sh
-        curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash
+        curl -fsSL https://github.com/aaif/goose/releases/download/stable/download_cli.sh | bash
         ```
         This script will fetch the latest version of goose and set it up on your system.
 
         If you'd like to install without interactive configuration, disable `CONFIGURE`:
 
         ```sh
-        curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | CONFIGURE=false bash
+        curl -fsSL https://github.com/aaif/goose/releases/download/stable/download_cli.sh | CONFIGURE=false bash
         ```
 
         :::tip Updating goose
@@ -107,14 +107,14 @@ import { PanelLeft } from 'lucide-react';
         Run the following command to install the goose CLI on Linux:
 
         ```sh
-        curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash
+        curl -fsSL https://github.com/aaif/goose/releases/download/stable/download_cli.sh | bash
         ```
         This script will fetch the latest version of goose and set it up on your system.
 
         If you'd like to install without interactive configuration, disable `CONFIGURE`:
 
         ```sh
-        curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | CONFIGURE=false bash
+        curl -fsSL https://github.com/aaif/goose/releases/download/stable/download_cli.sh | CONFIGURE=false bash
         ```
 
         :::tip Updating goose
@@ -155,20 +155,20 @@ import { PanelLeft } from 'lucide-react';
         Run the installation command in your chosen environment:
 
         ```bash
-        curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash
+        curl -fsSL https://github.com/aaif/goose/releases/download/stable/download_cli.sh | bash
         ```
 
         To install without interactive configuration, disable `CONFIGURE`:
 
         ```bash
-        curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | CONFIGURE=false bash
+        curl -fsSL https://github.com/aaif/goose/releases/download/stable/download_cli.sh | CONFIGURE=false bash
         ```
 
         **PowerShell Installation:**
         Download the PowerShell installation script to your current directory.
 
         ```powershell
-        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/block/goose/main/download_cli.ps1" -OutFile "download_cli.ps1";
+        Invoke-WebRequest -Uri "https://raw.githubusercontent.com/aaif/goose/main/download_cli.ps1" -OutFile "download_cli.ps1";
         ```
         Then run the script to install goose:
         ```powershell
@@ -220,7 +220,7 @@ import { PanelLeft } from 'lucide-react';
 
           3. Run the goose installation script:
           ```bash
-          curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash
+          curl -fsSL https://github.com/aaif/goose/releases/download/stable/download_cli.sh | bash
           ```
           :::tip
             If you encounter any issues on download, you might need to install `bzip2` to extract the downloaded file:
@@ -233,7 +233,7 @@ import { PanelLeft } from 'lucide-react';
           If you'd like to install without interactive configuration, disable `CONFIGURE`:
 
           ```sh
-          curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | CONFIGURE=false bash
+          curl -fsSL https://github.com/aaif/goose/releases/download/stable/download_cli.sh | CONFIGURE=false bash
           ```
 
           If needed, add goose to your path:

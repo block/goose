@@ -2,7 +2,7 @@ use anyhow::Result;
 use std::process::Command;
 
 const DOWNLOAD_SCRIPT_URL: &str =
-    "https://github.com/block/goose/releases/download/stable/download_cli.sh";
+    "https://github.com/aaif/goose/releases/download/stable/download_cli.sh";
 
 pub fn update(canary: bool, reconfigure: bool) -> Result<()> {
     if cfg!(feature = "disable-update") {
