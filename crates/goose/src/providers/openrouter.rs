@@ -1,4 +1,4 @@
-use anyhow::{Error, Result};
+use anyhow::Result;
 use async_trait::async_trait;
 use serde_json::{json, Value};
 
@@ -13,6 +13,7 @@ use super::utils::{
 use crate::conversation::message::Message;
 
 use crate::model::ModelConfig;
+use crate::providers::formats::google as google_format;
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
 use rmcp::model::Tool;
 
@@ -206,7 +207,18 @@ async fn create_request_based_on_model(
     system: &str,
     messages: &[Message],
     tools: &[Tool],
-) -> anyhow::Result<Value, Error> {
+) -> Result<Value> {
+    if provider.model.model_name.starts_with("google/") {
+        let mut payload = google_format::create_request(&provider.model, system, messages, tools)?;
+        if let Some(obj) = payload.as_object_mut() {
+            obj.insert("model".to_string(), json!(provider.model.model_name));
+            obj.insert("transforms".to_string(), json!(["middle-out"]));
+        } else {
+            return Err(anyhow::anyhow!("Failed to convert payload to object"));
+        }
+        return Ok(payload);
+    }
+
     let mut payload = create_request(
         &provider.model,
         system,
@@ -220,10 +232,9 @@ async fn create_request_based_on_model(
         payload = update_request_for_anthropic(&payload);
     }
 
-    payload
-        .as_object_mut()
-        .unwrap()
-        .insert("transforms".to_string(), json!(["middle-out"]));
+    if let Some(obj) = payload.as_object_mut() {
+        obj.insert("transforms".to_string(), json!(["middle-out"]));
+    }
 
     Ok(payload)
 }
@@ -280,14 +291,27 @@ impl Provider for OpenRouterProvider {
             })
             .await?;
 
-        // Parse response
-        let message = response_to_message(&response)?;
-        let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
-            tracing::debug!("Failed to get usage data");
-            Usage::default()
-        });
+        let is_google = self.model.model_name.starts_with("google/");
         let response_model = get_model(&response);
-        log.write(&response, Some(&usage))?;
+        let (message, usage) = if is_google {
+            let usage = google_format::get_usage(&response).unwrap_or_else(|_| {
+                tracing::debug!("Failed to get usage data");
+                Usage::default()
+            });
+            log.write(&response, Some(&usage))?;
+            let message = google_format::response_to_message(response).map_err(|e| {
+                ProviderError::RequestFailed(format!("Failed to parse Google response: {}", e))
+            })?;
+            (message, usage)
+        } else {
+            let message = response_to_message(&response)?;
+            let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
+                tracing::debug!("Failed to get usage data");
+                Usage::default()
+            });
+            log.write(&response, Some(&usage))?;
+            (message, usage)
+        };
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
 
@@ -375,7 +399,8 @@ impl Provider for OpenRouterProvider {
     }
 
     fn supports_streaming(&self) -> bool {
-        self.supports_streaming
+        // TODO: Re-enable Google streaming when PR #6191 is merged
+        self.supports_streaming && !self.model.model_name.starts_with("google/")
     }
 
     async fn stream(
@@ -397,10 +422,9 @@ impl Provider for OpenRouterProvider {
             payload = update_request_for_anthropic(&payload);
         }
 
-        payload
-            .as_object_mut()
-            .unwrap()
-            .insert("transforms".to_string(), json!(["middle-out"]));
+        if let Some(obj) = payload.as_object_mut() {
+            obj.insert("transforms".to_string(), json!(["middle-out"]));
+        }
 
         let mut log = RequestLog::start(&self.model, &payload)?;
 
