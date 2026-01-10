@@ -436,7 +436,7 @@ pub fn create_request(
             .insert("temperature".to_string(), json!(temp));
     }
 
-    // Add thinking parameters for claude-3-7-sonnet model
+    // Add thinking parameters when CLAUDE_THINKING_ENABLED is set
     let is_thinking_enabled = std::env::var("CLAUDE_THINKING_ENABLED").is_ok();
     if is_thinking_enabled {
         // Minimum budget_tokens is 1024

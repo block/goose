@@ -76,8 +76,6 @@ pub enum GcpVertexAIModel {
 /// Represents available versions of the Claude model for goose.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ClaudeVersion {
-    /// Claude 3.7 Sonnet
-    Sonnet37,
     /// Claude Sonnet 4
     Sonnet4,
     /// Claude Opus 4
@@ -113,7 +111,6 @@ impl fmt::Display for GcpVertexAIModel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let model_id = match self {
             Self::Claude(version) => match version {
-                ClaudeVersion::Sonnet37 => "claude-3-7-sonnet@20250219",
                 ClaudeVersion::Sonnet4 => "claude-sonnet-4@20250514",
                 ClaudeVersion::Opus4 => "claude-opus-4@20250514",
                 ClaudeVersion::Generic(name) => name,
@@ -157,7 +154,6 @@ impl TryFrom<&str> for GcpVertexAIModel {
     fn try_from(s: &str) -> Result<Self, Self::Error> {
         // Known models
         match s {
-            "claude-3-7-sonnet@20250219" => Ok(Self::Claude(ClaudeVersion::Sonnet37)),
             "claude-sonnet-4@20250514" => Ok(Self::Claude(ClaudeVersion::Sonnet4)),
             "claude-opus-4@20250514" => Ok(Self::Claude(ClaudeVersion::Opus4)),
             "gemini-1.5-pro-002" => Ok(Self::Gemini(GeminiVersion::Pro15)),
@@ -376,7 +372,6 @@ mod tests {
     fn test_model_parsing() -> Result<()> {
         let valid_models = [
             "claude-sonnet-4-20250514",
-            "claude-3-7-sonnet@20250219",
             "claude-sonnet-4@20250514",
             "gemini-1.5-pro-002",
             "gemini-2.0-flash-001",
@@ -399,7 +394,6 @@ mod tests {
     fn test_default_locations() -> Result<()> {
         let test_cases = [
             ("claude-sonnet-4-20250514", GcpLocation::Ohio),
-            ("claude-3-7-sonnet@20250219", GcpLocation::Ohio),
             ("claude-sonnet-4@20250514", GcpLocation::Ohio),
             ("gemini-1.5-pro-002", GcpLocation::Iowa),
             ("gemini-2.0-flash-001", GcpLocation::Iowa),
