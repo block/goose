@@ -61,6 +61,11 @@ struct JsonOutput {
 #[derive(Serialize, Deserialize, Debug)]
 struct JsonMetadata {
     total_tokens: Option<i32>,
+    input_tokens: Option<i32>,
+    output_tokens: Option<i32>,
+    accumulated_total_tokens: Option<i32>,
+    accumulated_input_tokens: Option<i32>,
+    accumulated_output_tokens: Option<i32>,
     status: String,
 }
 
@@ -1298,10 +1303,20 @@ impl CliSession {
             let metadata = match SessionManager::get_session(&self.session_id, false).await {
                 Ok(session) => JsonMetadata {
                     total_tokens: session.total_tokens,
+                    input_tokens: session.input_tokens,
+                    output_tokens: session.output_tokens,
+                    accumulated_total_tokens: session.accumulated_total_tokens,
+                    accumulated_input_tokens: session.accumulated_input_tokens,
+                    accumulated_output_tokens: session.accumulated_output_tokens,
                     status: "completed".to_string(),
                 },
                 Err(_) => JsonMetadata {
                     total_tokens: None,
+                    input_tokens: None,
+                    output_tokens: None,
+                    accumulated_total_tokens: None,
+                    accumulated_input_tokens: None,
+                    accumulated_output_tokens: None,
                     status: "completed".to_string(),
                 },
             };
