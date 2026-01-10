@@ -10,7 +10,7 @@ use crate::state::AppState;
 use anyhow::Result;
 use axum::http::StatusCode;
 use goose::agents::Agent;
-use goose::prompt_template::render_global_file;
+use goose::prompt_template::render_template;
 use goose::recipe::build_recipe::{build_recipe_from_template, RecipeError};
 use goose::recipe::local_recipes::{get_recipe_library_dir, list_local_recipes};
 use goose::recipe::validate_recipe::validate_recipe_template_from_content;
@@ -173,6 +173,6 @@ pub async fn apply_recipe_to_agent(
     recipe.instructions.as_ref().map(|instructions| {
         let mut context: HashMap<&str, Value> = HashMap::new();
         context.insert("recipe_instructions", Value::String(instructions.clone()));
-        render_global_file("desktop_recipe_instruction.md", &context).expect("Prompt should render")
+        render_template("desktop_recipe_instruction.md", &context).expect("Prompt should render")
     })
 }

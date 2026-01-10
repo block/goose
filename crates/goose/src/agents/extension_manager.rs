@@ -817,7 +817,7 @@ impl ExtensionManager {
         let mut context: HashMap<&str, Value> = HashMap::new();
         context.insert("tools", serde_json::to_value(tools_info).unwrap());
 
-        prompt_template::render_global_file("plan.md", &context).expect("Prompt should render")
+        prompt_template::render_template("plan.md", &context).expect("Prompt should render")
     }
 
     /// Find and return a reference to the appropriate client for a tool call

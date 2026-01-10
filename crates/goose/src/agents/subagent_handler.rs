@@ -2,7 +2,7 @@ use crate::{
     agents::{subagent_task_config::TaskConfig, AgentEvent, SessionConfig},
     conversation::{message::Message, Conversation},
     execution::manager::AgentManager,
-    prompt_template::render_global_file,
+    prompt_template::render_template,
     recipe::Recipe,
 };
 use anyhow::{anyhow, Result};
@@ -153,7 +153,7 @@ fn get_agent_messages(
             .await;
 
         let tools = agent.list_tools(None).await;
-        let subagent_prompt = render_global_file(
+        let subagent_prompt = render_template(
             "subagent_system.md",
             &SubagentPromptContext {
                 max_turns: task_config

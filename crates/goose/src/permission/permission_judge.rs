@@ -3,7 +3,7 @@ use crate::config::permission::PermissionLevel;
 use crate::config::PermissionManager;
 use crate::conversation::message::{Message, MessageContent, ToolRequest};
 use crate::conversation::Conversation;
-use crate::prompt_template::render_global_file;
+use crate::prompt_template::render_template;
 use crate::providers::base::Provider;
 use chrono::Utc;
 use indoc::indoc;
@@ -140,7 +140,7 @@ pub async fn detect_read_only_tools(
     let check_messages = create_check_messages(tool_requests);
 
     let context = PermissionJudgeContext {};
-    let system_prompt = render_global_file("permission_judge.md", &context)
+    let system_prompt = render_template("permission_judge.md", &context)
         .unwrap_or_else(|_| "You are a good analyst and can detect operations whether they have read-only operations.".to_string());
 
     let res = provider
