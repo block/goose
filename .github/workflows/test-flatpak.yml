@@ -61,14 +61,6 @@ jobs:
         run: |
           flatpak remote-add --if-not-exists --user flathub https://dl.flathub.org/repo/flathub.flatpakrepo
 
-          # Explicitly install the 25.08 Runtime and SDK
-          # These are required by electron-forge to build the bundle
-          flatpak install --user flathub org.freedesktop.Platform/x86_64/25.08 -y
-          flatpak install --user flathub org.freedesktop.Sdk/x86_64/25.08 -y
-
-          # Also install the Electron BaseApp if your forge config uses it
-          flatpak install --user flathub org.electronjs.Electron2.BaseApp/x86_64/stable -y
-
       - name: Activate hermit and set CARGO_HOME
         run: |
           source bin/activate-hermit
@@ -128,7 +120,7 @@ jobs:
           cd ui/desktop
           echo "Building Linux packages (.deb, .rpm, and .flatpak)..."
 
-          DEBUG=electron-installer-flatpak* npm run make -- --platform=linux --arch=x64
+          DEBUG=flatpak-builder,electron-installer-flatpak*,@malept/flatpak-bundler npm run make -- --platform=linux --arch=x64
 
           echo "Build completed. Checking output..."
           ls -la out/
