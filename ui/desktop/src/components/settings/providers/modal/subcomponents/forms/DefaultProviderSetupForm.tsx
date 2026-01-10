@@ -1,20 +1,36 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { Input } from '../../../../../ui/input';
+import {
+  type ChangeEvent,
+  type Dispatch,
+  type SetStateAction,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
+import type { AuthModeChoice, ConfigKey, ProviderDetails } from '../../../../../../api';
 import { useConfig } from '../../../../../ConfigContext';
-import { ProviderDetails, ConfigKey } from '../../../../../../api';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../../../../ui/collapsible';
+import { Select } from '../../../../../ui/Select';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '../../../../../ui/collapsible';
+import { Input } from '../../../../../ui/input';
 
 type ValidationErrors = Record<string, string>;
 
 type ConfigValue = string | { maskedValue: string };
+
 export interface ConfigInput {
   serverValue?: ConfigValue;
   value?: string;
 }
 
+type ConfigKeyWithAuth = ConfigKey;
+
 interface DefaultProviderSetupFormProps {
   configValues: Record<string, ConfigInput>;
-  setConfigValues: React.Dispatch<React.SetStateAction<Record<string, ConfigInput>>>;
+  setConfigValues: Dispatch<SetStateAction<Record<string, ConfigInput>>>;
   provider: ProviderDetails;
   validationErrors: ValidationErrors;
 }
@@ -42,12 +58,22 @@ export default function DefaultProviderSetupForm({
   validationErrors = {},
 }: DefaultProviderSetupFormProps) {
   const parameters = useMemo(
-    () => provider.metadata.config_keys || [],
+    () => (provider.metadata.config_keys || []) as ConfigKeyWithAuth[],
     [provider.metadata.config_keys]
   );
   const [isLoading, setIsLoading] = useState(true);
   const [optionalExpanded, setOptionalExpanded] = useState(false);
   const { read } = useConfig();
+
+  const handleAuthTypeChange = (parameter: ConfigKeyWithAuth, value: string) => {
+    setConfigValues((prev) => ({
+      ...prev,
+      [parameter.name]: {
+        ...(prev[parameter.name] || {}),
+        value,
+      },
+    }));
+  };
 
   const loadConfigValues = useCallback(async () => {
     setIsLoading(true);
@@ -76,8 +102,7 @@ export default function DefaultProviderSetupForm({
 
   useEffect(() => {
     loadConfigValues();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [loadConfigValues]);
 
   const getPlaceholder = (parameter: ConfigKey): string => {
     if (parameter.secret) {
@@ -108,11 +133,11 @@ export default function DefaultProviderSetupForm({
     if (name.includes('api_url') || name.includes('host')) return 'API Host';
     if (name.includes('models')) return 'Models';
 
-    let parameter_name = parameter.name.toUpperCase();
-    if (parameter_name.startsWith(provider.name.toUpperCase().replace('-', '_'))) {
-      parameter_name = parameter_name.slice(provider.name.length + 1);
+    let parameterName = parameter.name.toUpperCase();
+    if (parameterName.startsWith(provider.name.toUpperCase().replace('-', '_'))) {
+      parameterName = parameterName.slice(provider.name.length + 1);
     }
-    let pretty = envToPrettyName(parameter_name);
+    const pretty = envToPrettyName(parameterName);
     return (
       <span>
         <span>{pretty}</span>
@@ -131,41 +156,90 @@ export default function DefaultProviderSetupForm({
     }
 
     const entry = configValues[parameter.name];
-    return entry?.value || (entry?.serverValue as string) || '';
+
+    // Important: if the user has already entered something (including an empty string),
+    // always prefer `value` and never fall back to `serverValue`.
+    if (entry && 'value' in entry && entry.value !== undefined) {
+      return entry.value ?? '';
+    }
+
+    if (typeof entry?.serverValue === 'string') {
+      return entry.serverValue as string;
+    }
+
+    return '';
   }
 
-  const renderParametersList = (parameters: ConfigKey[]) => {
-    return parameters.map((parameter) => (
-      <div key={parameter.name}>
-        <label className="block text-sm font-medium text-textStandard mb-1">
-          {getFieldLabel(parameter)}
-          {parameter.required && <span className="text-red-500 ml-1">*</span>}
-        </label>
-        <Input
-          type="text"
-          value={getRenderValue(parameter)}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-            setConfigValues((prev) => {
-              const newValue = { ...(prev[parameter.name] || {}), value: e.target.value };
-              return {
-                ...prev,
-                [parameter.name]: newValue,
-              };
-            });
-          }}
-          placeholder={getPlaceholder(parameter)}
-          className={`w-full h-14 px-4 font-regular rounded-lg shadow-none ${
-            validationErrors[parameter.name]
-              ? 'border-2 border-red-500'
-              : 'border border-borderSubtle hover:border-borderStandard'
-          } bg-background-default text-lg placeholder:text-textSubtle font-regular text-textStandard`}
-          required={parameter.required}
-        />
-        {validationErrors[parameter.name] && (
-          <p className="text-red-500 text-sm mt-1">{validationErrors[parameter.name]}</p>
-        )}
-      </div>
-    ));
+  const authTypeParameter: ConfigKeyWithAuth | undefined = parameters.find(
+    (p) => p.auth_modes && p.auth_modes.length > 0,
+  );
+
+  const currentAuthMode: AuthModeChoice | undefined =
+    authTypeParameter?.auth_modes && authTypeParameter.auth_modes.length > 0
+      ? (() => {
+          const modes = authTypeParameter.auth_modes as AuthModeChoice[];
+          const entry = configValues[authTypeParameter.name];
+          const currentValue =
+            (entry?.value as string | undefined) ??
+            (typeof entry?.serverValue === 'string'
+              ? (entry.serverValue as string)
+              : authTypeParameter.default ?? modes[0]?.value);
+
+          return modes.find((m) => m.value === currentValue) ?? modes[0];
+        })()
+      : undefined;
+
+  const isApiKeyRequired =
+    !authTypeParameter || !currentAuthMode ? true : currentAuthMode.requires_api_key;
+
+  const renderParametersList = (parameters: ConfigKeyWithAuth[]) => {
+    return parameters.map((parameter) => {
+      if (authTypeParameter && parameter.name === authTypeParameter.name) {
+        return null;
+      }
+
+      if (!isApiKeyRequired && parameter.secret) {
+        return null;
+      }
+
+      const inputId = `config-${parameter.name}`;
+
+      return (
+        <div key={parameter.name}>
+          <label
+            className="block text-sm font-medium text-textStandard mb-1"
+            htmlFor={inputId}
+          >
+            {getFieldLabel(parameter)}
+            {parameter.required && <span className="text-red-500 ml-1">*</span>}
+          </label>
+          <Input
+            id={inputId}
+            type="text"
+            value={getRenderValue(parameter)}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => {
+              setConfigValues((prev) => {
+                const newValue = { ...(prev[parameter.name] || {}), value: e.target.value };
+                return {
+                  ...prev,
+                  [parameter.name]: newValue,
+                };
+              });
+            }}
+            placeholder={getPlaceholder(parameter)}
+            className={`w-full h-14 px-4 font-regular rounded-lg shadow-none ${
+              validationErrors[parameter.name]
+                ? 'border-2 border-red-500'
+                : 'border border-borderSubtle hover:border-borderStandard'
+            } bg-background-default text-lg placeholder:text-textSubtle font-regular text-textStandard`}
+            required={parameter.required}
+          />
+          {validationErrors[parameter.name] && (
+            <p className="text-red-500 text-sm mt-1">{validationErrors[parameter.name]}</p>
+          )}
+        </div>
+      );
+    });
   };
 
   let aboveFoldParameters = parameters.filter((p) => p.required);
@@ -184,7 +258,35 @@ export default function DefaultProviderSetupForm({
           No configuration parameters for this provider.
         </div>
       ) : (
-        <div>
+        <div className="space-y-4">
+          {authTypeParameter?.auth_modes?.length &&
+            currentAuthMode && (
+              <div className="space-y-2">
+                <div className="block text-sm font-medium text-textStandard mb-1">
+                  Authentication Type
+                </div>
+                <Select
+                  options={authTypeParameter.auth_modes.map((mode) => ({
+                    value: mode.value,
+                    label: mode.label,
+                  }))}
+                  value={{
+                    value: currentAuthMode.value,
+                    label: currentAuthMode.label,
+                  }}
+                  onChange={(option: unknown) => {
+                    const selectedOption = option as { value: string; label: string } | null;
+                    if (selectedOption) {
+                      handleAuthTypeChange(authTypeParameter, selectedOption.value);
+                    }
+                  }}
+                  isSearchable={false}
+                />
+                {currentAuthMode.description && (
+                  <p className="text-xs text-textSubtle">{currentAuthMode.description}</p>
+                )}
+              </div>
+            )}
           <div>{renderParametersList(aboveFoldParameters)}</div>
           {belowFoldParameters.length > 0 && (
             <Collapsible
