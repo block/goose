@@ -6,7 +6,7 @@ use crate::providers::base::{Provider, ProviderUsage};
 use crate::providers::errors::ProviderError;
 use crate::{config::Config, token_counter::create_token_counter};
 use anyhow::Result;
-use rmcp::model::Role;
+use rmcp::model::{Role, Tool};
 use serde::Serialize;
 use tracing::{debug, info};
 
@@ -165,11 +165,17 @@ pub async fn compact_messages(
 }
 
 /// Check if messages exceed the auto-compaction threshold
+///
+/// This function now properly accounts for system_prompt and tools overhead
+/// when calculating token usage. Previously only messages were counted,
+/// which could cause requests to exceed context limits.
 pub async fn check_if_compaction_needed(
     provider: &dyn Provider,
     conversation: &Conversation,
     threshold_override: Option<f64>,
     session: &crate::session::Session,
+    system_prompt: &str,
+    tools: &[Tool],
 ) -> Result<bool> {
     let messages = conversation.messages();
     let config = Config::global();
@@ -182,19 +188,33 @@ pub async fn check_if_compaction_needed(
     let context_limit = provider.get_model_config().context_limit();
 
     let (current_tokens, token_source) = match session.total_tokens {
-        Some(tokens) => (tokens as usize, "session metadata"),
+        Some(tokens) => {
+            // Session metadata only tracks message tokens, so we still need to
+            // add the system_prompt + tools overhead
+            let token_counter = create_token_counter()
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to create token counter: {}", e))?;
+
+            // Count overhead from system_prompt and tools (with empty messages)
+            let overhead = token_counter.count_chat_tokens(system_prompt, &[], tools);
+            (tokens as usize + overhead, "session metadata + overhead")
+        }
         None => {
             let token_counter = create_token_counter()
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to create token counter: {}", e))?;
 
-            let token_counts: Vec<_> = messages
+            // Count all messages with the actual system_prompt and tools
+            let agent_visible_messages: Vec<Message> = messages
                 .iter()
                 .filter(|m| m.is_agent_visible())
-                .map(|msg| token_counter.count_chat_tokens("", std::slice::from_ref(msg), &[]))
+                .cloned()
                 .collect();
 
-            (token_counts.iter().sum(), "estimated")
+            let total_tokens =
+                token_counter.count_chat_tokens(system_prompt, &agent_visible_messages, tools);
+
+            (total_tokens, "estimated with full context")
         }
     };
 
