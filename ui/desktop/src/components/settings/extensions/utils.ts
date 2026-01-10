@@ -17,6 +17,7 @@ export function nameToKey(name: string): string {
 
 import { FixedExtensionEntry } from '../../ConfigContext';
 import { ExtensionConfig } from '../../../api/types.gen';
+import { parse as parseShellQuote, quote as quoteShell } from 'shell-quote';
 
 export interface ExtensionFormData {
   name: string;
@@ -168,7 +169,14 @@ export function createExtensionConfig(formData: ExtensionFormData): ExtensionCon
 }
 
 export function splitCmdAndArgs(str: string): { cmd: string; args: string[] } {
-  const words = str.trim().split(/\s+/);
+  const trimmed = str.trim();
+  if (!trimmed) {
+    return { cmd: '', args: [] };
+  }
+
+  const parsed = parseShellQuote(trimmed);
+  const words = parsed.filter((item): item is string => typeof item === 'string').map(String);
+
   const cmd = words[0] || '';
   const args = words.slice(1);
 
@@ -179,7 +187,7 @@ export function splitCmdAndArgs(str: string): { cmd: string; args: string[] } {
 }
 
 export function combineCmdAndArgs(cmd: string, args: string[]): string {
-  return [cmd, ...args].join(' ');
+  return quoteShell([cmd, ...args]);
 }
 
 export function extractCommand(link: string): string {
