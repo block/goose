@@ -20,16 +20,7 @@ impl Agent {
         arguments: serde_json::Value,
         _request_id: String,
     ) -> ToolResult<Vec<Content>> {
-        let scheduler = match self.scheduler_service.lock().await.as_ref() {
-            Some(s) => s.clone(),
-            None => {
-                return Err(ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    "Scheduler not available. This tool only works in server mode.".to_string(),
-                    None,
-                ))
-            }
-        };
+        let scheduler = Arc::clone(&self.config.scheduler);
 
         let action = arguments
             .get("action")
@@ -437,7 +428,7 @@ impl Agent {
                 )
             })?;
 
-        let session = match crate::session::SessionManager::get_session(session_id, true).await {
+        let session = match self.session_manager().get_session(session_id, true).await {
             Ok(metadata) => metadata,
             Err(e) => {
                 return Err(ErrorData::new(

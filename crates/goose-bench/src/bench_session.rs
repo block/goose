@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use goose::conversation::Conversation;
+use goose::session::session_manager::Session;
 
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -19,7 +20,7 @@ pub trait BenchBaseSession: Send + Sync {
     async fn headless(&mut self, message: String) -> anyhow::Result<()>;
     fn message_history(&self) -> Conversation;
     fn get_total_token_usage(&self) -> anyhow::Result<Option<i32>>;
-    fn get_session_id(&self) -> anyhow::Result<String>;
+    async fn get_session(&self) -> anyhow::Result<Session>;
 }
 // struct for managing agent-session-access. to be passed to evals for benchmarking
 pub struct BenchAgent {
@@ -52,7 +53,7 @@ impl BenchAgent {
         self.session.get_total_token_usage().ok().flatten()
     }
 
-    pub(crate) fn get_session_id(&self) -> anyhow::Result<String> {
-        self.session.get_session_id()
+    pub(crate) async fn get_session(&self) -> anyhow::Result<Session> {
+        self.session.get_session().await
     }
 }

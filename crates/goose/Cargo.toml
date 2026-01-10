@@ -11,7 +11,7 @@ description.workspace = true
 workspace = true
 
 [build-dependencies]
-tokio = { version = "1.43", features = ["full"] }
+tokio = { workspace = true }
 reqwest = { version = "0.12.9", features = ["json", "rustls-tls-native-roots"], default-features = false }
 
 [dependencies]
@@ -23,9 +23,9 @@ rmcp = { workspace = true, features = [
     "transport-streamable-http-client",
     "transport-streamable-http-client-reqwest",
 ] }
-anyhow = "1.0"
+anyhow = { workspace = true }
 thiserror = "1.0"
-futures = "0.3"
+futures = { workspace = true }
 dirs = "5.0"
 reqwest = { version = "0.12.9", features = [
     "rustls-tls-native-roots",
@@ -40,13 +40,13 @@ reqwest = { version = "0.12.9", features = [
     "stream",
     "blocking"
 ], default-features = false }
-tokio = { version = "1.43", features = ["full"] }
+tokio = { workspace = true }
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+serde_json = { workspace = true }
 serde_urlencoded = "0.7"
 jsonschema = "0.30.0"
 uuid = { version = "1.0", features = ["v4"] }
-regex = "1.11.1"
+regex = { workspace = true }
 async-trait = "0.1.89"
 async-stream = "0.3"
 minijinja = { version = "2.12.0", features = ["loader"] }
@@ -62,7 +62,7 @@ url = "2.5"
 axum = "0.8.1"
 webbrowser = {workspace = true}
 lazy_static = "1.5.0"
-tracing = "0.1"
+tracing = { workspace = true }
 tracing-subscriber = "0.3"
 tracing-opentelemetry = "0.28"
 opentelemetry = "0.27"
@@ -97,8 +97,9 @@ tokio-stream = "0.1.17"
 tempfile = "3.15.0"
 dashmap = "6.1"
 ahash = "0.8"
-tokio-util = "0.7.15"
+tokio-util = { version = "0.7.15", features = ["compat"] }
 unicode-normalization = "0.1"
+goose-mcp = { path = "../goose-mcp" }
 zip = "0.6"
 sys-info = "0.9"
 
@@ -119,19 +120,17 @@ unbinder = "0.1.7"
 winapi = { version = "0.3", features = ["wincred"] }
 
 [dev-dependencies]
-sacp = { workspace = true }
-agent-client-protocol-schema = "0.10.5"
 criterion = "0.5"
-serial_test = "3.2.0"
+serial_test = { workspace = true }
 mockall = "0.13.1"
-wiremock = "0.6.0"
-tokio = { version = "1.43", features = ["full"] }
+wiremock = { workspace = true }
+tokio = { workspace = true }
 tokio-util = { version = "0.7.15", features = ["compat"] }
 temp-env = "0.3.6"
 dotenvy = "0.15.7"
 ctor = "0.2.9"
 test-case = "3.3"
-env-lock = "1.0.1"
+env-lock = { workspace = true }
 rmcp = { workspace = true, features = ["transport-streamable-http-server"] }
 
 [[example]]

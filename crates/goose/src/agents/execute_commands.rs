@@ -5,7 +5,6 @@ use anyhow::{anyhow, Result};
 use crate::context_mgmt::compact_messages;
 use crate::conversation::message::{Message, SystemNotificationType};
 use crate::recipe::build_recipe::build_recipe_from_template_with_positional_params;
-use crate::session::SessionManager;
 
 use super::Agent;
 
@@ -81,7 +80,8 @@ impl Agent {
     }
 
     async fn handle_compact_command(&self, session_id: &str) -> Result<Option<Message>> {
-        let session = SessionManager::get_session(session_id, true).await?;
+        let manager = self.session_manager();
+        let session = manager.get_session(session_id, true).await?;
         let conversation = session
             .conversation
             .ok_or_else(|| anyhow!("Session has no conversation"))?;
@@ -93,7 +93,9 @@ impl Agent {
         )
         .await?;
 
-        SessionManager::replace_conversation(session_id, &compacted_conversation).await?;
+        manager
+            .replace_conversation(session_id, &compacted_conversation)
+            .await?;
 
         Ok(Some(Message::assistant().with_system_notification(
             SystemNotificationType::InlineMessage,
@@ -104,9 +106,13 @@ impl Agent {
     async fn handle_clear_command(&self, session_id: &str) -> Result<Option<Message>> {
         use crate::conversation::Conversation;
 
-        SessionManager::replace_conversation(session_id, &Conversation::default()).await?;
+        let manager = self.session_manager();
+        manager
+            .replace_conversation(session_id, &Conversation::default())
+            .await?;
 
-        SessionManager::update_session(session_id)
+        manager
+            .update(session_id)
             .total_tokens(Some(0))
             .input_tokens(Some(0))
             .output_tokens(Some(0))
@@ -238,10 +244,12 @@ impl Agent {
                         return Ok(Some(Message::assistant().with_text(error_msg)));
                     }
 
-                    SessionManager::add_message(session_id, &msg).await?;
+                    self.session_manager().add_message(session_id, &msg).await?;
                 }
 
-                let last_message = SessionManager::get_session(session_id, true)
+                let last_message = self
+                    .session_manager()
+                    .get_session(session_id, true)
                     .await?
                     .conversation
                     .ok_or_else(|| anyhow!("No conversation found"))?
