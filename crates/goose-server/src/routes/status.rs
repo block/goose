@@ -1,8 +1,8 @@
 use axum::body::Body;
 use axum::http::HeaderValue;
 use axum::response::IntoResponse;
-use axum::{extract::Path, http::StatusCode, routing::get, Router};
-use goose::session::generate_diagnostics;
+use axum::{extract::Path, http::StatusCode, routing::get, Json, Router};
+use goose::session::{generate_diagnostics, get_system_info, SystemInfo};
 
 #[utoipa::path(get, path = "/status",
     responses(
@@ -11,6 +11,15 @@ use goose::session::generate_diagnostics;
 )]
 async fn status() -> String {
     "ok".to_string()
+}
+
+#[utoipa::path(get, path = "/system_info",
+    responses(
+        (status = 200, description = "System information", body = SystemInfo),
+    )
+)]
+async fn system_info() -> Json<SystemInfo> {
+    Json(get_system_info())
 }
 
 #[utoipa::path(get, path = "/diagnostics/{session_id}",
@@ -42,5 +51,6 @@ async fn diagnostics(Path(session_id): Path<String>) -> impl IntoResponse {
 pub fn routes() -> Router {
     Router::new()
         .route("/status", get(status))
+        .route("/system_info", get(system_info))
         .route("/diagnostics/{session_id}", get(diagnostics))
 }
