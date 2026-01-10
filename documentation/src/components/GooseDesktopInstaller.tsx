@@ -10,7 +10,7 @@ interface GooseDesktopInstallerProps {
   extensionId: string;
   extensionName: string;
   description: string;
-  type?: 'stdio' | 'sse' | 'http'; // Extension type (http maps to streamable_http)
+  type?: 'stdio' | 'http'; // Extension type (http maps to streamable_http)
   // Command-line extension props (optional when using url)
   command?: string;
   args?: string[];
@@ -41,7 +41,7 @@ export default function GooseDesktopInstaller({
 }: GooseDesktopInstallerProps) {
   
   // Determine extension type with backward compatibility
-  const extensionType = type || (command ? 'stdio' : url ? 'sse' : 'stdio');
+  const extensionType = type || (command ? 'stdio' : url ? 'http' : 'stdio');
   
   // Build the goose:// URL
   const buildGooseUrl = () => {
