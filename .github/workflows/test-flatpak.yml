@@ -57,9 +57,17 @@ jobs:
             flatpak-builder \
             elfutils
 
-      - name: Add Flathub remote
+      - name: Setup Flatpak Runtimes
         run: |
           flatpak remote-add --if-not-exists --user flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+
+          # Explicitly install the 25.08 Runtime and SDK
+          # These are required by electron-forge to build the bundle
+          flatpak install --user flathub org.freedesktop.Platform/x86_64/25.08 -y
+          flatpak install --user flathub org.freedesktop.Sdk/x86_64/25.08 -y
+
+          # Also install the Electron BaseApp if your forge config uses it
+          flatpak install --user flathub org.electronjs.Electron2.BaseApp/x86_64/stable -y
 
       - name: Activate hermit and set CARGO_HOME
         run: |
