@@ -1,6 +1,9 @@
 name: "Test Flatpak Build"
 
 on:
+  push:
+    branches:
+      - best/flatpak
   workflow_dispatch:
 
 jobs:
