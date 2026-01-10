@@ -12,8 +12,9 @@ import { getUrl } from '../core/utils.gen';
 import type { Client, ClientOptions, Config, RequestOptions } from './types.gen';
 
 export const createQuerySerializer = <T = unknown>({
-  parameters = {},
-  ...args
+  allowReserved,
+  array,
+  object,
 }: QuerySerializerOptions = {}) => {
   const querySerializer = (queryParams: T) => {
     const search: string[] = [];
@@ -25,31 +26,29 @@ export const createQuerySerializer = <T = unknown>({
           continue;
         }
 
-        const options = parameters[name] || args;
-
         if (Array.isArray(value)) {
           const serializedArray = serializeArrayParam({
-            allowReserved: options.allowReserved,
+            allowReserved,
             explode: true,
             name,
             style: 'form',
             value,
-            ...options.array,
+            ...array,
           });
           if (serializedArray) search.push(serializedArray);
         } else if (typeof value === 'object') {
           const serializedObject = serializeObjectParam({
-            allowReserved: options.allowReserved,
+            allowReserved,
             explode: true,
             name,
             style: 'deepObject',
             value: value as Record<string, unknown>,
-            ...options.object,
+            ...object,
           });
           if (serializedObject) search.push(serializedObject);
         } else {
           const serializedPrimitive = serializePrimitiveParam({
-            allowReserved: options.allowReserved,
+            allowReserved,
             name,
             value: value as string,
           });

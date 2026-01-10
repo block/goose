@@ -319,67 +319,70 @@ async fn get_or_create_session_id(
         return Ok(None);
     }
 
-    let Some(id) = identifier else {
-        return if resume {
+    let resolved_id = if resume {
+        let Some(id) = identifier else {
             let sessions = SessionManager::list_sessions().await?;
             let session_id = sessions
                 .first()
                 .map(|s| s.id.clone())
                 .ok_or_else(|| anyhow::anyhow!("No session found to resume"))?;
-            Ok(Some(session_id))
+            return Ok(Some(session_id));
+        };
+
+        if let Some(session_id) = id.session_id {
+            session_id
+        } else if let Some(name) = id.name {
+            let sessions = SessionManager::list_sessions().await?;
+            sessions
+                .into_iter()
+                .find(|s| s.name == name || s.id == name)
+                .map(|s| s.id)
+                .ok_or_else(|| anyhow::anyhow!("No session found with name '{}'", name))?
+        } else if let Some(path) = id.path {
+            path.file_stem()
+                .and_then(|s| s.to_str())
+                .map(|s| s.to_string())
+                .ok_or_else(|| {
+                    anyhow::anyhow!("Could not extract session ID from path: {:?}", path)
+                })?
         } else {
+            return Err(anyhow::anyhow!("Invalid identifier"));
+        }
+    } else {
+        let Some(id) = identifier else {
             let session = SessionManager::create_session(
                 std::env::current_dir()?,
                 "CLI Session".to_string(),
                 SessionType::User,
             )
             .await?;
-            Ok(Some(session.id))
+            return Ok(Some(session.id));
         };
-    };
 
-    if let Some(session_id) = id.session_id {
-        Ok(Some(session_id))
-    } else if let Some(name) = id.name {
-        if resume {
-            let sessions = SessionManager::list_sessions().await?;
-            let session_id = sessions
-                .into_iter()
-                .find(|s| s.name == name || s.id == name)
-                .map(|s| s.id)
-                .ok_or_else(|| anyhow::anyhow!("No session found with name '{}'", name))?;
-            Ok(Some(session_id))
-        } else {
-            let session = SessionManager::create_session(
-                std::env::current_dir()?,
-                name.clone(),
-                SessionType::User,
-            )
-            .await?;
+        if id.session_id.is_some() {
+            return Err(anyhow::anyhow!("Cannot use --session-id without --resume"));
+        }
 
+        let has_user_provided_name = id.name.is_some();
+        let name = id.name.unwrap_or_else(|| "CLI Session".to_string());
+        let session = SessionManager::create_session(
+            std::env::current_dir()?,
+            name.clone(),
+            SessionType::User,
+        )
+        .await?;
+
+        if has_user_provided_name {
             SessionManager::update_session(&session.id)
                 .user_provided_name(name)
                 .apply()
                 .await?;
-
-            Ok(Some(session.id))
         }
-    } else if let Some(path) = id.path {
-        let session_id = path
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .map(|s| s.to_string())
-            .ok_or_else(|| anyhow::anyhow!("Could not extract session ID from path: {:?}", path))?;
-        Ok(Some(session_id))
-    } else {
-        let session = SessionManager::create_session(
-            std::env::current_dir()?,
-            "CLI Session".to_string(),
-            SessionType::User,
-        )
-        .await?;
-        Ok(Some(session.id))
-    }
+
+        return Ok(Some(session.id));
+    };
+
+    Ok(Some(resolved_id))
 }
 
 async fn lookup_session_id(identifier: Identifier) -> Result<String> {
@@ -718,6 +721,15 @@ enum Command {
         )]
         resume: bool,
 
+        /// Fork a previous session (creates new session with copied history)
+        #[arg(
+            long,
+            requires = "resume",
+            help = "Fork a previous session (creates new session with copied history)",
+            long_help = "Create a new session by copying all messages from a previous session. Must be used with --resume. If --name or --session-id is provided, forks that specific session. Otherwise forks the most recently used session."
+        )]
+        fork: bool,
+
         /// Show message history when resuming
         #[arg(
             long,
@@ -1032,12 +1044,19 @@ async fn handle_session_subcommand(command: SessionCommand) -> Result<()> {
 async fn handle_interactive_session(
     identifier: Option<Identifier>,
     resume: bool,
+    fork: bool,
     history: bool,
     session_opts: SessionOptions,
     extension_opts: ExtensionOptions,
 ) -> Result<()> {
     let session_start = std::time::Instant::now();
-    let session_type = if resume { "resumed" } else { "new" };
+    let session_type = if fork {
+        "forked"
+    } else if resume {
+        "resumed"
+    } else {
+        "new"
+    };
 
     tracing::info!(
         counter.goose.session_starts = 1,
@@ -1057,11 +1076,20 @@ async fn handle_interactive_session(
         }
     }
 
-    let session_id = get_or_create_session_id(identifier, resume, false).await?;
+    let mut session_id = get_or_create_session_id(identifier, resume, false).await?;
+
+    if fork {
+        if let Some(id) = session_id {
+            let original = SessionManager::get_session(&id, false).await?;
+            let copied = SessionManager::copy_session(&id, original.name).await?;
+            session_id = Some(copied.id);
+        }
+    }
 
     let mut session: crate::CliSession = build_session(SessionBuilderConfig {
         session_id,
         resume,
+        fork,
         no_session: false,
         extensions: extension_opts.extensions,
         streamable_http_extensions: extension_opts.streamable_http_extensions,
@@ -1084,7 +1112,7 @@ async fn handle_interactive_session(
     })
     .await;
 
-    if resume && history {
+    if (resume || fork) && history {
         session.render_message_history();
     }
 
@@ -1130,193 +1158,6 @@ async fn log_session_completion(
             session_type,
             "Session tokens"
         );
-    }
-}
-
-fn parse_run_input(
-    input_opts: &InputOptions,
-    quiet: bool,
-) -> Result<Option<(InputConfig, Option<RecipeInfo>)>> {
-    match (
-        &input_opts.instructions,
-        &input_opts.input_text,
-        &input_opts.recipe,
-    ) {
-        (Some(file), _, _) if file == "-" => {
-            let mut contents = String::new();
-            std::io::stdin()
-                .read_to_string(&mut contents)
-                .expect("Failed to read from stdin");
-            Ok(Some((
-                InputConfig {
-                    contents: Some(contents),
-                    extensions_override: None,
-                    additional_system_prompt: input_opts.system.clone(),
-                },
-                None,
-            )))
-        }
-        (Some(file), _, _) => {
-            let contents = std::fs::read_to_string(file).unwrap_or_else(|err| {
-                eprintln!(
-                    "Instruction file not found — did you mean to use goose run --text?\n{}",
-                    err
-                );
-                std::process::exit(1);
-            });
-            Ok(Some((
-                InputConfig {
-                    contents: Some(contents),
-                    extensions_override: None,
-                    additional_system_prompt: None,
-                },
-                None,
-            )))
-        }
-        (_, Some(text), _) => Ok(Some((
-            InputConfig {
-                contents: Some(text.clone()),
-                extensions_override: None,
-                additional_system_prompt: input_opts.system.clone(),
-            },
-            None,
-        ))),
-        (_, _, Some(recipe_name)) => {
-            let recipe_display_name = std::path::Path::new(recipe_name)
-                .file_name()
-                .and_then(|name| name.to_str())
-                .unwrap_or(recipe_name);
-
-            let recipe_version = crate::recipes::search_recipe::load_recipe_file(recipe_name)
-                .ok()
-                .and_then(|rf| {
-                    goose::recipe::template_recipe::parse_recipe_content(
-                        &rf.content,
-                        Some(rf.parent_dir.display().to_string()),
-                    )
-                    .ok()
-                    .map(|(r, _)| r.version)
-                })
-                .unwrap_or_else(|| "unknown".to_string());
-
-            if input_opts.explain {
-                explain_recipe(recipe_name, input_opts.params.clone())?;
-                return Ok(None);
-            }
-            if input_opts.render_recipe {
-                if let Err(err) = render_recipe_as_yaml(recipe_name, input_opts.params.clone()) {
-                    eprintln!("{}: {}", console::style("Error").red().bold(), err);
-                    std::process::exit(1);
-                }
-                return Ok(None);
-            }
-
-            tracing::info!(
-                counter.goose.recipe_runs = 1,
-                recipe_name = %recipe_display_name,
-                recipe_version = %recipe_version,
-                session_type = "recipe",
-                interface = "cli",
-                "Recipe execution started"
-            );
-
-            let (input_config, recipe_info) = extract_recipe_info_from_cli(
-                recipe_name.clone(),
-                input_opts.params.clone(),
-                input_opts.additional_sub_recipes.clone(),
-                quiet,
-            )?;
-            Ok(Some((input_config, Some(recipe_info))))
-        }
-        (None, None, None) => {
-            eprintln!("Error: Must provide either --instructions (-i), --text (-t), or --recipe. Use -i - for stdin.");
-            std::process::exit(1);
-        }
-    }
-}
-
-async fn handle_run_command(
-    input_opts: InputOptions,
-    identifier: Option<Identifier>,
-    run_behavior: RunBehavior,
-    session_opts: SessionOptions,
-    extension_opts: ExtensionOptions,
-    output_opts: OutputOptions,
-    model_opts: ModelOptions,
-) -> Result<()> {
-    let parsed = parse_run_input(&input_opts, output_opts.quiet)?;
-
-    let Some((input_config, recipe_info)) = parsed else {
-        return Ok(());
-    };
-
-    if let Some(Identifier {
-        session_id: Some(_),
-        ..
-    }) = &identifier
-    {
-        if !run_behavior.resume {
-            eprintln!("Error: --session-id can only be used with --resume flag");
-            std::process::exit(1);
-        }
-    }
-
-    let session_id =
-        get_or_create_session_id(identifier, run_behavior.resume, run_behavior.no_session).await?;
-
-    let mut session = build_session(SessionBuilderConfig {
-        session_id,
-        resume: run_behavior.resume,
-        no_session: run_behavior.no_session,
-        extensions: extension_opts.extensions,
-        streamable_http_extensions: extension_opts.streamable_http_extensions,
-        builtins: extension_opts.builtins,
-        extensions_override: input_config.extensions_override,
-        additional_system_prompt: input_config.additional_system_prompt,
-        settings: recipe_info
-            .as_ref()
-            .and_then(|r| r.session_settings.clone()),
-        provider: model_opts.provider,
-        model: model_opts.model,
-        debug: session_opts.debug,
-        max_tool_repetitions: session_opts.max_tool_repetitions,
-        max_turns: session_opts.max_turns,
-        scheduled_job_id: run_behavior.scheduled_job_id,
-        interactive: run_behavior.interactive,
-        quiet: output_opts.quiet,
-        sub_recipes: recipe_info.as_ref().and_then(|r| r.sub_recipes.clone()),
-        final_output_response: recipe_info
-            .as_ref()
-            .and_then(|r| r.final_output_response.clone()),
-        retry_config: recipe_info.as_ref().and_then(|r| r.retry_config.clone()),
-        output_format: output_opts.output_format,
-    })
-    .await;
-
-    if run_behavior.interactive {
-        session.interactive(input_config.contents).await
-    } else if let Some(contents) = input_config.contents {
-        let session_start = std::time::Instant::now();
-        let session_type = if recipe_info.is_some() {
-            "recipe"
-        } else {
-            "run"
-        };
-
-        tracing::info!(
-            counter.goose.session_starts = 1,
-            session_type,
-            interactive = false,
-            "Headless session started"
-        );
-
-        let result = session.headless(contents).await;
-        log_session_completion(&session, session_start, session_type, result.is_ok()).await;
-        result
-    } else {
-        Err(anyhow::anyhow!(
-            "no text provided for prompt in headless mode"
-        ))
     }
 }
 
@@ -1399,6 +1240,7 @@ async fn handle_default_session() -> Result<()> {
     let mut session = build_session(SessionBuilderConfig {
         session_id,
         resume: false,
+        fork: false,
         no_session: false,
         extensions: Vec::new(),
         streamable_http_extensions: Vec::new(),
@@ -1455,12 +1297,20 @@ pub async fn cli() -> anyhow::Result<()> {
             command: None,
             identifier,
             resume,
+            fork,
             history,
             session_opts,
             extension_opts,
         }) => {
-            handle_interactive_session(identifier, resume, history, session_opts, extension_opts)
-                .await
+            handle_interactive_session(
+                identifier,
+                resume,
+                fork,
+                history,
+                session_opts,
+                extension_opts,
+            )
+            .await
         }
         Some(Command::Project {}) => {
             handle_project_default()?;
@@ -1479,16 +1329,207 @@ pub async fn cli() -> anyhow::Result<()> {
             output_opts,
             model_opts,
         }) => {
-            handle_run_command(
-                input_opts,
-                identifier,
-                run_behavior,
-                session_opts,
-                extension_opts,
-                output_opts,
-                model_opts,
-            )
-            .await
+            let (input_config, recipe_info) = match (
+                input_opts.instructions,
+                input_opts.input_text,
+                input_opts.recipe,
+            ) {
+                (Some(file), _, _) if file == "-" => {
+                    let mut input = String::new();
+                    std::io::stdin()
+                        .read_to_string(&mut input)
+                        .expect("Failed to read from stdin");
+
+                    let input_config = InputConfig {
+                        contents: Some(input),
+                        extensions_override: None,
+                        additional_system_prompt: input_opts.system,
+                    };
+                    (input_config, None)
+                }
+                (Some(file), _, _) => {
+                    let contents = std::fs::read_to_string(&file).unwrap_or_else(|err| {
+                        eprintln!(
+                            "Instruction file not found — did you mean to use goose run --text?\n{}",
+                            err
+                        );
+                        std::process::exit(1);
+                    });
+                    let input_config = InputConfig {
+                        contents: Some(contents),
+                        extensions_override: None,
+                        additional_system_prompt: None,
+                    };
+                    (input_config, None)
+                }
+                (_, Some(text), _) => {
+                    let input_config = InputConfig {
+                        contents: Some(text),
+                        extensions_override: None,
+                        additional_system_prompt: input_opts.system,
+                    };
+                    (input_config, None)
+                }
+                (_, _, Some(recipe_name)) => {
+                    let recipe_display_name = std::path::Path::new(&recipe_name)
+                        .file_name()
+                        .and_then(|name| name.to_str())
+                        .unwrap_or(&recipe_name);
+
+                    let recipe_version =
+                        crate::recipes::search_recipe::load_recipe_file(&recipe_name)
+                            .ok()
+                            .and_then(|rf| {
+                                goose::recipe::template_recipe::parse_recipe_content(
+                                    &rf.content,
+                                    Some(rf.parent_dir.display().to_string()),
+                                )
+                                .ok()
+                                .map(|(r, _)| r.version)
+                            })
+                            .unwrap_or_else(|| "unknown".to_string());
+
+                    if input_opts.explain {
+                        explain_recipe(&recipe_name, input_opts.params)?;
+                        return Ok(());
+                    }
+                    if input_opts.render_recipe {
+                        if let Err(err) = render_recipe_as_yaml(&recipe_name, input_opts.params) {
+                            eprintln!("{}: {}", console::style("Error").red().bold(), err);
+                            std::process::exit(1);
+                        }
+                        return Ok(());
+                    }
+
+                    tracing::info!(
+                        counter.goose.recipe_runs = 1,
+                        recipe_name = %recipe_display_name,
+                        recipe_version = %recipe_version,
+                        session_type = "recipe",
+                        interface = "cli",
+                        "Recipe execution started"
+                    );
+
+                    let (input_config, recipe_info) = extract_recipe_info_from_cli(
+                        recipe_name,
+                        input_opts.params,
+                        input_opts.additional_sub_recipes,
+                        output_opts.quiet,
+                    )?;
+                    (input_config, Some(recipe_info))
+                }
+                (None, None, None) => {
+                    eprintln!("Error: Must provide either --instructions (-i), --text (-t), or --recipe. Use -i - for stdin.");
+                    std::process::exit(1);
+                }
+            };
+
+            if let Some(Identifier {
+                session_id: Some(_),
+                ..
+            }) = &identifier
+            {
+                if !run_behavior.resume {
+                    eprintln!("Error: --session-id can only be used with --resume flag");
+                    std::process::exit(1);
+                }
+            }
+
+            let session_id =
+                get_or_create_session_id(identifier, run_behavior.resume, run_behavior.no_session)
+                    .await?;
+
+            let mut session = build_session(SessionBuilderConfig {
+                session_id,
+                resume: run_behavior.resume,
+                fork: false,
+                no_session: run_behavior.no_session,
+                extensions: extension_opts.extensions,
+                streamable_http_extensions: extension_opts.streamable_http_extensions,
+                builtins: extension_opts.builtins,
+                extensions_override: input_config.extensions_override,
+                additional_system_prompt: input_config.additional_system_prompt,
+                settings: recipe_info
+                    .as_ref()
+                    .and_then(|r| r.session_settings.clone()),
+                provider: model_opts.provider,
+                model: model_opts.model,
+                debug: session_opts.debug,
+                max_tool_repetitions: session_opts.max_tool_repetitions,
+                max_turns: session_opts.max_turns,
+                scheduled_job_id: run_behavior.scheduled_job_id,
+                interactive: run_behavior.interactive,
+                quiet: output_opts.quiet,
+                sub_recipes: recipe_info.as_ref().and_then(|r| r.sub_recipes.clone()),
+                final_output_response: recipe_info
+                    .as_ref()
+                    .and_then(|r| r.final_output_response.clone()),
+                retry_config: recipe_info.as_ref().and_then(|r| r.retry_config.clone()),
+                output_format: output_opts.output_format,
+            })
+            .await;
+
+            if run_behavior.interactive {
+                session.interactive(input_config.contents).await?;
+            } else if let Some(contents) = input_config.contents {
+                let session_start = std::time::Instant::now();
+                let session_type = if recipe_info.is_some() {
+                    "recipe"
+                } else {
+                    "run"
+                };
+
+                tracing::info!(
+                    counter.goose.session_starts = 1,
+                    session_type,
+                    interactive = false,
+                    "Headless session started"
+                );
+
+                let result = session.headless(contents).await;
+
+                let session_duration = session_start.elapsed();
+                let exit_type = if result.is_ok() { "normal" } else { "error" };
+
+                let (total_tokens, message_count) = session
+                    .get_session()
+                    .await
+                    .map(|m| (m.total_tokens.unwrap_or(0), m.message_count))
+                    .unwrap_or((0, 0));
+
+                tracing::info!(
+                    counter.goose.session_completions = 1,
+                    session_type,
+                    exit_type,
+                    duration_ms = session_duration.as_millis() as u64,
+                    total_tokens,
+                    message_count,
+                    interactive = false,
+                    "Headless session completed"
+                );
+
+                tracing::info!(
+                    counter.goose.session_duration_ms = session_duration.as_millis() as u64,
+                    session_type,
+                    "Headless session duration"
+                );
+
+                if total_tokens > 0 {
+                    tracing::info!(
+                        counter.goose.session_tokens = total_tokens,
+                        session_type,
+                        "Headless session tokens"
+                    );
+                }
+
+                result?;
+            } else {
+                return Err(anyhow::anyhow!(
+                    "no text provided for prompt in headless mode"
+                ));
+            }
+
+            Ok(())
         }
         Some(Command::Schedule { command }) => handle_schedule_command(command).await,
         Some(Command::Update {
