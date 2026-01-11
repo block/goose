@@ -246,10 +246,16 @@ create an interactive browser-based tic-tac-toe game in javascript where a playe
 
 goose will create a plan and then get right to work on implementing it. Once done, your directory should contain a JavaScript file as well as an HTML page for playing.
 
+:::tip
+Make sure the **Developer Tools** extension is enabled before continuing. See [Enable an Extension](#enable-an-extension) below if you haven't set it up yet.
+:::
 
 ## Enable an Extension
 
-While you're able to manually navigate to your working directory and open the HTML file in a browser, wouldn't it be better if goose did that for you? Let's give goose the ability to open a web browser by enabling the [`Computer Controller` extension](/docs/mcp/computer-controller-mcp).
+Some task, like generating code, may require additional capabilities that aren't built in or enabled by default. Extensions provide a solution to this. Extensions enhance goose's functionality by providing access to new tools and features.
+
+For example:  
+To have goose create files and generate code for a website, the `Developer Tools` extension is required.
 
 <Tabs groupId="interface">
 
@@ -261,6 +267,41 @@ While you're able to manually navigate to your working directory and open the HT
         5. Now that goose has browser capabilities, let's ask it to launch your game in a browser:
     </TabItem>
     <TabItem value="cli" label="goose CLI">
+        1. End the current session by entering `Ctrl+C` so that you can return to the terminal's command prompt.
+        2. Run the configuration command
+        ```sh
+        goose configure
+        ```
+        3. Choose `Add Extension` > `Built-in Extension` > `Developer Tools`, and set the timeout to 300s. This extension enables code editing and shell access.
+        ```
+        ┌   goose-configure
+        │
+        ◇  What would you like to configure?
+        │  Add Extension
+        │
+        ◇  What type of extension would you like to add?
+        │  Built-in Extension
+        │
+        ◇  Which built-in extension would you like to enable?
+        │  Developer Tools
+        │
+        ◇  Please set the timeout for this tool (in secs):
+        │  300
+        │
+        └  Enabled developer extension
+        ```
+        4. Now that goose has code generating capabilities, let's resume your last session:
+        ```sh
+         goose session -r
+        ```
+        5. Repeat the prompt to create the tic-tac-toe game:
+        ```
+        create an interactive browser-based tic-tac-toe game in javascript where a player competes against a bot
+        ```
+
+        While you're able to manually navigate to your working directory and open the HTML file in a browser, wouldn't it be better if goose did that for you? Let's give goose the ability to open a web browser by enabling the [`Computer Controller` extension](/docs/mcp/computer-controller-mcp).
+
+
         1. End the current session by entering `Ctrl+C` so that you can return to the terminal's command prompt.
         2. Run the configuration command
         ```sh
