@@ -229,7 +229,6 @@ fn check_missing_extensions_or_exit(saved_extensions: &[ExtensionConfig], intera
                 process::exit(0);
             }
         } else {
-            // Non-interactive mode: warn and continue without missing extensions
             eprintln!(
                 "{}",
                 style(format!(
