@@ -22,6 +22,7 @@ use crate::posthog;
 use crate::providers::create;
 use crate::recipe::Recipe;
 use crate::scheduler_trait::SchedulerTrait;
+use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
 use crate::session::session_manager::SessionType;
 use crate::session::{Session, SessionManager};
 
@@ -740,12 +741,33 @@ async fn execute_job(
         }
     }
 
-    let session = SessionManager::create_session(
+    let mut session = SessionManager::create_session(
         std::env::current_dir()?,
         format!("Scheduled job: {}", job.id),
         SessionType::Scheduled,
     )
     .await?;
+
+    // Save recipe extensions to session extension_data so they're properly loaded
+    if let Some(ref extensions) = recipe.extensions {
+        let mut extension_data = session.extension_data.clone();
+        let extensions_state = EnabledExtensionsState::new(extensions.clone());
+        if let Err(e) = extensions_state.to_extension_data(&mut extension_data) {
+            tracing::warn!("Failed to save recipe extensions to session: {}", e);
+        } else {
+            SessionManager::update_session(&session.id)
+                .extension_data(extension_data.clone())
+                .apply()
+                .await?;
+            session.extension_data = extension_data;
+        }
+    }
+
+    // Save recipe to session
+    SessionManager::update_session(&session.id)
+        .recipe(Some(recipe.clone()))
+        .apply()
+        .await?;
 
     agent.update_provider(agent_provider, &session.id).await?;
 

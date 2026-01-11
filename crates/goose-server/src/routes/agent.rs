@@ -221,8 +221,16 @@ async fn start_agent(
             })?;
 
     // Initialize session with extensions (either overrides from hub or global defaults)
-    let extensions_to_use =
+    let mut extensions_to_use =
         extension_overrides.unwrap_or_else(goose::config::get_enabled_extensions);
+
+    // If recipe has extensions, merge them with the global/override extensions
+    if let Some(ref recipe) = original_recipe {
+        if let Some(ref recipe_extensions) = recipe.extensions {
+            extensions_to_use.extend(recipe_extensions.clone());
+        }
+    }
+
     let mut extension_data = session.extension_data.clone();
     let extensions_state = EnabledExtensionsState::new(extensions_to_use);
     if let Err(e) = extensions_state.to_extension_data(&mut extension_data) {
