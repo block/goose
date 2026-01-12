@@ -93,7 +93,6 @@ const PairRouteWrapper = ({
             allExtensions: extensionsList,
           });
 
-          // Use event dispatch to add session (centralizes LRU logic)
           window.dispatchEvent(
             new CustomEvent('add-active-session', {
               detail: {
@@ -133,7 +132,6 @@ const PairRouteWrapper = ({
   // Add resumed session to active sessions if not already there
   useEffect(() => {
     if (resumeSessionId && !activeSessions.some((s) => s.sessionId === resumeSessionId)) {
-      // Use event dispatch to add session (centralizes LRU logic)
       window.dispatchEvent(
         new CustomEvent('add-active-session', {
           detail: {
@@ -375,7 +373,6 @@ export function AppInner() {
 
         // LRU eviction: keep only the last MAX_ACTIVE_SESSIONS
         if (updated.length > MAX_ACTIVE_SESSIONS) {
-          // Remove oldest sessions (from the front), but the new/accessed session is always at the end
           updated = updated.slice(updated.length - MAX_ACTIVE_SESSIONS);
         }
 
