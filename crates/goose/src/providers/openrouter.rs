@@ -350,9 +350,19 @@ impl Provider for OpenRouterProvider {
                     .iter()
                     .any(|param| param.as_str() == Some("tools"));
 
-                if has_tool_support {
+                let has_tool_choice_support = supported_params
+                    .iter()
+                    .any(|param| param.as_str() == Some("tool_choice"));
+
+                if has_tool_support && has_tool_choice_support {
                     Some(id.to_string())
                 } else {
+                    if has_tool_support && !has_tool_choice_support {
+                        tracing::debug!(
+                            "Model '{}' supports tools but not tool_choice, skipping",
+                            id
+                        );
+                    }
                     None
                 }
             })
