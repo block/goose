@@ -559,7 +559,7 @@ const createChat = async (
     useContentSize: true,
     icon: path.join(__dirname, '../images/icon.icns'),
     webPreferences: {
-      spellcheck: true,
+      spellcheck: settings.spellcheckEnabled ?? true,
       preload: path.join(__dirname, 'preload.js'),
       webSecurity: true,
       nodeIntegration: false,
@@ -1418,6 +1418,29 @@ ipcMain.handle('get-wakelock-state', () => {
   } catch (error) {
     console.error('Error getting wakelock state:', error);
     return false;
+  }
+});
+
+// Handle spellcheck setting
+ipcMain.handle('set-spellcheck', async (_event, enable: boolean) => {
+  try {
+    const settings = loadSettings();
+    settings.spellcheckEnabled = enable;
+    saveSettings(settings);
+    return true;
+  } catch (error) {
+    console.error('Error setting spellcheck:', error);
+    return false;
+  }
+});
+
+ipcMain.handle('get-spellcheck-state', () => {
+  try {
+    const settings = loadSettings();
+    return settings.spellcheckEnabled ?? true;
+  } catch (error) {
+    console.error('Error getting spellcheck state:', error);
+    return true;
   }
 });
 
