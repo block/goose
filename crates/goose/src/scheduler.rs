@@ -31,7 +31,7 @@ type JobsMap = HashMap<String, (JobId, ScheduledJob)>;
 pub fn get_default_scheduler_storage_path() -> Result<PathBuf, io::Error> {
     let data_dir = Paths::data_dir();
     fs::create_dir_all(&data_dir)?;
-    Ok(data_dir.join("schedules.json"))
+    Ok(data_dir.join("schedule.json"))
 }
 
 pub fn get_default_scheduled_recipes_dir() -> Result<PathBuf, SchedulerError> {
