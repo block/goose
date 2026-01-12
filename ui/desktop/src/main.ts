@@ -1421,7 +1421,6 @@ ipcMain.handle('get-wakelock-state', () => {
   }
 });
 
-// Handle spellcheck setting
 ipcMain.handle('set-spellcheck', async (_event, enable: boolean) => {
   try {
     const settings = loadSettings();
