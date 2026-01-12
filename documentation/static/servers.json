@@ -121,25 +121,15 @@
     "id": "cloudinary-asset-management-mcp",
     "name": "Cloudinary Asset Management",
     "description": "Cloud-based image and video management",
-    "command": "npx -y cloudinary-asset-management-mcp",
+    "command": "npx -y --package @cloudinary/asset-management -- mcp start",
     "link": "https://github.com/cloudinary/asset-management-js",
-    "installation_notes": "Install using npx package manager.",
+    "installation_notes": "Requires Node.js v20 or greater. Get your Cloudinary URL from the Cloudinary Console (https://console.cloudinary.com/settings/api-keys).",
     "is_builtin": false,
     "endorsed": true,
     "environmentVariables": [
       {
-        "name": "CLOUDINARY_CLOUD_NAME",
-        "description": "Required environment variable",
-        "required": true
-      },
-      {
-        "name": "CLOUDINARY_API_KEY",
-        "description": "Required environment variable",
-        "required": true
-      },
-      {
-        "name": "CLOUDINARY_API_SECRET",
-        "description": "Required environment variable",
+        "name": "CLOUDINARY_URL",
+        "description": "Your Cloudinary URL (cloudinary://api_key:api_secret@cloud_name)",
         "required": true
       }
     ]
