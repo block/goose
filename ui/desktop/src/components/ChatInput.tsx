@@ -1016,12 +1016,17 @@ export default function ChatInput({
     performSubmitRef.current = performSubmit;
   }, [performSubmit]);
 
+  const displayValueRef = useRef(displayValue);
+  useEffect(() => {
+    displayValueRef.current = displayValue;
+  }, [displayValue]);
+
   useEffect(() => {
     if (!!autoSubmit && !didAutoSubmit) {
       setDidAutoSubmit(true);
-      performSubmitRef.current(displayValue);
+      performSubmitRef.current(displayValueRef.current);
     }
-  }, [autoSubmit, didAutoSubmit, displayValue]);
+  }, [autoSubmit, didAutoSubmit]);
 
   const handleKeyDown = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // If mention popover is open, handle arrow keys and enter
