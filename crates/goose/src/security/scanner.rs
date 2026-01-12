@@ -359,4 +359,132 @@ mod tests {
         assert!(result.is_malicious);
         assert!(result.explanation.contains("Security threat"));
     }
+
+    #[test]
+    fn test_context_aware_suppression() {
+        let scanner = PromptInjectionScanner::new();
+        let threshold = 0.8;
+
+        // Test case 1: Safe context + non-critical pattern → should suppress
+        let result = scanner.select_result_with_context_awareness(
+            DetailedScanResult {
+                confidence: 0.6,
+                pattern_matches: vec![PatternMatch {
+                    matched_text: "test".to_string(),
+                    threat: crate::security::patterns::ThreatPattern {
+                        name: "test_pattern",
+                        pattern: "test",
+                        description: "Test pattern",
+                        risk_level: crate::security::patterns::RiskLevel::Medium,
+                        category: crate::security::patterns::ThreatCategory::CommandInjection,
+                    },
+                    start_pos: 0,
+                    end_pos: 4,
+                }],
+                ml_confidence: None,
+            },
+            DetailedScanResult {
+                confidence: 0.3,
+                pattern_matches: Vec::new(),
+                ml_confidence: Some(0.3),
+            },
+            threshold,
+        );
+        assert_eq!(
+            result.confidence, 0.0,
+            "Should suppress non-critical pattern with safe context"
+        );
+        assert!(result.pattern_matches.is_empty());
+
+        // Test case 2: Safe context + critical pattern → should NOT suppress
+        let result = scanner.select_result_with_context_awareness(
+            DetailedScanResult {
+                confidence: 0.95,
+                pattern_matches: vec![PatternMatch {
+                    matched_text: "rm -rf /".to_string(),
+                    threat: crate::security::patterns::ThreatPattern {
+                        name: "rm_rf_root",
+                        pattern: r"rm\s+-rf",
+                        description: "Dangerous command",
+                        risk_level: crate::security::patterns::RiskLevel::Critical,
+                        category: crate::security::patterns::ThreatCategory::FileSystemDestruction,
+                    },
+                    start_pos: 0,
+                    end_pos: 9,
+                }],
+                ml_confidence: None,
+            },
+            DetailedScanResult {
+                confidence: 0.3,
+                pattern_matches: Vec::new(),
+                ml_confidence: Some(0.3),
+            },
+            threshold,
+        );
+        assert!(
+            result.confidence > 0.0,
+            "Should NOT suppress critical pattern even with safe context"
+        );
+        assert!(!result.pattern_matches.is_empty());
+
+        // Test case 3: Unsafe context + non-critical pattern → should NOT suppress
+        let result = scanner.select_result_with_context_awareness(
+            DetailedScanResult {
+                confidence: 0.6,
+                pattern_matches: vec![PatternMatch {
+                    matched_text: "test".to_string(),
+                    threat: crate::security::patterns::ThreatPattern {
+                        name: "test_pattern",
+                        pattern: "test",
+                        description: "Test pattern",
+                        risk_level: crate::security::patterns::RiskLevel::Medium,
+                        category: crate::security::patterns::ThreatCategory::CommandInjection,
+                    },
+                    start_pos: 0,
+                    end_pos: 4,
+                }],
+                ml_confidence: None,
+            },
+            DetailedScanResult {
+                confidence: 0.9,
+                pattern_matches: Vec::new(),
+                ml_confidence: Some(0.9),
+            },
+            threshold,
+        );
+        assert!(
+            result.confidence > 0.0,
+            "Should NOT suppress with unsafe context"
+        );
+
+        // Test case 4: No ML confidence (ML disabled) + non-critical pattern → should NOT suppress
+        let result = scanner.select_result_with_context_awareness(
+            DetailedScanResult {
+                confidence: 0.6,
+                pattern_matches: vec![PatternMatch {
+                    matched_text: "test".to_string(),
+                    threat: crate::security::patterns::ThreatPattern {
+                        name: "test_pattern",
+                        pattern: "test",
+                        description: "Test pattern",
+                        risk_level: crate::security::patterns::RiskLevel::Medium,
+                        category: crate::security::patterns::ThreatCategory::CommandInjection,
+                    },
+                    start_pos: 0,
+                    end_pos: 4,
+                }],
+                ml_confidence: None,
+            },
+            DetailedScanResult {
+                confidence: 0.0,
+                pattern_matches: Vec::new(),
+                ml_confidence: None,
+            },
+            threshold,
+        );
+        assert!(
+            result.confidence > 0.0,
+            "Should NOT suppress when ML is disabled"
+        );
+    }
 }
