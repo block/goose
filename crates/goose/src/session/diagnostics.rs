@@ -1,11 +1,73 @@
+use crate::config::base::Config;
+use crate::config::extensions::get_enabled_extensions;
 use crate::config::paths::Paths;
 use crate::providers::utils::LOGS_TO_KEEP;
 use crate::session::SessionManager;
+use serde::{Deserialize, Serialize};
 use std::fs::{self};
 use std::io::Cursor;
 use std::io::Write;
+use utoipa::ToSchema;
 use zip::write::FileOptions;
 use zip::ZipWriter;
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct SystemInfo {
+    pub app_version: String,
+    pub os: String,
+    pub os_version: String,
+    pub architecture: String,
+    pub provider: Option<String>,
+    pub model: Option<String>,
+    pub enabled_extensions: Vec<String>,
+}
+
+impl SystemInfo {
+    pub fn collect() -> Self {
+        let config = Config::global();
+        let provider = config.get_goose_provider().ok();
+        let model = config.get_goose_model().ok();
+        let enabled_extensions = get_enabled_extensions()
+            .into_iter()
+            .map(|ext| ext.name().to_string())
+            .collect();
+
+        Self {
+            app_version: env!("CARGO_PKG_VERSION").to_string(),
+            os: std::env::consts::OS.to_string(),
+            os_version: sys_info::os_release().unwrap_or_else(|_| "unknown".to_string()),
+            architecture: std::env::consts::ARCH.to_string(),
+            provider,
+            model,
+            enabled_extensions,
+        }
+    }
+
+    pub fn to_text(&self) -> String {
+        format!(
+            "App Version: {}\n\
+             OS: {}\n\
+             OS Version: {}\n\
+             Architecture: {}\n\
+             Provider: {}\n\
+             Model: {}\n\
+             Enabled Extensions: {}\n\
+             Timestamp: {}\n",
+            self.app_version,
+            self.os,
+            self.os_version,
+            self.architecture,
+            self.provider.as_deref().unwrap_or("unknown"),
+            self.model.as_deref().unwrap_or("unknown"),
+            self.enabled_extensions.join(", "),
+            chrono::Utc::now().to_rfc3339()
+        )
+    }
+}
+
+pub fn get_system_info() -> SystemInfo {
+    SystemInfo::collect()
+}
 
 pub async fn generate_diagnostics(session_id: &str) -> anyhow::Result<Vec<u8>> {
     let logs_dir = Paths::in_state_dir("logs");
@@ -13,18 +75,7 @@ pub async fn generate_diagnostics(session_id: &str) -> anyhow::Result<Vec<u8>> {
     let config_path = config_dir.join("config.yaml");
     let data_dir = Paths::data_dir();
 
-    let system_info = format!(
-        "App Version: {}\n\
-     OS: {}\n\
-     OS Version: {}\n\
-     Architecture: {}\n\
-     Timestamp: {}\n",
-        env!("CARGO_PKG_VERSION"),
-        std::env::consts::OS,
-        sys_info::os_release().unwrap_or_else(|_| "unknown".to_string()),
-        std::env::consts::ARCH,
-        chrono::Utc::now().to_rfc3339()
-    );
+    let system_info = SystemInfo::collect();
 
     let mut buffer = Vec::new();
     {
@@ -55,7 +106,7 @@ pub async fn generate_diagnostics(session_id: &str) -> anyhow::Result<Vec<u8>> {
         }
 
         zip.start_file("system.txt", options)?;
-        zip.write_all(system_info.as_bytes())?;
+        zip.write_all(system_info.to_text().as_bytes())?;
 
         let schedule_json = data_dir.join("schedule.json");
         if schedule_json.exists() {
