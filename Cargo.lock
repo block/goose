@@ -1186,7 +1186,7 @@ checksum = "f280f65ce85b880919349bbfcb204930291251eedcb2e5f84ce2f51df969c162"
 dependencies = [
  "git-version",
  "shell-escape",
- "sysinfo",
+ "sysinfo 0.33.1",
 ]
 
 [[package]]
@@ -3056,6 +3056,7 @@ dependencies = [
  "async-trait",
  "base64 0.21.7",
  "chrono",
+ "colored",
  "devgen-tree-sitter-swift",
  "docx-rs",
  "etcetera 0.11.0",
@@ -3064,6 +3065,7 @@ dependencies = [
  "image 0.24.9",
  "include_dir",
  "indoc",
+ "keyring",
  "lazy_static",
  "libc",
  "lopdf",
@@ -3079,6 +3081,8 @@ dependencies = [
  "serde_json",
  "serial_test",
  "shellexpand",
+ "sysinfo 0.32.1",
+ "temp-env",
  "tempfile",
  "thiserror 1.0.69",
  "tokio",
@@ -3108,6 +3112,7 @@ name = "goose-server"
 version = "1.19.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "axum 0.8.8",
  "base64 0.21.7",
  "bytes",
@@ -3145,6 +3150,7 @@ dependencies = [
  "url",
  "utoipa",
  "uuid",
+ "winreg 0.55.0",
 ]
 
 [[package]]
@@ -3240,8 +3246,6 @@ version = "0.15.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9229cfe53dfd69f0609a49f65461bd93001ea1ef889cd5529dd176593f5338a1"
 dependencies = [
- "allocator-api2",
- "equivalent",
  "foldhash 0.1.5",
 ]
 
@@ -4245,11 +4249,11 @@ dependencies = [
 
 [[package]]
 name = "lru"
-version = "0.12.5"
+version = "0.16.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "234cf4f4a04dc1f57e24b96cc0cd600cf2af460d4161ac5ecdd0af8e1f3b2a38"
+checksum = "a1dc47f592c06f33f8e3aea9591776ec7c9f9e4124778ff8a3c3b87159f7e593"
 dependencies = [
- "hashbrown 0.15.5",
+ "hashbrown 0.16.1",
 ]
 
 [[package]]
@@ -6010,7 +6014,7 @@ dependencies = [
  "wasm-bindgen-futures",
  "web-sys",
  "webpki-roots 0.25.4",
- "winreg",
+ "winreg 0.50.0",
 ]
 
 [[package]]
@@ -7259,6 +7263,20 @@ checksum = "0b3a0d0aba8bf96a0e1ddfdc352fc53b3df7f39318c71854910c3c4b024ae52c"
 dependencies = [
  "cc",
  "libc",
+]
+
+[[package]]
+name = "sysinfo"
+version = "0.32.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4c33cd241af0f2e9e3b5c32163b873b29956890b5342e6745b917ce9d490f4af"
+dependencies = [
+ "core-foundation-sys",
+ "libc",
+ "memchr",
+ "ntapi",
+ "rayon",
+ "windows 0.57.0",
 ]
 
 [[package]]
@@ -9231,6 +9249,16 @@ checksum = "524e57b2c537c0f9b1e69f1965311ec12182b4122e45035b1508cd24d2adadb1"
 dependencies = [
  "cfg-if",
  "windows-sys 0.48.0",
+]
+
+[[package]]
+name = "winreg"
+version = "0.55.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb5a765337c50e9ec252c2069be9bf91c7df47afb103b642ba3a53bf8101be97"
+dependencies = [
+ "cfg-if",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
