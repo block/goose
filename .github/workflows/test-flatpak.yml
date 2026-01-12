@@ -9,7 +9,7 @@ on:
 jobs:
   build-flatpak:
     name: Build Flatpak (Test)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-x86-16core-64gb
 
     steps:
       - name: Checkout repository
