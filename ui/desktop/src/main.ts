@@ -49,12 +49,7 @@ import {
 import { UPDATES_ENABLED } from './updates';
 import './utils/recipeHash';
 import { Client, createClient, createConfig } from './api/client';
-import {
-  TETRATE_AUTH_CLEANUP_INTERVAL_MS,
-  cleanupExpiredTetrateAuthFlows,
-  handleTetrateCallbackUrl,
-  runTetrateAuthFlow,
-} from './tetrateAuth';
+import { handleTetrateCallbackUrl, runTetrateAuthFlow } from './tetrateAuth';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 
 // Updater functions (moved here to keep updates.ts minimal for release replacement)
@@ -1834,8 +1829,6 @@ async function appMain() {
   await ensureWinShims();
 
   registerUpdateIpcHandlers();
-  setInterval(cleanupExpiredTetrateAuthFlows, TETRATE_AUTH_CLEANUP_INTERVAL_MS);
-
   // Handle microphone permission requests
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
     console.log('Permission requested:', permission);

@@ -4,7 +4,8 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import * as crypto from 'crypto';
 import type { Client } from './api/client';
-import type { VerifyTetrateSetupResponses } from './api';
+import { verifyTetrateSetup } from './api';
+import log from './utils/logger';
 
 type TetrateAuthFlow = {
   codeVerifier: string;
@@ -33,7 +34,6 @@ type NativeAuthSession = {
 
 const TETRATE_AUTH_URL = 'https://router.tetrate.ai/auth';
 const TETRATE_AUTH_TTL_MS = 10 * 60 * 1000;
-export const TETRATE_AUTH_CLEANUP_INTERVAL_MS = 60 * 1000;
 const TETRATE_AUTH_CALLBACK_SCHEME = 'goose';
 
 const tetrateAuthFlows = new Map<string, TetrateAuthFlow>();
@@ -85,8 +85,7 @@ function loadNativeAuthSession(): NativeAuthSession | null {
       nativeAuthSession = require(candidate) as NativeAuthSession;
       return nativeAuthSession;
     } catch {
-      nativeAuthSession = null;
-      return null;
+      continue;
     }
   }
 
@@ -163,18 +162,9 @@ function expireTetrateAuthFlow(flowId: string, message: string): void {
     return;
   }
 
-  console.warn('[TetrateAuth] flow expired', { flowId, reason: message });
+  log.info('Tetrate auth flow expired:', { flowId, reason: message });
   flow.reject?.(new Error(message));
   cleanupTetrateAuthFlow(flowId);
-}
-
-export function cleanupExpiredTetrateAuthFlows(): void {
-  const now = Date.now();
-  for (const [flowId, flow] of tetrateAuthFlows.entries()) {
-    if (flow.expiresAt <= now) {
-      expireTetrateAuthFlow(flowId, 'Authentication timed out');
-    }
-  }
 }
 
 function createTetrateAuthFlow(): { flowId: string; authUrl: string } {
@@ -211,7 +201,7 @@ export function handleTetrateCallbackUrl(
 
   const flow = tetrateAuthFlows.get(data.flowId);
   if (!flow) {
-    console.warn('[TetrateAuth] callback without active flow', { flowId: data.flowId });
+    log.info('Tetrate auth callback without active flow:', { flowId: data.flowId });
     return true;
   }
 
@@ -252,11 +242,9 @@ function waitForTetrateCallback(flowId: string): Promise<string> {
 }
 
 async function startTetrateAuthSession(flowId: string, authUrl: string): Promise<string> {
-  if (process.platform === 'darwin') {
-    const nativeSession = loadNativeAuthSession();
-    if (nativeSession) {
-      return nativeSession.startAuthSession(authUrl, TETRATE_AUTH_CALLBACK_SCHEME);
-    }
+  const nativeSession = loadNativeAuthSession();
+  if (nativeSession) {
+    return nativeSession.startAuthSession(authUrl, TETRATE_AUTH_CALLBACK_SCHEME);
   }
 
   await shell.openExternal(authUrl);
@@ -306,10 +294,10 @@ export async function runTetrateAuthFlow(client: Client): Promise<TetrateSetupRe
     const codeVerifier = flow.codeVerifier;
     cleanupTetrateAuthFlow(callback.flowId);
 
-    const response = await client.post<VerifyTetrateSetupResponses, unknown, true>({
-      url: '/tetrate/verify',
+    const response = await verifyTetrateSetup({
       body: { code: callback.code, code_verifier: codeVerifier },
       throwOnError: true,
+      client,
     });
 
     return response.data ?? {
@@ -317,7 +305,7 @@ export async function runTetrateAuthFlow(client: Client): Promise<TetrateSetupRe
       message: 'Setup failed',
     };
   } catch (error) {
-    console.warn('[TetrateAuth] authentication failed', getTetrateAuthErrorMessage(error));
+    log.info('Tetrate auth failed:', getTetrateAuthErrorMessage(error));
     cleanupTetrateAuthFlow(flowId);
     return {
       success: false,
