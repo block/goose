@@ -76,7 +76,7 @@
     "react-dom": "^19.2.0",
     "react-icons": "^5.5.0",
     "react-markdown": "^10.1.0",
-    "react-router-dom": "^7.10.0",
+    "react-router-dom": "^7.12.0",
     "react-select": "^5.10.2",
     "react-syntax-highlighter": "^16.1.0",
     "react-toastify": "^11.0.5",
