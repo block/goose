@@ -16,6 +16,7 @@ pub struct ScanResult {
     pub explanation: String,
 }
 
+#[derive(Clone)]
 struct DetailedScanResult {
     confidence: f32,
     pattern_matches: Vec<PatternMatch>,
@@ -106,20 +107,23 @@ impl PromptInjectionScanner {
             self.scan_conversation(messages)
         );
 
-        let highest_confidence_result =
-            self.select_highest_confidence_result(tool_result?, context_result?);
+        let tool_result = tool_result?;
+        let context_result = context_result?;
         let threshold = self.get_threshold_from_config();
 
+        let final_result =
+            self.select_result_with_context_awareness(tool_result, context_result, threshold);
+
         tracing::info!(
-            "✅ Security analysis complete: confidence={:.3}, malicious={}",
-            highest_confidence_result.confidence,
-            highest_confidence_result.confidence >= threshold
+            "Security analysis complete: confidence={:.3}, malicious={}",
+            final_result.confidence,
+            final_result.confidence >= threshold
         );
 
         Ok(ScanResult {
-            is_malicious: highest_confidence_result.confidence >= threshold,
-            confidence: highest_confidence_result.confidence,
-            explanation: self.build_explanation(&highest_confidence_result, threshold),
+            is_malicious: final_result.confidence >= threshold,
+            confidence: final_result.confidence,
+            explanation: self.build_explanation(&final_result, threshold),
         })
     }
 
@@ -169,12 +173,39 @@ impl PromptInjectionScanner {
         })
     }
 
-    fn select_highest_confidence_result(
+    fn select_result_with_context_awareness(
         &self,
         tool_result: DetailedScanResult,
         context_result: DetailedScanResult,
+        threshold: f32,
     ) -> DetailedScanResult {
-        if tool_result.confidence >= context_result.confidence {
+        let context_is_safe = context_result
+            .ml_confidence
+            .is_some_and(|conf| conf < threshold);
+
+        let tool_has_only_non_critical = !tool_result.pattern_matches.is_empty()
+            && tool_result
+                .pattern_matches
+                .iter()
+                .all(|m| m.threat.risk_level != crate::security::patterns::RiskLevel::Critical);
+
+        if context_is_safe && tool_has_only_non_critical {
+            tracing::info!(
+                "Suppressing non-critical pattern match due to safe context evaluation"
+            );
+            tracing::debug!(
+                context_ml_confidence = ?context_result.ml_confidence,
+                pattern_count = tool_result.pattern_matches.len(),
+                max_pattern_risk = ?tool_result.pattern_matches.first().map(|m| &m.threat.risk_level),
+                "Suppression conditions met: safe context + non-critical patterns"
+            );
+
+            DetailedScanResult {
+                confidence: 0.0,
+                pattern_matches: Vec::new(),
+                ml_confidence: context_result.ml_confidence,
+            }
+        } else if tool_result.confidence >= context_result.confidence {
             tool_result
         } else {
             context_result
