@@ -440,7 +440,6 @@ impl Provider for GcpVertexAIProvider {
         Self: Sized,
     {
         let model_strings: Vec<String> = [
-            GcpVertexAIModel::Claude(ClaudeVersion::Sonnet37),
             GcpVertexAIModel::Claude(ClaudeVersion::Sonnet4),
             GcpVertexAIModel::Claude(ClaudeVersion::Opus4),
             GcpVertexAIModel::Gemini(GeminiVersion::Pro15),
@@ -629,7 +628,6 @@ mod tests {
             .iter()
             .map(|m| m.name.clone())
             .collect();
-        assert!(model_names.contains(&"claude-3-7-sonnet@20250219".to_string()));
         assert!(model_names.contains(&"claude-sonnet-4@20250514".to_string()));
         assert!(model_names.contains(&"gemini-1.5-pro-002".to_string()));
         assert!(model_names.contains(&"gemini-2.5-pro".to_string()));
