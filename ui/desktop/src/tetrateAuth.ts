@@ -319,5 +319,14 @@ export const __test = {
   createPkcePair,
   createTetrateAuthFlow,
   parseTetrateCallbackUrl,
+  resetForTests: () => {
+    for (const flow of tetrateAuthFlows.values()) {
+      if (flow.timeoutId) {
+        clearTimeout(flow.timeoutId);
+      }
+    }
+    tetrateAuthFlows.clear();
+    nativeAuthSession = undefined;
+  },
   waitForTetrateCallback,
 };

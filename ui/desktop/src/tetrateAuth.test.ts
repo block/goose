@@ -15,12 +15,8 @@ vi.mock('electron', () => ({
 import { __test, handleTetrateCallbackUrl } from './tetrateAuth';
 
 describe('tetrateAuth', () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-
   afterEach(() => {
-    vi.clearAllTimers();
+    __test.resetForTests();
     vi.useRealTimers();
   });
 
