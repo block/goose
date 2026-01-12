@@ -112,6 +112,9 @@ type ElectronAPI = {
     theme: string;
   }) => void;
   openExternal: (url: string) => Promise<void>;
+  // Function to serve temp images
+  getTempImage: (filePath: string) => Promise<string | null>;
+  startTetrateAuth: () => Promise<{ success: boolean; message: string }>;
   // Update-related functions
   getVersion: () => string;
   checkForUpdates: () => Promise<{ updateInfo: unknown; error: string | null }>;
@@ -228,6 +231,12 @@ const electronAPI: ElectronAPI = {
   },
   openExternal: (url: string): Promise<void> => {
     return ipcRenderer.invoke('open-external', url);
+  },
+  getTempImage: (filePath: string): Promise<string | null> => {
+    return ipcRenderer.invoke('get-temp-image', filePath);
+  },
+  startTetrateAuth: (): Promise<{ success: boolean; message: string }> => {
+    return ipcRenderer.invoke('tetrate-auth-start');
   },
   getVersion: (): string => {
     return config.GOOSE_VERSION || ipcRenderer.sendSync('get-app-version') || '';

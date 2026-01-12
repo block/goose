@@ -44,8 +44,14 @@ import {
 } from './utils/autoUpdater';
 import { UPDATES_ENABLED } from './updates';
 import './utils/recipeHash';
-import { Client } from './api/client';
+import { Client, createClient, createConfig } from './api/client';
 import { GooseApp } from './api';
+import {
+  TETRATE_AUTH_CLEANUP_INTERVAL_MS,
+  cleanupExpiredTetrateAuthFlows,
+  handleTetrateCallbackUrl,
+  runTetrateAuthFlow,
+} from './tetrateAuth';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
 
@@ -196,6 +202,12 @@ let openUrlHandledLaunch = false;
 async function handleProtocolUrl(url: string) {
   if (!url) return;
 
+  if (handleTetrateCallbackUrl(url, () => {
+    pendingDeepLink = null;
+  })) {
+    return;
+  }
+
   pendingDeepLink = url;
 
   const parsedUrl = new URL(url);
@@ -268,6 +280,12 @@ let windowDeeplinkURL: string | null = null;
 
 app.on('open-url', async (_event, url) => {
   if (process.platform !== 'win32') {
+    if (handleTetrateCallbackUrl(url, () => {
+      pendingDeepLink = null;
+    })) {
+      return;
+    }
+
     const parsedUrl = new URL(url);
 
     log.info('[Main] Received open-url event:', url);
@@ -1230,6 +1248,20 @@ ipcMain.handle('get-goosed-host-port', async (event) => {
   return client.getConfig().baseUrl || null;
 });
 
+ipcMain.handle('tetrate-auth-start', async (event) => {
+  const windowId = BrowserWindow.fromWebContents(event.sender)?.id;
+  if (!windowId) {
+    return { success: false, message: 'Unable to start authentication.' };
+  }
+
+  const client = goosedClients.get(windowId);
+  if (!client) {
+    return { success: false, message: 'Backend unavailable.' };
+  }
+
+  return runTetrateAuthFlow(client);
+});
+
 // Handle menu bar icon visibility
 ipcMain.handle('set-menu-bar-icon', async (_event, show: boolean) => {
   updateSettings((s) => {
@@ -1636,6 +1668,7 @@ async function appMain() {
   await ensureWinShims();
 
   registerUpdateIpcHandlers();
+  setInterval(cleanupExpiredTetrateAuthFlows, TETRATE_AUTH_CLEANUP_INTERVAL_MS);
 
   // Handle microphone permission requests
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {

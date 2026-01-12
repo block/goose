@@ -4,7 +4,7 @@ const { resolve } = require('path');
 
 let cfg = {
   asar: true,
-  extraResource: ['src/bin', 'src/images'],
+  extraResource: ['src/bin', 'src/images', 'src/native'],
   icon: 'src/images/icon',
   // Windows specific configuration
   win32: {
@@ -23,6 +23,12 @@ let cfg = {
   ],
   // macOS Info.plist extensions for drag-and-drop support
   extendInfo: {
+    CFBundleURLTypes: [
+      {
+        CFBundleURLName: 'Goose',
+        CFBundleURLSchemes: ['goose'],
+      },
+    ],
     // Document types for drag-and-drop support onto dock icon
     CFBundleDocumentTypes: [
       {
