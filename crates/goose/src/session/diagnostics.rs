@@ -63,12 +63,6 @@ pub async fn generate_diagnostics(session_id: &str) -> anyhow::Result<Vec<u8>> {
             zip.write_all(&fs::read(&schedule_json)?)?;
         }
 
-        let schedules_json = data_dir.join("schedules.json");
-        if schedules_json.exists() {
-            zip.start_file("schedules.json", options)?;
-            zip.write_all(&fs::read(&schedules_json)?)?;
-        }
-
         let scheduled_recipes_dir = data_dir.join("scheduled_recipes");
         if scheduled_recipes_dir.exists() && scheduled_recipes_dir.is_dir() {
             for entry in fs::read_dir(&scheduled_recipes_dir)? {
