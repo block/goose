@@ -308,10 +308,17 @@ app.on('open-url', async (_event, url) => {
   if (process.platform !== 'win32') {
     const parsedUrl = new URL(url);
 
+    log.info('[Main] Received open-url event:', url);
+
+    // Wait for app to be ready before creating window (critical for cold start)
+    await app.whenReady();
+
+    const recentDirs = loadRecentDirs();
+    const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
+
     // Handle bot/recipe URLs by directly creating a new window
-    console.log('[Main] Received open-url event:', url);
     if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
-      console.log('[Main] Detected bot/recipe URL, creating new chat window');
+      log.info('[Main] Detected bot/recipe URL, creating new chat window');
       openUrlHandledLaunch = true;
       const deeplinkData = parseRecipeDeeplink(url);
       if (deeplinkData) {
@@ -319,13 +326,6 @@ app.on('open-url', async (_event, url) => {
       }
       const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
 
-      // Wait for app to be ready before creating window (critical for cold start)
-      await app.whenReady();
-
-      const recentDirs = loadRecentDirs();
-      const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
-
-      // Create a new window directly
       await createChat(
         app,
         undefined,
@@ -342,22 +342,15 @@ app.on('open-url', async (_event, url) => {
       return;
     }
 
-    // For non bot/recipe URLs (extension, sessions), store the deep link and create window
+    // For extension/session URLs, store the deep link for processing after React is ready
     pendingDeepLink = url;
-    console.log('[Main] Stored pending deep link for processing after React ready:', url);
-
-    // Wait for app to be ready before creating window (critical for cold start)
-    await app.whenReady();
-
-    const recentDirs = loadRecentDirs();
-    const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
+    log.info('[Main] Stored pending deep link for processing after React ready:', url);
 
     const existingWindows = BrowserWindow.getAllWindows();
     if (existingWindows.length > 0) {
       firstOpenWindow = existingWindows[0];
       if (firstOpenWindow.isMinimized()) firstOpenWindow.restore();
       firstOpenWindow.focus();
-      // For existing windows, send the message directly (React is already ready)
       if (parsedUrl.hostname === 'extension') {
         firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
         pendingDeepLink = null;
@@ -366,8 +359,6 @@ app.on('open-url', async (_event, url) => {
         pendingDeepLink = null;
       }
     } else {
-      // Cold start: mark that we're handling the launch, create window
-      // The pending deep link will be processed when react-ready fires
       openUrlHandledLaunch = true;
       firstOpenWindow = await createChat(app, undefined, openDir || undefined);
     }
