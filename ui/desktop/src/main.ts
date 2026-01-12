@@ -133,6 +133,23 @@ async function ensureTempDirExists(): Promise<string> {
   return gooseTempDir;
 }
 
+async function configureProxy() {
+  const httpsProxy = process.env.HTTPS_PROXY || process.env.https_proxy;
+  const httpProxy = process.env.HTTP_PROXY || process.env.http_proxy;
+  const noProxy = process.env.NO_PROXY || process.env.no_proxy || '';
+
+  const proxyUrl = httpsProxy || httpProxy;
+
+  if (proxyUrl) {
+    console.log('[Main] Configuring proxy');
+    await session.defaultSession.setProxy({
+      proxyRules: proxyUrl,
+      proxyBypassRules: noProxy,
+    });
+    console.log('[Main] Proxy configured successfully');
+  }
+}
+
 if (started) app.quit();
 
 if (process.env.ENABLE_PLAYWRIGHT) {
@@ -560,6 +577,7 @@ const createChat = async (
           recipeDeeplink: recipeDeeplink,
           recipeParameters: recipeParameters,
           scheduledJobId: scheduledJobId,
+          SECURITY_ML_MODEL_MAPPING: process.env.SECURITY_ML_MODEL_MAPPING,
         }),
       ],
       partition: 'persist:goose',
@@ -1189,9 +1207,17 @@ ipcMain.handle('open-external', async (_event, url: string) => {
   }
 });
 
-// Handle directory chooser
-ipcMain.handle('directory-chooser', (_event) => {
-  return openDirectoryDialog();
+ipcMain.handle('directory-chooser', async () => {
+  return dialog.showOpenDialog({
+    properties: ['openDirectory', 'createDirectory'],
+    defaultPath: os.homedir(),
+  });
+});
+
+ipcMain.handle('add-recent-dir', (_event, dir: string) => {
+  if (dir) {
+    addRecentDir(dir);
+  }
 });
 
 // Handle scheduling engine settings
@@ -1798,6 +1824,8 @@ const focusWindow = () => {
 };
 
 async function appMain() {
+  await configureProxy();
+
   // Ensure Windows shims are available before any MCP processes are spawned
   await ensureWinShims();
 

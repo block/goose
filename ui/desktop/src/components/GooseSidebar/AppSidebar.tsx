@@ -1,6 +1,6 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { FileText, Clock, Home, Puzzle, History, AppWindow } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   SidebarContent,
   SidebarFooter,
@@ -103,7 +103,16 @@ const menuItems: NavigationEntry[] = [
 
 const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const chatContext = useChatContext();
+  const lastSessionIdRef = useRef<string | null>(null);
+  const currentSessionId = currentPath === '/pair' ? searchParams.get('resumeSessionId') : null;
+
+  useEffect(() => {
+    if (currentSessionId) {
+      lastSessionIdRef.current = currentSessionId;
+    }
+  }, [currentSessionId]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -137,6 +146,17 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     return currentPath === path;
   };
 
+  const handleNavigation = (path: string) => {
+    // For /pair, preserve the current session if one exists
+    // Priority: current URL param > last known session > context
+    const sessionId = currentSessionId || lastSessionIdRef.current || chatContext?.chat?.sessionId;
+    if (path === '/pair' && sessionId && sessionId.length > 0) {
+      navigate(`/pair?resumeSessionId=${sessionId}`);
+    } else {
+      navigate(path);
+    }
+  };
+
   const renderMenuItem = (entry: NavigationEntry, index: number) => {
     if (entry.type === 'separator') {
       return <SidebarSeparator key={index} />;
@@ -151,7 +171,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
             <SidebarMenuItem>
               <SidebarMenuButton
                 data-testid={`sidebar-${entry.label.toLowerCase()}-button`}
-                onClick={() => navigate(entry.path)}
+                onClick={() => handleNavigation(entry.path)}
                 isActive={isActivePath(entry.path)}
                 tooltip={entry.tooltip}
                 className="w-full justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200 data-[active=true]:bg-background-medium"
