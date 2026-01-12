@@ -517,10 +517,6 @@ impl Provider for CodexProvider {
             return self.generate_simple_session_description(messages);
         }
 
-        let lines = self.execute_command(system, messages, tools).await?;
-
-        let (message, usage) = self.parse_response(&lines)?;
-
         // Create a payload for debug tracing
         let payload = json!({
             "command": self.command,
@@ -535,12 +531,18 @@ impl Provider for CodexProvider {
             ProviderError::RequestFailed(format!("Failed to start request log: {}", e))
         })?;
 
+        let lines = log
+            .run(self.execute_command(system, messages, tools))
+            .await?;
+
+        let (message, usage) = self.parse_response(&lines)?;
+
         let response = json!({
             "lines": lines.len(),
             "usage": usage
         });
 
-        log.write(&response, Some(&usage)).map_err(|e| {
+        log.success(&response, Some(&usage)).map_err(|e| {
             ProviderError::RequestFailed(format!("Failed to write request log: {}", e))
         })?;
 

@@ -273,11 +273,11 @@ impl Provider for OpenRouterProvider {
         let mut log = RequestLog::start(model_config, &payload)?;
 
         // Make request
-        let response = self
-            .with_retry(|| async {
+        let response = log
+            .run(self.with_retry(|| async {
                 let payload_clone = payload.clone();
                 self.post(&payload_clone).await
-            })
+            }))
             .await?;
 
         // Parse response
@@ -287,7 +287,7 @@ impl Provider for OpenRouterProvider {
             Usage::default()
         });
         let response_model = get_model(&response);
-        log.write(&response, Some(&usage))?;
+        log.success(&response, Some(&usage))?;
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
 
@@ -404,18 +404,15 @@ impl Provider for OpenRouterProvider {
 
         let mut log = RequestLog::start(&self.model, &payload)?;
 
-        let response = self
-            .with_retry(|| async {
+        let response = log
+            .run(self.with_retry(|| async {
                 let resp = self
                     .api_client
                     .response_post("api/v1/chat/completions", &payload)
                     .await?;
                 handle_status_openai_compat(resp).await
-            })
-            .await
-            .inspect_err(|e| {
-                let _ = log.error(e);
-            })?;
+            }))
+            .await?;
 
         stream_openai_compat(response, log)
     }

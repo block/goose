@@ -285,8 +285,8 @@ impl Provider for DatabricksProvider {
 
         let mut log = RequestLog::start(&self.model, &payload)?;
 
-        let response = self
-            .with_retry(|| self.post(payload.clone(), Some(&model_config.model_name)))
+        let response = log
+            .run(self.with_retry(|| self.post(payload.clone(), Some(&model_config.model_name))))
             .await?;
 
         let message = response_to_message(&response)?;
@@ -295,7 +295,7 @@ impl Provider for DatabricksProvider {
             Usage::default()
         });
         let response_model = get_model(&response);
-        log.write(&response, Some(&usage))?;
+        log.success(&response, Some(&usage))?;
 
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
@@ -322,8 +322,8 @@ impl Provider for DatabricksProvider {
 
         let path = self.get_endpoint_path(&model_config.model_name, false);
         let mut log = RequestLog::start(&self.model, &payload)?;
-        let response = self
-            .with_retry(|| async {
+        let response = log
+            .run(self.with_retry(|| async {
                 let resp = self.api_client.response_post(&path, &payload).await?;
                 if !resp.status().is_success() {
                     let status = resp.status();
@@ -334,11 +334,8 @@ impl Provider for DatabricksProvider {
                     return Err(map_http_error_to_provider_error(status, json_payload));
                 }
                 Ok(resp)
-            })
-            .await
-            .inspect_err(|e| {
-                let _ = log.error(e);
-            })?;
+            }))
+            .await?;
 
         stream_openai_compat(response, log)
     }

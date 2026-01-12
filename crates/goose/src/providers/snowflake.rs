@@ -328,18 +328,18 @@ impl Provider for SnowflakeProvider {
 
         let mut log = RequestLog::start(&self.model, &payload)?;
 
-        let response = self
-            .with_retry(|| async {
+        let response = log
+            .run(self.with_retry(|| async {
                 let payload_clone = payload.clone();
                 self.post(&payload_clone).await
-            })
+            }))
             .await?;
 
         let message = response_to_message(&response)?;
         let usage = get_usage(&response)?;
         let response_model = get_model(&response);
 
-        log.write(&response, Some(&usage))?;
+        log.success(&response, Some(&usage))?;
 
         Ok((message, ProviderUsage::new(response_model, usage)))
     }

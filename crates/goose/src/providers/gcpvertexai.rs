@@ -520,12 +520,13 @@ impl Provider for GcpVertexAIProvider {
         // Create request and context
         let (request, context) = create_request(model_config, system, messages, tools)?;
 
+        let mut log = RequestLog::start(model_config, &request)?;
+
         // Send request and process response
-        let response = self.post(&request, &context).await?;
+        let response = log.run(self.post(&request, &context)).await?;
         let usage = get_usage(&response, &context)?;
 
-        let mut log = RequestLog::start(model_config, &request)?;
-        log.write(&response, Some(&usage))?;
+        log.success(&response, Some(&usage))?;
 
         // Convert response to message
         let message = response_to_message(response, context)?;

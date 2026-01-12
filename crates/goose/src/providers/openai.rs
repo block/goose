@@ -258,15 +258,12 @@ impl Provider for OpenAiProvider {
             let payload = create_responses_request(model_config, system, messages, tools)?;
             let mut log = RequestLog::start(&self.model, &payload)?;
 
-            let json_response = self
-                .with_retry(|| async {
+            let json_response = log
+                .run(self.with_retry(|| async {
                     let payload_clone = payload.clone();
                     self.post_responses(&payload_clone).await
-                })
-                .await
-                .inspect_err(|e| {
-                    let _ = log.error(e);
-                })?;
+                }))
+                .await?;
 
             let responses_api_response: ResponsesApiResponse =
                 serde_json::from_value(json_response.clone()).map_err(|e| {
@@ -280,7 +277,7 @@ impl Provider for OpenAiProvider {
             let usage = get_responses_usage(&responses_api_response);
             let model = responses_api_response.model.clone();
 
-            log.write(&json_response, Some(&usage))?;
+            log.success(&json_response, Some(&usage))?;
             Ok((message, ProviderUsage::new(model, usage)))
         } else {
             let payload = create_request(
@@ -293,15 +290,12 @@ impl Provider for OpenAiProvider {
             )?;
 
             let mut log = RequestLog::start(&self.model, &payload)?;
-            let json_response = self
-                .with_retry(|| async {
+            let json_response = log
+                .run(self.with_retry(|| async {
                     let payload_clone = payload.clone();
                     self.post(&payload_clone).await
-                })
-                .await
-                .inspect_err(|e| {
-                    let _ = log.error(e);
-                })?;
+                }))
+                .await?;
 
             let message = response_to_message(&json_response)?;
             let usage = json_response
@@ -313,7 +307,7 @@ impl Provider for OpenAiProvider {
                 });
 
             let model = get_model(&json_response);
-            log.write(&json_response, Some(&usage))?;
+            log.success(&json_response, Some(&usage))?;
             Ok((message, ProviderUsage::new(model, usage)))
         }
     }
@@ -367,19 +361,16 @@ impl Provider for OpenAiProvider {
 
             let mut log = RequestLog::start(&self.model, &payload)?;
 
-            let response = self
-                .with_retry(|| async {
+            let response = log
+                .run(self.with_retry(|| async {
                     let payload_clone = payload.clone();
                     let resp = self
                         .api_client
                         .response_post("v1/responses", &payload_clone)
                         .await?;
                     handle_status_openai_compat(resp).await
-                })
-                .await
-                .inspect_err(|e| {
-                    let _ = log.error(e);
-                })?;
+                }))
+                .await?;
 
             let stream = response.bytes_stream().map_err(io::Error::other);
 
@@ -406,18 +397,15 @@ impl Provider for OpenAiProvider {
             )?;
             let mut log = RequestLog::start(&self.model, &payload)?;
 
-            let response = self
-                .with_retry(|| async {
+            let response = log
+                .run(self.with_retry(|| async {
                     let resp = self
                         .api_client
                         .response_post(&self.base_path, &payload)
                         .await?;
                     handle_status_openai_compat(resp).await
-                })
-                .await
-                .inspect_err(|e| {
-                    let _ = log.error(e);
-                })?;
+                }))
+                .await?;
 
             stream_openai_compat(response, log)
         }

@@ -286,7 +286,9 @@ impl Provider for GeminiCliProvider {
             ProviderError::RequestFailed(format!("Failed to start request log: {}", e))
         })?;
 
-        let lines = self.execute_command(system, messages, tools).await?;
+        let lines = log
+            .run(self.execute_command(system, messages, tools))
+            .await?;
 
         let (message, usage) = self.parse_response(&lines)?;
 
@@ -295,7 +297,7 @@ impl Provider for GeminiCliProvider {
             "usage": usage
         });
 
-        log.write(&response, Some(&usage)).map_err(|e| {
+        log.success(&response, Some(&usage)).map_err(|e| {
             ProviderError::RequestFailed(format!("Failed to write request log: {}", e))
         })?;
 

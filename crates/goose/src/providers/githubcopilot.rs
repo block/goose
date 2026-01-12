@@ -427,11 +427,11 @@ impl Provider for GithubCopilotProvider {
         let mut log = RequestLog::start(model_config, &payload)?;
 
         // Make request with retry
-        let response = self
-            .with_retry(|| async {
+        let response = log
+            .run(self.with_retry(|| async {
                 let mut payload_clone = payload.clone();
                 self.post(&mut payload_clone).await
-            })
+            }))
             .await?;
         let response = handle_response_openai_compat(response).await?;
 
@@ -444,7 +444,7 @@ impl Provider for GithubCopilotProvider {
             Usage::default()
         });
         let response_model = get_model(&response);
-        log.write(&response, Some(&usage))?;
+        log.success(&response, Some(&usage))?;
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
 
@@ -464,16 +464,13 @@ impl Provider for GithubCopilotProvider {
         )?;
         let mut log = RequestLog::start(&self.model, &payload)?;
 
-        let response = self
-            .with_retry(|| async {
+        let response = log
+            .run(self.with_retry(|| async {
                 let mut payload_clone = payload.clone();
                 let resp = self.post(&mut payload_clone).await?;
                 handle_status_openai_compat(resp).await
-            })
-            .await
-            .inspect_err(|e| {
-                let _ = log.error(e);
-            })?;
+            }))
+            .await?;
 
         stream_openai_compat(response, log)
     }

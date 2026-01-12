@@ -475,6 +475,7 @@ fn unescape_json_values_in_place(value: &mut Value) {
 pub struct RequestLog {
     writer: Option<BufWriter<File>>,
     temp_path: PathBuf,
+    completed: bool,
 }
 
 pub const LOGS_TO_KEEP: usize = 10;
@@ -507,6 +508,7 @@ impl RequestLog {
         Ok(Self {
             writer: Some(writer),
             temp_path,
+            completed: false,
         })
     }
 
@@ -519,23 +521,64 @@ impl RequestLog {
         Ok(())
     }
 
+    /// Log an error explicitly.
     pub fn error<E>(&mut self, error: E) -> Result<()>
     where
         E: Display,
     {
+        self.completed = true;
         self.write_json(&serde_json::json!({
             "error": format!("{}", error),
         }))
     }
 
+    /// Write response data. This is for streaming where we write incrementally.
+    /// For non-streaming, prefer `success()` which also marks completion.
     pub fn write<Payload>(&mut self, data: &Payload, usage: Option<&Usage>) -> Result<()>
     where
         Payload: Serialize,
     {
+        self.completed = true;
         self.write_json(&serde_json::json!({
             "data": data,
             "usage": usage,
         }))
+    }
+
+    /// Mark the request as successful and write the response data.
+    /// This should be called when a non-streaming request completes successfully.
+    pub fn success<Payload>(&mut self, data: &Payload, usage: Option<&Usage>) -> Result<()>
+    where
+        Payload: Serialize,
+    {
+        self.completed = true;
+        self.write_json(&serde_json::json!({
+            "data": data,
+            "usage": usage,
+        }))
+    }
+
+    /// Execute a fallible operation, automatically logging any errors.
+    /// This is the preferred way to wrap provider operations.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let mut log = RequestLog::start(model_config, &payload)?;
+    /// let response = log.run(self.with_retry(|| async { self.post(&payload).await })).await?;
+    /// log.success(&response, Some(&usage))?;
+    /// ```
+    pub async fn run<F, T, E>(&mut self, operation: F) -> Result<T, E>
+    where
+        F: std::future::Future<Output = Result<T, E>>,
+        E: Display,
+    {
+        match operation.await {
+            Ok(result) => Ok(result),
+            Err(e) => {
+                let _ = self.error(&e);
+                Err(e)
+            }
+        }
     }
 
     fn finish(&mut self) -> Result<()> {
@@ -558,6 +601,12 @@ impl Drop for RequestLog {
     fn drop(&mut self) {
         if std::thread::panicking() {
             return;
+        }
+        // If neither success/write nor error was called, log that the request didn't complete
+        if !self.completed && self.writer.is_some() {
+            let _ = self.write_json(&serde_json::json!({
+                "error": "Request did not complete (no response or error logged)",
+            }));
         }
         let _ = self.finish();
     }

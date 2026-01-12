@@ -147,8 +147,8 @@ impl Provider for GoogleProvider {
         let payload = create_request(model_config, system, messages, tools)?;
         let mut log = RequestLog::start(model_config, &payload)?;
 
-        let response = self
-            .with_retry(|| async { self.post(&model_config.model_name, &payload).await })
+        let response = log
+            .run(self.with_retry(|| async { self.post(&model_config.model_name, &payload).await }))
             .await?;
 
         let message = response_to_message(unescape_json_values(&response))?;
@@ -157,7 +157,7 @@ impl Provider for GoogleProvider {
             Some(model_version) => model_version.as_str().unwrap_or_default().to_string(),
             None => model_config.model_name.clone(),
         };
-        log.write(&response, Some(&usage))?;
+        log.success(&response, Some(&usage))?;
         let provider_usage = ProviderUsage::new(response_model, usage);
         Ok((message, provider_usage))
     }
@@ -191,12 +191,13 @@ impl Provider for GoogleProvider {
         let payload = create_request(&self.model, system, messages, tools)?;
         let mut log = RequestLog::start(&self.model, &payload)?;
 
-        let response = self
-            .with_retry(|| async { self.post_stream(&self.model.model_name, &payload).await })
-            .await
-            .inspect_err(|e| {
-                let _ = log.error(e);
-            })?;
+        let response = log
+            .run(
+                self.with_retry(|| async {
+                    self.post_stream(&self.model.model_name, &payload).await
+                }),
+            )
+            .await?;
 
         let stream = response.bytes_stream().map_err(io::Error::other);
 

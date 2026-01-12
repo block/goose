@@ -204,9 +204,10 @@ impl Provider for AnthropicProvider {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let payload = create_request(model_config, system, messages, tools)?;
+        let mut log = RequestLog::start(&self.model, &payload)?;
 
-        let response = self
-            .with_retry(|| async { self.post(&payload).await })
+        let response = log
+            .run(self.with_retry(|| async { self.post(&payload).await }))
             .await?;
 
         let json_response = Self::anthropic_api_call_result(response)?;
@@ -217,8 +218,7 @@ impl Provider for AnthropicProvider {
                 usage.input_tokens, usage.output_tokens, usage.total_tokens);
 
         let response_model = get_model(&json_response);
-        let mut log = RequestLog::start(&self.model, &payload)?;
-        log.write(&json_response, Some(&usage))?;
+        log.success(&json_response, Some(&usage))?;
         let provider_usage = ProviderUsage::new(response_model, usage);
         tracing::debug!(
             "🔍 Anthropic non-streaming returning ProviderUsage: {:?}",
@@ -270,12 +270,8 @@ impl Provider for AnthropicProvider {
             request = request.header(key, value)?;
         }
 
-        let resp = request.response_post(&payload).await.inspect_err(|e| {
-            let _ = log.error(e);
-        })?;
-        let response = handle_status_openai_compat(resp).await.inspect_err(|e| {
-            let _ = log.error(e);
-        })?;
+        let resp = log.run(request.response_post(&payload)).await?;
+        let response = log.run(handle_status_openai_compat(resp)).await?;
 
         let stream = response.bytes_stream().map_err(io::Error::other);
 
