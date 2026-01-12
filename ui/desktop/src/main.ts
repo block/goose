@@ -1668,8 +1668,6 @@ async function appMain() {
   await ensureWinShims();
 
   registerUpdateIpcHandlers();
-  setInterval(cleanupExpiredTetrateAuthFlows, TETRATE_AUTH_CLEANUP_INTERVAL_MS);
-
   // Handle microphone permission requests
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
     console.log('Permission requested:', permission);
