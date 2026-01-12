@@ -46,7 +46,7 @@ impl PromptInjectionScanner {
     fn create_classifier_from_config() -> Result<ClassificationClient> {
         let config = Config::global();
 
-        let model_name = config
+        let mut model_name = config
             .get_param::<String>("SECURITY_PROMPT_CLASSIFIER_MODEL")
             .ok()
             .filter(|s| !s.trim().is_empty());
@@ -58,6 +58,23 @@ impl PromptInjectionScanner {
             .get_secret::<String>("SECURITY_PROMPT_CLASSIFIER_TOKEN")
             .ok()
             .filter(|s| !s.trim().is_empty());
+
+        if model_name.is_none() {
+            if let Ok(mapping_json) = std::env::var("SECURITY_ML_MODEL_MAPPING") {
+                if let Ok(mapping) = serde_json::from_str::<
+                    crate::security::classification_client::ModelMappingConfig,
+                >(&mapping_json)
+                {
+                    if let Some(first_model) = mapping.models.keys().next() {
+                        tracing::info!(
+                            default_model = %first_model,
+                            "SECURITY_ML_MODEL_MAPPING available but no model selected - using first available model as default"
+                        );
+                        model_name = Some(first_model.clone());
+                    }
+                }
+            }
+        }
 
         tracing::debug!(
             model_name = ?model_name,
