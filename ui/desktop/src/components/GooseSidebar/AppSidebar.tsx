@@ -188,7 +188,6 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   const setView = useNavigation();
   const [searchParams] = useSearchParams();
   const [recentSessions, setRecentSessions] = useState<Session[]>([]);
-  const [isLoadingSessions, setIsLoadingSessions] = useState(false);
   const { getSessionStatus, markSessionActive, trackSession } = useSessionStatusContext();
   const activeSessionId = searchParams.get('resumeSessionId') ?? undefined;
 
@@ -237,7 +236,6 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
 
   useEffect(() => {
     const loadRecentSessions = async () => {
-      setIsLoadingSessions(true);
       try {
         const response = await listSessions<true>({ throwOnError: true });
         const sessions = response.data.sessions.slice(0, 10);
@@ -250,8 +248,6 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
         }
       } catch (error) {
         console.error('Failed to load recent sessions:', error);
-      } finally {
-        setIsLoadingSessions(false);
       }
     };
 
@@ -442,32 +438,26 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
           </SidebarGroup>
 
           {/* Recent Sessions */}
-          <SidebarGroup className="px-2">
-            <SidebarGroupContent className="space-y-1">
-              {isLoadingSessions ? (
-                <div className="text-xs text-text-muted px-3 py-1">Loading...</div>
-              ) : recentSessions.length > 0 ? (
-                <>
-                  <SessionList
-                    sessions={recentSessions}
-                    activeSessionId={activeSessionId}
-                    getSessionStatus={getSessionStatus}
-                    onSessionClick={handleSessionClick}
-                  />
-                  {/* View All Link */}
-                  <button
-                    onClick={handleViewAllClick}
-                    className="w-full text-left px-3 py-1.5 rounded-md text-sm text-text-muted hover:bg-background-medium/50 hover:text-text-default transition-colors flex items-center gap-2"
-                  >
-                    <History className="w-4 h-4" />
-                    <span>View All</span>
-                  </button>
-                </>
-              ) : (
-                <div className="text-xs text-text-muted px-3 py-1">No sessions yet</div>
-              )}
-            </SidebarGroupContent>
-          </SidebarGroup>
+          {recentSessions.length > 0 && (
+            <SidebarGroup className="px-2">
+              <SidebarGroupContent className="space-y-1">
+                <SessionList
+                  sessions={recentSessions}
+                  activeSessionId={activeSessionId}
+                  getSessionStatus={getSessionStatus}
+                  onSessionClick={handleSessionClick}
+                />
+                {/* View All Link */}
+                <button
+                  onClick={handleViewAllClick}
+                  className="w-full text-left px-3 py-1.5 rounded-md text-sm text-text-muted hover:bg-background-medium/50 hover:text-text-default transition-colors flex items-center gap-2"
+                >
+                  <History className="w-4 h-4" />
+                  <span>View All</span>
+                </button>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          )}
 
           <SidebarSeparator />
 
