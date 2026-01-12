@@ -1361,21 +1361,44 @@ export default function ChatInput({
                 <Stop />
               </Button>
             ) : (
-              <Button
-                type="submit"
-                size="sm"
-                shape="round"
-                variant="outline"
-                disabled={isSubmitButtonDisabled}
-                className={`rounded-full px-10 py-2 flex items-center gap-2 ${
-                  isSubmitButtonDisabled
-                    ? 'bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600'
-                    : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600 hover:cursor-pointer'
-                }`}
-              >
-                <Send className="w-4 h-4" />
-                <span className="text-sm">Send</span>
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    <Button
+                      type="submit"
+                      size="sm"
+                      shape="round"
+                      variant="outline"
+                      disabled={isSubmitButtonDisabled}
+                      className={`rounded-full px-10 py-2 flex items-center gap-2 ${
+                        isSubmitButtonDisabled
+                          ? 'bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600'
+                          : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600 hover:cursor-pointer'
+                      }`}
+                    >
+                      <Send className="w-4 h-4" />
+                      <span className="text-sm">Send</span>
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>
+                    {isAnyImageLoading
+                      ? 'Waiting for images to save...'
+                      : isAnyDroppedFileLoading
+                        ? 'Processing dropped files...'
+                        : isRecording
+                          ? 'Recording...'
+                          : isTranscribing
+                            ? 'Transcribing...'
+                            : chatState === ChatState.RestartingAgent
+                              ? 'Restarting session...'
+                              : !hasSubmittableContent
+                                ? 'Type a message to send'
+                                : 'Send'}
+                  </p>
+                </TooltipContent>
+              </Tooltip>
             )}
 
             {/* Recording/transcribing status indicator - positioned above the button row */}
