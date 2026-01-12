@@ -545,6 +545,23 @@
     "environmentVariables": []
   },
   {
+    "id": "prompts-chat-mcp",
+    "name": "prompts.chat",
+    "description": "Access thousands of AI prompts directly in your AI assistant",
+    "command": "npx -y @fkadev/prompts.chat-mcp@latest",
+    "link": "https://github.com/f/prompts.chat-mcp",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [
+      {
+        "name": "PROMPTS_API_KEY",
+        "description": "API Key to save and list private prompts on prompts.chat",
+        "required": false
+      }
+    ]
+  },
+  {
     "id": "reddit-mcp",
     "name": "Reddit",
     "description": "Reddit API integration for posts and comments",
