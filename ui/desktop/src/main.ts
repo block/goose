@@ -227,7 +227,6 @@ if (process.platform !== 'darwin') {
 
 let firstOpenWindow: BrowserWindow;
 let pendingDeepLink: string | null = null;
-// Track if open-url already handled window creation during cold start
 let openUrlHandledLaunch = false;
 
 async function handleProtocolUrl(url: string) {
@@ -310,7 +309,6 @@ app.on('open-url', async (_event, url) => {
 
     log.info('[Main] Received open-url event:', url);
 
-    // Wait for app to be ready before creating window (critical for cold start)
     await app.whenReady();
 
     const recentDirs = loadRecentDirs();
@@ -1914,8 +1912,6 @@ async function appMain() {
 
   const { dirPath } = parseArgs();
 
-  // Only create a new window if open-url didn't already handle the launch
-  // This prevents duplicate windows when launching via deep link on cold start
   if (!openUrlHandledLaunch) {
     await createNewWindow(app, dirPath);
   } else {
