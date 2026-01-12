@@ -61,7 +61,7 @@ type ElectronAPI = {
   reactReady: () => void;
   getConfig: () => Record<string, unknown>;
   hideWindow: () => void;
-  directoryChooser: (replace?: boolean) => Promise<Electron.OpenDialogReturnValue>;
+  directoryChooser: () => Promise<Electron.OpenDialogReturnValue>;
   createChatWindow: (
     query?: string,
     dir?: string,
@@ -96,6 +96,8 @@ type ElectronAPI = {
   getGoosedHostPort: () => Promise<string | null>;
   setWakelock: (enable: boolean) => Promise<boolean>;
   getWakelockState: () => Promise<boolean>;
+  setSpellcheck: (enable: boolean) => Promise<boolean>;
+  getSpellcheckState: () => Promise<boolean>;
   openNotificationsSettings: () => Promise<boolean>;
   onMouseBackButtonClicked: (callback: () => void) => void;
   offMouseBackButtonClicked: (callback: () => void) => void;
@@ -134,6 +136,7 @@ type ElectronAPI = {
   hasAcceptedRecipeBefore: (recipe: Recipe) => Promise<boolean>;
   recordRecipeHash: (recipe: Recipe) => Promise<boolean>;
   openDirectoryInExplorer: (directoryPath: string) => Promise<boolean>;
+  addRecentDir: (dir: string) => Promise<boolean>;
 };
 
 type AppConfigAPI = {
@@ -200,6 +203,8 @@ const electronAPI: ElectronAPI = {
   getGoosedHostPort: () => ipcRenderer.invoke('get-goosed-host-port'),
   setWakelock: (enable: boolean) => ipcRenderer.invoke('set-wakelock', enable),
   getWakelockState: () => ipcRenderer.invoke('get-wakelock-state'),
+  setSpellcheck: (enable: boolean) => ipcRenderer.invoke('set-spellcheck', enable),
+  getSpellcheckState: () => ipcRenderer.invoke('get-spellcheck-state'),
   openNotificationsSettings: () => ipcRenderer.invoke('open-notifications-settings'),
   onMouseBackButtonClicked: (callback: () => void) => {
     // Wrapper that ignores the event parameter.
@@ -270,6 +275,7 @@ const electronAPI: ElectronAPI = {
   recordRecipeHash: (recipe: Recipe) => ipcRenderer.invoke('record-recipe-hash', recipe),
   openDirectoryInExplorer: (directoryPath: string) =>
     ipcRenderer.invoke('open-directory-in-explorer', directoryPath),
+  addRecentDir: (dir: string) => ipcRenderer.invoke('add-recent-dir', dir),
 };
 
 const appConfigAPI: AppConfigAPI = {

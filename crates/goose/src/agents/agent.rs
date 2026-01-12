@@ -13,7 +13,7 @@ use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::action_required_manager::ActionRequiredManager;
 use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
-use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
+use crate::agents::extension_manager::{get_parameter_names, normalize, ExtensionManager};
 use crate::agents::extension_manager_extension::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
 use crate::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
@@ -33,6 +33,7 @@ use crate::conversation::message::{
     ActionRequiredData, Message, MessageContent, ProviderMetadata, SystemNotificationType,
     ToolRequest,
 };
+use crate::conversation::tool_result_serde::call_tool_result;
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
 use crate::mcp_utils::ToolResult;
 use crate::permission::permission_inspector::PermissionInspector;
@@ -75,6 +76,14 @@ pub struct ToolCategorizeResult {
     pub frontend_requests: Vec<ToolRequest>,
     pub remaining_requests: Vec<ToolRequest>,
     pub filtered_response: Message,
+}
+
+#[derive(Debug, Clone, serde::Serialize, utoipa::ToSchema)]
+pub struct ExtensionLoadResult {
+    pub name: String,
+    pub success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
 }
 
 /// The main goose Agent
@@ -565,6 +574,91 @@ impl Agent {
         Ok(())
     }
 
+    /// Save current extension state to session by session_id
+    pub async fn persist_extension_state(&self, session_id: &str) -> Result<()> {
+        let extension_configs = self.extension_manager.get_extension_configs().await;
+        let extensions_state = EnabledExtensionsState::new(extension_configs);
+
+        let session = SessionManager::get_session(session_id, false).await?;
+        let mut extension_data = session.extension_data.clone();
+
+        extensions_state
+            .to_extension_data(&mut extension_data)
+            .map_err(|e| anyhow!("Failed to serialize extension state: {}", e))?;
+
+        SessionManager::update_session(session_id)
+            .extension_data(extension_data)
+            .apply()
+            .await?;
+
+        Ok(())
+    }
+
+    /// Load extensions from session into the agent
+    /// Skips extensions that are already loaded
+    pub async fn load_extensions_from_session(
+        self: &Arc<Self>,
+        session: &Session,
+    ) -> Vec<ExtensionLoadResult> {
+        let session_extensions =
+            EnabledExtensionsState::from_extension_data(&session.extension_data);
+        let enabled_configs = match session_extensions {
+            Some(state) => state.extensions,
+            None => {
+                tracing::warn!(
+                    "No extensions found in session {}. This is unexpected.",
+                    session.id
+                );
+                return vec![];
+            }
+        };
+
+        let extension_futures = enabled_configs
+            .into_iter()
+            .map(|config| {
+                let config_clone = config.clone();
+                let agent_ref = self.clone();
+
+                async move {
+                    let name = config_clone.name().to_string();
+                    let normalized_name = normalize(&name);
+
+                    if agent_ref
+                        .extension_manager
+                        .is_extension_enabled(&normalized_name)
+                        .await
+                    {
+                        tracing::debug!("Extension {} already loaded, skipping", name);
+                        return ExtensionLoadResult {
+                            name,
+                            success: true,
+                            error: None,
+                        };
+                    }
+
+                    match agent_ref.add_extension(config_clone).await {
+                        Ok(_) => ExtensionLoadResult {
+                            name,
+                            success: true,
+                            error: None,
+                        },
+                        Err(e) => {
+                            let error_msg = e.to_string();
+                            warn!("Failed to load extension {}: {}", name, error_msg);
+                            ExtensionLoadResult {
+                                name,
+                                success: false,
+                                error: Some(error_msg),
+                            }
+                        }
+                    }
+                }
+            })
+            .collect::<Vec<_>>();
+
+        futures::future::join_all(extension_futures).await
+    }
+
     pub async fn add_extension(&self, extension: ExtensionConfig) -> ExtensionResult<()> {
         match &extension {
             ExtensionConfig::Frontend {
@@ -936,6 +1030,7 @@ impl Agent {
                 let conversation_with_moim = super::moim::inject_moim(
                     conversation.clone(),
                     &self.extension_manager,
+                    &working_dir,
                 ).await;
 
                 let mut stream = Self::stream_response_from_provider(
@@ -1123,6 +1218,8 @@ impl Agent {
 
                                         match item {
                                             ToolStreamItem::Result(output) => {
+                                                let output = call_tool_result::validate(output);
+
                                                 if enable_extension_request_ids.contains(&request_id)
                                                     && output.is_err()
                                                 {
@@ -1319,6 +1416,35 @@ impl Agent {
             .apply()
             .await
             .context("Failed to persist provider config to session")
+    }
+
+    /// Restore the provider from session data or fall back to global config
+    /// This is used when resuming a session to restore the provider state
+    pub async fn restore_provider_from_session(&self, session: &Session) -> Result<()> {
+        let config = Config::global();
+
+        let provider_name = session
+            .provider_name
+            .clone()
+            .or_else(|| config.get_goose_provider().ok())
+            .ok_or_else(|| anyhow!("Could not configure agent: missing provider"))?;
+
+        let model_config = match session.model_config.clone() {
+            Some(saved_config) => saved_config,
+            None => {
+                let model_name = config
+                    .get_goose_model()
+                    .map_err(|_| anyhow!("Could not configure agent: missing model"))?;
+                crate::model::ModelConfig::new(&model_name)
+                    .map_err(|e| anyhow!("Could not configure agent: invalid model {}", e))?
+            }
+        };
+
+        let provider = crate::providers::create(&provider_name, model_config)
+            .await
+            .map_err(|e| anyhow!("Could not create provider: {}", e))?;
+
+        self.update_provider(provider, &session.id).await
     }
 
     /// Override the system prompt with a custom template

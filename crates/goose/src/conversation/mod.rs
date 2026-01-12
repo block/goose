@@ -6,7 +6,7 @@ use thiserror::Error;
 use utoipa::ToSchema;
 
 pub mod message;
-mod tool_result_serde;
+pub mod tool_result_serde;
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]
 pub struct Conversation(Vec<Message>);
@@ -424,7 +424,7 @@ fn has_tool_response(message: &Message) -> bool {
         .any(|content| matches!(content, MessageContent::ToolResponse(_)))
 }
 
-fn effective_role(message: &Message) -> String {
+pub fn effective_role(message: &Message) -> String {
     if message.role == Role::User && has_tool_response(message) {
         "tool".to_string()
     } else {

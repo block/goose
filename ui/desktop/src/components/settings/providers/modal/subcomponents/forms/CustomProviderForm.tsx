@@ -158,7 +158,7 @@ export default function CustomProviderForm({
               id="api-url"
               value={apiUrl}
               onChange={(e) => setApiUrl(e.target.value)}
-              placeholder="https://api.example.com/v1/messages"
+              placeholder="https://api.example.com/v1"
               aria-invalid={!!validationErrors.apiUrl}
               aria-describedby={validationErrors.apiUrl ? 'api-url-error' : undefined}
               className={validationErrors.apiUrl ? 'border-red-500' : ''}

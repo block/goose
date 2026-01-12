@@ -7,7 +7,7 @@ use goose::conversation::Conversation;
 use goose::model::ModelConfig;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata, ProviderType};
-use goose::session::{Session, SessionInsights, SessionType};
+use goose::session::{Session, SessionInsights, SessionType, SystemInfo};
 use rmcp::model::{
     Annotations, Content, EmbeddedResource, Icon, ImageContent, JsonObject, RawAudioContent,
     RawEmbeddedResource, RawImageContent, RawResource, RawTextContent, ResourceContents, Role,
@@ -327,6 +327,7 @@ derive_utoipa!(Icon as IconSchema);
 #[openapi(
     paths(
         super::routes::status::status,
+        super::routes::status::system_info,
         super::routes::status::diagnostics,
         super::routes::mcp_ui_proxy::mcp_ui_proxy,
         super::routes::config_management::backup_config,
@@ -354,6 +355,8 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::config_management::get_pricing,
         super::routes::agent::start_agent,
         super::routes::agent::resume_agent,
+        super::routes::agent::restart_agent,
+        super::routes::agent::update_working_dir,
         super::routes::agent::get_tools,
         super::routes::agent::read_resource,
         super::routes::agent::call_tool,
@@ -372,6 +375,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::session::import_session,
         super::routes::session::update_session_user_recipe_values,
         super::routes::session::edit_message,
+        super::routes::session::get_session_extensions,
         super::routes::schedule::create_schedule,
         super::routes::schedule::list_schedules,
         super::routes::schedule::delete_schedule,
@@ -431,6 +435,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::session::EditType,
         super::routes::session::EditMessageRequest,
         super::routes::session::EditMessageResponse,
+        super::routes::session::SessionExtensionsResponse,
         Message,
         MessageContent,
         MessageMetadata,
@@ -479,6 +484,7 @@ derive_utoipa!(Icon as IconSchema);
         Session,
         SessionInsights,
         SessionType,
+        SystemInfo,
         Conversation,
         IconSchema,
         goose::session::extension_data::ExtensionData,
@@ -529,9 +535,14 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::agent::CallToolResponse,
         super::routes::agent::StartAgentRequest,
         super::routes::agent::ResumeAgentRequest,
+        super::routes::agent::RestartAgentRequest,
+        super::routes::agent::UpdateWorkingDirRequest,
         super::routes::agent::UpdateFromSessionRequest,
         super::routes::agent::AddExtensionRequest,
         super::routes::agent::RemoveExtensionRequest,
+        super::routes::agent::ResumeAgentResponse,
+        super::routes::agent::RestartAgentResponse,
+        goose::agents::ExtensionLoadResult,
         super::routes::setup::SetupResponse,
         super::tunnel::TunnelInfo,
         super::tunnel::TunnelState,
