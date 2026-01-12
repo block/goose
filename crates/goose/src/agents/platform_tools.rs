@@ -7,18 +7,18 @@ pub fn manage_schedule_tool() -> Tool {
     Tool::new(
         PLATFORM_MANAGE_SCHEDULE_TOOL_NAME.to_string(),
         indoc! {r#"
-            Manage scheduled recipe execution for this goose instance.
-            
+            Manage Goose's internal scheduled recipe execution.
+
             Actions:
-            - "list": List all scheduled jobs
-            - "create": Create a new scheduled job from a recipe file
-            - "run_now": Execute a scheduled job immediately  
-            - "pause": Pause a scheduled job
-            - "unpause": Resume a paused job
-            - "delete": Remove a scheduled job
-            - "kill": Terminate a currently running job
-            - "inspect": Get details about a running job
-            - "sessions": List execution history for a job
+            - "list": List all Goose scheduled jobs
+            - "create": Create a new Goose scheduled job from a recipe file
+            - "run_now": Execute a Goose scheduled job immediately
+            - "pause": Pause a Goose scheduled job
+            - "unpause": Resume a paused Goose scheduled job
+            - "delete": Remove a Goose scheduled job
+            - "kill": Terminate a currently running Goose scheduled job
+            - "inspect": Get details about a running Goose scheduled job
+            - "sessions": List execution history for a Goose scheduled job
             - "session_content": Get the full content (messages) of a specific session
         "#}
         .to_string(),

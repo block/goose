@@ -28,7 +28,8 @@ impl Agent {
             .ok_or_else(|| {
                 ErrorData::new(
                     ErrorCode::INTERNAL_ERROR,
-                    "Scheduler service should be available when schedule tool is called".to_string(),
+                    "Scheduler service should be available when schedule tool is called"
+                        .to_string(),
                     None,
                 )
             })?
