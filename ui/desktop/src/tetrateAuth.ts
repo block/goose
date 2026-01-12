@@ -313,3 +313,11 @@ export async function runTetrateAuthFlow(client: Client): Promise<TetrateSetupRe
     };
   }
 }
+
+export const __test = {
+  buildTetrateAuthUrl,
+  createPkcePair,
+  createTetrateAuthFlow,
+  parseTetrateCallbackUrl,
+  waitForTetrateCallback,
+};
