@@ -85,7 +85,7 @@ export default function ExtensionItem({
             {editable && (
               <button
                 className="text-textSubtle hover:text-textStandard"
-                aria-label={`Configure ${getFriendlyTitle} Extension`}
+                aria-label={`Configure ${getFriendlyTitle(extension)} Extension`}
                 onClick={() => onConfigure?.(extension)}
               >
                 <Gear className="w-4 h-4" />
