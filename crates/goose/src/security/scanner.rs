@@ -16,7 +16,6 @@ pub struct ScanResult {
     pub explanation: String,
 }
 
-#[derive(Clone)]
 struct DetailedScanResult {
     confidence: f32,
     pattern_matches: Vec<PatternMatch>,
@@ -190,9 +189,7 @@ impl PromptInjectionScanner {
                 .all(|m| m.threat.risk_level != crate::security::patterns::RiskLevel::Critical);
 
         if context_is_safe && tool_has_only_non_critical {
-            tracing::info!(
-                "Suppressing non-critical pattern match due to safe context evaluation"
-            );
+            tracing::info!("Suppressing non-critical pattern match due to safe context evaluation");
             tracing::debug!(
                 context_ml_confidence = ?context_result.ml_confidence,
                 pattern_count = tool_result.pattern_matches.len(),
