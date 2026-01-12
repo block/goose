@@ -9,7 +9,6 @@ use rand::{distributions::Alphanumeric, Rng};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::fmt;
 use std::time::Duration;
 use tokio::sync::oneshot;
 use tokio::time::timeout;
@@ -40,20 +39,6 @@ struct TokenRequest {
     code: String,
     code_verifier: String,
 }
-
-#[derive(Debug)]
-pub struct TetrateVerifyError {
-    pub status: reqwest::StatusCode,
-    pub body: String,
-}
-
-impl fmt::Display for TetrateVerifyError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Failed to exchange code: {} - {}", self.status, self.body)
-    }
-}
-
-impl std::error::Error for TetrateVerifyError {}
 
 impl PkceAuthFlow {
     pub fn new() -> Result<Self> {
@@ -109,22 +94,7 @@ impl PkceAuthFlow {
     }
 
     pub async fn exchange_code(&self, code: String) -> Result<String> {
-        eprintln!("Exchanging code for API key...");
-        eprintln!("Code: {}", code);
-        eprintln!("Code verifier length: {}", self.code_verifier.len());
-        eprintln!("Code challenge: {}", self.code_challenge);
-
-        let result =
-            Self::exchange_code_with_verifier(code, self.code_verifier.clone()).await;
-        if let Err(error) = &result {
-            if let Some(verify_error) = error.downcast_ref::<TetrateVerifyError>() {
-                eprintln!("Token exchange failed!");
-                eprintln!("Status: {}", verify_error.status);
-                eprintln!("Error response: {}", verify_error.body);
-            }
-        }
-
-        result
+        Self::exchange_code_with_verifier(code, self.code_verifier.clone()).await
     }
 
     pub async fn exchange_code_with_verifier(
@@ -149,11 +119,11 @@ impl PkceAuthFlow {
         if !response.status().is_success() {
             let status = response.status();
             let error_text = response.text().await.unwrap_or_default();
-            return Err(TetrateVerifyError {
+            return Err(anyhow!(
+                "Failed to exchange code: {} - {}",
                 status,
-                body: error_text,
-            }
-            .into());
+                error_text
+            ));
         }
 
         let token_response: TokenResponse = response.json().await?;
