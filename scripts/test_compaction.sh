@@ -164,13 +164,10 @@ export GOOSE_AUTO_COMPACT_THRESHOLD=0.005
 
 OUTPUT=$(mktemp)
 
-# Request a detailed response to generate enough tokens to exceed the 0.5% threshold
-AUTO_COMPACT_PROMPT="Please write a detailed explanation of how garbage collection works in programming languages. \
-Include examples of mark-and-sweep, reference counting, and generational garbage collection. \
-Be thorough and provide code examples."
+LONG_RESPONSE_PROMPT="Count from 1 to 200, one number per line."
 
-echo "Step 1: Creating session with first message (requesting verbose response to generate tokens)..."
-(cd "$TESTDIR" && "$GOOSE_BIN" run --text "$AUTO_COMPACT_PROMPT" 2>&1) | tee "$OUTPUT"
+echo "Step 1: Creating session with first message (generating tokens for threshold)..."
+(cd "$TESTDIR" && "$GOOSE_BIN" run --text "$LONG_RESPONSE_PROMPT" 2>&1) | tee "$OUTPUT"
 
 if ! command -v jq &> /dev/null; then
   echo "✗ FAILED: jq is required for this test"
