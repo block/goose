@@ -54,7 +54,7 @@ keyring = { version = "3.6.2", features = [
 utoipa = { version = "4.1", optional = true }
 which = {workspace = true}
 glob = "0.3"
-lru = "0.12"
+lru = "0.16"
 tree-sitter = "0.21"
 tree-sitter-python = "0.21"
 tree-sitter-rust = "0.21"
