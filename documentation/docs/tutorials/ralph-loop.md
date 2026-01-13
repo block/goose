@@ -4,42 +4,9 @@ description: Run goose in a loop with fresh context per iteration and cross-mode
 
 # Ralph Loop
 
-The Ralph Loop is an iterative development pattern that keeps goose working on a task until it's genuinely complete. Unlike standard retry mechanisms, each iteration runs with **fresh context** and a **different model reviews the work** before it ships.
+The Ralph Loop is an iterative development pattern that keeps goose working on a task until it's genuinely complete. Unlike standard retry mechanisms, each iteration runs with fresh context and a different model reviews the work before it ships.
 
-This technique is based on [Geoffrey Huntley's "Ralph Wiggum" approach](https://ghuntley.com/ralph/) - put an AI agent in a loop until the job is done, with file I/O as state rather than conversation history.
-
-:::warning Cost Warning
-Ralph Loop runs your agent multiple times in a loop (up to 10 iterations by default), with each iteration using both a worker model and a reviewer model. This can add up quickly. Monitor your usage and adjust `RALPH_MAX_ITERATIONS` if needed.
-:::
-
-## Prerequisites
-
-- **goose CLI** - Ralph Loop runs from the terminal, not the Desktop app. [Install the CLI](/docs/getting-started/installation) if you haven't already.
-- **API keys for your providers** - You'll need at least one provider configured. Using two different models (e.g., one from OpenAI and one from Anthropic) gives better results for cross-model review. [Set up your providers](/docs/getting-started/providers) if you haven't already.
-- **Recipe files installed** - Run the command below to download the Ralph Loop recipes:
-
-<details>
-<summary>Install Ralph Loop recipes</summary>
-
-```bash
-mkdir -p ~/.config/goose/recipes
-
-curl -sL https://raw.githubusercontent.com/block/goose/main/documentation/src/pages/recipes/data/recipes/ralph-loop.sh -o ~/.config/goose/recipes/ralph-loop.sh
-curl -sL https://raw.githubusercontent.com/block/goose/main/documentation/src/pages/recipes/data/recipes/ralph-work.yaml -o ~/.config/goose/recipes/ralph-work.yaml
-curl -sL https://raw.githubusercontent.com/block/goose/main/documentation/src/pages/recipes/data/recipes/ralph-review.yaml -o ~/.config/goose/recipes/ralph-review.yaml
-
-chmod +x ~/.config/goose/recipes/ralph-loop.sh
-```
-
-This installs three files into `~/.config/goose/recipes/`:
-
-| File | Purpose |
-|------|---------|
-| `ralph-loop.sh` | Bash wrapper that orchestrates the loop |
-| `ralph-work.yaml` | Recipe for the work phase |
-| `ralph-review.yaml` | Recipe for the review phase |
-
-</details>
+This technique is based on [Geoffrey Huntley's "Ralph Wiggum" approach](https://ghuntley.com/ralph/) put an AI agent in a loop until the job is done, with file I/O as state rather than conversation history.
 
 ## Why Ralph Loop?
 
@@ -74,12 +41,166 @@ Iteration 2:
 ... repeats until SHIP or max iterations
 ```
 
-## What's in the Files
+## Walkthrough
+
+### Prerequisites
+
+- **goose CLI** - Ralph Loop runs from the terminal, not the Desktop app. [Install the CLI](/docs/getting-started/installation) if you haven't already.
+- **API keys for your providers** - You'll need at least one provider configured. Using two different models (e.g., one from OpenAI and one from Anthropic) gives better results for cross-model review. [Set up your providers](/docs/getting-started/providers) if you haven't already.
+- **Recipe files installed** - Run this command to download the Ralph Loop recipes:
+
+```bash
+mkdir -p ~/.config/goose/recipes
+
+curl -sL https://raw.githubusercontent.com/block/goose/main/documentation/src/pages/recipes/data/recipes/ralph-loop.sh -o ~/.config/goose/recipes/ralph-loop.sh
+curl -sL https://raw.githubusercontent.com/block/goose/main/documentation/src/pages/recipes/data/recipes/ralph-work.yaml -o ~/.config/goose/recipes/ralph-work.yaml
+curl -sL https://raw.githubusercontent.com/block/goose/main/documentation/src/pages/recipes/data/recipes/ralph-review.yaml -o ~/.config/goose/recipes/ralph-review.yaml
+
+chmod +x ~/.config/goose/recipes/ralph-loop.sh
+```
+
+:::warning Cost Warning
+Ralph Loop runs your agent multiple times in a loop (up to 10 iterations by default), with each iteration using both a worker model and a reviewer model. This can add up quickly. Monitor your usage and adjust `RALPH_MAX_ITERATIONS` if needed.
+:::
+
+### Step 1: Start the Loop
+
+Run the script with your task:
+
+```bash
+~/.config/goose/recipes/ralph-loop.sh "Create a simple browser using Electron"
+```
+
+You can also pass a file path if your task is more complex:
+
+```bash
+~/.config/goose/recipes/ralph-loop.sh ./my-task.md
+```
+
+### Step 2: Configure Models
+
+The script will prompt you to configure the worker and reviewer models:
+
+```
+Worker model [gpt-4o]: 
+Worker provider [openai]: 
+Reviewer model (should be different from worker): claude-sonnet-4-20250514
+Reviewer provider: anthropic
+Max iterations [10]: 
+
+⚠️  Cost Warning: This will run up to 10 iterations, each using both models.
+    Estimated token usage could be significant depending on your task.
+
+Continue? [y/N]: y
+```
+
+**What each prompt means:**
+
+- **Worker model** - The model that does the actual coding work. Defaults to your `GOOSE_MODEL` environment variable if set.
+- **Worker provider** - The provider for the worker model (e.g., `openai`, `anthropic`). Defaults to your `GOOSE_PROVIDER` if set.
+- **Reviewer model** - The model that reviews the work. Should be different from the worker for best results. No default, you must specify.
+- **Reviewer provider** - The provider for the reviewer model. No default, you must specify.
+- **Max iterations** - How many work/review cycles before giving up. Defaults to 10.
+
+If you want to skip the prompts, set environment variables:
+
+```bash
+RALPH_WORKER_MODEL="gpt-4o" \
+RALPH_WORKER_PROVIDER="openai" \
+RALPH_REVIEWER_MODEL="claude-sonnet-4-20250514" \
+RALPH_REVIEWER_PROVIDER="anthropic" \
+~/.config/goose/recipes/ralph-loop.sh "Create a simple browser using Electron"
+```
+
+### Step 3: Watch It Run
+
+Here's what a successful run looks like:
+
+```
+═══════════════════════════════════════════════════════════════
+  Ralph Wiggum Loop - Multi-Model Edition
+═══════════════════════════════════════════════════════════════
+
+  Task: Create a simple browser using Electron
+  Worker: gpt-4o (openai)
+  Reviewer: claude-sonnet-4-20250514 (anthropic)
+  Max Iterations: 10
+
+───────────────────────────────────────────────────────────────
+  Iteration 1 / 10
+───────────────────────────────────────────────────────────────
+
+▶ WORK PHASE
+... (goose creates initial implementation) ...
+
+▶ REVIEW PHASE
+... (goose reviews the work) ...
+
+↻ REVISE - Feedback for next iteration:
+Missing error handling for invalid URLs. Also needs back/forward navigation buttons.
+
+───────────────────────────────────────────────────────────────
+  Iteration 2 / 10
+───────────────────────────────────────────────────────────────
+
+▶ WORK PHASE
+... (goose addresses feedback) ...
+
+▶ REVIEW PHASE
+... (goose reviews again) ...
+
+═══════════════════════════════════════════════════════════════
+  ✓ SHIPPED after 2 iteration(s)
+═══════════════════════════════════════════════════════════════
+```
+
+## State Files
+
+Ralph Loop uses files in `.goose/ralph/` to persist state between iterations. This is how the worker knows what to do and the reviewer knows what was done, even though each iteration starts with fresh context.
+
+| File | Purpose |
+|------|---------|
+| `task.md` | The task description |
+| `iteration.txt` | Current iteration number |
+| `work-summary.txt` | What the worker did this iteration |
+| `work-complete.txt` | Exists when worker claims done |
+| `review-result.txt` | `SHIP` or `REVISE` |
+| `review-feedback.txt` | Feedback for next iteration |
+| `.ralph-complete` | Created on successful completion |
+| `RALPH-BLOCKED.md` | Created if worker is stuck |
+
+## Restarting and Resuming
+
+To reset and start fresh:
+
+```bash
+rm -rf .goose/ralph
+```
+
+To keep your task but reset progress:
+
+```bash
+rm -f .goose/ralph/iteration.txt .goose/ralph/review-*.txt .goose/ralph/work-*.txt
+```
+
+## When to Use Ralph Loop
+
+Ralph Loop works best for:
+
+- **Complex, multi-step tasks** that benefit from iteration
+- **Tasks with clear completion criteria** (tests pass, builds succeed)
+- **Situations where you want quality gates** before shipping
+
+It's overkill for:
+
+- Simple one-shot tasks
+- Interactive/exploratory work
+- Tasks without verifiable completion criteria
+
+## Recipe Files
 
 <details>
-<summary>1. The Bash Wrapper (`ralph-loop.sh`)</summary>
-
-This is the entry point that orchestrates the loop:
+<summary>The Bash Wrapper (`ralph-loop.sh`)</summary>
 
 ```bash
 #!/bin/bash
@@ -306,9 +427,7 @@ exit 1
 </details>
 
 <details>
-<summary>2. Work Phase Recipe (`ralph-work.yaml`)</summary>
-
-This recipe runs one iteration of work:
+<summary>Work Phase Recipe (`ralph-work.yaml`)</summary>
 
 ```yaml
 version: 1.0.0
@@ -364,9 +483,7 @@ extensions:
 </details>
 
 <details>
-<summary>3. Review Phase Recipe (`ralph-review.yaml`)</summary>
-
-This recipe reviews the work with a different model:
+<summary>Review Phase Recipe (`ralph-review.yaml`)</summary>
 
 ```yaml
 version: 1.0.0
@@ -425,159 +542,3 @@ extensions:
 ```
 
 </details>
-
-## Usage
-
-### Basic Usage
-
-Run with a task string:
-
-```bash
-~/.config/goose/recipes/ralph-loop.sh "build a CLI tool that converts markdown to HTML"
-```
-
-Or with a task file (better for complex tasks):
-
-```bash
-~/.config/goose/recipes/ralph-loop.sh ./my-task.md
-```
-
-### Skip Prompts with Environment Variables
-
-Set all variables to skip the interactive prompts:
-
-```bash
-RALPH_WORKER_MODEL="gpt-4o" \
-RALPH_WORKER_PROVIDER="openai" \
-RALPH_REVIEWER_MODEL="claude-sonnet-4-20250514" \
-RALPH_REVIEWER_PROVIDER="anthropic" \
-~/.config/goose/recipes/ralph-loop.sh ./task.md
-```
-
-### Interactive Setup
-
-When you run the script, it will prompt you for settings:
-
-```
-Worker model [gpt-4o]: 
-Worker provider [openai]: 
-Reviewer model (should be different from worker): claude-sonnet-4-20250514
-Reviewer provider: anthropic
-Max iterations [10]: 
-
-⚠️  Cost Warning: This will run up to 10 iterations, each using both models.
-    Estimated token usage could be significant depending on your task.
-
-Continue? [y/N]: y
-```
-
-- **Worker model** defaults to your `GOOSE_MODEL` if set
-- **Worker provider** defaults to your `GOOSE_PROVIDER` if set
-- **Reviewer model** has no default - you must specify one
-- **Reviewer provider** has no default - you must specify one
-- **Max iterations** defaults to 10
-- If you enter the same model and provider for both, you'll get a warning (cross-model review works best with different models)
-- If you decline the cost warning, you'll be prompted to adjust your settings
-
-### Environment Variables
-
-To skip the prompts, set these environment variables:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `RALPH_WORKER_MODEL` | Prompts (defaults to `GOOSE_MODEL`) | Model for work phase |
-| `RALPH_WORKER_PROVIDER` | Prompts (defaults to `GOOSE_PROVIDER`) | Provider for work phase |
-| `RALPH_REVIEWER_MODEL` | Prompts (required) | Model for review phase |
-| `RALPH_REVIEWER_PROVIDER` | Prompts (required) | Provider for review phase |
-| `RALPH_MAX_ITERATIONS` | `10` | Safety limit |
-| `RALPH_RECIPE_DIR` | `~/.config/goose/recipes` | Where recipes live |
-
-:::note
-Even with environment variables set, you'll still see the cost warning and need to confirm before the loop starts.
-:::
-
-## Example Output
-
-Here's what a successful run looks like:
-
-```
-═══════════════════════════════════════════════════════════════
-  Ralph Wiggum Loop - Multi-Model Edition
-═══════════════════════════════════════════════════════════════
-
-  Task: build a CLI tool that converts markdown to HTML
-  Worker: gpt-4o (openai)
-  Reviewer: claude-sonnet-4-20250514 (anthropic)
-  Max Iterations: 10
-
-───────────────────────────────────────────────────────────────
-  Iteration 1 / 10
-───────────────────────────────────────────────────────────────
-
-▶ WORK PHASE
-... (goose creates initial implementation) ...
-
-▶ REVIEW PHASE
-... (goose reviews the work) ...
-
-↻ REVISE - Feedback for next iteration:
-Missing error handling for invalid markdown input. Also needs --help flag.
-
-───────────────────────────────────────────────────────────────
-  Iteration 2 / 10
-───────────────────────────────────────────────────────────────
-
-▶ WORK PHASE
-... (goose addresses feedback) ...
-
-▶ REVIEW PHASE
-... (goose reviews again) ...
-
-═══════════════════════════════════════════════════════════════
-  ✓ SHIPPED after 2 iteration(s)
-═══════════════════════════════════════════════════════════════
-```
-
-## State Files
-
-All state lives in `.goose/ralph/` in your working directory:
-
-| File | Purpose |
-|------|---------|
-| `task.md` | The task description |
-| `iteration.txt` | Current iteration number |
-| `work-summary.txt` | What the worker did this iteration |
-| `work-complete.txt` | Exists when worker claims done |
-| `review-result.txt` | `SHIP` or `REVISE` |
-| `review-feedback.txt` | Feedback for next iteration |
-| `.ralph-complete` | Created on successful completion |
-| `RALPH-BLOCKED.md` | Created if worker is stuck |
-
-## Starting Over
-
-To reset and start fresh:
-
-```bash
-rm -rf .goose/ralph
-```
-
-To keep your task but reset progress:
-
-```bash
-rm -f .goose/ralph/iteration.txt .goose/ralph/review-*.txt .goose/ralph/work-*.txt
-```
-
-## When to Use Ralph Loop
-
-Ralph Loop works best for:
-
-- **Complex, multi-step tasks** that benefit from iteration
-- **Tasks with clear completion criteria** (tests pass, builds succeed)
-- **Situations where you want quality gates** before shipping
-
-It's overkill for:
-
-- Simple one-shot tasks
-- Interactive/exploratory work
-- Tasks without verifiable completion criteria
-
