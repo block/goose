@@ -24,8 +24,7 @@ describe('tetrateAuth', () => {
     const { codeVerifier, codeChallenge } = __test.createPkcePair();
     const expectedChallenge = createHash('sha256').update(codeVerifier).digest('base64url');
 
-    expect(codeVerifier.length).toBeGreaterThanOrEqual(43);
-    expect(codeVerifier.length).toBeLessThanOrEqual(128);
+    expect(codeVerifier.length).toBe(128);
     expect(codeVerifier).toMatch(/^[A-Za-z0-9_-]+$/);
     expect(codeChallenge).toBe(expectedChallenge);
   });
@@ -83,5 +82,23 @@ describe('tetrateAuth', () => {
     expect(handleTetrateCallbackUrl(invalidUrl.toString())).toBe(true);
 
     await expect(waitPromise).rejects.toThrow('Authentication state mismatch');
+  });
+
+  it('rejects the waiting callback when the flow has timed out', async () => {
+    vi.useFakeTimers();
+
+    const { flowId, authUrl } = __test.createTetrateAuthFlow();
+    const callbackUrl = new URL(authUrl).searchParams.get('callback');
+    expect(callbackUrl).toBeTruthy();
+
+    const callbackWithCode = new URL(callbackUrl as string);
+    callbackWithCode.searchParams.set('code', 'test-code');
+
+    const waitPromise = __test.waitForTetrateCallback(flowId);
+    const ttlMs = __test.getTetrateAuthTtlMs();
+    vi.setSystemTime(Date.now() + ttlMs + 1);
+
+    expect(handleTetrateCallbackUrl(callbackWithCode.toString())).toBe(true);
+    await expect(waitPromise).rejects.toThrow('Authentication timed out');
   });
 });

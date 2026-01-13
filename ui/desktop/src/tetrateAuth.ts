@@ -94,7 +94,7 @@ function loadNativeAuthSession(): NativeAuthSession | null {
 }
 
 function createPkcePair(): { codeVerifier: string; codeChallenge: string } {
-  const codeVerifier = crypto.randomBytes(64).toString('base64url');
+  const codeVerifier = crypto.randomBytes(96).toString('base64url');
   const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
   return { codeVerifier, codeChallenge };
 }
@@ -162,7 +162,7 @@ function expireTetrateAuthFlow(flowId: string, message: string): void {
     return;
   }
 
-  log.info('Tetrate auth flow expired:', { flowId, reason: message });
+  log.warn('Tetrate auth flow expired:', { flowId, reason: message });
   flow.reject?.(new Error(message));
   cleanupTetrateAuthFlow(flowId);
 }
@@ -305,7 +305,7 @@ export async function runTetrateAuthFlow(client: Client): Promise<TetrateSetupRe
       message: 'Setup failed',
     };
   } catch (error) {
-    log.info('Tetrate auth failed:', getTetrateAuthErrorMessage(error));
+    log.warn('Tetrate auth failed:', getTetrateAuthErrorMessage(error));
     cleanupTetrateAuthFlow(flowId);
     return {
       success: false,
@@ -318,6 +318,7 @@ export const __test = {
   buildTetrateAuthUrl,
   createPkcePair,
   createTetrateAuthFlow,
+  getTetrateAuthTtlMs: () => TETRATE_AUTH_TTL_MS,
   parseTetrateCallbackUrl,
   resetForTests: () => {
     for (const flow of tetrateAuthFlows.values()) {
