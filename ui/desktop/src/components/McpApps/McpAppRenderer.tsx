@@ -195,12 +195,7 @@ export default function McpAppRenderer({
 
   if (!resource.html) {
     return (
-      <div
-        className={cn(
-          'p-4 bg-bgApp',
-          resource.prefersBorder && 'border border-borderSubtle rounded-lg'
-        )}
-      >
+      <div className={cn('p-4 bg-bgApp border border-borderSubtle rounded-lg')}>
         <div className="flex items-center justify-center" style={{ minHeight: '200px' }}>
           Loading MCP app...
         </div>
@@ -212,7 +207,7 @@ export default function McpAppRenderer({
     <div
       className={cn(
         'bg-bgApp overflow-hidden',
-        resource.prefersBorder && 'border border-borderSubtle rounded-lg'
+        resource.prefersBorder ? 'border border-borderSubtle rounded-lg' : 'my-6'
       )}
     >
       {proxyUrl ? (
