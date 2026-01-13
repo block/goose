@@ -574,7 +574,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
                 stiffness: 400,
                 damping: 25,
               }}
-              className={`${isOverlayMode ? 'p-4 bg-transparent rounded-2xl' : ''} ${
+              className={`${isOverlayMode ? '' : ''} ${
                 !isOverlayMode && isVertical 
                   ? position === 'right' 
                     ? 'h-full pl-0.5' 
@@ -583,11 +583,15 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
                     ? 'pr-0.5 pb-0.5'
                     : !isOverlayMode ? 'pr-0.5' : ''
               }`}
-              style={{ width: isVertical || isOverlayMode ? (isOverlayMode ? '600px' : '240px') : undefined, height: isOverlayMode ? '500px' : undefined }}
             >
 {isOverlayMode ? (
-                // Overlay Mode: Two-column layout with navigation rows on left, widget tiles on right
-                <div className="flex flex-row gap-4 w-full h-full items-start">
+                // Overlay Mode: Windows Start Menu style container
+                <div 
+                  className="bg-background-card backdrop-blur-xl rounded-2xl shadow-2xl border border-border-default overflow-hidden"
+                  style={{ width: '600px', maxHeight: '500px' }}
+                >
+                  {/* Two-column layout with navigation rows on left, widget tiles on right */}
+                  <div className="flex flex-row gap-4 w-full h-full items-start p-4">
                   {/* Left Column: Navigation Rows */}
                   <div className="flex flex-col gap-[1px] w-80">
                     {navItems.filter(item => !item.isWidget).map((item, index) => {
@@ -731,6 +735,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
                         );
                       })}
                     </div>
+                  </div>
                   </div>
                 </div>
               ) : (
