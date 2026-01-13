@@ -475,12 +475,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
   } : undefined;
   
   const containerClasses = isOverlayMode
-    ? `w-full h-full flex ${
-        position === 'top' ? 'items-start justify-center' :
-        position === 'bottom' ? 'items-end justify-center' :
-        position === 'left' ? 'items-center justify-start' :
-        'items-center justify-end'
-      }`
+    ? 'w-full h-full flex items-center justify-center' // Always centered for overlay mode
     : isVertical
       ? 'h-full'
       : 'w-full overflow-hidden';
