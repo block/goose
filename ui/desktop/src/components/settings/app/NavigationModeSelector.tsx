@@ -17,28 +17,39 @@ export const NavigationModeSelector: React.FC<NavigationModeSelectorProps> = ({ 
     localStorage.setItem('navigation_mode', selectedMode);
     
     // When overlay mode is selected, automatically set position to center and style to expanded
+    // Use requestAnimationFrame to batch updates and prevent layout thrashing
     if (selectedMode === 'overlay') {
       localStorage.setItem('navigation_position', 'top'); // Center position
       localStorage.setItem('navigation_style', 'expanded');
       
-      // Dispatch events to update other components
-      window.dispatchEvent(
-        new CustomEvent('navigation-position-changed', {
-          detail: { position: 'top' },
-        })
-      );
-      window.dispatchEvent(
-        new CustomEvent('navigation-style-changed', {
-          detail: { style: 'expanded' },
-        })
-      );
+      // Batch all events together in a single frame to prevent multiple re-renders
+      requestAnimationFrame(() => {
+        window.dispatchEvent(
+          new CustomEvent('navigation-position-changed', {
+            detail: { position: 'top' },
+          })
+        );
+        window.dispatchEvent(
+          new CustomEvent('navigation-style-changed', {
+            detail: { style: 'expanded' },
+          })
+        );
+        window.dispatchEvent(
+          new CustomEvent('navigation-mode-changed', {
+            detail: { mode: selectedMode },
+          })
+        );
+      });
+    } else {
+      // For push mode, only dispatch mode change event
+      requestAnimationFrame(() => {
+        window.dispatchEvent(
+          new CustomEvent('navigation-mode-changed', {
+            detail: { mode: selectedMode },
+          })
+        );
+      });
     }
-    
-    window.dispatchEvent(
-      new CustomEvent('navigation-mode-changed', {
-        detail: { mode: selectedMode },
-      })
-    );
   }, [selectedMode]);
 
   const modes: { value: NavigationMode; label: string; icon: React.ReactNode; description: string }[] = [

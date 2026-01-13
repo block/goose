@@ -73,13 +73,14 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
     const stored = localStorage.getItem('navigation_mode');
     setNavigationMode((stored as 'push' | 'overlay') || 'push');
 
-    const handleModeChange = (event: CustomEvent) => {
-      setNavigationMode(event.detail.mode);
+    const handleModeChange = (event: Event) => {
+      const customEvent = event as CustomEvent<{ mode: 'push' | 'overlay' }>;
+      setNavigationMode(customEvent.detail.mode);
     };
 
-    window.addEventListener('navigation-mode-changed', handleModeChange as EventListener);
+    window.addEventListener('navigation-mode-changed', handleModeChange);
     return () => {
-      window.removeEventListener('navigation-mode-changed', handleModeChange as EventListener);
+      window.removeEventListener('navigation-mode-changed', handleModeChange);
     };
   }, []);
 
