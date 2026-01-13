@@ -7,6 +7,8 @@ export default interface Model {
   lastUsed?: string;
   alias?: string; // optional model display name
   subtext?: string; // goes below model name if not the provider
+  context_limit?: number; // optional context limit override
+  request_params?: Record<string, unknown>; // provider-specific request parameters
 }
 
 export function createModelStruct(

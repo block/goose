@@ -527,6 +527,12 @@ export type ModelConfig = {
     fast_model?: string | null;
     max_tokens?: number | null;
     model_name: string;
+    /**
+     * Provider-specific request parameters (e.g., anthropic_beta headers)
+     */
+    request_params?: {
+        [key: string]: unknown;
+    } | null;
     temperature?: number | null;
     toolshim: boolean;
     toolshim_model?: string | null;
@@ -1149,8 +1155,18 @@ export type UpdateFromSessionRequest = {
 };
 
 export type UpdateProviderRequest = {
+    /**
+     * Optional context limit override
+     */
+    context_limit?: number | null;
     model?: string | null;
     provider: string;
+    /**
+     * Provider-specific request parameters (e.g., anthropic_beta headers)
+     */
+    request_params?: {
+        [key: string]: unknown;
+    } | null;
     session_id: string;
 };
 
