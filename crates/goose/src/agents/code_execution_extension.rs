@@ -466,6 +466,8 @@ impl CodeExecutionClient {
                 - WRONG: Multiple execute_code calls, each with one tool
                 - RIGHT: One execute_code call with a script that calls all needed tools
 
+                IMPORTANT: All tool calls are SYNCHRONOUS. Do NOT use async/await.
+
                 Workflow:
                     1. Use the read_module tool to discover tools and signatures
                     2. Write ONE script that imports and calls ALL tools needed for the task
@@ -572,12 +574,16 @@ impl CodeExecutionClient {
             .and_then(|a| a.get("terms"))
             .ok_or("Missing required parameter: terms")?;
 
-        let terms_vec = if let Some(s) = terms.as_str() {
-            vec![s.to_string()]
-        } else if let Some(arr) = terms.as_array() {
+        let terms_vec = if let Some(arr) = terms.as_array() {
             arr.iter()
                 .filter_map(|v| v.as_str().map(String::from))
                 .collect()
+        } else if let Some(s) = terms.as_str() {
+            if s.starts_with('[') && s.ends_with(']') {
+                serde_json::from_str::<Vec<String>>(s).unwrap_or_else(|_| vec![s.to_string()])
+            } else {
+                vec![s.to_string()]
+            }
         } else {
             return Err("Parameter 'terms' must be a string or array of strings".to_string());
         };
@@ -830,9 +836,11 @@ impl McpClientTrait for CodeExecutionClient {
                         Search for tools by name or description across all available modules.
 
                         USAGE:
-                        - Single term: search_modules with terms="file"
-                        - Multiple terms: search_modules with terms=["git", "shell"]
-                        - Regex patterns: search_modules with terms="sh.*", regex=true
+                        - Single term: terms="github" (just a plain string)
+                        - Multiple terms: terms=["git", "shell"] (a JSON array, NOT a string)
+                        - Regex patterns: terms="sh.*", regex=true
+
+                        IMPORTANT: Do NOT stringify arrays. Use terms=["a","b"] not terms="[\"a\",\"b\"]"
 
                         Returns matching servers and tools with descriptions.
                         Use this when you don't know which module contains the tool you need.

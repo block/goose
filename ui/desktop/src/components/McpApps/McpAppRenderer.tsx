@@ -34,6 +34,12 @@ interface McpAppRendererProps {
   cachedHtml?: string;
 }
 
+interface ResourceData {
+  html: string | null;
+  csp: CspMetadata | null;
+  prefersBorder: boolean;
+}
+
 export default function McpAppRenderer({
   resourceUri,
   extensionName,
@@ -46,8 +52,11 @@ export default function McpAppRenderer({
   fullscreen = false,
   cachedHtml,
 }: McpAppRendererProps) {
-  const [resourceHtml, setResourceHtml] = useState<string | null>(cachedHtml || null);
-  const [resourceCsp, setResourceCsp] = useState<CspMetadata | null>(null);
+  const [resource, setResource] = useState<ResourceData>({
+    html: cachedHtml || null,
+    csp: null,
+    prefersBorder: true,
+  });
   const [error, setError] = useState<string | null>(null);
   const [iframeHeight, setIframeHeight] = useState(DEFAULT_IFRAME_HEIGHT);
 
@@ -68,13 +77,17 @@ export default function McpAppRenderer({
 
         if (response.data) {
           const content = response.data;
+          const meta = content._meta as
+            | { ui?: { csp?: CspMetadata; prefersBorder?: boolean } }
+            | undefined;
 
           if (content.text !== cachedHtml) {
-            setResourceHtml(content.text);
+            setResource({
+              html: content.text,
+              csp: meta?.ui?.csp || null,
+              prefersBorder: meta?.ui?.prefersBorder ?? true,
+            });
           }
-
-          const meta = content._meta as { ui?: { csp?: CspMetadata } } | undefined;
-          setResourceCsp(meta?.ui?.csp || null);
         }
       } catch (err) {
         if (!cachedHtml) {
@@ -175,8 +188,8 @@ export default function McpAppRenderer({
   }, []);
 
   const { iframeRef, proxyUrl } = useSandboxBridge({
-    resourceHtml: resourceHtml || '',
-    resourceCsp,
+    resourceHtml: resource.html || '',
+    resourceCsp: resource.csp,
     resourceUri,
     toolInput,
     toolInputPartial,
@@ -188,18 +201,8 @@ export default function McpAppRenderer({
 
   if (error) {
     return (
-      <div className="mt-3 p-4 border border-red-500 rounded-lg bg-red-50 dark:bg-red-900/20">
+      <div className="p-4 border border-red-500 rounded-lg bg-red-50 dark:bg-red-900/20">
         <div className="text-red-700 dark:text-red-300">Failed to load MCP app: {error}</div>
-      </div>
-    );
-  }
-
-  if (!resourceHtml) {
-    return (
-      <div className="mt-3 p-4 border border-borderSubtle rounded-lg bg-bgApp">
-        <div className="flex items-center justify-center" style={{ minHeight: '200px' }}>
-          Loading MCP app...
-        </div>
       </div>
     );
   }
@@ -232,8 +235,13 @@ export default function McpAppRenderer({
   }
 
   return (
-    <div className={cn('mt-3 bg-bgApp', 'border border-borderSubtle rounded-lg overflow-hidden')}>
-      {proxyUrl ? (
+    <div
+      className={cn(
+        'bg-bgApp overflow-hidden',
+        resource.prefersBorder ? 'border border-borderSubtle rounded-lg' : 'my-6'
+      )}
+    >
+      {resource.html && proxyUrl ? (
         <iframe
           ref={iframeRef}
           src={proxyUrl}
@@ -246,16 +254,8 @@ export default function McpAppRenderer({
           sandbox="allow-scripts allow-same-origin"
         />
       ) : (
-        <div
-          style={{
-            width: '100%',
-            minHeight: '200px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          Loading...
+        <div className="flex items-center justify-center p-4" style={{ minHeight: '200px' }}>
+          Loading MCP app...
         </div>
       )}
     </div>
