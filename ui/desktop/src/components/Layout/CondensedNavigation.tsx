@@ -579,18 +579,19 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
               }`}
             >
 {isOverlayMode ? (
-                // Overlay Mode: Independent menu container and widget tiles
-                <div className={`flex flex-row gap-4 ${
-                  position === 'left' || position === 'right' ? 'items-center' : 
-                  position === 'bottom' ? 'items-end' : 'items-start'
-                }`}>
-                  {/* Menu Container: Windows Start Menu style */}
-                  <div 
-                    className="bg-background-card backdrop-blur-xl rounded-2xl shadow-2xl border border-border-default overflow-hidden"
-                    style={{ width: '320px', maxHeight: '500px' }}
-                  >
-                    {/* Navigation Rows */}
-                    <div className="flex flex-col gap-[1px] p-4">
+                // Overlay Mode: Independent menu container and widget tiles wrapped in panel
+                <div className="bg-background-default rounded-3xl p-6 shadow-2xl border border-border-default">
+                  <div className={`flex flex-row gap-4 ${
+                    position === 'left' || position === 'right' ? 'items-center' : 
+                    position === 'bottom' ? 'items-end' : 'items-start'
+                  }`}>
+                    {/* Menu Container: Windows Start Menu style */}
+                    <div 
+                      className="bg-background-card backdrop-blur-xl rounded-2xl shadow-2xl border border-border-default overflow-hidden"
+                      style={{ width: '320px', maxHeight: '500px' }}
+                    >
+                      {/* Navigation Rows */}
+                      <div className="flex flex-col gap-[1px] p-4">
                     {navItems.filter(item => !item.isWidget).map((item, index) => {
                       const isPulsing = pulsingItems.has(item.id);
                       const isDragging = draggedItem === item.id;
@@ -734,6 +735,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
                         </motion.div>
                       );
                     })}
+                  </div>
                   </div>
                 </div>
               ) : (
