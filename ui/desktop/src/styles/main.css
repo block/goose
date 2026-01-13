@@ -927,19 +927,15 @@ p > code.bg-inline-code {
 
 /* Navigation tile stagger animation with enhanced easing */
 .nav-tile {
-  animation: nav-tile-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
-  animation-fill-mode: both;
-  /* Start at the first keyframe to prevent flash */
+  animation: nav-tile-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+  /* Let animation handle all states - don't set initial transform */
   opacity: 0;
-  transform: translateY(24px) scale(0.92);
 }
 
 .nav-tile-exit {
-  animation: nav-tile-out 0.2s ease-in;
-  animation-fill-mode: both;
-  /* Override to ensure we start from visible state */
-  opacity: 1 !important;
-  transform: translateY(0) scale(1) !important;
+  animation: nav-tile-out 0.2s ease-in forwards;
+  /* Start from current visible state */
+  opacity: 1;
 }
 
 /* Enhanced stagger delays with better rhythm - faster start, gradual slowdown */
