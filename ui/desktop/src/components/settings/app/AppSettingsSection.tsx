@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { Switch } from '../../ui/switch';
 import { Button } from '../../ui/button';
-import { Settings } from 'lucide-react';
+import { Settings, ChevronDown } from 'lucide-react';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog';
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../../ui/collapsible';
 import UpdateSection from './UpdateSection';
 import TunnelSection from '../tunnel/TunnelSection';
 
@@ -274,43 +275,58 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
       </Card>
 
       <Card className="rounded-lg">
-        <CardHeader className="pb-0">
-          <CardTitle className="mb-1">Navigation Mode</CardTitle>
-          <CardDescription>Choose between push menu or overlay launcher</CardDescription>
-        </CardHeader>
-        <CardContent className="pt-4 px-4">
-          <NavigationModeSelector />
-        </CardContent>
-      </Card>
+        <Collapsible defaultOpen={true}>
+          <CardHeader className="pb-0">
+            <CollapsibleTrigger className="w-full group">
+              <div className="flex items-center justify-between w-full">
+                <div className="text-left">
+                  <CardTitle className="mb-1">Navigation</CardTitle>
+                  <CardDescription>Customize navigation appearance, position, and items</CardDescription>
+                </div>
+                <ChevronDown className="w-5 h-5 text-text-muted transition-transform duration-200 group-data-[state=open]:rotate-180" />
+              </div>
+            </CollapsibleTrigger>
+          </CardHeader>
+          <CollapsibleContent>
+            <CardContent className="pt-4 px-4 space-y-6">
+              {/* Navigation Mode */}
+              <div className="space-y-2">
+                <div>
+                  <h3 className="text-sm font-medium text-text-default">Mode</h3>
+                  <p className="text-xs text-text-muted">Choose between push menu or overlay launcher</p>
+                </div>
+                <NavigationModeSelector />
+              </div>
 
-      <Card className="rounded-lg">
-        <CardHeader className="pb-0">
-          <CardTitle className="mb-1">Navigation Position</CardTitle>
-          <CardDescription>Choose where the navigation bar appears</CardDescription>
-        </CardHeader>
-        <CardContent className="pt-4 px-4">
-          <NavigationPositionSelector />
-        </CardContent>
-      </Card>
+              {/* Navigation Position */}
+              <div className="space-y-2">
+                <div>
+                  <h3 className="text-sm font-medium text-text-default">Position</h3>
+                  <p className="text-xs text-text-muted">Choose where the navigation bar appears</p>
+                </div>
+                <NavigationPositionSelector />
+              </div>
 
-      <Card className="rounded-lg">
-        <CardHeader className="pb-0">
-          <CardTitle className="mb-1">Navigation Style</CardTitle>
-          <CardDescription>Choose between expanded tiles or condensed rows</CardDescription>
-        </CardHeader>
-        <CardContent className="pt-4 px-4">
-          <NavigationStyleSelector />
-        </CardContent>
-      </Card>
+              {/* Navigation Style */}
+              <div className="space-y-2">
+                <div>
+                  <h3 className="text-sm font-medium text-text-default">Style</h3>
+                  <p className="text-xs text-text-muted">Choose between expanded tiles or condensed rows</p>
+                </div>
+                <NavigationStyleSelector />
+              </div>
 
-      <Card className="rounded-lg">
-        <CardHeader className="pb-0">
-          <CardTitle className="mb-1">Navigation Items</CardTitle>
-          <CardDescription>Customize which items appear and their order</CardDescription>
-        </CardHeader>
-        <CardContent className="pt-4 px-4">
-          <NavigationCustomizationSettings />
-        </CardContent>
+              {/* Navigation Items */}
+              <div className="space-y-2">
+                <div>
+                  <h3 className="text-sm font-medium text-text-default">Items</h3>
+                  <p className="text-xs text-text-muted">Customize which items appear and their order</p>
+                </div>
+                <NavigationCustomizationSettings />
+              </div>
+            </CardContent>
+          </CollapsibleContent>
+        </Collapsible>
       </Card>
 
       <TunnelSection />
