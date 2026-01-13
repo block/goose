@@ -267,7 +267,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
     {
       id: 'scheduler',
       path: '/schedules',
-      label: 'Marketplace',
+      label: 'Scheduler',
       icon: ShoppingBag,
     },
     {
