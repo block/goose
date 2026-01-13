@@ -4,44 +4,13 @@ description: Run goose in a loop with fresh context per iteration and cross-mode
 
 # Ralph Loop
 
-The Ralph Loop is an iterative development pattern that keeps goose working on a task until it's genuinely complete. Unlike standard retry mechanisms, each iteration runs with fresh context and a different model reviews the work before it ships.
+Ralph Loop is an iterative development pattern that keeps goose working on a task until it's genuinely complete.
 
-This technique is based on [Geoffrey Huntley's "Ralph Wiggum" approach](https://ghuntley.com/ralph/) put an AI agent in a loop until the job is done, with file I/O as state rather than conversation history.
+Standard agent loops have a problem: context accumulates. Every failed attempt stays in the conversation history. By the time you're a few iterations in, the model is processing a long history of attempts before it can focus on the actual task. Ralph Loop solves this by starting each iteration with fresh context. One model does the work, a different model reviews it, and the loop continues until it's ready to ship.
 
-## Why Ralph Loop?
+After each iteration, the worker model and reviewer model store a summary and feedback in files. The files persist between iterations, but the conversation history doesn't. This allows a new session to start, and the next model can read the files to pick up where the last iteration left off. This technique is based on [Geoffrey Huntley's "Ralph Wiggum" approach](https://ghuntley.com/ralph/).
 
-Standard agent loops have a problem: **context accumulates**. Every failed attempt, every wrong turn stays in the conversation history. By iteration 10, the model is wading through garbage from iterations 1-9.
-
-Ralph Loop solves this with:
-
-| Feature | Standard Retry | Ralph Loop |
-|---------|---------------|------------|
-| Context per iteration | Accumulated (same session) | Fresh (new session) |
-| State persistence | Conversation + files | Files only |
-| Failed attempts | Pollute future iterations | Gone |
-| Review | Same model | Different model |
-
-The key insight: **file I/O as state, not transcript**. Your files persist between iterations, but the conversation history doesn't.
-
-## How It Works
-
-```
-Iteration 1:
-  WORK PHASE  → Model A does work, writes to files
-  REVIEW PHASE → Model B reviews the work
-    → SHIP? Exit successfully ✓
-    → REVISE? Write feedback, continue to iteration 2
-
-Iteration 2:
-  WORK PHASE  → Model A reads feedback, fixes things (fresh context!)
-  REVIEW PHASE → Model B reviews again
-    → SHIP? Exit successfully ✓
-    → REVISE? Continue...
-
-... repeats until SHIP or max iterations
-```
-
-## Walkthrough
+In this tutorial, we'll use Ralph Loop to build a simple Electron browser and see how the iteration cycle catches missing features before shipping.
 
 ### Prerequisites
 
@@ -542,3 +511,22 @@ extensions:
 ```
 
 </details>
+
+
+## How It Works
+
+```
+Iteration 1:
+  WORK PHASE  → Model A does work, writes to files
+  REVIEW PHASE → Model B reviews the work
+    → SHIP? Exit successfully ✓
+    → REVISE? Write feedback, continue to iteration 2
+
+Iteration 2:
+  WORK PHASE  → Model A reads feedback, fixes things (fresh context!)
+  REVIEW PHASE → Model B reviews again
+    → SHIP? Exit successfully ✓
+    → REVISE? Continue...
+
+... repeats until SHIP or max iterations
+```
