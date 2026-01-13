@@ -480,7 +480,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
     ? 'w-full h-full flex items-center justify-center overflow-hidden' // Always centered for overlay mode
     : isVertical
       ? 'h-full'
-      : 'w-full overflow-y-auto'; // Enable vertical scrolling for horizontal push mode
+      : 'w-full max-h-screen overflow-y-auto'; // Enable vertical scrolling with max height for horizontal push mode
 
   return (
     <div className={`${isOverlayMode ? 'bg-transparent' : 'bg-background-muted'} ${containerClasses} relative z-[9998]`}>
@@ -489,7 +489,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
             className={`${isOverlayMode ? 'bg-transparent' : 'bg-background-muted overflow-hidden'} ${isVertical && !isOverlayMode ? 'h-full' : ''} ${isClosing ? 'nav-overlay-exit' : 'nav-overlay-enter'} transition-all duration-300`}
           >
             <div
-              className={`${isOverlayMode ? 'overflow-y-auto max-h-[90vh] py-4 sm:py-6 md:py-8' : isVertical ? 'p-1 h-full' : 'pb-0.5 lg:max-h-[2000px] md:max-h-[calc(100vh-60px)] max-h-screen'} transition-all duration-300`}
+              className={`${isOverlayMode ? 'overflow-y-auto max-h-[90vh] py-4 sm:py-6 md:py-8' : isVertical ? 'p-1 h-full' : 'pb-0.5'} transition-all duration-300`}
               style={{ width: isVertical && !isOverlayMode ? '360px' : undefined }}
             >
               <div 
