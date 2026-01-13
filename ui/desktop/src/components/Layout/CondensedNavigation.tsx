@@ -697,15 +697,25 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
                   >
                     {(() => {
                       const widgets = navItems.filter(item => item.isWidget);
-                      // For bottom position, reorder to L-shape: [0,1,2] -> [0,2,1]
-                      // This creates: Top row: Clock, Tokens | Bottom row: Activity, (empty)
+                      // For bottom position, reorder to L-shape: [0,1,2] -> [0,undefined,1,2]
+                      // This creates: Top row: Clock (0), undefined | Bottom row: Activity (1), Tokens (2)
                       if (position === 'bottom' && widgets.length >= 3) {
-                        const reordered = [...widgets];
-                        [reordered[1], reordered[2]] = [reordered[2], reordered[1]];
-                        return reordered;
+                        return [widgets[0], undefined, widgets[1], widgets[2]];
                       }
                       return widgets;
                     })().map((item, index) => {
+                      if (!item) {
+                        // Render empty placeholder for undefined slots
+                        return (
+                          <div
+                            key={`empty-${index}`}
+                            style={{
+                              width: 'calc((500px - 2px) / 2)',
+                              height: 'calc((500px - 2px) / 2)',
+                            }}
+                          />
+                        );
+                      }
                       const isDragging = draggedItem === item.id;
                       const isDragOver = dragOverItem === item.id;
 
