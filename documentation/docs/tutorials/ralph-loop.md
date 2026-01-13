@@ -531,7 +531,7 @@ It's overkill for:
 
 ### Resetting
 
-To reset and start fresh:
+If you want to start a completely new task, or if a previous run got stuck and you want to start over, you can clear the state directory:
 
 ```bash
 rm -rf .goose/ralph
