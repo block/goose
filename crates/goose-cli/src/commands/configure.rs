@@ -40,8 +40,6 @@ pub async fn handle_configure() -> anyhow::Result<()> {
     }
 }
 
-/// Prompt user for telemetry consent.
-/// Returns true if user opted in, false if opted out.
 pub fn configure_telemetry_consent_dialog() -> anyhow::Result<bool> {
     let config = Config::global();
 
