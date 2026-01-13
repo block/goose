@@ -125,12 +125,34 @@ async fn auth_middleware(
     Ok(response)
 }
 
+fn is_loopback_address(host: &str) -> bool {
+    match host {
+        "localhost" | "127.0.0.1" | "::1" => true,
+        _ => {
+            if let Ok(addr) = host.parse::<std::net::IpAddr>() {
+                addr.is_loopback()
+            } else {
+                false
+            }
+        }
+    }
+}
+
 pub async fn handle_web(
     port: u16,
     host: String,
     open: bool,
     auth_token: Option<String>,
 ) -> Result<()> {
+    if !is_loopback_address(&host) && auth_token.is_none() {
+        eprintln!(
+            "Error: --auth-token is required when binding to a non-loopback address ({}).",
+            host
+        );
+        eprintln!("For security, use --auth-token <TOKEN> or bind to localhost/127.0.0.1.");
+        std::process::exit(1);
+    }
+
     crate::logging::setup_logging(Some("goose-web"), None)?;
 
     let config = goose::config::Config::global();
