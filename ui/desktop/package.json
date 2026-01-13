@@ -68,6 +68,7 @@
     "electron-updater": "^6.6.2",
     "electron-window-state": "^5.0.3",
     "express": "^5.2.1",
+    "framer-motion": "^11.11.17",
     "katex": "^0.16.25",
     "lodash": "^4.17.21",
     "lucide-react": "^0.555.0",

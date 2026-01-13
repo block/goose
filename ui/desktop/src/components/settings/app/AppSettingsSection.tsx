@@ -9,6 +9,10 @@ import TunnelSection from '../tunnel/TunnelSection';
 import { COST_TRACKING_ENABLED, UPDATES_ENABLED } from '../../../updates';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import ThemeSelector from '../../GooseSidebar/ThemeSelector';
+import { NavigationPositionSelector } from './NavigationPositionSelector';
+import { NavigationStyleSelector } from './NavigationStyleSelector';
+import { NavigationModeSelector } from './NavigationModeSelector';
+import { NavigationCustomizationSettings } from './NavigationCustomizationSettings';
 import BlockLogoBlack from './icons/block-lockup_black.png';
 import BlockLogoWhite from './icons/block-lockup_white.png';
 import TelemetrySettings from './TelemetrySettings';
@@ -266,6 +270,46 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
         </CardHeader>
         <CardContent className="pt-4 px-4">
           <ThemeSelector className="w-auto" hideTitle horizontal />
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-lg">
+        <CardHeader className="pb-0">
+          <CardTitle className="mb-1">Navigation Mode</CardTitle>
+          <CardDescription>Choose between push menu or overlay launcher</CardDescription>
+        </CardHeader>
+        <CardContent className="pt-4 px-4">
+          <NavigationModeSelector />
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-lg">
+        <CardHeader className="pb-0">
+          <CardTitle className="mb-1">Navigation Position</CardTitle>
+          <CardDescription>Choose where the navigation bar appears</CardDescription>
+        </CardHeader>
+        <CardContent className="pt-4 px-4">
+          <NavigationPositionSelector />
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-lg">
+        <CardHeader className="pb-0">
+          <CardTitle className="mb-1">Navigation Style</CardTitle>
+          <CardDescription>Choose between expanded tiles or condensed rows</CardDescription>
+        </CardHeader>
+        <CardContent className="pt-4 px-4">
+          <NavigationStyleSelector />
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-lg">
+        <CardHeader className="pb-0">
+          <CardTitle className="mb-1">Navigation Items</CardTitle>
+          <CardDescription>Customize which items appear and their order</CardDescription>
+        </CardHeader>
+        <CardContent className="pt-4 px-4">
+          <NavigationCustomizationSettings />
         </CardContent>
       </Card>
 
