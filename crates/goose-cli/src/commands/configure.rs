@@ -19,6 +19,7 @@ use goose::config::{
 };
 use goose::conversation::message::Message;
 use goose::model::ModelConfig;
+use goose::posthog::{get_telemetry_choice, TELEMETRY_ENABLED_KEY};
 use goose::providers::provider_test::test_provider_configuration;
 use goose::providers::{create, providers, retry_operation, RetryConfig};
 use goose::session::{SessionManager, SessionType};
@@ -39,16 +40,80 @@ pub async fn handle_configure() -> anyhow::Result<()> {
     }
 }
 
-async fn handle_first_time_setup(config: &Config) -> anyhow::Result<()> {
+/// Prompt user for telemetry consent.
+/// Returns true if user opted in, false if opted out.
+pub fn configure_telemetry_consent_dialog() -> anyhow::Result<bool> {
+    let config = Config::global();
+
+    println!();
+    println!("{}", style("Help improve goose").bold());
     println!();
     println!(
         "{}",
-        style("Welcome to goose! Let's get you set up with a provider.").dim()
+        style("Would you like to help improve goose by sharing anonymous usage data?").dim()
     );
+    println!(
+        "{}",
+        style("This helps us understand how goose is used and identify areas for improvement.")
+            .dim()
+    );
+    println!();
+    println!("{}", style("What we collect:").dim());
+    println!(
+        "{}",
+        style("  • Operating system, version, and architecture").dim()
+    );
+    println!("{}", style("  • goose version and install method").dim());
+    println!("{}", style("  • Provider and model used").dim());
+    println!(
+        "{}",
+        style("  • Extensions and tool usage counts (names only)").dim()
+    );
+    println!(
+        "{}",
+        style("  • Session metrics (duration, interaction count, token usage)").dim()
+    );
+    println!(
+        "{}",
+        style("  • Error types (e.g., \"rate_limit\", \"auth\" - no details)").dim()
+    );
+    println!();
+    println!(
+        "{}",
+        style("We never collect your conversations, code, tool arguments, error messages,").dim()
+    );
+    println!(
+        "{}",
+        style("or any personal data. You can change this anytime with 'goose configure'.").dim()
+    );
+    println!();
+
+    let enabled = cliclack::confirm("Share anonymous usage data to help improve goose?")
+        .initial_value(true)
+        .interact()?;
+
+    config.set_param(TELEMETRY_ENABLED_KEY, enabled)?;
+
+    if enabled {
+        let _ = cliclack::log::success("Thank you for helping improve goose!");
+    } else {
+        let _ = cliclack::log::info("Telemetry disabled. You can enable it anytime in settings.");
+    }
+
+    Ok(enabled)
+}
+
+async fn handle_first_time_setup(config: &Config) -> anyhow::Result<()> {
+    println!();
+    println!("{}", style("Welcome to goose! Let's get you set up.").dim());
     println!(
         "{}",
         style("  you can rerun this command later to update your configuration").dim()
     );
+    println!();
+
+    configure_telemetry_consent_dialog()?;
+
     println!();
     cliclack::intro(style(" goose-configure ").on_cyan().black())?;
 
@@ -1032,6 +1097,11 @@ pub async fn configure_settings_dialog() -> anyhow::Result<()> {
     let setting_type = cliclack::select("What setting would you like to configure?")
         .item("goose_mode", "goose mode", "Configure goose mode")
         .item(
+            "telemetry",
+            "Telemetry",
+            "Enable or disable anonymous usage data collection",
+        )
+        .item(
             "tool_permission",
             "Tool Permission",
             "Set permission for individual tool of enabled extensions",
@@ -1068,6 +1138,9 @@ pub async fn configure_settings_dialog() -> anyhow::Result<()> {
     match setting_type {
         "goose_mode" => {
             configure_goose_mode_dialog()?;
+        }
+        "telemetry" => {
+            configure_telemetry_dialog()?;
         }
         "tool_permission" => {
             configure_tool_permissions_dialog().await.and(Ok(()))?;
@@ -1137,6 +1210,37 @@ pub fn configure_goose_mode_dialog() -> anyhow::Result<()> {
         GooseMode::Chat => "Set to Chat Mode - no tools or modifications enabled",
     };
     cliclack::outro(msg)?;
+    Ok(())
+}
+
+pub fn configure_telemetry_dialog() -> anyhow::Result<()> {
+    let config = Config::global();
+
+    if std::env::var("GOOSE_TELEMETRY_OFF").is_ok() {
+        let _ = cliclack::log::info("Notice: GOOSE_TELEMETRY_OFF environment variable is set and will override the configuration here.");
+    }
+
+    let current_choice = get_telemetry_choice();
+    let current_status = match current_choice {
+        Some(true) => "Enabled",
+        Some(false) => "Disabled",
+        None => "Not set",
+    };
+
+    let _ = cliclack::log::info(format!("Current telemetry status: {}", current_status));
+
+    let enabled = cliclack::confirm("Share anonymous usage data to help improve goose?")
+        .initial_value(current_choice.unwrap_or(true))
+        .interact()?;
+
+    config.set_param(TELEMETRY_ENABLED_KEY, enabled)?;
+
+    if enabled {
+        cliclack::outro("Telemetry enabled - thank you for helping improve goose!")?;
+    } else {
+        cliclack::outro("Telemetry disabled")?;
+    }
+
     Ok(())
 }
 
