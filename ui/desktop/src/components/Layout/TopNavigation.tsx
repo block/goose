@@ -526,7 +526,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
                 ease: "easeInOut"
               }
             }}
-            className={`${isOverlayMode ? 'bg-transparent w-full h-full' : 'bg-background-muted overflow-hidden'} ${isVertical && !isOverlayMode ? 'h-full' : ''}`}
+            className={`${isOverlayMode ? 'bg-transparent' : 'bg-background-muted overflow-hidden'} ${isVertical && !isOverlayMode ? 'h-full' : ''}`}
           >
             <motion.div
               initial={isOverlayMode ? { opacity: 0 } : { [isVertical ? 'x' : 'y']: -20 }}
@@ -540,7 +540,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
                 stiffness: 400,
                 damping: 25,
               }}
-              className={`${isOverlayMode ? 'w-full h-full overflow-y-auto' : isVertical ? 'p-1 h-full' : 'pb-0.5 lg:max-h-[2000px] md:max-h-[calc(100vh-60px)] max-h-screen'}`}
+              className={`${isOverlayMode ? 'overflow-y-auto' : isVertical ? 'p-1 h-full' : 'pb-0.5 lg:max-h-[2000px] md:max-h-[calc(100vh-60px)] max-h-screen'}`}
               style={{ width: isVertical && !isOverlayMode ? '360px' : undefined }}
             >
               <div 
