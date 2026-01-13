@@ -15,18 +15,6 @@ export default function StandaloneAppView() {
   const appName = searchParams.get('appName');
   const workingDir = searchParams.get('workingDir');
 
-  console.log('[StandaloneAppView] Rendering with:', {
-    resourceUri,
-    extensionName,
-    appName,
-    workingDir,
-    loading,
-    error,
-    sessionId,
-    hasCachedHtml: !!cachedHtml,
-  });
-
-  // Load cached HTML immediately
   useEffect(() => {
     async function loadCachedHtml() {
       if (
@@ -41,7 +29,6 @@ export default function StandaloneAppView() {
       }
 
       try {
-        // Try to get cached app HTML
         const response = await listApps({
           throwOnError: false,
           query: { use_cache: true },
@@ -64,7 +51,6 @@ export default function StandaloneAppView() {
     loadCachedHtml();
   }, [resourceUri, extensionName]);
 
-  // Initialize session in the background (don't block on it)
   useEffect(() => {
     async function initSession() {
       if (
@@ -78,7 +64,6 @@ export default function StandaloneAppView() {
       }
 
       try {
-        // Create a new session for this standalone app
         const startResponse = await startAgent({
           body: { working_dir: workingDir },
           throwOnError: true,
@@ -86,7 +71,6 @@ export default function StandaloneAppView() {
 
         const sid = startResponse.data.id;
 
-        // Load all configured extensions (including the MCP server for this app)
         await resumeAgent({
           body: {
             session_id: sid,
@@ -99,7 +83,6 @@ export default function StandaloneAppView() {
         setLoading(false);
       } catch (err) {
         console.error('Failed to initialize session:', err);
-        // Only set error if we don't have cached HTML to display
         if (!cachedHtml) {
           setError(err instanceof Error ? err.message : 'Failed to initialize session');
           setLoading(false);
@@ -110,7 +93,6 @@ export default function StandaloneAppView() {
     initSession();
   }, [resourceUri, extensionName, workingDir, cachedHtml]);
 
-  // Update window title when app name is available
   useEffect(() => {
     if (appName) {
       document.title = appName;
@@ -153,14 +135,13 @@ export default function StandaloneAppView() {
     );
   }
 
-  // Show the app if we have either cached HTML or a session ready
   if (cachedHtml || sessionId) {
     return (
       <div style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
         <McpAppRenderer
           resourceUri={resourceUri!}
           extensionName={extensionName!}
-          sessionId={sessionId || 'loading'} // Pass 'loading' placeholder if session not ready yet
+          sessionId={sessionId || 'loading'}
           fullscreen={true}
           cachedHtml={cachedHtml || undefined}
         />

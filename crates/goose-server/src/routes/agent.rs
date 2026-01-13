@@ -12,7 +12,7 @@ use axum::{
 };
 use goose::agents::ExtensionLoadResult;
 use goose::config::PermissionManager;
-use goose::goose_apps::{list_mcp_apps_with_cache, McpAppCache, GooseApp};
+use goose::goose_apps::{list_mcp_apps_with_cache, GooseApp, McpAppCache};
 
 use base64::Engine;
 use goose::agents::ExtensionConfig;

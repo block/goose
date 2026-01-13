@@ -2422,14 +2422,12 @@ async function appMain() {
         },
       });
 
-      // Share the same client with the standalone window
       goosedClients.set(appWindow.id, launchingClient);
 
       appWindow.on('close', () => {
         goosedClients.delete(appWindow.id);
       });
 
-      // Build standalone URL with app parameters (using hash router)
       const workingDir = app.getPath('home');
       const standaloneUrl =
         `${baseUrl}/#/standalone-app?` +

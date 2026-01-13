@@ -51,7 +51,6 @@ export default function McpAppRenderer({
   const [error, setError] = useState<string | null>(null);
   const [iframeHeight, setIframeHeight] = useState(DEFAULT_IFRAME_HEIGHT);
 
-  // Set cached HTML immediately if provided
   useEffect(() => {
     if (cachedHtml) {
       setResourceHtml(cachedHtml);
@@ -59,7 +58,6 @@ export default function McpAppRenderer({
   }, [cachedHtml]);
 
   useEffect(() => {
-    // Skip fetching if session is not ready yet (placeholder value)
     if (sessionId === 'loading') {
       return;
     }
@@ -77,7 +75,6 @@ export default function McpAppRenderer({
         if (response.data) {
           const content = response.data;
 
-          // Only update if HTML is different from cached version
           if (content.text !== cachedHtml) {
             setResourceHtml(content.text);
           }
@@ -86,7 +83,6 @@ export default function McpAppRenderer({
           setResourceCsp(meta?.ui?.csp || null);
         }
       } catch (err) {
-        // Only set error if we don't have cached HTML to display
         if (!cachedHtml) {
           setError(err instanceof Error ? err.message : 'Failed to load resource');
         } else {

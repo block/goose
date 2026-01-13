@@ -92,8 +92,7 @@ impl McpAppCache {
         if let Some(ref extension_name) = app.mcp_server {
             let cache_key = Self::cache_key(extension_name, &app.resource_uri);
             let app_path = self.cache_dir.join(format!("{}.json", cache_key));
-            let json = serde_json::to_string_pretty(app)
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+            let json = serde_json::to_string_pretty(app).map_err(std::io::Error::other)?;
             fs::write(app_path, json)?;
         }
 
@@ -137,10 +136,10 @@ pub async fn list_mcp_apps_with_cache(
             .await
         {
             Ok(read_result) => {
-                // Extract HTML from the first text content
                 let mut html = String::new();
                 for content in read_result.contents {
-                    if let rmcp::model::ResourceContents::TextResourceContents { text, .. } = content
+                    if let rmcp::model::ResourceContents::TextResourceContents { text, .. } =
+                        content
                     {
                         html = text;
                         break;
@@ -159,7 +158,6 @@ pub async fn list_mcp_apps_with_cache(
                         mcp_server: Some(extension_name),
                     };
 
-                    // Cache the app if cache is provided
                     if let Some(cache) = cache {
                         if let Err(e) = cache.cache_app(&app) {
                             warn!("Failed to cache app {}: {}", app.name, e);
