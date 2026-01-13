@@ -6,17 +6,21 @@ description: Run goose in a loop with fresh context per iteration and cross-mode
 
 Ralph Loop is an iterative development pattern that keeps goose working on a task until it's genuinely complete.
 
-Standard agent loops have a problem: context accumulates. Every failed attempt stays in the conversation history. By the time you're a few iterations in, the model is processing a long history of attempts before it can focus on the actual task. Ralph Loop solves this by starting each iteration with fresh context. One model does the work, a different model reviews it, and the loop continues until it's ready to ship.
+Standard agent loops suffer from context accumulation. Every failed attempt stays in the conversation history, which means that after a few iterations, the model must process a long history of noise before it can focus on the task. Ralph Loop solves this by starting each iteration with fresh context. One model does the work, a different model reviews it, and the loop continues until the task is ready to ship.
 
-After each iteration, the worker model and reviewer model store a summary and feedback in files. The files persist between iterations, but the conversation history doesn't. This allows a new session to start, and the next model can read the files to pick up where the last iteration left off. This technique is based on [Geoffrey Huntley's "Ralph Wiggum" approach](https://ghuntley.com/ralph/).
+After each iteration, the worker and reviewer models store a summary and feedback in files. These files persist between iterations but the conversation history does not. This allows a new session to start where the next model reads the files to pick up exactly where the last iteration left off. This technique is based on [Geoffrey Huntley's "Ralph Wiggum" approach](https://ghuntley.com/ralph/).
 
 In this tutorial, we'll use Ralph Loop to build a simple Electron browser and see how the iteration cycle catches missing features before shipping.
 
 ### Prerequisites
 
-- **goose CLI** - Ralph Loop runs from the terminal, not the Desktop app. [Install the CLI](/docs/getting-started/installation) if you haven't already.
-- **API keys for your providers** - You'll need at least one provider configured. Using two different models (e.g., one from OpenAI and one from Anthropic) gives better results for cross-model review. [Set up your providers](/docs/getting-started/providers) if you haven't already.
-- **Recipe files installed** - Run this command to download the Ralph Loop recipes:
+- [Install the goose CLI](/docs/getting-started/installation)because the Ralph Loop runs via the terminal.
+- [Configure two models](/docs/getting-started/providers) to serve as the worker and reviewer. Using different models is recommended for higher quality reviews, though the loop still works if you use the same model for both roles.
+
+<details>
+<summary>Download the Ralph Loop Recipes</summary>
+
+Copy and paste this in your terminal to download the Ralph Loop recipes:
 
 ```bash
 mkdir -p ~/.config/goose/recipes
@@ -28,8 +32,10 @@ curl -sL https://raw.githubusercontent.com/block/goose/main/documentation/src/pa
 chmod +x ~/.config/goose/recipes/ralph-loop.sh
 ```
 
+</details>
+
 :::warning Cost Warning
-Ralph Loop runs your agent multiple times in a loop (up to 10 iterations by default), with each iteration using both a worker model and a reviewer model. This can add up quickly. Monitor your usage and adjust `RALPH_MAX_ITERATIONS` if needed.
+Ralph Loop runs your agent multiple times in a loop (up to 10 iterations by default). Monitor your usage and adjust `RALPH_MAX_ITERATIONS` if needed.
 :::
 
 ### Step 1: Start the Loop
