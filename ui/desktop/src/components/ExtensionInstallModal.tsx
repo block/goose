@@ -68,7 +68,7 @@ function extractRemoteUrl(link: string): string | null {
 }
 
 export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstallModalProps) {
-  const { extensionsList, getExtensions } = useConfig();
+  const { getExtensions } = useConfig();
 
   const [modalState, setModalState] = useState<ExtensionModalState>({
     isOpen: false,
@@ -159,13 +159,13 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
       const command = extractCommand(link);
       const remoteUrl = extractRemoteUrl(link);
       const extName = extractExtensionName(link);
+      const extensionsList = await getExtensions(true);
 
       console.log('Extension name:', extName);
       console.log('Extensions list:', extensionsList);
       console.log('Found match:', extensionsList.find((ext) => ext.name === extName));
 
-      await getExtensions(true);
-      if (extensionsList.find((ext) => ext.name === extName)) {
+      if (extensionsList?.find((ext) => ext.name === extName)) {
         console.log(`Extension Already Installed: ${extName}`);
 
         toastService.success({
@@ -204,7 +204,7 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
         error: error instanceof Error ? error.message : 'Unknown error',
       }));
     }
-  }, [getExtensions, extensionsList]);
+  }, [getExtensions]);
 
   const dismissModal = useCallback(() => {
     setModalState({
