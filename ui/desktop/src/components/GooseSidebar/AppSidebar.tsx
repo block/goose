@@ -19,7 +19,7 @@ import { listSessions, Session } from '../../api';
 import { resumeSession, startNewSession, shouldShowNewChatTitle } from '../../sessions';
 import { useNavigation } from '../../hooks/useNavigation';
 import { SessionIndicators } from '../SessionIndicators';
-import { useSessionStatusContext } from '../../contexts/SessionStatusContext';
+import { useSidebarSessionStatus } from '../../hooks/useSidebarSessionStatus';
 import { getInitialWorkingDir } from '../../utils/workingDir';
 
 interface SidebarProps {
@@ -187,8 +187,8 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   const setView = useNavigation();
   const [searchParams] = useSearchParams();
   const [recentSessions, setRecentSessions] = useState<Session[]>([]);
-  const { getSessionStatus, markSessionActive, trackSession } = useSessionStatusContext();
   const activeSessionId = searchParams.get('resumeSessionId') ?? undefined;
+  const { getSessionStatus, clearUnread } = useSidebarSessionStatus(activeSessionId);
 
   // When activeSessionId changes, ensure it's in the recent sessions list
   // This handles the case where a session is loaded from history that's older than the top 10
@@ -218,20 +218,6 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
 
     fetchAndAddSession();
   }, [activeSessionId, recentSessions]);
-
-  useEffect(() => {
-    recentSessions.forEach((session) => {
-      trackSession(session.id);
-    });
-  }, [recentSessions, trackSession]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      // setIsVisible(true);
-    }, 100);
-
-    return () => clearTimeout(timer);
-  }, []);
 
   useEffect(() => {
     const loadRecentSessions = async () => {
@@ -381,19 +367,19 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     const emptyNewSession = recentSessions.find((s) => shouldShowNewChatTitle(s));
 
     if (emptyNewSession) {
-      markSessionActive(emptyNewSession.id);
+      clearUnread(emptyNewSession.id);
       resumeSession(emptyNewSession, setView);
     } else {
       await startNewSession('', setView, getInitialWorkingDir());
     }
-  }, [setView, recentSessions, markSessionActive]);
+  }, [setView, recentSessions, clearUnread]);
 
   const handleSessionClick = React.useCallback(
     async (session: Session) => {
-      markSessionActive(session.id);
+      clearUnread(session.id);
       resumeSession(session, setView);
     },
-    [markSessionActive, setView]
+    [clearUnread, setView]
   );
 
   const handleViewAllClick = React.useCallback(() => {

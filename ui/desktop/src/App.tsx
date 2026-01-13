@@ -45,7 +45,6 @@ import { errorMessage } from './utils/conversionUtils';
 import { getInitialWorkingDir } from './utils/workingDir';
 import { usePageViewTracking } from './hooks/useAnalytics';
 import { trackOnboardingCompleted, trackErrorWithContext } from './utils/analytics';
-import { SessionStatusProvider } from './contexts/SessionStatusContext';
 
 function PageViewTracker() {
   usePageViewTracking();
@@ -600,7 +599,7 @@ export function AppInner() {
   }
 
   return (
-    <SessionStatusProvider>
+    <>
       <PageViewTracker />
       <ToastContainer
         aria-label="Toast notifications"
@@ -675,7 +674,7 @@ export function AppInner() {
           </Routes>
         </div>
       </div>
-    </SessionStatusProvider>
+    </>
   );
 }
 

@@ -36,7 +36,6 @@ import { substituteParameters } from '../utils/providerUtils';
 import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal';
 import { toastSuccess } from '../toasts';
 import { Recipe } from '../recipe';
-import { useSessionStatusContext } from '../contexts/SessionStatusContext';
 import { useAutoSubmit } from '../hooks/useAutoSubmit';
 
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
@@ -78,16 +77,9 @@ function BaseChatContent({
   const isMobile = useIsMobile();
   const { state: sidebarState } = useSidebar();
   const setView = useNavigation();
-  const { markSessionActive } = useSessionStatusContext();
 
   const contentClassName = cn('pr-1 pb-10', (isMobile || sidebarState === 'collapsed') && 'pt-11');
   const { droppedFiles, setDroppedFiles, handleDrop, handleDragOver } = useFileDrop();
-
-  useEffect(() => {
-    if (sessionId && isActiveSession) {
-      markSessionActive(sessionId);
-    }
-  }, [sessionId, isActiveSession, markSessionActive]);
 
   const onStreamFinish = useCallback(() => {}, []);
 
