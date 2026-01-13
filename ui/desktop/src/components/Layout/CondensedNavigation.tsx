@@ -297,7 +297,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
     {
       id: 'peers',
       path: '/peers',
-      label: 'Peers',
+      label: 'Spacer',
       icon: Users,
       getTag: () => '3',
       tagAlign: 'left',
@@ -305,7 +305,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
     {
       id: 'channels',
       path: '/channels',
-      label: 'Channels',
+      label: 'Spacer',
       icon: Hash,
       getTag: () => '7',
       tagAlign: 'left',
