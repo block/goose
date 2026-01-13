@@ -46,14 +46,10 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
   const [totalTokens, setTotalTokens] = useState(0);
   const [isClosing, setIsClosing] = useState(false);
 
-  // Debug logging
-  useEffect(() => {
-    console.log('[CondensedNavigation] State changed:', { isExpanded, isClosing, isOverlayMode, position });
-  }, [isExpanded, isClosing, isOverlayMode, position]);
+
 
   // Handle close with animation
   const handleClose = () => {
-    console.log('[CondensedNavigation] handleClose called');
     setIsClosing(true);
     setTimeout(() => {
       setIsExpanded(false);
@@ -251,8 +247,6 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
 
   // Filter and order navigation items based on user preferences
   const navItems = React.useMemo(() => {
-    console.log('CondensedNavigation: Recomputing navItems with preferences:', preferences);
-    
     const navItemsBase: NavItem[] = [
       {
         id: 'home',
@@ -421,17 +415,13 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
       !preferences.itemOrder.includes(item.id)
     );
 
-    const result = [...orderedItems, ...itemsNotInOrder];
-    console.log('CondensedNavigation: Computed navItems:', result.map(item => item.id));
-    return result;
+    return [...orderedItems, ...itemsNotInOrder];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preferences, forceUpdate, isOverlayMode, currentTime, todayChatsCount, totalSessions, recipesCount, totalTokens, extensionsList, sessionHeatmapData]);
+  }, [preferences, forceUpdate, isOverlayMode, currentTime, todayChatsCount, totalSessions, recipesCount, totalTokens]);
 
   // Listen for navigation preferences updates
   useEffect(() => {
-    const handlePreferencesUpdate = (event: Event) => {
-      const customEvent = event as CustomEvent;
-      console.log('CondensedNavigation: Navigation preferences updated:', customEvent.detail);
+    const handlePreferencesUpdate = () => {
       // Force re-render when preferences change
       setForceUpdate(prev => prev + 1);
     };
