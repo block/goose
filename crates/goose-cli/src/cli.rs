@@ -2,6 +2,7 @@ use anyhow::Result;
 use clap::{Args, CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, Shell as ClapShell};
 use goose::config::{Config, ExtensionConfig};
+use goose::posthog::get_telemetry_choice;
 use goose_mcp::mcp_server_runner::{serve, McpCommand};
 use goose_mcp::{
     AutoVisualiserRouter, ComputerControllerServer, DeveloperServer, MemoryServer, TutorialServer,
@@ -9,7 +10,7 @@ use goose_mcp::{
 
 use crate::commands::acp::run_acp_agent;
 use crate::commands::bench::agent_generator;
-use crate::commands::configure::handle_configure;
+use crate::commands::configure::{configure_telemetry_consent_dialog, handle_configure};
 use crate::commands::info::handle_info;
 use crate::commands::project::{handle_project_default, handle_projects_interactive};
 use crate::commands::recipe::{handle_deeplink, handle_list, handle_open, handle_validate};
@@ -1039,6 +1040,10 @@ async fn handle_interactive_session(
     session_opts: SessionOptions,
     extension_opts: ExtensionOptions,
 ) -> Result<()> {
+    if get_telemetry_choice().is_none() {
+        configure_telemetry_consent_dialog()?;
+    }
+
     let session_start = std::time::Instant::now();
     let session_type = if resume { "resumed" } else { "new" };
 
@@ -1247,6 +1252,10 @@ async fn handle_run_command(
     output_opts: OutputOptions,
     model_opts: ModelOptions,
 ) -> Result<()> {
+    if run_behavior.interactive && get_telemetry_choice().is_none() {
+        configure_telemetry_consent_dialog()?;
+    }
+
     let parsed = parse_run_input(&input_opts, output_opts.quiet)?;
 
     let Some((input_config, recipe_info)) = parsed else {
@@ -1395,6 +1404,10 @@ async fn handle_term_subcommand(command: TermCommand) -> Result<()> {
 async fn handle_default_session() -> Result<()> {
     if !Config::global().exists() {
         return handle_configure().await;
+    }
+
+    if get_telemetry_choice().is_none() {
+        configure_telemetry_consent_dialog()?;
     }
 
     let session_id = get_or_create_session_id(None, false, false).await?;
