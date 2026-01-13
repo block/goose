@@ -358,6 +358,9 @@ impl Agent {
             Err(e) => return Err(anyhow!("Failed to build recipe: {}", e)),
         };
 
+        self.apply_recipe_components(recipe.sub_recipes.clone(), recipe.response.clone(), true)
+            .await;
+
         let prompt = [recipe.instructions.as_deref(), recipe.prompt.as_deref()]
             .into_iter()
             .flatten()
