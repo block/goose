@@ -319,8 +319,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
       label: 'Activity',
       isWidget: true,
       renderContent: () => {
-        // Get last 56 days for an 8x7 grid (moderate size for 244px tile)
-        const days = 56;
+        const days = 35;
         const today = new Date();
         const heatmapCells = [];
         
@@ -330,7 +329,6 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
           const dateKey = date.toISOString().split('T')[0];
           const count = sessionHeatmapData[dateKey] || 0;
           
-          // Calculate intensity (0-4 scale)
           const maxCount = Math.max(...Object.values(sessionHeatmapData), 1);
           const intensity = count === 0 ? 0 : Math.ceil((count / maxCount) * 4);
           
@@ -354,8 +352,8 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
                 />
               ))}
             </div>
-            <div className="mt-2 text-xs text-text-muted font-mono">
-              Last 8 weeks
+            <div className="mt-3 text-xs text-text-muted font-mono">
+              Last 35 days
             </div>
           </div>
         );
@@ -366,16 +364,15 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
       label: 'Tokens',
       isWidget: true,
       renderContent: () => {
-        // Format tokens in millions
         const tokensInMillions = (totalTokens / 1000000).toFixed(2);
         
         return (
           <div className="w-full h-full flex flex-col items-center justify-center p-6">
             <div className="text-center">
-              <div className="text-4xl font-mono font-light text-text-default mb-2">
+              <div className="text-3xl font-mono font-light text-text-default mb-2">
                 {tokensInMillions}M
               </div>
-              <div className="text-sm text-text-muted font-mono">
+              <div className="text-xs text-text-muted font-mono">
                 Total tokens
               </div>
             </div>
