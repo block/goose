@@ -465,10 +465,14 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
   const isVertical = position === 'left' || position === 'right';
   
   const gridClasses = isOverlayMode
-    ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-6 gap-2 sm:gap-3 md:gap-3 lg:gap-3 xl:gap-5 w-full max-w-7xl mx-auto px-4 sm:px-6 md:px-8 py-4 sm:py-6 md:py-8'
+    ? 'grid gap-3 w-full max-w-7xl mx-auto px-4 sm:px-6 md:px-8 py-4 sm:py-6 md:py-8'
     : isVertical
       ? 'grid grid-cols-1 gap-0.5 h-full overflow-y-auto'
       : 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 lg:grid-cols-6 xl:grid-cols-6 2xl:grid-cols-6 gap-0.5';
+  
+  const gridStyle = isOverlayMode ? {
+    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))'
+  } : undefined;
   
   const containerClasses = isOverlayMode
     ? 'w-full h-full flex items-center justify-center'
@@ -537,8 +541,9 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
               <div 
                 className={gridClasses} 
                 style={{ 
-                  gridTemplateColumns: !isVertical && !isOverlayMode && isUltraWide ? 'repeat(12, minmax(0, 1fr))' : undefined,
-                  width: isVertical && !isOverlayMode ? 'auto' : undefined
+                  ...(isOverlayMode ? gridStyle : {}),
+                  ...(!isVertical && !isOverlayMode && isUltraWide ? { gridTemplateColumns: 'repeat(12, minmax(0, 1fr))' } : {}),
+                  ...(isVertical && !isOverlayMode ? { width: 'auto' } : {})
                 }}
               >
             {navItems.map((item, index) => {
