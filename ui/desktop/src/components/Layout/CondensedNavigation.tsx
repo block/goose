@@ -695,7 +695,16 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
                     className="grid grid-cols-2 gap-[2px]"
                     style={{ maxHeight: '500px' }}
                   >
-                    {navItems.filter(item => item.isWidget).map((item, index) => {
+                    {(() => {
+                      const widgets = navItems.filter(item => item.isWidget);
+                      // For bottom position, reorder: [0,1,2,3] -> [2,1,0,3] (swap top-right with bottom-left)
+                      if (position === 'bottom' && widgets.length >= 3) {
+                        const reordered = [...widgets];
+                        [reordered[1], reordered[2]] = [reordered[2], reordered[1]];
+                        return reordered;
+                      }
+                      return widgets;
+                    })().map((item, index) => {
                       const isDragging = draggedItem === item.id;
                       const isDragOver = dragOverItem === item.id;
 
