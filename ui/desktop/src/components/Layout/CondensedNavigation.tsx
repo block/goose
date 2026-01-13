@@ -685,8 +685,11 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
                   </div>
                   </div>
 
-                  {/* Widget Tiles: 2x2 Grid */}
-                  <div className="grid grid-cols-2 gap-3">
+                  {/* Widget Tiles: 2x2 Grid - Height matches menu container */}
+                  <div 
+                    className="grid grid-cols-2 gap-3"
+                    style={{ maxHeight: '500px' }}
+                  >
                     {navItems.filter(item => item.isWidget).map((item, index) => {
                       const isDragging = draggedItem === item.id;
                       const isDragOver = dragOverItem === item.id;
@@ -718,7 +721,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
                           style={{
                             opacity: isDragging ? 0.5 : 1,
                             width: '160px',
-                            height: '140px',
+                            height: 'calc((500px - 12px) / 2)', // (maxHeight - gap) / 2 rows
                           }}
                         >
                           <div className="w-full h-full bg-background-card backdrop-blur-xl rounded-2xl shadow-2xl border border-border-default overflow-hidden relative group">
