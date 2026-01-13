@@ -697,11 +697,11 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
                   >
                     {(() => {
                       const widgets = navItems.filter(item => item.isWidget);
-                      // For bottom position, reorder: [0,1,2,3] -> [2,3,0,1] (swap rows)
-                      if (position === 'bottom' && widgets.length >= 4) {
+                      // For bottom position, reorder to L-shape: [0,1,2] -> [0,2,1]
+                      // This creates: Top row: Clock, Tokens | Bottom row: Activity, (empty)
+                      if (position === 'bottom' && widgets.length >= 3) {
                         const reordered = [...widgets];
-                        [reordered[0], reordered[2]] = [reordered[2], reordered[0]];
-                        [reordered[1], reordered[3]] = [reordered[3], reordered[1]];
+                        [reordered[1], reordered[2]] = [reordered[2], reordered[1]];
                         return reordered;
                       }
                       return widgets;
