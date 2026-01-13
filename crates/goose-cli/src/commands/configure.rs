@@ -1718,7 +1718,7 @@ fn add_provider() -> anyhow::Result<()> {
         .interact()?;
 
     let api_url: String = cliclack::input("Provider API URL:")
-        .placeholder("https://api.example.com/v1/messages")
+        .placeholder("https://api.example.com/v1")
         .validate(|input: &String| {
             if !input.starts_with("http://") && !input.starts_with("https://") {
                 Err("URL must start with either http:// or https://")

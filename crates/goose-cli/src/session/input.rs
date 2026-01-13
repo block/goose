@@ -21,6 +21,7 @@ pub enum InputResult {
     Clear,
     Recipe(Option<String>),
     Compact,
+    ToggleFullToolOutput,
 }
 
 #[derive(Debug)]
@@ -189,6 +190,7 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
             println!("{}", console::style("⚠️  Note: /summarize has been renamed to /compact and will be removed in a future release.").yellow());
             Some(InputResult::Compact)
         }
+        "/r" => Some(InputResult::ToggleFullToolOutput),
         _ => None,
     }
 }
@@ -300,6 +302,7 @@ fn print_help() {
 /exit or /quit - Exit the session
 /t - Toggle Light/Dark/Ansi theme
 /t <name> - Set theme directly (light, dark, ansi)
+/r - Toggle full tool output display (show complete tool parameters without truncation)
 /extension <command> - Add a stdio extension (format: ENV1=val1 command args...)
 /builtin <names> - Add builtin extensions by name (comma-separated)
 /prompts [--extension <name>] - List all available prompts, optionally filtered by extension
@@ -354,6 +357,12 @@ mod tests {
         assert!(matches!(
             handle_slash_command("/t"),
             Some(InputResult::ToggleTheme)
+        ));
+
+        // Test full tool output toggle
+        assert!(matches!(
+            handle_slash_command("/r"),
+            Some(InputResult::ToggleFullToolOutput)
         ));
 
         // Test extension command

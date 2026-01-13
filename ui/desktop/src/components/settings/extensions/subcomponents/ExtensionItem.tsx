@@ -75,20 +75,20 @@ export default function ExtensionItem({
   return (
     <Card
       id={`extension-${kebabCase(extension.name)}`}
-      className="transition-all duration-200 hover:shadow-default hover:cursor-pointer min-h-[120px] overflow-hidden"
-      onClick={() => handleToggle(extension)}
+      className="transition-all duration-200 min-h-[120px] overflow-hidden"
     >
       <CardHeader>
         <CardTitle>{getFriendlyTitle(extension)}</CardTitle>
 
-        <CardAction onClick={(e) => e.stopPropagation()}>
+        <CardAction>
           <div className="flex items-center justify-end gap-2">
             {editable && (
               <button
                 className="text-textSubtle hover:text-textStandard"
-                onClick={() => (onConfigure ? onConfigure(extension) : () => {})}
+                aria-label={`Configure ${getFriendlyTitle(extension)} Extension`}
+                onClick={() => onConfigure?.(extension)}
               >
-                <Gear className="h-4 w-4" />
+                <Gear className="w-4 h-4" />
               </button>
             )}
             <Switch
@@ -96,11 +96,12 @@ export default function ExtensionItem({
               onCheckedChange={() => handleToggle(extension)}
               disabled={isToggling}
               variant="mono"
+              aria-label={`Toggle ${getFriendlyTitle(extension)} extension On or Off`}
             />
           </div>
         </CardAction>
       </CardHeader>
-      <CardContent className="px-4 text-sm text-text-muted overflow-hidden break-words">
+      <CardContent className="px-4 overflow-hidden text-sm break-words text-text-muted">
         {renderSubtitle()}
       </CardContent>
     </Card>
