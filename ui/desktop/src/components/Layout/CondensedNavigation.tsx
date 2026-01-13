@@ -46,8 +46,14 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
   const [totalTokens, setTotalTokens] = useState(0);
   const [isClosing, setIsClosing] = useState(false);
 
+  // Debug logging
+  useEffect(() => {
+    console.log('[CondensedNavigation] State changed:', { isExpanded, isClosing, isOverlayMode, position });
+  }, [isExpanded, isClosing, isOverlayMode, position]);
+
   // Handle close with animation
   const handleClose = () => {
+    console.log('[CondensedNavigation] handleClose called');
     setIsClosing(true);
     setTimeout(() => {
       setIsExpanded(false);
@@ -243,157 +249,157 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
     );
   };
 
-  const navItemsBase: NavItem[] = [
-    {
-      id: 'home',
-      path: '/',
-      label: 'Home',
-      icon: Home,
-      getTag: () => currentTime,
-    },
-    {
-      id: 'chat',
-      path: '/pair',
-      label: 'Chat',
-      icon: ChatSmart,
-      getTag: () => `${todayChatsCount}`,
-      tagAlign: 'left',
-    },
-    {
-      id: 'history',
-      path: '/sessions',
-      label: 'History',
-      icon: History,
-      getTag: () => `${totalSessions}`,
-      tagAlign: 'left',
-    },
-    {
-      id: 'recipes',
-      path: '/recipes',
-      label: 'Recipes',
-      icon: FileText,
-      getTag: () => `${recipesCount}`,
-    },
-    {
-      id: 'scheduler',
-      path: '/schedules',
-      label: 'Scheduler',
-      icon: Clock,
-    },
-    {
-      id: 'extensions',
-      path: '/extensions',
-      label: 'Extensions',
-      icon: Puzzle,
-      getTag: () => {
-        if (!extensionsList || !Array.isArray(extensionsList)) {
-          return '0/0';
-        }
-        const enabled = extensionsList.filter(ext => ext.enabled).length;
-        const total = extensionsList.length;
-        return `${enabled}/${total}`;
-      },
-    },
-    {
-      id: 'peers',
-      path: '/peers',
-      label: 'Spacer',
-      icon: Users,
-      getTag: () => '3',
-      tagAlign: 'left',
-    },
-    {
-      id: 'channels',
-      path: '/channels',
-      label: 'Spacer',
-      icon: Hash,
-      getTag: () => '7',
-      tagAlign: 'left',
-    },
-    {
-      id: 'settings',
-      path: '/settings',
-      label: 'Settings',
-      icon: SettingsIcon,
-    },
-    // Widget tiles for overlay mode
-    {
-      id: 'clock-widget',
-      label: 'Clock',
-      isWidget: true,
-      renderContent: () => <AnalogClock />,
-    },
-    {
-      id: 'activity-widget',
-      label: 'Activity',
-      isWidget: true,
-      renderContent: () => {
-        const days = 35;
-        const today = new Date();
-        const heatmapCells = [];
-        
-        for (let i = days - 1; i >= 0; i--) {
-          const date = new Date(today);
-          date.setDate(date.getDate() - i);
-          const dateKey = date.toISOString().split('T')[0];
-          const count = sessionHeatmapData[dateKey] || 0;
-          
-          const maxCount = Math.max(...Object.values(sessionHeatmapData), 1);
-          const intensity = count === 0 ? 0 : Math.ceil((count / maxCount) * 4);
-          
-          heatmapCells.push({ date: dateKey, count, intensity });
-        }
-        
-        return (
-          <div className="w-full h-full flex flex-col items-center justify-center p-4">
-            <div className="grid grid-cols-7 gap-1">
-              {heatmapCells.map((cell, index) => (
-                <div
-                  key={index}
-                  className={`w-3 h-3 rounded-sm ${
-                    cell.intensity === 0 ? 'bg-background-muted' :
-                    cell.intensity === 1 ? 'bg-green-200 dark:bg-green-900' :
-                    cell.intensity === 2 ? 'bg-green-300 dark:bg-green-700' :
-                    cell.intensity === 3 ? 'bg-green-400 dark:bg-green-600' :
-                    'bg-green-500 dark:bg-green-500'
-                  }`}
-                  title={`${cell.date}: ${cell.count} sessions`}
-                />
-              ))}
-            </div>
-            <div className="mt-3 text-xs text-text-muted font-mono">
-              Last 35 days
-            </div>
-          </div>
-        );
-      },
-    },
-    {
-      id: 'tokens-widget',
-      label: 'Tokens',
-      isWidget: true,
-      renderContent: () => {
-        const tokensInMillions = (totalTokens / 1000000).toFixed(2);
-        
-        return (
-          <div className="w-full h-full flex flex-col items-center justify-center p-6">
-            <div className="text-center">
-              <div className="text-3xl font-mono font-light text-text-default mb-2">
-                {tokensInMillions}M
-              </div>
-              <div className="text-xs text-text-muted font-mono">
-                Total tokens
-              </div>
-            </div>
-          </div>
-        );
-      },
-    },
-  ];
-
   // Filter and order navigation items based on user preferences
   const navItems = React.useMemo(() => {
     console.log('CondensedNavigation: Recomputing navItems with preferences:', preferences);
+    
+    const navItemsBase: NavItem[] = [
+      {
+        id: 'home',
+        path: '/',
+        label: 'Home',
+        icon: Home,
+        getTag: () => currentTime,
+      },
+      {
+        id: 'chat',
+        path: '/pair',
+        label: 'Chat',
+        icon: ChatSmart,
+        getTag: () => `${todayChatsCount}`,
+        tagAlign: 'left',
+      },
+      {
+        id: 'history',
+        path: '/sessions',
+        label: 'History',
+        icon: History,
+        getTag: () => `${totalSessions}`,
+        tagAlign: 'left',
+      },
+      {
+        id: 'recipes',
+        path: '/recipes',
+        label: 'Recipes',
+        icon: FileText,
+        getTag: () => `${recipesCount}`,
+      },
+      {
+        id: 'scheduler',
+        path: '/schedules',
+        label: 'Scheduler',
+        icon: Clock,
+      },
+      {
+        id: 'extensions',
+        path: '/extensions',
+        label: 'Extensions',
+        icon: Puzzle,
+        getTag: () => {
+          if (!extensionsList || !Array.isArray(extensionsList)) {
+            return '0/0';
+          }
+          const enabled = extensionsList.filter(ext => ext.enabled).length;
+          const total = extensionsList.length;
+          return `${enabled}/${total}`;
+        },
+      },
+      {
+        id: 'peers',
+        path: '/peers',
+        label: 'Spacer',
+        icon: Users,
+        getTag: () => '3',
+        tagAlign: 'left',
+      },
+      {
+        id: 'channels',
+        path: '/channels',
+        label: 'Spacer',
+        icon: Hash,
+        getTag: () => '7',
+        tagAlign: 'left',
+      },
+      {
+        id: 'settings',
+        path: '/settings',
+        label: 'Settings',
+        icon: SettingsIcon,
+      },
+      // Widget tiles for overlay mode
+      {
+        id: 'clock-widget',
+        label: 'Clock',
+        isWidget: true,
+        renderContent: () => <AnalogClock />,
+      },
+      {
+        id: 'activity-widget',
+        label: 'Activity',
+        isWidget: true,
+        renderContent: () => {
+          const days = 35;
+          const today = new Date();
+          const heatmapCells = [];
+          
+          for (let i = days - 1; i >= 0; i--) {
+            const date = new Date(today);
+            date.setDate(date.getDate() - i);
+            const dateKey = date.toISOString().split('T')[0];
+            const count = sessionHeatmapData[dateKey] || 0;
+            
+            const maxCount = Math.max(...Object.values(sessionHeatmapData), 1);
+            const intensity = count === 0 ? 0 : Math.ceil((count / maxCount) * 4);
+            
+            heatmapCells.push({ date: dateKey, count, intensity });
+          }
+          
+          return (
+            <div className="w-full h-full flex flex-col items-center justify-center p-4">
+              <div className="grid grid-cols-7 gap-1">
+                {heatmapCells.map((cell, index) => (
+                  <div
+                    key={index}
+                    className={`w-3 h-3 rounded-sm ${
+                      cell.intensity === 0 ? 'bg-background-muted' :
+                      cell.intensity === 1 ? 'bg-green-200 dark:bg-green-900' :
+                      cell.intensity === 2 ? 'bg-green-300 dark:bg-green-700' :
+                      cell.intensity === 3 ? 'bg-green-400 dark:bg-green-600' :
+                      'bg-green-500 dark:bg-green-500'
+                    }`}
+                    title={`${cell.date}: ${cell.count} sessions`}
+                  />
+                ))}
+              </div>
+              <div className="mt-3 text-xs text-text-muted font-mono">
+                Last 35 days
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        id: 'tokens-widget',
+        label: 'Tokens',
+        isWidget: true,
+        renderContent: () => {
+          const tokensInMillions = (totalTokens / 1000000).toFixed(2);
+          
+          return (
+            <div className="w-full h-full flex flex-col items-center justify-center p-6">
+              <div className="text-center">
+                <div className="text-3xl font-mono font-light text-text-default mb-2">
+                  {tokensInMillions}M
+                </div>
+                <div className="text-xs text-text-muted font-mono">
+                  Total tokens
+                </div>
+              </div>
+            </div>
+          );
+        },
+      },
+    ];
     
     // Filter enabled items
     const enabledItems = navItemsBase.filter(item => 
@@ -419,7 +425,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
     console.log('CondensedNavigation: Computed navItems:', result.map(item => item.id));
     return result;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [navItemsBase, preferences.enabledItems, preferences.itemOrder, forceUpdate, isOverlayMode, currentTime, todayChatsCount, totalSessions, recipesCount, totalTokens]);
+  }, [preferences, forceUpdate, isOverlayMode, currentTime, todayChatsCount, totalSessions, recipesCount, totalTokens, extensionsList, sessionHeatmapData]);
 
   // Listen for navigation preferences updates
   useEffect(() => {
