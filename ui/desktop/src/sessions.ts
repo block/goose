@@ -1,6 +1,5 @@
 import { Session, startAgent, ExtensionConfig } from './api';
 import type { setViewType } from './hooks/useNavigation';
-import { DEFAULT_CHAT_TITLE } from './contexts/ChatContext';
 import {
   getExtensionConfigsWithOverrides,
   clearExtensionOverrides,
@@ -9,20 +8,16 @@ import {
 import type { FixedExtensionEntry } from './components/ConfigContext';
 
 /**
- * Check if a session name is a default/temporary name that should be updated
- * @param name - The session name to check
- * @returns true if the name is a default/temporary name
+ * Check if a session should display "New Chat" instead of its stored name.
+ * Returns true only for sessions that:
+ * - Don't have a user-provided name, AND
+ * - Have no messages (meaning they haven't been auto-named yet)
+ *
+ * Sessions with messages but no user-set name have been auto-named by the system
+ * and should display that auto-generated name.
  */
-export function isDefaultSessionName(name: string | undefined | null): boolean {
-  if (!name) return false;
-
-  // Check for backend default name pattern "New session X" or frontend default "New Chat"
-  const backendDefaultPattern = /^New session \d+$/i;
-  return (
-    name === DEFAULT_CHAT_TITLE ||
-    name.startsWith(DEFAULT_CHAT_TITLE) ||
-    backendDefaultPattern.test(name)
-  );
+export function shouldShowNewChatTitle(session: Session): boolean {
+  return !session.user_set_name && session.message_count === 0;
 }
 
 export function resumeSession(session: Session, setView: setViewType) {

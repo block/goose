@@ -16,11 +16,10 @@ import { View, ViewOptions } from '../../utils/navigationUtils';
 import { DEFAULT_CHAT_TITLE, useChatContext } from '../../contexts/ChatContext';
 import EnvironmentBadge from './EnvironmentBadge';
 import { listSessions, Session } from '../../api';
-import { resumeSession, startNewSession } from '../../sessions';
+import { resumeSession, startNewSession, shouldShowNewChatTitle } from '../../sessions';
 import { useNavigation } from '../../hooks/useNavigation';
 import { SessionIndicators } from '../SessionIndicators';
 import { useSessionStatusContext } from '../../contexts/SessionStatusContext';
-import { isDefaultSessionName } from '../../sessions';
 import { getInitialWorkingDir } from '../../utils/workingDir';
 
 interface SidebarProps {
@@ -80,7 +79,7 @@ const menuItems: NavigationEntry[] = [
 // Get the display name for a session, considering recipe titles
 const getSessionDisplayName = (session: Session): string => {
   // If user has set a custom name, use it
-  if (!isDefaultSessionName(session.name)) {
+  if (!shouldShowNewChatTitle(session)) {
     return session.name;
   }
   // If session has a recipe, show the recipe title
@@ -103,8 +102,8 @@ const SessionList = React.memo<{
     // Sort sessions so empty new chats always appear at the top
     const sortedSessions = React.useMemo(() => {
       return [...sessions].sort((a, b) => {
-        const aIsEmptyNew = isDefaultSessionName(a.name) && a.message_count === 0;
-        const bIsEmptyNew = isDefaultSessionName(b.name) && b.message_count === 0;
+        const aIsEmptyNew = shouldShowNewChatTitle(a);
+        const bIsEmptyNew = shouldShowNewChatTitle(b);
         if (aIsEmptyNew && !bIsEmptyNew) return -1;
         if (!aIsEmptyNew && bIsEmptyNew) return 1;
         return 0;
@@ -241,7 +240,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
         const sessions = response.data.sessions.slice(0, 10);
         setRecentSessions(sessions);
 
-        const hasSessionWithDefaultName = sessions.some((s) => isDefaultSessionName(s.name));
+        const hasSessionWithDefaultName = sessions.some((s) => shouldShowNewChatTitle(s));
 
         if (hasSessionWithDefaultName) {
           window.dispatchEvent(new CustomEvent('session-needs-name-update'));
@@ -277,7 +276,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
           const sessions = response.data.sessions.slice(0, 10);
           setRecentSessions(sessions);
 
-          const sessionWithDefaultName = sessions.find((s) => isDefaultSessionName(s.name));
+          const sessionWithDefaultName = sessions.find((s) => shouldShowNewChatTitle(s));
 
           const shouldContinue = pollCount < maxPolls && (sessionWithDefaultName || pollCount < 5);
 
@@ -347,9 +346,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   };
 
   const handleNewChat = React.useCallback(async () => {
-    const emptyNewSession = recentSessions.find(
-      (s) => isDefaultSessionName(s.name) && s.message_count === 0
-    );
+    const emptyNewSession = recentSessions.find((s) => shouldShowNewChatTitle(s));
 
     if (emptyNewSession) {
       markSessionActive(emptyNewSession.id);

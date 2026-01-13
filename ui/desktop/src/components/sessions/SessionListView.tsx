@@ -36,7 +36,7 @@ import {
 } from '../../api';
 import { formatExtensionName } from '../settings/extensions/subcomponents/ExtensionList';
 import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
-import { isDefaultSessionName } from '../../sessions';
+import { shouldShowNewChatTitle } from '../../sessions';
 import { DEFAULT_CHAT_TITLE } from '../../contexts/ChatContext';
 
 function getSessionExtensionNames(extensionData: ExtensionData): string[] {
@@ -573,7 +573,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         [onOpenInNewWindow, session]
       );
 
-      const displayName = isDefaultSessionName(session.name) ? DEFAULT_CHAT_TITLE : session.name;
+      const displayName = shouldShowNewChatTitle(session) ? DEFAULT_CHAT_TITLE : session.name;
 
       // Get extension names for this session
       const extensionNames = useMemo(

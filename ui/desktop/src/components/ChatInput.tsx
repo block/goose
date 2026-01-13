@@ -1142,6 +1142,16 @@ export default function ChatInput({
     isTranscribing ||
     chatState === ChatState.RestartingAgent;
 
+  const getSubmitButtonTooltip = (): string => {
+    if (isAnyImageLoading) return 'Waiting for images to save...';
+    if (isAnyDroppedFileLoading) return 'Processing dropped files...';
+    if (isRecording) return 'Recording...';
+    if (isTranscribing) return 'Transcribing...';
+    if (chatState === ChatState.RestartingAgent) return 'Restarting session...';
+    if (!hasSubmittableContent) return 'Type a message to send';
+    return 'Send';
+  };
+
   // Queue management functions - no storage persistence, only in-memory
   const handleRemoveQueuedMessage = (messageId: string) => {
     setQueuedMessages((prev) => prev.filter((msg) => msg.id !== messageId));
@@ -1382,21 +1392,7 @@ export default function ChatInput({
                   </span>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>
-                    {isAnyImageLoading
-                      ? 'Waiting for images to save...'
-                      : isAnyDroppedFileLoading
-                        ? 'Processing dropped files...'
-                        : isRecording
-                          ? 'Recording...'
-                          : isTranscribing
-                            ? 'Transcribing...'
-                            : chatState === ChatState.RestartingAgent
-                              ? 'Restarting session...'
-                              : !hasSubmittableContent
-                                ? 'Type a message to send'
-                                : 'Send'}
-                  </p>
+                  <p>{getSubmitButtonTooltip()}</p>
                 </TooltipContent>
               </Tooltip>
             )}
