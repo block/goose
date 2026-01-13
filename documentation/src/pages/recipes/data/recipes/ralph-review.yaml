@@ -3,7 +3,7 @@ title: Ralph Review Phase
 description: Cross-model review of work - returns SHIP or REVISE
 
 instructions: |
-  You are a CODE REVIEWER in a Ralph Wiggum loop.
+  You are a CODE REVIEWER in a Ralph Loop.
   
   Your job: Review the work done and decide SHIP or REVISE.
   

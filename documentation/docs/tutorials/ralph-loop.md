@@ -1,10 +1,9 @@
 ---
+title: Ralph Loop
 description: Run goose in a loop with fresh context per iteration and cross-model review
 ---
 
-# Ralph Loop
-
-Ralph Loop, based on [Geoffrey Huntley's "Ralph Wiggum" approach](https://ghuntley.com/ralph/), is an iterative development pattern that keeps goose working on a task until it's genuinely complete.
+Ralph Loop, based on [Geoffrey Huntley's Ralph Wiggum approach](https://ghuntley.com/ralph/), is an iterative development pattern that keeps goose working on a task until it's genuinely complete.
 
 Standard agent loops suffer from context accumulation. Every failed attempt stays in the conversation history, which means that after a few iterations, the model must process a long history of noise before it can focus on the task. Ralph Loop solves this by starting each iteration with fresh context. One model does the work, a different model reviews it, and the loop continues until the task is ready to ship.
 
@@ -97,7 +96,7 @@ The terminal will show goose moving through the worker and reviewer phases. Each
 
 ```
 ═══════════════════════════════════════════════════════════════
-  Ralph Wiggum Loop - Multi-Model Edition
+  Ralph Loop - Multi-Model Edition
 ═══════════════════════════════════════════════════════════════
 
   Task: Create a simple browser using Electron and React
@@ -133,7 +132,25 @@ Missing error handling for invalid URLs. Also needs back/forward navigation butt
 ═══════════════════════════════════════════════════════════════
 ```
 
-## State Files
+## How It Works
+
+```
+Iteration 1:
+  WORK PHASE  → Model A does work, writes to files
+  REVIEW PHASE → Model B reviews the work
+    → SHIP? Exit successfully ✓
+    → REVISE? Write feedback, continue to iteration 2
+
+Iteration 2:
+  WORK PHASE  → Model A reads feedback, fixes things (fresh context!)
+  REVIEW PHASE → Model B reviews again
+    → SHIP? Exit successfully ✓
+    → REVISE? Continue...
+
+... repeats until SHIP or max iterations
+```
+
+### State Files
 
 Ralph Loop uses files in `.goose/ralph/` to persist state between iterations. This is how the worker knows what to do and the reviewer knows what was done, even though each iteration starts with fresh context.
 
@@ -148,35 +165,9 @@ Ralph Loop uses files in `.goose/ralph/` to persist state between iterations. Th
 | `.ralph-complete` | Created on successful completion |
 | `RALPH-BLOCKED.md` | Created if worker is stuck |
 
-## Restarting and Resuming
+### Recipe Files
 
-To reset and start fresh:
-
-```bash
-rm -rf .goose/ralph
-```
-
-To keep your task but reset progress:
-
-```bash
-rm -f .goose/ralph/iteration.txt .goose/ralph/review-*.txt .goose/ralph/work-*.txt
-```
-
-## When to Use Ralph Loop
-
-Ralph Loop works best for:
-
-- **Complex, multi-step tasks** that benefit from iteration
-- **Tasks with clear completion criteria** (tests pass, builds succeed)
-- **Situations where you want quality gates** before shipping
-
-It's overkill for:
-
-- Simple one-shot tasks
-- Interactive/exploratory work
-- Tasks without verifiable completion criteria
-
-## Recipe Files
+The Ralph Loop uses three files: a bash script that orchestrates the work/review cycle, a work recipe that tells the worker model how to make progress, and a review recipe that tells the reviewer model how to evaluate the work. Below are the contents of each file. You can [download](#prerequisites) them or copy directly from here.
 
 <details>
 <summary>The Bash Wrapper (`ralph-loop.sh`)</summary>
@@ -184,10 +175,10 @@ It's overkill for:
 ```bash
 #!/bin/bash
 #
-# Ralph Wiggum Loop - Multi-Model Edition
+# Ralph Loop - Multi-Model Edition
 #
 # Fresh context per iteration + cross-model review
-# Based on Geoffrey Huntley's Ralph Wiggum technique
+# Based on Geoffrey Huntley's technique
 #
 # Usage: ./ralph-loop.sh "your task description here"
 #    or: ./ralph-loop.sh /path/to/task.md
@@ -333,7 +324,7 @@ rm -f "$STATE_DIR/work-complete.txt"
 rm -f "$STATE_DIR/work-summary.txt"
 
 echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
-echo -e "${BLUE}  Ralph Wiggum Loop - Multi-Model Edition${NC}"
+echo -e "${BLUE}  Ralph Loop - Multi-Model Edition${NC}"
 echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
 echo ""
 echo -e "  Task: ${YELLOW}$TASK${NC}"
@@ -414,7 +405,7 @@ title: Ralph Work Phase
 description: Single iteration of work - fresh context each time
 
 instructions: |
-  You are in a RALPH WIGGUM LOOP - one iteration of work.
+  You are in a RALPH LOOP - one iteration of work.
   
   Your work persists through FILES ONLY. You will NOT remember previous iterations.
   
@@ -470,7 +461,7 @@ title: Ralph Review Phase
 description: Cross-model review of work - returns SHIP or REVISE
 
 instructions: |
-  You are a CODE REVIEWER in a Ralph Wiggum loop.
+  You are a CODE REVIEWER in a Ralph Loop.
   
   Your job: Review the work done and decide SHIP or REVISE.
   
@@ -522,21 +513,26 @@ extensions:
 
 </details>
 
+## Usage Tips
 
-## How It Works
+### When to Use Ralph Loop
 
-```
-Iteration 1:
-  WORK PHASE  → Model A does work, writes to files
-  REVIEW PHASE → Model B reviews the work
-    → SHIP? Exit successfully ✓
-    → REVISE? Write feedback, continue to iteration 2
+Ralph Loop works best for:
 
-Iteration 2:
-  WORK PHASE  → Model A reads feedback, fixes things (fresh context!)
-  REVIEW PHASE → Model B reviews again
-    → SHIP? Exit successfully ✓
-    → REVISE? Continue...
+- **Complex, multi-step tasks** that benefit from iteration
+- **Tasks with clear completion criteria** (tests pass, builds succeed)
+- **Situations where you want quality gates** before shipping
 
-... repeats until SHIP or max iterations
+It's overkill for:
+
+- Simple one-shot tasks
+- Interactive/exploratory work
+- Tasks without verifiable completion criteria
+
+### Resetting
+
+To reset and start fresh:
+
+```bash
+rm -rf .goose/ralph
 ```
