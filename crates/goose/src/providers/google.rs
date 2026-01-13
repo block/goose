@@ -1,10 +1,9 @@
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::MessageStream;
+use super::base::{StreamFormat, StreamRequest};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::{
-    handle_response_google_compat, handle_status_openai_compat, stream_google_raw,
-    unescape_json_values,
+    handle_response_google_compat, handle_status_openai_compat, unescape_json_values,
 };
 use crate::conversation::message::Message;
 
@@ -88,16 +87,6 @@ impl GoogleProvider {
         let response = self.api_client.response_post(&path, payload).await?;
         handle_response_google_compat(response).await
     }
-
-    async fn post_stream(
-        &self,
-        model_name: &str,
-        payload: &Value,
-    ) -> Result<reqwest::Response, ProviderError> {
-        let path = format!("v1beta/models/{}:streamGenerateContent?alt=sse", model_name);
-        let response = self.api_client.response_post(&path, payload).await?;
-        handle_status_openai_compat(response).await
-    }
 }
 
 #[async_trait]
@@ -172,19 +161,32 @@ impl Provider for GoogleProvider {
         true
     }
 
-    async fn stream_impl(
+    fn build_stream_request(
         &self,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<(Value, MessageStream), ProviderError> {
+    ) -> Result<StreamRequest, ProviderError> {
         let payload = create_request(&self.model, system, messages, tools)?;
+        let url = format!(
+            "v1beta/models/{}:streamGenerateContent?alt=sse",
+            self.model.model_name
+        );
 
-        let response = self
-            .with_retry(|| async { self.post_stream(&self.model.model_name, &payload).await })
-            .await?;
+        Ok(StreamRequest::new(url, payload, StreamFormat::Google))
+    }
 
-        let raw_stream = stream_google_raw(response);
-        Ok((payload, raw_stream))
+    async fn execute_stream_request(
+        &self,
+        request: &StreamRequest,
+    ) -> Result<reqwest::Response, ProviderError> {
+        self.with_retry(|| async {
+            let resp = self
+                .api_client
+                .response_post(&request.url, &request.payload)
+                .await?;
+            handle_status_openai_compat(resp).await
+        })
+        .await
     }
 }

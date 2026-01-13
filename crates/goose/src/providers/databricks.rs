@@ -5,15 +5,16 @@ use serde_json::Value;
 use std::time::Duration;
 
 use super::api_client::{ApiClient, AuthMethod, AuthProvider};
-use super::base::{ConfigKey, MessageStream, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{
+    ConfigKey, Provider, ProviderMetadata, ProviderUsage, StreamFormat, StreamRequest, Usage,
+};
 use super::embedding::EmbeddingCapable;
 use super::errors::ProviderError;
 use super::formats::databricks::{create_request, response_to_message};
 use super::oauth;
 use super::retry::ProviderRetry;
 use super::utils::{
-    get_model, handle_response_openai_compat, map_http_error_to_provider_error,
-    stream_openai_compat_raw, ImageFormat,
+    get_model, handle_response_openai_compat, map_http_error_to_provider_error, ImageFormat,
 };
 use crate::config::ConfigError;
 use crate::conversation::message::Message;
@@ -297,12 +298,12 @@ impl Provider for DatabricksProvider {
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
 
-    async fn stream_impl(
+    fn build_stream_request(
         &self,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<(Value, MessageStream), ProviderError> {
+    ) -> Result<StreamRequest, ProviderError> {
         let model_config = self.model.clone();
 
         let mut payload =
@@ -317,23 +318,30 @@ impl Provider for DatabricksProvider {
             .unwrap()
             .insert("stream".to_string(), Value::Bool(true));
 
-        let path = self.get_endpoint_path(&model_config.model_name, false);
-        let response = self
-            .with_retry(|| async {
-                let resp = self.api_client.response_post(&path, &payload).await?;
-                if !resp.status().is_success() {
-                    let status = resp.status();
-                    let error_text = resp.text().await.unwrap_or_default();
+        let url = self.get_endpoint_path(&model_config.model_name, false);
 
-                    let json_payload = serde_json::from_str::<Value>(&error_text).ok();
-                    return Err(map_http_error_to_provider_error(status, json_payload));
-                }
-                Ok(resp)
-            })
-            .await?;
+        Ok(StreamRequest::new(url, payload, StreamFormat::OpenAiCompat))
+    }
 
-        let raw_stream = stream_openai_compat_raw(response);
-        Ok((payload, raw_stream))
+    async fn execute_stream_request(
+        &self,
+        request: &StreamRequest,
+    ) -> Result<reqwest::Response, ProviderError> {
+        self.with_retry(|| async {
+            let resp = self
+                .api_client
+                .response_post(&request.url, &request.payload)
+                .await?;
+            if !resp.status().is_success() {
+                let status = resp.status();
+                let error_text = resp.text().await.unwrap_or_default();
+
+                let json_payload = serde_json::from_str::<Value>(&error_text).ok();
+                return Err(map_http_error_to_provider_error(status, json_payload));
+            }
+            Ok(resp)
+        })
+        .await
     }
 
     fn supports_streaming(&self) -> bool {

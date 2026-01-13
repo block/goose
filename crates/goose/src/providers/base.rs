@@ -330,9 +330,70 @@ impl Usage {
 }
 
 use async_trait::async_trait;
+use reqwest::header::HeaderMap;
 use serde_json::json;
 
-use super::utils::{wrap_stream_with_logging, RequestLog};
+use super::utils::{
+    stream_anthropic_raw, stream_google_raw, stream_openai_compat_raw, stream_openai_responses_raw,
+    wrap_stream_with_logging, RequestLog,
+};
+
+/// The format of the streaming response, determining how to parse it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StreamFormat {
+    /// OpenAI-compatible streaming (most providers)
+    OpenAiCompat,
+    /// OpenAI Responses API streaming
+    OpenAiResponses,
+    /// Anthropic streaming format
+    Anthropic,
+    /// Google Gemini streaming format
+    Google,
+}
+
+/// A descriptor for a streaming request.
+/// Providers return this from `build_stream_request` to describe what request to make.
+/// The trait's default `stream` method handles execution and logging.
+#[derive(Debug, Clone)]
+pub struct StreamRequest {
+    /// The URL path to POST to (relative to the provider's base URL)
+    pub url: String,
+    /// Additional headers for this request
+    pub headers: HeaderMap,
+    /// The JSON payload to send
+    pub payload: serde_json::Value,
+    /// The format of the streaming response
+    pub format: StreamFormat,
+}
+
+impl StreamRequest {
+    /// Create a new StreamRequest with the given URL, payload, and format.
+    /// Headers default to empty.
+    pub fn new(url: impl Into<String>, payload: serde_json::Value, format: StreamFormat) -> Self {
+        Self {
+            url: url.into(),
+            headers: HeaderMap::new(),
+            payload,
+            format,
+        }
+    }
+
+    /// Add a header to the request.
+    pub fn with_header(mut self, name: &str, value: &str) -> Result<Self, ProviderError> {
+        let header_name = reqwest::header::HeaderName::from_bytes(name.as_bytes())
+            .map_err(|e| ProviderError::RequestFailed(format!("Invalid header name: {}", e)))?;
+        let header_value = reqwest::header::HeaderValue::from_str(value)
+            .map_err(|e| ProviderError::RequestFailed(format!("Invalid header value: {}", e)))?;
+        self.headers.insert(header_name, header_value);
+        Ok(self)
+    }
+
+    /// Add multiple headers to the request.
+    pub fn with_headers(mut self, headers: HeaderMap) -> Self {
+        self.headers.extend(headers);
+        self
+    }
+}
 
 /// Trait for LeadWorkerProvider-specific functionality
 pub trait LeadWorkerProviderTrait {
@@ -523,34 +584,64 @@ pub trait Provider: Send + Sync {
         None
     }
 
-    /// Internal implementation of stream. Providers implement this method.
-    /// This method should NOT handle RequestLog - that's done by stream().
+    /// Build a streaming request descriptor.
+    /// Providers implement this to specify what request to make.
+    /// This is a pure data transformation - no async, no HTTP, no logging.
     ///
-    /// Returns a tuple of (payload for logging, raw MessageStream).
-    /// The payload is a JSON value containing relevant request info for logging.
-    async fn stream_impl(
+    /// The default implementation returns NotImplemented.
+    fn build_stream_request(
         &self,
         _system: &str,
         _messages: &[Message],
         _tools: &[Tool],
-    ) -> Result<(serde_json::Value, MessageStream), ProviderError> {
+    ) -> Result<StreamRequest, ProviderError> {
+        Err(ProviderError::NotImplemented(
+            "streaming not implemented".to_string(),
+        ))
+    }
+
+    /// Execute a streaming request and return the HTTP response.
+    /// Providers implement this to handle authentication, retry logic, etc.
+    ///
+    /// The default implementation returns NotImplemented.
+    async fn execute_stream_request(
+        &self,
+        _request: &StreamRequest,
+    ) -> Result<reqwest::Response, ProviderError> {
         Err(ProviderError::NotImplemented(
             "streaming not implemented".to_string(),
         ))
     }
 
     /// Stream a request with automatic request logging.
-    /// This wraps stream_impl with RequestLog for consistent error tracking.
-    /// Callers should use this method; providers should implement stream_impl.
+    /// This orchestrates the streaming flow:
+    /// 1. Calls `build_stream_request` to get the request descriptor
+    /// 2. Creates a RequestLog for the request
+    /// 3. Calls `execute_stream_request` to make the HTTP request
+    /// 4. Parses the response based on the stream format
+    /// 5. Wraps the stream with logging
+    ///
+    /// Providers should implement `build_stream_request` and `execute_stream_request`.
+    /// Callers should use this method.
     async fn stream(
         &self,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let (payload, raw_stream) = self.stream_impl(system, messages, tools).await?;
+        let request = self.build_stream_request(system, messages, tools)?;
 
-        let log = RequestLog::start(&self.get_model_config(), &payload)?;
+        let mut log = RequestLog::start(&self.get_model_config(), &request.payload)?;
+
+        let response = log.run(self.execute_stream_request(&request)).await?;
+
+        let raw_stream = match request.format {
+            StreamFormat::OpenAiCompat => stream_openai_compat_raw(response),
+            StreamFormat::OpenAiResponses => stream_openai_responses_raw(response),
+            StreamFormat::Anthropic => stream_anthropic_raw(response),
+            StreamFormat::Google => stream_google_raw(response),
+        };
+
         Ok(wrap_stream_with_logging(raw_stream, log))
     }
 

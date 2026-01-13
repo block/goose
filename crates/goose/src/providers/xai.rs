@@ -1,13 +1,11 @@
 use super::api_client::{ApiClient, AuthMethod};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
-use super::utils::{
-    get_model, handle_response_openai_compat, handle_status_openai_compat, stream_openai_compat_raw,
-};
+use super::utils::{get_model, handle_response_openai_compat, handle_status_openai_compat};
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::base::{
-    ConfigKey, MessageStream, Provider, ProviderMetadata, ProviderUsage, Usage,
+    ConfigKey, Provider, ProviderMetadata, ProviderUsage, StreamFormat, StreamRequest, Usage,
 };
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
 use anyhow::Result;
@@ -138,12 +136,12 @@ impl Provider for XaiProvider {
         self.supports_streaming
     }
 
-    async fn stream_impl(
+    fn build_stream_request(
         &self,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<(Value, MessageStream), ProviderError> {
+    ) -> Result<StreamRequest, ProviderError> {
         let payload = create_request(
             &self.model,
             system,
@@ -153,13 +151,21 @@ impl Provider for XaiProvider {
             true,
         )?;
 
+        Ok(StreamRequest::new(
+            "chat/completions",
+            payload,
+            StreamFormat::OpenAiCompat,
+        ))
+    }
+
+    async fn execute_stream_request(
+        &self,
+        request: &StreamRequest,
+    ) -> Result<reqwest::Response, ProviderError> {
         let resp = self
             .api_client
-            .response_post("chat/completions", &payload)
+            .response_post(&request.url, &request.payload)
             .await?;
-        let response = handle_status_openai_compat(resp).await?;
-        let raw_stream = stream_openai_compat_raw(response);
-
-        Ok((payload, raw_stream))
+        handle_status_openai_compat(resp).await
     }
 }

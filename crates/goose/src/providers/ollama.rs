@@ -1,10 +1,10 @@
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{ConfigKey, MessageStream, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{
+    ConfigKey, Provider, ProviderMetadata, ProviderUsage, StreamFormat, StreamRequest, Usage,
+};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
-use super::utils::{
-    get_model, handle_response_openai_compat, handle_status_openai_compat, stream_openai_compat_raw,
-};
+use super::utils::{get_model, handle_response_openai_compat, handle_status_openai_compat};
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::config::GooseMode;
 use crate::conversation::message::Message;
@@ -235,15 +235,15 @@ impl Provider for OllamaProvider {
         self.supports_streaming
     }
 
-    async fn stream_impl(
+    fn build_stream_request(
         &self,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<(Value, MessageStream), ProviderError> {
+    ) -> Result<StreamRequest, ProviderError> {
         let config = crate::config::Config::global();
         let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
-        let filtered_tools = if goose_mode == GooseMode::Chat {
+        let filtered_tools: &[Tool] = if goose_mode == GooseMode::Chat {
             &[]
         } else {
             tools
@@ -258,14 +258,22 @@ impl Provider for OllamaProvider {
             true,
         )?;
 
+        Ok(StreamRequest::new(
+            "v1/chat/completions",
+            payload,
+            StreamFormat::OpenAiCompat,
+        ))
+    }
+
+    async fn execute_stream_request(
+        &self,
+        request: &StreamRequest,
+    ) -> Result<reqwest::Response, ProviderError> {
         let resp = self
             .api_client
-            .response_post("v1/chat/completions", &payload)
+            .response_post(&request.url, &request.payload)
             .await?;
-        let response = handle_status_openai_compat(resp).await?;
-        let raw_stream = stream_openai_compat_raw(response);
-
-        Ok((payload, raw_stream))
+        handle_status_openai_compat(resp).await
     }
 
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {

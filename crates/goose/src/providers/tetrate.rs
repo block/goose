@@ -1,10 +1,12 @@
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{ConfigKey, MessageStream, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{
+    ConfigKey, Provider, ProviderMetadata, ProviderUsage, StreamFormat, StreamRequest, Usage,
+};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::{
     get_model, handle_response_google_compat, handle_response_openai_compat,
-    handle_status_openai_compat, is_google_model, stream_openai_compat_raw,
+    handle_status_openai_compat, is_google_model,
 };
 use crate::config::signup_tetrate::TETRATE_DEFAULT_MODEL;
 use crate::conversation::message::Message;
@@ -190,12 +192,12 @@ impl Provider for TetrateProvider {
         Ok((message, ProviderUsage::new(model, usage)))
     }
 
-    async fn stream_impl(
+    fn build_stream_request(
         &self,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<(Value, MessageStream), ProviderError> {
+    ) -> Result<StreamRequest, ProviderError> {
         let payload = create_request(
             &self.model,
             system,
@@ -205,14 +207,22 @@ impl Provider for TetrateProvider {
             true,
         )?;
 
+        Ok(StreamRequest::new(
+            "v1/chat/completions",
+            payload,
+            StreamFormat::OpenAiCompat,
+        ))
+    }
+
+    async fn execute_stream_request(
+        &self,
+        request: &StreamRequest,
+    ) -> Result<reqwest::Response, ProviderError> {
         let resp = self
             .api_client
-            .response_post("v1/chat/completions", &payload)
+            .response_post(&request.url, &request.payload)
             .await?;
-        let response = handle_status_openai_compat(resp).await?;
-        let raw_stream = stream_openai_compat_raw(response);
-
-        Ok((payload, raw_stream))
+        handle_status_openai_compat(resp).await
     }
 
     /// Fetch supported models from Tetrate Agent Router Service API (only models with tool support)

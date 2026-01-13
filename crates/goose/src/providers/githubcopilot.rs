@@ -1,6 +1,6 @@
 use crate::config::paths::Paths;
 use crate::providers::api_client::{ApiClient, AuthMethod};
-use crate::providers::utils::{handle_status_openai_compat, stream_openai_compat_raw};
+use crate::providers::utils::handle_status_openai_compat;
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use axum::http;
@@ -23,7 +23,7 @@ use crate::config::{Config, ConfigError};
 use crate::conversation::message::Message;
 
 use crate::model::ModelConfig;
-use crate::providers::base::{ConfigKey, MessageStream};
+use crate::providers::base::{ConfigKey, StreamFormat, StreamRequest};
 use rmcp::model::Tool;
 
 pub const GITHUB_COPILOT_DEFAULT_MODEL: &str = "gpt-4.1";
@@ -446,12 +446,12 @@ impl Provider for GithubCopilotProvider {
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
 
-    async fn stream_impl(
+    fn build_stream_request(
         &self,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<(Value, MessageStream), ProviderError> {
+    ) -> Result<StreamRequest, ProviderError> {
         let payload = create_request(
             &self.model,
             system,
@@ -461,16 +461,23 @@ impl Provider for GithubCopilotProvider {
             true,
         )?;
 
-        let response = self
-            .with_retry(|| async {
-                let mut payload_clone = payload.clone();
-                let resp = self.post(&mut payload_clone).await?;
-                handle_status_openai_compat(resp).await
-            })
-            .await?;
+        Ok(StreamRequest::new(
+            "chat/completions",
+            payload,
+            StreamFormat::OpenAiCompat,
+        ))
+    }
 
-        let raw_stream = stream_openai_compat_raw(response);
-        Ok((payload, raw_stream))
+    async fn execute_stream_request(
+        &self,
+        request: &StreamRequest,
+    ) -> Result<reqwest::Response, ProviderError> {
+        self.with_retry(|| async {
+            let mut payload = request.payload.clone();
+            let resp = self.post(&mut payload).await?;
+            handle_status_openai_compat(resp).await
+        })
+        .await
     }
 
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {

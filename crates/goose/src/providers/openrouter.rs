@@ -3,12 +3,14 @@ use async_trait::async_trait;
 use serde_json::{json, Value};
 
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{ConfigKey, MessageStream, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{
+    ConfigKey, Provider, ProviderMetadata, ProviderUsage, StreamFormat, StreamRequest, Usage,
+};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::{
     get_model, handle_response_google_compat, handle_response_openai_compat,
-    handle_status_openai_compat, is_google_model, stream_openai_compat_raw,
+    handle_status_openai_compat, is_google_model,
 };
 use crate::conversation::message::Message;
 
@@ -376,12 +378,12 @@ impl Provider for OpenRouterProvider {
         self.supports_streaming
     }
 
-    async fn stream_impl(
+    fn build_stream_request(
         &self,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<(Value, MessageStream), ProviderError> {
+    ) -> Result<StreamRequest, ProviderError> {
         let mut payload = create_request(
             &self.model,
             system,
@@ -391,7 +393,12 @@ impl Provider for OpenRouterProvider {
             true,
         )?;
 
-        if self.supports_cache_control().await {
+        // Check cache control synchronously (same logic as supports_cache_control)
+        if self
+            .model
+            .model_name
+            .starts_with(OPENROUTER_MODEL_PREFIX_ANTHROPIC)
+        {
             payload = update_request_for_anthropic(&payload);
         }
 
@@ -400,17 +407,24 @@ impl Provider for OpenRouterProvider {
             .unwrap()
             .insert("transforms".to_string(), json!(["middle-out"]));
 
-        let response = self
-            .with_retry(|| async {
-                let resp = self
-                    .api_client
-                    .response_post("api/v1/chat/completions", &payload)
-                    .await?;
-                handle_status_openai_compat(resp).await
-            })
-            .await?;
+        Ok(StreamRequest::new(
+            "api/v1/chat/completions",
+            payload,
+            StreamFormat::OpenAiCompat,
+        ))
+    }
 
-        let raw_stream = stream_openai_compat_raw(response);
-        Ok((payload, raw_stream))
+    async fn execute_stream_request(
+        &self,
+        request: &StreamRequest,
+    ) -> Result<reqwest::Response, ProviderError> {
+        self.with_retry(|| async {
+            let resp = self
+                .api_client
+                .response_post(&request.url, &request.payload)
+                .await?;
+            handle_status_openai_compat(resp).await
+        })
+        .await
     }
 }
