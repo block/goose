@@ -2476,10 +2476,14 @@ async function appMain() {
       });
 
       const workingDir = app.getPath('home');
+      const extensionName =
+        gooseApp.mcpServer === undefined || gooseApp.mcpServer === null || gooseApp.mcpServer === ''
+          ? 'undefined'
+          : gooseApp.mcpServer;
       const standaloneUrl =
         `${baseUrl}/#/standalone-app?` +
         `resourceUri=${encodeURIComponent(gooseApp.resourceUri)}` +
-        `&extensionName=${encodeURIComponent(gooseApp.mcpServer || '')}` +
+        `&extensionName=${encodeURIComponent(extensionName)}` +
         `&appName=${encodeURIComponent(gooseApp.name)}` +
         `&workingDir=${encodeURIComponent(workingDir)}`;
 

@@ -58,7 +58,9 @@ export default function StandaloneAppView() {
         !extensionName ||
         !workingDir ||
         resourceUri === 'undefined' ||
-        extensionName === 'undefined'
+        extensionName === 'undefined' ||
+        workingDir === 'undefined' ||
+        workingDir === 'null'
       ) {
         return;
       }
