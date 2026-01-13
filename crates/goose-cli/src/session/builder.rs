@@ -5,14 +5,15 @@ use goose::agents::extension::PlatformExtensionContext;
 use goose::agents::types::RetryConfig;
 use goose::agents::Agent;
 use goose::config::{
-    extensions::get_extension_by_name, get_all_extensions, get_enabled_extensions, Config,
-    ExtensionConfig,
+    extensions::get_extension_by_name, get_all_extensions, Config, ExtensionConfig,
 };
 use goose::providers::create;
 use goose::recipe::{Response, SubRecipe};
 use goose::session::session_manager::SessionType;
 use goose::session::SessionManager;
-use goose::session::{EnabledExtensionsState, ExtensionState};
+use goose::session::{
+    resolve_extensions, EnabledExtensionsState, ExtensionResolutionStrategy, ExtensionState,
+};
 use rustyline::EditMode;
 use std::collections::BTreeSet;
 use std::process;
@@ -504,26 +505,21 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     }
 
     let configured_extensions: Vec<ExtensionConfig> = if session_config.resume {
-        match SessionManager::get_session(&session_id, false).await {
-            Ok(session_data) => {
-                if let Some(saved_state) =
-                    EnabledExtensionsState::from_extension_data(&session_data.extension_data)
-                {
-                    check_missing_extensions_or_exit(
-                        &saved_state.extensions,
-                        session_config.interactive,
-                    );
-                    saved_state.extensions
-                } else {
-                    get_enabled_extensions()
-                }
-            }
-            _ => get_enabled_extensions(),
-        }
-    } else if let Some(extensions) = session_config.extensions_override.clone() {
-        extensions
+        let session_exts = SessionManager::get_session(&session_id, false)
+            .await
+            .ok()
+            .and_then(|s| EnabledExtensionsState::from_extension_data(&s.extension_data))
+            .map(|state| {
+                check_missing_extensions_or_exit(&state.extensions, session_config.interactive);
+                state.extensions
+            });
+        resolve_extensions(ExtensionResolutionStrategy::Resume, None, session_exts)
     } else {
-        get_enabled_extensions()
+        resolve_extensions(
+            ExtensionResolutionStrategy::RecipeFirst,
+            session_config.extensions_override.as_ref(),
+            None,
+        )
     };
 
     let cli_flag_extension_extensions_to_load = parse_cli_flag_extensions(
