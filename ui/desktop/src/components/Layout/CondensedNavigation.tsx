@@ -319,8 +319,8 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
       label: 'Activity',
       isWidget: true,
       renderContent: () => {
-        // Get last 35 days for a 5x7 grid
-        const days = 35;
+        // Get last 56 days for an 8x7 grid (moderate size for 244px tile)
+        const days = 56;
         const today = new Date();
         const heatmapCells = [];
         
@@ -338,12 +338,12 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
         }
         
         return (
-          <div className="w-full h-full flex flex-col items-center justify-center p-2">
-            <div className="grid grid-cols-7 gap-0.5">
+          <div className="w-full h-full flex flex-col items-center justify-center p-4">
+            <div className="grid grid-cols-7 gap-1">
               {heatmapCells.map((cell, index) => (
                 <div
                   key={index}
-                  className={`w-1.5 h-1.5 rounded-sm ${
+                  className={`w-3 h-3 rounded-sm ${
                     cell.intensity === 0 ? 'bg-background-muted' :
                     cell.intensity === 1 ? 'bg-green-200 dark:bg-green-900' :
                     cell.intensity === 2 ? 'bg-green-300 dark:bg-green-700' :
@@ -354,8 +354,8 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
                 />
               ))}
             </div>
-            <div className="mt-1 text-xs text-text-muted font-mono">
-              Last 35 days
+            <div className="mt-2 text-xs text-text-muted font-mono">
+              Last 8 weeks
             </div>
           </div>
         );
@@ -370,12 +370,12 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
         const tokensInMillions = (totalTokens / 1000000).toFixed(2);
         
         return (
-          <div className="w-full h-full flex flex-col items-center justify-center p-2">
+          <div className="w-full h-full flex flex-col items-center justify-center p-6">
             <div className="text-center">
-              <div className="text-lg font-mono font-light text-text-default mb-1">
+              <div className="text-4xl font-mono font-light text-text-default mb-2">
                 {tokensInMillions}M
               </div>
-              <div className="text-xs text-text-muted font-mono">
+              <div className="text-sm text-text-muted font-mono">
                 Total tokens
               </div>
             </div>
