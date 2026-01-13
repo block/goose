@@ -1,3 +1,15 @@
+use anyhow::Result;
+use async_stream::try_stream;
+use async_trait::async_trait;
+use futures::{StreamExt, TryStreamExt};
+use reqwest::StatusCode;
+use serde_json::Value;
+use std::collections::HashMap;
+use std::io;
+use tokio::pin;
+use tokio_util::codec::{FramedRead, LinesCodec};
+use tokio_util::io::StreamReader;
+
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{ConfigKey, ModelInfo, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::embedding::{EmbeddingCapable, EmbeddingRequest, EmbeddingResponse};
@@ -14,17 +26,6 @@ use super::utils::{
 };
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
-use anyhow::Result;
-use async_stream::try_stream;
-use async_trait::async_trait;
-use futures::{StreamExt, TryStreamExt};
-use reqwest::StatusCode;
-use serde_json::Value;
-use std::collections::HashMap;
-use std::io;
-use tokio::pin;
-use tokio_util::codec::{FramedRead, LinesCodec};
-use tokio_util::io::StreamReader;
 
 use crate::model::ModelConfig;
 use crate::providers::base::MessageStream;
