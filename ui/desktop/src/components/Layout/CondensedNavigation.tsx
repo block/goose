@@ -583,7 +583,9 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
             >
 {isOverlayMode ? (
                 // Overlay Mode: Independent menu container and widget tiles
-                <div className="flex flex-row gap-4 items-start">
+                <div className={`flex flex-row gap-4 ${
+                  position === 'left' || position === 'right' ? 'items-center' : 'items-start'
+                }`}>
                   {/* Menu Container: Windows Start Menu style */}
                   <div 
                     className="bg-background-card backdrop-blur-xl rounded-2xl shadow-2xl border border-border-default overflow-hidden"
