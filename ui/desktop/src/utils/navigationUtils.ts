@@ -42,7 +42,10 @@ export const createNavigationHandler = (navigate: NavigateFunction) => {
         navigate('/', { state: options });
         break;
       case 'pair': {
-        // Build URL with search params if resumeSessionId is provided
+        // Put resumeSessionId in URL search params (not just state) so that:
+        // 1. The sidebar can read it to highlight the active session
+        // 2. Page refresh preserves which session is active
+        // 3. Browser back/forward navigation works correctly
         const searchParams = new URLSearchParams();
         if (options?.resumeSessionId) {
           searchParams.set('resumeSessionId', options.resumeSessionId);
