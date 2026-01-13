@@ -14,7 +14,7 @@ In this tutorial, we'll use Ralph Loop to build a simple Electron-based browser 
 
 ### Prerequisites
 
-- [Install the goose CLI](/docs/getting-started/installation)because the Ralph Loop runs via the terminal.
+- [Install the goose CLI](/docs/getting-started/installation) because the Ralph Loop runs via the terminal.
 - [Configure two models](/docs/getting-started/providers) to serve as the worker and reviewer. Using different models is recommended for higher quality reviews, though the loop still works if you use the same model for both roles.
 
 <details>
@@ -40,21 +40,23 @@ Ralph Loop runs your agent multiple times in a loop (up to 10 iterations by defa
 
 ### Step 1: Start the Loop
 
-Run the script with your task:
+To start the process, run the script from your terminal and provide your prompt in quotes. This command triggers the first iteration of the worker and reviewer cycle:
 
 ```bash
 ~/.config/goose/recipes/ralph-loop.sh "Create a simple browser using Electron and React"
 ```
 
-You can also pass a file path if your task is more complex:
+:::tip For Complex Tasks
+You can pass a file path instead of a string. This works well for PRDs, detailed specs, or any multi-step task that benefits from iterative development:
 
 ```bash
-~/.config/goose/recipes/ralph-loop.sh ./my-task.md
+~/.config/goose/recipes/ralph-loop.sh ./prd.md
 ```
+:::
 
 ### Step 2: Configure Models
 
-The script will prompt you to configure the worker and reviewer models:
+The script will ask you to set your environment variables for the session:
 
 ```
 Worker model [gpt-4o]: 
@@ -69,34 +71,36 @@ Max iterations [10]:
 Continue? [y/N]: y
 ```
 
-**What each prompt means:**
+| Variable | Description |
+|--------|-------------|
+| Worker model | The model that does the actual coding work. Defaults to `GOOSE_MODEL` if set. |
+| Worker provider | The provider for the worker model (e.g., `openai`, `anthropic`). Defaults to `GOOSE_PROVIDER` if set. |
+| Reviewer model | The model that reviews the work. Should be different from the worker for best results. |
+| Reviewer provider | The provider for the reviewer model. |
+| Max iterations | How many work/review cycles before giving up. Defaults to 10. |
 
-- **Worker model** - The model that does the actual coding work. Defaults to your `GOOSE_MODEL` environment variable if set.
-- **Worker provider** - The provider for the worker model (e.g., `openai`, `anthropic`). Defaults to your `GOOSE_PROVIDER` if set.
-- **Reviewer model** - The model that reviews the work. Should be different from the worker for best results. No default, you must specify.
-- **Reviewer provider** - The provider for the reviewer model. No default, you must specify.
-- **Max iterations** - How many work/review cycles before giving up. Defaults to 10.
-
-If you want to skip the prompts, set environment variables:
+:::tip Directly Set Environment Variables
+You can skip the interactive prompts by setting environment variables directly
 
 ```bash
 RALPH_WORKER_MODEL="gpt-4o" \
 RALPH_WORKER_PROVIDER="openai" \
 RALPH_REVIEWER_MODEL="claude-sonnet-4-20250514" \
 RALPH_REVIEWER_PROVIDER="anthropic" \
-~/.config/goose/recipes/ralph-loop.sh "Create a simple browser using Electron"
+~/.config/goose/recipes/ralph-loop.sh "Create a simple browser using Electron and React"
 ```
+:::
 
 ### Step 3: Watch It Run
 
-Here's what a successful run looks like:
+The terminal will show goose moving through the worker and reviewer phases. Each iteration starts with a fresh session to keep the context clean. Here's what a successful run looks like:
 
 ```
 ═══════════════════════════════════════════════════════════════
   Ralph Wiggum Loop - Multi-Model Edition
 ═══════════════════════════════════════════════════════════════
 
-  Task: Create a simple browser using Electron
+  Task: Create a simple browser using Electron and React
   Worker: gpt-4o (openai)
   Reviewer: claude-sonnet-4-20250514 (anthropic)
   Max Iterations: 10
