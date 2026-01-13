@@ -17,11 +17,14 @@ let nodeGypPath = null;
 try {
   nodeGypPath = require.resolve('@electron/node-gyp/bin/node-gyp.js');
 } catch {
-  nodeGypPath = null;
+  console.error(
+    'Missing @electron/node-gyp. Install dependencies before building the auth session addon.'
+  );
+  process.exit(1);
 }
 
-const command = nodeGypPath ? process.execPath : 'node-gyp';
-const args = nodeGypPath ? [nodeGypPath, 'rebuild'] : ['rebuild'];
+const command = process.execPath;
+const args = [nodeGypPath, 'rebuild'];
 
 console.log('Building auth session native addon...');
 const result = spawnSync(command, args, {
