@@ -4,13 +4,13 @@ description: Run goose in a loop with fresh context per iteration and cross-mode
 
 # Ralph Loop
 
-Ralph Loop is an iterative development pattern that keeps goose working on a task until it's genuinely complete.
+Ralph Loop, based on [Geoffrey Huntley's "Ralph Wiggum" approach](https://ghuntley.com/ralph/), is an iterative development pattern that keeps goose working on a task until it's genuinely complete.
 
 Standard agent loops suffer from context accumulation. Every failed attempt stays in the conversation history, which means that after a few iterations, the model must process a long history of noise before it can focus on the task. Ralph Loop solves this by starting each iteration with fresh context. One model does the work, a different model reviews it, and the loop continues until the task is ready to ship.
 
-After each iteration, the worker and reviewer models store a summary and feedback in files. These files persist between iterations but the conversation history does not. This allows a new session to start where the next model reads the files to pick up exactly where the last iteration left off. This technique is based on [Geoffrey Huntley's "Ralph Wiggum" approach](https://ghuntley.com/ralph/).
+After each iteration, the worker and reviewer models store a summary and feedback in files. These files persist between iterations but the conversation history does not. This allows a new session to start where the next model reads the files to pick up exactly where the last iteration left off.
 
-In this tutorial, we'll use Ralph Loop to build a simple Electron browser and see how the iteration cycle catches missing features before shipping.
+In this tutorial, we'll use Ralph Loop to build a simple Electron-based browser and see how the iteration cycle catches missing features before shipping.
 
 ### Prerequisites
 
@@ -43,7 +43,7 @@ Ralph Loop runs your agent multiple times in a loop (up to 10 iterations by defa
 Run the script with your task:
 
 ```bash
-~/.config/goose/recipes/ralph-loop.sh "Create a simple browser using Electron"
+~/.config/goose/recipes/ralph-loop.sh "Create a simple browser using Electron and React"
 ```
 
 You can also pass a file path if your task is more complex:
