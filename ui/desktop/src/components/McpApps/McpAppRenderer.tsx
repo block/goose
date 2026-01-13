@@ -193,16 +193,6 @@ export default function McpAppRenderer({
     );
   }
 
-  if (!resource.html) {
-    return (
-      <div className={cn('p-4 bg-bgApp border border-borderSubtle rounded-lg')}>
-        <div className="flex items-center justify-center" style={{ minHeight: '200px' }}>
-          Loading MCP app...
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div
       className={cn(
@@ -210,7 +200,7 @@ export default function McpAppRenderer({
         resource.prefersBorder ? 'border border-borderSubtle rounded-lg' : 'my-6'
       )}
     >
-      {proxyUrl ? (
+      {resource.html && proxyUrl ? (
         <iframe
           ref={iframeRef}
           src={proxyUrl}
@@ -223,16 +213,8 @@ export default function McpAppRenderer({
           sandbox="allow-scripts allow-same-origin"
         />
       ) : (
-        <div
-          style={{
-            width: '100%',
-            minHeight: '200px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          Loading...
+        <div className="flex items-center justify-center p-4" style={{ minHeight: '200px' }}>
+          Loading MCP app...
         </div>
       )}
     </div>
