@@ -170,6 +170,7 @@ export function useChatStream({
   });
   const [notifications, setNotifications] = useState<NotificationEvent[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const lastInteractionTimeRef = useRef<number>(Date.now());
 
   useEffect(() => {
     if (session) {
@@ -190,6 +191,14 @@ export function useChatStream({
     async (error?: string): Promise<void> => {
       if (error) {
         setSessionLoadError(error);
+      }
+
+      const timeSinceLastInteraction = Date.now() - lastInteractionTimeRef.current;
+      if (!error && timeSinceLastInteraction > 60000) {
+        window.electron.showNotification({
+          title: 'goose finished the task.',
+          body: 'Click here to expand.',
+        });
       }
 
       const isNewSession = sessionId && sessionId.match(/^\d{8}_\d{6}$/);
@@ -294,6 +303,8 @@ export function useChatStream({
         return;
       }
 
+      lastInteractionTimeRef.current = Date.now();
+
       // Emit session-created event for first message in a new session
       if (!hasExistingMessages && hasNewMessage) {
         window.dispatchEvent(new CustomEvent('session-created'));
@@ -351,6 +362,8 @@ export function useChatStream({
       if (!session || chatState === ChatState.LoadingConversation) {
         return;
       }
+
+      lastInteractionTimeRef.current = Date.now();
 
       const responseMessage = createElicitationResponseMessage(elicitationId, userData);
       const currentMessages = [...messagesRef.current, responseMessage];
@@ -431,6 +444,7 @@ export function useChatStream({
   const stopStreaming = useCallback(() => {
     abortControllerRef.current?.abort();
     setChatState(ChatState.Idle);
+    lastInteractionTimeRef.current = Date.now();
   }, []);
 
   const onMessageUpdate = useCallback(

@@ -5,7 +5,6 @@ use anyhow::Result;
 use async_trait::async_trait;
 use boa_engine::builtins::promise::PromiseState;
 use boa_engine::module::{MapModuleLoader, Module, SyntheticModuleInitializer};
-use boa_engine::property::Attribute;
 use boa_engine::{js_string, Context, JsNativeError, JsString, JsValue, NativeFunction, Source};
 use indoc::indoc;
 use regex::Regex;
@@ -266,6 +265,8 @@ impl ToolInfo {
 thread_local! {
     static CALL_TX: std::cell::RefCell<Option<mpsc::UnboundedSender<ToolCallRequest>>> =
         const { std::cell::RefCell::new(None) };
+    static RESULT_CELL: std::cell::RefCell<Option<String>> =
+        const { std::cell::RefCell::new(None) };
 }
 
 fn create_server_module(
@@ -360,6 +361,7 @@ fn run_js_module(
     call_tx: mpsc::UnboundedSender<ToolCallRequest>,
 ) -> Result<String, String> {
     CALL_TX.with(|tx| *tx.borrow_mut() = Some(call_tx));
+    RESULT_CELL.with(|cell| *cell.borrow_mut() = None);
 
     let loader = Rc::new(MapModuleLoader::new());
     let mut ctx = Context::builder()
@@ -367,12 +369,14 @@ fn run_js_module(
         .build()
         .map_err(|e| format!("Failed to create JS context: {e}"))?;
 
-    ctx.register_global_property(
-        js_string!("__result__"),
-        JsValue::undefined(),
-        Attribute::WRITABLE,
-    )
-    .map_err(|e| format!("Failed to register __result__: {e}"))?;
+    let record_result = NativeFunction::from_copy_closure(|_this, args, _ctx| {
+        let value = args.first().cloned().unwrap_or(JsValue::undefined());
+        RESULT_CELL.with(|cell| *cell.borrow_mut() = Some(value.display().to_string()));
+        Ok(value)
+    });
+
+    ctx.register_global_callable(js_string!("record_result"), 1, record_result)
+        .map_err(|e| format!("Failed to register record_result: {e}"))?;
 
     let mut by_server: BTreeMap<&str, Vec<&ToolInfo>> = BTreeMap::new();
     for tool in tools {
@@ -384,35 +388,7 @@ fn run_js_module(
         loader.insert(*server_name, module);
     }
 
-    let wrapped = {
-        let lines: Vec<&str> = code.trim().lines().collect();
-        let last_idx = lines
-            .iter()
-            .rposition(|l| !l.trim().is_empty() && !l.trim().starts_with("//"))
-            .unwrap_or(0);
-        let last = lines.get(last_idx).map(|s| s.trim()).unwrap_or("");
-
-        const NO_WRAP: &[&str] = &["import ", "export ", "function ", "class "];
-        if last.contains("__result__") || NO_WRAP.iter().any(|p| last.starts_with(p)) {
-            code.to_string()
-        } else {
-            let before = lines[..last_idx].join("\n");
-            let mut result = None;
-            for decl in ["const ", "let ", "var "] {
-                if let Some(rest) = last.strip_prefix(decl) {
-                    if let Some(name) = rest.split('=').next().map(str::trim) {
-                        result = Some(format!("{before}\n{last}\n__result__ = {name};"));
-                    }
-                    break;
-                }
-            }
-            result.unwrap_or_else(|| {
-                format!("{before}\n__result__ = {};", last.trim_end_matches(';'))
-            })
-        }
-    };
-
-    let user_module = Module::parse(Source::from_bytes(&wrapped), None, &mut ctx)
+    let user_module = Module::parse(Source::from_bytes(code), None, &mut ctx)
         .map_err(|e| format!("Parse error: {e}"))?;
     loader.insert("__main__", user_module.clone());
 
@@ -422,11 +398,8 @@ fn run_js_module(
 
     match promise.state() {
         PromiseState::Fulfilled(_) => {
-            let result = ctx
-                .global_object()
-                .get(js_string!("__result__"), &mut ctx)
-                .map_err(|e| format!("Failed to get result: {e}"))?;
-            Ok(result.display().to_string())
+            let result = RESULT_CELL.with(|cell| cell.borrow().clone());
+            Ok(result.unwrap_or_else(|| "undefined".to_string()))
         }
         PromiseState::Rejected(err) => Err(format!("Module error: {}", err.display())),
         PromiseState::Pending => Err("Module evaluation did not complete".to_string()),
@@ -465,6 +438,8 @@ impl CodeExecutionClient {
                 This extension exists to reduce round-trips. When a task requires multiple tool calls:
                 - WRONG: Multiple execute_code calls, each with one tool
                 - RIGHT: One execute_code call with a script that calls all needed tools
+
+                IMPORTANT: All tool calls are SYNCHRONOUS. Do NOT use async/await.
 
                 Workflow:
                     1. Use the read_module tool to discover tools and signatures
@@ -572,12 +547,16 @@ impl CodeExecutionClient {
             .and_then(|a| a.get("terms"))
             .ok_or("Missing required parameter: terms")?;
 
-        let terms_vec = if let Some(s) = terms.as_str() {
-            vec![s.to_string()]
-        } else if let Some(arr) = terms.as_array() {
+        let terms_vec = if let Some(arr) = terms.as_array() {
             arr.iter()
                 .filter_map(|v| v.as_str().map(String::from))
                 .collect()
+        } else if let Some(s) = terms.as_str() {
+            if s.starts_with('[') && s.ends_with(']') {
+                serde_json::from_str::<Vec<String>>(s).unwrap_or_else(|_| vec![s.to_string()])
+            } else {
+                vec![s.to_string()]
+            }
         } else {
             return Err("Parameter 'terms' must be a string or array of strings".to_string());
         };
@@ -758,6 +737,7 @@ impl McpClientTrait for CodeExecutionClient {
                         import { text_editor } from "developer";
                         const content = text_editor({ path: "/path/to/source.md", command: "view" });
                         text_editor({ path: "/path/to/dest.md", command: "write", file_text: content });
+                        record_result({ copied: true });
                         ```
 
                         EXAMPLE - Multiple operations chained:
@@ -766,15 +746,14 @@ impl McpClientTrait for CodeExecutionClient {
                         const files = shell({ command: "ls -la" });
                         const readme = text_editor({ path: "./README.md", command: "view" });
                         const status = shell({ command: "git status" });
-                        { files, readme, status }
+                        record_result({ files, readme, status });
                         ```
 
                         SYNTAX:
                         - Import: import { tool1, tool2 } from "serverName";
                         - Call: toolName({ param1: value, param2: value })
+                        - Result: record_result(value) - call this to return a value from the script
                         - All calls are synchronous, return strings
-                        - Last expression is the result
-                        - No comments in code
 
                         TOOL_GRAPH: Always provide tool_graph to describe the execution flow for the UI.
                         Each node has: tool (server/name), description (what it does), depends_on (indices of dependencies).
@@ -830,9 +809,11 @@ impl McpClientTrait for CodeExecutionClient {
                         Search for tools by name or description across all available modules.
 
                         USAGE:
-                        - Single term: search_modules with terms="file"
-                        - Multiple terms: search_modules with terms=["git", "shell"]
-                        - Regex patterns: search_modules with terms="sh.*", regex=true
+                        - Single term: terms="github" (just a plain string)
+                        - Multiple terms: terms=["git", "shell"] (a JSON array, NOT a string)
+                        - Regex patterns: terms="sh.*", regex=true
+
+                        IMPORTANT: Do NOT stringify arrays. Use terms=["a","b"] not terms="[\"a\",\"b\"]"
 
                         Returns matching servers and tools with descriptions.
                         Use this when you don't know which module contains the tool you need.
@@ -942,7 +923,10 @@ mod tests {
         let client = CodeExecutionClient::new(context).unwrap();
 
         let mut args = JsonObject::new();
-        args.insert("code".to_string(), Value::String("2 + 2".to_string()));
+        args.insert(
+            "code".to_string(),
+            Value::String("record_result(2 + 2)".to_string()),
+        );
 
         let result = client
             .call_tool("execute_code", Some(args), CancellationToken::new())

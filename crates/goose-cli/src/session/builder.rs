@@ -205,7 +205,7 @@ async fn offer_extension_debugging_help(
     Ok(())
 }
 
-fn check_missing_extensions_or_exit(saved_extensions: &[ExtensionConfig]) {
+fn check_missing_extensions_or_exit(saved_extensions: &[ExtensionConfig], interactive: bool) {
     let missing: Vec<_> = saved_extensions
         .iter()
         .filter(|ext| get_extension_by_name(&ext.name()).is_none())
@@ -219,16 +219,27 @@ fn check_missing_extensions_or_exit(saved_extensions: &[ExtensionConfig]) {
             .collect::<Vec<_>>()
             .join(", ");
 
-        if !cliclack::confirm(format!(
-            "Extension(s) {} from previous session are no longer available. Restore for this session?",
-            names
-        ))
-        .initial_value(true)
-        .interact()
-        .unwrap_or(false)
-        {
-            println!("{}", style("Resume cancelled.").yellow());
-            process::exit(0);
+        if interactive {
+            if !cliclack::confirm(format!(
+                "Extension(s) {} from previous session are no longer available. Restore for this session?",
+                names
+            ))
+            .initial_value(true)
+            .interact()
+            .unwrap_or(false)
+            {
+                println!("{}", style("Resume cancelled.").yellow());
+                process::exit(0);
+            }
+        } else {
+            eprintln!(
+                "{}",
+                style(format!(
+                    "Warning: Extension(s) {} from previous session are no longer available, continuing without them.",
+                    names
+                ))
+                .yellow()
+            );
         }
     }
 }
@@ -400,22 +411,34 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         let current_workdir =
             std::env::current_dir().expect("Failed to get current working directory");
         if current_workdir != session.working_dir {
-            let change_workdir = cliclack::confirm(format!("{} The original working directory of this session was set to {}. Your current directory is {}. Do you want to switch back to the original working directory?", style("WARNING:").yellow(), style(session.working_dir.display()).cyan(), style(current_workdir.display()).cyan()))
-                    .initial_value(true)
-                    .interact().expect("Failed to get user input");
+            if session_config.interactive {
+                let change_workdir = cliclack::confirm(format!("{} The original working directory of this session was set to {}. Your current directory is {}. Do you want to switch back to the original working directory?", style("WARNING:").yellow(), style(session.working_dir.display()).cyan(), style(current_workdir.display()).cyan()))
+                        .initial_value(true)
+                        .interact().expect("Failed to get user input");
 
-            if change_workdir {
-                if !session.working_dir.exists() {
-                    output::render_error(&format!(
-                        "Cannot switch to original working directory - {} no longer exists",
-                        style(session.working_dir.display()).cyan()
-                    ));
-                } else if let Err(e) = std::env::set_current_dir(&session.working_dir) {
-                    output::render_error(&format!(
-                        "Failed to switch to original working directory: {}",
-                        e
-                    ));
+                if change_workdir {
+                    if !session.working_dir.exists() {
+                        output::render_error(&format!(
+                            "Cannot switch to original working directory - {} no longer exists",
+                            style(session.working_dir.display()).cyan()
+                        ));
+                    } else if let Err(e) = std::env::set_current_dir(&session.working_dir) {
+                        output::render_error(&format!(
+                            "Failed to switch to original working directory: {}",
+                            e
+                        ));
+                    }
                 }
+            } else {
+                eprintln!(
+                    "{}",
+                    style(format!(
+                        "Warning: Working directory differs from session (current: {}, session: {}). Staying in current directory.",
+                        current_workdir.display(),
+                        session.working_dir.display()
+                    ))
+                    .yellow()
+                );
             }
         }
     }
@@ -436,7 +459,10 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
                 if let Some(saved_state) =
                     EnabledExtensionsState::from_extension_data(&session_data.extension_data)
                 {
-                    check_missing_extensions_or_exit(&saved_state.extensions);
+                    check_missing_extensions_or_exit(
+                        &saved_state.extensions,
+                        session_config.interactive,
+                    );
                     saved_state.extensions
                 } else {
                     get_enabled_extensions()
@@ -487,6 +513,15 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     spinner.clear();
 
     for (name, err) in offer_debug {
+        eprintln!(
+            "{}",
+            style(format!(
+                "Warning: Failed to start extension '{}' ({}), continuing without it",
+                name, err
+            ))
+            .yellow()
+        );
+
         if let Err(debug_err) = offer_extension_debugging_help(
             &name,
             &err.to_string(),

@@ -437,7 +437,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn prepare_tools_sorts_and_includes_frontend_and_list_tools() -> anyhow::Result<()> {
+    async fn prepare_tools_returns_sorted_tools_including_frontend() -> anyhow::Result<()> {
         let agent = crate::agents::Agent::new();
 
         let session = SessionManager::create_session(
@@ -481,9 +481,7 @@ mod tests {
         let (tools, _toolshim_tools, _system_prompt) =
             agent.prepare_tools_and_prompt(&working_dir).await?;
 
-        // Ensure both platform and frontend tools are present
         let names: Vec<String> = tools.iter().map(|t| t.name.clone().into_owned()).collect();
-        assert!(names.iter().any(|n| n.starts_with("platform__")));
         assert!(names.iter().any(|n| n == "frontend__a_tool"));
         assert!(names.iter().any(|n| n == "frontend__z_tool"));
 

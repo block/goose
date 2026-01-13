@@ -31,7 +31,7 @@ type JobsMap = HashMap<String, (JobId, ScheduledJob)>;
 pub fn get_default_scheduler_storage_path() -> Result<PathBuf, io::Error> {
     let data_dir = Paths::data_dir();
     fs::create_dir_all(&data_dir)?;
-    Ok(data_dir.join("schedules.json"))
+    Ok(data_dir.join("schedule.json"))
 }
 
 pub fn get_default_scheduled_recipes_dir() -> Result<PathBuf, SchedulerError> {
@@ -395,7 +395,8 @@ impl Scheduler {
             Ok(data) => data,
             Err(e) => {
                 tracing::error!(
-                    "Failed to read schedules.json: {}. Starting with empty schedule list.",
+                    "Failed to read {}: {}. Starting with empty schedule list.",
+                    self.storage_path.display(),
                     e
                 );
                 return;
@@ -409,7 +410,8 @@ impl Scheduler {
             Ok(jobs) => jobs,
             Err(e) => {
                 tracing::error!(
-                    "Failed to parse schedules.json: {}. Starting with empty schedule list.",
+                    "Failed to parse {}: {}. Starting with empty schedule list.",
+                    self.storage_path.display(),
                     e
                 );
                 return;
@@ -926,7 +928,7 @@ mod tests {
     #[tokio::test]
     async fn test_job_runs_on_schedule() {
         let temp_dir = tempdir().unwrap();
-        let storage_path = temp_dir.path().join("schedules.json");
+        let storage_path = temp_dir.path().join("schedule.json");
         let recipe_path = create_test_recipe(temp_dir.path(), "scheduled_job");
         let scheduler = Scheduler::new(storage_path).await.unwrap();
 
@@ -951,7 +953,7 @@ mod tests {
     #[tokio::test]
     async fn test_paused_job_does_not_run() {
         let temp_dir = tempdir().unwrap();
-        let storage_path = temp_dir.path().join("schedules.json");
+        let storage_path = temp_dir.path().join("schedule.json");
         let recipe_path = create_test_recipe(temp_dir.path(), "paused_job");
         let scheduler = Scheduler::new(storage_path).await.unwrap();
 
