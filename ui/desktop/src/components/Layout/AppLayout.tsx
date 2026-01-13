@@ -156,8 +156,13 @@ const AppLayoutContent: React.FC<AppLayoutProps> = () => {
             {/* Overlay Navigation - Only show when expanded */}
             {overlayNavigationComponent}
             
-            {/* Control Buttons - Fixed position for overlay mode */}
-            <div className="absolute z-[10002] flex gap-2 top-4 right-4">
+            {/* Control Buttons - Position based on navigation position setting */}
+            <div className={`absolute z-[10002] flex gap-2 ${
+              navigationPosition === 'top' ? 'top-4 right-4' :
+              navigationPosition === 'bottom' ? 'bottom-4 right-4' :
+              navigationPosition === 'left' ? (safeIsMacOS ? 'top-4 left-20' : 'top-4 left-4') :
+              'top-4 right-4'
+            }`}>
               <Button
                 onClick={() => setIsNavExpanded(!isNavExpanded)}
                 className="no-drag hover:!bg-background-medium bg-background-default rounded-xl shadow-sm relative"
@@ -165,7 +170,13 @@ const AppLayoutContent: React.FC<AppLayoutProps> = () => {
                 size="xs"
                 title="Toggle navigation overlay"
               >
-                <ChevronDown className="w-4 h-4" />
+                {navigationPosition === 'left' ? (
+                  isNavExpanded ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />
+                ) : navigationPosition === 'right' ? (
+                  isNavExpanded ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />
+                ) : (
+                  isNavExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
+                )}
                 <span className="ml-2 text-xs text-text-muted font-mono">
                   {isNavExpanded ? 'Hide launcher' : 'Show launcher'}
                 </span>
