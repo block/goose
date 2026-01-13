@@ -928,11 +928,22 @@ p > code.bg-inline-code {
 /* Navigation tile stagger animation with enhanced easing */
 .nav-tile {
   animation: nav-tile-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  /* Start invisible, animation will make visible */
   opacity: 0;
+  /* Prevent flickering by hinting to browser */
+  will-change: opacity, transform;
+}
+
+/* Remove will-change after animation completes to save resources */
+.nav-tile.animation-complete {
+  will-change: auto;
 }
 
 .nav-tile-exit {
   animation: nav-tile-out 0.2s ease-in forwards;
+  /* Ensure we start from visible state when exiting */
+  opacity: 1 !important;
+  will-change: opacity, transform;
 }
 
 /* Enhanced stagger delays with better rhythm - faster start, gradual slowdown */
