@@ -580,9 +580,14 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
             >
 {isOverlayMode ? (
                 // Overlay Mode: Independent menu container and widget tiles
-                <div className={`flex flex-row gap-4 ${
+                <div className={`flex flex-row gap-[2px] ${
                   position === 'left' || position === 'right' ? 'items-center' : 
                   position === 'bottom' ? 'items-end' : 'items-start'
+                } ${
+                  position === 'top' ? 'pt-[2px]' :
+                  position === 'bottom' ? 'pb-[2px]' :
+                  position === 'left' ? 'pl-[2px]' :
+                  'pr-[2px]'
                 }`}>
                   {/* Menu Container: Windows Start Menu style */}
                   <div 
@@ -687,7 +692,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
 
                   {/* Widget Tiles: 2x2 Grid - Height matches menu container */}
                   <div 
-                    className="grid grid-cols-2 gap-3"
+                    className="grid grid-cols-2 gap-[2px]"
                     style={{ maxHeight: '500px' }}
                   >
                     {navItems.filter(item => item.isWidget).map((item, index) => {
@@ -720,8 +725,8 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
                           `}
                           style={{
                             opacity: isDragging ? 0.5 : 1,
-                            width: 'calc((500px - 12px) / 2)', // Match height for square tiles
-                            height: 'calc((500px - 12px) / 2)', // (maxHeight - gap) / 2 rows
+                            width: 'calc((500px - 2px) / 2)', // Match height for square tiles
+                            height: 'calc((500px - 2px) / 2)', // (maxHeight - gap) / 2 rows
                           }}
                         >
                           <div className="w-full h-full bg-background-card backdrop-blur-xl rounded-2xl shadow-2xl border border-border-default overflow-hidden relative group">
