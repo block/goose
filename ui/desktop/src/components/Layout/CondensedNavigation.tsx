@@ -190,7 +190,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
 
     return (
       <div className="w-full h-full flex items-center justify-center">
-        <div className="relative w-12 h-12">
+        <div className="relative w-28 h-28">
           {/* Clock face */}
           <div className="absolute inset-0 rounded-full border-2 border-text-muted/20" />
           
@@ -198,9 +198,9 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
           {[...Array(12)].map((_, i) => (
             <div
               key={i}
-              className="absolute w-0.5 h-1 bg-text-muted/40 top-1 left-1/2 -translate-x-1/2"
+              className="absolute w-1 h-3 bg-text-muted/40 top-2 left-1/2 -translate-x-1/2"
               style={{
-                transformOrigin: '50% 22px',
+                transformOrigin: '50% 52px',
                 transform: `translateX(-50%) rotate(${i * 30}deg)`,
               }}
             />
@@ -208,7 +208,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
           
           {/* Hour hand */}
           <div
-            className="absolute w-0.5 h-4 bg-text-default rounded-full top-1/2 left-1/2 -translate-x-1/2 origin-bottom transition-transform duration-1000 ease-linear"
+            className="absolute w-1.5 h-10 bg-text-default rounded-full top-1/2 left-1/2 -translate-x-1/2 origin-bottom transition-transform duration-1000 ease-linear"
             style={{
               transform: `translateX(-50%) translateY(-100%) rotate(${hourAngle}deg)`,
             }}
@@ -216,7 +216,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
           
           {/* Minute hand */}
           <div
-            className="absolute w-px h-5 bg-text-default rounded-full top-1/2 left-1/2 -translate-x-1/2 origin-bottom transition-transform duration-1000 ease-linear"
+            className="absolute w-1 h-12 bg-text-default rounded-full top-1/2 left-1/2 -translate-x-1/2 origin-bottom transition-transform duration-1000 ease-linear"
             style={{
               transform: `translateX(-50%) translateY(-100%) rotate(${minuteAngle}deg)`,
             }}
@@ -224,14 +224,14 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
           
           {/* Second hand */}
           <div
-            className="absolute w-px h-6 bg-red-500 rounded-full top-1/2 left-1/2 -translate-x-1/2 origin-bottom transition-transform duration-1000 ease-linear"
+            className="absolute w-0.5 h-14 bg-red-500 rounded-full top-1/2 left-1/2 -translate-x-1/2 origin-bottom transition-transform duration-1000 ease-linear"
             style={{
               transform: `translateX(-50%) translateY(-100%) rotate(${secondAngle}deg)`,
             }}
           />
           
           {/* Center dot */}
-          <div className="absolute w-1 h-1 bg-text-default rounded-full top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+          <div className="absolute w-2 h-2 bg-text-default rounded-full top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
         </div>
       </div>
     );
