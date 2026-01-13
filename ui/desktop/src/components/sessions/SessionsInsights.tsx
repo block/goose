@@ -110,19 +110,9 @@ export function SessionInsights() {
   };
 
   const formatTokens = (tokens: number | undefined): string => {
-    if (!tokens) {
-      return '0';
-    }
-    if (tokens >= 1_000_000_000) {
-      return `${(tokens / 1_000_000_000).toFixed(2)}B`;
-    }
-    if (tokens >= 1_000_000) {
-      return `${(tokens / 1_000_000).toFixed(2)}M`;
-    }
-    if (tokens >= 1_000) {
-      return `${(tokens / 1_000).toFixed(1)}K`;
-    }
-    return tokens.toString();
+    return new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 2 }).format(
+      tokens || 0
+    );
   };
 
   // Render skeleton loader while data is loading
