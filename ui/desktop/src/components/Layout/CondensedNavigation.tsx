@@ -500,38 +500,48 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
 
   // Determine layout based on position
   const isVertical = position === 'left' || position === 'right';
+  
+  // Position-aware container classes for overlay mode (matches TopNavigation)
+  const containerClasses = isOverlayMode
+    ? `w-full h-full flex ${
+        position === 'top' ? 'items-start justify-center' :
+        position === 'bottom' ? 'items-end justify-center' :
+        position === 'left' ? 'items-center justify-start' :
+        'items-center justify-end'
+      }`
+    : isVertical
+      ? 'h-full'
+      : 'w-full overflow-hidden';
 
   return (
-    <div className={`${isOverlayMode ? 'bg-transparent' : 'bg-background-muted'} relative z-[9998] ${isVertical ? 'h-full' : 'w-full'}`}>
+    <div className={`${isOverlayMode ? 'bg-transparent' : 'bg-background-muted'} ${containerClasses} relative z-[9998]`}>
       <AnimatePresence initial={false}>
         {isExpanded && (
           <motion.div
             initial={isOverlayMode ? { 
-              x: -240, 
-              opacity: 0 
+              opacity: 0, 
+              scale: 0.95 
             } : { 
               [isVertical ? 'width' : 'height']: 0, 
               opacity: 0 
             }}
             animate={isOverlayMode ? { 
-              x: 0, 
-              opacity: 1,
+              opacity: 1, 
+              scale: 1 
             } : { 
               [isVertical ? 'width' : 'height']: "auto", 
               opacity: 1,
             }}
             exit={isOverlayMode ? { 
-              x: -240, 
-              opacity: 0,
+              opacity: 0, 
+              scale: 0.95 
             } : { 
               [isVertical ? 'width' : 'height']: 0, 
               opacity: 0,
             }}
             transition={isOverlayMode ? {
-              type: "spring",
-              stiffness: 300,
-              damping: 30,
-              mass: 0.8,
+              duration: 0.3,
+              ease: "easeOut"
             } : {
               [isVertical ? 'width' : 'height']: {
                 type: "spring",
@@ -544,7 +554,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
                 ease: "easeInOut"
               }
             }}
-            className={`${isOverlayMode ? 'fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[10000] shadow-2xl' : 'bg-background-muted overflow-hidden'} ${
+            className={`${isOverlayMode ? 'bg-transparent' : 'bg-background-muted overflow-hidden'} ${
               !isOverlayMode && isVertical ? 'h-full lg:relative lg:z-auto absolute z-[10000] top-0 shadow-lg lg:shadow-none' : ''
             } ${
               !isOverlayMode && isVertical && position === 'left' ? 'left-0' : ''
