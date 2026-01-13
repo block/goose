@@ -11,7 +11,7 @@ ACP is an emerging specification that enables clients to communicate with AI age
 :::
 
 ## How It Works
-After you configure goose as an agent in the ACP client, you gain access to goose's core agent functionality, including its extensions and tools. 
+After you configure goose as an agent in the ACP client, you gain access to goose's core agent functionality, including its extensions and tools. goose also automatically loads any [configured MCP servers](#using-mcp-servers-from-acp-clients) from your ACP client alongside its own extensions, making their tools available without additional configuration.
 
 The client manages the goose lifecycle automatically, including:
 
@@ -82,7 +82,46 @@ You should now be able to interact with goose directly in Zed. Your ACP sessions
 3. **Select goose**: Choose `New goose` to start a new conversation with goose
 4. **Start Chatting**: Interact with goose directly from the agent panel
 
-#### Advanced Configuration
+### Advanced Configuration
+
+#### Using MCP Servers from ACP Clients
+
+MCP servers configured in the ACP client's `context_servers` are automatically available to goose. This allows you to use those MCP servers across both the client's native features and goose sessions.
+
+**Example (Zed):**
+
+```json
+{
+  "context_servers": {
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/path/to/allowed/dir"
+      ]
+    }
+  },
+  "agent_servers": {
+    "goose": {
+      "command": "goose",
+      "args": ["acp"],
+      "env": {}
+    }
+  },
+  // more settings
+}
+```
+
+To find out what tools are available, just ask goose.
+
+:::info
+MCP servers in `context_servers` are automatically available to goose, provided that they use stdio (command-based) or HTTP transports. SSE transport (deprecated) is not supported.
+
+If an MCP server in `context_servers` has the same name as a goose extension, goose uses its own [configuration](/docs/guides/config-files).
+:::
+
+#### Overriding Provider and Model
 
 By default, goose will use the provider and model defined in your [configuration file](/docs/guides/config-files). You can override this for specific ACP configurations using the `GOOSE_PROVIDER` and `GOOSE_MODEL` environment variables.
 
