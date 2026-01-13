@@ -99,7 +99,7 @@ async fn get_workspace_endpoints(host: &str) -> Result<OidcEndpoints> {
     if !resp.status().is_success() {
         return Err(anyhow::anyhow!(
             "Failed to get OIDC configuration from {}",
-            oidc_url.to_string()
+            oidc_url
         ));
     }
 

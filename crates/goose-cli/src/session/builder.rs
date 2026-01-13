@@ -4,8 +4,8 @@ use console::style;
 use goose::agents::types::{RetryConfig, SessionConfig};
 use goose::agents::Agent;
 use goose::config::{
-    extensions::{get_extension_by_name, set_extension, ExtensionEntry},
-    get_all_extensions, get_enabled_extensions, Config, ExtensionConfig,
+    extensions::get_extension_by_name, get_all_extensions, get_enabled_extensions, Config,
+    ExtensionConfig,
 };
 use goose::providers::create;
 use goose::recipe::{Response, SubRecipe};
@@ -34,8 +34,6 @@ pub struct SessionBuilderConfig {
     pub no_session: bool,
     /// List of stdio extension commands to add
     pub extensions: Vec<String>,
-    /// List of remote extension commands to add
-    pub remote_extensions: Vec<String>,
     /// List of streamable HTTP extension commands to add
     pub streamable_http_extensions: Vec<String>,
     /// List of builtin extension commands to add
@@ -81,7 +79,6 @@ impl Default for SessionBuilderConfig {
             resume: false,
             no_session: false,
             extensions: Vec::new(),
-            remote_extensions: Vec::new(),
             streamable_http_extensions: Vec::new(),
             builtins: Vec::new(),
             extensions_override: None,
@@ -205,7 +202,7 @@ async fn offer_extension_debugging_help(
     Ok(())
 }
 
-fn check_missing_extensions_or_exit(saved_extensions: &[ExtensionConfig]) {
+fn check_missing_extensions_or_exit(saved_extensions: &[ExtensionConfig], interactive: bool) {
     let missing: Vec<_> = saved_extensions
         .iter()
         .filter(|ext| get_extension_by_name(&ext.name()).is_none())
@@ -219,24 +216,28 @@ fn check_missing_extensions_or_exit(saved_extensions: &[ExtensionConfig]) {
             .collect::<Vec<_>>()
             .join(", ");
 
-        if !cliclack::confirm(format!(
-            "Extension(s) {} from previous session are no longer in config. Re-add them to config?",
-            names
-        ))
-        .initial_value(true)
-        .interact()
-        .unwrap_or(false)
-        {
-            println!("{}", style("Resume cancelled.").yellow());
-            process::exit(0);
+        if interactive {
+            if !cliclack::confirm(format!(
+                "Extension(s) {} from previous session are no longer available. Restore for this session?",
+                names
+            ))
+            .initial_value(true)
+            .interact()
+            .unwrap_or(false)
+            {
+                println!("{}", style("Resume cancelled.").yellow());
+                process::exit(0);
+            }
+        } else {
+            eprintln!(
+                "{}",
+                style(format!(
+                    "Warning: Extension(s) {} from previous session are no longer available, continuing without them.",
+                    names
+                ))
+                .yellow()
+            );
         }
-
-        missing.into_iter().for_each(|config| {
-            set_extension(ExtensionEntry {
-                enabled: true,
-                config,
-            });
-        });
     }
 }
 
@@ -393,7 +394,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         .set_context(PlatformExtensionContext {
             session_id: Some(session_id.clone()),
             extension_manager: Some(Arc::downgrade(&agent.extension_manager)),
-            tool_route_manager: Some(Arc::downgrade(&agent.tool_route_manager)),
         })
         .await;
 
@@ -408,31 +408,47 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         let current_workdir =
             std::env::current_dir().expect("Failed to get current working directory");
         if current_workdir != session.working_dir {
-            let change_workdir = cliclack::confirm(format!("{} The original working directory of this session was set to {}. Your current directory is {}. Do you want to switch back to the original working directory?", style("WARNING:").yellow(), style(session.working_dir.display()).cyan(), style(current_workdir.display()).cyan()))
-                    .initial_value(true)
-                    .interact().expect("Failed to get user input");
+            if session_config.interactive {
+                let change_workdir = cliclack::confirm(format!("{} The original working directory of this session was set to {}. Your current directory is {}. Do you want to switch back to the original working directory?", style("WARNING:").yellow(), style(session.working_dir.display()).cyan(), style(current_workdir.display()).cyan()))
+                        .initial_value(true)
+                        .interact().expect("Failed to get user input");
 
-            if change_workdir {
-                if !session.working_dir.exists() {
-                    output::render_error(&format!(
-                        "Cannot switch to original working directory - {} no longer exists",
-                        style(session.working_dir.display()).cyan()
-                    ));
-                } else if let Err(e) = std::env::set_current_dir(&session.working_dir) {
-                    output::render_error(&format!(
-                        "Failed to switch to original working directory: {}",
-                        e
-                    ));
+                if change_workdir {
+                    if !session.working_dir.exists() {
+                        output::render_error(&format!(
+                            "Cannot switch to original working directory - {} no longer exists",
+                            style(session.working_dir.display()).cyan()
+                        ));
+                    } else if let Err(e) = std::env::set_current_dir(&session.working_dir) {
+                        output::render_error(&format!(
+                            "Failed to switch to original working directory: {}",
+                            e
+                        ));
+                    }
                 }
+            } else {
+                eprintln!(
+                    "{}",
+                    style(format!(
+                        "Warning: Working directory differs from session (current: {}, session: {}). Staying in current directory.",
+                        current_workdir.display(),
+                        session.working_dir.display()
+                    ))
+                    .yellow()
+                );
             }
         }
     }
 
     // Setup extensions for the agent
     // Extensions need to be added after the session is created because we change directory when resuming a session
+
+    for warning in goose::config::get_warnings() {
+        eprintln!("{}", style(format!("Warning: {}", warning)).yellow());
+    }
+
     // If we get extensions_override, only run those extensions and none other
     let extensions_to_run: Vec<_> = if let Some(extensions) = session_config.extensions_override {
-        agent.disable_router_for_recipe().await;
         extensions.into_iter().collect()
     } else if session_config.resume {
         match SessionManager::get_session(&session_id, false).await {
@@ -440,7 +456,10 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
                 if let Some(saved_state) =
                     EnabledExtensionsState::from_extension_data(&session_data.extension_data)
                 {
-                    check_missing_extensions_or_exit(&saved_state.extensions);
+                    check_missing_extensions_or_exit(
+                        &saved_state.extensions,
+                        session_config.interactive,
+                    );
                     saved_state.extensions
                 } else {
                     get_enabled_extensions()
@@ -491,6 +510,15 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     spinner.clear();
 
     for (name, err) in offer_debug {
+        eprintln!(
+            "{}",
+            style(format!(
+                "Warning: Failed to start extension '{}' ({}), continuing without it",
+                name, err
+            ))
+            .yellow()
+        );
+
         if let Err(debug_err) = offer_extension_debugging_help(
             &name,
             &err.to_string(),
@@ -538,32 +566,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
                 "{}",
                 style(format!(
                     "Warning: Failed to start stdio extension '{}' ({}), continuing without it",
-                    extension_str, e
-                ))
-                .yellow()
-            );
-
-            // Offer debugging help
-            if let Err(debug_err) = offer_extension_debugging_help(
-                &extension_str,
-                &e.to_string(),
-                Arc::clone(&provider_for_display),
-                session_config.interactive,
-            )
-            .await
-            {
-                eprintln!("Note: Could not start debugging session: {}", debug_err);
-            }
-        }
-    }
-
-    // Add remote extensions if provided
-    for extension_str in session_config.remote_extensions {
-        if let Err(e) = session.add_remote_extension(extension_str.clone()).await {
-            eprintln!(
-                "{}",
-                style(format!(
-                    "Warning: Failed to start remote extension '{}' ({}), continuing without it",
                     extension_str, e
                 ))
                 .yellow()
@@ -695,8 +697,7 @@ mod tests {
             resume: false,
             no_session: false,
             extensions: vec!["echo test".to_string()],
-            remote_extensions: vec!["http://example.com".to_string()],
-            streamable_http_extensions: vec!["http://example.com/streamable".to_string()],
+            streamable_http_extensions: vec!["http://localhost:8080/mcp".to_string()],
             builtins: vec!["developer".to_string()],
             extensions_override: None,
             additional_system_prompt: Some("Test prompt".to_string()),
@@ -716,7 +717,6 @@ mod tests {
         };
 
         assert_eq!(config.extensions.len(), 1);
-        assert_eq!(config.remote_extensions.len(), 1);
         assert_eq!(config.streamable_http_extensions.len(), 1);
         assert_eq!(config.builtins.len(), 1);
         assert!(config.debug);
@@ -735,7 +735,6 @@ mod tests {
         assert!(!config.resume);
         assert!(!config.no_session);
         assert!(config.extensions.is_empty());
-        assert!(config.remote_extensions.is_empty());
         assert!(config.streamable_http_extensions.is_empty());
         assert!(config.builtins.is_empty());
         assert!(config.extensions_override.is_none());

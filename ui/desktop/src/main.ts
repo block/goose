@@ -132,6 +132,23 @@ async function ensureTempDirExists(): Promise<string> {
   return gooseTempDir;
 }
 
+async function configureProxy() {
+  const httpsProxy = process.env.HTTPS_PROXY || process.env.https_proxy;
+  const httpProxy = process.env.HTTP_PROXY || process.env.http_proxy;
+  const noProxy = process.env.NO_PROXY || process.env.no_proxy || '';
+
+  const proxyUrl = httpsProxy || httpProxy;
+
+  if (proxyUrl) {
+    console.log('[Main] Configuring proxy');
+    await session.defaultSession.setProxy({
+      proxyRules: proxyUrl,
+      proxyBypassRules: noProxy,
+    });
+    console.log('[Main] Proxy configured successfully');
+  }
+}
+
 if (started) app.quit();
 
 if (process.env.ENABLE_PLAYWRIGHT) {
@@ -227,6 +244,7 @@ if (process.platform !== 'darwin') {
 
 let firstOpenWindow: BrowserWindow;
 let pendingDeepLink: string | null = null;
+let openUrlHandledLaunch = false;
 
 async function handleProtocolUrl(url: string) {
   if (!url) return;
@@ -305,20 +323,24 @@ let windowDeeplinkURL: string | null = null;
 app.on('open-url', async (_event, url) => {
   if (process.platform !== 'win32') {
     const parsedUrl = new URL(url);
+
+    log.info('[Main] Received open-url event:', url);
+
+    await app.whenReady();
+
     const recentDirs = loadRecentDirs();
     const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
 
     // Handle bot/recipe URLs by directly creating a new window
-    console.log('[Main] Received open-url event:', url);
     if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
-      console.log('[Main] Detected bot/recipe URL, creating new chat window');
+      log.info('[Main] Detected bot/recipe URL, creating new chat window');
+      openUrlHandledLaunch = true;
       const deeplinkData = parseRecipeDeeplink(url);
       if (deeplinkData) {
         windowDeeplinkURL = url;
       }
       const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
 
-      // Create a new window directly
       await createChat(
         app,
         undefined,
@@ -332,25 +354,28 @@ app.on('open-url', async (_event, url) => {
         deeplinkData?.parameters
       );
       windowDeeplinkURL = null;
-      return; // Skip the rest of the handler
+      return;
     }
 
-    // For non-bot URLs, continue with normal handling
+    // For extension/session URLs, store the deep link for processing after React is ready
     pendingDeepLink = url;
+    log.info('[Main] Stored pending deep link for processing after React ready:', url);
 
     const existingWindows = BrowserWindow.getAllWindows();
     if (existingWindows.length > 0) {
       firstOpenWindow = existingWindows[0];
       if (firstOpenWindow.isMinimized()) firstOpenWindow.restore();
       firstOpenWindow.focus();
+      if (parsedUrl.hostname === 'extension') {
+        firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
+        pendingDeepLink = null;
+      } else if (parsedUrl.hostname === 'sessions') {
+        firstOpenWindow.webContents.send('open-shared-session', pendingDeepLink);
+        pendingDeepLink = null;
+      }
     } else {
+      openUrlHandledLaunch = true;
       firstOpenWindow = await createChat(app, undefined, openDir || undefined);
-    }
-
-    if (parsedUrl.hostname === 'extension') {
-      firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
-    } else if (parsedUrl.hostname === 'sessions') {
-      firstOpenWindow.webContents.send('open-shared-session', pendingDeepLink);
     }
   }
 });
@@ -466,16 +491,23 @@ const getBundledConfig = (): BundledConfig => {
 const { defaultProvider, defaultModel, predefinedModels, baseUrlShare, version } =
   getBundledConfig();
 
-const SERVER_SECRET = process.env.GOOSE_EXTERNAL_BACKEND
-  ? 'test'
-  : crypto.randomBytes(32).toString('hex');
+const GENERATED_SECRET = crypto.randomBytes(32).toString('hex');
+
+const getServerSecret = (settings: ReturnType<typeof loadSettings>): string => {
+  if (settings.externalGoosed?.enabled && settings.externalGoosed.secret) {
+    return settings.externalGoosed.secret;
+  }
+  if (process.env.GOOSE_EXTERNAL_BACKEND) {
+    return 'test';
+  }
+  return GENERATED_SECRET;
+};
 
 let appConfig = {
   GOOSE_DEFAULT_PROVIDER: defaultProvider,
   GOOSE_DEFAULT_MODEL: defaultModel,
   GOOSE_PREDEFINED_MODELS: predefinedModels,
   GOOSE_API_HOST: 'http://127.0.0.1',
-  GOOSE_PORT: 0,
   GOOSE_WORKING_DIR: '',
   // If GOOSE_ALLOWLIST_WARNING env var is not set, defaults to false (strict blocking mode)
   GOOSE_ALLOWLIST_WARNING: process.env.GOOSE_ALLOWLIST_WARNING === 'true',
@@ -503,15 +535,18 @@ const createChat = async (
 ) => {
   updateEnvironmentVariables(envToggles);
 
-  const envVars = {
-    GOOSE_PATH_ROOT: process.env.GOOSE_PATH_ROOT,
-  };
-  const [port, workingDir, goosedProcess, errorLog] = await startGoosed(
+  const settings = loadSettings();
+  const serverSecret = getServerSecret(settings);
+
+  const goosedResult = await startGoosed({
     app,
-    SERVER_SECRET,
-    dir || os.homedir(),
-    envVars
-  );
+    serverSecret,
+    dir: dir || os.homedir(),
+    env: { GOOSE_PATH_ROOT: process.env.GOOSE_PATH_ROOT },
+    externalGoosed: settings.externalGoosed,
+  });
+
+  const { baseUrl, workingDir, process: goosedProcess, errorLog } = goosedResult;
 
   const mainWindowState = windowStateKeeper({
     defaultWidth: 940,
@@ -532,16 +567,15 @@ const createChat = async (
     useContentSize: true,
     icon: path.join(__dirname, '../images/icon.icns'),
     webPreferences: {
-      spellcheck: true,
+      spellcheck: settings.spellcheckEnabled ?? true,
       preload: path.join(__dirname, 'preload.js'),
-      // Enable features needed for Web Speech API
       webSecurity: true,
       nodeIntegration: false,
       contextIsolation: true,
       additionalArguments: [
         JSON.stringify({
           ...appConfig,
-          GOOSE_PORT: port,
+          GOOSE_API_HOST: baseUrl,
           GOOSE_WORKING_DIR: workingDir,
           REQUEST_DIR: dir,
           GOOSE_BASE_URL_SHARE: baseUrlShare,
@@ -550,9 +584,10 @@ const createChat = async (
           recipeDeeplink: recipeDeeplink,
           recipeParameters: recipeParameters,
           scheduledJobId: scheduledJobId,
+          SECURITY_ML_MODEL_MAPPING: process.env.SECURITY_ML_MODEL_MAPPING,
         }),
       ],
-      partition: 'persist:goose', // Add this line to ensure persistence
+      partition: 'persist:goose',
     },
   });
 
@@ -567,10 +602,10 @@ const createChat = async (
 
   const goosedClient = createClient(
     createConfig({
-      baseUrl: `http://127.0.0.1:${port}`,
+      baseUrl,
       headers: {
         'Content-Type': 'application/json',
-        'X-Secret-Key': SERVER_SECRET,
+        'X-Secret-Key': serverSecret,
       },
     })
   );
@@ -578,13 +613,41 @@ const createChat = async (
 
   const serverReady = await checkServerStatus(goosedClient, errorLog);
   if (!serverReady) {
-    dialog.showMessageBoxSync({
-      type: 'error',
-      title: 'Goose Failed to Start',
-      message: 'The backend server failed to start.',
-      detail: errorLog.join('\n'),
-      buttons: ['OK'],
-    });
+    const isUsingExternalBackend = settings.externalGoosed?.enabled;
+
+    if (isUsingExternalBackend) {
+      const response = dialog.showMessageBoxSync({
+        type: 'error',
+        title: 'External Backend Unreachable',
+        message: `Could not connect to external backend at ${settings.externalGoosed?.url}`,
+        detail: 'The external goosed server may not be running.',
+        buttons: ['Disable External Backend & Retry', 'Quit'],
+        defaultId: 0,
+        cancelId: 1,
+      });
+
+      if (response === 0) {
+        const updatedSettings = {
+          ...settings,
+          externalGoosed: {
+            enabled: false,
+            url: settings.externalGoosed?.url || '',
+            secret: settings.externalGoosed?.secret || '',
+          },
+        };
+        saveSettings(updatedSettings);
+        mainWindow.destroy();
+        return createChat(app, initialMessage, dir);
+      }
+    } else {
+      dialog.showMessageBoxSync({
+        type: 'error',
+        title: 'Goose Failed to Start',
+        message: 'The backend server failed to start.',
+        detail: errorLog.join('\n'),
+        buttons: ['OK'],
+      });
+    }
     app.quit();
   }
 
@@ -1130,9 +1193,22 @@ ipcMain.on('react-ready', (event) => {
     pendingInitialMessages.delete(windowId);
   }
 
-  if (pendingDeepLink) {
+  if (pendingDeepLink && window) {
     log.info('Processing pending deep link:', pendingDeepLink);
-    handleProtocolUrl(pendingDeepLink);
+    try {
+      const parsedUrl = new URL(pendingDeepLink);
+      if (parsedUrl.hostname === 'extension') {
+        log.info('Sending add-extension IPC to ready window');
+        window.webContents.send('add-extension', pendingDeepLink);
+      } else if (parsedUrl.hostname === 'sessions') {
+        log.info('Sending open-shared-session IPC to ready window');
+        window.webContents.send('open-shared-session', pendingDeepLink);
+      }
+      pendingDeepLink = null;
+    } catch (error) {
+      log.error('Error processing pending deep link:', error);
+      pendingDeepLink = null;
+    }
   } else {
     log.info('No pending deep link to process');
   }
@@ -1151,9 +1227,17 @@ ipcMain.handle('open-external', async (_event, url: string) => {
   }
 });
 
-// Handle directory chooser
-ipcMain.handle('directory-chooser', (_event) => {
-  return openDirectoryDialog();
+ipcMain.handle('directory-chooser', async () => {
+  return dialog.showOpenDialog({
+    properties: ['openDirectory', 'createDirectory'],
+    defaultPath: os.homedir(),
+  });
+});
+
+ipcMain.handle('add-recent-dir', (_event, dir: string) => {
+  if (dir) {
+    addRecentDir(dir);
+  }
 });
 
 // Handle scheduling engine settings
@@ -1166,8 +1250,19 @@ ipcMain.handle('get-settings', () => {
   }
 });
 
+ipcMain.handle('save-settings', (_event, settings) => {
+  try {
+    saveSettings(settings);
+    return true;
+  } catch (error) {
+    console.error('Error saving settings:', error);
+    return false;
+  }
+});
+
 ipcMain.handle('get-secret-key', () => {
-  return SERVER_SECRET;
+  const settings = loadSettings();
+  return getServerSecret(settings);
 });
 
 ipcMain.handle('get-goosed-host-port', async (event) => {
@@ -1344,6 +1439,28 @@ ipcMain.handle('get-wakelock-state', () => {
   } catch (error) {
     console.error('Error getting wakelock state:', error);
     return false;
+  }
+});
+
+ipcMain.handle('set-spellcheck', async (_event, enable: boolean) => {
+  try {
+    const settings = loadSettings();
+    settings.spellcheckEnabled = enable;
+    saveSettings(settings);
+    return true;
+  } catch (error) {
+    console.error('Error setting spellcheck:', error);
+    return false;
+  }
+});
+
+ipcMain.handle('get-spellcheck-state', () => {
+  try {
+    const settings = loadSettings();
+    return settings.spellcheckEnabled ?? true;
+  } catch (error) {
+    console.error('Error getting spellcheck state:', error);
+    return true;
   }
 });
 
@@ -1718,9 +1835,12 @@ ipcMain.handle('list-files', async (_event, dirPath, extension) => {
   }
 });
 
-// Handle message box dialogs
 ipcMain.handle('show-message-box', async (_event, options) => {
   return dialog.showMessageBox(options);
+});
+
+ipcMain.handle('show-save-dialog', async (_event, options) => {
+  return dialog.showSaveDialog(options);
 });
 
 ipcMain.handle('get-allowed-extensions', async () => {
@@ -1746,6 +1866,8 @@ const focusWindow = () => {
 };
 
 async function appMain() {
+  await configureProxy();
+
   // Ensure Windows shims are available before any MCP processes are spawned
   await ensureWinShims();
 
@@ -1763,6 +1885,28 @@ async function appMain() {
     }
   });
 
+  const buildConnectSrc = (): string => {
+    const sources = [
+      "'self'",
+      'http://127.0.0.1:*',
+      'https://api.github.com',
+      'https://github.com',
+      'https://objects.githubusercontent.com',
+    ];
+
+    const settings = loadSettings();
+    if (settings.externalGoosed?.enabled && settings.externalGoosed.url) {
+      try {
+        const externalUrl = new URL(settings.externalGoosed.url);
+        sources.push(externalUrl.origin);
+      } catch {
+        console.warn('Invalid external goosed URL in settings, skipping CSP entry');
+      }
+    }
+
+    return sources.join(' ');
+  };
+
   // Add CSP headers to all sessions
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     callback({
@@ -1770,31 +1914,18 @@ async function appMain() {
         ...details.responseHeaders,
         'Content-Security-Policy':
           "default-src 'self';" +
-          // Allow inline styles since we use them in our React components
           "style-src 'self' 'unsafe-inline';" +
-          // Scripts from our app and inline scripts (for theme initialization)
           "script-src 'self' 'unsafe-inline';" +
-          // Images from our app and data: URLs (for base64 images)
           "img-src 'self' data: https:;" +
-          // Connect to our local API and specific external services
-          "connect-src 'self' http://127.0.0.1:* https://api.github.com https://github.com https://objects.githubusercontent.com" +
-          // Don't allow any plugins
+          `connect-src ${buildConnectSrc()};` +
           "object-src 'none';" +
-          // Allow all frames (iframes)
           "frame-src 'self' https: http:;" +
-          // Font sources - allow self, data URLs, and external fonts
           "font-src 'self' data: https:;" +
-          // Media sources - allow microphone
           "media-src 'self' mediastream:;" +
-          // Form actions
           "form-action 'none';" +
-          // Base URI restriction
           "base-uri 'self';" +
-          // Manifest files
           "manifest-src 'self';" +
-          // Worker sources
           "worker-src 'self';" +
-          // Upgrade insecure requests
           'upgrade-insecure-requests;',
       },
     });
@@ -1806,6 +1937,14 @@ async function appMain() {
     });
   } catch (e) {
     console.error('Error registering launcher hotkey:', e);
+  }
+
+  try {
+    globalShortcut.register('CommandOrControl+Alt+G', () => {
+      focusWindow();
+    });
+  } catch (e) {
+    console.error('Error registering focus window hotkey:', e);
   }
 
   session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
@@ -1826,7 +1965,11 @@ async function appMain() {
 
   const { dirPath } = parseArgs();
 
-  await createNewWindow(app, dirPath);
+  if (!openUrlHandledLaunch) {
+    await createNewWindow(app, dirPath);
+  } else {
+    log.info('[Main] Skipping window creation in appMain - open-url already handled launch');
+  }
 
   // Setup auto-updater AFTER window is created and displayed (with delay to avoid blocking)
   setTimeout(() => {
@@ -1984,7 +2127,7 @@ async function appMain() {
     fileMenu.submenu.append(
       new MenuItem({
         label: 'Focus Goose Window',
-        accelerator: 'CmdOrCtrl+Alt+Shift+G',
+        accelerator: 'CmdOrCtrl+Alt+G',
         click() {
           focusWindow();
         },

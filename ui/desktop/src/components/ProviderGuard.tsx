@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useConfig } from './ConfigContext';
 import { SetupModal } from './SetupModal';
@@ -11,6 +11,13 @@ import ApiKeyTester from './ApiKeyTester';
 import { SwitchModelModal } from './settings/models/subcomponents/SwitchModelModal';
 import { createNavigationHandler } from '../utils/navigationUtils';
 import TelemetrySettings from './settings/app/TelemetrySettings';
+import {
+  trackOnboardingStarted,
+  trackOnboardingProviderSelected,
+  trackOnboardingCompleted,
+  trackOnboardingAbandoned,
+  trackOnboardingSetupFailed,
+} from '../utils/analytics';
 
 import { Goose, OpenRouter, Tetrate } from './icons';
 
@@ -29,6 +36,20 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
   const [userInActiveSetup, setUserInActiveSetup] = useState(false);
   const [showSwitchModelModal, setShowSwitchModelModal] = useState(false);
   const [switchModelProvider, setSwitchModelProvider] = useState<string | null>(null);
+  const onboardingTracked = useRef(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [showScrollIndicator, setShowScrollIndicator] = useState(true);
+
+  const checkScrollPosition = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    const isNearBottom = scrollTop + clientHeight >= scrollHeight - 50;
+    const canScroll = scrollHeight > clientHeight;
+
+    setShowScrollIndicator(canScroll && !isNearBottom);
+  }, []);
 
   const setView = useMemo(() => createNavigationHandler(navigate), [navigate]);
 
@@ -49,12 +70,14 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
   } | null>(null);
 
   const handleTetrateSetup = async () => {
+    trackOnboardingProviderSelected('tetrate');
     try {
       const result = await startTetrateSetup();
       if (result.success) {
         setSwitchModelProvider('tetrate');
         setShowSwitchModelModal(true);
       } else {
+        trackOnboardingSetupFailed('tetrate', result.message);
         setTetrateSetupState({
           show: true,
           title: 'Setup Failed',
@@ -64,6 +87,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
       }
     } catch (error) {
       console.error('Tetrate setup error:', error);
+      trackOnboardingSetupFailed('tetrate', 'unexpected_error');
       setTetrateSetupState({
         show: true,
         title: 'Setup Error',
@@ -74,6 +98,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
   };
 
   const handleApiKeySuccess = async (provider: string, _model: string, apiKey: string) => {
+    trackOnboardingProviderSelected('api_key');
     const keyName = `${provider.toUpperCase()}_API_KEY`;
     await upsert(keyName, apiKey, true);
     await upsert('GOOSE_PROVIDER', provider, false);
@@ -82,7 +107,10 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
     setShowSwitchModelModal(true);
   };
 
-  const handleModelSelected = () => {
+  const handleModelSelected = (model: string) => {
+    if (switchModelProvider) {
+      trackOnboardingCompleted(switchModelProvider, model);
+    }
     setShowSwitchModelModal(false);
     setUserInActiveSetup(false);
     setShowFirstTimeSetup(false);
@@ -95,12 +123,14 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
   };
 
   const handleOpenRouterSetup = async () => {
+    trackOnboardingProviderSelected('openrouter');
     try {
       const result = await startOpenRouterSetup();
       if (result.success) {
         setSwitchModelProvider('openrouter');
         setShowSwitchModelModal(true);
       } else {
+        trackOnboardingSetupFailed('openrouter', result.message);
         setOpenRouterSetupState({
           show: true,
           title: 'Setup Failed',
@@ -110,6 +140,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
       }
     } catch (error) {
       console.error('OpenRouter setup error:', error);
+      trackOnboardingSetupFailed('openrouter', 'unexpected_error');
       setOpenRouterSetupState({
         show: true,
         title: 'Setup Error',
@@ -120,6 +151,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
   };
 
   const handleOllamaComplete = () => {
+    trackOnboardingCompleted('ollama');
     setShowOllamaSetup(false);
     setShowFirstTimeSetup(false);
     setHasProvider(true);
@@ -127,6 +159,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
   };
 
   const handleOllamaCancel = () => {
+    trackOnboardingAbandoned('ollama_setup');
     setShowOllamaSetup(false);
   };
 
@@ -182,6 +215,22 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
     checkProvider();
   }, [read, didSelectProvider, userInActiveSetup]);
 
+  useEffect(() => {
+    if (!isChecking && !hasProvider && showFirstTimeSetup && !onboardingTracked.current) {
+      trackOnboardingStarted();
+      onboardingTracked.current = true;
+    }
+  }, [isChecking, hasProvider, showFirstTimeSetup]);
+
+  useEffect(() => {
+    if (!isChecking && !hasProvider && showFirstTimeSetup) {
+      // Check scroll position after content renders
+      const timer = setTimeout(checkScrollPosition, 100);
+      return () => clearTimeout(timer);
+    }
+    return undefined;
+  }, [isChecking, hasProvider, showFirstTimeSetup, checkScrollPosition]);
+
   if (isChecking) {
     return (
       <div className="h-screen w-full bg-background-default flex items-center justify-center">
@@ -196,8 +245,12 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
 
   if (!hasProvider && showFirstTimeSetup) {
     return (
-      <div className="h-screen w-full bg-background-default overflow-hidden">
-        <div className="h-full overflow-y-auto">
+      <div className="h-screen w-full bg-background-default overflow-hidden relative">
+        <div
+          ref={scrollContainerRef}
+          onScroll={checkScrollPosition}
+          className="h-full overflow-y-auto"
+        >
           <div className="min-h-full flex flex-col items-center justify-center p-4 py-8">
             <div className="max-w-2xl w-full mx-auto p-8">
               {/* Header section */}
@@ -221,18 +274,26 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
                 }}
               />
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                {/* Tetrate Card */}
+              {/* Tetrate Card - Full Width */}
+              <div className="relative w-full mb-4">
+                {/* Recommended pill */}
+                <div className="absolute -top-2 -right-2 sm:-top-3 sm:-right-3 z-20">
+                  <span className="inline-block px-2 py-1 text-xs font-medium bg-blue-600 text-white rounded-full">
+                    Recommended for new users
+                  </span>
+                </div>
+
                 <div
                   onClick={handleTetrateSetup}
                   className="w-full p-4 sm:p-6 bg-transparent border border-background-hover rounded-xl hover:border-text-muted transition-all duration-200 cursor-pointer group"
                 >
                   <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                      <Tetrate className="w-5 h-5 mb-3 text-text-standard" />
-                      <h3 className="font-medium text-text-standard text-sm sm:text-base">
-                        Tetrate Agent Router
-                      </h3>
+                    <div className="flex items-center gap-2">
+                      <Tetrate className="w-5 h-5 text-text-standard" />
+                      <span className="text-sm sm:text-base">
+                        <span className="font-medium text-text-standard">Agent Router</span>
+                        <span className="text-text-muted text-xs"> by Tetrate</span>
+                      </span>
                     </div>
                     <div className="text-text-muted group-hover:text-text-standard transition-colors">
                       <svg
@@ -251,45 +312,45 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
                     </div>
                   </div>
                   <p className="text-text-muted text-sm sm:text-base">
-                    Secure access to multiple AI models with automatic setup. Free tier available.
+                    Access multiple AI models with automatic setup. Sign up to receive $10 credit.
                   </p>
                 </div>
+              </div>
 
-                {/* OpenRouter Card */}
-                <div
-                  onClick={handleOpenRouterSetup}
-                  className="relative w-full p-4 sm:p-6 bg-transparent border border-background-hover rounded-xl hover:border-text-muted transition-all duration-200 cursor-pointer group overflow-hidden"
-                >
-                  {/* Subtle shimmer effect */}
-                  <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/8 to-transparent"></div>
+              {/* OpenRouter Card - Full Width */}
+              <div
+                onClick={handleOpenRouterSetup}
+                className="relative w-full p-4 sm:p-6 bg-transparent border border-background-hover rounded-xl hover:border-text-muted transition-all duration-200 cursor-pointer group overflow-hidden mb-6"
+              >
+                {/* Subtle shimmer effect */}
+                <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/8 to-transparent"></div>
 
-                  <div className="relative flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                      <OpenRouter className="w-5 h-5 mb-3 text-text-standard" />
-                      <h3 className="font-medium text-text-standard text-sm sm:text-base">
-                        OpenRouter
-                      </h3>
-                    </div>
-                    <div className="text-text-muted group-hover:text-text-standard transition-colors">
-                      <svg
-                        className="w-4 h-4 sm:w-5 sm:h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9 5l7 7-7 7"
-                        />
-                      </svg>
-                    </div>
+                <div className="relative flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <OpenRouter className="w-5 h-5 text-text-standard" />
+                    <span className="font-medium text-text-standard text-sm sm:text-base">
+                      OpenRouter
+                    </span>
                   </div>
-                  <p className="text-text-muted text-sm sm:text-base">
-                    Access 200+ models with one API. Pay-per-use pricing.
-                  </p>
+                  <div className="text-text-muted group-hover:text-text-standard transition-colors">
+                    <svg
+                      className="w-4 h-4 sm:w-5 sm:h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 5l7 7-7 7"
+                      />
+                    </svg>
+                  </div>
                 </div>
+                <p className="text-text-muted text-sm sm:text-base">
+                  Access 200+ models with one API. Pay-per-use pricing.
+                </p>
               </div>
 
               {/* Other providers section */}
@@ -313,6 +374,23 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
             </div>
           </div>
         </div>
+
+        {/* Scroll indicator - fixed at bottom, hides when scrolled to bottom */}
+        {showScrollIndicator && (
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 pointer-events-none transition-opacity duration-300 opacity-60 animate-bounce">
+            <div className="flex flex-col items-center gap-1 text-text-muted">
+              <span className="text-xs">More options below</span>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 9l-7 7-7-7"
+                />
+              </svg>
+            </div>
+          </div>
+        )}
 
         {/* Setup Modals */}
         {openRouterSetupState?.show && (

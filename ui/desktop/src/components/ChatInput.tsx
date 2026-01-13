@@ -26,10 +26,19 @@ import { DroppedFile, useFileDrop } from '../hooks/useFileDrop';
 import { Recipe } from '../recipe';
 import MessageQueue from './MessageQueue';
 import { detectInterruption } from '../utils/interruptionDetector';
-import { DiagnosticsModal } from './ui/DownloadDiagnostics';
-import { Message } from '../api';
+import { DiagnosticsModal } from './ui/Diagnostics';
+import { getSession, Message } from '../api';
 import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal';
 import CreateEditRecipeModal from './recipes/CreateEditRecipeModal';
+import { getInitialWorkingDir } from '../utils/workingDir';
+import {
+  trackFileAttached,
+  trackVoiceDictation,
+  trackDiagnosticsOpened,
+  trackCreateRecipeOpened,
+  trackEditRecipeOpened,
+} from '../utils/analytics';
+import { getNavigationShortcutText } from '../utils/keyboardShortcuts';
 
 interface QueuedMessage {
   id: string;
@@ -54,7 +63,7 @@ const TOKEN_LIMIT_DEFAULT = 128000; // fallback for custom models that the backe
 const TOOLS_MAX_SUGGESTED = 60; // max number of tools before we show a warning
 
 // Manual compact trigger message - must match backend constant
-const MANUAL_COMPACT_TRIGGER = 'Please compact this conversation';
+const MANUAL_COMPACT_TRIGGER = '/compact';
 
 interface ModelLimit {
   pattern: string;
@@ -65,6 +74,7 @@ interface ChatInputProps {
   sessionId: string | null;
   handleSubmit: (e: React.FormEvent) => void;
   chatState: ChatState;
+  setChatState?: (state: ChatState) => void;
   onStop?: () => void;
   commandHistory?: string[];
   initialValue?: string;
@@ -89,13 +99,14 @@ interface ChatInputProps {
   initialPrompt?: string;
   toolCount: number;
   append?: (message: Message) => void;
-  isExtensionsLoading?: boolean;
+  onWorkingDirChange?: (newDir: string) => void;
 }
 
 export default function ChatInput({
   sessionId,
   handleSubmit,
   chatState = ChatState.Idle,
+  setChatState,
   onStop,
   commandHistory = [],
   initialValue = '',
@@ -114,7 +125,7 @@ export default function ChatInput({
   initialPrompt,
   toolCount,
   append: _append,
-  isExtensionsLoading = false,
+  onWorkingDirChange,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
@@ -143,6 +154,26 @@ export default function ChatInput({
   const [showCreateRecipeModal, setShowCreateRecipeModal] = useState(false);
   const [showEditRecipeModal, setShowEditRecipeModal] = useState(false);
   const [isFilePickerOpen, setIsFilePickerOpen] = useState(false);
+  const [sessionWorkingDir, setSessionWorkingDir] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!sessionId) {
+      return;
+    }
+
+    const fetchSessionWorkingDir = async () => {
+      try {
+        const response = await getSession({ path: { session_id: sessionId } });
+        if (response.data?.working_dir) {
+          setSessionWorkingDir(response.data.working_dir);
+        }
+      } catch (error) {
+        console.error('[ChatInput] Failed to fetch session working dir:', error);
+      }
+    };
+
+    fetchSessionWorkingDir();
+  }, [sessionId]);
 
   // Save queue state (paused/interrupted) to storage
   useEffect(() => {
@@ -243,6 +274,7 @@ export default function ChatInput({
     estimatedSize,
   } = useWhisper({
     onTranscription: (text) => {
+      trackVoiceDictation('transcribed');
       // Append transcribed text to the current input
       const newValue = displayValue.trim() ? `${displayValue.trim()} ${text}` : text;
       setDisplayValue(newValue);
@@ -250,6 +282,8 @@ export default function ChatInput({
       textAreaRef.current?.focus();
     },
     onError: (error) => {
+      const errorType = error.name || 'DictationError';
+      trackVoiceDictation('error', undefined, errorType);
       toastError({
         title: 'Dictation Error',
         msg: error.message,
@@ -1052,6 +1086,9 @@ export default function ChatInput({
     try {
       const path = await window.electron.selectFileOrDirectory();
       if (path) {
+        const isDirectory = !path.includes('.') || path.endsWith('/');
+        trackFileAttached(isDirectory ? 'directory' : 'file');
+
         const newValue = displayValue.trim() ? `${displayValue.trim()} ${path}` : path;
         setDisplayValue(newValue);
         setValue(newValue);
@@ -1097,7 +1134,7 @@ export default function ChatInput({
     isAnyDroppedFileLoading ||
     isRecording ||
     isTranscribing ||
-    isExtensionsLoading;
+    chatState === ChatState.RestartingAgent;
 
   // Queue management functions - no storage persistence, only in-memory
   const handleRemoveQueuedMessage = (messageId: string) => {
@@ -1202,7 +1239,7 @@ export default function ChatInput({
             data-testid="chat-input"
             autoFocus
             id="dynamic-textarea"
-            placeholder={isRecording ? '' : '⌘↑/⌘↓ to navigate messages'}
+            placeholder={isRecording ? '' : getNavigationShortcutText()}
             value={displayValue}
             onChange={handleChange}
             onCompositionStart={handleCompositionStart}
@@ -1283,8 +1320,10 @@ export default function ChatInput({
                   variant="outline"
                   onClick={() => {
                     if (isRecording) {
+                      trackVoiceDictation('stop', Math.floor(recordingDuration));
                       stopRecording();
                     } else {
+                      trackVoiceDictation('start');
                       startRecording();
                     }
                   }}
@@ -1338,16 +1377,16 @@ export default function ChatInput({
               </TooltipTrigger>
               <TooltipContent>
                 <p>
-                  {isExtensionsLoading
-                    ? 'Loading extensions...'
-                    : isAnyImageLoading
-                      ? 'Waiting for images to save...'
-                      : isAnyDroppedFileLoading
-                        ? 'Processing dropped files...'
-                        : isRecording
-                          ? 'Recording...'
-                          : isTranscribing
-                            ? 'Transcribing...'
+                  {isAnyImageLoading
+                    ? 'Waiting for images to save...'
+                    : isAnyDroppedFileLoading
+                      ? 'Processing dropped files...'
+                      : isRecording
+                        ? 'Recording...'
+                        : isTranscribing
+                          ? 'Transcribing...'
+                          : chatState === ChatState.RestartingAgent
+                            ? 'Restarting session...'
                             : 'Send'}
                 </p>
               </TooltipContent>
@@ -1488,8 +1527,19 @@ export default function ChatInput({
 
       {/* Secondary actions and controls row below input */}
       <div className="flex flex-row items-center gap-1 p-2 relative">
-        {/* Directory path */}
-        <DirSwitcher className="mr-0" />
+        <DirSwitcher
+          className="mr-0"
+          sessionId={sessionId ?? undefined}
+          workingDir={sessionWorkingDir ?? getInitialWorkingDir()}
+          onWorkingDirChange={(newDir) => {
+            setSessionWorkingDir(newDir);
+            if (onWorkingDirChange) {
+              onWorkingDirChange(newDir);
+            }
+          }}
+          onRestartStart={() => setChatState?.(ChatState.RestartingAgent)}
+          onRestartEnd={() => setChatState?.(ChatState.Idle)}
+        />
         <div className="w-px h-4 bg-border-default mx-2" />
         <Tooltip>
           <TooltipTrigger asChild>
@@ -1533,12 +1583,8 @@ export default function ChatInput({
           </Tooltip>
           <div className="w-px h-4 bg-border-default mx-2" />
           <BottomMenuModeSelection />
-          {sessionId && process.env.ALPHA && (
-            <>
-              <div className="w-px h-4 bg-border-default mx-2" />
-              <BottomMenuExtensionSelection sessionId={sessionId} />
-            </>
-          )}
+          <div className="w-px h-4 bg-border-default mx-2" />
+          <BottomMenuExtensionSelection sessionId={sessionId} />
           {sessionId && messages.length > 0 && (
             <>
               <div className="w-px h-4 bg-border-default mx-2" />
@@ -1548,8 +1594,10 @@ export default function ChatInput({
                     <Button
                       onClick={() => {
                         if (recipe) {
+                          trackEditRecipeOpened();
                           setShowEditRecipeModal(true);
                         } else {
+                          trackCreateRecipeOpened();
                           setShowCreateRecipeModal(true);
                         }
                       }}
@@ -1572,7 +1620,10 @@ export default function ChatInput({
               <TooltipTrigger asChild>
                 <Button
                   type="button"
-                  onClick={() => setDiagnosticsOpen(true)}
+                  onClick={() => {
+                    trackDiagnosticsOpened();
+                    setDiagnosticsOpen(true);
+                  }}
                   variant="ghost"
                   size="sm"
                   className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors"
@@ -1603,6 +1654,7 @@ export default function ChatInput({
           onSelectedIndexChange={(index) =>
             setMentionPopover((prev) => ({ ...prev, selectedIndex: index }))
           }
+          workingDir={sessionWorkingDir ?? getInitialWorkingDir()}
         />
 
         {sessionId && showCreateRecipeModal && (

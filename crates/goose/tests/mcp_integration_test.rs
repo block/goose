@@ -1,4 +1,4 @@
-use serde::Deserialize;
+mod common;
 
 use std::collections::HashMap;
 use std::fs::File;
@@ -20,21 +20,6 @@ use async_trait::async_trait;
 use goose::conversation::message::Message;
 use goose::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
 use goose::providers::errors::ProviderError;
-use once_cell::sync::Lazy;
-use std::process::Command;
-
-#[derive(Deserialize)]
-struct CargoBuildMessage {
-    reason: String,
-    target: Target,
-    executable: String,
-}
-
-#[derive(Deserialize)]
-struct Target {
-    name: String,
-    kind: Vec<String>,
-}
 
 #[derive(Clone)]
 pub struct MockProvider {
@@ -74,44 +59,6 @@ impl Provider for MockProvider {
         self.model_config.clone()
     }
 }
-
-fn build_and_get_binary_path() -> PathBuf {
-    let output = Command::new("cargo")
-        .args([
-            "build",
-            "--frozen",
-            "-p",
-            "goose-test",
-            "--bin",
-            "capture",
-            "--message-format=json",
-        ])
-        .output()
-        .expect("failed to build binary");
-
-    if !output.status.success() {
-        panic!("build failed: {}", String::from_utf8_lossy(&output.stderr));
-    }
-
-    String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .map(serde_json::from_str::<CargoBuildMessage>)
-        .filter_map(Result::ok)
-        .filter(|message| message.reason == "compiler-artifact")
-        .filter_map(|message| {
-            if message.target.name == "capture"
-                && message.target.kind.contains(&String::from("bin"))
-            {
-                Some(PathBuf::from(message.executable))
-            } else {
-                None
-            }
-        })
-        .next()
-        .expect("failed to parse binary path")
-}
-
-static REPLAY_BINARY_PATH: Lazy<PathBuf> = Lazy::new(build_and_get_binary_path);
 
 enum TestMode {
     Record,
@@ -214,7 +161,7 @@ async fn test_replayed_session(
         TestMode::Record => "record",
         TestMode::Playback => "playback",
     };
-    let cmd = REPLAY_BINARY_PATH.to_string_lossy().to_string();
+    let cmd = common::CAPTURE_BINARY.to_string_lossy().to_string();
     let mut args = vec!["stdio", mode_arg]
         .into_iter()
         .map(str::to_string)

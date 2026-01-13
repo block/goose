@@ -1,8 +1,7 @@
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::Agent;
-use crate::config::paths::Paths;
 use crate::config::Config;
-use crate::scheduler::Scheduler;
+use crate::scheduler::{get_default_scheduler_storage_path, Scheduler};
 use crate::scheduler_trait::SchedulerTrait;
 use anyhow::Result;
 use lru::LruCache;
@@ -34,7 +33,7 @@ impl AgentManager {
     }
 
     async fn new(max_sessions: Option<usize>) -> Result<Self> {
-        let schedule_file_path = Paths::data_dir().join("schedule.json");
+        let schedule_file_path = get_default_scheduler_storage_path()?;
 
         let scheduler = Scheduler::new(schedule_file_path).await?;
 
@@ -87,7 +86,6 @@ impl AgentManager {
             .set_context(PlatformExtensionContext {
                 session_id: Some(session_id.clone()),
                 extension_manager: Some(Arc::downgrade(&agent.extension_manager)),
-                tool_route_manager: Some(Arc::downgrade(&agent.tool_route_manager)),
             })
             .await;
         if let Some(provider) = &*self.default_provider.read().await {

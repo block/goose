@@ -324,8 +324,7 @@ async fn do_compact(
                         continue;
                     } else {
                         return Err(anyhow::anyhow!(
-                            "Failed to compact messages: context length still exceeded after {} attempts with maximum removal",
-                            removal_percentages.len()
+                            "Failed to compact: context limit exceeded even after removing all tool responses"
                         ));
                     }
                 }

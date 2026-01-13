@@ -19,6 +19,7 @@ import type { View } from '../../../../utils/navigationUtils';
 import Model, { getProviderMetadata, fetchModelsForProviders } from '../modelInterface';
 import { getPredefinedModelsFromEnv, shouldShowPredefinedModels } from '../predefinedModelsUtils';
 import { ProviderType } from '../../../../api';
+import { trackModelChanged } from '../../../../utils/analytics';
 
 const PREFERRED_MODEL_PATTERNS = [
   /claude-sonnet-4/i,
@@ -62,7 +63,7 @@ type SwitchModelModalProps = {
   sessionId: string | null;
   onClose: () => void;
   setView: (view: View) => void;
-  onModelSelected?: () => void;
+  onModelSelected?: (model: string) => void;
   initialProvider?: string | null;
   titleOverride?: string;
 };
@@ -75,12 +76,14 @@ export const SwitchModelModal = ({
   titleOverride,
 }: SwitchModelModalProps) => {
   const { getProviders, getProviderModels, read } = useConfig();
-  const { changeModel } = useModelAndProvider();
+  const { changeModel, currentModel, currentProvider } = useModelAndProvider();
   const [providerOptions, setProviderOptions] = useState<{ value: string; label: string }[]>([]);
   type ModelOption = { value: string; label: string; provider: string; isDisabled?: boolean };
   const [modelOptions, setModelOptions] = useState<{ options: ModelOption[] }[]>([]);
-  const [provider, setProvider] = useState<string | null>(initialProvider || null);
-  const [model, setModel] = useState<string>('');
+  const [provider, setProvider] = useState<string | null>(
+    initialProvider || currentProvider || null
+  );
+  const [model, setModel] = useState<string>(currentModel || '');
   const [isCustomModel, setIsCustomModel] = useState(false);
   const [validationErrors, setValidationErrors] = useState({
     provider: '',
@@ -144,8 +147,11 @@ export const SwitchModelModal = ({
       }
 
       await changeModel(sessionId, modelObj);
+
+      trackModelChanged(modelObj.provider || '', modelObj.name);
+
       if (onModelSelected) {
-        onModelSelected();
+        onModelSelected(modelObj.name);
       }
       onClose();
     }
@@ -197,7 +203,7 @@ export const SwitchModelModal = ({
 
         setLoadingModels(true);
 
-        // Fetching models for all providers
+        // Fetching models for all providers (always recommended)
         const results = await fetchModelsForProviders(activeProviders, getProviderModels);
 
         // Process results and build grouped options

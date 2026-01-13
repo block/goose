@@ -36,6 +36,9 @@ import { substituteParameters } from '../utils/providerUtils';
 import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal';
 import { toastSuccess } from '../toasts';
 import { Recipe } from '../recipe';
+import { createSession } from '../sessions';
+import { getInitialWorkingDir } from '../utils/workingDir';
+import { useConfig } from './ConfigContext';
 
 // Context for sharing current model info
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
@@ -66,11 +69,13 @@ function BaseChatContent({
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const scrollRef = useRef<ScrollAreaHandle>(null);
+  const { extensionsList } = useConfig();
 
   const disableAnimation = location.state?.disableAnimation || false;
   const [hasStartedUsingRecipe, setHasStartedUsingRecipe] = React.useState(false);
   const [hasNotAcceptedRecipe, setHasNotAcceptedRecipe] = useState<boolean>();
   const [hasRecipeSecurityWarnings, setHasRecipeSecurityWarnings] = useState(false);
+  const [isCreatingSession, setIsCreatingSession] = useState(false);
 
   const isMobile = useIsMobile();
   const { state: sidebarState } = useSidebar();
@@ -95,6 +100,7 @@ function BaseChatContent({
     session,
     messages,
     chatState,
+    setChatState,
     handleSubmit,
     submitElicitationResponse,
     stopStreaming,
@@ -131,19 +137,39 @@ function BaseChatContent({
     const shouldStartAgent = searchParams.get('shouldStartAgent') === 'true';
 
     if (initialMessage) {
-      // Submit the initial message (e.g., from fork)
       hasAutoSubmittedRef.current = true;
       handleSubmit(initialMessage);
+      // Clear initialMessage from navigation state to prevent re-sending on refresh
+      navigate(location.pathname + location.search, {
+        replace: true,
+        state: { ...location.state, initialMessage: undefined },
+      });
     } else if (shouldStartAgent) {
-      // Trigger agent to continue with existing conversation
       hasAutoSubmittedRef.current = true;
       handleSubmit('');
     }
-  }, [session, initialMessage, searchParams, handleSubmit]);
+  }, [session, initialMessage, searchParams, handleSubmit, navigate, location]);
 
-  const handleFormSubmit = (e: React.FormEvent) => {
+  const handleFormSubmit = async (e: React.FormEvent) => {
     const customEvent = e as unknown as CustomEvent;
     const textValue = customEvent.detail?.value || '';
+
+    // If no session exists, create one and navigate with the initial message
+    if (!session && !sessionId && textValue.trim() && !isCreatingSession) {
+      setIsCreatingSession(true);
+      try {
+        const newSession = await createSession(getInitialWorkingDir(), {
+          allExtensions: extensionsList,
+        });
+        navigate(`/pair?resumeSessionId=${newSession.id}`, {
+          replace: true,
+          state: { resumeSessionId: newSession.id, initialMessage: textValue },
+        });
+      } catch {
+        setIsCreatingSession(false);
+      }
+      return;
+    }
 
     if (recipe && textValue.trim()) {
       setHasStartedUsingRecipe(true);
@@ -265,26 +291,10 @@ function BaseChatContent({
     });
   };
 
-  const renderProgressiveMessageList = (chat: ChatType) => (
-    <>
-      <ProgressiveMessageList
-        messages={messages}
-        chat={chat}
-        toolCallNotifications={toolCallNotifications}
-        isUserMessage={(m: Message) => m.role === 'user'}
-        isStreamingMessage={chatState !== ChatState.Idle}
-        onRenderingComplete={handleRenderingComplete}
-        onMessageUpdate={onMessageUpdate}
-        submitElicitationResponse={submitElicitationResponse}
-      />
-    </>
-  );
-
   const showPopularTopics =
     messages.length === 0 && !initialMessage && chatState === ChatState.Idle;
 
   const chat: ChatType = {
-    messageHistoryIndex: 0,
     messages,
     recipe,
     sessionId,
@@ -300,8 +310,7 @@ function BaseChatContent({
       : recipe.prompt;
   }
 
-  const initialPrompt =
-    (initialMessage && !hasAutoSubmittedRef.current ? initialMessage : '') || recipePrompt;
+  const initialPrompt = recipePrompt;
 
   if (sessionLoadError) {
     return (
@@ -374,10 +383,21 @@ function BaseChatContent({
               </div>
             )}
 
-            {/* Messages or Popular Topics */}
             {messages.length > 0 || recipe ? (
               <>
-                <SearchView>{renderProgressiveMessageList(chat)}</SearchView>
+                <SearchView>
+                  <ProgressiveMessageList
+                    messages={messages}
+                    chat={{ sessionId }}
+                    toolCallNotifications={toolCallNotifications}
+                    append={(text: string) => handleSubmit(text)}
+                    isUserMessage={(m: Message) => m.role === 'user'}
+                    isStreamingMessage={chatState !== ChatState.Idle}
+                    onRenderingComplete={handleRenderingComplete}
+                    onMessageUpdate={onMessageUpdate}
+                    submitElicitationResponse={submitElicitationResponse}
+                  />
+                </SearchView>
 
                 <div className="block h-8" />
               </>
@@ -407,6 +427,7 @@ function BaseChatContent({
             sessionId={sessionId}
             handleSubmit={handleFormSubmit}
             chatState={chatState}
+            setChatState={setChatState}
             onStop={stopStreaming}
             commandHistory={commandHistory}
             initialValue={initialPrompt}

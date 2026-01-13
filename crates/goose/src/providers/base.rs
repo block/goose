@@ -2,6 +2,7 @@ use anyhow::Result;
 use futures::Stream;
 use serde::{Deserialize, Serialize};
 
+use super::canonical::{map_to_canonical_model, CanonicalModelRegistry};
 use super::errors::ProviderError;
 use super::retry::RetryConfig;
 use crate::config::base::ConfigValue;
@@ -337,6 +338,9 @@ pub trait LeadWorkerProviderTrait {
 
     /// Get the currently active model name
     fn get_active_model(&self) -> String;
+
+    /// Get (lead_turns, failure_threshold, fallback_turns)
+    fn get_settings(&self) -> (usize, usize, usize);
 }
 
 /// Base trait for AI providers (OpenAI, Anthropic, etc)
@@ -413,6 +417,52 @@ pub trait Provider: Send + Sync {
 
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         Ok(None)
+    }
+
+    /// Fetch models filtered by canonical registry and usability
+    async fn fetch_recommended_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+        let all_models = match self.fetch_supported_models().await? {
+            Some(models) => models,
+            None => return Ok(None),
+        };
+
+        let registry = CanonicalModelRegistry::bundled().map_err(|e| {
+            ProviderError::ExecutionError(format!("Failed to load canonical registry: {}", e))
+        })?;
+
+        let provider_name = self.get_name();
+
+        let recommended_models: Vec<String> = all_models
+            .iter()
+            .filter(|model| {
+                map_to_canonical_model(provider_name, model, registry)
+                    .and_then(|canonical_id| registry.get(&canonical_id))
+                    .map(|m| m.input_modalities.contains(&"text".to_string()))
+                    .unwrap_or(false)
+            })
+            .cloned()
+            .collect();
+
+        if recommended_models.is_empty() {
+            Ok(Some(all_models))
+        } else {
+            Ok(Some(recommended_models))
+        }
+    }
+
+    async fn map_to_canonical_model(
+        &self,
+        provider_model: &str,
+    ) -> Result<Option<String>, ProviderError> {
+        let registry = CanonicalModelRegistry::bundled().map_err(|e| {
+            ProviderError::ExecutionError(format!("Failed to load canonical registry: {}", e))
+        })?;
+
+        Ok(map_to_canonical_model(
+            self.get_name(),
+            provider_model,
+            registry,
+        ))
     }
 
     fn supports_embeddings(&self) -> bool {

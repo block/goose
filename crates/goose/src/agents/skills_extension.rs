@@ -83,6 +83,7 @@ impl SkillsClient {
 
         if let Some(home) = dirs::home_dir() {
             dirs.push(home.join(".claude/skills"));
+            dirs.push(home.join(".config/agents/skills"));
         }
 
         dirs.push(Paths::config_dir().join("skills"));
@@ -90,6 +91,7 @@ impl SkillsClient {
         if let Ok(working_dir) = std::env::current_dir() {
             dirs.push(working_dir.join(".claude/skills"));
             dirs.push(working_dir.join(".goose/skills"));
+            dirs.push(working_dir.join(".agents/skills"));
         }
 
         dirs
@@ -290,6 +292,7 @@ impl McpClientTrait for SkillsClient {
         Ok(ListToolsResult {
             tools,
             next_cursor: None,
+            meta: None,
         })
     }
 

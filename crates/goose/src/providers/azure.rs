@@ -125,7 +125,7 @@ impl Provider for AzureProvider {
                 ConfigKey::new("AZURE_OPENAI_ENDPOINT", true, false, None),
                 ConfigKey::new("AZURE_OPENAI_DEPLOYMENT_NAME", true, false, None),
                 ConfigKey::new("AZURE_OPENAI_API_VERSION", true, false, Some("2024-10-21")),
-                ConfigKey::new("AZURE_OPENAI_API_KEY", true, true, Some("")),
+                ConfigKey::new("AZURE_OPENAI_API_KEY", false, true, Some("")),
             ],
         )
     }
@@ -149,7 +149,14 @@ impl Provider for AzureProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = create_request(model_config, system, messages, tools, &ImageFormat::OpenAi)?;
+        let payload = create_request(
+            model_config,
+            system,
+            messages,
+            tools,
+            &ImageFormat::OpenAi,
+            false,
+        )?;
         let response = self
             .with_retry(|| async {
                 let payload_clone = payload.clone();

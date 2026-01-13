@@ -30,7 +30,7 @@ export class SearchHighlighter {
       left: 0;
       right: 0;
       bottom: 0;
-      z-index: 9999;
+      z-index: 1;
     `;
 
     // Find scroll container (look for our custom data attribute first, then fallback to radix)

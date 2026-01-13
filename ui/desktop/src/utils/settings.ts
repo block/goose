@@ -7,11 +7,19 @@ export interface EnvToggles {
   GOOSE_SERVER__COMPUTER_CONTROLLER: boolean;
 }
 
+export interface ExternalGoosedConfig {
+  enabled: boolean;
+  url: string;
+  secret: string;
+}
+
 export interface Settings {
   envToggles: EnvToggles;
   showMenuBarIcon: boolean;
   showDockIcon: boolean;
   enableWakelock: boolean;
+  spellcheckEnabled: boolean;
+  externalGoosed?: ExternalGoosedConfig;
 }
 
 const SETTINGS_FILE = path.join(app.getPath('userData'), 'settings.json');
@@ -24,6 +32,7 @@ const defaultSettings: Settings = {
   showMenuBarIcon: true,
   showDockIcon: true,
   enableWakelock: false,
+  spellcheckEnabled: true,
 };
 
 // Settings management

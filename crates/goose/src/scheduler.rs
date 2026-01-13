@@ -18,6 +18,7 @@ use crate::config::paths::Paths;
 use crate::config::Config;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
+use crate::posthog;
 use crate::providers::create;
 use crate::recipe::Recipe;
 use crate::scheduler_trait::SchedulerTrait;
@@ -30,7 +31,7 @@ type JobsMap = HashMap<String, (JobId, ScheduledJob)>;
 pub fn get_default_scheduler_storage_path() -> Result<PathBuf, io::Error> {
     let data_dir = Paths::data_dir();
     fs::create_dir_all(&data_dir)?;
-    Ok(data_dir.join("schedules.json"))
+    Ok(data_dir.join("schedule.json"))
 }
 
 pub fn get_default_scheduled_recipes_dir() -> Result<PathBuf, SchedulerError> {
@@ -259,7 +260,10 @@ impl Scheduler {
 
                 match result {
                     Ok(_) => tracing::info!("Job '{}' completed", task_job_id),
-                    Err(e) => tracing::error!("Job '{}' failed: {}", task_job_id, e),
+                    Err(ref e) => {
+                        tracing::error!("Job '{}' failed: {}", task_job_id, e);
+                        crate::posthog::emit_error("scheduler_job_failed", &e.to_string());
+                    }
                 }
             })
         })
@@ -391,7 +395,8 @@ impl Scheduler {
             Ok(data) => data,
             Err(e) => {
                 tracing::error!(
-                    "Failed to read schedules.json: {}. Starting with empty schedule list.",
+                    "Failed to read {}: {}. Starting with empty schedule list.",
+                    self.storage_path.display(),
                     e
                 );
                 return;
@@ -405,7 +410,8 @@ impl Scheduler {
             Ok(jobs) => jobs,
             Err(e) => {
                 tracing::error!(
-                    "Failed to parse schedules.json: {}. Starting with empty schedule list.",
+                    "Failed to parse {}: {}. Starting with empty schedule list.",
+                    self.storage_path.display(),
                     e
                 );
                 return;
@@ -694,6 +700,7 @@ impl Scheduler {
     }
 }
 
+#[allow(clippy::too_many_lines)]
 async fn execute_job(
     job: ScheduledJob,
     jobs: Arc<Mutex<JobsMap>>,
@@ -748,6 +755,19 @@ async fn execute_job(
     if let Some((_, job_def)) = jobs_guard.get_mut(job_id.as_str()) {
         job_def.current_session_id = Some(session.id.clone());
     }
+    drop(jobs_guard);
+
+    let start_time = std::time::Instant::now();
+    tokio::spawn(async move {
+        let mut props = HashMap::new();
+        props.insert(
+            "trigger".to_string(),
+            serde_json::Value::String("automated".to_string()),
+        );
+        if let Err(e) = posthog::emit_event("schedule_job_started", props).await {
+            tracing::debug!("Failed to send schedule telemetry: {}", e);
+        }
+    });
 
     let prompt_text = recipe
         .prompt
@@ -799,6 +819,27 @@ async fn execute_job(
         .recipe(Some(recipe))
         .apply()
         .await?;
+
+    let duration_secs = start_time.elapsed().as_secs();
+    tokio::spawn(async move {
+        let mut props = HashMap::new();
+        props.insert(
+            "trigger".to_string(),
+            serde_json::Value::String("automated".to_string()),
+        );
+        props.insert(
+            "status".to_string(),
+            serde_json::Value::String("completed".to_string()),
+        );
+        props.insert(
+            "duration_seconds".to_string(),
+            serde_json::Value::Number(serde_json::Number::from(duration_secs)),
+        );
+        if let Err(e) = posthog::emit_event("schedule_job_completed", props).await {
+            tracing::debug!("Failed to send schedule telemetry: {}", e);
+        }
+    });
+
     Ok(session.id)
 }
 
@@ -887,7 +928,7 @@ mod tests {
     #[tokio::test]
     async fn test_job_runs_on_schedule() {
         let temp_dir = tempdir().unwrap();
-        let storage_path = temp_dir.path().join("schedules.json");
+        let storage_path = temp_dir.path().join("schedule.json");
         let recipe_path = create_test_recipe(temp_dir.path(), "scheduled_job");
         let scheduler = Scheduler::new(storage_path).await.unwrap();
 
@@ -912,7 +953,7 @@ mod tests {
     #[tokio::test]
     async fn test_paused_job_does_not_run() {
         let temp_dir = tempdir().unwrap();
-        let storage_path = temp_dir.path().join("schedules.json");
+        let storage_path = temp_dir.path().join("schedule.json");
         let recipe_path = create_test_recipe(temp_dir.path(), "paused_job");
         let scheduler = Scheduler::new(storage_path).await.unwrap();
 

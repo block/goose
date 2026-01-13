@@ -303,6 +303,15 @@ impl LeadWorkerProviderTrait for LeadWorkerProvider {
             self.lead_provider.get_model_config().model_name
         })
     }
+
+    /// Get (lead_turns, failure_threshold, fallback_turns)
+    fn get_settings(&self) -> (usize, usize, usize) {
+        (
+            self.lead_turns,
+            self.max_failures_before_fallback,
+            self.fallback_turns,
+        )
+    }
 }
 
 #[async_trait]

@@ -59,7 +59,7 @@ function ProviderCards({
   isOnboarding: boolean;
   refreshProviders?: () => void;
   setView?: (view: View) => void;
-  onModelSelected?: () => void;
+  onModelSelected?: (model?: string) => void;
 }) {
   const [configuringProvider, setConfiguringProvider] = useState<ProviderDetails | null>(null);
   const [showCustomProviderModal, setShowCustomProviderModal] = useState(false);
@@ -198,7 +198,7 @@ function ProviderCards({
   }, [providers, isOnboarding, configureProviderViaModal, handleProviderLaunchWithModelSelection]);
 
   const initialData = editingProvider && {
-    engine: editingProvider.config.engine.toLowerCase(),
+    engine: editingProvider.config.engine,
     display_name: editingProvider.config.display_name,
     api_url: editingProvider.config.base_url,
     api_key: '',
@@ -256,7 +256,7 @@ export default function ProviderGrid({
   isOnboarding: boolean;
   refreshProviders?: () => void;
   setView?: (view: View) => void;
-  onModelSelected?: () => void;
+  onModelSelected?: (model?: string) => void;
 }) {
   return (
     <GridLayout>

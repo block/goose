@@ -53,6 +53,10 @@ where
     Ok(content)
 }
 
+/// Provider-specific metadata for tool requests/responses.
+/// Allows providers to store custom data without polluting the core model.
+pub type ProviderMetadata = serde_json::Map<String, serde_json::Value>;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[derive(ToSchema)]
@@ -62,7 +66,11 @@ pub struct ToolRequest {
     #[schema(value_type = Object)]
     pub tool_call: ToolResult<CallToolRequestParam>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub thought_signature: Option<String>,
+    #[schema(value_type = Object)]
+    pub metadata: Option<ProviderMetadata>,
+    #[serde(rename = "_meta", skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Object)]
+    pub tool_meta: Option<serde_json::Value>,
 }
 
 impl ToolRequest {
@@ -86,9 +94,12 @@ impl ToolRequest {
 #[derive(ToSchema)]
 pub struct ToolResponse {
     pub id: String,
-    #[serde(with = "tool_result_serde")]
+    #[serde(with = "tool_result_serde::call_tool_result")]
     #[schema(value_type = Object)]
     pub tool_result: ToolResult<CallToolResult>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Object)]
+    pub metadata: Option<ProviderMetadata>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -250,19 +261,21 @@ impl MessageContent {
         MessageContent::ToolRequest(ToolRequest {
             id: id.into(),
             tool_call,
-            thought_signature: None,
+            metadata: None,
+            tool_meta: None,
         })
     }
 
-    pub fn tool_request_with_signature<S1: Into<String>, S2: Into<String>>(
-        id: S1,
+    pub fn tool_request_with_metadata<S: Into<String>>(
+        id: S,
         tool_call: ToolResult<CallToolRequestParam>,
-        thought_signature: Option<S2>,
+        metadata: Option<&ProviderMetadata>,
     ) -> Self {
         MessageContent::ToolRequest(ToolRequest {
             id: id.into(),
             tool_call,
-            thought_signature: thought_signature.map(|s| s.into()),
+            metadata: metadata.cloned(),
+            tool_meta: None,
         })
     }
 
@@ -270,6 +283,19 @@ impl MessageContent {
         MessageContent::ToolResponse(ToolResponse {
             id: id.into(),
             tool_result,
+            metadata: None,
+        })
+    }
+
+    pub fn tool_response_with_metadata<S: Into<String>>(
+        id: S,
+        tool_result: ToolResult<CallToolResult>,
+        metadata: Option<&ProviderMetadata>,
+    ) -> Self {
+        MessageContent::ToolResponse(ToolResponse {
+            id: id.into(),
+            tool_result,
+            metadata: metadata.cloned(),
         })
     }
 
@@ -645,6 +671,21 @@ impl Message {
         self.with_content(MessageContent::tool_request(id, tool_call))
     }
 
+    pub fn with_tool_request_with_metadata<S: Into<String>>(
+        self,
+        id: S,
+        tool_call: ToolResult<CallToolRequestParam>,
+        metadata: Option<&ProviderMetadata>,
+        tool_meta: Option<serde_json::Value>,
+    ) -> Self {
+        self.with_content(MessageContent::ToolRequest(ToolRequest {
+            id: id.into(),
+            tool_call,
+            metadata: metadata.cloned(),
+            tool_meta,
+        }))
+    }
+
     /// Add a tool response to the message
     pub fn with_tool_response<S: Into<String>>(
         self,
@@ -652,6 +693,17 @@ impl Message {
         result: ToolResult<CallToolResult>,
     ) -> Self {
         self.with_content(MessageContent::tool_response(id, result))
+    }
+
+    pub fn with_tool_response_with_metadata<S: Into<String>>(
+        self,
+        id: S,
+        result: ToolResult<CallToolResult>,
+        metadata: Option<&ProviderMetadata>,
+    ) -> Self {
+        self.with_content(MessageContent::tool_response_with_metadata(
+            id, result, metadata,
+        ))
     }
 
     /// Add an action required message for tool confirmation
@@ -1306,5 +1358,171 @@ mod tests {
             .with_agent_visible();
         assert!(metadata.user_visible);
         assert!(metadata.agent_visible);
+    }
+
+    #[test]
+    fn test_legacy_tool_response_deserialization() {
+        let legacy_json = r#"{
+            "role": "user",
+            "created": 1640995200,
+            "content": [{
+                "type": "toolResponse",
+                "id": "tool123",
+                "toolResult": {
+                    "status": "success",
+                    "value": [
+                        {
+                            "type": "text",
+                            "text": "Tool output text"
+                        }
+                    ]
+                }
+            }],
+            "metadata": { "agentVisible": true, "userVisible": true }
+        }"#;
+
+        let message: Message = serde_json::from_str(legacy_json).unwrap();
+        assert_eq!(message.content.len(), 1);
+
+        if let MessageContent::ToolResponse(response) = &message.content[0] {
+            assert_eq!(response.id, "tool123");
+            if let Ok(result) = &response.tool_result {
+                assert_eq!(result.content.len(), 1);
+                assert_eq!(
+                    result.content[0].as_text().unwrap().text,
+                    "Tool output text"
+                );
+            } else {
+                panic!("Expected successful tool result");
+            }
+        } else {
+            panic!("Expected ToolResponse content");
+        }
+    }
+
+    #[test]
+    fn test_new_tool_response_deserialization() {
+        let new_json = r#"{
+            "role": "user",
+            "created": 1640995200,
+            "content": [{
+                "type": "toolResponse",
+                "id": "tool456",
+                "toolResult": {
+                    "status": "success",
+                    "value": {
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "New format output"
+                            }
+                        ],
+                        "isError": false
+                    }
+                }
+            }],
+            "metadata": { "agentVisible": true, "userVisible": true }
+        }"#;
+
+        let message: Message = serde_json::from_str(new_json).unwrap();
+        assert_eq!(message.content.len(), 1);
+
+        if let MessageContent::ToolResponse(response) = &message.content[0] {
+            assert_eq!(response.id, "tool456");
+            if let Ok(result) = &response.tool_result {
+                assert_eq!(result.content.len(), 1);
+                assert_eq!(
+                    result.content[0].as_text().unwrap().text,
+                    "New format output"
+                );
+            } else {
+                panic!("Expected successful tool result");
+            }
+        } else {
+            panic!("Expected ToolResponse content");
+        }
+    }
+
+    #[test]
+    fn test_tool_request_with_value_arguments_backward_compatibility() {
+        struct TestCase {
+            name: &'static str,
+            arguments_json: &'static str,
+            expected: Option<Value>,
+        }
+
+        let test_cases = [
+            TestCase {
+                name: "string",
+                arguments_json: r#""string_argument""#,
+                expected: Some(serde_json::json!({"value": "string_argument"})),
+            },
+            TestCase {
+                name: "array",
+                arguments_json: r#"["a", "b", "c"]"#,
+                expected: Some(serde_json::json!({"value": ["a", "b", "c"]})),
+            },
+            TestCase {
+                name: "number",
+                arguments_json: "42",
+                expected: Some(serde_json::json!({"value": 42})),
+            },
+            TestCase {
+                name: "null",
+                arguments_json: "null",
+                expected: None,
+            },
+            TestCase {
+                name: "object",
+                arguments_json: r#"{"key": "value", "number": 123}"#,
+                expected: Some(serde_json::json!({"key": "value", "number": 123})),
+            },
+        ];
+
+        for tc in test_cases {
+            let json = format!(
+                r#"{{
+                    "role": "assistant",
+                    "created": 1640995200,
+                    "content": [{{
+                        "type": "toolRequest",
+                        "id": "tool123",
+                        "toolCall": {{
+                            "status": "success",
+                            "value": {{
+                                "name": "test_tool",
+                                "arguments": {}
+                            }}
+                        }}
+                    }}],
+                    "metadata": {{ "agentVisible": true, "userVisible": true }}
+                }}"#,
+                tc.arguments_json
+            );
+
+            let message: Message = serde_json::from_str(&json)
+                .unwrap_or_else(|e| panic!("{}: parse failed: {}", tc.name, e));
+
+            let MessageContent::ToolRequest(request) = &message.content[0] else {
+                panic!("{}: expected ToolRequest content", tc.name);
+            };
+
+            let Ok(tool_call) = &request.tool_call else {
+                panic!("{}: expected successful tool call", tc.name);
+            };
+
+            assert_eq!(tool_call.name, "test_tool", "{}: wrong tool name", tc.name);
+
+            match (&tool_call.arguments, &tc.expected) {
+                (None, None) => {}
+                (Some(args), Some(expected)) => {
+                    let args_value = serde_json::to_value(args).unwrap();
+                    assert_eq!(&args_value, expected, "{}: arguments mismatch", tc.name);
+                }
+                (actual, expected) => {
+                    panic!("{}: expected {:?}, got {:?}", tc.name, expected, actual);
+                }
+            }
+        }
     }
 }

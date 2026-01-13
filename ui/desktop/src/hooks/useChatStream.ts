@@ -20,6 +20,7 @@ import {
   NotificationEvent,
 } from '../types/message';
 import { errorMessage } from '../utils/conversionUtils';
+import { showExtensionLoadResults } from '../utils/extensionErrorUtils';
 
 const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
 
@@ -33,6 +34,7 @@ interface UseChatStreamReturn {
   session?: Session;
   messages: Message[];
   chatState: ChatState;
+  setChatState: (state: ChatState) => void;
   handleSubmit: (userMessage: string) => Promise<void>;
   submitElicitationResponse: (
     elicitationId: string,
@@ -168,6 +170,7 @@ export function useChatStream({
   });
   const [notifications, setNotifications] = useState<NotificationEvent[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const lastInteractionTimeRef = useRef<number>(Date.now());
 
   useEffect(() => {
     if (session) {
@@ -188,6 +191,14 @@ export function useChatStream({
     async (error?: string): Promise<void> => {
       if (error) {
         setSessionLoadError(error);
+      }
+
+      const timeSinceLastInteraction = Date.now() - lastInteractionTimeRef.current;
+      if (!error && timeSinceLastInteraction > 60000) {
+        window.electron.showNotification({
+          title: 'goose finished the task.',
+          body: 'Click here to expand.',
+        });
       }
 
       const isNewSession = sessionId && sessionId.match(/^\d{8}_\d{6}$/);
@@ -212,7 +223,16 @@ export function useChatStream({
     if (cached) {
       setSession(cached.session);
       updateMessages(cached.messages);
+      setTokenState({
+        inputTokens: cached.session?.input_tokens ?? 0,
+        outputTokens: cached.session?.output_tokens ?? 0,
+        totalTokens: cached.session?.total_tokens ?? 0,
+        accumulatedInputTokens: cached.session?.accumulated_input_tokens ?? 0,
+        accumulatedOutputTokens: cached.session?.accumulated_output_tokens ?? 0,
+        accumulatedTotalTokens: cached.session?.accumulated_total_tokens ?? 0,
+      });
       setChatState(ChatState.Idle);
+      onSessionLoaded?.();
       return;
     }
 
@@ -238,9 +258,21 @@ export function useChatStream({
           return;
         }
 
-        const session = response.data;
-        setSession(session);
-        updateMessages(session?.conversation || []);
+        const resumeData = response.data;
+        const loadedSession = resumeData?.session;
+        const extensionResults = resumeData?.extension_results;
+
+        showExtensionLoadResults(extensionResults);
+        setSession(loadedSession);
+        updateMessages(loadedSession?.conversation || []);
+        setTokenState({
+          inputTokens: loadedSession?.input_tokens ?? 0,
+          outputTokens: loadedSession?.output_tokens ?? 0,
+          totalTokens: loadedSession?.total_tokens ?? 0,
+          accumulatedInputTokens: loadedSession?.accumulated_input_tokens ?? 0,
+          accumulatedOutputTokens: loadedSession?.accumulated_output_tokens ?? 0,
+          accumulatedTotalTokens: loadedSession?.accumulated_total_tokens ?? 0,
+        });
         setChatState(ChatState.Idle);
         onSessionLoaded?.();
       } catch (error) {
@@ -271,17 +303,20 @@ export function useChatStream({
         return;
       }
 
+      lastInteractionTimeRef.current = Date.now();
+
       // Emit session-created event for first message in a new session
       if (!hasExistingMessages && hasNewMessage) {
         window.dispatchEvent(new CustomEvent('session-created'));
       }
 
-      // Build message list: add new message if provided, otherwise continue with existing
+      const newMessage = hasNewMessage
+        ? createUserMessage(userMessage)
+        : messagesRef.current[messagesRef.current.length - 1];
       const currentMessages = hasNewMessage
-        ? [...messagesRef.current, createUserMessage(userMessage)]
+        ? [...messagesRef.current, newMessage]
         : [...messagesRef.current];
 
-      // Update UI with new message before streaming
       if (hasNewMessage) {
         updateMessages(currentMessages);
       }
@@ -294,7 +329,7 @@ export function useChatStream({
         const { stream } = await reply({
           body: {
             session_id: sessionId,
-            messages: currentMessages,
+            user_message: newMessage,
           },
           throwOnError: true,
           signal: abortControllerRef.current.signal,
@@ -328,6 +363,8 @@ export function useChatStream({
         return;
       }
 
+      lastInteractionTimeRef.current = Date.now();
+
       const responseMessage = createElicitationResponseMessage(elicitationId, userData);
       const currentMessages = [...messagesRef.current, responseMessage];
 
@@ -340,7 +377,7 @@ export function useChatStream({
         const { stream } = await reply({
           body: {
             session_id: sessionId,
-            messages: currentMessages,
+            user_message: responseMessage,
           },
           throwOnError: true,
           signal: abortControllerRef.current.signal,
@@ -407,6 +444,7 @@ export function useChatStream({
   const stopStreaming = useCallback(() => {
     abortControllerRef.current?.abort();
     setChatState(ChatState.Idle);
+    lastInteractionTimeRef.current = Date.now();
   }, []);
 
   const onMessageUpdate = useCallback(
@@ -490,6 +528,7 @@ export function useChatStream({
     messages: maybe_cached_messages,
     session: maybe_cached_session,
     chatState,
+    setChatState,
     handleSubmit,
     submitElicitationResponse,
     stopStreaming,

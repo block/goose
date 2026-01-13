@@ -14,7 +14,7 @@ goose CLI follows consistent patterns for flag naming to make commands intuitive
 - **`--session-id`**: Used for session identifiers (e.g., `20251108_1`)
 - **`--schedule-id`**: Used for schedule job identifiers (e.g., `daily-report`)
 - **`-n, --name`**: Used for human-readable names
-- **`-p, --path`**: Used for file paths (legacy support)
+- **`--path`**: Used for file paths (legacy support)
 - **`-o, --output`**: Used for output file paths
 - **`-r, --resume` or `-r, --regex`**: Context-dependent (resume for sessions, regex for filters)
 - **`-v, --verbose`**: Used for verbose output
@@ -101,7 +101,7 @@ Start or resume interactive chat sessions.
 **Basic Options:**
 - **`--session-id <session_id>`**: Specify a session by its ID (e.g., '20251108_1')
 - **`-n, --name <name>`**: Give the session a name
-- **`-p, --path <path>`**: Legacy parameter for specifying session by file path
+- **`--path <path>`**: Legacy parameter for specifying session by file path
 - **`-r, --resume`**: Resume a previous session
 - **`--history`**: Show previous messages when resuming a session
 - **`--debug`**: Enable debug mode to output complete tool responses, detailed parameter values, and full file paths
@@ -110,8 +110,7 @@ Start or resume interactive chat sessions.
 
 **Extension Options:**
 - **`--with-extension <command>`**: Add stdio extensions
-- **`--with-remote-extension <url>`**: Add remote extensions over SSE
-- **`--with-streamable-http-extension <url>`**: Add remote extensions over Streaming HTTP
+- **`--with-streamable-http-extension <url>`**: Add remote extensions over Streamable HTTP
 - **`--with-builtin <id>`**: Enable built-in extensions (e.g., 'developer', 'computercontroller')
 
 **Usage:**
@@ -122,19 +121,18 @@ goose session -n my-project
 # Resume a previous session
 goose session --resume -n my-project
 goose session --resume --session-id 20251108_2
-goose session --resume -p ./session.json    # exported session
-goose session --resume -p ./session.jsonl   # legacy session storage
+goose session --resume --path ./session.json    # exported session
+goose session --resume --path ./session.jsonl   # legacy session storage
 
 # Start with extensions
 goose session --with-extension "npx -y @modelcontextprotocol/server-memory"
 goose session --with-builtin developer
-goose session --with-remote-extension "http://localhost:8080/sse"
+goose session --with-streamable-http-extension "http://localhost:8080/mcp"
 
 # Advanced: Mix multiple extension types
 goose session \
   --with-extension "echo hello" \
-  --with-remote-extension "http://sse.example.com/sse" \
-  --with-streamable-http-extension "http://http.example.com" \
+  --with-streamable-http-extension "http://localhost:8080/mcp" \
   --with-builtin "developer"
 
 # Control session behavior
@@ -236,7 +234,7 @@ goose session export --session-id 20251108_4 --format json
 goose session export -n my-session --format yaml
 
 # Export session by path (legacy)
-goose session export -p ./my-session.jsonl -o exported.md
+goose session export --path ./my-session.jsonl -o exported.md
 ```
 
 ---
@@ -298,13 +296,12 @@ Execute commands from an instruction file or stdin. Check out the [full guide](/
 - **`-s, --interactive`**: Continue in interactive mode after processing initial input
 - **`-n, --name <name>`**: Name for this run session (e.g. `daily-tasks`)
 - **`-r, --resume`**: Resume from a previous run
-- **`-p, --path <PATH>`**: Path for this run session (e.g. `./playground.jsonl`). Used for legacy file-based session storage.
+- **`--path <PATH>`**: Path for this run session (e.g. `./playground.jsonl`). Used for legacy file-based session storage.
 - **`--no-session`**: Run goose commands without creating or storing a session file
 
 **Extension Options:**
 - **`--with-extension <COMMAND>`**: Add stdio extensions (can be used multiple times)
-- **`--with-remote-extension <URL>`**: Add remote extensions over SSE (can be used multiple times)
-- **`--with-streamable-http-extension <URL>`**: Add remote extensions over Streaming HTTP (can be used multiple times)
+- **`--with-streamable-http-extension <URL>`**: Add remote extensions over Streamable HTTP (can be used multiple times)
 - **`--with-builtin <name>`**: Add builtin extensions by name (e.g., 'developer' or multiple: 'developer,github')
 
 **Control Options:**
@@ -314,7 +311,7 @@ Execute commands from an instruction file or stdin. Check out the [full guide](/
 - **`--explain`**: Show a recipe's title, description, and parameters
 - **`--render-recipe`**: Print the rendered recipe instead of running it
 - **`-q, --quiet`**: Quiet mode. Suppress non-response output, printing only the model response to stdout
-- **`--output-format <FORMAT>`**: Output format (`text` or `json`). Default is `text`. Use `json` for automation and scripting
+- **`--output-format <FORMAT>`**: Output format (`text`, `json`, or `stream-json`). Default is `text`. Use JSON structured output for automation and scripting: `json` for results after completion, `stream-json` for events as they occur
 - **`--provider`**: Specify the provider to use for this session (overrides environment variable)
 - **`--model`**: Specify the model to use for this session (overrides environment variable)
 
@@ -365,16 +362,21 @@ Used to validate recipe files, manage recipe sharing, list available recipes, an
 
 **Commands:**
 - **`deeplink <RECIPE_NAME>`**: Generate a shareable link for a recipe file
+  - **`-p, --param <KEY=VALUE>`**: Pre-fill recipe parameter (can be specified multiple times)
 - **`list [OPTIONS]`**: List all available recipes from local directories and configured GitHub repositories
   - **`--format <FORMAT>`**: Output format (`text` or `json`). Default is `text`
   - **`-v, --verbose`**: Show verbose information including recipe titles and full file paths
 - **`open <RECIPE_NAME>`**: Open a recipe file directly in goose desktop
+  - **`-p, --param <KEY=VALUE>`**: Pre-fill recipe parameter (can be specified multiple times)
 - **`validate <RECIPE_NAME>`**: Validate a recipe file
 
 **Usage:**
 ```bash
 # Generate a shareable link
 goose recipe deeplink my-recipe.yaml
+
+# Generate a deeplink and provide parameter values
+goose recipe deeplink my-recipe.yaml -p environment=production -p region=us-west-2
 
 # List all available recipes
 goose recipe list
@@ -390,6 +392,9 @@ goose recipe open my-recipe.yaml
 
 # Open a recipe by name
 goose recipe open my-recipe
+
+# Open a recipe and provide parameter value
+goose recipe open my-recipe --param name=myproject
 
 # Validate a recipe file
 goose recipe validate my-recipe.yaml
@@ -509,6 +514,7 @@ Don't expose the web interface to the internet without proper security measures.
 - **`-p, --port <PORT>`**: Port number to run the web server on. Default is `3000`
 - **`--host <HOST>`**: Host to bind the web server to. Default is `127.0.0.1`
 - **`--open`**: Automatically open the browser when the server starts
+- **`--auth-token <TOKEN>`**: Require a password to access the web interface
 
 **Usage:**
 ```bash
@@ -520,6 +526,9 @@ goose web --port 8080
 
 # Start web interface accessible from local network at `http://192.168.1.7:8080`
 goose web --host 192.168.1.7 --port 8080
+
+# Start web interface with authentication required
+goose web --auth-token <TOKEN>
 ```
 
 :::info
@@ -571,7 +580,7 @@ Once you're in an interactive session (via `goose session` or `goose run --inter
 - **`/prompt <n> [--info] [key=value...]`** - Get prompt info or execute a prompt
 - **`/prompts [--extension <name>]`** - List all available prompts, optionally filtered by extension
 - **`/recipe [filepath]`** - Generate a recipe from the current conversation and save it to the specified filepath (must end with .yaml). If no filepath is provided, it will be saved to ./recipe.yaml
-- **`/summarize`** - Summarize the current conversation to reduce context length while preserving key information
+- **`/compact`** - Compact and summarize the current conversation to reduce context length while preserving key information
 - **`/t`** - Toggle between `light`, `dark`, and `ansi` themes. [More info](#themes).
 - **`/t <name>`** - Set theme directly (light, dark, ansi)
 
@@ -592,6 +601,7 @@ Once you're in an interactive session (via `goose session` or `goose run --inter
 # Clear the current conversation history
 /clear
 ```
+You can also create [custom slash commands for running recipes](/docs/guides/context-engineering/slash-commands) in goose Desktop or the CLI. 
 
 ---
 
