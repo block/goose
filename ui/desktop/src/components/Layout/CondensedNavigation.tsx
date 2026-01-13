@@ -720,7 +720,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
                           `}
                           style={{
                             opacity: isDragging ? 0.5 : 1,
-                            width: '160px',
+                            width: 'calc((500px - 12px) / 2)', // Match height for square tiles
                             height: 'calc((500px - 12px) / 2)', // (maxHeight - gap) / 2 rows
                           }}
                         >
