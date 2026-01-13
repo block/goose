@@ -587,11 +587,11 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
                   }`}>
                     {/* Menu Container: Windows Start Menu style */}
                     <div 
-                      className="bg-background-card backdrop-blur-xl rounded-2xl shadow-2xl border border-border-default overflow-hidden"
-                      style={{ width: '320px', maxHeight: '500px' }}
+                      className="bg-background-card backdrop-blur-xl rounded-2xl shadow-2xl border border-border-default overflow-hidden h-full self-start"
+                      style={{ width: '320px' }}
                     >
                       {/* Navigation Rows */}
-                      <div className="flex flex-col gap-[1px] p-4">
+                      <div className="flex flex-col gap-[1px] p-4 h-full overflow-y-auto">
                     {navItems.filter(item => !item.isWidget).map((item, index) => {
                       const isPulsing = pulsingItems.has(item.id);
                       const isDragging = draggedItem === item.id;
