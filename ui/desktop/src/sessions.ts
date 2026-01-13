@@ -9,12 +9,7 @@ import type { FixedExtensionEntry } from './components/ConfigContext';
 
 /**
  * Check if a session should display "New Chat" instead of its stored name.
- * Returns true only for sessions that:
- * - Don't have a user-provided name, AND
- * - Have no messages (meaning they haven't been auto-named yet)
- *
- * Sessions with messages but no user-set name have been auto-named by the system
- * and should display that auto-generated name.
+ * Returns true for empty sessions (no messages yet) that don't have a user-provided name.
  */
 export function shouldShowNewChatTitle(session: Session): boolean {
   return !session.user_set_name && session.message_count === 0;
@@ -93,7 +88,8 @@ export async function startNewSession(
 ): Promise<Session> {
   const session = await createSession(workingDir, options);
 
-  window.dispatchEvent(new CustomEvent('session-created'));
+  // Include session data so sidebar can add it immediately (before it has messages)
+  window.dispatchEvent(new CustomEvent('session-created', { detail: { session } }));
 
   const eventDetail = {
     sessionId: session.id,

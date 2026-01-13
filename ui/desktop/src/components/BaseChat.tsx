@@ -7,7 +7,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { SearchView } from './conversation/SearchView';
 import LoadingGoose from './LoadingGoose';
 import PopularChatTopics from './PopularChatTopics';
@@ -37,6 +37,7 @@ import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal
 import { toastSuccess } from '../toasts';
 import { Recipe } from '../recipe';
 import { useSessionStatusContext } from '../contexts/SessionStatusContext';
+import { useAutoSubmit } from '../hooks/useAutoSubmit';
 
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
 export const useCurrentModelInfo = () => useContext(CurrentModelContext);
@@ -66,7 +67,6 @@ function BaseChatContent({
 }: BaseChatProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const scrollRef = useRef<ScrollAreaHandle>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -92,12 +92,6 @@ function BaseChatContent({
   const onStreamFinish = useCallback(() => {}, []);
 
   const [isCreateRecipeModalOpen, setIsCreateRecipeModalOpen] = useState(false);
-  const hasAutoSubmittedRef = useRef(false);
-
-  // Reset auto-submit flag when session changes
-  useEffect(() => {
-    hasAutoSubmittedRef.current = false;
-  }, [sessionId]);
 
   const {
     session,
@@ -115,6 +109,15 @@ function BaseChatContent({
   } = useChatStream({
     sessionId,
     onStreamFinish,
+  });
+
+  useAutoSubmit({
+    sessionId,
+    session,
+    messages,
+    chatState,
+    initialMessage,
+    handleSubmit,
   });
 
   useEffect(() => {
@@ -156,53 +159,6 @@ function BaseChatContent({
       }, [])
       .reverse();
   }, [messages]);
-
-  // Auto-submit initial message for new sessions or forked sessions
-  useEffect(() => {
-    const currentSessionId = searchParams.get('resumeSessionId');
-    const isCurrentSession = currentSessionId === sessionId;
-    const shouldStartAgent = isCurrentSession && searchParams.get('shouldStartAgent') === 'true';
-
-    if (!session || hasAutoSubmittedRef.current) {
-      return;
-    }
-
-    // Don't submit if already streaming or loading
-    if (chatState !== ChatState.Idle) {
-      return;
-    }
-
-    // Scenario 1: New session with initial message from Hub
-    // Hub always creates new sessions, so message_count will be 0
-    if (initialMessage && session.message_count === 0 && messages.length === 0) {
-      hasAutoSubmittedRef.current = true;
-      handleSubmit(initialMessage);
-      window.dispatchEvent(
-        new CustomEvent('clear-initial-message', {
-          detail: { sessionId },
-        })
-      );
-      return;
-    }
-
-    // Scenario 2: Forked session with edited message
-    if (shouldStartAgent && initialMessage) {
-      hasAutoSubmittedRef.current = true;
-      handleSubmit(initialMessage);
-      window.dispatchEvent(
-        new CustomEvent('clear-initial-message', {
-          detail: { sessionId },
-        })
-      );
-      return;
-    }
-
-    // Scenario 3: Resume with shouldStartAgent (continue existing conversation)
-    if (shouldStartAgent) {
-      hasAutoSubmittedRef.current = true;
-      handleSubmit('');
-    }
-  }, [session, initialMessage, searchParams, handleSubmit, sessionId, messages.length, chatState]);
 
   const handleFormSubmit = (e: React.FormEvent) => {
     const customEvent = e as unknown as CustomEvent;

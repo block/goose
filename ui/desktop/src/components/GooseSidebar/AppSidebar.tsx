@@ -257,7 +257,19 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     let pollingTimeouts: ReturnType<typeof setTimeout>[] = [];
     let isPolling = false;
 
-    const handleSessionCreated = () => {
+    const handleSessionCreated = (event: CustomEvent<{ session?: Session }>) => {
+      // If session data is provided, add it immediately to the sidebar
+      // This handles empty sessions that won't be returned by the API (INNER JOIN)
+      if (event.detail?.session) {
+        setRecentSessions((prev) => {
+          // Don't add if already there
+          if (prev.some((s) => s.id === event.detail.session!.id)) return prev;
+          // Add to beginning and keep max 10
+          return [event.detail.session!, ...prev].slice(0, 10);
+        });
+      }
+
+      // Poll for updates to get the generated session name
       if (isPolling) {
         return;
       }
@@ -273,10 +285,26 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
 
         try {
           const response = await listSessions<true>({ throwOnError: true });
-          const sessions = response.data.sessions.slice(0, 10);
-          setRecentSessions(sessions);
+          const apiSessions = response.data.sessions.slice(0, 10);
 
-          const sessionWithDefaultName = sessions.find((s) => shouldShowNewChatTitle(s));
+          // Merge API sessions with any locally-tracked empty sessions
+          setRecentSessions((prev) => {
+            const emptyLocalSessions = prev.filter(
+              (local) =>
+                local.message_count === 0 && !apiSessions.some((api) => api.id === local.id)
+            );
+            const merged = [...emptyLocalSessions, ...apiSessions];
+            const seen = new Set<string>();
+            return merged
+              .filter((s) => {
+                if (seen.has(s.id)) return false;
+                seen.add(s.id);
+                return true;
+              })
+              .slice(0, 10);
+          });
+
+          const sessionWithDefaultName = apiSessions.find((s) => shouldShowNewChatTitle(s));
 
           const shouldContinue = pollCount < maxPolls && (sessionWithDefaultName || pollCount < 5);
 
@@ -294,6 +322,10 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
       pollForUpdates();
     };
 
+    const handleSessionNeedsNameUpdate = () => {
+      handleSessionCreated(new CustomEvent('session-created', { detail: {} }));
+    };
+
     const handleSessionDeleted = (event: CustomEvent<{ sessionId: string }>) => {
       const { sessionId } = event.detail;
       setRecentSessions((prev) => prev.filter((s) => s.id !== sessionId));
@@ -306,14 +338,14 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
       );
     };
 
-    window.addEventListener('session-created', handleSessionCreated);
-    window.addEventListener('session-needs-name-update', handleSessionCreated);
+    window.addEventListener('session-created', handleSessionCreated as (event: Event) => void);
+    window.addEventListener('session-needs-name-update', handleSessionNeedsNameUpdate);
     window.addEventListener('session-deleted', handleSessionDeleted as (event: Event) => void);
     window.addEventListener('session-renamed', handleSessionRenamed as (event: Event) => void);
 
     return () => {
-      window.removeEventListener('session-created', handleSessionCreated);
-      window.removeEventListener('session-needs-name-update', handleSessionCreated);
+      window.removeEventListener('session-created', handleSessionCreated as (event: Event) => void);
+      window.removeEventListener('session-needs-name-update', handleSessionNeedsNameUpdate);
       window.removeEventListener('session-deleted', handleSessionDeleted as (event: Event) => void);
       window.removeEventListener('session-renamed', handleSessionRenamed as (event: Event) => void);
       pollingTimeouts.forEach(clearTimeout);
