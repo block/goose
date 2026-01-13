@@ -1,14 +1,19 @@
 import { useState, useEffect, useRef } from 'react';
 import { Switch } from '../../ui/switch';
 import { Button } from '../../ui/button';
-import { Settings } from 'lucide-react';
+import { Settings, ChevronDown } from 'lucide-react';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog';
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../../ui/collapsible';
 import UpdateSection from './UpdateSection';
 import TunnelSection from '../tunnel/TunnelSection';
 
 import { COST_TRACKING_ENABLED, UPDATES_ENABLED } from '../../../updates';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import ThemeSelector from '../../GooseSidebar/ThemeSelector';
+import { NavigationPositionSelector } from './NavigationPositionSelector';
+import { NavigationStyleSelector } from './NavigationStyleSelector';
+import { NavigationModeSelector } from './NavigationModeSelector';
+import { NavigationCustomizationSettings } from './NavigationCustomizationSettings';
 import BlockLogoBlack from './icons/block-lockup_black.png';
 import BlockLogoWhite from './icons/block-lockup_white.png';
 import TelemetrySettings from './TelemetrySettings';
@@ -27,6 +32,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
   const [showNotificationModal, setShowNotificationModal] = useState(false);
   const [showPricing, setShowPricing] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [navigationMode, setNavigationMode] = useState<'push' | 'overlay'>('push');
   const updateSectionRef = useRef<HTMLDivElement>(null);
 
   // Check if GOOSE_VERSION is set to determine if Updates section should be shown
@@ -60,6 +66,22 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
   useEffect(() => {
     const stored = localStorage.getItem('show_pricing');
     setShowPricing(stored !== 'false');
+  }, []);
+
+  // Load navigation mode and listen for changes
+  useEffect(() => {
+    const stored = localStorage.getItem('navigation_mode');
+    setNavigationMode((stored as 'push' | 'overlay') || 'push');
+
+    const handleModeChange = (event: Event) => {
+      const customEvent = event as CustomEvent<{ mode: 'push' | 'overlay' }>;
+      setNavigationMode(customEvent.detail.mode);
+    };
+
+    window.addEventListener('navigation-mode-changed', handleModeChange);
+    return () => {
+      window.removeEventListener('navigation-mode-changed', handleModeChange);
+    };
   }, []);
 
   // Handle scrolling to update section
@@ -267,6 +289,69 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
         <CardContent className="pt-4 px-4">
           <ThemeSelector className="w-auto" hideTitle horizontal />
         </CardContent>
+      </Card>
+
+      <Card className="rounded-lg">
+        <Collapsible defaultOpen={true}>
+          <CardHeader className="pb-0">
+            <CollapsibleTrigger className="w-full group">
+              <div className="flex items-center justify-between w-full">
+                <div className="text-left">
+                  <CardTitle className="mb-1">Navigation</CardTitle>
+                  <CardDescription>Customize navigation appearance, position, and items</CardDescription>
+                </div>
+                <ChevronDown className="w-5 h-5 text-text-muted transition-transform duration-200 group-data-[state=open]:rotate-180" />
+              </div>
+            </CollapsibleTrigger>
+          </CardHeader>
+          <CollapsibleContent>
+            <CardContent className="pt-4 px-4 space-y-6">
+              {/* Navigation Mode */}
+              <div className="space-y-2">
+                <div>
+                  <h3 className="text-sm font-medium text-text-default">Mode</h3>
+                  <p className="text-xs text-text-muted">
+                    {navigationMode === 'overlay' 
+                      ? 'Overlay mode: Centered expanded tiles launcher'
+                      : 'Choose between push menu or overlay launcher'}
+                  </p>
+                </div>
+                <NavigationModeSelector />
+              </div>
+
+              {/* Navigation Position - Only show for push mode */}
+              {navigationMode === 'push' && (
+                <div className="space-y-2">
+                  <div>
+                    <h3 className="text-sm font-medium text-text-default">Position</h3>
+                    <p className="text-xs text-text-muted">Choose where the navigation bar appears</p>
+                  </div>
+                  <NavigationPositionSelector />
+                </div>
+              )}
+
+              {/* Navigation Style - Only show for push mode */}
+              {navigationMode === 'push' && (
+                <div className="space-y-2">
+                  <div>
+                    <h3 className="text-sm font-medium text-text-default">Style</h3>
+                    <p className="text-xs text-text-muted">Choose between expanded tiles or condensed rows</p>
+                  </div>
+                  <NavigationStyleSelector />
+                </div>
+              )}
+
+              {/* Navigation Items */}
+              <div className="space-y-2">
+                <div>
+                  <h3 className="text-sm font-medium text-text-default">Items</h3>
+                  <p className="text-xs text-text-muted">Customize which items appear and their order</p>
+                </div>
+                <NavigationCustomizationSettings />
+              </div>
+            </CardContent>
+          </CollapsibleContent>
+        </Collapsible>
       </Card>
 
       <TunnelSection />

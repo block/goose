@@ -776,3 +776,120 @@ p > code.bg-inline-code {
 .katex-error {
   color: var(--text-danger);
 }
+
+/* Navigation Component Animations */
+@keyframes nav-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes nav-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes nav-slide-in-vertical {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes nav-slide-in-horizontal {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes nav-tile-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Navigation overlay animations */
+.nav-overlay-enter {
+  animation: nav-scale-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.nav-overlay-content {
+  animation: nav-fade-in 0.2s ease-out 0.1s forwards;
+  opacity: 0;
+}
+
+/* Navigation tile stagger animation */
+.nav-tile {
+  animation: nav-tile-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
+}
+
+/* Stagger delays for tiles */
+.nav-tile:nth-child(1) { animation-delay: 0ms; }
+.nav-tile:nth-child(2) { animation-delay: 30ms; }
+.nav-tile:nth-child(3) { animation-delay: 60ms; }
+.nav-tile:nth-child(4) { animation-delay: 90ms; }
+.nav-tile:nth-child(5) { animation-delay: 120ms; }
+.nav-tile:nth-child(6) { animation-delay: 150ms; }
+.nav-tile:nth-child(7) { animation-delay: 180ms; }
+.nav-tile:nth-child(8) { animation-delay: 210ms; }
+.nav-tile:nth-child(9) { animation-delay: 240ms; }
+.nav-tile:nth-child(10) { animation-delay: 270ms; }
+.nav-tile:nth-child(11) { animation-delay: 300ms; }
+.nav-tile:nth-child(12) { animation-delay: 330ms; }
+
+/* Navigation push mode animations */
+.nav-push-enter {
+  animation: nav-slide-in-vertical 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Hover and active states for navigation buttons */
+.nav-button {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), 
+              background-color 0.2s ease;
+}
+
+.nav-button:hover {
+  transform: scale(1.02);
+}
+
+.nav-button:active {
+  transform: scale(0.98);
+}
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .nav-overlay-enter,
+  .nav-overlay-content,
+  .nav-tile,
+  .nav-push-enter,
+  .nav-button {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+}
