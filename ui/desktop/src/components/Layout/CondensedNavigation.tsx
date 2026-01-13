@@ -659,7 +659,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
                       return widgets;
                     })().map((item, index) => {
                       if (!item) {
-                        // Render empty placeholder for undefined slots
+                        // Render spacer placeholder for undefined slots
                         return (
                           <div
                             key={`empty-${index}`}
@@ -667,7 +667,10 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
                               width: 'calc((500px - 2px) / 2)',
                               height: 'calc((500px - 2px) / 2)',
                             }}
-                          />
+                            className="bg-background-card backdrop-blur-xl rounded-2xl shadow-2xl border border-border-default overflow-hidden flex items-center justify-center"
+                          >
+                            <span className="text-xs text-text-muted font-mono">spacer</span>
+                          </div>
                         );
                       }
                       const isDragging = draggedItem === item.id;
