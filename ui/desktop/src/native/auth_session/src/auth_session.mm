@@ -30,12 +30,30 @@ typedef struct AuthResult {
 static NSMutableSet<ASWebAuthenticationSession *> *gActiveSessions = nil;
 static GooseAuthPresentationContextProvider *gPresentationContextProvider = nil;
 
+static void CleanupModule(void * /*data*/) {
+  [gActiveSessions removeAllObjects];
+  gActiveSessions = nil;
+  gPresentationContextProvider = nil;
+}
+
 static void RejectPromise(AuthRequest *request, const char *message) {
   napi_value msg;
-  napi_create_string_utf8(request->env, message, NAPI_AUTO_LENGTH, &msg);
+  napi_status msg_status =
+      napi_create_string_utf8(request->env, message, NAPI_AUTO_LENGTH, &msg);
   napi_value error;
-  napi_create_error(request->env, nullptr, msg, &error);
-  napi_reject_deferred(request->env, request->deferred, error);
+  napi_value rejection;
+  if (msg_status == napi_ok &&
+      napi_create_error(request->env, nullptr, msg, &error) == napi_ok) {
+    rejection = error;
+  } else if (msg_status == napi_ok) {
+    rejection = msg;
+  } else {
+    napi_get_undefined(request->env, &rejection);
+  }
+  napi_reject_deferred(request->env, request->deferred, rejection);
+  if (request->tsfn) {
+    napi_release_threadsafe_function(request->tsfn, napi_tsfn_release);
+  }
   delete request;
 }
 
@@ -65,13 +83,27 @@ static void CallJs(napi_env env, napi_value _js_cb, void *context, void *data) {
   }
 
   napi_value msg;
-  napi_create_string_utf8(env, result->message.c_str(), NAPI_AUTO_LENGTH, &msg);
+  napi_status msg_status =
+      napi_create_string_utf8(env, result->message.c_str(), NAPI_AUTO_LENGTH, &msg);
   if (result->success) {
-    napi_resolve_deferred(env, request->deferred, msg);
+    napi_value resolution;
+    if (msg_status == napi_ok) {
+      resolution = msg;
+    } else {
+      napi_get_undefined(env, &resolution);
+    }
+    napi_resolve_deferred(env, request->deferred, resolution);
   } else {
     napi_value error;
-    napi_create_error(env, nullptr, msg, &error);
-    napi_reject_deferred(env, request->deferred, error);
+    napi_value rejection;
+    if (msg_status == napi_ok && napi_create_error(env, nullptr, msg, &error) == napi_ok) {
+      rejection = error;
+    } else if (msg_status == napi_ok) {
+      rejection = msg;
+    } else {
+      napi_get_undefined(env, &rejection);
+    }
+    napi_reject_deferred(env, request->deferred, rejection);
   }
 
   napi_close_handle_scope(env, scope);
@@ -210,5 +242,6 @@ NAPI_MODULE_INIT() {
   napi_value fn;
   napi_create_function(env, "startAuthSession", NAPI_AUTO_LENGTH, StartAuthSession, nullptr, &fn);
   napi_set_named_property(env, exports, "startAuthSession", fn);
+  napi_add_env_cleanup_hook(env, CleanupModule, nullptr);
   return exports;
 }

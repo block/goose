@@ -232,9 +232,11 @@ let pendingDeepLink: string | null = null;
 async function handleProtocolUrl(url: string) {
   if (!url) return;
 
-  if (handleTetrateCallbackUrl(url, () => {
-    pendingDeepLink = null;
-  })) {
+  if (
+    handleTetrateCallbackUrl(url, () => {
+      pendingDeepLink = null;
+    })
+  ) {
     return;
   }
 
@@ -311,9 +313,11 @@ let windowDeeplinkURL: string | null = null;
 
 app.on('open-url', async (_event, url) => {
   if (process.platform !== 'win32') {
-    if (handleTetrateCallbackUrl(url, () => {
-      pendingDeepLink = null;
-    })) {
+    if (
+      handleTetrateCallbackUrl(url, () => {
+        pendingDeepLink = null;
+      })
+    ) {
       return;
     }
 
@@ -1829,6 +1833,7 @@ async function appMain() {
   await ensureWinShims();
 
   registerUpdateIpcHandlers();
+
   // Handle microphone permission requests
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
     console.log('Permission requested:', permission);

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createHash } from 'crypto';
 
 vi.mock('electron', () => ({
@@ -12,12 +12,20 @@ vi.mock('electron', () => ({
   },
 }));
 
-import { __test, handleTetrateCallbackUrl } from './tetrateAuth';
+vi.mock('./api', () => ({
+  verifyTetrateSetup: vi.fn(),
+}));
+
+import { shell } from 'electron';
+import type { Client } from './api/client';
+import { verifyTetrateSetup } from './api';
+import { __test, handleTetrateCallbackUrl, runTetrateAuthFlow } from './tetrateAuth';
 
 describe('tetrateAuth', () => {
   afterEach(() => {
     __test.resetForTests();
     vi.useRealTimers();
+    vi.clearAllMocks();
   });
 
   it('creates a PKCE verifier and matching challenge', () => {
@@ -100,5 +108,60 @@ describe('tetrateAuth', () => {
 
     expect(handleTetrateCallbackUrl(callbackWithCode.toString())).toBe(true);
     await expect(waitPromise).rejects.toThrow('Authentication timed out');
+  });
+
+  it('runs the full auth flow and verifies the code', async () => {
+    const verifyMock = vi.mocked(verifyTetrateSetup);
+    const request = new globalThis.Request('http://localhost/test');
+    const response = new globalThis.Response();
+    verifyMock.mockResolvedValue({
+      data: { success: true, message: 'ok' },
+      request,
+      response,
+    });
+
+    const openExternalMock = vi.mocked(shell.openExternal);
+    openExternalMock.mockImplementation(async (authUrl: string) => {
+      const callbackUrl = new URL(authUrl).searchParams.get('callback');
+      if (!callbackUrl) {
+        throw new Error('Missing callback URL');
+      }
+
+      const callbackWithCode = new URL(callbackUrl);
+      callbackWithCode.searchParams.set('code', 'test-code');
+      handleTetrateCallbackUrl(callbackWithCode.toString());
+    });
+
+    const flowResult = await runTetrateAuthFlow({} as Client);
+
+    expect(flowResult).toEqual({ success: true, message: 'ok' });
+    expect(verifyMock).toHaveBeenCalledTimes(1);
+    const call = verifyMock.mock.calls[0]?.[0];
+    expect(call?.body?.code).toBe('test-code');
+    const codeVerifier = call?.body?.code_verifier;
+    expect(codeVerifier).toMatch(/^[A-Za-z0-9_-]+$/);
+    expect(codeVerifier?.length).toBeGreaterThanOrEqual(43);
+    expect(codeVerifier?.length).toBeLessThanOrEqual(128);
+  });
+
+  it('returns a failure response when verification fails', async () => {
+    const verifyMock = vi.mocked(verifyTetrateSetup);
+    verifyMock.mockRejectedValue(new Error('Verification failed'));
+
+    const openExternalMock = vi.mocked(shell.openExternal);
+    openExternalMock.mockImplementation(async (authUrl: string) => {
+      const callbackUrl = new URL(authUrl).searchParams.get('callback');
+      if (!callbackUrl) {
+        throw new Error('Missing callback URL');
+      }
+
+      const callbackWithCode = new URL(callbackUrl);
+      callbackWithCode.searchParams.set('code', 'test-code');
+      handleTetrateCallbackUrl(callbackWithCode.toString());
+    });
+
+    const response = await runTetrateAuthFlow({} as Client);
+
+    expect(response).toEqual({ success: false, message: 'Verification failed' });
   });
 });
