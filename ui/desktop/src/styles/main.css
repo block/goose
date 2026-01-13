@@ -778,6 +778,8 @@ p > code.bg-inline-code {
 }
 
 /* Navigation Component Animations */
+
+/* Enhanced easing curves for more natural motion */
 @keyframes nav-fade-in {
   from {
     opacity: 0;
@@ -788,13 +790,27 @@ p > code.bg-inline-code {
 }
 
 @keyframes nav-scale-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  50% {
+    opacity: 0.8;
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes nav-backdrop-fade {
   from {
     opacity: 0;
-    transform: scale(0.95);
+    backdrop-filter: blur(0px);
   }
   to {
     opacity: 1;
-    transform: scale(1);
+    backdrop-filter: blur(8px);
   }
 }
 
@@ -820,64 +836,111 @@ p > code.bg-inline-code {
   }
 }
 
+/* Enhanced tile animation with subtle lift and settle */
 @keyframes nav-tile-in {
-  from {
+  0% {
     opacity: 0;
-    transform: translateY(20px) scale(0.9);
+    transform: translateY(24px) scale(0.92);
   }
-  to {
+  60% {
+    opacity: 1;
+    transform: translateY(-2px) scale(1.01);
+  }
+  100% {
     opacity: 1;
     transform: translateY(0) scale(1);
   }
 }
 
-/* Navigation overlay animations */
+/* Gentle bounce for menu container */
+@keyframes nav-menu-bounce {
+  0% {
+    opacity: 0;
+    transform: scale(0.9) translateY(10px);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.02) translateY(-4px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Navigation overlay animations with enhanced timing */
 .nav-overlay-enter {
-  animation: nav-scale-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: nav-scale-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
 .nav-overlay-content {
-  animation: nav-fade-in 0.2s ease-out 0.1s forwards;
+  animation: nav-fade-in 0.3s ease-out 0.1s forwards;
   opacity: 0;
 }
 
-/* Navigation tile stagger animation */
+/* Backdrop blur animation for overlay */
+.nav-overlay-backdrop {
+  animation: nav-backdrop-fade 0.35s ease-out forwards;
+}
+
+/* Navigation tile stagger animation with enhanced easing */
 .nav-tile {
-  animation: nav-tile-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: nav-tile-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
   opacity: 0;
 }
 
-/* Stagger delays for tiles */
+/* Enhanced stagger delays with better rhythm - faster start, gradual slowdown */
 .nav-tile:nth-child(1) { animation-delay: 0ms; }
-.nav-tile:nth-child(2) { animation-delay: 30ms; }
-.nav-tile:nth-child(3) { animation-delay: 60ms; }
-.nav-tile:nth-child(4) { animation-delay: 90ms; }
-.nav-tile:nth-child(5) { animation-delay: 120ms; }
+.nav-tile:nth-child(2) { animation-delay: 40ms; }
+.nav-tile:nth-child(3) { animation-delay: 75ms; }
+.nav-tile:nth-child(4) { animation-delay: 105ms; }
+.nav-tile:nth-child(5) { animation-delay: 130ms; }
 .nav-tile:nth-child(6) { animation-delay: 150ms; }
-.nav-tile:nth-child(7) { animation-delay: 180ms; }
-.nav-tile:nth-child(8) { animation-delay: 210ms; }
-.nav-tile:nth-child(9) { animation-delay: 240ms; }
-.nav-tile:nth-child(10) { animation-delay: 270ms; }
-.nav-tile:nth-child(11) { animation-delay: 300ms; }
-.nav-tile:nth-child(12) { animation-delay: 330ms; }
+.nav-tile:nth-child(7) { animation-delay: 165ms; }
+.nav-tile:nth-child(8) { animation-delay: 175ms; }
+.nav-tile:nth-child(9) { animation-delay: 180ms; }
+.nav-tile:nth-child(10) { animation-delay: 185ms; }
+.nav-tile:nth-child(11) { animation-delay: 190ms; }
+.nav-tile:nth-child(12) { animation-delay: 195ms; }
+
+/* Menu container bounce animation */
+.nav-menu-container {
+  animation: nav-menu-bounce 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
 
 /* Navigation push mode animations */
 .nav-push-enter {
-  animation: nav-slide-in-vertical 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: nav-slide-in-vertical 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
-/* Hover and active states for navigation buttons */
+/* Enhanced hover and active states for navigation buttons */
 .nav-button {
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), 
-              background-color 0.2s ease;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), 
+              background-color 0.2s ease,
+              box-shadow 0.25s ease;
 }
 
 .nav-button:hover {
-  transform: scale(1.02);
+  transform: scale(1.03) translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .nav-button:active {
-  transform: scale(0.98);
+  transform: scale(0.97) translateY(0px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+/* Widget tiles get extra polish */
+.nav-widget-tile {
+  animation: nav-tile-in 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  opacity: 0;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 0.3s ease;
+}
+
+.nav-widget-tile:hover {
+  transform: translateY(-2px) scale(1.01);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
 }
 
 /* Reduce motion for accessibility */
