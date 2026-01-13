@@ -355,7 +355,7 @@ RALPH_REVIEWER_MODEL="claude-sonnet-4-20250514" \
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `RALPH_WORKER_MODEL` | Your `GOOSE_MODEL` | Model for work phase |
-| `RALPH_REVIEWER_MODEL` | `goose-claude-4-5-sonnet` | Model for review phase |
+| `RALPH_REVIEWER_MODEL` | `claude-sonnet-4-20250514` | Model for review phase |
 | `RALPH_MAX_ITERATIONS` | `50` | Safety limit |
 | `RALPH_RECIPE_DIR` | `~/.config/goose/recipes` | Where recipes live |
 
