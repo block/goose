@@ -530,7 +530,7 @@ impl Agent {
                     &format!("{}: {}", tool_call.name, e),
                 );
                 // Try to downcast to ErrorData to avoid double wrapping
-                let error_data = e.downcast_ref::<ErrorData>().cloned().unwrap_or_else(|| {
+                let error_data = e.downcast::<ErrorData>().unwrap_or_else(|e| {
                     ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None)
                 });
                 ToolCallResult::from(Err(error_data))
