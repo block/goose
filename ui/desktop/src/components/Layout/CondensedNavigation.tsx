@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, History, FileText, Puzzle, Settings as SettingsIcon, GripVertical, Users, Hash, ShoppingBag } from 'lucide-react';
+import { Home, History, FileText, Puzzle, Settings as SettingsIcon, GripVertical, Users, Hash, Clock } from 'lucide-react';
 import { ChatSmart } from '../icons';
 import { listSessions, getSessionInsights } from '../../api';
 import { useConfig } from '../ConfigContext';
@@ -268,7 +268,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
       id: 'scheduler',
       path: '/schedules',
       label: 'Scheduler',
-      icon: ShoppingBag,
+      icon: Clock,
     },
     {
       id: 'extensions',
