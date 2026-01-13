@@ -685,8 +685,8 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
                   </div>
                   </div>
 
-                  {/* Widget Tiles: Independent floating tiles */}
-                  <div className="flex flex-col gap-3">
+                  {/* Widget Tiles: 2x2 Grid */}
+                  <div className="grid grid-cols-2 gap-3">
                     {navItems.filter(item => item.isWidget).map((item, index) => {
                       const isDragging = draggedItem === item.id;
                       const isDragOver = dragOverItem === item.id;
