@@ -3,9 +3,9 @@ title: Ralph Loop
 description: Run goose in a loop with fresh context per iteration and cross-model review
 ---
 
-Ralph Loop, based on [Geoffrey Huntley's Ralph Wiggum approach](https://ghuntley.com/ralph/), is an iterative development pattern that keeps goose working on a task until it's genuinely complete.
+Ralph Loop, based on [Geoffrey Huntley's Ralph Wiggum technique](https://ghuntley.com/ralph/), is an iterative development pattern that keeps goose working on a task until it's genuinely complete.
 
-Standard agent loops suffer from context accumulation. Every failed attempt stays in the conversation history, which means that after a few iterations, the model must process a long history of noise before it can focus on the task. Ralph Loop solves this by starting each iteration with fresh context. One model does the work, a different model reviews it, and the loop continues until the task is ready to ship.
+Standard agent loops suffer from context accumulation. Every failed attempt stays in the conversation history, which means that after a few iterations, the model must process a long history of noise before it can focus on the task. Ralph Loop solves this by starting each iteration with fresh context, the core insight behind Geoffrey's approach. This implementation extends the technique with cross-model review: one model does the work, a different model reviews it, and the loop continues until the task is ready to ship.
 
 After each iteration, the worker and reviewer models store a summary and feedback in files. These files persist between iterations but the conversation history does not. This allows a new session to start where the next model reads the files to pick up exactly where the last iteration left off.
 
