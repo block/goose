@@ -44,6 +44,16 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
   const [recipesCount, setRecipesCount] = useState(0);
   const [scheduledTodayCount, setScheduledTodayCount] = useState(0);
   const [totalTokens, setTotalTokens] = useState(0);
+  const [isClosing, setIsClosing] = useState(false);
+
+  // Handle close with animation
+  const handleClose = () => {
+    setIsClosing(true);
+    setTimeout(() => {
+      setIsExpanded(false);
+      setIsClosing(false);
+    }, 250);
+  };
 
   // Handle escape key to close overlay
   useEffect(() => {
@@ -51,7 +61,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
       if (event.key === 'Escape' && isExpanded && isOverlayMode) {
         event.preventDefault();
         event.stopPropagation();
-        setIsExpanded(false);
+        handleClose();
       }
     };
 
@@ -60,7 +70,8 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
       return () => document.removeEventListener('keydown', handleKeyDown, { capture: true });
     }
     return undefined;
-  }, [isExpanded, isOverlayMode, setIsExpanded]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isExpanded, isOverlayMode]);
 
   const [sessionHeatmapData, setSessionHeatmapData] = useState<Record<string, number>>({});
   
@@ -510,9 +521,9 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
 
   return (
     <div className={`${isOverlayMode ? 'bg-transparent' : 'bg-background-muted'} ${containerClasses} relative z-[9998]`}>
-      {isExpanded && (
+      {(isExpanded || isClosing) && (
         <div
-          className={`nav-tile transition-all duration-300 ${isOverlayMode ? 'bg-transparent' : 'bg-background-muted overflow-hidden'} ${
+          className={`${isClosing ? 'nav-tile-exit' : 'nav-tile'} transition-all duration-300 ${isOverlayMode ? 'bg-transparent' : 'bg-background-muted overflow-hidden'} ${
             !isOverlayMode && isVertical ? 'h-full lg:relative lg:z-auto absolute z-[10000] top-0 shadow-lg lg:shadow-none' : ''
           } ${
             !isOverlayMode && isVertical && position === 'left' ? 'left-0' : ''
@@ -565,7 +576,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
                           onDrop={(e) => handleDrop(e, item.id)}
                           onDragEnd={handleDragEnd}
                           className={`
-                            nav-tile transition-all duration-300
+                            ${isClosing ? 'nav-tile-exit' : 'nav-tile'} transition-all duration-300
                             relative cursor-move group w-full
                             ${isDragOver ? 'ring-2 ring-blue-500 rounded-lg' : ''}
                             ${isDragging ? 'scale-95' : ''}
@@ -579,7 +590,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
                             onClick={() => {
                               if (item.path) {
                                 navigate(item.path);
-                                setIsExpanded(false);
+                                handleClose();
                               }
                             }}
                             className={`
@@ -666,7 +677,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
                           onDrop={(e) => handleDrop(e, item.id)}
                           onDragEnd={handleDragEnd}
                           className={`
-                            nav-tile transition-all duration-300
+                            ${isClosing ? 'nav-tile-exit' : 'nav-tile'} transition-all duration-300
                             relative cursor-move group
                             ${isDragOver ? 'ring-2 ring-blue-500 rounded-2xl' : ''}
                             ${isDragging ? 'scale-95' : ''}
@@ -714,7 +725,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
                         onDrop={(e) => handleDrop(e, item.id)}
                         onDragEnd={handleDragEnd}
                         className={`
-                          nav-tile transition-all duration-300
+                          ${isClosing ? 'nav-tile-exit' : 'nav-tile'} transition-all duration-300
                           relative cursor-move group
                           ${isVertical ? 'w-full' : 'flex-1'}
                           ${isDragOver ? 'ring-2 ring-blue-500 rounded-lg' : ''}
@@ -729,7 +740,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
                           onClick={() => {
                             if (item.path) {
                               navigate(item.path);
-                              setIsExpanded(false);
+                              handleClose();
                             }
                           }}
                           className={`

@@ -120,6 +120,16 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
   const [totalSessions, setTotalSessions] = useState(0);
   const [recipesCount, setRecipesCount] = useState(0);
   const [totalTokens, setTotalTokens] = useState(0);
+  const [isClosing, setIsClosing] = useState(false);
+
+  // Handle close with animation
+  const handleClose = () => {
+    setIsClosing(true);
+    setTimeout(() => {
+      setIsExpanded(false);
+      setIsClosing(false);
+    }, 250);
+  };
 
   // Handle escape key to close overlay
   useEffect(() => {
@@ -127,7 +137,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
       if (event.key === 'Escape' && isExpanded && isOverlayMode) {
         event.preventDefault();
         event.stopPropagation();
-        setIsExpanded(false);
+        handleClose();
       }
     };
 
@@ -136,7 +146,8 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
       return () => document.removeEventListener('keydown', handleKeyDown, { capture: true });
     }
     return undefined;
-  }, [isExpanded, isOverlayMode, setIsExpanded]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isExpanded, isOverlayMode]);
 
   const [sessionHeatmapData, setSessionHeatmapData] = useState<Record<string, number>>({});
   
@@ -482,9 +493,9 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
 
   return (
     <div className={`${isOverlayMode ? 'bg-transparent' : 'bg-background-muted'} ${containerClasses} relative z-[9998]`}>
-        {isExpanded && (
+        {(isExpanded || isClosing) && (
           <div
-            className={`${isOverlayMode ? 'bg-transparent' : 'bg-background-muted overflow-hidden'} ${isVertical && !isOverlayMode ? 'h-full' : ''} transition-all duration-300`}
+            className={`${isOverlayMode ? 'bg-transparent' : 'bg-background-muted overflow-hidden'} ${isVertical && !isOverlayMode ? 'h-full' : ''} ${isClosing ? 'nav-overlay-exit' : 'nav-overlay-enter'} transition-all duration-300`}
           >
             <div
               className={`${isOverlayMode ? 'overflow-y-auto' : isVertical ? 'p-1 h-full' : 'pb-0.5 lg:max-h-[2000px] md:max-h-[calc(100vh-60px)] max-h-screen'} transition-all duration-300`}
@@ -513,7 +524,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
                     onDrop={(e) => handleDrop(e as unknown as React.DragEvent, item.id)}
                     onDragEnd={handleDragEnd}
                     className={`
-                      nav-tile
+                      ${isClosing ? 'nav-tile-exit' : 'nav-tile'}
                       relative ${isOverlayMode ? 'bg-background-default backdrop-blur-md' : 'bg-background-default'} rounded-2xl 
                       overflow-hidden cursor-move group
                       ${isDragOver ? 'ring-2 ring-blue-500' : ''}
@@ -546,7 +557,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
                   onDrop={(e) => handleDrop(e as unknown as React.DragEvent, item.id)}
                   onDragEnd={handleDragEnd}
                   className={`
-                    nav-tile
+                    ${isClosing ? 'nav-tile-exit' : 'nav-tile'}
                     relative cursor-move group
                     ${isDragOver ? 'ring-2 ring-blue-500 rounded-2xl' : ''}
                     transition-all duration-300
@@ -559,7 +570,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
                   <button
                     onClick={() => {
                       navigate(item.path!);
-                      setIsExpanded(false);
+                      handleClose();
                     }}
                     className={`
                       w-full relative flex flex-col items-start justify-between
