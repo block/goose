@@ -117,9 +117,10 @@ impl McpAppCache {
                 if let Ok(content) = fs::read_to_string(&path) {
                     if let Ok(app) = serde_json::from_str::<GooseApp>(&content) {
                         if app.mcp_server.as_deref() == Some(extension_name)
-                            && fs::remove_file(&path).is_ok() {
-                                deleted_count += 1;
-                            }
+                            && fs::remove_file(&path).is_ok()
+                        {
+                            deleted_count += 1;
+                        }
                     }
                 }
             }

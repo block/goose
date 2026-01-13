@@ -85,22 +85,26 @@ export default function AppsView() {
       setApps(fetchedApps);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load apps');
+      // Only set error if we don't have apps to show
+      if (apps.length === 0) {
+        setError(err instanceof Error ? err.message : 'Failed to load apps');
+      }
     } finally {
       setLoading(false);
     }
-  }, [sessionId]);
+  }, [sessionId, apps.length]);
 
   const handleLaunchApp = async (app: GooseApp) => {
     try {
       await window.electron.launchApp(app);
     } catch (err) {
       console.error('Failed to launch app:', err);
-      setError(err instanceof Error ? err.message : 'Failed to launch app');
+      // App launch errors shouldn't hide the apps list, just log it
     }
   };
 
-  if (error) {
+  // Only show error-only UI if we have no apps to display
+  if (error && apps.length === 0) {
     return (
       <MainPanelLayout>
         <div className="flex flex-col items-center justify-center h-64 text-center">
