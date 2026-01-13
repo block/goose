@@ -585,15 +585,15 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
               }`}
             >
 {isOverlayMode ? (
-                // Overlay Mode: Windows Start Menu style container
-                <div 
-                  className="bg-background-card backdrop-blur-xl rounded-2xl shadow-2xl border border-border-default overflow-hidden"
-                  style={{ width: '600px', maxHeight: '500px' }}
-                >
-                  {/* Two-column layout with navigation rows on left, widget tiles on right */}
-                  <div className="flex flex-row gap-4 w-full h-full items-start p-4">
-                  {/* Left Column: Navigation Rows */}
-                  <div className="flex flex-col gap-[1px] w-80">
+                // Overlay Mode: Independent menu container and widget tiles
+                <div className="flex flex-row gap-4 items-start">
+                  {/* Menu Container: Windows Start Menu style */}
+                  <div 
+                    className="bg-background-card backdrop-blur-xl rounded-2xl shadow-2xl border border-border-default overflow-hidden"
+                    style={{ width: '320px', maxHeight: '500px' }}
+                  >
+                    {/* Navigation Rows */}
+                    <div className="flex flex-col gap-[1px] p-4">
                     {navItems.filter(item => !item.isWidget).map((item, index) => {
                       const isPulsing = pulsingItems.has(item.id);
                       const isDragging = draggedItem === item.id;
@@ -686,56 +686,54 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
                       );
                     })}
                   </div>
-
-                  {/* Right Column: Widget Tiles */}
-                  <div className="flex flex-col w-96">
-                    {/* Widget tiles container - matches navigation height */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2" style={{ height: 'fit-content' }}>
-                      {navItems.filter(item => item.isWidget).map((item, index) => {
-                        const isDragging = draggedItem === item.id;
-                        const isDragOver = dragOverItem === item.id;
-
-                        return (
-                          <motion.div
-                            key={item.id}
-                            draggable
-                            onDragStart={(e) => handleDragStart(e as unknown as React.DragEvent, item.id)}
-                            onDragOver={(e) => handleDragOver(e as unknown as React.DragEvent, item.id)}
-                            onDrop={(e) => handleDrop(e as unknown as React.DragEvent, item.id)}
-                            onDragEnd={handleDragEnd}
-                            initial={{ opacity: 0, x: 20, scale: 0.9 }}
-                            animate={{ 
-                              opacity: 1, 
-                              x: 0, 
-                              scale: isDragging ? 0.95 : 1,
-                            }}
-                            transition={{
-                              type: "spring",
-                              stiffness: 350,
-                              damping: 25,
-                              delay: (index + 9) * 0.02, // Delay after navigation items
-                            }}
-                            className={`
-                              relative cursor-move group w-full
-                              ${isDragOver ? 'ring-2 ring-blue-500 rounded-lg' : ''}
-                            `}
-                            style={{
-                              opacity: isDragging ? 0.5 : 1,
-                              height: '120px', // Fixed height for widget tiles
-                            }}
-                          >
-                            <div className="w-full h-full bg-background-default backdrop-blur-md rounded-lg overflow-hidden relative group">
-                              {/* Drag handle indicator */}
-                              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                                <GripVertical className="w-4 h-4 text-text-muted" />
-                              </div>
-                              {item.renderContent && item.renderContent()}
-                            </div>
-                          </motion.div>
-                        );
-                      })}
-                    </div>
                   </div>
+
+                  {/* Widget Tiles: Independent floating tiles */}
+                  <div className="flex flex-col gap-3">
+                    {navItems.filter(item => item.isWidget).map((item, index) => {
+                      const isDragging = draggedItem === item.id;
+                      const isDragOver = dragOverItem === item.id;
+
+                      return (
+                        <motion.div
+                          key={item.id}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e as unknown as React.DragEvent, item.id)}
+                          onDragOver={(e) => handleDragOver(e as unknown as React.DragEvent, item.id)}
+                          onDrop={(e) => handleDrop(e as unknown as React.DragEvent, item.id)}
+                          onDragEnd={handleDragEnd}
+                          initial={{ opacity: 0, x: 20, scale: 0.9 }}
+                          animate={{ 
+                            opacity: 1, 
+                            x: 0, 
+                            scale: isDragging ? 0.95 : 1,
+                          }}
+                          transition={{
+                            type: "spring",
+                            stiffness: 350,
+                            damping: 25,
+                            delay: (index + 9) * 0.02, // Delay after navigation items
+                          }}
+                          className={`
+                            relative cursor-move group
+                            ${isDragOver ? 'ring-2 ring-blue-500 rounded-2xl' : ''}
+                          `}
+                          style={{
+                            opacity: isDragging ? 0.5 : 1,
+                            width: '160px',
+                            height: '140px',
+                          }}
+                        >
+                          <div className="w-full h-full bg-background-card backdrop-blur-xl rounded-2xl shadow-2xl border border-border-default overflow-hidden relative group">
+                            {/* Drag handle indicator */}
+                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                              <GripVertical className="w-4 h-4 text-text-muted" />
+                            </div>
+                            {item.renderContent && item.renderContent()}
+                          </div>
+                        </motion.div>
+                      );
+                    })}
                   </div>
                 </div>
               ) : (
