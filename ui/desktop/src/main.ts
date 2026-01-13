@@ -244,6 +244,7 @@ if (process.platform !== 'darwin') {
 
 let firstOpenWindow: BrowserWindow;
 let pendingDeepLink: string | null = null;
+let openUrlHandledLaunch = false;
 
 async function handleProtocolUrl(url: string) {
   if (!url) return;
@@ -322,20 +323,24 @@ let windowDeeplinkURL: string | null = null;
 app.on('open-url', async (_event, url) => {
   if (process.platform !== 'win32') {
     const parsedUrl = new URL(url);
+
+    log.info('[Main] Received open-url event:', url);
+
+    await app.whenReady();
+
     const recentDirs = loadRecentDirs();
     const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
 
     // Handle bot/recipe URLs by directly creating a new window
-    console.log('[Main] Received open-url event:', url);
     if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
-      console.log('[Main] Detected bot/recipe URL, creating new chat window');
+      log.info('[Main] Detected bot/recipe URL, creating new chat window');
+      openUrlHandledLaunch = true;
       const deeplinkData = parseRecipeDeeplink(url);
       if (deeplinkData) {
         windowDeeplinkURL = url;
       }
       const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
 
-      // Create a new window directly
       await createChat(
         app,
         undefined,
@@ -349,25 +354,28 @@ app.on('open-url', async (_event, url) => {
         deeplinkData?.parameters
       );
       windowDeeplinkURL = null;
-      return; // Skip the rest of the handler
+      return;
     }
 
-    // For non-bot URLs, continue with normal handling
+    // For extension/session URLs, store the deep link for processing after React is ready
     pendingDeepLink = url;
+    log.info('[Main] Stored pending deep link for processing after React ready:', url);
 
     const existingWindows = BrowserWindow.getAllWindows();
     if (existingWindows.length > 0) {
       firstOpenWindow = existingWindows[0];
       if (firstOpenWindow.isMinimized()) firstOpenWindow.restore();
       firstOpenWindow.focus();
+      if (parsedUrl.hostname === 'extension') {
+        firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
+        pendingDeepLink = null;
+      } else if (parsedUrl.hostname === 'sessions') {
+        firstOpenWindow.webContents.send('open-shared-session', pendingDeepLink);
+        pendingDeepLink = null;
+      }
     } else {
+      openUrlHandledLaunch = true;
       firstOpenWindow = await createChat(app, undefined, openDir || undefined);
-    }
-
-    if (parsedUrl.hostname === 'extension') {
-      firstOpenWindow.webContents.send('add-extension', pendingDeepLink);
-    } else if (parsedUrl.hostname === 'sessions') {
-      firstOpenWindow.webContents.send('open-shared-session', pendingDeepLink);
     }
   }
 });
@@ -559,7 +567,7 @@ const createChat = async (
     useContentSize: true,
     icon: path.join(__dirname, '../images/icon.icns'),
     webPreferences: {
-      spellcheck: true,
+      spellcheck: settings.spellcheckEnabled ?? true,
       preload: path.join(__dirname, 'preload.js'),
       webSecurity: true,
       nodeIntegration: false,
@@ -1185,9 +1193,22 @@ ipcMain.on('react-ready', (event) => {
     pendingInitialMessages.delete(windowId);
   }
 
-  if (pendingDeepLink) {
+  if (pendingDeepLink && window) {
     log.info('Processing pending deep link:', pendingDeepLink);
-    handleProtocolUrl(pendingDeepLink);
+    try {
+      const parsedUrl = new URL(pendingDeepLink);
+      if (parsedUrl.hostname === 'extension') {
+        log.info('Sending add-extension IPC to ready window');
+        window.webContents.send('add-extension', pendingDeepLink);
+      } else if (parsedUrl.hostname === 'sessions') {
+        log.info('Sending open-shared-session IPC to ready window');
+        window.webContents.send('open-shared-session', pendingDeepLink);
+      }
+      pendingDeepLink = null;
+    } catch (error) {
+      log.error('Error processing pending deep link:', error);
+      pendingDeepLink = null;
+    }
   } else {
     log.info('No pending deep link to process');
   }
@@ -1418,6 +1439,28 @@ ipcMain.handle('get-wakelock-state', () => {
   } catch (error) {
     console.error('Error getting wakelock state:', error);
     return false;
+  }
+});
+
+ipcMain.handle('set-spellcheck', async (_event, enable: boolean) => {
+  try {
+    const settings = loadSettings();
+    settings.spellcheckEnabled = enable;
+    saveSettings(settings);
+    return true;
+  } catch (error) {
+    console.error('Error setting spellcheck:', error);
+    return false;
+  }
+});
+
+ipcMain.handle('get-spellcheck-state', () => {
+  try {
+    const settings = loadSettings();
+    return settings.spellcheckEnabled ?? true;
+  } catch (error) {
+    console.error('Error getting spellcheck state:', error);
+    return true;
   }
 });
 
@@ -1922,7 +1965,11 @@ async function appMain() {
 
   const { dirPath } = parseArgs();
 
-  await createNewWindow(app, dirPath);
+  if (!openUrlHandledLaunch) {
+    await createNewWindow(app, dirPath);
+  } else {
+    log.info('[Main] Skipping window creation in appMain - open-url already handled launch');
+  }
 
   // Setup auto-updater AFTER window is created and displayed (with delay to avoid blocking)
   setTimeout(() => {

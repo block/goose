@@ -737,7 +737,9 @@ impl Agent {
             .unwrap_or_default();
 
         let subagents_enabled = self.subagents_enabled().await;
-        if extension_name.is_none() || extension_name.as_deref() == Some("platform") {
+        if (extension_name.is_none() || extension_name.as_deref() == Some("platform"))
+            && self.scheduler_service.lock().await.is_some()
+        {
             prefixed_tools.push(platform_tools::manage_schedule_tool());
         }
 

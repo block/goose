@@ -18,6 +18,7 @@ export interface Settings {
   showMenuBarIcon: boolean;
   showDockIcon: boolean;
   enableWakelock: boolean;
+  spellcheckEnabled: boolean;
   externalGoosed?: ExternalGoosedConfig;
 }
 
@@ -31,6 +32,7 @@ const defaultSettings: Settings = {
   showMenuBarIcon: true,
   showDockIcon: true,
   enableWakelock: false,
+  spellcheckEnabled: true,
 };
 
 // Settings management
