@@ -109,6 +109,22 @@ export function SessionInsights() {
       .replace(/\//g, '/');
   };
 
+  const formatTokens = (tokens: number | undefined): string => {
+    if (!tokens) {
+      return '0';
+    }
+    if (tokens >= 1_000_000_000) {
+      return `${(tokens / 1_000_000_000).toFixed(2)}B`;
+    }
+    if (tokens >= 1_000_000) {
+      return `${(tokens / 1_000_000).toFixed(2)}M`;
+    }
+    if (tokens >= 1_000) {
+      return `${(tokens / 1_000).toFixed(1)}K`;
+    }
+    return tokens.toString();
+  };
+
   // Render skeleton loader while data is loading
   const renderSkeleton = () => (
     <div className="bg-background-muted flex flex-col h-full">
@@ -262,9 +278,7 @@ export function SessionInsights() {
             <CardContent className="page-transition flex flex-col justify-end h-full p-0">
               <div className="flex flex-col justify-end">
                 <p className="text-4xl font-mono font-light flex items-end">
-                  {insights?.totalTokens && insights.totalTokens > 0
-                    ? `${(insights.totalTokens / 1000000).toFixed(2)}M`
-                    : '0.00M'}
+                  {formatTokens(insights?.totalTokens)}
                 </p>
                 <span className="text-xs text-text-muted">Total tokens</span>
               </div>
