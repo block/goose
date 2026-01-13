@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 import { ExtensionInstallModal } from './ExtensionInstallModal';
 import { addExtensionFromDeepLink } from './settings/extensions/deeplink';
+import { ConfigProvider } from './ConfigContext';
 
 vi.mock('./settings/extensions/deeplink', () => ({
   addExtensionFromDeepLink: vi.fn(),
@@ -44,7 +45,9 @@ describe('ExtensionInstallModal', () => {
     it('should handle trusted extension (default behaviour, no allowlist)', async () => {
       mockElectron.getAllowedExtensions.mockResolvedValue([]);
 
-      render(<ExtensionInstallModal addExtension={mockAddExtension} setView={mockSetView} />);
+      <ConfigProvider>
+        render(<ExtensionInstallModal addExtension={mockAddExtension} setView={mockSetView} />);
+      </ConfigProvider>
 
       const eventHandler = getAddExtensionEventHandler();
 
@@ -61,7 +64,9 @@ describe('ExtensionInstallModal', () => {
     it('should handle trusted extension (from allowlist)', async () => {
       mockElectron.getAllowedExtensions.mockResolvedValue(['npx test-extension']);
 
-      render(<ExtensionInstallModal addExtension={mockAddExtension} setView={mockSetView} />);
+      <ConfigProvider>
+        render(<ExtensionInstallModal addExtension={mockAddExtension} setView={mockSetView} />);
+      </ConfigProvider>
 
       const eventHandler = getAddExtensionEventHandler();
 
@@ -79,7 +84,9 @@ describe('ExtensionInstallModal', () => {
       });
       mockElectron.getAllowedExtensions.mockResolvedValue(['uvx allowed-package']);
 
-      render(<ExtensionInstallModal addExtension={mockAddExtension} setView={mockSetView} />);
+      <ConfigProvider>
+        render(<ExtensionInstallModal addExtension={mockAddExtension} setView={mockSetView} />);
+      </ConfigProvider>
 
       const eventHandler = getAddExtensionEventHandler();
 
@@ -98,7 +105,9 @@ describe('ExtensionInstallModal', () => {
     it('should handle i-ching-mcp-server as allowed command', async () => {
       mockElectron.getAllowedExtensions.mockResolvedValue([]);
 
-      render(<ExtensionInstallModal addExtension={mockAddExtension} setView={mockSetView} />);
+      <ConfigProvider>
+        render(<ExtensionInstallModal addExtension={mockAddExtension} setView={mockSetView} />);
+      </ConfigProvider>
 
       const eventHandler = getAddExtensionEventHandler();
 
@@ -117,7 +126,9 @@ describe('ExtensionInstallModal', () => {
     it('should handle blocked extension', async () => {
       mockElectron.getAllowedExtensions.mockResolvedValue(['uvx allowed-package']);
 
-      render(<ExtensionInstallModal addExtension={mockAddExtension} setView={mockSetView} />);
+      <ConfigProvider>
+        render(<ExtensionInstallModal addExtension={mockAddExtension} setView={mockSetView} />);
+      </ConfigProvider>
 
       const eventHandler = getAddExtensionEventHandler();
 
@@ -136,7 +147,9 @@ describe('ExtensionInstallModal', () => {
     it('should dismiss modal correctly', async () => {
       mockElectron.getAllowedExtensions.mockResolvedValue([]);
 
-      render(<ExtensionInstallModal addExtension={mockAddExtension} setView={mockSetView} />);
+      <ConfigProvider>
+        render(<ExtensionInstallModal addExtension={mockAddExtension} setView={mockSetView} />);
+      </ConfigProvider>
 
       const eventHandler = getAddExtensionEventHandler();
 
@@ -157,7 +170,9 @@ describe('ExtensionInstallModal', () => {
       vi.mocked(addExtensionFromDeepLink).mockResolvedValue(undefined);
       mockElectron.getAllowedExtensions.mockResolvedValue([]);
 
-      render(<ExtensionInstallModal addExtension={mockAddExtension} setView={mockSetView} />);
+      <ConfigProvider>
+        render(<ExtensionInstallModal addExtension={mockAddExtension} setView={mockSetView} />);
+      </ConfigProvider>
 
       const eventHandler = getAddExtensionEventHandler();
 
