@@ -121,6 +121,17 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
   const [recipesCount, setRecipesCount] = useState(0);
   const [totalTokens, setTotalTokens] = useState(0);
   const [isClosing, setIsClosing] = useState(false);
+  
+  const [sessionHeatmapData, setSessionHeatmapData] = useState<Record<string, number>>({});
+  
+  const [prevValues, setPrevValues] = useState<Record<string, string>>({});
+  const [pulsingItems, setPulsingItems] = useState<Set<string>>(new Set());
+  
+  const [draggedItem, setDraggedItem] = useState<string | null>(null);
+  const [dragOverItem, setDragOverItem] = useState<string | null>(null);
+  
+  const [isUltraWide, setIsUltraWide] = useState(false);
+  const [shouldUseBladeOverlay, setShouldUseBladeOverlay] = useState(false);
 
   // Handle close with animation
   const handleClose = () => {
@@ -131,33 +142,25 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
     }, 250);
   };
 
-  // Handle escape key to close overlay
+  // Handle escape key to close overlay or blade overlay
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && isExpanded && isOverlayMode) {
+      const shouldCloseOnEscape = isOverlayMode || (!isOverlayMode && shouldUseBladeOverlay);
+      if (event.key === 'Escape' && isExpanded && shouldCloseOnEscape) {
         event.preventDefault();
         event.stopPropagation();
         handleClose();
       }
     };
 
-    if (isOverlayMode && isExpanded) {
+    const shouldListen = (isOverlayMode || shouldUseBladeOverlay) && isExpanded;
+    if (shouldListen) {
       document.addEventListener('keydown', handleKeyDown, { capture: true });
       return () => document.removeEventListener('keydown', handleKeyDown, { capture: true });
     }
     return undefined;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isExpanded, isOverlayMode]);
-
-  const [sessionHeatmapData, setSessionHeatmapData] = useState<Record<string, number>>({});
-  
-  const [prevValues, setPrevValues] = useState<Record<string, string>>({});
-  const [pulsingItems, setPulsingItems] = useState<Set<string>>(new Set());
-  
-  const [draggedItem, setDraggedItem] = useState<string | null>(null);
-  const [dragOverItem, setDragOverItem] = useState<string | null>(null);
-  
-  const [isUltraWide, setIsUltraWide] = useState(false);
+  }, [isExpanded, isOverlayMode, shouldUseBladeOverlay]);
 
   useEffect(() => {
     const updateTime = () => {
@@ -170,14 +173,15 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
   }, []);
 
   useEffect(() => {
-    const checkUltraWide = () => {
+    const checkScreenSize = () => {
       setIsUltraWide(window.innerWidth >= 2536);
+      setShouldUseBladeOverlay(window.innerWidth < 1000);
     };
     
-    checkUltraWide();
-    window.addEventListener('resize', checkUltraWide);
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
     
-    return () => window.removeEventListener('resize', checkUltraWide);
+    return () => window.removeEventListener('resize', checkScreenSize);
   }, []);
 
   useEffect(() => {
@@ -469,28 +473,29 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
   };
 
   const isVertical = position === 'left' || position === 'right';
+  const useBladeOverlay = !isOverlayMode && shouldUseBladeOverlay;
   
-  const gridClasses = isOverlayMode
+  const gridClasses = isOverlayMode || useBladeOverlay
     ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-[2px] w-full max-w-7xl mx-auto px-4 sm:px-6 md:px-8'
     : isVertical
       ? 'grid grid-cols-1 gap-[2px] h-full overflow-y-auto'
       : 'grid grid-cols-2 md:grid-cols-5 2xl:grid-cols-10 gap-[2px]'; // Push mode: 2 cols → 5 cols (tablet) → 10 cols (large desktop)
   
-  const containerClasses = isOverlayMode
-    ? 'w-full h-full flex items-center justify-center overflow-hidden' // Always centered for overlay mode
+  const containerClasses = isOverlayMode || useBladeOverlay
+    ? 'w-full h-full flex items-center justify-center overflow-hidden' // Centered for overlay mode or blade overlay
     : isVertical
       ? 'h-full'
       : 'w-full max-h-screen overflow-y-auto'; // Enable vertical scrolling with max height for horizontal push mode
 
   return (
-    <div className={`${isOverlayMode ? 'bg-transparent' : 'bg-background-muted'} ${containerClasses} relative z-[9998]`}>
+    <div className={`${isOverlayMode || useBladeOverlay ? 'bg-transparent' : 'bg-background-muted'} ${containerClasses} relative z-[9998]`}>
         {(isExpanded || isClosing) && (
           <div
-            className={`${isOverlayMode ? 'bg-transparent' : 'bg-background-muted overflow-hidden'} ${isVertical && !isOverlayMode ? 'h-full' : ''} ${isClosing ? 'nav-overlay-exit' : 'nav-overlay-enter'} transition-all duration-300`}
+            className={`${isOverlayMode || useBladeOverlay ? 'bg-transparent' : 'bg-background-muted overflow-hidden'} ${isVertical && !isOverlayMode && !useBladeOverlay ? 'h-full' : ''} ${isClosing ? 'nav-overlay-exit' : 'nav-overlay-enter'} transition-all duration-300`}
           >
             <div
-              className={`${isOverlayMode ? 'overflow-y-auto max-h-[90vh] py-4 sm:py-6 md:py-8' : isVertical ? 'p-1 h-full' : 'pb-0.5'} transition-all duration-300`}
-              style={{ width: isVertical && !isOverlayMode ? '360px' : undefined }}
+              className={`${isOverlayMode || useBladeOverlay ? 'overflow-y-auto max-h-[90vh] py-4 sm:py-6 md:py-8' : isVertical ? 'p-1 h-full' : 'pb-0.5'} transition-all duration-300`}
+              style={{ width: isVertical && !isOverlayMode && !useBladeOverlay ? '360px' : undefined }}
             >
               <div 
                 className={gridClasses} 
