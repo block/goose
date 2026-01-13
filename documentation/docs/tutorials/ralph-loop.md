@@ -536,3 +536,4 @@ If you want to start a completely new task, or if a previous run got stuck and y
 ```bash
 rm -rf .goose/ralph
 ```
+
