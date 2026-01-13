@@ -36,7 +36,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
   const navigate = useNavigate();
   const location = useLocation();
   const { extensionsList, getExtensions } = useConfig();
-  const { preferences } = useNavigationCustomization();
+  const { preferences, updatePreferences } = useNavigationCustomization();
   const [forceUpdate, setForceUpdate] = useState(0);
   const [currentTime, setCurrentTime] = useState('');
   const [todayChatsCount, setTodayChatsCount] = useState(0);
@@ -82,7 +82,6 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
   // Drag and drop state
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
   const [dragOverItem, setDragOverItem] = useState<string | null>(null);
-  const [itemOrder, setItemOrder] = useState<string[]>([]);
 
   // Update time every second
   useEffect(() => {
@@ -427,9 +426,8 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
     const handlePreferencesUpdate = (event: Event) => {
       const customEvent = event as CustomEvent;
       console.log('CondensedNavigation: Navigation preferences updated:', customEvent.detail);
-      // Force re-render when preferences change by updating multiple states
+      // Force re-render when preferences change
       setForceUpdate(prev => prev + 1);
-      setItemOrder(prev => [...prev]);
     };
 
     window.addEventListener('navigation-preferences-updated', handlePreferencesUpdate);
@@ -483,14 +481,21 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
     e.preventDefault();
     if (!draggedItem || draggedItem === dropItemId) return;
 
-    const newOrder = [...itemOrder];
-    const draggedIndex = newOrder.indexOf(draggedItem);
-    const dropIndex = newOrder.indexOf(dropItemId);
+    // Get current order from preferences
+    const currentOrder = [...preferences.itemOrder];
+    const draggedIndex = currentOrder.indexOf(draggedItem);
+    const dropIndex = currentOrder.indexOf(dropItemId);
 
-    newOrder.splice(draggedIndex, 1);
-    newOrder.splice(dropIndex, 0, draggedItem);
+    // Reorder
+    currentOrder.splice(draggedIndex, 1);
+    currentOrder.splice(dropIndex, 0, draggedItem);
 
-    setItemOrder(newOrder);
+    // Save to preferences
+    updatePreferences({
+      ...preferences,
+      itemOrder: currentOrder,
+    });
+
     setDraggedItem(null);
     setDragOverItem(null);
   };

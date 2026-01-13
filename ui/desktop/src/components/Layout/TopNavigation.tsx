@@ -113,7 +113,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
   const navigate = useNavigate();
   const location = useLocation();
   const { extensionsList, getExtensions } = useConfig();
-  const { preferences } = useNavigationCustomization();
+  const { preferences, updatePreferences } = useNavigationCustomization();
   const [forceUpdate, setForceUpdate] = useState(0);
   const [currentTime, setCurrentTime] = useState('');
   const [todayChatsCount, setTodayChatsCount] = useState(0);
@@ -156,7 +156,6 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
   
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
   const [dragOverItem, setDragOverItem] = useState<string | null>(null);
-  const [tileOrder, setTileOrder] = useState<string[]>([]);
   
   const [isUltraWide, setIsUltraWide] = useState(false);
 
@@ -401,7 +400,6 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
   useEffect(() => {
     const handlePreferencesUpdate = () => {
       setForceUpdate(prev => prev + 1);
-      setTileOrder(prev => [...prev]);
     };
 
     window.addEventListener('navigation-preferences-updated', handlePreferencesUpdate);
@@ -452,14 +450,21 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
     e.preventDefault();
     if (!draggedItem || draggedItem === dropItemId) return;
 
-    const newOrder = [...tileOrder];
-    const draggedIndex = newOrder.indexOf(draggedItem);
-    const dropIndex = newOrder.indexOf(dropItemId);
+    // Get current order from preferences
+    const currentOrder = [...preferences.itemOrder];
+    const draggedIndex = currentOrder.indexOf(draggedItem);
+    const dropIndex = currentOrder.indexOf(dropItemId);
 
-    newOrder.splice(draggedIndex, 1);
-    newOrder.splice(dropIndex, 0, draggedItem);
+    // Reorder
+    currentOrder.splice(draggedIndex, 1);
+    currentOrder.splice(dropIndex, 0, draggedItem);
 
-    setTileOrder(newOrder);
+    // Save to preferences
+    updatePreferences({
+      ...preferences,
+      itemOrder: currentOrder,
+    });
+
     setDraggedItem(null);
     setDragOverItem(null);
   };
