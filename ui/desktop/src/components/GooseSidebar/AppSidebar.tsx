@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { FileText, Clock, Home, Puzzle, History, AppWindow } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -16,6 +16,7 @@ import { ViewOptions, View } from '../../utils/navigationUtils';
 import { useChatContext } from '../../contexts/ChatContext';
 import { DEFAULT_CHAT_TITLE } from '../../contexts/ChatContext';
 import EnvironmentBadge from './EnvironmentBadge';
+import { listApps } from '../../api';
 
 interface SidebarProps {
   onSelectSession: (sessionId: string) => void;
@@ -107,6 +108,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   const chatContext = useChatContext();
   const lastSessionIdRef = useRef<string | null>(null);
   const currentSessionId = currentPath === '/pair' ? searchParams.get('resumeSessionId') : null;
+  const [hasApps, setHasApps] = useState(false);
 
   useEffect(() => {
     if (currentSessionId) {
@@ -115,12 +117,20 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   }, [currentSessionId]);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      // setIsVisible(true);
-    }, 100);
+    const checkApps = async () => {
+      try {
+        const response = await listApps({
+          throwOnError: false,
+          query: { use_cache: true },
+        });
+        setHasApps((response.data?.apps || []).length > 0);
+      } catch (err) {
+        console.warn('Failed to check for apps:', err);
+      }
+    };
 
-    return () => clearTimeout(timer);
-  }, []);
+    checkApps();
+  }, [currentPath]);
 
   useEffect(() => {
     const currentItem = menuItems.find(
@@ -186,10 +196,19 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     );
   };
 
+  const visibleMenuItems = menuItems.filter((entry) => {
+    if (entry.type === 'item' && entry.path === '/apps') {
+      return hasApps;
+    }
+    return true;
+  });
+
   return (
     <>
       <SidebarContent className="pt-16">
-        <SidebarMenu>{menuItems.map((entry, index) => renderMenuItem(entry, index))}</SidebarMenu>
+        <SidebarMenu>
+          {visibleMenuItems.map((entry, index) => renderMenuItem(entry, index))}
+        </SidebarMenu>
       </SidebarContent>
 
       <SidebarFooter className="pb-2 flex items-start">
