@@ -204,7 +204,7 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
         error: error instanceof Error ? error.message : 'Unknown error',
       }));
     }
-  }, []);
+  }, [getExtensions, extensionsList]);
 
   const dismissModal = useCallback(() => {
     setModalState({
