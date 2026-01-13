@@ -8,6 +8,10 @@ The Ralph Loop is an iterative development pattern that keeps goose working on a
 
 This technique is based on [Geoffrey Huntley's "Ralph Wiggum" approach](https://ghuntley.com/ralph/) - put an AI agent in a loop until the job is done, with file I/O as state rather than conversation history.
 
+:::note
+Ralph Loop requires the **goose CLI**. It won't work from the Desktop app.
+:::
+
 ## Why Ralph Loop?
 
 Standard agent loops have a problem: **context accumulates**. Every failed attempt, every wrong turn stays in the conversation history. By iteration 10, the model is wading through garbage from iterations 1-9.
