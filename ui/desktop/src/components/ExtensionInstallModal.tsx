@@ -13,6 +13,8 @@ import { extractExtensionName } from './settings/extensions/utils';
 import { addExtensionFromDeepLink } from './settings/extensions/deeplink';
 import type { ExtensionConfig } from '../api/types.gen';
 import { View, ViewOptions } from '../utils/navigationUtils';
+import { useConfig } from './ConfigContext';
+import { toastService } from '../toasts';
 
 type ModalType = 'blocked' | 'untrusted' | 'trusted';
 
@@ -66,6 +68,8 @@ function extractRemoteUrl(link: string): string | null {
 }
 
 export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstallModalProps) {
+  const { extensionsList, getExtensions } = useConfig();
+
   const [modalState, setModalState] = useState<ExtensionModalState>({
     isOpen: false,
     modalType: 'trusted',
@@ -155,6 +159,23 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
       const command = extractCommand(link);
       const remoteUrl = extractRemoteUrl(link);
       const extName = extractExtensionName(link);
+
+      console.log('Extension name:', extName);
+      console.log('Extensions list:', extensionsList);
+      console.log('Found match:', extensionsList.find((ext) => ext.name === extName));
+
+      await getExtensions(true);
+      if (extensionsList.find((ext) => ext.name === extName)) {
+        console.log(`Extension Already Installed: ${extName}`);
+
+        toastService.success({
+          title: `Extension '${extName}' Already Installed`,
+          msg: `'${extName}' extension has already been installed successfully. Start a new chat session to use it.`,
+        });
+        return;
+      }
+
+      console.log('Extension not found, continuing to show modal');
 
       const extensionInfo: ExtensionInfo = {
         name: extName,
