@@ -954,7 +954,7 @@ async fn list_apps(
 ) -> Result<Json<ListAppsResponse>, ErrorResponse> {
     let cache = McpAppCache::new().ok();
 
-    // If use_cache is true or session_id is not provided, return cached apps
+    // If use_cache is true or no session_id provided, return cached apps
     if params.use_cache || params.session_id.is_none() {
         let apps = cache
             .as_ref()
@@ -963,7 +963,7 @@ async fn list_apps(
         return Ok(Json(ListAppsResponse { apps }));
     }
 
-    // Otherwise fetch fresh apps from the session
+    // Fetch fresh apps from the session and cache them
     let agent = state
         .get_agent_for_route(params.session_id.unwrap())
         .await
@@ -972,7 +972,6 @@ async fn list_apps(
             status,
         })?;
 
-    // Fetch apps and cache them
     let apps = list_mcp_apps_with_cache(&agent.extension_manager, cache.as_ref())
         .await
         .map_err(|e| ErrorResponse {

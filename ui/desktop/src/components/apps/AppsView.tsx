@@ -46,11 +46,11 @@ export default function AppsView() {
     loadCachedApps();
   }, []);
 
-  // When sessionId is available, fetch fresh apps in the background
+  // When sessionId becomes available, fetch fresh apps and update cache
   useEffect(() => {
     if (!sessionId) return;
 
-    const loadFreshApps = async () => {
+    const refreshApps = async () => {
       try {
         const response = await listApps({
           throwOnError: true,
@@ -60,7 +60,7 @@ export default function AppsView() {
         setApps(freshApps);
         setError(null);
       } catch (err) {
-        console.warn('Failed to load fresh apps:', err);
+        console.warn('Failed to refresh apps:', err);
         // Don't set error if we already have cached apps
         if (apps.length === 0) {
           setError(err instanceof Error ? err.message : 'Failed to load apps');
@@ -68,7 +68,7 @@ export default function AppsView() {
       }
     };
 
-    loadFreshApps();
+    refreshApps();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
