@@ -195,7 +195,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
           {[...Array(12)].map((_, i) => (
             <div
               key={i}
-              className="absolute w-1 h-3 bg-text-muted/40 top-2 left-1/2 -translate-x-1/2"
+              className="absolute w-0.5 h-2 bg-text-muted/40 top-2 left-1/2 -translate-x-1/2"
               style={{
                 transformOrigin: '50% 46px',
                 transform: `translateX(-50%) rotate(${i * 30}deg)`,
