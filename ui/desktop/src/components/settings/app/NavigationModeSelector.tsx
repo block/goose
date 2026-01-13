@@ -15,6 +15,25 @@ export const NavigationModeSelector: React.FC<NavigationModeSelectorProps> = ({ 
 
   useEffect(() => {
     localStorage.setItem('navigation_mode', selectedMode);
+    
+    // When overlay mode is selected, automatically set position to center and style to expanded
+    if (selectedMode === 'overlay') {
+      localStorage.setItem('navigation_position', 'top'); // Center position
+      localStorage.setItem('navigation_style', 'expanded');
+      
+      // Dispatch events to update other components
+      window.dispatchEvent(
+        new CustomEvent('navigation-position-changed', {
+          detail: { position: 'top' },
+        })
+      );
+      window.dispatchEvent(
+        new CustomEvent('navigation-style-changed', {
+          detail: { style: 'expanded' },
+        })
+      );
+    }
+    
     window.dispatchEvent(
       new CustomEvent('navigation-mode-changed', {
         detail: { mode: selectedMode },

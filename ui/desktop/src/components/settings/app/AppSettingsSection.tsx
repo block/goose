@@ -32,6 +32,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
   const [showNotificationModal, setShowNotificationModal] = useState(false);
   const [showPricing, setShowPricing] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [navigationMode, setNavigationMode] = useState<'push' | 'overlay'>('push');
   const updateSectionRef = useRef<HTMLDivElement>(null);
 
   // Check if GOOSE_VERSION is set to determine if Updates section should be shown
@@ -65,6 +66,21 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
   useEffect(() => {
     const stored = localStorage.getItem('show_pricing');
     setShowPricing(stored !== 'false');
+  }, []);
+
+  // Load navigation mode and listen for changes
+  useEffect(() => {
+    const stored = localStorage.getItem('navigation_mode');
+    setNavigationMode((stored as 'push' | 'overlay') || 'push');
+
+    const handleModeChange = (event: CustomEvent) => {
+      setNavigationMode(event.detail.mode);
+    };
+
+    window.addEventListener('navigation-mode-changed', handleModeChange as EventListener);
+    return () => {
+      window.removeEventListener('navigation-mode-changed', handleModeChange as EventListener);
+    };
   }, []);
 
   // Handle scrolling to update section
@@ -293,28 +309,36 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
               <div className="space-y-2">
                 <div>
                   <h3 className="text-sm font-medium text-text-default">Mode</h3>
-                  <p className="text-xs text-text-muted">Choose between push menu or overlay launcher</p>
+                  <p className="text-xs text-text-muted">
+                    {navigationMode === 'overlay' 
+                      ? 'Overlay mode: Centered expanded tiles launcher'
+                      : 'Choose between push menu or overlay launcher'}
+                  </p>
                 </div>
                 <NavigationModeSelector />
               </div>
 
-              {/* Navigation Position */}
-              <div className="space-y-2">
-                <div>
-                  <h3 className="text-sm font-medium text-text-default">Position</h3>
-                  <p className="text-xs text-text-muted">Choose where the navigation bar appears</p>
+              {/* Navigation Position - Only show for push mode */}
+              {navigationMode === 'push' && (
+                <div className="space-y-2">
+                  <div>
+                    <h3 className="text-sm font-medium text-text-default">Position</h3>
+                    <p className="text-xs text-text-muted">Choose where the navigation bar appears</p>
+                  </div>
+                  <NavigationPositionSelector />
                 </div>
-                <NavigationPositionSelector />
-              </div>
+              )}
 
-              {/* Navigation Style */}
-              <div className="space-y-2">
-                <div>
-                  <h3 className="text-sm font-medium text-text-default">Style</h3>
-                  <p className="text-xs text-text-muted">Choose between expanded tiles or condensed rows</p>
+              {/* Navigation Style - Only show for push mode */}
+              {navigationMode === 'push' && (
+                <div className="space-y-2">
+                  <div>
+                    <h3 className="text-sm font-medium text-text-default">Style</h3>
+                    <p className="text-xs text-text-muted">Choose between expanded tiles or condensed rows</p>
+                  </div>
+                  <NavigationStyleSelector />
                 </div>
-                <NavigationStyleSelector />
-              </div>
+              )}
 
               {/* Navigation Items */}
               <div className="space-y-2">
