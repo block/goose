@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, History, FileText, Puzzle, Settings as SettingsIcon, GripVertical, Users, Hash, Clock } from 'lucide-react';
+import { Home, History, FileText, Puzzle, Settings as SettingsIcon, GripVertical, Clock } from 'lucide-react';
 import { ChatSmart } from '../icons';
 import { listSessions, getSessionInsights } from '../../api';
 import { useConfig } from '../ConfigContext';
@@ -299,22 +299,6 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
         },
       },
       {
-        id: 'peers',
-        path: '/peers',
-        label: 'Spacer',
-        icon: Users,
-        getTag: () => '3',
-        tagAlign: 'left',
-      },
-      {
-        id: 'channels',
-        path: '/channels',
-        label: 'Spacer',
-        icon: Hash,
-        getTag: () => '7',
-        tagAlign: 'left',
-      },
-      {
         id: 'settings',
         path: '/settings',
         label: 'Settings',
@@ -544,23 +528,18 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
             }`}
           >
 {isOverlayMode ? (
-                // Overlay Mode: Independent menu container and widget tiles
-                <div className={`flex flex-row gap-[2px] ${
+                // Overlay Mode: Responsive flex layout with scrolling
+                <div className={`flex flex-col md:flex-row gap-2 md:gap-4 max-h-[90vh] overflow-y-auto px-4 sm:px-6 md:px-8 py-4 sm:py-6 md:py-8 ${
                   position === 'left' || position === 'right' ? 'items-center' : 
                   position === 'bottom' ? 'items-end' : 'items-start'
-                } ${
-                  position === 'top' ? 'pt-[2px]' :
-                  position === 'bottom' ? 'pb-[2px]' :
-                  position === 'left' ? 'pl-[2px]' :
-                  'pr-[2px]'
                 }`}>
-                  {/* Menu Container: Windows Start Menu style */}
+                  {/* Menu Container: Windows Start Menu style - Responsive width */}
                   <div 
-                    className="bg-background-card backdrop-blur-xl rounded-2xl shadow-2xl border border-border-default overflow-hidden"
-                    style={{ width: '320px', maxHeight: '500px' }}
+                    className="bg-background-card backdrop-blur-xl rounded-2xl shadow-2xl border border-border-default overflow-hidden w-full md:w-80 flex-shrink-0"
+                    style={{ maxHeight: '500px' }}
                   >
                     {/* Navigation Rows */}
-                    <div className="flex flex-col gap-[1px] p-4">
+                    <div className="flex flex-col gap-[1px] p-4 overflow-y-auto max-h-[500px]">
                     {navItems.filter(item => !item.isWidget).map((item, index) => {
                       const isPulsing = pulsingItems.has(item.id);
                       const isDragging = draggedItem === item.id;
@@ -640,35 +619,11 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
                   </div>
                   </div>
 
-                  {/* Widget Tiles: 2x2 Grid - Height matches menu container */}
+                  {/* Widget Tiles: Responsive 2-column Grid */}
                   <div 
-                    className="grid grid-cols-2 gap-[2px]"
-                    style={{ maxHeight: '500px' }}
+                    className="grid grid-cols-2 gap-2 w-full md:w-auto md:max-w-[520px]"
                   >
-                    {(() => {
-                      const widgets = navItems.filter(item => item.isWidget);
-                      // For bottom position, reorder to L-shape: [0,1,2] -> [0,undefined,1,2]
-                      // This creates: Top row: Clock (0), undefined | Bottom row: Activity (1), Tokens (2)
-                      if (position === 'bottom' && widgets.length >= 3) {
-                        return [widgets[0], undefined, widgets[1], widgets[2]];
-                      }
-                      return widgets;
-                    })().map((item, index) => {
-                      if (!item) {
-                        // Render spacer placeholder for undefined slots
-                        return (
-                          <div
-                            key={`empty-${index}`}
-                            style={{
-                              width: 'calc((500px - 2px) / 2)',
-                              height: 'calc((500px - 2px) / 2)',
-                            }}
-                            className="bg-background-card backdrop-blur-xl rounded-2xl shadow-2xl border border-border-default overflow-hidden flex items-center justify-center"
-                          >
-                            <span className="text-xs text-text-muted font-mono">spacer</span>
-                          </div>
-                        );
-                      }
+                    {navItems.filter(item => item.isWidget).map((item, index) => {
                       const isDragging = draggedItem === item.id;
                       const isDragOver = dragOverItem === item.id;
 
@@ -685,12 +640,12 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
                             relative cursor-move group
                             ${isDragOver ? 'ring-2 ring-blue-500 rounded-2xl' : ''}
                             ${isDragging ? 'scale-95' : ''}
+                            aspect-square
+                            min-w-[120px] md:min-w-[160px]
                           `}
                           style={{
                             opacity: isDragging ? 0.5 : 1,
-                            width: 'calc((500px - 2px) / 2)', // Match height for square tiles
-                            height: 'calc((500px - 2px) / 2)', // (maxHeight - gap) / 2 rows
-                            animationDelay: `${(index + 9) * 30}ms`,
+                            animationDelay: `${(index + 7) * 30}ms`,
                           }}
                         >
                           <div className="w-full h-full bg-background-card backdrop-blur-xl rounded-2xl shadow-2xl border border-border-default overflow-hidden relative group">

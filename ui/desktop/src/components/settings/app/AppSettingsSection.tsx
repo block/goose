@@ -13,7 +13,6 @@ import ThemeSelector from '../../GooseSidebar/ThemeSelector';
 import { NavigationPositionSelector } from './NavigationPositionSelector';
 import { NavigationStyleSelector } from './NavigationStyleSelector';
 import { NavigationModeSelector } from './NavigationModeSelector';
-import { NavigationCustomizationSettings } from './NavigationCustomizationSettings';
 import BlockLogoBlack from './icons/block-lockup_black.png';
 import BlockLogoWhite from './icons/block-lockup_white.png';
 import TelemetrySettings from './TelemetrySettings';
@@ -298,7 +297,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
               <div className="flex items-center justify-between w-full">
                 <div className="text-left">
                   <CardTitle className="mb-1">Navigation</CardTitle>
-                  <CardDescription>Customize navigation appearance, position, and items</CardDescription>
+                  <CardDescription>Customize navigation appearance and position</CardDescription>
                 </div>
                 <ChevronDown className="w-5 h-5 text-text-muted transition-transform duration-200 group-data-[state=open]:rotate-180" />
               </div>
@@ -340,15 +339,6 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
                   <NavigationStyleSelector />
                 </div>
               )}
-
-              {/* Navigation Items */}
-              <div className="space-y-2">
-                <div>
-                  <h3 className="text-sm font-medium text-text-default">Items</h3>
-                  <p className="text-xs text-text-muted">Customize which items appear and their order</p>
-                </div>
-                <NavigationCustomizationSettings />
-              </div>
             </CardContent>
           </CollapsibleContent>
         </Collapsible>
