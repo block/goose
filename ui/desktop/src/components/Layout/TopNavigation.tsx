@@ -465,7 +465,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
   const isVertical = position === 'left' || position === 'right';
   
   const gridClasses = isOverlayMode
-    ? 'grid gap-3 w-full max-w-7xl mx-auto px-4 sm:px-6 md:px-8 py-4 sm:py-6 md:py-8'
+    ? 'grid gap-0.5 w-full max-w-7xl mx-auto px-4 sm:px-6 md:px-8 py-4 sm:py-6 md:py-8'
     : isVertical
       ? 'grid grid-cols-1 gap-0.5 h-full overflow-y-auto'
       : 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 lg:grid-cols-6 xl:grid-cols-6 2xl:grid-cols-6 gap-0.5';
