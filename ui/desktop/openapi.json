@@ -404,6 +404,45 @@
         }
       }
     },
+    "/agent/stop": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "stop_agent",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StopAgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Agent stopped successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/agent/tools": {
       "get": {
         "tags": [
@@ -3828,7 +3867,6 @@
       },
       "GooseApp": {
         "type": "object",
-        "description": "GooseApp represents an app that can be launched in a standalone window",
         "required": [
           "name",
           "resourceUri",
@@ -5804,6 +5842,17 @@
             "nullable": true
           },
           "working_dir": {
+            "type": "string"
+          }
+        }
+      },
+      "StopAgentRequest": {
+        "type": "object",
+        "required": [
+          "session_id"
+        ],
+        "properties": {
+          "session_id": {
             "type": "string"
           }
         }

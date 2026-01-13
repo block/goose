@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import McpAppRenderer from '../McpApps/McpAppRenderer';
-import { startAgent, resumeAgent, listApps } from '../../api';
+import { startAgent, resumeAgent, listApps, stopAgent } from '../../api';
 
 export default function StandaloneAppView() {
   const [searchParams] = useSearchParams();
@@ -91,13 +91,28 @@ export default function StandaloneAppView() {
     }
 
     initSession();
-  }, [resourceUri, extensionName, workingDir, cachedHtml]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resourceUri, extensionName, workingDir]);
 
   useEffect(() => {
     if (appName) {
       document.title = appName;
     }
   }, [appName]);
+
+  // Cleanup session when component unmounts
+  useEffect(() => {
+    return () => {
+      if (sessionId) {
+        stopAgent({
+          body: { session_id: sessionId },
+          throwOnError: false,
+        }).catch((err: unknown) => {
+          console.warn('Failed to stop agent on unmount:', err);
+        });
+      }
+    };
+  }, [sessionId]);
 
   if (error && !cachedHtml) {
     return (

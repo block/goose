@@ -964,8 +964,13 @@ async fn list_apps(
     }
 
     // Fetch fresh apps from the session and cache them
+    let session_id = params.session_id.ok_or_else(|| ErrorResponse {
+        message: "Missing session_id for list_apps request".to_string(),
+        status: StatusCode::BAD_REQUEST,
+    })?;
+
     let agent = state
-        .get_agent_for_route(params.session_id.unwrap())
+        .get_agent_for_route(session_id)
         .await
         .map_err(|status| ErrorResponse {
             message: "Failed to get agent".to_string(),

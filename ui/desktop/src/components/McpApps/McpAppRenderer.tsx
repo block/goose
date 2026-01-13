@@ -52,12 +52,6 @@ export default function McpAppRenderer({
   const [iframeHeight, setIframeHeight] = useState(DEFAULT_IFRAME_HEIGHT);
 
   useEffect(() => {
-    if (cachedHtml) {
-      setResourceHtml(cachedHtml);
-    }
-  }, [cachedHtml]);
-
-  useEffect(() => {
     if (sessionId === 'loading') {
       return;
     }

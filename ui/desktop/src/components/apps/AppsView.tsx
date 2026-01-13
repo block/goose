@@ -81,8 +81,8 @@ export default function AppsView() {
         throwOnError: true,
         query: { session_id: sessionId },
       });
-      const apps = response.data?.apps || [];
-      setApps(apps);
+      const fetchedApps = response.data?.apps || [];
+      setApps(fetchedApps);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load apps');

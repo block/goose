@@ -364,9 +364,6 @@ export type GetToolsQuery = {
     session_id: string;
 };
 
-/**
- * GooseApp represents an app that can be launched in a standalone window
- */
 export type GooseApp = {
     description?: string | null;
     height?: number | null;
@@ -990,6 +987,10 @@ export type StartAgentRequest = {
     working_dir: string;
 };
 
+export type StopAgentRequest = {
+    session_id: string;
+};
+
 export type SubRecipe = {
     description?: string | null;
     name: string;
@@ -1499,6 +1500,37 @@ export type StartAgentResponses = {
 };
 
 export type StartAgentResponse = StartAgentResponses[keyof StartAgentResponses];
+
+export type StopAgentData = {
+    body: StopAgentRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/stop';
+};
+
+export type StopAgentErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type StopAgentResponses = {
+    /**
+     * Agent stopped successfully
+     */
+    200: string;
+};
+
+export type StopAgentResponse = StopAgentResponses[keyof StopAgentResponses];
 
 export type GetToolsData = {
     body?: never;

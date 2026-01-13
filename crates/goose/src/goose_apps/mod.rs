@@ -1,15 +1,11 @@
-//! goose Apps module
-//!
-//! This module contains types and utilities for working with goose Apps,
-//! which are UI resources that can be rendered in an MCP server or native
-//! goose apps, or something in between.
-
 pub mod resource;
 
 use crate::agents::ExtensionManager;
 use crate::config::paths::Paths;
 use rmcp::model::ErrorData;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::collections::HashSet;
 use std::fs;
 use std::path::PathBuf;
 use tokio_util::sync::CancellationToken;
@@ -18,7 +14,6 @@ use utoipa::ToSchema;
 
 pub use resource::{CspMetadata, McpAppResource, ResourceMetadata, UiMetadata};
 
-/// GooseApp represents an app that can be launched in a standalone window
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct GooseApp {
@@ -49,17 +44,12 @@ impl McpAppCache {
         Ok(Self { cache_dir })
     }
 
-    /// Get the cache key for an app (extension_name + resource_uri)
     fn cache_key(extension_name: &str, resource_uri: &str) -> String {
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
-
-        let mut hasher = DefaultHasher::new();
-        format!("{}::{}", extension_name, resource_uri).hash(&mut hasher);
-        format!("{}_{:x}", extension_name, hasher.finish())
+        let input = format!("{}::{}", extension_name, resource_uri);
+        let hash = Sha256::digest(input.as_bytes());
+        format!("{}_{:x}", extension_name, hash)
     }
 
-    /// List all cached apps
     pub fn list_cached_apps(&self) -> Result<Vec<GooseApp>, std::io::Error> {
         let mut apps = Vec::new();
 
@@ -85,7 +75,6 @@ impl McpAppCache {
         Ok(apps)
     }
 
-    /// Cache an app to disk
     pub fn cache_app(&self, app: &GooseApp) -> Result<(), std::io::Error> {
         fs::create_dir_all(&self.cache_dir)?;
 
@@ -99,7 +88,6 @@ impl McpAppCache {
         Ok(())
     }
 
-    /// Get a cached app by extension name and resource URI
     pub fn get_cached_app(&self, extension_name: &str, resource_uri: &str) -> Option<GooseApp> {
         let cache_key = Self::cache_key(extension_name, resource_uri);
         let app_path = self.cache_dir.join(format!("{}.json", cache_key));
@@ -112,16 +100,42 @@ impl McpAppCache {
             .ok()
             .and_then(|content| serde_json::from_str::<GooseApp>(&content).ok())
     }
+
+    pub fn delete_extension_apps(&self, extension_name: &str) -> Result<usize, std::io::Error> {
+        let mut deleted_count = 0;
+
+        if !self.cache_dir.exists() {
+            return Ok(0);
+        }
+
+        for entry in fs::read_dir(&self.cache_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+
+            if path.extension().and_then(|s| s.to_str()) == Some("json") {
+                // Read the cached app to check its extension
+                if let Ok(content) = fs::read_to_string(&path) {
+                    if let Ok(app) = serde_json::from_str::<GooseApp>(&content) {
+                        if app.mcp_server.as_deref() == Some(extension_name) {
+                            if fs::remove_file(&path).is_ok() {
+                                deleted_count += 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(deleted_count)
+    }
 }
 
-/// List all MCP apps from loaded extensions
 pub async fn list_mcp_apps(
     extension_manager: &ExtensionManager,
 ) -> Result<Vec<GooseApp>, ErrorData> {
     list_mcp_apps_with_cache(extension_manager, None).await
 }
 
-/// List all MCP apps from loaded extensions, optionally caching them
 pub async fn list_mcp_apps_with_cache(
     extension_manager: &ExtensionManager,
     cache: Option<&McpAppCache>,
@@ -129,6 +143,22 @@ pub async fn list_mcp_apps_with_cache(
     let mut apps = Vec::new();
 
     let ui_resources = extension_manager.get_ui_resources().await?;
+
+    if let Some(cache) = cache {
+        let active_extensions: HashSet<String> = ui_resources
+            .iter()
+            .map(|(ext_name, _)| ext_name.clone())
+            .collect();
+
+        for extension_name in active_extensions {
+            if let Err(e) = cache.delete_extension_apps(&extension_name) {
+                warn!(
+                    "Failed to clean cache for extension {}: {}",
+                    extension_name, e
+                );
+            }
+        }
+    }
 
     for (extension_name, resource) in ui_resources {
         match extension_manager
