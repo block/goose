@@ -253,12 +253,9 @@ impl CliSession {
         &self.session_id
     }
 
-    /// Add a stdio extension to the session
-    ///
-    /// # Arguments
-    /// * `extension_command` - Full command string including environment variables
-    ///   Format: "ENV1=val1 ENV2=val2 command args..."
-    pub async fn add_extension(&mut self, extension_command: String) -> Result<()> {
+    /// Parse a stdio extension command string into an ExtensionConfig
+    /// Format: "ENV1=val1 ENV2=val2 command args..."
+    pub fn parse_stdio_extension(extension_command: &str) -> Result<ExtensionConfig> {
         let mut parts: Vec<&str> = extension_command.split_whitespace().collect();
         let mut envs = HashMap::new();
 
@@ -277,28 +274,88 @@ impl CliSession {
 
         let cmd = parts.remove(0).to_string();
 
-        let config = ExtensionConfig::Stdio {
+        Ok(ExtensionConfig::Stdio {
             name: String::new(),
             cmd,
             args: parts.iter().map(|s| s.to_string()).collect(),
             envs: Envs::new(envs),
             env_keys: Vec::new(),
             description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
-            // TODO: should set timeout
             timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
             bundled: None,
             available_tools: Vec::new(),
-        };
+        })
+    }
 
+    /// Parse a streamable HTTP extension URL into an ExtensionConfig
+    pub fn parse_streamable_http_extension(extension_url: &str) -> ExtensionConfig {
+        ExtensionConfig::StreamableHttp {
+            name: String::new(),
+            uri: extension_url.to_string(),
+            envs: Envs::new(HashMap::new()),
+            env_keys: Vec::new(),
+            headers: HashMap::new(),
+            description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
+            timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
+            bundled: None,
+            available_tools: Vec::new(),
+        }
+    }
+
+    /// Parse builtin extension names (comma-separated) into ExtensionConfigs
+    pub fn parse_builtin_extensions(builtin_name: &str) -> Vec<ExtensionConfig> {
+        builtin_name
+            .split(',')
+            .map(|name| {
+                let extension_name = name.trim();
+                if PLATFORM_EXTENSIONS.contains_key(extension_name) {
+                    ExtensionConfig::Platform {
+                        name: extension_name.to_string(),
+                        bundled: None,
+                        description: extension_name.to_string(),
+                        available_tools: Vec::new(),
+                    }
+                } else {
+                    ExtensionConfig::Builtin {
+                        name: extension_name.to_string(),
+                        display_name: None,
+                        timeout: None,
+                        bundled: None,
+                        description: extension_name.to_string(),
+                        available_tools: Vec::new(),
+                    }
+                }
+            })
+            .collect()
+    }
+
+    /// Add extension config, persist to session, and invalidate cache
+    async fn add_and_persist_extension(&mut self, config: ExtensionConfig) -> Result<()> {
         self.agent
             .add_extension(config)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to start extension: {}", e))?;
 
+        // Save extension state to session (like Desktop)
+        self.agent
+            .persist_extension_state(&self.session_id)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to save extension state: {}", e))?;
+
         // Invalidate the completion cache when a new extension is added
         self.invalidate_completion_cache().await;
 
         Ok(())
+    }
+
+    /// Add a stdio extension to the session
+    ///
+    /// # Arguments
+    /// * `extension_command` - Full command string including environment variables
+    ///   Format: "ENV1=val1 ENV2=val2 command args..."
+    pub async fn add_extension(&mut self, extension_command: String) -> Result<()> {
+        let config = Self::parse_stdio_extension(&extension_command)?;
+        self.add_and_persist_extension(config).await
     }
 
     /// Add a streamable HTTP extension to the session
@@ -306,28 +363,8 @@ impl CliSession {
     /// # Arguments
     /// * `extension_url` - URL of the server
     pub async fn add_streamable_http_extension(&mut self, extension_url: String) -> Result<()> {
-        let config = ExtensionConfig::StreamableHttp {
-            name: String::new(),
-            uri: extension_url,
-            envs: Envs::new(HashMap::new()),
-            env_keys: Vec::new(),
-            headers: HashMap::new(),
-            description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
-            // TODO: should set timeout
-            timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
-            bundled: None,
-            available_tools: Vec::new(),
-        };
-
-        self.agent
-            .add_extension(config)
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to start extension: {}", e))?;
-
-        // Invalidate the completion cache when a new extension is added
-        self.invalidate_completion_cache().await;
-
-        Ok(())
+        let config = Self::parse_streamable_http_extension(&extension_url);
+        self.add_and_persist_extension(config).await
     }
 
     /// Add a builtin extension to the session
@@ -335,33 +372,19 @@ impl CliSession {
     /// # Arguments
     /// * `builtin_name` - Name of the builtin extension(s), comma separated
     pub async fn add_builtin(&mut self, builtin_name: String) -> Result<()> {
-        for name in builtin_name.split(',') {
-            let extension_name = name.trim();
-
-            let config = if PLATFORM_EXTENSIONS.contains_key(extension_name) {
-                ExtensionConfig::Platform {
-                    name: extension_name.to_string(),
-                    bundled: None,
-                    description: name.to_string(),
-                    available_tools: Vec::new(),
-                }
-            } else {
-                ExtensionConfig::Builtin {
-                    name: extension_name.to_string(),
-                    display_name: None,
-                    timeout: None,
-                    bundled: None,
-                    description: name.to_string(),
-                    available_tools: Vec::new(),
-                }
-            };
+        for config in Self::parse_builtin_extensions(&builtin_name) {
             self.agent
                 .add_extension(config)
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to start builtin extension: {}", e))?;
         }
 
-        // Invalidate the completion cache when a new extension is added
+        // Save once after all builtins are added
+        self.agent
+            .persist_extension_state(&self.session_id)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to save extension state: {}", e))?;
+
         self.invalidate_completion_cache().await;
 
         Ok(())
