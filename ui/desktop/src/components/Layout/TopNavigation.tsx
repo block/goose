@@ -480,7 +480,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
     ? 'w-full h-full flex items-center justify-center overflow-hidden' // Always centered for overlay mode
     : isVertical
       ? 'h-full'
-      : 'w-full overflow-hidden';
+      : 'w-full overflow-y-auto'; // Enable vertical scrolling for horizontal push mode
 
   return (
     <div className={`${isOverlayMode ? 'bg-transparent' : 'bg-background-muted'} ${containerClasses} relative z-[9998]`}>
