@@ -1086,7 +1086,11 @@ impl ExtensionManager {
             self.get_client_for_tool(&tool_call.name)
                 .await
                 .ok_or_else(|| {
-                    ErrorData::new(ErrorCode::RESOURCE_NOT_FOUND, tool_call.name.clone(), None)
+                    ErrorData::new(
+                        ErrorCode::RESOURCE_NOT_FOUND,
+                        format!("Tool '{}' not found", tool_call.name),
+                        None,
+                    )
                 })?;
 
         // rsplit returns the iterator in reverse, tool_name is then at 0
@@ -1095,7 +1099,11 @@ impl ExtensionManager {
             .strip_prefix(client_name.as_str())
             .and_then(|s| s.strip_prefix("__"))
             .ok_or_else(|| {
-                ErrorData::new(ErrorCode::RESOURCE_NOT_FOUND, tool_call.name.clone(), None)
+                ErrorData::new(
+                    ErrorCode::RESOURCE_NOT_FOUND,
+                    format!("Invalid tool name format: '{}'", tool_call.name),
+                    None,
+                )
             })?
             .to_string();
 
