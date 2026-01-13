@@ -17,7 +17,7 @@ In this tutorial, you will build an MCP App using JavaScript and Node.js. The ap
 
 :::info Prerequisites
 - Node.js 18+ installed
-- goose Desktop application
+- goose Desktop 1.19.1+ installed
 :::
 
 ---
@@ -61,6 +61,9 @@ Update your `package.json` to use ES modules by adding `"type": "module"`:
 ## Step 2: Create the MCP Server
 
 Create `server.js` - this is the MCP server that loads and serves your HTML:
+
+<details>
+<summary>server.js</summary>
 
 ```javascript
 #!/usr/bin/env node
@@ -126,7 +129,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       ],
       // This metadata tells goose to render the MCP App
       _meta: {
-        "ui/resourceUri": "ui://mcp-app-demo/main",
+        ui: {
+          resourceUri: "ui://mcp-app-demo/main",
+        },
       },
     };
   }
@@ -185,6 +190,8 @@ async function main() {
 
 main().catch(console.error);
 ```
+
+</details>
 
 ---
 

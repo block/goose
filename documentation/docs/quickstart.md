@@ -186,25 +186,31 @@ goose works with [supported LLM providers](/docs/getting-started/providers) that
    ◆  Provider Tetrate Agent Router Service requires TETRATE_API_KEY, please enter a value
    │  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
    └  
-    ```
-    5. Select or search for the model you want to use.
-    ```
-    │
-    ◇  Model fetch complete
-    │
-    ◆  Select a model:
-    │  ○ Search all models...
-    │  ○ gemini-2.5-pro
-    │  ○ gemini-2.0-flash
-    |  ○ gemini-2.0-flash-lite
-    │  ● gpt-5 (Recommended)
-    |  ○ gpt-5-mini
-    |  ○ gpt-5-nano
-    |  ○ gpt-4.1
-    │
-    ◓  Checking your configuration...
-    └  Configuration saved successfully
-    ```
+   ```
+    :::tip GitHub Copilot Authentication
+    GitHub Copilot doesn't use an API key. Instead, an authentication code is generated during configuration. To generate the code, select `GitHub Copilot` as your provider. An auth code will be copied to your clipboard, and a browser window will open where you can paste it to complete authentication.
+
+    For more details, see [GitHub Copilot Authentication](/docs/getting-started/providers#github-copilot-authentication).
+    :::
+
+   5. Select or search for the model you want to use.
+   ```
+   │
+   ◇  Model fetch complete
+   │
+   ◆  Select a model:
+   │  ○ Search all models...
+   │  ○ gemini-2.5-pro
+   │  ○ gemini-2.0-flash
+   |  ○ gemini-2.0-flash-lite
+   │  ● gpt-5 (Recommended)
+   |  ○ gpt-5-mini
+   |  ○ gpt-5-nano
+   |  ○ gpt-4.1
+   │
+   ◓  Checking your configuration...
+   └  Configuration saved successfully
+   ```
   </TabItem>
 </Tabs>
 

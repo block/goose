@@ -20,6 +20,7 @@ import {
   NotificationEvent,
 } from '../types/message';
 import { errorMessage } from '../utils/conversionUtils';
+import { showExtensionLoadResults } from '../utils/extensionErrorUtils';
 
 const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
 
@@ -33,6 +34,7 @@ interface UseChatStreamReturn {
   session?: Session;
   messages: Message[];
   chatState: ChatState;
+  setChatState: (state: ChatState) => void;
   handleSubmit: (userMessage: string) => Promise<void>;
   submitElicitationResponse: (
     elicitationId: string,
@@ -168,6 +170,7 @@ export function useChatStream({
   });
   const [notifications, setNotifications] = useState<NotificationEvent[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const lastInteractionTimeRef = useRef<number>(Date.now());
 
   useEffect(() => {
     if (session) {
@@ -188,6 +191,14 @@ export function useChatStream({
     async (error?: string): Promise<void> => {
       if (error) {
         setSessionLoadError(error);
+      }
+
+      const timeSinceLastInteraction = Date.now() - lastInteractionTimeRef.current;
+      if (!error && timeSinceLastInteraction > 60000) {
+        window.electron.showNotification({
+          title: 'goose finished the task.',
+          body: 'Click here to expand.',
+        });
       }
 
       const isNewSession = sessionId && sessionId.match(/^\d{8}_\d{6}$/);
@@ -221,6 +232,7 @@ export function useChatStream({
         accumulatedTotalTokens: cached.session?.accumulated_total_tokens ?? 0,
       });
       setChatState(ChatState.Idle);
+      onSessionLoaded?.();
       return;
     }
 
@@ -246,16 +258,20 @@ export function useChatStream({
           return;
         }
 
-        const session = response.data;
-        setSession(session);
-        updateMessages(session?.conversation || []);
+        const resumeData = response.data;
+        const loadedSession = resumeData?.session;
+        const extensionResults = resumeData?.extension_results;
+
+        showExtensionLoadResults(extensionResults);
+        setSession(loadedSession);
+        updateMessages(loadedSession?.conversation || []);
         setTokenState({
-          inputTokens: session?.input_tokens ?? 0,
-          outputTokens: session?.output_tokens ?? 0,
-          totalTokens: session?.total_tokens ?? 0,
-          accumulatedInputTokens: session?.accumulated_input_tokens ?? 0,
-          accumulatedOutputTokens: session?.accumulated_output_tokens ?? 0,
-          accumulatedTotalTokens: session?.accumulated_total_tokens ?? 0,
+          inputTokens: loadedSession?.input_tokens ?? 0,
+          outputTokens: loadedSession?.output_tokens ?? 0,
+          totalTokens: loadedSession?.total_tokens ?? 0,
+          accumulatedInputTokens: loadedSession?.accumulated_input_tokens ?? 0,
+          accumulatedOutputTokens: loadedSession?.accumulated_output_tokens ?? 0,
+          accumulatedTotalTokens: loadedSession?.accumulated_total_tokens ?? 0,
         });
         setChatState(ChatState.Idle);
         onSessionLoaded?.();
@@ -286,6 +302,8 @@ export function useChatStream({
       if (!hasNewMessage && !hasExistingMessages) {
         return;
       }
+
+      lastInteractionTimeRef.current = Date.now();
 
       // Emit session-created event for first message in a new session
       if (!hasExistingMessages && hasNewMessage) {
@@ -344,6 +362,8 @@ export function useChatStream({
       if (!session || chatState === ChatState.LoadingConversation) {
         return;
       }
+
+      lastInteractionTimeRef.current = Date.now();
 
       const responseMessage = createElicitationResponseMessage(elicitationId, userData);
       const currentMessages = [...messagesRef.current, responseMessage];
@@ -424,6 +444,7 @@ export function useChatStream({
   const stopStreaming = useCallback(() => {
     abortControllerRef.current?.abort();
     setChatState(ChatState.Idle);
+    lastInteractionTimeRef.current = Date.now();
   }, []);
 
   const onMessageUpdate = useCallback(
@@ -507,6 +528,7 @@ export function useChatStream({
     messages: maybe_cached_messages,
     session: maybe_cached_session,
     chatState,
+    setChatState,
     handleSubmit,
     submitElicitationResponse,
     stopStreaming,

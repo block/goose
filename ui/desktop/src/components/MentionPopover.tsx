@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { ItemIcon } from './ItemIcon';
 import { CommandType, getSlashCommands } from '../api';
+import { getInitialWorkingDir } from '../utils/workingDir';
 
 type DisplayItemType = CommandType | 'Directory' | 'File';
 
@@ -41,6 +42,7 @@ interface MentionPopoverProps {
   isSlashCommand: boolean;
   selectedIndex: number;
   onSelectedIndexChange: (index: number) => void;
+  workingDir?: string;
 }
 
 // Enhanced fuzzy matching algorithm
@@ -121,6 +123,7 @@ const MentionPopover = forwardRef<
       isSlashCommand,
       selectedIndex,
       onSelectedIndexChange,
+      workingDir,
     },
     ref
   ) => {
@@ -128,8 +131,7 @@ const MentionPopover = forwardRef<
     const [isLoading, setIsLoading] = useState(false);
     const popoverRef = useRef<HTMLDivElement>(null);
     const listRef = useRef<HTMLDivElement>(null);
-
-    const currentWorkingDir = window.appConfig.get('GOOSE_WORKING_DIR') as string;
+    const currentWorkingDir = workingDir ?? getInitialWorkingDir();
 
     const scanDirectoryFromRoot = useCallback(
       async (dirPath: string, relativePath = '', depth = 0): Promise<DisplayItem[]> => {
@@ -158,8 +160,6 @@ const MentionPopover = forwardRef<
             '.hg',
             'node_modules',
             '__pycache__',
-            '.vscode',
-            '.idea',
             'target',
             'dist',
             'build',
@@ -170,6 +170,17 @@ const MentionPopover = forwardRef<
             'System',
             'Applications',
             '.Trash',
+          ];
+
+          const allowedHiddenDirs = [
+            '.github',
+            '.vscode',
+            '.idea',
+            '.config',
+            '.gitlab',
+            '.circleci',
+            '.azure',
+            '.jenkins',
           ];
 
           // Don't skip as many directories at deeper levels to find more items
@@ -192,8 +203,13 @@ const MentionPopover = forwardRef<
             const fullPath = `${dirPath}/${item}`;
             const itemRelativePath = relativePath ? `${relativePath}/${item}` : item;
 
-            // Skip hidden items and common ignore patterns
-            if (item.startsWith('.') || skipDirsAtDepth.includes(item)) {
+            // Skip items in the skip list
+            if (skipDirsAtDepth.includes(item)) {
+              continue;
+            }
+
+            // Skip hidden items except for allowed hidden directories
+            if (item.startsWith('.') && !allowedHiddenDirs.includes(item)) {
               continue;
             }
 

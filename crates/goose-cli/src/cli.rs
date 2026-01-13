@@ -854,6 +854,9 @@ enum Command {
     Completion {
         #[arg(value_enum)]
         shell: ClapShell,
+
+        #[arg(long, default_value = "goose", help = "Provide a custom binary name")]
+        bin_name: String,
     },
 }
 
@@ -1438,9 +1441,8 @@ pub async fn cli() -> anyhow::Result<()> {
     );
 
     match cli.command {
-        Some(Command::Completion { shell }) => {
+        Some(Command::Completion { shell, bin_name }) => {
             let mut cmd = Cli::command();
-            let bin_name = cmd.get_name().to_string();
             generate(shell, &mut cmd, bin_name, &mut std::io::stdout());
             Ok(())
         }

@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { getInitialWorkingDir } from '../utils/workingDir';
 
 export default function LauncherView() {
   const [query, setQuery] = useState('');
@@ -7,11 +8,8 @@ export default function LauncherView() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (query.trim()) {
-      // Create a new chat window with the query
-      const workingDir = window.appConfig?.get('GOOSE_WORKING_DIR') as string;
-      window.electron.createChatWindow(query, workingDir);
+      window.electron.createChatWindow(query, getInitialWorkingDir());
       setQuery('');
-      // Don't manually close - the blur handler will close the launcher when the new window takes focus
     }
   };
 

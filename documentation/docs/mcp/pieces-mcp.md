@@ -19,40 +19,22 @@ This tutorial covers how to add the [Pieces for Developers MCP Server](https://d
 
 2. Enable [Long-Term Memory Context](https://docs.pieces.app/products/quick-guides/ltm-context) in PiecesOS
 
-3. Locate your MCP Server URL
-   - In PiecesOS, navigate to Settings > Model Context Protocol (MCP)
-   - Copy the server URL
-
-:::tip
-The default server URL is shown below. PiecesOS may use a different port if 39300 is already in use on your system:
-
-```
-http://localhost:39300/model_context_protocol/2024-11-05/sse
-```
-:::
-
-### Add Pieces MCP Server
-
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
   <GooseDesktopInstaller
     extensionId="pieces"
     extensionName="Pieces for Developers"
     description="Provides access to your Pieces Long-Term Memory. You need to have Pieces installed to use this."
-    url="http://localhost:39300/model_context_protocol/2024-11-05/sse"
+    command="uvx"
+    args={["--from", "pieces-cli", "pieces", "--ignore-onboarding", "mcp", "start"]}
   />
   </TabItem>
   <TabItem value="cli" label="goose CLI">
     <CLIExtensionInstructions
       name="Pieces"
       description="Provides access to your Pieces Long-Term Memory"
-      type="sse"
-      url="http://localhost:39300/model_context_protocol/2024-11-05/sse"
-      commandNote={
-        <>
-          Use the server URL you copied from PiecesOS settings. PiecesOS may use a different port if 39300 is already in use on your system.
-        </>
-      }
+      type="stdio"
+      command="uvx --from pieces-cli pieces --ignore-onboarding mcp start"
     />
   </TabItem>
 </Tabs>
@@ -74,7 +56,7 @@ Here's a report summarizing your key activities from yesterday, based on the mos
 
 1. Code Development with goose:
 
-    Activity: You worked on integrating SSE MCP servers into the goose CLI, making enhancements to handle extensions via schema URLs.
+    Activity: You worked on integrating MCP servers into the goose CLI, making enhancements to handle extensions via schema URLs.
     Description: This task involved modifying code and testing new integrations to support advanced functionalities. It also included interactions with the goose community on Discord for feedback and troubleshooting.
 
 2. Documentation Updates:
@@ -96,7 +78,7 @@ Here's a report summarizing your key activities from yesterday, based on the mos
 
     Activity: Planned integration workflows for MCP and documented their use cases.
     Description: You worked on strategies for implementing MCP integrations effectively, involving planning sessions to optimize future project deployments and align them with user requirements and project objectives.
-    
+
 These activities demonstrate a productive day with a focus on development, collaboration, and content management within your technical community.
 ```
 

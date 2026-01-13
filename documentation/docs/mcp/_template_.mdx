@@ -70,13 +70,13 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
       apiKeyLinkText="Service Access Token"
     />
 
-    <!-- For external SSE or HTTP MCP servers -->
+    <!-- For HTTP MCP servers -->
     <GooseDesktopInstaller
       extensionId="{extension_id}"
       extensionName="{Extension Name}"
       description="{Extension description}"
-      type="sse"                                    // or "http"
-      url="https://example-server.com/endpoint"
+      type="http"
+      url="https://example-server.com/mcp"
       envVars={[                                    // also used for http request headers
         { name: "SOME_KEY", label: "Description or placeholder value" }
       ]}
@@ -107,12 +107,12 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
       }
     />
 
-    <!-- For external SSE or HTTP MCP servers -->
+    <!-- For HTTP MCP servers -->
     <CLIExtensionInstructions
       name="{Extension Name}"
       description="{Extension description}"
-      type="sse"                                    // or "http"
-      url="https://example-server.com/endpoint"
+      type="http"
+      url="https://example-server.com/mcp"
       timeout={300}
       envVars={[                                    // also used for http request headers
         { key: "API_KEY", value: "▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪" }

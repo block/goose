@@ -20,16 +20,20 @@ impl Agent {
         arguments: serde_json::Value,
         _request_id: String,
     ) -> ToolResult<Vec<Content>> {
-        let scheduler = match self.scheduler_service.lock().await.as_ref() {
-            Some(s) => s.clone(),
-            None => {
-                return Err(ErrorData::new(
+        let scheduler = self
+            .scheduler_service
+            .lock()
+            .await
+            .as_ref()
+            .ok_or_else(|| {
+                ErrorData::new(
                     ErrorCode::INTERNAL_ERROR,
-                    "Scheduler not available. This tool only works in server mode.".to_string(),
+                    "Scheduler service should be available when schedule tool is called"
+                        .to_string(),
                     None,
-                ))
-            }
-        };
+                )
+            })?
+            .clone();
 
         let action = arguments
             .get("action")

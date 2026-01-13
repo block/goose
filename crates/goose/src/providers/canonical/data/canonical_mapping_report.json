@@ -1,6 +1,122 @@
 {
-  "timestamp": "2026-01-06T00:31:30.015565735+00:00",
+  "timestamp": "2026-01-08T18:28:52.658440+00:00",
   "unmapped_models": [
+    {
+      "provider": "google",
+      "model": "aqa"
+    },
+    {
+      "provider": "google",
+      "model": "deep-research-pro-preview-12-2025"
+    },
+    {
+      "provider": "google",
+      "model": "embedding-001"
+    },
+    {
+      "provider": "google",
+      "model": "embedding-gecko-001"
+    },
+    {
+      "provider": "google",
+      "model": "gemini-2.0-flash-exp-image-generation"
+    },
+    {
+      "provider": "google",
+      "model": "gemini-2.5-computer-use-preview-10-2025"
+    },
+    {
+      "provider": "google",
+      "model": "gemini-2.5-flash-preview-tts"
+    },
+    {
+      "provider": "google",
+      "model": "gemini-2.5-pro-preview-tts"
+    },
+    {
+      "provider": "google",
+      "model": "gemini-embedding-001"
+    },
+    {
+      "provider": "google",
+      "model": "gemini-embedding-exp"
+    },
+    {
+      "provider": "google",
+      "model": "gemini-embedding-exp-03-07"
+    },
+    {
+      "provider": "google",
+      "model": "gemini-exp-1206"
+    },
+    {
+      "provider": "google",
+      "model": "gemini-flash-latest"
+    },
+    {
+      "provider": "google",
+      "model": "gemini-flash-lite-latest"
+    },
+    {
+      "provider": "google",
+      "model": "gemini-pro-latest"
+    },
+    {
+      "provider": "google",
+      "model": "gemini-robotics-er-1.5-preview"
+    },
+    {
+      "provider": "google",
+      "model": "gemma-3-1b-it"
+    },
+    {
+      "provider": "google",
+      "model": "gemma-3n-e2b-it"
+    },
+    {
+      "provider": "google",
+      "model": "imagen-4.0-fast-generate-001"
+    },
+    {
+      "provider": "google",
+      "model": "imagen-4.0-generate-001"
+    },
+    {
+      "provider": "google",
+      "model": "imagen-4.0-generate-preview-06-06"
+    },
+    {
+      "provider": "google",
+      "model": "imagen-4.0-ultra-generate-001"
+    },
+    {
+      "provider": "google",
+      "model": "imagen-4.0-ultra-generate-preview-06-06"
+    },
+    {
+      "provider": "google",
+      "model": "nano-banana-pro-preview"
+    },
+    {
+      "provider": "google",
+      "model": "text-embedding-004"
+    },
+    {
+      "provider": "google",
+      "model": "veo-2.0-generate-001"
+    },
+    {
+      "provider": "google",
+      "model": "veo-3.0-fast-generate-001"
+    },
+    {
+      "provider": "google",
+      "model": "veo-3.0-generate-001"
+    },
+    {
+      "provider": "google",
+      "model": "veo-3.1-generate-preview"
+    },
     {
       "provider": "openai",
       "model": "ada:ft-square-2023-01-20-06-09-37"
@@ -2307,6 +2423,10 @@
     },
     {
       "provider": "openrouter",
+      "model": "allenai/olmo-3.1-32b-instruct"
+    },
+    {
+      "provider": "openrouter",
       "model": "amazon/nova-2-lite-v1"
     },
     {
@@ -2392,18 +2512,6 @@
     {
       "provider": "openrouter",
       "model": "meta-llama/llama-3.3-70b-instruct:free"
-    },
-    {
-      "provider": "openrouter",
-      "model": "microsoft/phi-3-medium-128k-instruct"
-    },
-    {
-      "provider": "openrouter",
-      "model": "microsoft/phi-3-mini-128k-instruct"
-    },
-    {
-      "provider": "openrouter",
-      "model": "microsoft/phi-3.5-mini-128k-instruct"
     },
     {
       "provider": "openrouter",
@@ -2588,122 +2696,6 @@
     {
       "provider": "openrouter",
       "model": "z-ai/glm-4.7"
-    },
-    {
-      "provider": "google",
-      "model": "aqa"
-    },
-    {
-      "provider": "google",
-      "model": "deep-research-pro-preview-12-2025"
-    },
-    {
-      "provider": "google",
-      "model": "embedding-001"
-    },
-    {
-      "provider": "google",
-      "model": "embedding-gecko-001"
-    },
-    {
-      "provider": "google",
-      "model": "gemini-2.0-flash-exp-image-generation"
-    },
-    {
-      "provider": "google",
-      "model": "gemini-2.5-computer-use-preview-10-2025"
-    },
-    {
-      "provider": "google",
-      "model": "gemini-2.5-flash-preview-tts"
-    },
-    {
-      "provider": "google",
-      "model": "gemini-2.5-pro-preview-tts"
-    },
-    {
-      "provider": "google",
-      "model": "gemini-embedding-001"
-    },
-    {
-      "provider": "google",
-      "model": "gemini-embedding-exp"
-    },
-    {
-      "provider": "google",
-      "model": "gemini-embedding-exp-03-07"
-    },
-    {
-      "provider": "google",
-      "model": "gemini-exp-1206"
-    },
-    {
-      "provider": "google",
-      "model": "gemini-flash-latest"
-    },
-    {
-      "provider": "google",
-      "model": "gemini-flash-lite-latest"
-    },
-    {
-      "provider": "google",
-      "model": "gemini-pro-latest"
-    },
-    {
-      "provider": "google",
-      "model": "gemini-robotics-er-1.5-preview"
-    },
-    {
-      "provider": "google",
-      "model": "gemma-3-1b-it"
-    },
-    {
-      "provider": "google",
-      "model": "gemma-3n-e2b-it"
-    },
-    {
-      "provider": "google",
-      "model": "imagen-4.0-fast-generate-001"
-    },
-    {
-      "provider": "google",
-      "model": "imagen-4.0-generate-001"
-    },
-    {
-      "provider": "google",
-      "model": "imagen-4.0-generate-preview-06-06"
-    },
-    {
-      "provider": "google",
-      "model": "imagen-4.0-ultra-generate-001"
-    },
-    {
-      "provider": "google",
-      "model": "imagen-4.0-ultra-generate-preview-06-06"
-    },
-    {
-      "provider": "google",
-      "model": "nano-banana-pro-preview"
-    },
-    {
-      "provider": "google",
-      "model": "text-embedding-004"
-    },
-    {
-      "provider": "google",
-      "model": "veo-2.0-generate-001"
-    },
-    {
-      "provider": "google",
-      "model": "veo-3.0-fast-generate-001"
-    },
-    {
-      "provider": "google",
-      "model": "veo-3.0-generate-001"
-    },
-    {
-      "provider": "google",
-      "model": "veo-3.1-generate-preview"
     }
   ],
   "all_mappings": {
@@ -2743,6 +2735,382 @@
       {
         "provider_model": "claude-sonnet-4-5-20250929",
         "canonical_model": "anthropic/claude-sonnet-4.5"
+      }
+    ],
+    "google": [
+      {
+        "provider_model": "gemini-2.0-flash",
+        "canonical_model": "google/gemini-2.0-flash"
+      },
+      {
+        "provider_model": "gemini-2.0-flash-001",
+        "canonical_model": "google/gemini-2.0-flash"
+      },
+      {
+        "provider_model": "gemini-2.0-flash-exp",
+        "canonical_model": "google/gemini-2.0-flash"
+      },
+      {
+        "provider_model": "gemini-2.0-flash-lite",
+        "canonical_model": "google/gemini-2.0-flash-lite"
+      },
+      {
+        "provider_model": "gemini-2.0-flash-lite-001",
+        "canonical_model": "google/gemini-2.0-flash-lite"
+      },
+      {
+        "provider_model": "gemini-2.0-flash-lite-preview",
+        "canonical_model": "google/gemini-2.0-flash-lite"
+      },
+      {
+        "provider_model": "gemini-2.0-flash-lite-preview-02-05",
+        "canonical_model": "google/gemini-2.0-flash-lite"
+      },
+      {
+        "provider_model": "gemini-2.5-flash",
+        "canonical_model": "google/gemini-2.5-flash"
+      },
+      {
+        "provider_model": "gemini-2.5-flash-image",
+        "canonical_model": "google/gemini-2.5-flash-image"
+      },
+      {
+        "provider_model": "gemini-2.5-flash-image-preview",
+        "canonical_model": "google/gemini-2.5-flash-image"
+      },
+      {
+        "provider_model": "gemini-2.5-flash-lite",
+        "canonical_model": "google/gemini-2.5-flash-lite"
+      },
+      {
+        "provider_model": "gemini-2.5-flash-lite-preview-09-2025",
+        "canonical_model": "google/gemini-2.5-flash-lite"
+      },
+      {
+        "provider_model": "gemini-2.5-flash-preview-09-2025",
+        "canonical_model": "google/gemini-2.5-flash"
+      },
+      {
+        "provider_model": "gemini-2.5-pro",
+        "canonical_model": "google/gemini-2.5-pro"
+      },
+      {
+        "provider_model": "gemini-3-flash-preview",
+        "canonical_model": "google/gemini-3-flash"
+      },
+      {
+        "provider_model": "gemini-3-pro-image-preview",
+        "canonical_model": "google/gemini-3-pro-image"
+      },
+      {
+        "provider_model": "gemini-3-pro-preview",
+        "canonical_model": "google/gemini-3-pro"
+      },
+      {
+        "provider_model": "gemma-3-12b-it",
+        "canonical_model": "google/gemma-3-12b-it"
+      },
+      {
+        "provider_model": "gemma-3-27b-it",
+        "canonical_model": "google/gemma-3-27b-it"
+      },
+      {
+        "provider_model": "gemma-3-4b-it",
+        "canonical_model": "google/gemma-3-4b-it"
+      },
+      {
+        "provider_model": "gemma-3n-e4b-it",
+        "canonical_model": "google/gemma-3n-e4b-it"
+      }
+    ],
+    "openai": [
+      {
+        "provider_model": "chatgpt-4o-latest",
+        "canonical_model": "openai/chatgpt-4o"
+      },
+      {
+        "provider_model": "codex-mini-latest",
+        "canonical_model": "openai/codex-mini"
+      },
+      {
+        "provider_model": "gpt-3.5-turbo",
+        "canonical_model": "openai/gpt-3.5-turbo"
+      },
+      {
+        "provider_model": "gpt-3.5-turbo-0125",
+        "canonical_model": "openai/gpt-3.5-turbo"
+      },
+      {
+        "provider_model": "gpt-3.5-turbo-1106",
+        "canonical_model": "openai/gpt-3.5-turbo"
+      },
+      {
+        "provider_model": "gpt-3.5-turbo-16k",
+        "canonical_model": "openai/gpt-3.5-turbo-16k"
+      },
+      {
+        "provider_model": "gpt-3.5-turbo-instruct",
+        "canonical_model": "openai/gpt-3.5-turbo-instruct"
+      },
+      {
+        "provider_model": "gpt-3.5-turbo-instruct-0914",
+        "canonical_model": "openai/gpt-3.5-turbo-instruct"
+      },
+      {
+        "provider_model": "gpt-4",
+        "canonical_model": "openai/gpt-4"
+      },
+      {
+        "provider_model": "gpt-4-0125-preview",
+        "canonical_model": "openai/gpt-4"
+      },
+      {
+        "provider_model": "gpt-4-0314",
+        "canonical_model": "openai/gpt-4"
+      },
+      {
+        "provider_model": "gpt-4-0613",
+        "canonical_model": "openai/gpt-4"
+      },
+      {
+        "provider_model": "gpt-4-1106-preview",
+        "canonical_model": "openai/gpt-4"
+      },
+      {
+        "provider_model": "gpt-4-turbo",
+        "canonical_model": "openai/gpt-4-turbo"
+      },
+      {
+        "provider_model": "gpt-4-turbo-2024-04-09",
+        "canonical_model": "openai/gpt-4-turbo"
+      },
+      {
+        "provider_model": "gpt-4-turbo-preview",
+        "canonical_model": "openai/gpt-4-turbo"
+      },
+      {
+        "provider_model": "gpt-4.1",
+        "canonical_model": "openai/gpt-4.1"
+      },
+      {
+        "provider_model": "gpt-4.1-2025-04-14",
+        "canonical_model": "openai/gpt-4.1"
+      },
+      {
+        "provider_model": "gpt-4.1-mini",
+        "canonical_model": "openai/gpt-4.1-mini"
+      },
+      {
+        "provider_model": "gpt-4.1-mini-2025-04-14",
+        "canonical_model": "openai/gpt-4.1-mini"
+      },
+      {
+        "provider_model": "gpt-4.1-nano",
+        "canonical_model": "openai/gpt-4.1-nano"
+      },
+      {
+        "provider_model": "gpt-4.1-nano-2025-04-14",
+        "canonical_model": "openai/gpt-4.1-nano"
+      },
+      {
+        "provider_model": "gpt-4o",
+        "canonical_model": "openai/gpt-4o"
+      },
+      {
+        "provider_model": "gpt-4o-2024-05-13",
+        "canonical_model": "openai/gpt-4o"
+      },
+      {
+        "provider_model": "gpt-4o-2024-08-06",
+        "canonical_model": "openai/gpt-4o"
+      },
+      {
+        "provider_model": "gpt-4o-2024-11-20",
+        "canonical_model": "openai/gpt-4o"
+      },
+      {
+        "provider_model": "gpt-4o-audio-preview",
+        "canonical_model": "openai/gpt-4o-audio"
+      },
+      {
+        "provider_model": "gpt-4o-audio-preview-2024-12-17",
+        "canonical_model": "openai/gpt-4o-audio"
+      },
+      {
+        "provider_model": "gpt-4o-audio-preview-2025-06-03",
+        "canonical_model": "openai/gpt-4o-audio"
+      },
+      {
+        "provider_model": "gpt-4o-mini",
+        "canonical_model": "openai/gpt-4o-mini"
+      },
+      {
+        "provider_model": "gpt-4o-mini-2024-07-18",
+        "canonical_model": "openai/gpt-4o-mini"
+      },
+      {
+        "provider_model": "gpt-4o-mini-search-preview",
+        "canonical_model": "openai/gpt-4o-mini-search"
+      },
+      {
+        "provider_model": "gpt-4o-mini-search-preview-2025-03-11",
+        "canonical_model": "openai/gpt-4o-mini-search"
+      },
+      {
+        "provider_model": "gpt-4o-search-preview",
+        "canonical_model": "openai/gpt-4o-search"
+      },
+      {
+        "provider_model": "gpt-4o-search-preview-2025-03-11",
+        "canonical_model": "openai/gpt-4o-search"
+      },
+      {
+        "provider_model": "gpt-5",
+        "canonical_model": "openai/gpt-5"
+      },
+      {
+        "provider_model": "gpt-5-2025-08-07",
+        "canonical_model": "openai/gpt-5"
+      },
+      {
+        "provider_model": "gpt-5-chat-latest",
+        "canonical_model": "openai/gpt-5-chat"
+      },
+      {
+        "provider_model": "gpt-5-codex",
+        "canonical_model": "openai/gpt-5-codex"
+      },
+      {
+        "provider_model": "gpt-5-mini",
+        "canonical_model": "openai/gpt-5-mini"
+      },
+      {
+        "provider_model": "gpt-5-mini-2025-08-07",
+        "canonical_model": "openai/gpt-5-mini"
+      },
+      {
+        "provider_model": "gpt-5-nano",
+        "canonical_model": "openai/gpt-5-nano"
+      },
+      {
+        "provider_model": "gpt-5-nano-2025-08-07",
+        "canonical_model": "openai/gpt-5-nano"
+      },
+      {
+        "provider_model": "gpt-5-pro",
+        "canonical_model": "openai/gpt-5-pro"
+      },
+      {
+        "provider_model": "gpt-5-pro-2025-10-06",
+        "canonical_model": "openai/gpt-5-pro"
+      },
+      {
+        "provider_model": "gpt-5.1",
+        "canonical_model": "openai/gpt-5.1"
+      },
+      {
+        "provider_model": "gpt-5.1-2025-11-13",
+        "canonical_model": "openai/gpt-5.1"
+      },
+      {
+        "provider_model": "gpt-5.1-chat-latest",
+        "canonical_model": "openai/gpt-5.1-chat"
+      },
+      {
+        "provider_model": "gpt-5.1-codex",
+        "canonical_model": "openai/gpt-5.1-codex"
+      },
+      {
+        "provider_model": "gpt-5.1-codex-max",
+        "canonical_model": "openai/gpt-5.1-codex-max"
+      },
+      {
+        "provider_model": "gpt-5.1-codex-mini",
+        "canonical_model": "openai/gpt-5.1-codex-mini"
+      },
+      {
+        "provider_model": "gpt-5.2",
+        "canonical_model": "openai/gpt-5.2"
+      },
+      {
+        "provider_model": "gpt-5.2-2025-12-11",
+        "canonical_model": "openai/gpt-5.2"
+      },
+      {
+        "provider_model": "gpt-5.2-chat-latest",
+        "canonical_model": "openai/gpt-5.2-chat"
+      },
+      {
+        "provider_model": "gpt-5.2-pro",
+        "canonical_model": "openai/gpt-5.2-pro"
+      },
+      {
+        "provider_model": "gpt-5.2-pro-2025-12-11",
+        "canonical_model": "openai/gpt-5.2-pro"
+      },
+      {
+        "provider_model": "o1",
+        "canonical_model": "openai/o1"
+      },
+      {
+        "provider_model": "o1-2024-12-17",
+        "canonical_model": "openai/o1"
+      },
+      {
+        "provider_model": "o1-pro",
+        "canonical_model": "openai/o1-pro"
+      },
+      {
+        "provider_model": "o1-pro-2025-03-19",
+        "canonical_model": "openai/o1-pro"
+      },
+      {
+        "provider_model": "o3",
+        "canonical_model": "openai/o3"
+      },
+      {
+        "provider_model": "o3-2025-04-16",
+        "canonical_model": "openai/o3"
+      },
+      {
+        "provider_model": "o3-deep-research",
+        "canonical_model": "openai/o3-deep-research"
+      },
+      {
+        "provider_model": "o3-deep-research-2025-06-26",
+        "canonical_model": "openai/o3-deep-research"
+      },
+      {
+        "provider_model": "o3-mini",
+        "canonical_model": "openai/o3-mini"
+      },
+      {
+        "provider_model": "o3-mini-2025-01-31",
+        "canonical_model": "openai/o3-mini"
+      },
+      {
+        "provider_model": "o3-pro",
+        "canonical_model": "openai/o3-pro"
+      },
+      {
+        "provider_model": "o3-pro-2025-06-10",
+        "canonical_model": "openai/o3-pro"
+      },
+      {
+        "provider_model": "o4-mini",
+        "canonical_model": "openai/o4-mini"
+      },
+      {
+        "provider_model": "o4-mini-2025-04-16",
+        "canonical_model": "openai/o4-mini"
+      },
+      {
+        "provider_model": "o4-mini-deep-research",
+        "canonical_model": "openai/o4-mini-deep-research"
+      },
+      {
+        "provider_model": "o4-mini-deep-research-2025-06-26",
+        "canonical_model": "openai/o4-mini-deep-research"
       }
     ],
     "openrouter": [
@@ -3387,386 +3755,30 @@
         "canonical_model": "x-ai/grok-code-fast-1"
       }
     ],
-    "openai": [
-      {
-        "provider_model": "chatgpt-4o-latest",
-        "canonical_model": "openai/chatgpt-4o"
-      },
-      {
-        "provider_model": "codex-mini-latest",
-        "canonical_model": "openai/codex-mini"
-      },
-      {
-        "provider_model": "gpt-3.5-turbo",
-        "canonical_model": "openai/gpt-3.5-turbo"
-      },
-      {
-        "provider_model": "gpt-3.5-turbo-0125",
-        "canonical_model": "openai/gpt-3.5-turbo"
-      },
-      {
-        "provider_model": "gpt-3.5-turbo-1106",
-        "canonical_model": "openai/gpt-3.5-turbo"
-      },
-      {
-        "provider_model": "gpt-3.5-turbo-16k",
-        "canonical_model": "openai/gpt-3.5-turbo-16k"
-      },
-      {
-        "provider_model": "gpt-3.5-turbo-instruct",
-        "canonical_model": "openai/gpt-3.5-turbo-instruct"
-      },
-      {
-        "provider_model": "gpt-3.5-turbo-instruct-0914",
-        "canonical_model": "openai/gpt-3.5-turbo-instruct"
-      },
-      {
-        "provider_model": "gpt-4",
-        "canonical_model": "openai/gpt-4"
-      },
-      {
-        "provider_model": "gpt-4-0125-preview",
-        "canonical_model": "openai/gpt-4"
-      },
-      {
-        "provider_model": "gpt-4-0314",
-        "canonical_model": "openai/gpt-4"
-      },
-      {
-        "provider_model": "gpt-4-0613",
-        "canonical_model": "openai/gpt-4"
-      },
-      {
-        "provider_model": "gpt-4-1106-preview",
-        "canonical_model": "openai/gpt-4"
-      },
-      {
-        "provider_model": "gpt-4-turbo",
-        "canonical_model": "openai/gpt-4-turbo"
-      },
-      {
-        "provider_model": "gpt-4-turbo-2024-04-09",
-        "canonical_model": "openai/gpt-4-turbo"
-      },
-      {
-        "provider_model": "gpt-4-turbo-preview",
-        "canonical_model": "openai/gpt-4-turbo"
-      },
-      {
-        "provider_model": "gpt-4.1",
-        "canonical_model": "openai/gpt-4.1"
-      },
-      {
-        "provider_model": "gpt-4.1-2025-04-14",
-        "canonical_model": "openai/gpt-4.1"
-      },
-      {
-        "provider_model": "gpt-4.1-mini",
-        "canonical_model": "openai/gpt-4.1-mini"
-      },
-      {
-        "provider_model": "gpt-4.1-mini-2025-04-14",
-        "canonical_model": "openai/gpt-4.1-mini"
-      },
-      {
-        "provider_model": "gpt-4.1-nano",
-        "canonical_model": "openai/gpt-4.1-nano"
-      },
-      {
-        "provider_model": "gpt-4.1-nano-2025-04-14",
-        "canonical_model": "openai/gpt-4.1-nano"
-      },
-      {
-        "provider_model": "gpt-4o",
-        "canonical_model": "openai/gpt-4o"
-      },
-      {
-        "provider_model": "gpt-4o-2024-05-13",
-        "canonical_model": "openai/gpt-4o"
-      },
-      {
-        "provider_model": "gpt-4o-2024-08-06",
-        "canonical_model": "openai/gpt-4o"
-      },
-      {
-        "provider_model": "gpt-4o-2024-11-20",
-        "canonical_model": "openai/gpt-4o"
-      },
-      {
-        "provider_model": "gpt-4o-audio-preview",
-        "canonical_model": "openai/gpt-4o-audio"
-      },
-      {
-        "provider_model": "gpt-4o-audio-preview-2024-12-17",
-        "canonical_model": "openai/gpt-4o-audio"
-      },
-      {
-        "provider_model": "gpt-4o-audio-preview-2025-06-03",
-        "canonical_model": "openai/gpt-4o-audio"
-      },
-      {
-        "provider_model": "gpt-4o-mini",
-        "canonical_model": "openai/gpt-4o-mini"
-      },
-      {
-        "provider_model": "gpt-4o-mini-2024-07-18",
-        "canonical_model": "openai/gpt-4o-mini"
-      },
-      {
-        "provider_model": "gpt-4o-mini-search-preview",
-        "canonical_model": "openai/gpt-4o-mini-search"
-      },
-      {
-        "provider_model": "gpt-4o-mini-search-preview-2025-03-11",
-        "canonical_model": "openai/gpt-4o-mini-search"
-      },
-      {
-        "provider_model": "gpt-4o-search-preview",
-        "canonical_model": "openai/gpt-4o-search"
-      },
-      {
-        "provider_model": "gpt-4o-search-preview-2025-03-11",
-        "canonical_model": "openai/gpt-4o-search"
-      },
-      {
-        "provider_model": "gpt-5",
-        "canonical_model": "openai/gpt-5"
-      },
-      {
-        "provider_model": "gpt-5-2025-08-07",
-        "canonical_model": "openai/gpt-5"
-      },
-      {
-        "provider_model": "gpt-5-chat-latest",
-        "canonical_model": "openai/gpt-5-chat"
-      },
-      {
-        "provider_model": "gpt-5-codex",
-        "canonical_model": "openai/gpt-5-codex"
-      },
-      {
-        "provider_model": "gpt-5-mini",
-        "canonical_model": "openai/gpt-5-mini"
-      },
-      {
-        "provider_model": "gpt-5-mini-2025-08-07",
-        "canonical_model": "openai/gpt-5-mini"
-      },
-      {
-        "provider_model": "gpt-5-nano",
-        "canonical_model": "openai/gpt-5-nano"
-      },
-      {
-        "provider_model": "gpt-5-nano-2025-08-07",
-        "canonical_model": "openai/gpt-5-nano"
-      },
-      {
-        "provider_model": "gpt-5-pro",
-        "canonical_model": "openai/gpt-5-pro"
-      },
-      {
-        "provider_model": "gpt-5-pro-2025-10-06",
-        "canonical_model": "openai/gpt-5-pro"
-      },
-      {
-        "provider_model": "gpt-5.1",
-        "canonical_model": "openai/gpt-5.1"
-      },
-      {
-        "provider_model": "gpt-5.1-2025-11-13",
-        "canonical_model": "openai/gpt-5.1"
-      },
-      {
-        "provider_model": "gpt-5.1-chat-latest",
-        "canonical_model": "openai/gpt-5.1-chat"
-      },
-      {
-        "provider_model": "gpt-5.1-codex",
-        "canonical_model": "openai/gpt-5.1-codex"
-      },
-      {
-        "provider_model": "gpt-5.1-codex-max",
-        "canonical_model": "openai/gpt-5.1-codex-max"
-      },
-      {
-        "provider_model": "gpt-5.1-codex-mini",
-        "canonical_model": "openai/gpt-5.1-codex-mini"
-      },
-      {
-        "provider_model": "gpt-5.2",
-        "canonical_model": "openai/gpt-5.2"
-      },
-      {
-        "provider_model": "gpt-5.2-2025-12-11",
-        "canonical_model": "openai/gpt-5.2"
-      },
-      {
-        "provider_model": "gpt-5.2-chat-latest",
-        "canonical_model": "openai/gpt-5.2-chat"
-      },
-      {
-        "provider_model": "gpt-5.2-pro",
-        "canonical_model": "openai/gpt-5.2-pro"
-      },
-      {
-        "provider_model": "gpt-5.2-pro-2025-12-11",
-        "canonical_model": "openai/gpt-5.2-pro"
-      },
-      {
-        "provider_model": "o1",
-        "canonical_model": "openai/o1"
-      },
-      {
-        "provider_model": "o1-2024-12-17",
-        "canonical_model": "openai/o1"
-      },
-      {
-        "provider_model": "o1-pro",
-        "canonical_model": "openai/o1-pro"
-      },
-      {
-        "provider_model": "o1-pro-2025-03-19",
-        "canonical_model": "openai/o1-pro"
-      },
-      {
-        "provider_model": "o3",
-        "canonical_model": "openai/o3"
-      },
-      {
-        "provider_model": "o3-2025-04-16",
-        "canonical_model": "openai/o3"
-      },
-      {
-        "provider_model": "o3-deep-research",
-        "canonical_model": "openai/o3-deep-research"
-      },
-      {
-        "provider_model": "o3-deep-research-2025-06-26",
-        "canonical_model": "openai/o3-deep-research"
-      },
-      {
-        "provider_model": "o3-mini",
-        "canonical_model": "openai/o3-mini"
-      },
-      {
-        "provider_model": "o3-mini-2025-01-31",
-        "canonical_model": "openai/o3-mini"
-      },
-      {
-        "provider_model": "o3-pro",
-        "canonical_model": "openai/o3-pro"
-      },
-      {
-        "provider_model": "o3-pro-2025-06-10",
-        "canonical_model": "openai/o3-pro"
-      },
-      {
-        "provider_model": "o4-mini",
-        "canonical_model": "openai/o4-mini"
-      },
-      {
-        "provider_model": "o4-mini-2025-04-16",
-        "canonical_model": "openai/o4-mini"
-      },
-      {
-        "provider_model": "o4-mini-deep-research",
-        "canonical_model": "openai/o4-mini-deep-research"
-      },
-      {
-        "provider_model": "o4-mini-deep-research-2025-06-26",
-        "canonical_model": "openai/o4-mini-deep-research"
-      }
-    ],
     "tetrate": [],
-    "xai": [],
-    "google": [
-      {
-        "provider_model": "gemini-2.0-flash",
-        "canonical_model": "google/gemini-2.0-flash"
-      },
-      {
-        "provider_model": "gemini-2.0-flash-001",
-        "canonical_model": "google/gemini-2.0-flash"
-      },
-      {
-        "provider_model": "gemini-2.0-flash-exp",
-        "canonical_model": "google/gemini-2.0-flash"
-      },
-      {
-        "provider_model": "gemini-2.0-flash-lite",
-        "canonical_model": "google/gemini-2.0-flash-lite"
-      },
-      {
-        "provider_model": "gemini-2.0-flash-lite-001",
-        "canonical_model": "google/gemini-2.0-flash-lite"
-      },
-      {
-        "provider_model": "gemini-2.0-flash-lite-preview",
-        "canonical_model": "google/gemini-2.0-flash-lite"
-      },
-      {
-        "provider_model": "gemini-2.0-flash-lite-preview-02-05",
-        "canonical_model": "google/gemini-2.0-flash-lite"
-      },
-      {
-        "provider_model": "gemini-2.5-flash",
-        "canonical_model": "google/gemini-2.5-flash"
-      },
-      {
-        "provider_model": "gemini-2.5-flash-image",
-        "canonical_model": "google/gemini-2.5-flash-image"
-      },
-      {
-        "provider_model": "gemini-2.5-flash-image-preview",
-        "canonical_model": "google/gemini-2.5-flash-image"
-      },
-      {
-        "provider_model": "gemini-2.5-flash-lite",
-        "canonical_model": "google/gemini-2.5-flash-lite"
-      },
-      {
-        "provider_model": "gemini-2.5-flash-lite-preview-09-2025",
-        "canonical_model": "google/gemini-2.5-flash-lite"
-      },
-      {
-        "provider_model": "gemini-2.5-flash-preview-09-2025",
-        "canonical_model": "google/gemini-2.5-flash"
-      },
-      {
-        "provider_model": "gemini-2.5-pro",
-        "canonical_model": "google/gemini-2.5-pro"
-      },
-      {
-        "provider_model": "gemini-3-flash-preview",
-        "canonical_model": "google/gemini-3-flash"
-      },
-      {
-        "provider_model": "gemini-3-pro-image-preview",
-        "canonical_model": "google/gemini-3-pro-image"
-      },
-      {
-        "provider_model": "gemini-3-pro-preview",
-        "canonical_model": "google/gemini-3-pro"
-      },
-      {
-        "provider_model": "gemma-3-12b-it",
-        "canonical_model": "google/gemma-3-12b-it"
-      },
-      {
-        "provider_model": "gemma-3-27b-it",
-        "canonical_model": "google/gemma-3-27b-it"
-      },
-      {
-        "provider_model": "gemma-3-4b-it",
-        "canonical_model": "google/gemma-3-4b-it"
-      },
-      {
-        "provider_model": "gemma-3n-e4b-it",
-        "canonical_model": "google/gemma-3n-e4b-it"
-      }
-    ]
+    "xai": []
   },
   "mapped_models": [
+    {
+      "provider": "anthropic",
+      "model": "claude-3-5-haiku-20241022",
+      "canonical": "anthropic/claude-3.5-haiku"
+    },
+    {
+      "provider": "anthropic",
+      "model": "claude-3-7-sonnet-20250219",
+      "canonical": "anthropic/claude-3.7-sonnet"
+    },
+    {
+      "provider": "anthropic",
+      "model": "claude-3-haiku-20240307",
+      "canonical": "anthropic/claude-3-haiku"
+    },
+    {
+      "provider": "anthropic",
+      "model": "claude-haiku-4-5-20251001",
+      "canonical": "anthropic/claude-haiku-4.5"
+    },
     {
       "provider": "anthropic",
       "model": "claude-opus-4-1-20250805",
@@ -3779,23 +3791,8 @@
     },
     {
       "provider": "anthropic",
-      "model": "claude-sonnet-4-5-20250929",
-      "canonical": "anthropic/claude-sonnet-4.5"
-    },
-    {
-      "provider": "anthropic",
-      "model": "claude-3-5-haiku-20241022",
-      "canonical": "anthropic/claude-3.5-haiku"
-    },
-    {
-      "provider": "anthropic",
       "model": "claude-opus-4-5-20251101",
       "canonical": "anthropic/claude-opus-4.5"
-    },
-    {
-      "provider": "anthropic",
-      "model": "claude-3-haiku-20240307",
-      "canonical": "anthropic/claude-3-haiku"
     },
     {
       "provider": "anthropic",
@@ -3804,83 +3801,113 @@
     },
     {
       "provider": "anthropic",
-      "model": "claude-3-7-sonnet-20250219",
-      "canonical": "anthropic/claude-3.7-sonnet"
+      "model": "claude-sonnet-4-5-20250929",
+      "canonical": "anthropic/claude-sonnet-4.5"
     },
     {
-      "provider": "anthropic",
-      "model": "claude-haiku-4-5-20251001",
-      "canonical": "anthropic/claude-haiku-4.5"
+      "provider": "google",
+      "model": "gemini-2.0-flash",
+      "canonical": "google/gemini-2.0-flash"
     },
     {
-      "provider": "openai",
-      "model": "gpt-4o-mini",
-      "canonical": "openai/gpt-4o-mini"
+      "provider": "google",
+      "model": "gemini-2.0-flash-001",
+      "canonical": "google/gemini-2.0-flash"
     },
     {
-      "provider": "openai",
-      "model": "gpt-5-pro",
-      "canonical": "openai/gpt-5-pro"
+      "provider": "google",
+      "model": "gemini-2.0-flash-exp",
+      "canonical": "google/gemini-2.0-flash"
     },
     {
-      "provider": "openai",
-      "model": "gpt-4o-audio-preview-2025-06-03",
-      "canonical": "openai/gpt-4o-audio"
+      "provider": "google",
+      "model": "gemini-2.0-flash-lite",
+      "canonical": "google/gemini-2.0-flash-lite"
     },
     {
-      "provider": "openai",
-      "model": "gpt-5.1-2025-11-13",
-      "canonical": "openai/gpt-5.1"
+      "provider": "google",
+      "model": "gemini-2.0-flash-lite-001",
+      "canonical": "google/gemini-2.0-flash-lite"
     },
     {
-      "provider": "openai",
-      "model": "o3",
-      "canonical": "openai/o3"
+      "provider": "google",
+      "model": "gemini-2.0-flash-lite-preview",
+      "canonical": "google/gemini-2.0-flash-lite"
     },
     {
-      "provider": "openai",
-      "model": "gpt-3.5-turbo-instruct-0914",
-      "canonical": "openai/gpt-3.5-turbo-instruct"
+      "provider": "google",
+      "model": "gemini-2.0-flash-lite-preview-02-05",
+      "canonical": "google/gemini-2.0-flash-lite"
     },
     {
-      "provider": "openai",
-      "model": "gpt-4-0613",
-      "canonical": "openai/gpt-4"
+      "provider": "google",
+      "model": "gemini-2.5-flash",
+      "canonical": "google/gemini-2.5-flash"
     },
     {
-      "provider": "openai",
-      "model": "o3-deep-research-2025-06-26",
-      "canonical": "openai/o3-deep-research"
+      "provider": "google",
+      "model": "gemini-2.5-flash-image",
+      "canonical": "google/gemini-2.5-flash-image"
     },
     {
-      "provider": "openai",
-      "model": "gpt-4o-2024-11-20",
-      "canonical": "openai/gpt-4o"
+      "provider": "google",
+      "model": "gemini-2.5-flash-image-preview",
+      "canonical": "google/gemini-2.5-flash-image"
     },
     {
-      "provider": "openai",
-      "model": "codex-mini-latest",
-      "canonical": "openai/codex-mini"
+      "provider": "google",
+      "model": "gemini-2.5-flash-lite",
+      "canonical": "google/gemini-2.5-flash-lite"
     },
     {
-      "provider": "openai",
-      "model": "gpt-4-turbo",
-      "canonical": "openai/gpt-4-turbo"
+      "provider": "google",
+      "model": "gemini-2.5-flash-lite-preview-09-2025",
+      "canonical": "google/gemini-2.5-flash-lite"
     },
     {
-      "provider": "openai",
-      "model": "o4-mini-2025-04-16",
-      "canonical": "openai/o4-mini"
+      "provider": "google",
+      "model": "gemini-2.5-flash-preview-09-2025",
+      "canonical": "google/gemini-2.5-flash"
     },
     {
-      "provider": "openai",
-      "model": "gpt-3.5-turbo-1106",
-      "canonical": "openai/gpt-3.5-turbo"
+      "provider": "google",
+      "model": "gemini-2.5-pro",
+      "canonical": "google/gemini-2.5-pro"
     },
     {
-      "provider": "openai",
-      "model": "gpt-5-2025-08-07",
-      "canonical": "openai/gpt-5"
+      "provider": "google",
+      "model": "gemini-3-flash-preview",
+      "canonical": "google/gemini-3-flash"
+    },
+    {
+      "provider": "google",
+      "model": "gemini-3-pro-image-preview",
+      "canonical": "google/gemini-3-pro-image"
+    },
+    {
+      "provider": "google",
+      "model": "gemini-3-pro-preview",
+      "canonical": "google/gemini-3-pro"
+    },
+    {
+      "provider": "google",
+      "model": "gemma-3-12b-it",
+      "canonical": "google/gemma-3-12b-it"
+    },
+    {
+      "provider": "google",
+      "model": "gemma-3-27b-it",
+      "canonical": "google/gemma-3-27b-it"
+    },
+    {
+      "provider": "google",
+      "model": "gemma-3-4b-it",
+      "canonical": "google/gemma-3-4b-it"
+    },
+    {
+      "provider": "google",
+      "model": "gemma-3n-e4b-it",
+      "canonical": "google/gemma-3n-e4b-it"
     },
     {
       "provider": "openai",
@@ -3889,28 +3916,58 @@
     },
     {
       "provider": "openai",
-      "model": "gpt-5.2-2025-12-11",
-      "canonical": "openai/gpt-5.2"
+      "model": "codex-mini-latest",
+      "canonical": "openai/codex-mini"
     },
     {
       "provider": "openai",
-      "model": "gpt-5-mini",
-      "canonical": "openai/gpt-5-mini"
+      "model": "gpt-3.5-turbo",
+      "canonical": "openai/gpt-3.5-turbo"
     },
     {
       "provider": "openai",
-      "model": "o4-mini-deep-research",
-      "canonical": "openai/o4-mini-deep-research"
+      "model": "gpt-3.5-turbo-0125",
+      "canonical": "openai/gpt-3.5-turbo"
     },
     {
       "provider": "openai",
-      "model": "o3-2025-04-16",
-      "canonical": "openai/o3"
+      "model": "gpt-3.5-turbo-1106",
+      "canonical": "openai/gpt-3.5-turbo"
     },
     {
       "provider": "openai",
-      "model": "gpt-5-codex",
-      "canonical": "openai/gpt-5-codex"
+      "model": "gpt-3.5-turbo-16k",
+      "canonical": "openai/gpt-3.5-turbo-16k"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-3.5-turbo-instruct",
+      "canonical": "openai/gpt-3.5-turbo-instruct"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-3.5-turbo-instruct-0914",
+      "canonical": "openai/gpt-3.5-turbo-instruct"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-4",
+      "canonical": "openai/gpt-4"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-4-0125-preview",
+      "canonical": "openai/gpt-4"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-4-0314",
+      "canonical": "openai/gpt-4"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-4-0613",
+      "canonical": "openai/gpt-4"
     },
     {
       "provider": "openai",
@@ -3919,38 +3976,8 @@
     },
     {
       "provider": "openai",
-      "model": "gpt-5-mini-2025-08-07",
-      "canonical": "openai/gpt-5-mini"
-    },
-    {
-      "provider": "openai",
-      "model": "gpt-4o-search-preview",
-      "canonical": "openai/gpt-4o-search"
-    },
-    {
-      "provider": "openai",
-      "model": "gpt-5.1-codex-max",
-      "canonical": "openai/gpt-5.1-codex-max"
-    },
-    {
-      "provider": "openai",
-      "model": "gpt-5.2",
-      "canonical": "openai/gpt-5.2"
-    },
-    {
-      "provider": "openai",
-      "model": "gpt-5.2-pro-2025-12-11",
-      "canonical": "openai/gpt-5.2-pro"
-    },
-    {
-      "provider": "openai",
-      "model": "o1-pro",
-      "canonical": "openai/o1-pro"
-    },
-    {
-      "provider": "openai",
-      "model": "gpt-5",
-      "canonical": "openai/gpt-5"
+      "model": "gpt-4-turbo",
+      "canonical": "openai/gpt-4-turbo"
     },
     {
       "provider": "openai",
@@ -3959,8 +3986,8 @@
     },
     {
       "provider": "openai",
-      "model": "gpt-4.1-mini",
-      "canonical": "openai/gpt-4.1-mini"
+      "model": "gpt-4-turbo-preview",
+      "canonical": "openai/gpt-4-turbo"
     },
     {
       "provider": "openai",
@@ -3969,12 +3996,47 @@
     },
     {
       "provider": "openai",
-      "model": "o3-mini",
-      "canonical": "openai/o3-mini"
+      "model": "gpt-4.1-2025-04-14",
+      "canonical": "openai/gpt-4.1"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-4.1-mini",
+      "canonical": "openai/gpt-4.1-mini"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-4.1-mini-2025-04-14",
+      "canonical": "openai/gpt-4.1-mini"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-4.1-nano",
+      "canonical": "openai/gpt-4.1-nano"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-4.1-nano-2025-04-14",
+      "canonical": "openai/gpt-4.1-nano"
     },
     {
       "provider": "openai",
       "model": "gpt-4o",
+      "canonical": "openai/gpt-4o"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-4o-2024-05-13",
+      "canonical": "openai/gpt-4o"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-4o-2024-08-06",
+      "canonical": "openai/gpt-4o"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-4o-2024-11-20",
       "canonical": "openai/gpt-4o"
     },
     {
@@ -3984,63 +4046,53 @@
     },
     {
       "provider": "openai",
-      "model": "o3-deep-research",
-      "canonical": "openai/o3-deep-research"
+      "model": "gpt-4o-audio-preview-2024-12-17",
+      "canonical": "openai/gpt-4o-audio"
     },
     {
       "provider": "openai",
-      "model": "gpt-4.1-nano",
-      "canonical": "openai/gpt-4.1-nano"
+      "model": "gpt-4o-audio-preview-2025-06-03",
+      "canonical": "openai/gpt-4o-audio"
     },
     {
       "provider": "openai",
-      "model": "gpt-5.1",
-      "canonical": "openai/gpt-5.1"
+      "model": "gpt-4o-mini",
+      "canonical": "openai/gpt-4o-mini"
     },
     {
       "provider": "openai",
-      "model": "gpt-5.1-codex",
-      "canonical": "openai/gpt-5.1-codex"
+      "model": "gpt-4o-mini-2024-07-18",
+      "canonical": "openai/gpt-4o-mini"
     },
     {
       "provider": "openai",
-      "model": "o4-mini",
-      "canonical": "openai/o4-mini"
+      "model": "gpt-4o-mini-search-preview",
+      "canonical": "openai/gpt-4o-mini-search"
     },
     {
       "provider": "openai",
-      "model": "gpt-4.1-nano-2025-04-14",
-      "canonical": "openai/gpt-4.1-nano"
+      "model": "gpt-4o-mini-search-preview-2025-03-11",
+      "canonical": "openai/gpt-4o-mini-search"
     },
     {
       "provider": "openai",
-      "model": "gpt-5-pro-2025-10-06",
-      "canonical": "openai/gpt-5-pro"
+      "model": "gpt-4o-search-preview",
+      "canonical": "openai/gpt-4o-search"
     },
     {
       "provider": "openai",
-      "model": "gpt-5.2-chat-latest",
-      "canonical": "openai/gpt-5.2-chat"
+      "model": "gpt-4o-search-preview-2025-03-11",
+      "canonical": "openai/gpt-4o-search"
     },
     {
       "provider": "openai",
-      "model": "gpt-4-0314",
-      "canonical": "openai/gpt-4"
+      "model": "gpt-5",
+      "canonical": "openai/gpt-5"
     },
     {
       "provider": "openai",
-      "model": "gpt-4",
-      "canonical": "openai/gpt-4"
-    },
-    {
-      "provider": "openai",
-      "model": "gpt-4-turbo-preview",
-      "canonical": "openai/gpt-4-turbo"
-    },
-    {
-      "provider": "openai",
-      "model": "gpt-3.5-turbo",
-      "canonical": "openai/gpt-3.5-turbo"
+      "model": "gpt-5-2025-08-07",
+      "canonical": "openai/gpt-5"
     },
     {
       "provider": "openai",
@@ -4049,13 +4101,93 @@
     },
     {
       "provider": "openai",
-      "model": "gpt-4-0125-preview",
-      "canonical": "openai/gpt-4"
+      "model": "gpt-5-codex",
+      "canonical": "openai/gpt-5-codex"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5-mini",
+      "canonical": "openai/gpt-5-mini"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5-mini-2025-08-07",
+      "canonical": "openai/gpt-5-mini"
     },
     {
       "provider": "openai",
       "model": "gpt-5-nano",
       "canonical": "openai/gpt-5-nano"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5-nano-2025-08-07",
+      "canonical": "openai/gpt-5-nano"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5-pro",
+      "canonical": "openai/gpt-5-pro"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5-pro-2025-10-06",
+      "canonical": "openai/gpt-5-pro"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.1",
+      "canonical": "openai/gpt-5.1"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.1-2025-11-13",
+      "canonical": "openai/gpt-5.1"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.1-chat-latest",
+      "canonical": "openai/gpt-5.1-chat"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.1-codex",
+      "canonical": "openai/gpt-5.1-codex"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.1-codex-max",
+      "canonical": "openai/gpt-5.1-codex-max"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.1-codex-mini",
+      "canonical": "openai/gpt-5.1-codex-mini"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.2",
+      "canonical": "openai/gpt-5.2"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.2-2025-12-11",
+      "canonical": "openai/gpt-5.2"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.2-chat-latest",
+      "canonical": "openai/gpt-5.2-chat"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.2-pro",
+      "canonical": "openai/gpt-5.2-pro"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-5.2-pro-2025-12-11",
+      "canonical": "openai/gpt-5.2-pro"
     },
     {
       "provider": "openai",
@@ -4069,18 +4201,8 @@
     },
     {
       "provider": "openai",
-      "model": "o4-mini-deep-research-2025-06-26",
-      "canonical": "openai/o4-mini-deep-research"
-    },
-    {
-      "provider": "openai",
-      "model": "gpt-4o-mini-search-preview",
-      "canonical": "openai/gpt-4o-mini-search"
-    },
-    {
-      "provider": "openai",
-      "model": "gpt-4o-2024-08-06",
-      "canonical": "openai/gpt-4o"
+      "model": "o1-pro",
+      "canonical": "openai/o1-pro"
     },
     {
       "provider": "openai",
@@ -4089,23 +4211,28 @@
     },
     {
       "provider": "openai",
-      "model": "gpt-3.5-turbo-16k",
-      "canonical": "openai/gpt-3.5-turbo-16k"
+      "model": "o3",
+      "canonical": "openai/o3"
     },
     {
       "provider": "openai",
-      "model": "gpt-5.1-codex-mini",
-      "canonical": "openai/gpt-5.1-codex-mini"
+      "model": "o3-2025-04-16",
+      "canonical": "openai/o3"
     },
     {
       "provider": "openai",
-      "model": "gpt-4.1-2025-04-14",
-      "canonical": "openai/gpt-4.1"
+      "model": "o3-deep-research",
+      "canonical": "openai/o3-deep-research"
     },
     {
       "provider": "openai",
-      "model": "gpt-4.1-mini-2025-04-14",
-      "canonical": "openai/gpt-4.1-mini"
+      "model": "o3-deep-research-2025-06-26",
+      "canonical": "openai/o3-deep-research"
+    },
+    {
+      "provider": "openai",
+      "model": "o3-mini",
+      "canonical": "openai/o3-mini"
     },
     {
       "provider": "openai",
@@ -4114,13 +4241,8 @@
     },
     {
       "provider": "openai",
-      "model": "gpt-4o-mini-search-preview-2025-03-11",
-      "canonical": "openai/gpt-4o-mini-search"
-    },
-    {
-      "provider": "openai",
-      "model": "gpt-4o-mini-2024-07-18",
-      "canonical": "openai/gpt-4o-mini"
+      "model": "o3-pro",
+      "canonical": "openai/o3-pro"
     },
     {
       "provider": "openai",
@@ -4129,188 +4251,28 @@
     },
     {
       "provider": "openai",
-      "model": "gpt-3.5-turbo-instruct",
-      "canonical": "openai/gpt-3.5-turbo-instruct"
+      "model": "o4-mini",
+      "canonical": "openai/o4-mini"
     },
     {
       "provider": "openai",
-      "model": "gpt-4o-search-preview-2025-03-11",
-      "canonical": "openai/gpt-4o-search"
+      "model": "o4-mini-2025-04-16",
+      "canonical": "openai/o4-mini"
     },
     {
       "provider": "openai",
-      "model": "gpt-4o-audio-preview-2024-12-17",
-      "canonical": "openai/gpt-4o-audio"
+      "model": "o4-mini-deep-research",
+      "canonical": "openai/o4-mini-deep-research"
     },
     {
       "provider": "openai",
-      "model": "o3-pro",
-      "canonical": "openai/o3-pro"
-    },
-    {
-      "provider": "openai",
-      "model": "gpt-5.1-chat-latest",
-      "canonical": "openai/gpt-5.1-chat"
-    },
-    {
-      "provider": "openai",
-      "model": "gpt-3.5-turbo-0125",
-      "canonical": "openai/gpt-3.5-turbo"
-    },
-    {
-      "provider": "openai",
-      "model": "gpt-5.2-pro",
-      "canonical": "openai/gpt-5.2-pro"
-    },
-    {
-      "provider": "openai",
-      "model": "gpt-5-nano-2025-08-07",
-      "canonical": "openai/gpt-5-nano"
-    },
-    {
-      "provider": "openai",
-      "model": "gpt-4o-2024-05-13",
-      "canonical": "openai/gpt-4o"
+      "model": "o4-mini-deep-research-2025-06-26",
+      "canonical": "openai/o4-mini-deep-research"
     },
     {
       "provider": "openrouter",
-      "model": "openai/gpt-4o-mini-2024-07-18",
-      "canonical": "openai/gpt-4o-mini"
-    },
-    {
-      "provider": "openrouter",
-      "model": "deepseek/deepseek-r1-distill-llama-70b",
-      "canonical": "deepseek/deepseek-r1-distill-llama-70b"
-    },
-    {
-      "provider": "openrouter",
-      "model": "qwen/qwen3-30b-a3b",
-      "canonical": "qwen/qwen3-30b-a3b"
-    },
-    {
-      "provider": "openrouter",
-      "model": "x-ai/grok-4-fast",
-      "canonical": "x-ai/grok-4-fast"
-    },
-    {
-      "provider": "openrouter",
-      "model": "qwen/qwen3-8b",
-      "canonical": "qwen/qwen3-8b"
-    },
-    {
-      "provider": "openrouter",
-      "model": "google/gemini-2.5-pro",
-      "canonical": "google/gemini-2.5-pro"
-    },
-    {
-      "provider": "openrouter",
-      "model": "google/gemini-2.5-flash-preview-09-2025",
-      "canonical": "google/gemini-2.5-flash"
-    },
-    {
-      "provider": "openrouter",
-      "model": "qwen/qwen-plus-2025-07-28:thinking",
-      "canonical": "qwen/qwen-plus-2025-07-28:thinking"
-    },
-    {
-      "provider": "openrouter",
-      "model": "qwen/qwen3-30b-a3b-instruct-2507",
-      "canonical": "qwen/qwen3-30b-a3b-instruct"
-    },
-    {
-      "provider": "openrouter",
-      "model": "qwen/qwen3-vl-8b-thinking",
-      "canonical": "qwen/qwen3-vl-8b-thinking"
-    },
-    {
-      "provider": "openrouter",
-      "model": "anthropic/claude-3.5-sonnet",
-      "canonical": "anthropic/claude-3.5-sonnet"
-    },
-    {
-      "provider": "openrouter",
-      "model": "deepseek/deepseek-v3.2",
-      "canonical": "deepseek/deepseek"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/gpt-4-0314",
-      "canonical": "openai/gpt-4"
-    },
-    {
-      "provider": "openrouter",
-      "model": "mistralai/voxtral-small-24b-2507",
-      "canonical": "mistralai/voxtral-small-24b"
-    },
-    {
-      "provider": "openrouter",
-      "model": "deepseek/deepseek-v3.1-terminus:exacto",
-      "canonical": "deepseek/deepseek-v3.1-terminus"
-    },
-    {
-      "provider": "openrouter",
-      "model": "mistralai/pixtral-large-2411",
-      "canonical": "mistralai/pixtral-large"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/gpt-5-image-mini",
-      "canonical": "openai/gpt-5-image-mini"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/gpt-5-pro",
-      "canonical": "openai/gpt-5-pro"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/o3-pro",
-      "canonical": "openai/o3-pro"
-    },
-    {
-      "provider": "openrouter",
-      "model": "deepseek/deepseek-chat",
-      "canonical": "deepseek/deepseek-chat"
-    },
-    {
-      "provider": "openrouter",
-      "model": "mistralai/mistral-tiny",
-      "canonical": "mistralai/mistral-tiny"
-    },
-    {
-      "provider": "openrouter",
-      "model": "google/gemma-3-27b-it",
-      "canonical": "google/gemma-3-27b-it"
-    },
-    {
-      "provider": "openrouter",
-      "model": "qwen/qwen3-coder-30b-a3b-instruct",
-      "canonical": "qwen/qwen3-coder-30b-a3b-instruct"
-    },
-    {
-      "provider": "openrouter",
-      "model": "meta-llama/llama-3-8b-instruct",
-      "canonical": "meta-llama/llama-3-8b-instruct"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/gpt-4-turbo-preview",
-      "canonical": "openai/gpt-4-turbo"
-    },
-    {
-      "provider": "openrouter",
-      "model": "anthropic/claude-sonnet-4.5",
-      "canonical": "anthropic/claude-sonnet-4.5"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/gpt-5-codex",
-      "canonical": "openai/gpt-5-codex"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/gpt-4.1",
-      "canonical": "openai/gpt-4.1"
+      "model": "ai21/jamba-large-1.7",
+      "canonical": "ai21/jamba-large-1.7"
     },
     {
       "provider": "openrouter",
@@ -4319,173 +4281,8 @@
     },
     {
       "provider": "openrouter",
-      "model": "openai/gpt-5.1-codex-mini",
-      "canonical": "openai/gpt-5.1-codex-mini"
-    },
-    {
-      "provider": "openrouter",
-      "model": "qwen/qwen3-vl-30b-a3b-instruct",
-      "canonical": "qwen/qwen3-vl-30b-a3b-instruct"
-    },
-    {
-      "provider": "openrouter",
-      "model": "qwen/qwen3-vl-30b-a3b-thinking",
-      "canonical": "qwen/qwen3-vl-30b-a3b-thinking"
-    },
-    {
-      "provider": "openrouter",
-      "model": "anthropic/claude-opus-4.1",
-      "canonical": "anthropic/claude-opus-4.1"
-    },
-    {
-      "provider": "openrouter",
-      "model": "mistralai/codestral-2508",
-      "canonical": "mistralai/codestral"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/gpt-oss-120b",
-      "canonical": "openai/gpt-oss-120b"
-    },
-    {
-      "provider": "openrouter",
-      "model": "qwen/qwen3-32b",
-      "canonical": "qwen/qwen3-32b"
-    },
-    {
-      "provider": "openrouter",
-      "model": "x-ai/grok-4.1-fast",
-      "canonical": "x-ai/grok-4.1-fast"
-    },
-    {
-      "provider": "openrouter",
-      "model": "mistralai/mistral-large",
-      "canonical": "mistralai/mistral-large"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/o4-mini-high",
-      "canonical": "openai/o4-mini-high"
-    },
-    {
-      "provider": "openrouter",
-      "model": "qwen/qwen-plus-2025-07-28",
-      "canonical": "qwen/qwen-plus"
-    },
-    {
-      "provider": "openrouter",
-      "model": "anthropic/claude-opus-4.5",
-      "canonical": "anthropic/claude-opus-4.5"
-    },
-    {
-      "provider": "openrouter",
-      "model": "qwen/qwen3-vl-8b-instruct",
-      "canonical": "qwen/qwen3-vl-8b-instruct"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/gpt-3.5-turbo-0613",
-      "canonical": "openai/gpt-3.5-turbo"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/gpt-oss-20b",
-      "canonical": "openai/gpt-oss-20b"
-    },
-    {
-      "provider": "openrouter",
-      "model": "qwen/qwen-turbo",
-      "canonical": "qwen/qwen-turbo"
-    },
-    {
-      "provider": "openrouter",
-      "model": "google/gemini-2.0-flash-lite-001",
-      "canonical": "google/gemini-2.0-flash-lite"
-    },
-    {
-      "provider": "openrouter",
-      "model": "mistralai/devstral-small",
-      "canonical": "mistralai/devstral-small"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/gpt-5.2-chat",
-      "canonical": "openai/gpt-5.2-chat"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/codex-mini",
-      "canonical": "openai/codex-mini"
-    },
-    {
-      "provider": "openrouter",
-      "model": "mistralai/mistral-medium-3.1",
-      "canonical": "mistralai/mistral-medium-3.1"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/gpt-5-image",
-      "canonical": "openai/gpt-5-image"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/gpt-5-mini",
-      "canonical": "openai/gpt-5-mini"
-    },
-    {
-      "provider": "openrouter",
-      "model": "qwen/qwen3-coder:exacto",
-      "canonical": "qwen/qwen3-coder"
-    },
-    {
-      "provider": "openrouter",
-      "model": "qwen/qwen-vl-max",
-      "canonical": "qwen/qwen-vl-max"
-    },
-    {
-      "provider": "openrouter",
-      "model": "mistralai/devstral-medium",
-      "canonical": "mistralai/devstral-medium"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/gpt-4.1-nano",
-      "canonical": "openai/gpt-4.1-nano"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/gpt-5.2",
-      "canonical": "openai/gpt-5.2"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/gpt-4o-audio-preview",
-      "canonical": "openai/gpt-4o-audio"
-    },
-    {
-      "provider": "openrouter",
-      "model": "mistralai/ministral-8b",
-      "canonical": "mistralai/ministral-8b"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/gpt-5-nano",
-      "canonical": "openai/gpt-5-nano"
-    },
-    {
-      "provider": "openrouter",
-      "model": "qwen/qwen3-235b-a22b",
-      "canonical": "qwen/qwen3-235b-a22b"
-    },
-    {
-      "provider": "openrouter",
-      "model": "mistralai/mistral-saba",
-      "canonical": "mistralai/mistral-saba"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/o1",
-      "canonical": "openai/o1"
+      "model": "anthropic/claude-3-haiku",
+      "canonical": "anthropic/claude-3-haiku"
     },
     {
       "provider": "openrouter",
@@ -4494,8 +4291,13 @@
     },
     {
       "provider": "openrouter",
-      "model": "mistralai/devstral-2512",
-      "canonical": "mistralai/devstral"
+      "model": "anthropic/claude-3.5-haiku-20241022",
+      "canonical": "anthropic/claude-3.5-haiku"
+    },
+    {
+      "provider": "openrouter",
+      "model": "anthropic/claude-3.5-sonnet",
+      "canonical": "anthropic/claude-3.5-sonnet"
     },
     {
       "provider": "openrouter",
@@ -4504,98 +4306,8 @@
     },
     {
       "provider": "openrouter",
-      "model": "openai/gpt-5.1-chat",
-      "canonical": "openai/gpt-5.1-chat"
-    },
-    {
-      "provider": "openrouter",
-      "model": "anthropic/claude-3-haiku",
-      "canonical": "anthropic/claude-3-haiku"
-    },
-    {
-      "provider": "openrouter",
-      "model": "qwen/qwen-2.5-72b-instruct",
-      "canonical": "qwen/qwen-2.5-72b-instruct"
-    },
-    {
-      "provider": "openrouter",
-      "model": "qwen/qwen3-coder",
-      "canonical": "qwen/qwen3-coder"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/o3-mini",
-      "canonical": "openai/o3-mini"
-    },
-    {
-      "provider": "openrouter",
-      "model": "mistralai/mixtral-8x22b-instruct",
-      "canonical": "mistralai/mixtral-8x22b-instruct"
-    },
-    {
-      "provider": "openrouter",
-      "model": "qwen/qwen3-next-80b-a3b-thinking",
-      "canonical": "qwen/qwen3-next-80b-a3b-thinking"
-    },
-    {
-      "provider": "openrouter",
-      "model": "deepseek/deepseek-chat-v3-0324",
-      "canonical": "deepseek/deepseek-chat"
-    },
-    {
-      "provider": "openrouter",
-      "model": "mistralai/mistral-large-2411",
-      "canonical": "mistralai/mistral-large"
-    },
-    {
-      "provider": "openrouter",
-      "model": "mistralai/mistral-small-3.2-24b-instruct",
-      "canonical": "mistralai/mistral-small-3.2-24b-instruct"
-    },
-    {
-      "provider": "openrouter",
-      "model": "qwen/qwen3-vl-235b-a22b-instruct",
-      "canonical": "qwen/qwen3-vl-235b-a22b-instruct"
-    },
-    {
-      "provider": "openrouter",
-      "model": "x-ai/grok-code-fast-1",
-      "canonical": "x-ai/grok-code-fast-1"
-    },
-    {
-      "provider": "openrouter",
-      "model": "qwen/qwen3-next-80b-a3b-instruct",
-      "canonical": "qwen/qwen3-next-80b-a3b-instruct"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/gpt-oss-120b:exacto",
-      "canonical": "openai/gpt-oss-120b"
-    },
-    {
-      "provider": "openrouter",
-      "model": "qwen/qwen3-14b",
-      "canonical": "qwen/qwen3-14b"
-    },
-    {
-      "provider": "openrouter",
-      "model": "google/gemini-2.5-flash-lite",
-      "canonical": "google/gemini-2.5-flash-lite"
-    },
-    {
-      "provider": "openrouter",
-      "model": "qwen/qwen3-max",
-      "canonical": "qwen/qwen3-max"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/gpt-oss-safeguard-20b",
-      "canonical": "openai/gpt-oss-safeguard-20b"
-    },
-    {
-      "provider": "openrouter",
-      "model": "google/gemini-2.5-pro-preview-05-06",
-      "canonical": "google/gemini-2.5-pro"
+      "model": "anthropic/claude-3.7-sonnet:thinking",
+      "canonical": "anthropic/claude-3.7-sonnet:thinking"
     },
     {
       "provider": "openrouter",
@@ -4604,18 +4316,83 @@
     },
     {
       "provider": "openrouter",
+      "model": "anthropic/claude-opus-4",
+      "canonical": "anthropic/claude-opus-4"
+    },
+    {
+      "provider": "openrouter",
+      "model": "anthropic/claude-opus-4.1",
+      "canonical": "anthropic/claude-opus-4.1"
+    },
+    {
+      "provider": "openrouter",
+      "model": "anthropic/claude-opus-4.5",
+      "canonical": "anthropic/claude-opus-4.5"
+    },
+    {
+      "provider": "openrouter",
+      "model": "anthropic/claude-sonnet-4",
+      "canonical": "anthropic/claude-sonnet-4"
+    },
+    {
+      "provider": "openrouter",
+      "model": "anthropic/claude-sonnet-4.5",
+      "canonical": "anthropic/claude-sonnet-4.5"
+    },
+    {
+      "provider": "openrouter",
+      "model": "cohere/command-r-08-2024",
+      "canonical": "cohere/command-r-08"
+    },
+    {
+      "provider": "openrouter",
+      "model": "cohere/command-r-plus-08-2024",
+      "canonical": "cohere/command-r-plus-08"
+    },
+    {
+      "provider": "openrouter",
+      "model": "deepseek/deepseek-chat",
+      "canonical": "deepseek/deepseek-chat"
+    },
+    {
+      "provider": "openrouter",
+      "model": "deepseek/deepseek-chat-v3-0324",
+      "canonical": "deepseek/deepseek-chat"
+    },
+    {
+      "provider": "openrouter",
+      "model": "deepseek/deepseek-chat-v3.1",
+      "canonical": "deepseek/deepseek-chat"
+    },
+    {
+      "provider": "openrouter",
+      "model": "deepseek/deepseek-r1",
+      "canonical": "deepseek/deepseek-r1"
+    },
+    {
+      "provider": "openrouter",
+      "model": "deepseek/deepseek-r1-0528",
+      "canonical": "deepseek/deepseek-r1"
+    },
+    {
+      "provider": "openrouter",
+      "model": "deepseek/deepseek-r1-distill-llama-70b",
+      "canonical": "deepseek/deepseek-r1-distill-llama-70b"
+    },
+    {
+      "provider": "openrouter",
       "model": "deepseek/deepseek-v3.1-terminus",
       "canonical": "deepseek/deepseek-v3.1-terminus"
     },
     {
       "provider": "openrouter",
-      "model": "meta-llama/llama-4-scout",
-      "canonical": "meta-llama/llama-4-scout"
+      "model": "deepseek/deepseek-v3.1-terminus:exacto",
+      "canonical": "deepseek/deepseek-v3.1-terminus"
     },
     {
       "provider": "openrouter",
-      "model": "openai/o4-mini-deep-research",
-      "canonical": "openai/o4-mini-deep-research"
+      "model": "deepseek/deepseek-v3.2",
+      "canonical": "deepseek/deepseek"
     },
     {
       "provider": "openrouter",
@@ -4624,93 +4401,78 @@
     },
     {
       "provider": "openrouter",
-      "model": "google/gemini-2.5-flash-lite-preview-09-2025",
-      "canonical": "google/gemini-2.5-flash-lite"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/o3-deep-research",
-      "canonical": "openai/o3-deep-research"
-    },
-    {
-      "provider": "openrouter",
       "model": "google/gemini-2.0-flash-001",
       "canonical": "google/gemini-2.0-flash"
     },
     {
       "provider": "openrouter",
-      "model": "mistralai/mistral-small-3.1-24b-instruct",
-      "canonical": "mistralai/mistral-small-3.1-24b-instruct"
+      "model": "google/gemini-2.0-flash-lite-001",
+      "canonical": "google/gemini-2.0-flash-lite"
     },
     {
       "provider": "openrouter",
-      "model": "anthropic/claude-3.5-haiku-20241022",
-      "canonical": "anthropic/claude-3.5-haiku"
+      "model": "google/gemini-2.5-flash",
+      "canonical": "google/gemini-2.5-flash"
     },
     {
       "provider": "openrouter",
-      "model": "openai/gpt-4o",
-      "canonical": "openai/gpt-4o"
+      "model": "google/gemini-2.5-flash-lite",
+      "canonical": "google/gemini-2.5-flash-lite"
     },
     {
       "provider": "openrouter",
-      "model": "anthropic/claude-3.7-sonnet:thinking",
-      "canonical": "anthropic/claude-3.7-sonnet:thinking"
+      "model": "google/gemini-2.5-flash-lite-preview-09-2025",
+      "canonical": "google/gemini-2.5-flash-lite"
     },
     {
       "provider": "openrouter",
-      "model": "qwen/qwen3-coder-flash",
-      "canonical": "qwen/qwen3-coder-flash"
+      "model": "google/gemini-2.5-flash-preview-09-2025",
+      "canonical": "google/gemini-2.5-flash"
     },
     {
       "provider": "openrouter",
-      "model": "mistralai/ministral-3b-2512",
-      "canonical": "mistralai/ministral-3b"
+      "model": "google/gemini-2.5-pro",
+      "canonical": "google/gemini-2.5-pro"
     },
     {
       "provider": "openrouter",
-      "model": "openai/gpt-5",
-      "canonical": "openai/gpt-5"
+      "model": "google/gemini-2.5-pro-preview",
+      "canonical": "google/gemini-2.5-pro"
     },
     {
       "provider": "openrouter",
-      "model": "anthropic/claude-opus-4",
-      "canonical": "anthropic/claude-opus-4"
+      "model": "google/gemini-2.5-pro-preview-05-06",
+      "canonical": "google/gemini-2.5-pro"
     },
     {
       "provider": "openrouter",
-      "model": "openai/gpt-5.1-codex-max",
-      "canonical": "openai/gpt-5.1-codex-max"
+      "model": "google/gemini-3-flash-preview",
+      "canonical": "google/gemini-3-flash"
+    },
+    {
+      "provider": "openrouter",
+      "model": "google/gemini-3-pro-preview",
+      "canonical": "google/gemini-3-pro"
+    },
+    {
+      "provider": "openrouter",
+      "model": "google/gemma-3-27b-it",
+      "canonical": "google/gemma-3-27b-it"
+    },
+    {
+      "provider": "openrouter",
+      "model": "meta-llama/llama-3-70b-instruct",
+      "canonical": "meta-llama/llama-3-70b-instruct"
+    },
+    {
+      "provider": "openrouter",
+      "model": "meta-llama/llama-3-8b-instruct",
+      "canonical": "meta-llama/llama-3-8b-instruct"
     },
     {
       "provider": "openrouter",
       "model": "meta-llama/llama-3.1-405b-instruct",
       "canonical": "meta-llama/llama-3.1-405b-instruct"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/gpt-4o-mini",
-      "canonical": "openai/gpt-4o-mini"
-    },
-    {
-      "provider": "openrouter",
-      "model": "qwen/qwen3-30b-a3b-thinking-2507",
-      "canonical": "qwen/qwen3-30b-a3b-thinking"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/o3-mini-high",
-      "canonical": "openai/o3-mini-high"
-    },
-    {
-      "provider": "openrouter",
-      "model": "meta-llama/llama-4-maverick",
-      "canonical": "meta-llama/llama-4-maverick"
-    },
-    {
-      "provider": "openrouter",
-      "model": "qwen/qwen-plus",
-      "canonical": "qwen/qwen-plus"
     },
     {
       "provider": "openrouter",
@@ -4724,238 +4486,8 @@
     },
     {
       "provider": "openrouter",
-      "model": "google/gemini-2.5-pro-preview",
-      "canonical": "google/gemini-2.5-pro"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/gpt-4o-2024-08-06",
-      "canonical": "openai/gpt-4o"
-    },
-    {
-      "provider": "openrouter",
-      "model": "meta-llama/llama-3-70b-instruct",
-      "canonical": "meta-llama/llama-3-70b-instruct"
-    },
-    {
-      "provider": "openrouter",
-      "model": "mistralai/mistral-large-2512",
-      "canonical": "mistralai/mistral-large"
-    },
-    {
-      "provider": "openrouter",
-      "model": "mistralai/ministral-14b-2512",
-      "canonical": "mistralai/ministral-14b"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/gpt-4",
-      "canonical": "openai/gpt-4"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/gpt-4.1-mini",
-      "canonical": "openai/gpt-4.1-mini"
-    },
-    {
-      "provider": "openrouter",
-      "model": "cohere/command-r-plus-08-2024",
-      "canonical": "cohere/command-r-plus-08"
-    },
-    {
-      "provider": "openrouter",
-      "model": "qwen/qwen3-coder-plus",
-      "canonical": "qwen/qwen3-coder-plus"
-    },
-    {
-      "provider": "openrouter",
-      "model": "qwen/qwen3-vl-235b-a22b-thinking",
-      "canonical": "qwen/qwen3-vl-235b-a22b-thinking"
-    },
-    {
-      "provider": "openrouter",
-      "model": "mistralai/mistral-small-24b-instruct-2501",
-      "canonical": "mistralai/mistral-small-24b-instruct"
-    },
-    {
-      "provider": "openrouter",
-      "model": "x-ai/grok-3",
-      "canonical": "x-ai/grok-3"
-    },
-    {
-      "provider": "openrouter",
-      "model": "mistralai/ministral-8b-2512",
-      "canonical": "mistralai/ministral-8b"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/gpt-5.1-codex",
-      "canonical": "openai/gpt-5.1-codex"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/gpt-3.5-turbo",
-      "canonical": "openai/gpt-3.5-turbo"
-    },
-    {
-      "provider": "openrouter",
-      "model": "mistralai/pixtral-12b",
-      "canonical": "mistralai/pixtral-12b"
-    },
-    {
-      "provider": "openrouter",
-      "model": "google/gemini-3-flash-preview",
-      "canonical": "google/gemini-3-flash"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/gpt-4-1106-preview",
-      "canonical": "openai/gpt-4"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/gpt-4o-2024-11-20",
-      "canonical": "openai/gpt-4o"
-    },
-    {
-      "provider": "openrouter",
-      "model": "deepseek/deepseek-r1",
-      "canonical": "deepseek/deepseek-r1"
-    },
-    {
-      "provider": "openrouter",
-      "model": "google/gemini-3-pro-preview",
-      "canonical": "google/gemini-3-pro"
-    },
-    {
-      "provider": "openrouter",
-      "model": "cohere/command-r-08-2024",
-      "canonical": "cohere/command-r-08"
-    },
-    {
-      "provider": "openrouter",
-      "model": "ai21/jamba-large-1.7",
-      "canonical": "ai21/jamba-large-1.7"
-    },
-    {
-      "provider": "openrouter",
-      "model": "deepseek/deepseek-r1-0528",
-      "canonical": "deepseek/deepseek-r1"
-    },
-    {
-      "provider": "openrouter",
-      "model": "mistralai/mistral-nemo",
-      "canonical": "mistralai/mistral-nemo"
-    },
-    {
-      "provider": "openrouter",
-      "model": "mistralai/mixtral-8x7b-instruct",
-      "canonical": "mistralai/mixtral-8x7b-instruct"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/gpt-4o-2024-05-13",
-      "canonical": "openai/gpt-4o"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/gpt-5.1",
-      "canonical": "openai/gpt-5.1"
-    },
-    {
-      "provider": "openrouter",
-      "model": "qwen/qwen3-235b-a22b-thinking-2507",
-      "canonical": "qwen/qwen3-235b-a22b-thinking"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/gpt-4-turbo",
-      "canonical": "openai/gpt-4-turbo"
-    },
-    {
-      "provider": "openrouter",
-      "model": "google/gemini-2.5-flash",
-      "canonical": "google/gemini-2.5-flash"
-    },
-    {
-      "provider": "openrouter",
-      "model": "mistralai/mistral-small-creative",
-      "canonical": "mistralai/mistral-small-creative"
-    },
-    {
-      "provider": "openrouter",
-      "model": "qwen/qwen-max",
-      "canonical": "qwen/qwen-max"
-    },
-    {
-      "provider": "openrouter",
-      "model": "mistralai/ministral-3b",
-      "canonical": "mistralai/ministral-3b"
-    },
-    {
-      "provider": "openrouter",
-      "model": "mistralai/mistral-medium-3",
-      "canonical": "mistralai/mistral-medium-3"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/gpt-4o:extended",
-      "canonical": "openai/gpt-4o:extended"
-    },
-    {
-      "provider": "openrouter",
-      "model": "anthropic/claude-sonnet-4",
-      "canonical": "anthropic/claude-sonnet-4"
-    },
-    {
-      "provider": "openrouter",
-      "model": "qwen/qwq-32b",
-      "canonical": "qwen/qwq-32b"
-    },
-    {
-      "provider": "openrouter",
-      "model": "mistralai/mistral-7b-instruct",
-      "canonical": "mistralai/mistral-7b-instruct"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/gpt-3.5-turbo-16k",
-      "canonical": "openai/gpt-3.5-turbo-16k"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/gpt-5.2-pro",
-      "canonical": "openai/gpt-5.2-pro"
-    },
-    {
-      "provider": "openrouter",
       "model": "meta-llama/llama-3.2-3b-instruct",
       "canonical": "meta-llama/llama-3.2-3b-instruct"
-    },
-    {
-      "provider": "openrouter",
-      "model": "mistralai/mistral-large-2407",
-      "canonical": "mistralai/mistral-large"
-    },
-    {
-      "provider": "openrouter",
-      "model": "deepseek/deepseek-chat-v3.1",
-      "canonical": "deepseek/deepseek-chat"
-    },
-    {
-      "provider": "openrouter",
-      "model": "x-ai/grok-4",
-      "canonical": "x-ai/grok-4"
-    },
-    {
-      "provider": "openrouter",
-      "model": "x-ai/grok-3-mini",
-      "canonical": "x-ai/grok-3-mini"
-    },
-    {
-      "provider": "openrouter",
-      "model": "qwen/qwen3-235b-a22b-2507",
-      "canonical": "qwen/qwen3-235b-a22b"
     },
     {
       "provider": "openrouter",
@@ -4964,8 +4496,378 @@
     },
     {
       "provider": "openrouter",
+      "model": "meta-llama/llama-4-maverick",
+      "canonical": "meta-llama/llama-4-maverick"
+    },
+    {
+      "provider": "openrouter",
+      "model": "meta-llama/llama-4-scout",
+      "canonical": "meta-llama/llama-4-scout"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/codestral-2508",
+      "canonical": "mistralai/codestral"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/devstral-2512",
+      "canonical": "mistralai/devstral"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/devstral-medium",
+      "canonical": "mistralai/devstral-medium"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/devstral-small",
+      "canonical": "mistralai/devstral-small"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/ministral-14b-2512",
+      "canonical": "mistralai/ministral-14b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/ministral-3b",
+      "canonical": "mistralai/ministral-3b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/ministral-3b-2512",
+      "canonical": "mistralai/ministral-3b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/ministral-8b",
+      "canonical": "mistralai/ministral-8b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/ministral-8b-2512",
+      "canonical": "mistralai/ministral-8b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/mistral-7b-instruct",
+      "canonical": "mistralai/mistral-7b-instruct"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/mistral-large",
+      "canonical": "mistralai/mistral-large"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/mistral-large-2407",
+      "canonical": "mistralai/mistral-large"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/mistral-large-2411",
+      "canonical": "mistralai/mistral-large"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/mistral-large-2512",
+      "canonical": "mistralai/mistral-large"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/mistral-medium-3",
+      "canonical": "mistralai/mistral-medium-3"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/mistral-medium-3.1",
+      "canonical": "mistralai/mistral-medium-3.1"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/mistral-nemo",
+      "canonical": "mistralai/mistral-nemo"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/mistral-saba",
+      "canonical": "mistralai/mistral-saba"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/mistral-small-24b-instruct-2501",
+      "canonical": "mistralai/mistral-small-24b-instruct"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/mistral-small-3.1-24b-instruct",
+      "canonical": "mistralai/mistral-small-3.1-24b-instruct"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/mistral-small-3.2-24b-instruct",
+      "canonical": "mistralai/mistral-small-3.2-24b-instruct"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/mistral-small-creative",
+      "canonical": "mistralai/mistral-small-creative"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/mistral-tiny",
+      "canonical": "mistralai/mistral-tiny"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/mixtral-8x22b-instruct",
+      "canonical": "mistralai/mixtral-8x22b-instruct"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/mixtral-8x7b-instruct",
+      "canonical": "mistralai/mixtral-8x7b-instruct"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/pixtral-12b",
+      "canonical": "mistralai/pixtral-12b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/pixtral-large-2411",
+      "canonical": "mistralai/pixtral-large"
+    },
+    {
+      "provider": "openrouter",
+      "model": "mistralai/voxtral-small-24b-2507",
+      "canonical": "mistralai/voxtral-small-24b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/codex-mini",
+      "canonical": "openai/codex-mini"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-3.5-turbo",
+      "canonical": "openai/gpt-3.5-turbo"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-3.5-turbo-0613",
+      "canonical": "openai/gpt-3.5-turbo"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-3.5-turbo-16k",
+      "canonical": "openai/gpt-3.5-turbo-16k"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-4",
+      "canonical": "openai/gpt-4"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-4-0314",
+      "canonical": "openai/gpt-4"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-4-1106-preview",
+      "canonical": "openai/gpt-4"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-4-turbo",
+      "canonical": "openai/gpt-4-turbo"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-4-turbo-preview",
+      "canonical": "openai/gpt-4-turbo"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-4.1",
+      "canonical": "openai/gpt-4.1"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-4.1-mini",
+      "canonical": "openai/gpt-4.1-mini"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-4.1-nano",
+      "canonical": "openai/gpt-4.1-nano"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-4o",
+      "canonical": "openai/gpt-4o"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-4o-2024-05-13",
+      "canonical": "openai/gpt-4o"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-4o-2024-08-06",
+      "canonical": "openai/gpt-4o"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-4o-2024-11-20",
+      "canonical": "openai/gpt-4o"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-4o-audio-preview",
+      "canonical": "openai/gpt-4o-audio"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-4o-mini",
+      "canonical": "openai/gpt-4o-mini"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-4o-mini-2024-07-18",
+      "canonical": "openai/gpt-4o-mini"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-4o:extended",
+      "canonical": "openai/gpt-4o:extended"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-5",
+      "canonical": "openai/gpt-5"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-5-codex",
+      "canonical": "openai/gpt-5-codex"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-5-image",
+      "canonical": "openai/gpt-5-image"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-5-image-mini",
+      "canonical": "openai/gpt-5-image-mini"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-5-mini",
+      "canonical": "openai/gpt-5-mini"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-5-nano",
+      "canonical": "openai/gpt-5-nano"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-5-pro",
+      "canonical": "openai/gpt-5-pro"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-5.1",
+      "canonical": "openai/gpt-5.1"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-5.1-chat",
+      "canonical": "openai/gpt-5.1-chat"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-5.1-codex",
+      "canonical": "openai/gpt-5.1-codex"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-5.1-codex-max",
+      "canonical": "openai/gpt-5.1-codex-max"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-5.1-codex-mini",
+      "canonical": "openai/gpt-5.1-codex-mini"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-5.2",
+      "canonical": "openai/gpt-5.2"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-5.2-chat",
+      "canonical": "openai/gpt-5.2-chat"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-5.2-pro",
+      "canonical": "openai/gpt-5.2-pro"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-oss-120b",
+      "canonical": "openai/gpt-oss-120b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-oss-120b:exacto",
+      "canonical": "openai/gpt-oss-120b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-oss-20b",
+      "canonical": "openai/gpt-oss-20b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/gpt-oss-safeguard-20b",
+      "canonical": "openai/gpt-oss-safeguard-20b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/o1",
+      "canonical": "openai/o1"
+    },
+    {
+      "provider": "openrouter",
       "model": "openai/o3",
       "canonical": "openai/o3"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/o3-deep-research",
+      "canonical": "openai/o3-deep-research"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/o3-mini",
+      "canonical": "openai/o3-mini"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/o3-mini-high",
+      "canonical": "openai/o3-mini-high"
+    },
+    {
+      "provider": "openrouter",
+      "model": "openai/o3-pro",
+      "canonical": "openai/o3-pro"
     },
     {
       "provider": "openrouter",
@@ -4973,263 +4875,353 @@
       "canonical": "openai/o4-mini"
     },
     {
-      "provider": "google",
-      "model": "gemini-2.0-flash-001",
-      "canonical": "google/gemini-2.0-flash"
+      "provider": "openrouter",
+      "model": "openai/o4-mini-deep-research",
+      "canonical": "openai/o4-mini-deep-research"
     },
     {
-      "provider": "google",
-      "model": "gemini-2.0-flash-lite-preview",
-      "canonical": "google/gemini-2.0-flash-lite"
+      "provider": "openrouter",
+      "model": "openai/o4-mini-high",
+      "canonical": "openai/o4-mini-high"
     },
     {
-      "provider": "google",
-      "model": "gemma-3-27b-it",
-      "canonical": "google/gemma-3-27b-it"
+      "provider": "openrouter",
+      "model": "qwen/qwen-2.5-72b-instruct",
+      "canonical": "qwen/qwen-2.5-72b-instruct"
     },
     {
-      "provider": "google",
-      "model": "gemini-2.0-flash-exp",
-      "canonical": "google/gemini-2.0-flash"
+      "provider": "openrouter",
+      "model": "qwen/qwen-max",
+      "canonical": "qwen/qwen-max"
     },
     {
-      "provider": "google",
-      "model": "gemini-2.5-flash-image",
-      "canonical": "google/gemini-2.5-flash-image"
+      "provider": "openrouter",
+      "model": "qwen/qwen-plus",
+      "canonical": "qwen/qwen-plus"
     },
     {
-      "provider": "google",
-      "model": "gemini-2.5-pro",
-      "canonical": "google/gemini-2.5-pro"
+      "provider": "openrouter",
+      "model": "qwen/qwen-plus-2025-07-28",
+      "canonical": "qwen/qwen-plus"
     },
     {
-      "provider": "google",
-      "model": "gemini-2.5-flash-lite-preview-09-2025",
-      "canonical": "google/gemini-2.5-flash-lite"
+      "provider": "openrouter",
+      "model": "qwen/qwen-plus-2025-07-28:thinking",
+      "canonical": "qwen/qwen-plus-2025-07-28:thinking"
     },
     {
-      "provider": "google",
-      "model": "gemini-3-flash-preview",
-      "canonical": "google/gemini-3-flash"
+      "provider": "openrouter",
+      "model": "qwen/qwen-turbo",
+      "canonical": "qwen/qwen-turbo"
     },
     {
-      "provider": "google",
-      "model": "gemma-3-12b-it",
-      "canonical": "google/gemma-3-12b-it"
+      "provider": "openrouter",
+      "model": "qwen/qwen-vl-max",
+      "canonical": "qwen/qwen-vl-max"
     },
     {
-      "provider": "google",
-      "model": "gemma-3n-e4b-it",
-      "canonical": "google/gemma-3n-e4b-it"
+      "provider": "openrouter",
+      "model": "qwen/qwen3-14b",
+      "canonical": "qwen/qwen3-14b"
     },
     {
-      "provider": "google",
-      "model": "gemini-2.0-flash-lite-001",
-      "canonical": "google/gemini-2.0-flash-lite"
+      "provider": "openrouter",
+      "model": "qwen/qwen3-235b-a22b",
+      "canonical": "qwen/qwen3-235b-a22b"
     },
     {
-      "provider": "google",
-      "model": "gemini-2.5-flash-image-preview",
-      "canonical": "google/gemini-2.5-flash-image"
+      "provider": "openrouter",
+      "model": "qwen/qwen3-235b-a22b-2507",
+      "canonical": "qwen/qwen3-235b-a22b"
     },
     {
-      "provider": "google",
-      "model": "gemini-3-pro-image-preview",
-      "canonical": "google/gemini-3-pro-image"
+      "provider": "openrouter",
+      "model": "qwen/qwen3-235b-a22b-thinking-2507",
+      "canonical": "qwen/qwen3-235b-a22b-thinking"
     },
     {
-      "provider": "google",
-      "model": "gemini-2.5-flash",
-      "canonical": "google/gemini-2.5-flash"
+      "provider": "openrouter",
+      "model": "qwen/qwen3-30b-a3b",
+      "canonical": "qwen/qwen3-30b-a3b"
     },
     {
-      "provider": "google",
-      "model": "gemini-2.0-flash-lite",
-      "canonical": "google/gemini-2.0-flash-lite"
+      "provider": "openrouter",
+      "model": "qwen/qwen3-30b-a3b-instruct-2507",
+      "canonical": "qwen/qwen3-30b-a3b-instruct"
     },
     {
-      "provider": "google",
-      "model": "gemini-2.5-flash-lite",
-      "canonical": "google/gemini-2.5-flash-lite"
+      "provider": "openrouter",
+      "model": "qwen/qwen3-30b-a3b-thinking-2507",
+      "canonical": "qwen/qwen3-30b-a3b-thinking"
     },
     {
-      "provider": "google",
-      "model": "gemini-2.5-flash-preview-09-2025",
-      "canonical": "google/gemini-2.5-flash"
+      "provider": "openrouter",
+      "model": "qwen/qwen3-32b",
+      "canonical": "qwen/qwen3-32b"
     },
     {
-      "provider": "google",
-      "model": "gemini-2.0-flash-lite-preview-02-05",
-      "canonical": "google/gemini-2.0-flash-lite"
+      "provider": "openrouter",
+      "model": "qwen/qwen3-8b",
+      "canonical": "qwen/qwen3-8b"
     },
     {
-      "provider": "google",
-      "model": "gemini-3-pro-preview",
-      "canonical": "google/gemini-3-pro"
+      "provider": "openrouter",
+      "model": "qwen/qwen3-coder",
+      "canonical": "qwen/qwen3-coder"
     },
     {
-      "provider": "google",
-      "model": "gemini-2.0-flash",
-      "canonical": "google/gemini-2.0-flash"
+      "provider": "openrouter",
+      "model": "qwen/qwen3-coder-30b-a3b-instruct",
+      "canonical": "qwen/qwen3-coder-30b-a3b-instruct"
     },
     {
-      "provider": "google",
-      "model": "gemma-3-4b-it",
-      "canonical": "google/gemma-3-4b-it"
+      "provider": "openrouter",
+      "model": "qwen/qwen3-coder-flash",
+      "canonical": "qwen/qwen3-coder-flash"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-coder-plus",
+      "canonical": "qwen/qwen3-coder-plus"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-coder:exacto",
+      "canonical": "qwen/qwen3-coder"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-max",
+      "canonical": "qwen/qwen3-max"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-next-80b-a3b-instruct",
+      "canonical": "qwen/qwen3-next-80b-a3b-instruct"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-next-80b-a3b-thinking",
+      "canonical": "qwen/qwen3-next-80b-a3b-thinking"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-vl-235b-a22b-instruct",
+      "canonical": "qwen/qwen3-vl-235b-a22b-instruct"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-vl-235b-a22b-thinking",
+      "canonical": "qwen/qwen3-vl-235b-a22b-thinking"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-vl-30b-a3b-instruct",
+      "canonical": "qwen/qwen3-vl-30b-a3b-instruct"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-vl-30b-a3b-thinking",
+      "canonical": "qwen/qwen3-vl-30b-a3b-thinking"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-vl-8b-instruct",
+      "canonical": "qwen/qwen3-vl-8b-instruct"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-vl-8b-thinking",
+      "canonical": "qwen/qwen3-vl-8b-thinking"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwq-32b",
+      "canonical": "qwen/qwq-32b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "x-ai/grok-3",
+      "canonical": "x-ai/grok-3"
+    },
+    {
+      "provider": "openrouter",
+      "model": "x-ai/grok-3-mini",
+      "canonical": "x-ai/grok-3-mini"
+    },
+    {
+      "provider": "openrouter",
+      "model": "x-ai/grok-4",
+      "canonical": "x-ai/grok-4"
+    },
+    {
+      "provider": "openrouter",
+      "model": "x-ai/grok-4-fast",
+      "canonical": "x-ai/grok-4-fast"
+    },
+    {
+      "provider": "openrouter",
+      "model": "x-ai/grok-4.1-fast",
+      "canonical": "x-ai/grok-4.1-fast"
+    },
+    {
+      "provider": "openrouter",
+      "model": "x-ai/grok-code-fast-1",
+      "canonical": "x-ai/grok-code-fast-1"
     }
   ],
   "model_counts": {
-    "google": 50,
     "anthropic": 9,
-    "tetrate": 0,
+    "google": 50,
     "openai": 646,
-    "openrouter": 233,
+    "openrouter": 231,
+    "tetrate": 0,
     "xai": 0
   },
   "canonical_models_used": [
-    "openai/o1-pro",
-    "openai/gpt-5-mini",
-    "qwen/qwen3-vl-30b-a3b-instruct",
-    "mistralai/ministral-8b",
-    "openai/gpt-3.5-turbo-16k",
-    "anthropic/claude-opus-4",
-    "deepseek/deepseek-v3.1-terminus",
-    "qwen/qwen3-235b-a22b-thinking",
-    "google/gemini-3-pro-image",
-    "openai/o3-pro",
-    "mistralai/mixtral-8x22b-instruct",
-    "google/gemma-3-12b-it",
-    "qwen/qwen3-next-80b-a3b-instruct",
-    "openai/o3",
-    "mistralai/mistral-7b-instruct",
-    "qwen/qwen-2.5-72b-instruct",
-    "anthropic/claude-sonnet-4",
-    "openai/gpt-5-codex",
-    "deepseek/deepseek-r1-distill-llama-70b",
-    "meta-llama/llama-3.1-70b-instruct",
-    "deepseek/deepseek-r1",
-    "openai/gpt-5.1-codex",
-    "openai/gpt-4o",
-    "qwen/qwen3-next-80b-a3b-thinking",
-    "openai/gpt-5.2-pro",
-    "qwen/qwen-vl-max",
-    "openai/gpt-4",
-    "openai/gpt-4o-mini",
-    "qwen/qwen-plus",
-    "openai/gpt-4o-mini-search",
-    "qwen/qwen3-30b-a3b-instruct",
-    "mistralai/pixtral-large",
-    "qwen/qwen3-14b",
-    "mistralai/mistral-small-3.1-24b-instruct",
-    "x-ai/grok-3",
-    "x-ai/grok-4.1-fast",
-    "google/gemini-3-pro",
-    "mistralai/mistral-medium-3",
-    "openai/o4-mini-high",
-    "openai/o3-deep-research",
-    "openai/gpt-4o-search",
-    "qwen/qwen3-vl-235b-a22b-thinking",
-    "ai21/jamba-mini-1.7",
-    "x-ai/grok-3-mini",
-    "meta-llama/llama-3.1-8b-instruct",
-    "openai/gpt-5.2",
-    "openai/gpt-5.1-codex-mini",
-    "mistralai/ministral-3b",
-    "openai/gpt-4.1",
-    "x-ai/grok-4-fast",
-    "qwen/qwen-plus-2025-07-28:thinking",
-    "openai/gpt-5-image",
-    "google/gemini-2.5-flash",
-    "openai/gpt-4.1-mini",
-    "anthropic/claude-haiku-4.5",
-    "openai/gpt-5.1-codex-max",
-    "openai/gpt-oss-safeguard-20b",
-    "meta-llama/llama-3-8b-instruct",
-    "qwen/qwen3-vl-8b-thinking",
-    "openai/o4-mini",
-    "mistralai/mistral-medium-3.1",
-    "anthropic/claude-sonnet-4.5",
-    "openai/gpt-5",
-    "qwen/qwq-32b",
-    "mistralai/mistral-small-3.2-24b-instruct",
-    "mistralai/codestral",
-    "mistralai/voxtral-small-24b",
-    "meta-llama/llama-3.3-70b-instruct",
-    "cohere/command-r-plus-08",
-    "mistralai/ministral-14b",
-    "mistralai/mistral-nemo",
-    "openai/chatgpt-4o",
-    "anthropic/claude-3-haiku",
-    "qwen/qwen3-32b",
-    "openai/o4-mini-deep-research",
-    "meta-llama/llama-3-70b-instruct",
-    "google/gemma-3n-e4b-it",
-    "mistralai/mistral-tiny",
-    "mistralai/devstral-medium",
-    "openai/gpt-4-turbo",
-    "qwen/qwen3-coder-flash",
-    "qwen/qwen3-vl-8b-instruct",
-    "meta-llama/llama-4-scout",
-    "qwen/qwen3-coder-plus",
-    "qwen/qwen-max",
-    "openai/gpt-oss-120b",
-    "openai/gpt-5.2-chat",
-    "mistralai/mistral-small-creative",
-    "openai/gpt-5.1",
-    "deepseek/deepseek",
-    "x-ai/grok-4",
-    "mistralai/mistral-large",
-    "mistralai/mixtral-8x7b-instruct",
-    "anthropic/claude-3.7-sonnet",
-    "qwen/qwen3-8b",
-    "openai/gpt-4o:extended",
-    "anthropic/claude-3.5-sonnet",
-    "openai/gpt-5.1-chat",
-    "anthropic/claude-opus-4.5",
-    "google/gemini-2.5-flash-image",
-    "anthropic/claude-3.5-haiku",
-    "meta-llama/llama-3.1-405b-instruct",
-    "openai/codex-mini",
-    "meta-llama/llama-4-maverick",
-    "openai/o3-mini",
-    "qwen/qwen3-30b-a3b-thinking",
-    "qwen/qwen3-coder-30b-a3b-instruct",
-    "google/gemma-3-4b-it",
-    "qwen/qwen3-coder",
-    "openai/gpt-3.5-turbo-instruct",
-    "qwen/qwen3-30b-a3b",
-    "anthropic/claude-opus-4.1",
-    "openai/gpt-5-chat",
-    "mistralai/mistral-saba",
     "ai21/jamba-large-1.7",
-    "mistralai/devstral-small",
-    "google/gemini-2.5-flash-lite",
-    "openai/gpt-oss-20b",
-    "openai/gpt-5-pro",
-    "google/gemini-2.0-flash-lite",
-    "openai/gpt-4.1-nano",
-    "openai/o1",
-    "openai/gpt-5-nano",
-    "qwen/qwen3-vl-30b-a3b-thinking",
-    "meta-llama/llama-3.2-3b-instruct",
-    "mistralai/devstral",
-    "qwen/qwen3-max",
-    "google/gemma-3-27b-it",
-    "deepseek/deepseek-chat",
-    "mistralai/mistral-small-24b-instruct",
-    "cohere/command-r-08",
+    "ai21/jamba-mini-1.7",
+    "anthropic/claude-3-haiku",
+    "anthropic/claude-3.5-haiku",
+    "anthropic/claude-3.5-sonnet",
+    "anthropic/claude-3.7-sonnet",
     "anthropic/claude-3.7-sonnet:thinking",
-    "mistralai/pixtral-12b",
-    "qwen/qwen-turbo",
-    "google/gemini-3-flash",
-    "openai/gpt-4o-audio",
-    "google/gemini-2.5-pro",
+    "anthropic/claude-haiku-4.5",
+    "anthropic/claude-opus-4",
+    "anthropic/claude-opus-4.1",
+    "anthropic/claude-opus-4.5",
+    "anthropic/claude-sonnet-4",
+    "anthropic/claude-sonnet-4.5",
+    "cohere/command-r-08",
+    "cohere/command-r-plus-08",
+    "deepseek/deepseek",
+    "deepseek/deepseek-chat",
+    "deepseek/deepseek-r1",
+    "deepseek/deepseek-r1-distill-llama-70b",
+    "deepseek/deepseek-v3.1-terminus",
     "google/gemini-2.0-flash",
-    "openai/o3-mini-high",
-    "qwen/qwen3-vl-235b-a22b-instruct",
-    "x-ai/grok-code-fast-1",
+    "google/gemini-2.0-flash-lite",
+    "google/gemini-2.5-flash",
+    "google/gemini-2.5-flash-image",
+    "google/gemini-2.5-flash-lite",
+    "google/gemini-2.5-pro",
+    "google/gemini-3-flash",
+    "google/gemini-3-pro",
+    "google/gemini-3-pro-image",
+    "google/gemma-3-12b-it",
+    "google/gemma-3-27b-it",
+    "google/gemma-3-4b-it",
+    "google/gemma-3n-e4b-it",
+    "meta-llama/llama-3-70b-instruct",
+    "meta-llama/llama-3-8b-instruct",
+    "meta-llama/llama-3.1-405b-instruct",
+    "meta-llama/llama-3.1-70b-instruct",
+    "meta-llama/llama-3.1-8b-instruct",
+    "meta-llama/llama-3.2-3b-instruct",
+    "meta-llama/llama-3.3-70b-instruct",
+    "meta-llama/llama-4-maverick",
+    "meta-llama/llama-4-scout",
+    "mistralai/codestral",
+    "mistralai/devstral",
+    "mistralai/devstral-medium",
+    "mistralai/devstral-small",
+    "mistralai/ministral-14b",
+    "mistralai/ministral-3b",
+    "mistralai/ministral-8b",
+    "mistralai/mistral-7b-instruct",
+    "mistralai/mistral-large",
+    "mistralai/mistral-medium-3",
+    "mistralai/mistral-medium-3.1",
+    "mistralai/mistral-nemo",
+    "mistralai/mistral-saba",
+    "mistralai/mistral-small-24b-instruct",
+    "mistralai/mistral-small-3.1-24b-instruct",
+    "mistralai/mistral-small-3.2-24b-instruct",
+    "mistralai/mistral-small-creative",
+    "mistralai/mistral-tiny",
+    "mistralai/mixtral-8x22b-instruct",
+    "mistralai/mixtral-8x7b-instruct",
+    "mistralai/pixtral-12b",
+    "mistralai/pixtral-large",
+    "mistralai/voxtral-small-24b",
+    "openai/chatgpt-4o",
+    "openai/codex-mini",
     "openai/gpt-3.5-turbo",
+    "openai/gpt-3.5-turbo-16k",
+    "openai/gpt-3.5-turbo-instruct",
+    "openai/gpt-4",
+    "openai/gpt-4-turbo",
+    "openai/gpt-4.1",
+    "openai/gpt-4.1-mini",
+    "openai/gpt-4.1-nano",
+    "openai/gpt-4o",
+    "openai/gpt-4o-audio",
+    "openai/gpt-4o-mini",
+    "openai/gpt-4o-mini-search",
+    "openai/gpt-4o-search",
+    "openai/gpt-4o:extended",
+    "openai/gpt-5",
+    "openai/gpt-5-chat",
+    "openai/gpt-5-codex",
+    "openai/gpt-5-image",
+    "openai/gpt-5-image-mini",
+    "openai/gpt-5-mini",
+    "openai/gpt-5-nano",
+    "openai/gpt-5-pro",
+    "openai/gpt-5.1",
+    "openai/gpt-5.1-chat",
+    "openai/gpt-5.1-codex",
+    "openai/gpt-5.1-codex-max",
+    "openai/gpt-5.1-codex-mini",
+    "openai/gpt-5.2",
+    "openai/gpt-5.2-chat",
+    "openai/gpt-5.2-pro",
+    "openai/gpt-oss-120b",
+    "openai/gpt-oss-20b",
+    "openai/gpt-oss-safeguard-20b",
+    "openai/o1",
+    "openai/o1-pro",
+    "openai/o3",
+    "openai/o3-deep-research",
+    "openai/o3-mini",
+    "openai/o3-mini-high",
+    "openai/o3-pro",
+    "openai/o4-mini",
+    "openai/o4-mini-deep-research",
+    "openai/o4-mini-high",
+    "qwen/qwen-2.5-72b-instruct",
+    "qwen/qwen-max",
+    "qwen/qwen-plus",
+    "qwen/qwen-plus-2025-07-28:thinking",
+    "qwen/qwen-turbo",
+    "qwen/qwen-vl-max",
+    "qwen/qwen3-14b",
     "qwen/qwen3-235b-a22b",
-    "openai/gpt-5-image-mini"
+    "qwen/qwen3-235b-a22b-thinking",
+    "qwen/qwen3-30b-a3b",
+    "qwen/qwen3-30b-a3b-instruct",
+    "qwen/qwen3-30b-a3b-thinking",
+    "qwen/qwen3-32b",
+    "qwen/qwen3-8b",
+    "qwen/qwen3-coder",
+    "qwen/qwen3-coder-30b-a3b-instruct",
+    "qwen/qwen3-coder-flash",
+    "qwen/qwen3-coder-plus",
+    "qwen/qwen3-max",
+    "qwen/qwen3-next-80b-a3b-instruct",
+    "qwen/qwen3-next-80b-a3b-thinking",
+    "qwen/qwen3-vl-235b-a22b-instruct",
+    "qwen/qwen3-vl-235b-a22b-thinking",
+    "qwen/qwen3-vl-30b-a3b-instruct",
+    "qwen/qwen3-vl-30b-a3b-thinking",
+    "qwen/qwen3-vl-8b-instruct",
+    "qwen/qwen3-vl-8b-thinking",
+    "qwen/qwq-32b",
+    "x-ai/grok-3",
+    "x-ai/grok-3-mini",
+    "x-ai/grok-4",
+    "x-ai/grok-4-fast",
+    "x-ai/grok-4.1-fast",
+    "x-ai/grok-code-fast-1"
   ]
 }

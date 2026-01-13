@@ -43,8 +43,8 @@
     "context_length": 200000,
     "max_completion_tokens": 4096,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -63,8 +63,8 @@
     "context_length": 200000,
     "max_completion_tokens": 8192,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -83,9 +83,9 @@
     "context_length": 200000,
     "max_completion_tokens": 8192,
     "input_modalities": [
-      "text",
+      "file",
       "image",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -104,9 +104,9 @@
     "context_length": 200000,
     "max_completion_tokens": 64000,
     "input_modalities": [
-      "text",
+      "file",
       "image",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -125,9 +125,9 @@
     "context_length": 200000,
     "max_completion_tokens": 64000,
     "input_modalities": [
-      "text",
+      "file",
       "image",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -166,9 +166,9 @@
     "context_length": 200000,
     "max_completion_tokens": 32000,
     "input_modalities": [
+      "file",
       "image",
-      "text",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -186,9 +186,9 @@
     "name": "Anthropic: Claude Opus 4.1",
     "context_length": 200000,
     "input_modalities": [
+      "file",
       "image",
-      "text",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -228,9 +228,9 @@
     "context_length": 1000000,
     "max_completion_tokens": 64000,
     "input_modalities": [
+      "file",
       "image",
-      "text",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -249,9 +249,9 @@
     "context_length": 1000000,
     "max_completion_tokens": 64000,
     "input_modalities": [
-      "text",
+      "file",
       "image",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -533,10 +533,10 @@
     "context_length": 1048576,
     "max_completion_tokens": 8192,
     "input_modalities": [
-      "text",
-      "image",
-      "file",
       "audio",
+      "file",
+      "image",
+      "text",
       "video"
     ],
     "output_modalities": [
@@ -556,10 +556,10 @@
     "context_length": 1048576,
     "max_completion_tokens": 8192,
     "input_modalities": [
-      "text",
-      "image",
-      "file",
       "audio",
+      "file",
+      "image",
+      "text",
       "video"
     ],
     "output_modalities": [
@@ -579,10 +579,10 @@
     "context_length": 1048576,
     "max_completion_tokens": 65535,
     "input_modalities": [
+      "audio",
       "file",
       "image",
       "text",
-      "audio",
       "video"
     ],
     "output_modalities": [
@@ -623,10 +623,10 @@
     "context_length": 1048576,
     "max_completion_tokens": 65535,
     "input_modalities": [
-      "text",
-      "image",
-      "file",
       "audio",
+      "file",
+      "image",
+      "text",
       "video"
     ],
     "output_modalities": [
@@ -646,10 +646,10 @@
     "context_length": 1048576,
     "max_completion_tokens": 65536,
     "input_modalities": [
-      "text",
-      "image",
-      "file",
       "audio",
+      "file",
+      "image",
+      "text",
       "video"
     ],
     "output_modalities": [
@@ -669,10 +669,10 @@
     "context_length": 1048576,
     "max_completion_tokens": 65535,
     "input_modalities": [
-      "text",
-      "image",
-      "file",
       "audio",
+      "file",
+      "image",
+      "text",
       "video"
     ],
     "output_modalities": [
@@ -692,10 +692,10 @@
     "context_length": 1048576,
     "max_completion_tokens": 65536,
     "input_modalities": [
-      "text",
-      "image",
-      "file",
       "audio",
+      "file",
+      "image",
+      "text",
       "video"
     ],
     "output_modalities": [
@@ -772,8 +772,8 @@
     "context_length": 131072,
     "max_completion_tokens": 131072,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -789,18 +789,19 @@
   {
     "id": "google/gemma-3-27b-it",
     "name": "Google: Gemma 3 27B",
-    "context_length": 131072,
+    "context_length": 96000,
+    "max_completion_tokens": 96000,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
     ],
     "supports_tools": true,
     "pricing": {
-      "prompt": 3.6e-8,
-      "completion": 6.4e-8,
+      "prompt": 4e-8,
+      "completion": 1.5e-7,
       "request": 0.0,
       "image": 0.0
     }
@@ -810,8 +811,8 @@
     "name": "Google: Gemma 3 4B",
     "context_length": 96000,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -960,8 +961,8 @@
     "context_length": 131072,
     "max_completion_tokens": 16384,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1017,8 +1018,8 @@
     "context_length": 32768,
     "max_completion_tokens": 16384,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1056,8 +1057,8 @@
     "context_length": 1048576,
     "max_completion_tokens": 16384,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1076,8 +1077,8 @@
     "context_length": 327680,
     "max_completion_tokens": 16384,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1223,8 +1224,8 @@
     "name": "Mistral: Ministral 3 14B 2512",
     "context_length": 262144,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1315,8 +1316,8 @@
     "name": "Mistral: Mistral Medium 3",
     "context_length": 131072,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1334,8 +1335,8 @@
     "name": "Mistral: Mistral Medium 3.1",
     "context_length": 131072,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1410,8 +1411,8 @@
     "context_length": 131072,
     "max_completion_tokens": 131072,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1522,8 +1523,8 @@
     "name": "Mistral: Pixtral 12B",
     "context_length": 32768,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1541,8 +1542,8 @@
     "name": "Mistral: Pixtral Large 2411",
     "context_length": 131072,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1560,8 +1561,8 @@
     "name": "Mistral: Voxtral Small 24B 2507",
     "context_length": 32000,
     "input_modalities": [
-      "text",
-      "audio"
+      "audio",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1580,8 +1581,8 @@
     "context_length": 128000,
     "max_completion_tokens": 16384,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1696,8 +1697,8 @@
     "context_length": 128000,
     "max_completion_tokens": 4096,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1716,9 +1717,9 @@
     "context_length": 1047576,
     "max_completion_tokens": 32768,
     "input_modalities": [
+      "file",
       "image",
-      "text",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1737,9 +1738,9 @@
     "context_length": 1047576,
     "max_completion_tokens": 32768,
     "input_modalities": [
+      "file",
       "image",
-      "text",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1758,9 +1759,9 @@
     "context_length": 1047576,
     "max_completion_tokens": 32768,
     "input_modalities": [
+      "file",
       "image",
-      "text",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1779,9 +1780,9 @@
     "context_length": 128000,
     "max_completion_tokens": 16384,
     "input_modalities": [
-      "text",
+      "file",
       "image",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1820,9 +1821,9 @@
     "context_length": 128000,
     "max_completion_tokens": 16384,
     "input_modalities": [
-      "text",
+      "file",
       "image",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1879,9 +1880,9 @@
     "context_length": 128000,
     "max_completion_tokens": 64000,
     "input_modalities": [
-      "text",
+      "file",
       "image",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1900,9 +1901,9 @@
     "context_length": 400000,
     "max_completion_tokens": 128000,
     "input_modalities": [
-      "text",
+      "file",
       "image",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1942,8 +1943,8 @@
     "context_length": 400000,
     "max_completion_tokens": 128000,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1962,9 +1963,9 @@
     "context_length": 400000,
     "max_completion_tokens": 128000,
     "input_modalities": [
+      "file",
       "image",
-      "text",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "image",
@@ -2006,9 +2007,9 @@
     "context_length": 400000,
     "max_completion_tokens": 128000,
     "input_modalities": [
-      "text",
+      "file",
       "image",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2027,9 +2028,9 @@
     "context_length": 400000,
     "max_completion_tokens": 128000,
     "input_modalities": [
-      "text",
+      "file",
       "image",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2048,9 +2049,9 @@
     "context_length": 400000,
     "max_completion_tokens": 128000,
     "input_modalities": [
+      "file",
       "image",
-      "text",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2069,9 +2070,9 @@
     "context_length": 400000,
     "max_completion_tokens": 128000,
     "input_modalities": [
+      "file",
       "image",
-      "text",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2111,8 +2112,8 @@
     "context_length": 400000,
     "max_completion_tokens": 128000,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2131,8 +2132,8 @@
     "context_length": 400000,
     "max_completion_tokens": 128000,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2213,9 +2214,9 @@
     "context_length": 400000,
     "max_completion_tokens": 128000,
     "input_modalities": [
+      "file",
       "image",
-      "text",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2240,8 +2241,8 @@
     ],
     "supports_tools": true,
     "pricing": {
-      "prompt": 2e-8,
-      "completion": 1e-7,
+      "prompt": 3.9e-8,
+      "completion": 1.9e-7,
       "request": 0.0,
       "image": 0.0
     }
@@ -2250,6 +2251,7 @@
     "id": "openai/gpt-oss-20b",
     "name": "OpenAI: gpt-oss-20b",
     "context_length": 131072,
+    "max_completion_tokens": 131072,
     "input_modalities": [
       "text"
     ],
@@ -2258,8 +2260,8 @@
     ],
     "supports_tools": true,
     "pricing": {
-      "prompt": 1.6e-8,
-      "completion": 6e-8,
+      "prompt": 2e-8,
+      "completion": 1e-7,
       "request": 0.0,
       "image": 0.0
     }
@@ -2289,9 +2291,9 @@
     "context_length": 200000,
     "max_completion_tokens": 100000,
     "input_modalities": [
-      "text",
+      "file",
       "image",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2310,9 +2312,9 @@
     "context_length": 200000,
     "max_completion_tokens": 100000,
     "input_modalities": [
-      "text",
+      "file",
       "image",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2331,9 +2333,9 @@
     "context_length": 200000,
     "max_completion_tokens": 100000,
     "input_modalities": [
+      "file",
       "image",
-      "text",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2352,9 +2354,9 @@
     "context_length": 200000,
     "max_completion_tokens": 100000,
     "input_modalities": [
+      "file",
       "image",
-      "text",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2373,8 +2375,8 @@
     "context_length": 200000,
     "max_completion_tokens": 100000,
     "input_modalities": [
-      "text",
-      "file"
+      "file",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2393,8 +2395,8 @@
     "context_length": 200000,
     "max_completion_tokens": 100000,
     "input_modalities": [
-      "text",
-      "file"
+      "file",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2413,9 +2415,9 @@
     "context_length": 200000,
     "max_completion_tokens": 100000,
     "input_modalities": [
-      "text",
       "file",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2434,9 +2436,9 @@
     "context_length": 200000,
     "max_completion_tokens": 100000,
     "input_modalities": [
+      "file",
       "image",
-      "text",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2476,9 +2478,9 @@
     "context_length": 200000,
     "max_completion_tokens": 100000,
     "input_modalities": [
+      "file",
       "image",
-      "text",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2552,8 +2554,8 @@
     "name": "Qwen: Qwen2.5-VL 7B Instruct",
     "context_length": 32768,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2648,8 +2650,8 @@
     "context_length": 131072,
     "max_completion_tokens": 8192,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2668,8 +2670,8 @@
     "context_length": 7500,
     "max_completion_tokens": 1500,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2706,8 +2708,8 @@
     "context_length": 16384,
     "max_completion_tokens": 16384,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2726,8 +2728,8 @@
     "context_length": 32768,
     "max_completion_tokens": 32768,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2998,8 +3000,8 @@
     ],
     "supports_tools": true,
     "pricing": {
-      "prompt": 6e-8,
-      "completion": 6e-7,
+      "prompt": 9e-8,
+      "completion": 1.1e-6,
       "request": 0.0,
       "image": 0.0
     }
@@ -3028,16 +3030,16 @@
     "name": "Qwen: Qwen3 VL 235B A22B Instruct",
     "context_length": 262144,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
     ],
     "supports_tools": true,
     "pricing": {
-      "prompt": 1.2e-7,
-      "completion": 5.6e-7,
+      "prompt": 2e-7,
+      "completion": 1.2e-6,
       "request": 0.0,
       "image": 0.0
     }
@@ -3048,8 +3050,8 @@
     "context_length": 262144,
     "max_completion_tokens": 262144,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -3067,8 +3069,8 @@
     "name": "Qwen: Qwen3 VL 30B A3B Instruct",
     "context_length": 262144,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -3087,8 +3089,8 @@
     "context_length": 131072,
     "max_completion_tokens": 32768,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -3106,8 +3108,8 @@
     "name": "Qwen: Qwen3 VL 32B Instruct",
     "context_length": 262144,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -3239,8 +3241,8 @@
     "context_length": 2000000,
     "max_completion_tokens": 30000,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -3259,8 +3261,8 @@
     "context_length": 2000000,
     "max_completion_tokens": 30000,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"

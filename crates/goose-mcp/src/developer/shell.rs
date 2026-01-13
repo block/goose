@@ -109,8 +109,14 @@ pub fn normalize_line_endings(text: &str) -> String {
 pub fn configure_shell_command(
     shell_config: &ShellConfig,
     command: &str,
+    working_dir: Option<&std::path::Path>,
 ) -> tokio::process::Command {
     let mut command_builder = tokio::process::Command::new(&shell_config.executable);
+
+    if let Some(dir) = working_dir {
+        command_builder.current_dir(dir);
+    }
+
     command_builder
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

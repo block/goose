@@ -125,7 +125,6 @@ export default function UpdateSection() {
       }
     });
 
-    // Cleanup timeout on unmount
     return () => {
       if (progressTimeoutRef.current) {
         clearTimeout(progressTimeoutRef.current);

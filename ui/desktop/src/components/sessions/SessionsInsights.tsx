@@ -78,7 +78,6 @@ export function SessionInsights() {
     loadInsights();
     loadRecentSessions();
 
-    // Cleanup timeout on unmount
     return () => {
       if (loadingTimeout) {
         window.clearTimeout(loadingTimeout);

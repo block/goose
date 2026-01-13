@@ -10,6 +10,7 @@ import {
   Download,
   Upload,
   ExternalLink,
+  Puzzle,
 } from 'lucide-react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
@@ -22,6 +23,7 @@ import { groupSessionsByDate, type DateGroup } from '../../utils/dateUtils';
 import { Skeleton } from '../ui/skeleton';
 import { toast } from 'react-toastify';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/Tooltip';
 import {
   deleteSession,
   exportSession,
@@ -29,8 +31,24 @@ import {
   listSessions,
   Session,
   updateSessionName,
+  ExtensionConfig,
+  ExtensionData,
 } from '../../api';
+import { formatExtensionName } from '../settings/extensions/subcomponents/ExtensionList';
 import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
+
+function getSessionExtensionNames(extensionData: ExtensionData): string[] {
+  try {
+    const enabledExtensionData = extensionData?.['enabled_extensions.v0'] as
+      | { extensions?: ExtensionConfig[] }
+      | undefined;
+    if (!enabledExtensionData?.extensions) return [];
+
+    return enabledExtensionData.extensions.map((ext) => formatExtensionName(ext.name));
+  } catch {
+    return [];
+  }
+}
 
 interface EditSessionModalProps {
   session: Session | null;
@@ -49,7 +67,6 @@ const EditSessionModal = React.memo<EditSessionModalProps>(
       if (session && isOpen) {
         setDescription(session.name);
       } else if (!isOpen) {
-        // Reset state when modal closes
         setDescription('');
         setIsUpdating(false);
       }
@@ -72,8 +89,6 @@ const EditSessionModal = React.memo<EditSessionModalProps>(
           throwOnError: true,
         });
         await onSave(session.id, trimmedDescription);
-
-        // Close modal, then show success toast on a timeout to let the UI update complete.
         onClose();
         setTimeout(() => {
           toast.success('Session description updated successfully');
@@ -548,6 +563,12 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         [onOpenInNewWindow, session]
       );
 
+      // Get extension names for this session
+      const extensionNames = useMemo(
+        () => getSessionExtensionNames(session.extension_data),
+        [session.extension_data]
+      );
+
       return (
         <Card
           onClick={handleCardClick}
@@ -610,6 +631,28 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                   <Target className="w-3 h-3 mr-1" />
                   <span className="font-mono">{(session.total_tokens || 0).toLocaleString()}</span>
                 </div>
+              )}
+              {extensionNames.length > 0 && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
+                        <Puzzle className="w-3 h-3 mr-1" />
+                        <span className="font-mono">{extensionNames.length}</span>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs">
+                      <div className="text-xs">
+                        <div className="font-medium mb-1">Extensions:</div>
+                        <ul className="list-disc list-inside">
+                          {extensionNames.map((name) => (
+                            <li key={name}>{name}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               )}
             </div>
           </div>

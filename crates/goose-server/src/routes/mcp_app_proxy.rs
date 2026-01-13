@@ -14,6 +14,10 @@ struct ProxyQuery {
     connect_domains: Option<String>,
     /// Comma-separated list of domains for resource loading (scripts, styles, images, fonts, media)
     resource_domains: Option<String>,
+    /// Comma-separated list of origins for nested iframes (frame-src)
+    frame_domains: Option<String>,
+    /// Comma-separated list of allowed base URIs (base-uri)
+    base_uri_domains: Option<String>,
 }
 
 const MCP_APP_PROXY_HTML: &str = include_str!("templates/mcp_app_proxy.html");
@@ -26,7 +30,12 @@ const MCP_APP_PROXY_HTML: &str = include_str!("templates/mcp_app_proxy.html");
 ///
 /// Based on the MCP Apps specification (ext-apps SEP):
 /// <https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/draft/apps.mdx>
-fn build_outer_csp(connect_domains: &[String], resource_domains: &[String]) -> String {
+fn build_outer_csp(
+    connect_domains: &[String],
+    resource_domains: &[String],
+    frame_domains: &[String],
+    base_uri_domains: &[String],
+) -> String {
     let resources = if resource_domains.is_empty() {
         String::new()
     } else {
@@ -39,6 +48,18 @@ fn build_outer_csp(connect_domains: &[String], resource_domains: &[String]) -> S
         format!(" {}", connect_domains.join(" "))
     };
 
+    let frame_src = if frame_domains.is_empty() {
+        "frame-src 'none'".to_string()
+    } else {
+        format!("frame-src {}", frame_domains.join(" "))
+    };
+
+    let base_uris = if base_uri_domains.is_empty() {
+        String::new()
+    } else {
+        format!(" {}", base_uri_domains.join(" "))
+    };
+
     format!(
         "default-src 'none'; \
          script-src 'self' 'unsafe-inline'{resources}; \
@@ -49,9 +70,9 @@ fn build_outer_csp(connect_domains: &[String], resource_domains: &[String]) -> S
          img-src 'self' data: blob:{resources}; \
          font-src 'self'{resources}; \
          media-src 'self' data: blob:{resources}; \
-         frame-src blob: data:; \
+         {frame_src}; \
          object-src 'none'; \
-         base-uri 'self'"
+         base-uri 'self'{base_uris}"
     )
 }
 
@@ -73,7 +94,9 @@ fn parse_domains(domains: Option<&String>) -> Vec<String> {
     params(
         ("secret" = String, Query, description = "Secret key for authentication"),
         ("connect_domains" = Option<String>, Query, description = "Comma-separated domains for connect-src"),
-        ("resource_domains" = Option<String>, Query, description = "Comma-separated domains for resource loading")
+        ("resource_domains" = Option<String>, Query, description = "Comma-separated domains for resource loading"),
+        ("frame_domains" = Option<String>, Query, description = "Comma-separated origins for nested iframes (frame-src)"),
+        ("base_uri_domains" = Option<String>, Query, description = "Comma-separated allowed base URIs (base-uri)")
     ),
     responses(
         (status = 200, description = "MCP App proxy HTML page", content_type = "text/html"),
@@ -91,9 +114,16 @@ async fn mcp_app_proxy(
     // Parse domains from query params
     let connect_domains = parse_domains(params.connect_domains.as_ref());
     let resource_domains = parse_domains(params.resource_domains.as_ref());
+    let frame_domains = parse_domains(params.frame_domains.as_ref());
+    let base_uri_domains = parse_domains(params.base_uri_domains.as_ref());
 
     // Build the outer CSP based on declared domains
-    let csp = build_outer_csp(&connect_domains, &resource_domains);
+    let csp = build_outer_csp(
+        &connect_domains,
+        &resource_domains,
+        &frame_domains,
+        &base_uri_domains,
+    );
 
     // Replace the CSP placeholder in the HTML template
     let html = MCP_APP_PROXY_HTML.replace("{{OUTER_CSP}}", &csp);

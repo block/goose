@@ -5,7 +5,7 @@ const DesktopInstallButtons = () => {
   return (
     <div>
       <p>Click one of the buttons below to download goose Desktop for macOS:</p>
-      <div className="pill-button">
+      <div className="pill-button" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
         <Link
           className="button button--primary button--lg"
           to="https://github.com/block/goose/releases/download/stable/Goose.zip"

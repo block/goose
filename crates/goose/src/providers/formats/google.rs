@@ -309,7 +309,6 @@ pub fn process_map(map: &Map<String, Value>, parent_key: Option<&str>) -> Value 
 
 #[derive(Clone, Copy)]
 enum SignedTextHandling {
-    SkipSignedText,
     SignedTextAsThinking,
     SignedTextAsRegularText,
 }
@@ -318,8 +317,12 @@ pub fn process_response_part(
     part: &Value,
     last_signature: &mut Option<String>,
 ) -> Option<MessageContent> {
-    // For streaming: skip text with signatures (matches Anthropic/OpenAI behavior)
-    process_response_part_impl(part, last_signature, SignedTextHandling::SkipSignedText)
+    // Gemini 2.5 models include thoughtSignature on the first streaming chunk
+    process_response_part_impl(
+        part,
+        last_signature,
+        SignedTextHandling::SignedTextAsRegularText,
+    )
 }
 
 fn process_response_part_non_streaming(
@@ -353,7 +356,6 @@ fn process_response_part_impl(
             return None;
         }
         match (signature, signed_text_handling) {
-            (Some(_), SignedTextHandling::SkipSignedText) => None,
             (Some(sig), SignedTextHandling::SignedTextAsThinking) => {
                 Some(MessageContent::thinking(text.to_string(), sig.to_string()))
             }
@@ -1341,6 +1343,39 @@ mod tests {
         }
 
         assert_eq!(tool_calls, vec!["test_tool"]);
+    }
+
+    #[tokio::test]
+    async fn test_streaming_with_thought_signature() {
+        use futures::StreamExt;
+
+        let signed_stream = concat!(
+            r#"data: {"candidates": [{"content": {"role": "model", "#,
+            r#""parts": [{"text": "Begin", "thoughtSignature": "sig123"}]}}]}"#,
+            "\n",
+            r#"data: {"candidates": [{"content": {"role": "model", "#,
+            r#""parts": [{"text": " middle"}]}}]}"#,
+            "\n",
+            r#"data: {"candidates": [{"content": {"role": "model", "#,
+            r#""parts": [{"text": " end"}]}}]}"#
+        );
+        let lines: Vec<Result<String, anyhow::Error>> =
+            signed_stream.lines().map(|l| Ok(l.to_string())).collect();
+        let stream = Box::pin(futures::stream::iter(lines));
+        let mut message_stream = std::pin::pin!(response_to_streaming_message(stream));
+
+        let mut text_parts = Vec::new();
+
+        while let Some(result) = message_stream.next().await {
+            let (message, _usage) = result.unwrap();
+            if let Some(msg) = message {
+                if let Some(MessageContent::Text(text)) = msg.content.first() {
+                    text_parts.push(text.text.clone());
+                }
+            }
+        }
+
+        assert_eq!(text_parts, vec!["Begin", " middle", " end"]);
     }
 
     #[tokio::test]
