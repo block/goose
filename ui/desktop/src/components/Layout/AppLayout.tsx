@@ -137,10 +137,8 @@ const AppLayoutContent: React.FC<AppLayoutProps> = () => {
           : 'opacity-0 scale-95 pointer-events-none'
         }
       `}>
-        {/* Navigation content - full viewport */}
-        <div className="flex flex-col h-full">
-          {navigationComponent}
-        </div>
+        {/* Navigation content - let TopNavigation handle positioning */}
+        {navigationComponent}
       </div>
     </div>
   );
