@@ -143,13 +143,15 @@ pub async fn handle_web(
     host: String,
     open: bool,
     auth_token: Option<String>,
+    no_auth: bool,
 ) -> Result<()> {
-    if !is_loopback_address(&host) && auth_token.is_none() {
+    if !is_loopback_address(&host) && auth_token.is_none() && !no_auth {
         eprintln!(
             "Error: --auth-token is required when binding to a non-loopback address ({}).",
             host
         );
         eprintln!("For security, use --auth-token <TOKEN> or bind to localhost/127.0.0.1.");
+        eprintln!("To skip this check, use --no-auth (unsafe).");
         std::process::exit(1);
     }
 
