@@ -50,43 +50,39 @@ function loadNativeAuthSession(): NativeAuthSession | null {
 
   const require = createRequire(import.meta.url);
   const appPath = app.getAppPath();
-  const candidates = app.isPackaged
-    ? [
-        path.join(
-          process.resourcesPath,
-          'native',
-          'auth_session',
-          'build',
-          'Release',
-          'auth_session.node'
-        ),
-        path.join(process.resourcesPath, 'auth_session.node'),
-        path.join(process.resourcesPath, 'native', 'auth_session.node'),
-      ]
-    : [
-        path.join(
-          appPath,
-          'src',
-          'native',
-          'auth_session',
-          'build',
-          'Release',
-          'auth_session.node'
-        ),
-        path.join(appPath, 'src', 'native', 'auth_session.node'),
-      ];
+  const candidate = app.isPackaged
+    ? path.join(
+        process.resourcesPath,
+        'native',
+        'auth_session',
+        'build',
+        'Release',
+        'auth_session.node'
+      )
+    : path.join(
+        appPath,
+        'src',
+        'native',
+        'auth_session',
+        'build',
+        'Release',
+        'auth_session.node'
+      );
 
-  for (const candidate of candidates) {
-    if (!fsSync.existsSync(candidate)) {
-      continue;
-    }
+  if (!fsSync.existsSync(candidate)) {
+    log.info('Tetrate auth native module not found:', candidate);
+    nativeAuthSession = null;
+    return null;
+  }
 
-    try {
-      nativeAuthSession = require(candidate) as NativeAuthSession;
-      return nativeAuthSession;
-    } catch {
-      continue;
-    }
+  try {
+    nativeAuthSession = require(candidate) as NativeAuthSession;
+    return nativeAuthSession;
+  } catch (error) {
+    log.info(
+      'Tetrate auth native module failed to load:',
+      error instanceof Error ? error.message : String(error)
+    );
   }
 
   nativeAuthSession = null;
