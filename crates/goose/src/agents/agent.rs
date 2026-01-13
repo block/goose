@@ -529,11 +529,14 @@ impl Agent {
                     "tool_execution_failed",
                     &format!("{}: {}", tool_call.name, e),
                 );
-                ToolCallResult::from(Err(ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    e.to_string(),
-                    None,
-                )))
+                // Try to downcast to ErrorData to avoid double wrapping
+                let error_data = e
+                    .downcast_ref::<ErrorData>()
+                    .cloned()
+                    .unwrap_or_else(|| {
+                        ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None)
+                    });
+                ToolCallResult::from(Err(error_data))
             })
         };
 
