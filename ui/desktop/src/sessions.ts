@@ -7,10 +7,6 @@ import {
 } from './store/extensionOverrides';
 import type { FixedExtensionEntry } from './components/ConfigContext';
 
-/**
- * Check if a session should display "New Chat" instead of its stored name.
- * Returns true for empty sessions (no messages yet) that don't have a user-provided name.
- */
 export function shouldShowNewChatTitle(session: Session): boolean {
   return !session.user_set_name && session.message_count === 0;
 }
