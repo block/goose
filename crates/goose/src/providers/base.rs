@@ -330,6 +330,9 @@ impl Usage {
 }
 
 use async_trait::async_trait;
+use serde_json::json;
+
+use super::utils::{wrap_stream_with_logging, RequestLog};
 
 /// Trait for LeadWorkerProvider-specific functionality
 pub trait LeadWorkerProviderTrait {
@@ -354,15 +357,49 @@ pub trait Provider: Send + Sync {
     /// Get the name of this provider instance
     fn get_name(&self) -> &str;
 
-    // Internal implementation of complete, used by complete_fast and complete
-    // Providers should override this to implement their actual completion logic
-    async fn complete_with_model(
+    /// Internal implementation of complete. Providers implement this method.
+    /// This method should NOT handle RequestLog - that's done by complete_with_model.
+    async fn complete_impl(
         &self,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError>;
+
+    /// Complete a request with automatic request logging.
+    /// This wraps complete_impl with RequestLog for consistent error tracking.
+    /// Callers should use this method; providers should implement complete_impl.
+    async fn complete_with_model(
+        &self,
+        model_config: &ModelConfig,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+    ) -> Result<(Message, ProviderUsage), ProviderError> {
+        let payload = json!({
+            "model": &model_config.model_name,
+            "system_length": system.len(),
+            "messages_count": messages.len(),
+            "tools_count": tools.len(),
+        });
+
+        let mut log = RequestLog::start(model_config, &payload)?;
+
+        let result = log
+            .run(self.complete_impl(model_config, system, messages, tools))
+            .await;
+
+        if let Ok((ref message, ref provider_usage)) = result {
+            let response_summary = json!({
+                "model": &provider_usage.model,
+                "content_items": message.content.len(),
+            });
+            let _ = log.success(&response_summary, Some(&provider_usage.usage));
+        }
+
+        result
+    }
 
     // Default implementation: use the provider's configured model
     async fn complete(
@@ -486,15 +523,35 @@ pub trait Provider: Send + Sync {
         None
     }
 
-    async fn stream(
+    /// Internal implementation of stream. Providers implement this method.
+    /// This method should NOT handle RequestLog - that's done by stream().
+    ///
+    /// Returns a tuple of (payload for logging, raw MessageStream).
+    /// The payload is a JSON value containing relevant request info for logging.
+    async fn stream_impl(
         &self,
         _system: &str,
         _messages: &[Message],
         _tools: &[Tool],
-    ) -> Result<MessageStream, ProviderError> {
+    ) -> Result<(serde_json::Value, MessageStream), ProviderError> {
         Err(ProviderError::NotImplemented(
             "streaming not implemented".to_string(),
         ))
+    }
+
+    /// Stream a request with automatic request logging.
+    /// This wraps stream_impl with RequestLog for consistent error tracking.
+    /// Callers should use this method; providers should implement stream_impl.
+    async fn stream(
+        &self,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+    ) -> Result<MessageStream, ProviderError> {
+        let (payload, raw_stream) = self.stream_impl(system, messages, tools).await?;
+
+        let log = RequestLog::start(&self.get_model_config(), &payload)?;
+        Ok(wrap_stream_with_logging(raw_stream, log))
     }
 
     fn supports_streaming(&self) -> bool {

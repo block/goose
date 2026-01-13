@@ -249,7 +249,7 @@ impl Provider for VeniceProvider {
         skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete_with_model(
+    async fn complete_impl(
         &self,
         model_config: &ModelConfig,
         system: &str,

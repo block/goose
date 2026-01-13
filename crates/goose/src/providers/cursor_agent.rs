@@ -1,7 +1,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use rmcp::model::Role;
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -10,7 +10,7 @@ use tokio::process::Command;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
-use super::utils::{filter_extensions_from_system_prompt, RequestLog};
+use super::utils::filter_extensions_from_system_prompt;
 use crate::config::base::CursorAgentCommand;
 use crate::config::search_path::SearchPaths;
 use crate::conversation::message::{Message, MessageContent};
@@ -350,7 +350,7 @@ impl Provider for CursorAgentProvider {
         skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete_with_model(
+    async fn complete_impl(
         &self,
         model_config: &ModelConfig,
         system: &str,
@@ -362,28 +362,9 @@ impl Provider for CursorAgentProvider {
             return self.generate_simple_session_description(messages);
         }
 
-        // Create a dummy payload for debug tracing
-        let payload = json!({
-            "command": self.command,
-            "model": model_config.model_name,
-            "system": system,
-            "messages": messages.len()
-        });
-
-        let mut log = RequestLog::start(&self.model, &payload)?;
-
-        let lines = log
-            .run(self.execute_command(system, messages, tools))
-            .await?;
+        let lines = self.execute_command(system, messages, tools).await?;
 
         let (message, usage) = self.parse_cursor_agent_response(&lines)?;
-
-        let response = json!({
-            "lines": lines.len(),
-            "usage": usage
-        });
-
-        log.success(&response, Some(&usage))?;
 
         Ok((
             message,

@@ -3,7 +3,10 @@ use super::errors::GoogleErrorCode;
 use crate::config::paths::Paths;
 use crate::model::ModelConfig;
 use crate::providers::errors::ProviderError;
+use crate::providers::formats::anthropic::response_to_streaming_message as anthropic_response_to_streaming_message;
+use crate::providers::formats::google::response_to_streaming_message as google_response_to_streaming_message;
 use crate::providers::formats::openai::response_to_streaming_message;
+use crate::providers::formats::openai_responses::responses_api_to_streaming_message;
 use anyhow::{anyhow, Result};
 use async_stream::try_stream;
 use base64::Engine;
@@ -187,13 +190,12 @@ pub async fn handle_response_openai_compat(response: Response) -> Result<Value, 
     })
 }
 
-pub fn stream_openai_compat(
-    response: Response,
-    mut log: RequestLog,
-) -> Result<MessageStream, ProviderError> {
+/// Convert an HTTP response into a raw MessageStream for OpenAI-compatible APIs.
+/// This does NOT include logging - use this with Provider::stream_impl.
+pub fn stream_openai_compat_raw(response: Response) -> MessageStream {
     let stream = response.bytes_stream().map_err(io::Error::other);
 
-    Ok(Box::pin(try_stream! {
+    Box::pin(try_stream! {
         let stream_reader = StreamReader::new(stream);
         let framed = FramedRead::new(stream_reader, LinesCodec::new())
             .map_err(anyhow::Error::from);
@@ -204,10 +206,97 @@ pub fn stream_openai_compat(
             let (message, usage) = message.map_err(|e|
                 ProviderError::RequestFailed(format!("Stream decode error: {}", e))
             )?;
-            log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
             yield (message, usage);
         }
-    }))
+    })
+}
+
+/// Convert an HTTP response into a raw MessageStream for OpenAI Responses API.
+/// This does NOT include logging - use this with Provider::stream_impl.
+pub fn stream_openai_responses_raw(response: Response) -> MessageStream {
+    let stream = response.bytes_stream().map_err(io::Error::other);
+
+    Box::pin(try_stream! {
+        let stream_reader = StreamReader::new(stream);
+        let framed = FramedRead::new(stream_reader, LinesCodec::new())
+            .map_err(anyhow::Error::from);
+
+        let message_stream = responses_api_to_streaming_message(framed);
+        pin!(message_stream);
+        while let Some(message) = message_stream.next().await {
+            let (message, usage) = message.map_err(|e|
+                ProviderError::RequestFailed(format!("Stream decode error: {}", e))
+            )?;
+            yield (message, usage);
+        }
+    })
+}
+
+/// Convert an HTTP response into a raw MessageStream for Anthropic API.
+/// This does NOT include logging - use this with Provider::stream_impl.
+pub fn stream_anthropic_raw(response: Response) -> MessageStream {
+    let stream = response.bytes_stream().map_err(io::Error::other);
+
+    Box::pin(try_stream! {
+        let stream_reader = StreamReader::new(stream);
+        let framed = FramedRead::new(stream_reader, LinesCodec::new())
+            .map_err(anyhow::Error::from);
+
+        let message_stream = anthropic_response_to_streaming_message(framed);
+        pin!(message_stream);
+        while let Some(message) = message_stream.next().await {
+            let (message, usage) = message.map_err(|e|
+                ProviderError::RequestFailed(format!("Stream decode error: {}", e))
+            )?;
+            yield (message, usage);
+        }
+    })
+}
+
+/// Convert an HTTP response into a raw MessageStream for Google Gemini API.
+/// This does NOT include logging - use this with Provider::stream_impl.
+pub fn stream_google_raw(response: Response) -> MessageStream {
+    let stream = response.bytes_stream().map_err(io::Error::other);
+
+    Box::pin(try_stream! {
+        let stream_reader = StreamReader::new(stream);
+        let framed = FramedRead::new(stream_reader, LinesCodec::new())
+            .map_err(anyhow::Error::from);
+
+        let message_stream = google_response_to_streaming_message(framed);
+        pin!(message_stream);
+        while let Some(message) = message_stream.next().await {
+            let (message, usage) = message.map_err(|e|
+                ProviderError::RequestFailed(format!("Stream decode error: {}", e))
+            )?;
+            yield (message, usage);
+        }
+    })
+}
+
+/// Wrap a MessageStream with automatic logging of each chunk.
+///
+/// This takes a raw stream and a RequestLog, and returns a new stream that
+/// logs each chunk as it's yielded. Errors during streaming are also logged.
+///
+/// This is the recommended way to add logging to any stream, regardless of
+/// the underlying format (OpenAI, Anthropic, Google, etc.).
+pub fn wrap_stream_with_logging(stream: MessageStream, mut log: RequestLog) -> MessageStream {
+    Box::pin(try_stream! {
+        let mut stream = std::pin::pin!(stream);
+        while let Some(result) = tokio_stream::StreamExt::next(&mut stream).await {
+            match result {
+                Ok((message, usage)) => {
+                    let _ = log.write(&message, usage.as_ref().map(|u| &u.usage));
+                    yield (message, usage);
+                }
+                Err(e) => {
+                    let _ = log.error(&e);
+                    Err(e)?;
+                }
+            }
+        }
+    })
 }
 
 pub fn is_google_model(payload: &Value) -> bool {

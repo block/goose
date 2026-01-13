@@ -1,6 +1,5 @@
 use anyhow::Result;
 use async_trait::async_trait;
-use serde_json::json;
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -9,7 +8,7 @@ use tokio::process::Command;
 
 use super::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
-use super::utils::{filter_extensions_from_system_prompt, RequestLog};
+use super::utils::filter_extensions_from_system_prompt;
 use crate::config::base::GeminiCliCommand;
 use crate::config::search_path::SearchPaths;
 use crate::config::Config;
@@ -262,7 +261,7 @@ impl Provider for GeminiCliProvider {
         skip(self, _model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete_with_model(
+    async fn complete_impl(
         &self,
         _model_config: &ModelConfig,
         system: &str,
@@ -274,32 +273,9 @@ impl Provider for GeminiCliProvider {
             return self.generate_simple_session_description(messages);
         }
 
-        // Create a dummy payload for debug tracing
-        let payload = json!({
-            "command": self.command,
-            "model": self.model.model_name,
-            "system": system,
-            "messages": messages.len()
-        });
-
-        let mut log = RequestLog::start(&self.model, &payload).map_err(|e| {
-            ProviderError::RequestFailed(format!("Failed to start request log: {}", e))
-        })?;
-
-        let lines = log
-            .run(self.execute_command(system, messages, tools))
-            .await?;
+        let lines = self.execute_command(system, messages, tools).await?;
 
         let (message, usage) = self.parse_response(&lines)?;
-
-        let response = json!({
-            "lines": lines.len(),
-            "usage": usage
-        });
-
-        log.success(&response, Some(&usage)).map_err(|e| {
-            ProviderError::RequestFailed(format!("Failed to write request log: {}", e))
-        })?;
 
         Ok((
             message,

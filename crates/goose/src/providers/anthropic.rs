@@ -1,25 +1,19 @@
 use anyhow::Result;
-use async_stream::try_stream;
 use async_trait::async_trait;
-use futures::TryStreamExt;
 use reqwest::StatusCode;
 use serde_json::Value;
-use std::io;
-use tokio::pin;
-use tokio_util::io::StreamReader;
 
 use super::api_client::{ApiClient, ApiResponse, AuthMethod};
 use super::base::{ConfigKey, MessageStream, ModelInfo, Provider, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
-use super::formats::anthropic::{
-    create_request, get_usage, response_to_message, response_to_streaming_message,
+use super::formats::anthropic::{create_request, get_usage, response_to_message};
+use super::utils::{
+    get_model, handle_status_openai_compat, map_http_error_to_provider_error, stream_anthropic_raw,
 };
-use super::utils::{get_model, handle_status_openai_compat, map_http_error_to_provider_error};
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::retry::ProviderRetry;
-use crate::providers::utils::RequestLog;
 use rmcp::model::Tool;
 
 pub const ANTHROPIC_DEFAULT_MODEL: &str = "claude-sonnet-4-5";
@@ -196,7 +190,7 @@ impl Provider for AnthropicProvider {
         skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete_with_model(
+    async fn complete_impl(
         &self,
         model_config: &ModelConfig,
         system: &str,
@@ -204,10 +198,9 @@ impl Provider for AnthropicProvider {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let payload = create_request(model_config, system, messages, tools)?;
-        let mut log = RequestLog::start(&self.model, &payload)?;
 
-        let response = log
-            .run(self.with_retry(|| async { self.post(&payload).await }))
+        let response = self
+            .with_retry(|| async { self.post(&payload).await })
             .await?;
 
         let json_response = Self::anthropic_api_call_result(response)?;
@@ -218,7 +211,6 @@ impl Provider for AnthropicProvider {
                 usage.input_tokens, usage.output_tokens, usage.total_tokens);
 
         let response_model = get_model(&json_response);
-        log.success(&json_response, Some(&usage))?;
         let provider_usage = ProviderUsage::new(response_model, usage);
         tracing::debug!(
             "🔍 Anthropic non-streaming returning ProviderUsage: {:?}",
@@ -251,12 +243,12 @@ impl Provider for AnthropicProvider {
         Ok(Some(models))
     }
 
-    async fn stream(
+    async fn stream_impl(
         &self,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<MessageStream, ProviderError> {
+    ) -> Result<(Value, MessageStream), ProviderError> {
         let mut payload = create_request(&self.model, system, messages, tools)?;
         payload
             .as_object_mut()
@@ -264,29 +256,16 @@ impl Provider for AnthropicProvider {
             .insert("stream".to_string(), Value::Bool(true));
 
         let mut request = self.api_client.request("v1/messages");
-        let mut log = RequestLog::start(&self.model, &payload)?;
 
         for (key, value) in self.get_conditional_headers() {
             request = request.header(key, value)?;
         }
 
-        let resp = log.run(request.response_post(&payload)).await?;
-        let response = log.run(handle_status_openai_compat(resp)).await?;
+        let resp = request.response_post(&payload).await?;
+        let response = handle_status_openai_compat(resp).await?;
 
-        let stream = response.bytes_stream().map_err(io::Error::other);
-
-        Ok(Box::pin(try_stream! {
-            let stream_reader = StreamReader::new(stream);
-            let framed = tokio_util::codec::FramedRead::new(stream_reader, tokio_util::codec::LinesCodec::new()).map_err(anyhow::Error::from);
-
-            let message_stream = response_to_streaming_message(framed);
-            pin!(message_stream);
-            while let Some(message) = futures::StreamExt::next(&mut message_stream).await {
-                let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
-                log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
-                yield (message, usage);
-            }
-        }))
+        let raw_stream = stream_anthropic_raw(response);
+        Ok((payload, raw_stream))
     }
 
     fn supports_streaming(&self) -> bool {

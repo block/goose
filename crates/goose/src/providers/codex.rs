@@ -1,6 +1,5 @@
 use anyhow::Result;
 use async_trait::async_trait;
-use serde_json::json;
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -9,7 +8,7 @@ use tokio::process::Command;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
-use super::utils::{filter_extensions_from_system_prompt, RequestLog};
+use super::utils::filter_extensions_from_system_prompt;
 use crate::config::base::{
     CodexCommand, CodexEnableSkills, CodexReasoningEffort, CodexSkipGitCheck,
 };
@@ -505,7 +504,7 @@ impl Provider for CodexProvider {
         skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete_with_model(
+    async fn complete_impl(
         &self,
         model_config: &ModelConfig,
         system: &str,
@@ -517,34 +516,9 @@ impl Provider for CodexProvider {
             return self.generate_simple_session_description(messages);
         }
 
-        // Create a payload for debug tracing
-        let payload = json!({
-            "command": self.command,
-            "model": model_config.model_name,
-            "reasoning_effort": self.reasoning_effort,
-            "enable_skills": self.enable_skills,
-            "system_length": system.len(),
-            "messages_count": messages.len()
-        });
-
-        let mut log = RequestLog::start(model_config, &payload).map_err(|e| {
-            ProviderError::RequestFailed(format!("Failed to start request log: {}", e))
-        })?;
-
-        let lines = log
-            .run(self.execute_command(system, messages, tools))
-            .await?;
+        let lines = self.execute_command(system, messages, tools).await?;
 
         let (message, usage) = self.parse_response(&lines)?;
-
-        let response = json!({
-            "lines": lines.len(),
-            "usage": usage
-        });
-
-        log.success(&response, Some(&usage)).map_err(|e| {
-            ProviderError::RequestFailed(format!("Failed to write request log: {}", e))
-        })?;
 
         Ok((
             message,

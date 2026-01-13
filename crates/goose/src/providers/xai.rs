@@ -2,8 +2,7 @@ use super::api_client::{ApiClient, AuthMethod};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::{
-    get_model, handle_response_openai_compat, handle_status_openai_compat, stream_openai_compat,
-    RequestLog,
+    get_model, handle_response_openai_compat, handle_status_openai_compat, stream_openai_compat_raw,
 };
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
@@ -108,7 +107,7 @@ impl Provider for XaiProvider {
         skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete_with_model(
+    async fn complete_impl(
         &self,
         model_config: &ModelConfig,
         system: &str,
@@ -124,10 +123,7 @@ impl Provider for XaiProvider {
             false,
         )?;
 
-        let mut log = RequestLog::start(&self.model, &payload)?;
-        let response = log
-            .run(self.with_retry(|| self.post(payload.clone())))
-            .await?;
+        let response = self.with_retry(|| self.post(payload.clone())).await?;
 
         let message = response_to_message(&response)?;
         let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
@@ -135,7 +131,6 @@ impl Provider for XaiProvider {
             Usage::default()
         });
         let response_model = get_model(&response);
-        log.success(&response, Some(&usage))?;
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
 
@@ -143,12 +138,12 @@ impl Provider for XaiProvider {
         self.supports_streaming
     }
 
-    async fn stream(
+    async fn stream_impl(
         &self,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<MessageStream, ProviderError> {
+    ) -> Result<(Value, MessageStream), ProviderError> {
         let payload = create_request(
             &self.model,
             system,
@@ -157,18 +152,14 @@ impl Provider for XaiProvider {
             &super::utils::ImageFormat::OpenAi,
             true,
         )?;
-        let mut log = RequestLog::start(&self.model, &payload)?;
 
-        let response = log
-            .run(self.with_retry(|| async {
-                let resp = self
-                    .api_client
-                    .response_post("chat/completions", &payload)
-                    .await?;
-                handle_status_openai_compat(resp).await
-            }))
+        let resp = self
+            .api_client
+            .response_post("chat/completions", &payload)
             .await?;
+        let response = handle_status_openai_compat(resp).await?;
+        let raw_stream = stream_openai_compat_raw(response);
 
-        stream_openai_compat(response, log)
+        Ok((payload, raw_stream))
     }
 }

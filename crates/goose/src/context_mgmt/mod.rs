@@ -465,7 +465,7 @@ mod tests {
             "mock"
         }
 
-        async fn complete_with_model(
+        async fn complete_impl(
             &self,
             _model_config: &ModelConfig,
             _system: &str,

@@ -318,8 +318,9 @@ mod tests {
 
         #[async_trait]
         impl Provider for MockToolProvider {
-            async fn complete(
+            async fn complete_impl(
                 &self,
+                _model_config: &ModelConfig,
                 _system_prompt: &str,
                 _messages: &[Message],
                 _tools: &[Tool],
@@ -336,16 +337,6 @@ mod tests {
                 );
 
                 Ok((message, usage))
-            }
-
-            async fn complete_with_model(
-                &self,
-                _model_config: &ModelConfig,
-                system_prompt: &str,
-                messages: &[Message],
-                tools: &[Tool],
-            ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {
-                self.complete(system_prompt, messages, tools).await
             }
 
             fn get_model_config(&self) -> ModelConfig {

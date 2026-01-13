@@ -1,6 +1,6 @@
 use crate::config::paths::Paths;
 use crate::providers::api_client::{ApiClient, AuthMethod};
-use crate::providers::utils::{handle_status_openai_compat, stream_openai_compat};
+use crate::providers::utils::{handle_status_openai_compat, stream_openai_compat_raw};
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use axum::http;
@@ -17,7 +17,7 @@ use super::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::formats::openai::{create_request, get_usage, response_to_message};
 use super::retry::ProviderRetry;
-use super::utils::{get_model, handle_response_openai_compat, ImageFormat, RequestLog};
+use super::utils::{get_model, handle_response_openai_compat, ImageFormat};
 
 use crate::config::{Config, ConfigError};
 use crate::conversation::message::Message;
@@ -409,7 +409,7 @@ impl Provider for GithubCopilotProvider {
         skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete_with_model(
+    async fn complete_impl(
         &self,
         model_config: &ModelConfig,
         system: &str,
@@ -424,14 +424,13 @@ impl Provider for GithubCopilotProvider {
             &ImageFormat::OpenAi,
             false,
         )?;
-        let mut log = RequestLog::start(model_config, &payload)?;
 
         // Make request with retry
-        let response = log
-            .run(self.with_retry(|| async {
+        let response = self
+            .with_retry(|| async {
                 let mut payload_clone = payload.clone();
                 self.post(&mut payload_clone).await
-            }))
+            })
             .await?;
         let response = handle_response_openai_compat(response).await?;
 
@@ -444,16 +443,15 @@ impl Provider for GithubCopilotProvider {
             Usage::default()
         });
         let response_model = get_model(&response);
-        log.success(&response, Some(&usage))?;
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
 
-    async fn stream(
+    async fn stream_impl(
         &self,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<MessageStream, ProviderError> {
+    ) -> Result<(Value, MessageStream), ProviderError> {
         let payload = create_request(
             &self.model,
             system,
@@ -462,17 +460,17 @@ impl Provider for GithubCopilotProvider {
             &ImageFormat::OpenAi,
             true,
         )?;
-        let mut log = RequestLog::start(&self.model, &payload)?;
 
-        let response = log
-            .run(self.with_retry(|| async {
+        let response = self
+            .with_retry(|| async {
                 let mut payload_clone = payload.clone();
                 let resp = self.post(&mut payload_clone).await?;
                 handle_status_openai_compat(resp).await
-            }))
+            })
             .await?;
 
-        stream_openai_compat(response, log)
+        let raw_stream = stream_openai_compat_raw(response);
+        Ok((payload, raw_stream))
     }
 
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {

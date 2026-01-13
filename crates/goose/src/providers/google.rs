@@ -3,26 +3,18 @@ use super::base::MessageStream;
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::{
-    handle_response_google_compat, handle_status_openai_compat, unescape_json_values, RequestLog,
+    handle_response_google_compat, handle_status_openai_compat, stream_google_raw,
+    unescape_json_values,
 };
 use crate::conversation::message::Message;
 
 use crate::model::ModelConfig;
 use crate::providers::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
-use crate::providers::formats::google::{
-    create_request, get_usage, response_to_message, response_to_streaming_message,
-};
+use crate::providers::formats::google::{create_request, get_usage, response_to_message};
 use anyhow::Result;
-use async_stream::try_stream;
 use async_trait::async_trait;
-use futures::TryStreamExt;
 use rmcp::model::Tool;
 use serde_json::Value;
-use std::io;
-use tokio::pin;
-use tokio_stream::StreamExt;
-use tokio_util::codec::{FramedRead, LinesCodec};
-use tokio_util::io::StreamReader;
 
 pub const GOOGLE_API_HOST: &str = "https://generativelanguage.googleapis.com";
 pub const GOOGLE_DEFAULT_MODEL: &str = "gemini-2.5-pro";
@@ -137,7 +129,7 @@ impl Provider for GoogleProvider {
         skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete_with_model(
+    async fn complete_impl(
         &self,
         model_config: &ModelConfig,
         system: &str,
@@ -145,10 +137,9 @@ impl Provider for GoogleProvider {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let payload = create_request(model_config, system, messages, tools)?;
-        let mut log = RequestLog::start(model_config, &payload)?;
 
-        let response = log
-            .run(self.with_retry(|| async { self.post(&model_config.model_name, &payload).await }))
+        let response = self
+            .with_retry(|| async { self.post(&model_config.model_name, &payload).await })
             .await?;
 
         let message = response_to_message(unescape_json_values(&response))?;
@@ -157,7 +148,6 @@ impl Provider for GoogleProvider {
             Some(model_version) => model_version.as_str().unwrap_or_default().to_string(),
             None => model_config.model_name.clone(),
         };
-        log.success(&response, Some(&usage))?;
         let provider_usage = ProviderUsage::new(response_model, usage);
         Ok((message, provider_usage))
     }
@@ -182,41 +172,19 @@ impl Provider for GoogleProvider {
         true
     }
 
-    async fn stream(
+    async fn stream_impl(
         &self,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<MessageStream, ProviderError> {
+    ) -> Result<(Value, MessageStream), ProviderError> {
         let payload = create_request(&self.model, system, messages, tools)?;
-        let mut log = RequestLog::start(&self.model, &payload)?;
 
-        let response = log
-            .run(
-                self.with_retry(|| async {
-                    self.post_stream(&self.model.model_name, &payload).await
-                }),
-            )
+        let response = self
+            .with_retry(|| async { self.post_stream(&self.model.model_name, &payload).await })
             .await?;
 
-        let stream = response.bytes_stream().map_err(io::Error::other);
-
-        Ok(Box::pin(try_stream! {
-            let stream_reader = StreamReader::new(stream);
-            let framed = FramedRead::new(stream_reader, LinesCodec::new())
-                .map_err(anyhow::Error::from);
-
-            let message_stream = response_to_streaming_message(framed);
-            pin!(message_stream);
-            while let Some(message) = message_stream.next().await {
-                let (message, usage) = message.map_err(|e|
-                    ProviderError::RequestFailed(format!("Stream decode error: {}", e))
-                )?;
-                if message.is_some() || usage.is_some() {
-                    log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
-                }
-                yield (message, usage);
-            }
-        }))
+        let raw_stream = stream_google_raw(response);
+        Ok((payload, raw_stream))
     }
 }

@@ -8,7 +8,7 @@ use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::{
     get_model, handle_response_google_compat, handle_response_openai_compat,
-    handle_status_openai_compat, is_google_model, stream_openai_compat, RequestLog,
+    handle_status_openai_compat, is_google_model, stream_openai_compat_raw,
 };
 use crate::conversation::message::Message;
 
@@ -259,25 +259,24 @@ impl Provider for OpenRouterProvider {
     }
 
     #[tracing::instrument(
-        skip(self, model_config, system, messages, tools),
+        skip(self, _model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete_with_model(
+    async fn complete_impl(
         &self,
-        model_config: &ModelConfig,
+        _model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let payload = create_request_based_on_model(self, system, messages, tools).await?;
-        let mut log = RequestLog::start(model_config, &payload)?;
 
         // Make request
-        let response = log
-            .run(self.with_retry(|| async {
+        let response = self
+            .with_retry(|| async {
                 let payload_clone = payload.clone();
                 self.post(&payload_clone).await
-            }))
+            })
             .await?;
 
         // Parse response
@@ -287,7 +286,6 @@ impl Provider for OpenRouterProvider {
             Usage::default()
         });
         let response_model = get_model(&response);
-        log.success(&response, Some(&usage))?;
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
 
@@ -378,12 +376,12 @@ impl Provider for OpenRouterProvider {
         self.supports_streaming
     }
 
-    async fn stream(
+    async fn stream_impl(
         &self,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<MessageStream, ProviderError> {
+    ) -> Result<(Value, MessageStream), ProviderError> {
         let mut payload = create_request(
             &self.model,
             system,
@@ -402,18 +400,17 @@ impl Provider for OpenRouterProvider {
             .unwrap()
             .insert("transforms".to_string(), json!(["middle-out"]));
 
-        let mut log = RequestLog::start(&self.model, &payload)?;
-
-        let response = log
-            .run(self.with_retry(|| async {
+        let response = self
+            .with_retry(|| async {
                 let resp = self
                     .api_client
                     .response_post("api/v1/chat/completions", &payload)
                     .await?;
                 handle_status_openai_compat(resp).await
-            }))
+            })
             .await?;
 
-        stream_openai_compat(response, log)
+        let raw_stream = stream_openai_compat_raw(response);
+        Ok((payload, raw_stream))
     }
 }

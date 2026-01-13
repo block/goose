@@ -5,7 +5,7 @@ use super::errors::ProviderError;
 use super::retry::{ProviderRetry, RetryConfig};
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
-use crate::providers::utils::RequestLog;
+
 use anyhow::Result;
 use async_trait::async_trait;
 use aws_sdk_bedrockruntime::config::ProvideCredentials;
@@ -225,7 +225,7 @@ impl Provider for BedrockProvider {
         skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete_with_model(
+    async fn complete_impl(
         &self,
         model_config: &ModelConfig,
         system: &str,
@@ -234,16 +234,8 @@ impl Provider for BedrockProvider {
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let model_name = model_config.model_name.clone();
 
-        // Add debug trace with input context
-        let debug_payload = serde_json::json!({
-            "system": system,
-            "messages": messages,
-            "tools": tools
-        });
-        let mut log = RequestLog::start(&self.model, &debug_payload)?;
-
-        let (bedrock_message, bedrock_usage) = log
-            .run(self.with_retry(|| self.converse(system, messages, tools)))
+        let (bedrock_message, bedrock_usage) = self
+            .with_retry(|| self.converse(system, messages, tools))
             .await?;
 
         let usage = bedrock_usage
@@ -252,11 +244,6 @@ impl Provider for BedrockProvider {
             .unwrap_or_default();
 
         let message = from_bedrock_message(&bedrock_message)?;
-
-        log.success(
-            &serde_json::to_value(&message).unwrap_or_default(),
-            Some(&usage),
-        )?;
 
         let provider_usage = ProviderUsage::new(model_name.to_string(), usage);
         Ok((message, provider_usage))

@@ -12,7 +12,6 @@ use super::retry::ProviderRetry;
 use super::utils::{get_model, handle_response_openai_compat, ImageFormat};
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
-use crate::providers::utils::RequestLog;
 use rmcp::model::Tool;
 
 pub const AZURE_DEFAULT_MODEL: &str = "gpt-4o";
@@ -142,7 +141,7 @@ impl Provider for AzureProvider {
         skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete_with_model(
+    async fn complete_impl(
         &self,
         model_config: &ModelConfig,
         system: &str,
@@ -157,12 +156,11 @@ impl Provider for AzureProvider {
             &ImageFormat::OpenAi,
             false,
         )?;
-        let mut log = RequestLog::start(model_config, &payload)?;
-        let response = log
-            .run(self.with_retry(|| async {
+        let response = self
+            .with_retry(|| async {
                 let payload_clone = payload.clone();
                 self.post(&payload_clone).await
-            }))
+            })
             .await?;
 
         let message = response_to_message(&response)?;
@@ -171,7 +169,6 @@ impl Provider for AzureProvider {
             Usage::default()
         });
         let response_model = get_model(&response);
-        log.success(&response, Some(&usage))?;
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
 }

@@ -21,7 +21,7 @@ use crate::providers::formats::gcpvertexai::{
 use crate::providers::formats::gcpvertexai::GcpLocation::Iowa;
 use crate::providers::gcpauth::GcpAuth;
 use crate::providers::retry::RetryConfig;
-use crate::providers::utils::RequestLog;
+
 use rmcp::model::Tool;
 
 /// Base URL for GCP Vertex AI documentation
@@ -510,7 +510,7 @@ impl Provider for GcpVertexAIProvider {
         skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete_with_model(
+    async fn complete_impl(
         &self,
         model_config: &ModelConfig,
         system: &str,
@@ -520,13 +520,9 @@ impl Provider for GcpVertexAIProvider {
         // Create request and context
         let (request, context) = create_request(model_config, system, messages, tools)?;
 
-        let mut log = RequestLog::start(model_config, &request)?;
-
         // Send request and process response
-        let response = log.run(self.post(&request, &context)).await?;
+        let response = self.post(&request, &context).await?;
         let usage = get_usage(&response, &context)?;
-
-        log.success(&response, Some(&usage))?;
 
         // Convert response to message
         let message = response_to_message(response, context)?;

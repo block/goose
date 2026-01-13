@@ -12,7 +12,6 @@ use serde_json::{json, Value};
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
-use super::utils::RequestLog;
 use crate::conversation::message::{Message, MessageContent};
 
 use crate::model::ModelConfig;
@@ -287,29 +286,22 @@ impl Provider for SageMakerTgiProvider {
         skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete_with_model(
+    async fn complete_impl(
         &self,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
+        let _ = tools;
         let model_name = &model_config.model_name;
 
         let request_payload = self.create_tgi_request(system, messages).map_err(|e| {
             ProviderError::RequestFailed(format!("Failed to create request: {}", e))
         })?;
 
-        // Add debug trace
-        let debug_payload = serde_json::json!({
-            "system": system,
-            "messages": messages,
-            "tools": tools
-        });
-        let mut log = RequestLog::start(&self.model, &debug_payload)?;
-
-        let response = log
-            .run(self.with_retry(|| self.invoke_endpoint(request_payload.clone())))
+        let response = self
+            .with_retry(|| self.invoke_endpoint(request_payload.clone()))
             .await?;
 
         let message = self.parse_tgi_response(response)?;
@@ -320,11 +312,6 @@ impl Provider for SageMakerTgiProvider {
             Some(0), // Would need to tokenize output to get accurate count
             Some(0),
         );
-
-        log.success(
-            &serde_json::to_value(&message).unwrap_or_default(),
-            Some(&usage),
-        )?;
 
         let provider_usage = ProviderUsage::new(model_name.to_string(), usage);
         Ok((message, provider_usage))

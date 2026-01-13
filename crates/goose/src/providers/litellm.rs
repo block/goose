@@ -8,7 +8,7 @@ use super::base::{ConfigKey, ModelInfo, Provider, ProviderMetadata, ProviderUsag
 use super::embedding::EmbeddingCapable;
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
-use super::utils::{get_model, handle_response_openai_compat, ImageFormat, RequestLog};
+use super::utils::{get_model, handle_response_openai_compat, ImageFormat};
 use crate::conversation::message::Message;
 
 use crate::model::ModelConfig;
@@ -166,7 +166,7 @@ impl Provider for LiteLLMProvider {
     }
 
     #[tracing::instrument(skip_all, name = "provider_complete")]
-    async fn complete_with_model(
+    async fn complete_impl(
         &self,
         model_config: &ModelConfig,
         system: &str,
@@ -186,18 +186,16 @@ impl Provider for LiteLLMProvider {
             payload = update_request_for_cache_control(&payload);
         }
 
-        let mut log = RequestLog::start(model_config, &payload)?;
-        let response = log
-            .run(self.with_retry(|| async {
+        let response = self
+            .with_retry(|| async {
                 let payload_clone = payload.clone();
                 self.post(&payload_clone).await
-            }))
+            })
             .await?;
 
         let message = super::formats::openai::response_to_message(&response)?;
         let usage = super::formats::openai::get_usage(&response);
         let response_model = get_model(&response);
-        log.success(&response, Some(&usage))?;
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
 

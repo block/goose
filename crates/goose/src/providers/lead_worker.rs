@@ -340,7 +340,7 @@ impl Provider for LeadWorkerProvider {
         self.lead_provider.get_model_config()
     }
 
-    async fn complete_with_model(
+    async fn complete_impl(
         &self,
         _model_config: &ModelConfig,
         system: &str,
@@ -494,7 +494,7 @@ mod tests {
             self.model_config.clone()
         }
 
-        async fn complete_with_model(
+        async fn complete_impl(
             &self,
             _model_config: &ModelConfig,
             _system: &str,
@@ -660,7 +660,7 @@ mod tests {
             self.model_config.clone()
         }
 
-        async fn complete_with_model(
+        async fn complete_impl(
             &self,
             _model_config: &ModelConfig,
             _system: &str,

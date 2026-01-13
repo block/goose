@@ -13,7 +13,7 @@ use super::oauth;
 use super::retry::ProviderRetry;
 use super::utils::{
     get_model, handle_response_openai_compat, map_http_error_to_provider_error,
-    stream_openai_compat, ImageFormat, RequestLog,
+    stream_openai_compat_raw, ImageFormat,
 };
 use crate::config::ConfigError;
 use crate::conversation::message::Message;
@@ -269,7 +269,7 @@ impl Provider for DatabricksProvider {
         skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete_with_model(
+    async fn complete_impl(
         &self,
         model_config: &ModelConfig,
         system: &str,
@@ -283,10 +283,8 @@ impl Provider for DatabricksProvider {
             .expect("payload should have model key")
             .remove("model");
 
-        let mut log = RequestLog::start(&self.model, &payload)?;
-
-        let response = log
-            .run(self.with_retry(|| self.post(payload.clone(), Some(&model_config.model_name))))
+        let response = self
+            .with_retry(|| self.post(payload.clone(), Some(&model_config.model_name)))
             .await?;
 
         let message = response_to_message(&response)?;
@@ -295,17 +293,16 @@ impl Provider for DatabricksProvider {
             Usage::default()
         });
         let response_model = get_model(&response);
-        log.success(&response, Some(&usage))?;
 
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
 
-    async fn stream(
+    async fn stream_impl(
         &self,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<MessageStream, ProviderError> {
+    ) -> Result<(Value, MessageStream), ProviderError> {
         let model_config = self.model.clone();
 
         let mut payload =
@@ -321,23 +318,22 @@ impl Provider for DatabricksProvider {
             .insert("stream".to_string(), Value::Bool(true));
 
         let path = self.get_endpoint_path(&model_config.model_name, false);
-        let mut log = RequestLog::start(&self.model, &payload)?;
-        let response = log
-            .run(self.with_retry(|| async {
+        let response = self
+            .with_retry(|| async {
                 let resp = self.api_client.response_post(&path, &payload).await?;
                 if !resp.status().is_success() {
                     let status = resp.status();
                     let error_text = resp.text().await.unwrap_or_default();
 
-                    // Parse as JSON if possible to pass to map_http_error_to_provider_error
                     let json_payload = serde_json::from_str::<Value>(&error_text).ok();
                     return Err(map_http_error_to_provider_error(status, json_payload));
                 }
                 Ok(resp)
-            }))
+            })
             .await?;
 
-        stream_openai_compat(response, log)
+        let raw_stream = stream_openai_compat_raw(response);
+        Ok((payload, raw_stream))
     }
 
     fn supports_streaming(&self) -> bool {

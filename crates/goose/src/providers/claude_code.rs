@@ -10,7 +10,7 @@ use tokio::process::Command;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
-use super::utils::{filter_extensions_from_system_prompt, RequestLog};
+use super::utils::filter_extensions_from_system_prompt;
 use crate::config::base::ClaudeCodeCommand;
 use crate::config::search_path::SearchPaths;
 use crate::config::{Config, GooseMode};
@@ -415,7 +415,7 @@ impl Provider for ClaudeCodeProvider {
         skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete_with_model(
+    async fn complete_impl(
         &self,
         model_config: &ModelConfig,
         system: &str,
@@ -427,27 +427,9 @@ impl Provider for ClaudeCodeProvider {
             return self.generate_simple_session_description(messages);
         }
 
-        // Create a dummy payload for debug tracing
-        let payload = json!({
-            "command": self.command,
-            "model": model_config.model_name,
-            "system": system,
-            "messages": messages.len()
-        });
-        let mut log = RequestLog::start(model_config, &payload)?;
-
-        let json_lines = log
-            .run(self.execute_command(system, messages, tools))
-            .await?;
+        let json_lines = self.execute_command(system, messages, tools).await?;
 
         let (message, usage) = self.parse_claude_response(&json_lines)?;
-
-        let response = json!({
-            "lines": json_lines.len(),
-            "usage": usage
-        });
-
-        log.success(&response, Some(&usage))?;
 
         Ok((
             message,
