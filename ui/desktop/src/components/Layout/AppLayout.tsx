@@ -30,6 +30,7 @@ interface AppLayoutProps {
 const AppLayoutContent: React.FC<AppLayoutProps> = () => {
   const safeIsMacOS = (window?.electron?.platform || 'darwin') === 'darwin';
   const [isNavExpanded, setIsNavExpanded] = useState(false);
+  const [shouldUseOverlayOnSmallScreen, setShouldUseOverlayOnSmallScreen] = useState(false);
   
   const [navigationPosition, setNavigationPosition] = useState<NavigationPosition>(() => {
     const stored = localStorage.getItem('navigation_position');
@@ -43,6 +44,18 @@ const AppLayoutContent: React.FC<AppLayoutProps> = () => {
     const stored = localStorage.getItem('navigation_mode');
     return (stored as NavigationMode) || 'push';
   });
+  
+  // Check screen size to determine if we should use overlay mode on small screens
+  useEffect(() => {
+    const checkScreenSize = () => {
+      setShouldUseOverlayOnSmallScreen(window.innerWidth < 1000);
+    };
+    
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
   
   // Listen for navigation position changes
   useEffect(() => {
@@ -87,6 +100,10 @@ const AppLayoutContent: React.FC<AppLayoutProps> = () => {
   // Determine layout direction based on navigation position (only for push mode)
   const isHorizontalNav = navigationPosition === 'top' || navigationPosition === 'bottom';
   const flexDirection = isHorizontalNav ? 'flex-col' : 'flex-row';
+  
+  // On small screens, treat horizontal push mode as overlay mode
+  const shouldUseOverlayLayout = navigationMode === 'overlay' || 
+    (navigationMode === 'push' && isHorizontalNav && shouldUseOverlayOnSmallScreen);
   
   // Render the main content area
   const mainContent = (
@@ -147,8 +164,9 @@ const AppLayoutContent: React.FC<AppLayoutProps> = () => {
     <NavigationContext.Provider value={{ isNavExpanded, setIsNavExpanded, navigationPosition }}>
       <div className="flex flex-col flex-1 w-full h-full bg-background-muted">
         
-        {navigationMode === 'overlay' ? (
+        {shouldUseOverlayLayout ? (
           // Overlay Mode - Full screen content with floating navigation
+          // (Used for: overlay mode OR horizontal push mode on small screens < 1000px)
           <div className="flex flex-1 w-full h-full bg-background-muted relative">
             {/* Main Content Area - Full Screen */}
             {mainContent}
