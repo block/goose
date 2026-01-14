@@ -34,11 +34,11 @@ const AppLayoutContent: React.FC<AppLayoutProps> = () => {
   
   const [navigationPosition, setNavigationPosition] = useState<NavigationPosition>(() => {
     const stored = localStorage.getItem('navigation_position');
-    return (stored as NavigationPosition) || 'top';
+    return (stored as NavigationPosition) || 'left';
   });
   const [navigationStyle, setNavigationStyle] = useState<NavigationStyle>(() => {
     const stored = localStorage.getItem('navigation_style');
-    return (stored as NavigationStyle) || 'expanded';
+    return (stored as NavigationStyle) || 'condensed';
   });
   const [navigationMode, setNavigationMode] = useState<NavigationMode>(() => {
     const stored = localStorage.getItem('navigation_mode');
