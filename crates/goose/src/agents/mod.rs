@@ -1,4 +1,5 @@
 mod agent;
+mod capabilities_extensions;
 pub(crate) mod chatrecall_extension;
 pub(crate) mod code_execution_extension;
 pub mod execute_commands;

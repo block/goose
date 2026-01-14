@@ -33,6 +33,8 @@ use tokio::sync::{
 };
 use tokio_util::sync::CancellationToken;
 
+pub use super::capabilities_extensions::WithExtensions;
+
 pub type BoxError = Box<dyn std::error::Error + Sync + Send>;
 
 pub type Error = rmcp::ServiceError;

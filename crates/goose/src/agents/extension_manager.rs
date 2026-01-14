@@ -33,7 +33,7 @@ use super::tool_execution::ToolCallResult;
 use super::types::SharedProvider;
 use crate::agents::extension::{Envs, ProcessExit};
 use crate::agents::extension_malware_check;
-use crate::agents::mcp_client::{McpClient, McpClientTrait};
+use crate::agents::mcp_client::{McpClient, McpClientTrait, WithExtensions};
 use crate::config::search_path::SearchPaths;
 use crate::config::{get_all_extensions, Config};
 use crate::oauth::oauth_flow;
@@ -265,7 +265,7 @@ async fn child_process_client(
     });
 
     let client_result = McpClient::connect(
-        transport,
+        WithExtensions(transport),
         Duration::from_secs(timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT)),
         provider,
     )
@@ -423,7 +423,8 @@ async fn create_streamable_http_client(
     let timeout_duration =
         Duration::from_secs(timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT));
 
-    let client_res = McpClient::connect(transport, timeout_duration, provider.clone()).await;
+    let client_res =
+        McpClient::connect(WithExtensions(transport), timeout_duration, provider.clone()).await;
 
     if extract_auth_error(&client_res).is_some() {
         let am = oauth_flow(&uri.to_string(), &name.to_string())
@@ -438,7 +439,7 @@ async fn create_streamable_http_client(
             },
         );
         Ok(Box::new(
-            McpClient::connect(transport, timeout_duration, provider).await?,
+            McpClient::connect(WithExtensions(transport), timeout_duration, provider).await?,
         ))
     } else {
         Ok(Box::new(client_res?))
