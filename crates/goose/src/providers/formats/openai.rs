@@ -609,13 +609,11 @@ where
                     msg = msg.with_id(id);
                 }
 
+                // Always yield usage when present - OpenRouter sends usage in a separate
+                // chunk that may have empty content and no finish_reason
                 yield (
                     Some(msg),
-                    if chunk.choices[0].finish_reason.is_some() {
-                        usage
-                    } else {
-                        None
-                    },
+                    usage,
                 )
             } else if usage.is_some() {
                 yield (None, usage)
