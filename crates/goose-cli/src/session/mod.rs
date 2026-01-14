@@ -26,6 +26,7 @@ use goose::permission::Permission;
 use goose::permission::PermissionConfirmation;
 use goose::providers::base::Provider;
 use goose::utils::safe_truncate;
+pub use prompt::get_term_prompt;
 
 use anyhow::{Context, Result};
 use completion::GooseCompleter;
