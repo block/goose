@@ -516,7 +516,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
             className={`${isOverlayMode || isVerticalOverlay || isHorizontalOverlay ? 'bg-transparent' : 'bg-background-muted overflow-hidden'} ${isVertical && !isOverlayMode && !isVerticalOverlay ? 'h-full' : ''} ${isPushModeHorizontal ? 'h-full' : ''} ${isClosing ? 'nav-overlay-exit' : 'nav-overlay-enter'} transition-all duration-300`}
           >
             <div
-              className={`${isOverlayMode || isVerticalOverlay || isHorizontalOverlay ? 'overflow-y-auto max-h-[90vh] py-4 sm:py-6 md:py-8' : 'p-1 h-full'} transition-all duration-300`}
+              className={`${isOverlayMode || isVerticalOverlay || isHorizontalOverlay ? 'overflow-y-auto max-h-[90vh] py-4 sm:py-6 md:py-8' : 'p-1 h-full overflow-hidden'} transition-all duration-300`}
               style={{ width: isVertical && !isOverlayMode && !isVerticalOverlay ? '360px' : undefined }}
             >
               <div 
