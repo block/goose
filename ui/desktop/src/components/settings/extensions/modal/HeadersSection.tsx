@@ -37,14 +37,22 @@ export default function HeadersSection({
   // Check if header key indicates a sensitive value that should be masked
   const isSensitiveHeader = (headerKey: string): boolean => {
     const key = headerKey.toLowerCase();
+    // Check for API key patterns specifically to avoid false positives
+    // (e.g., 'Content-Type', 'Cookie' contain 'key' but are not sensitive)
+    const hasKeyPattern =
+      key === 'key' ||
+      key.endsWith('-key') ||
+      key.includes('api-key') ||
+      key.includes('apikey') ||
+      key.includes('api_key');
     return (
       key.includes('authorization') ||
-      key.includes('auth') ||
       key.includes('token') ||
       key.includes('secret') ||
-      key.includes('key') ||
+      hasKeyPattern ||
       key.includes('password') ||
-      key.includes('bearer')
+      key.includes('bearer') ||
+      key.includes('credential')
     );
   };
 
