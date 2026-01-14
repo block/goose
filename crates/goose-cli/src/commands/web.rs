@@ -19,7 +19,7 @@ use goose::session::session_manager::SessionType;
 use goose::session::SessionManager;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{net::SocketAddr, sync::Arc};
+use std::{net::ToSocketAddrs, sync::Arc};
 use tokio::sync::{Mutex, RwLock};
 use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 use tracing::error;
@@ -126,37 +126,27 @@ async fn auth_middleware(
 }
 
 fn is_loopback_address(host: &str) -> bool {
-    match host {
-        "localhost" | "127.0.0.1" | "::1" => true,
-        _ => {
-            if let Ok(addr) = host.parse::<std::net::IpAddr>() {
-                addr.is_loopback()
-            } else {
-                false
-            }
-        }
-    }
+    (host, 0)
+        .to_socket_addrs()
+        .map(|mut addrs| addrs.any(|addr| addr.ip().is_loopback()))
+        .unwrap_or(false)
 }
 
-pub async fn handle_web(
-    port: u16,
-    host: String,
-    open: bool,
-    auth_token: Option<String>,
-    no_auth: bool,
-) -> Result<()> {
-    if !is_loopback_address(&host) && auth_token.is_none() && !no_auth {
+fn validate_network_auth(host: &str, auth_token: &Option<String>, no_auth: bool) {
+    if !is_loopback_address(host) && auth_token.is_none() && !no_auth {
         eprintln!(
-            "Error: --auth-token is required when binding to a non-loopback address ({}).",
+            "Error: --auth-token is required when the server is exposed on the network ({}).",
             host
         );
-        eprintln!("For security, use --auth-token <TOKEN> or bind to localhost/127.0.0.1.");
+        eprintln!(
+            "For security, use --auth-token <TOKEN> or bind to a local address (e.g., localhost)."
+        );
         eprintln!("To skip this check, use --no-auth (unsafe).");
         std::process::exit(1);
     }
+}
 
-    crate::logging::setup_logging(Some("goose-web"), None)?;
-
+fn get_provider_and_model() -> (String, String) {
     let config = goose::config::Config::global();
 
     let provider_name: String = match config.get_goose_provider() {
@@ -175,7 +165,11 @@ pub async fn handle_web(
         }
     };
 
-    let model_config = goose::model::ModelConfig::new(&model)?;
+    (provider_name, model)
+}
+
+async fn create_agent(provider_name: &str, model: &str) -> Result<Agent> {
+    let model_config = goose::model::ModelConfig::new(model)?;
 
     let init_session = SessionManager::create_session(
         std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
@@ -185,7 +179,7 @@ pub async fn handle_web(
     .await?;
 
     let agent = Agent::new();
-    let provider = goose::providers::create(&provider_name, model_config).await?;
+    let provider = goose::providers::create(provider_name, model_config).await?;
     agent.update_provider(provider, &init_session.id).await?;
 
     let enabled_configs = goose::config::get_enabled_extensions();
@@ -195,20 +189,11 @@ pub async fn handle_web(
         }
     }
 
-    let ws_token = if auth_token.is_none() {
-        uuid::Uuid::new_v4().to_string()
-    } else {
-        String::new()
-    };
+    Ok(agent)
+}
 
-    let state = AppState {
-        agent: Arc::new(agent),
-        cancellations: Arc::new(RwLock::new(std::collections::HashMap::new())),
-        auth_token: auth_token.clone(),
-        ws_token,
-    };
-
-    let cors_layer = if auth_token.is_none() {
+fn build_cors_layer(auth_token: &Option<String>, host: &str, port: u16) -> CorsLayer {
+    if auth_token.is_none() {
         let allowed_origins = [
             "http://localhost:3000".parse().unwrap(),
             "http://127.0.0.1:3000".parse().unwrap(),
@@ -223,9 +208,11 @@ pub async fn handle_web(
             .allow_origin(Any)
             .allow_methods(Any)
             .allow_headers(Any)
-    };
+    }
+}
 
-    let app = Router::new()
+fn build_router(state: AppState, cors_layer: CorsLayer) -> Router {
+    Router::new()
         .route("/", get(serve_index))
         .route("/session/{session_name}", get(serve_session))
         .route("/ws", get(websocket_handler))
@@ -238,9 +225,42 @@ pub async fn handle_web(
             auth_middleware,
         ))
         .layer(cors_layer)
-        .with_state(state);
+        .with_state(state)
+}
 
-    let addr: SocketAddr = format!("{}:{}", host, port).parse()?;
+pub async fn handle_web(
+    port: u16,
+    host: String,
+    open: bool,
+    auth_token: Option<String>,
+    no_auth: bool,
+) -> Result<()> {
+    validate_network_auth(&host, &auth_token, no_auth);
+    crate::logging::setup_logging(Some("goose-web"), None)?;
+
+    let (provider_name, model) = get_provider_and_model();
+    let agent = create_agent(&provider_name, &model).await?;
+
+    let ws_token = if auth_token.is_none() {
+        uuid::Uuid::new_v4().to_string()
+    } else {
+        String::new()
+    };
+
+    let state = AppState {
+        agent: Arc::new(agent),
+        cancellations: Arc::new(RwLock::new(std::collections::HashMap::new())),
+        auth_token: auth_token.clone(),
+        ws_token,
+    };
+
+    let cors_layer = build_cors_layer(&auth_token, &host, port);
+    let app = build_router(state, cors_layer);
+
+    let addr = (host.as_str(), port)
+        .to_socket_addrs()?
+        .next()
+        .ok_or_else(|| anyhow::anyhow!("Could not resolve address: {}", host))?;
 
     println!("\n🪿 Starting goose web server");
     println!("   Provider: {} | Model: {}", provider_name, model);
@@ -397,98 +417,7 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
         if let Ok(msg) = msg {
             match msg {
                 Message::Text(text) => {
-                    match serde_json::from_str::<WebSocketMessage>(&text.to_string()) {
-                        Ok(WebSocketMessage::Message {
-                            content,
-                            session_id,
-                            ..
-                        }) => {
-                            let sender_clone = sender.clone();
-                            let agent = state.agent.clone();
-                            let session_id_clone = session_id.clone();
-
-                            let task_handle = tokio::spawn(async move {
-                                let result = process_message_streaming(
-                                    &agent,
-                                    session_id_clone,
-                                    content,
-                                    sender_clone,
-                                )
-                                .await;
-
-                                if let Err(e) = result {
-                                    error!("Error processing message: {}", e);
-                                }
-                            });
-
-                            {
-                                let mut cancellations = state.cancellations.write().await;
-                                cancellations
-                                    .insert(session_id.clone(), task_handle.abort_handle());
-                            }
-
-                            // Handle task completion and cleanup
-                            let sender_for_abort = sender.clone();
-                            let session_id_for_cleanup = session_id.clone();
-                            let cancellations_for_cleanup = state.cancellations.clone();
-
-                            tokio::spawn(async move {
-                                match task_handle.await {
-                                    Ok(_) => {}
-                                    Err(e) if e.is_cancelled() => {
-                                        let mut sender = sender_for_abort.lock().await;
-                                        let _ = sender
-                                            .send(Message::Text(
-                                                serde_json::to_string(
-                                                    &WebSocketMessage::Cancelled {
-                                                        message: "Operation cancelled by user"
-                                                            .to_string(),
-                                                    },
-                                                )
-                                                .unwrap()
-                                                .into(),
-                                            ))
-                                            .await;
-                                    }
-                                    Err(e) => {
-                                        error!("Task error: {}", e);
-                                    }
-                                }
-
-                                let mut cancellations = cancellations_for_cleanup.write().await;
-                                cancellations.remove(&session_id_for_cleanup);
-                            });
-                        }
-                        Ok(WebSocketMessage::Cancel { session_id }) => {
-                            // Cancel the active operation for this session
-                            let abort_handle = {
-                                let mut cancellations = state.cancellations.write().await;
-                                cancellations.remove(&session_id)
-                            };
-
-                            if let Some(handle) = abort_handle {
-                                handle.abort();
-
-                                // Send cancellation confirmation
-                                let mut sender = sender.lock().await;
-                                let _ = sender
-                                    .send(Message::Text(
-                                        serde_json::to_string(&WebSocketMessage::Cancelled {
-                                            message: "Operation cancelled".to_string(),
-                                        })
-                                        .unwrap()
-                                        .into(),
-                                    ))
-                                    .await;
-                            }
-                        }
-                        Ok(_) => {
-                            // Ignore other message types
-                        }
-                        Err(e) => {
-                            error!("Failed to parse WebSocket message: {}", e);
-                        }
-                    }
+                    handle_text_message(&text.to_string(), &sender, &state).await;
                 }
                 Message::Close(_) => break,
                 _ => {}
@@ -499,15 +428,101 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
     }
 }
 
+async fn handle_text_message(
+    text: &str,
+    sender: &Arc<Mutex<futures::stream::SplitSink<WebSocket, Message>>>,
+    state: &AppState,
+) {
+    match serde_json::from_str::<WebSocketMessage>(text) {
+        Ok(WebSocketMessage::Message {
+            content,
+            session_id,
+            ..
+        }) => {
+            handle_user_message(content, session_id, sender.clone(), state).await;
+        }
+        Ok(WebSocketMessage::Cancel { session_id }) => {
+            handle_cancel_message(session_id, sender, state).await;
+        }
+        Ok(_) => {}
+        Err(e) => {
+            error!("Failed to parse WebSocket message: {}", e);
+        }
+    }
+}
+
+async fn handle_user_message(
+    content: String,
+    session_id: String,
+    sender: Arc<Mutex<futures::stream::SplitSink<WebSocket, Message>>>,
+    state: &AppState,
+) {
+    let agent = state.agent.clone();
+    let session_id_clone = session_id.clone();
+
+    let task_handle = tokio::spawn(async move {
+        let result = process_message_streaming(&agent, session_id_clone, content, sender).await;
+
+        if let Err(e) = result {
+            error!("Error processing message: {}", e);
+        }
+    });
+
+    {
+        let mut cancellations = state.cancellations.write().await;
+        cancellations.insert(session_id.clone(), task_handle.abort_handle());
+    }
+
+    let cancellations_for_cleanup = state.cancellations.clone();
+    let session_id_for_cleanup = session_id;
+
+    tokio::spawn(async move {
+        if let Err(e) = task_handle.await {
+            if e.is_cancelled() {
+                tracing::debug!("Task was cancelled");
+            } else {
+                error!("Task error: {}", e);
+            }
+        }
+
+        let mut cancellations = cancellations_for_cleanup.write().await;
+        cancellations.remove(&session_id_for_cleanup);
+    });
+}
+
+async fn handle_cancel_message(
+    session_id: String,
+    sender: &Arc<Mutex<futures::stream::SplitSink<WebSocket, Message>>>,
+    state: &AppState,
+) {
+    let abort_handle = {
+        let mut cancellations = state.cancellations.write().await;
+        cancellations.remove(&session_id)
+    };
+
+    if let Some(handle) = abort_handle {
+        handle.abort();
+
+        let mut sender = sender.lock().await;
+        let _ = sender
+            .send(Message::Text(
+                serde_json::to_string(&WebSocketMessage::Cancelled {
+                    message: "Operation cancelled".to_string(),
+                })
+                .unwrap()
+                .into(),
+            ))
+            .await;
+    }
+}
+
 async fn process_message_streaming(
     agent: &Agent,
     session_id: String,
     content: String,
     sender: Arc<Mutex<futures::stream::SplitSink<WebSocket, Message>>>,
 ) -> Result<()> {
-    use futures::StreamExt;
     use goose::agents::SessionConfig;
-    use goose::conversation::message::MessageContent;
 
     let user_message = GooseMessage::user().with_text(content.clone());
 
@@ -545,93 +560,12 @@ async fn process_message_streaming(
             while let Some(result) = stream.next().await {
                 match result {
                     Ok(AgentEvent::Message(message)) => {
-                        for content in &message.content {
-                            match content {
-                                MessageContent::Text(text) => {
-                                    let mut sender = sender.lock().await;
-                                    let _ = sender
-                                        .send(Message::Text(
-                                            serde_json::to_string(&WebSocketMessage::Response {
-                                                content: text.text.clone(),
-                                                role: "assistant".to_string(),
-                                                timestamp: chrono::Utc::now().timestamp_millis(),
-                                            })
-                                            .unwrap()
-                                            .into(),
-                                        ))
-                                        .await;
-                                }
-                                MessageContent::ToolRequest(req) => {
-                                    let mut sender = sender.lock().await;
-                                    if let Ok(tool_call) = &req.tool_call {
-                                        let _ = sender
-                                            .send(Message::Text(
-                                                serde_json::to_string(
-                                                    &WebSocketMessage::ToolRequest {
-                                                        id: req.id.clone(),
-                                                        tool_name: tool_call.name.to_string(),
-                                                        arguments: Value::from(
-                                                            tool_call.arguments.clone(),
-                                                        ),
-                                                    },
-                                                )
-                                                .unwrap()
-                                                .into(),
-                                            ))
-                                            .await;
-                                    }
-                                }
-                                MessageContent::ToolResponse(_resp) => {}
-                                MessageContent::ToolConfirmationRequest(confirmation) => {
-                                    let mut sender = sender.lock().await;
-                                    let _ = sender
-                                        .send(Message::Text(
-                                            serde_json::to_string(
-                                                &WebSocketMessage::ToolConfirmation {
-                                                    id: confirmation.id.clone(),
-                                                    tool_name: confirmation
-                                                        .tool_name
-                                                        .to_string()
-                                                        .clone(),
-                                                    arguments: Value::from(
-                                                        confirmation.arguments.clone(),
-                                                    ),
-                                                    needs_confirmation: true,
-                                                },
-                                            )
-                                            .unwrap()
-                                            .into(),
-                                        ))
-                                        .await;
-
-                                    agent.handle_confirmation(
-                                        confirmation.id.clone(),
-                                        goose::permission::PermissionConfirmation {
-                                            principal_type: goose::permission::permission_confirmation::PrincipalType::Tool,
-                                            permission: goose::permission::Permission::AllowOnce,
-                                        }
-                                    ).await;
-                                }
-                                MessageContent::Thinking(thinking) => {
-                                    let mut sender = sender.lock().await;
-                                    let _ = sender
-                                        .send(Message::Text(
-                                            serde_json::to_string(&WebSocketMessage::Thinking {
-                                                message: thinking.thinking.clone(),
-                                            })
-                                            .unwrap()
-                                            .into(),
-                                        ))
-                                        .await;
-                                }
-                                _ => {}
-                            }
-                        }
+                        process_agent_message(&message, &sender, agent).await;
                     }
-                    Ok(AgentEvent::HistoryReplaced(_new_messages)) => {
+                    Ok(AgentEvent::HistoryReplaced(_)) => {
                         tracing::info!("History replaced, compacting happened in reply");
                     }
-                    Ok(AgentEvent::McpNotification(_notification)) => {
+                    Ok(AgentEvent::McpNotification(_)) => {
                         tracing::info!("Received MCP notification in web interface");
                     }
                     Ok(AgentEvent::ModelChange { model, mode }) => {
@@ -639,16 +573,7 @@ async fn process_message_streaming(
                     }
                     Err(e) => {
                         error!("Error in message stream: {}", e);
-                        let mut sender = sender.lock().await;
-                        let _ = sender
-                            .send(Message::Text(
-                                serde_json::to_string(&WebSocketMessage::Error {
-                                    message: format!("Error: {}", e),
-                                })
-                                .unwrap()
-                                .into(),
-                            ))
-                            .await;
+                        send_error(&sender, &format!("Error: {}", e)).await;
                         break;
                     }
                 }
@@ -656,16 +581,7 @@ async fn process_message_streaming(
         }
         Err(e) => {
             error!("Error calling agent: {}", e);
-            let mut sender = sender.lock().await;
-            let _ = sender
-                .send(Message::Text(
-                    serde_json::to_string(&WebSocketMessage::Error {
-                        message: format!("Error: {}", e),
-                    })
-                    .unwrap()
-                    .into(),
-                ))
-                .await;
+            send_error(&sender, &format!("Error: {}", e)).await;
         }
     }
 
@@ -681,4 +597,105 @@ async fn process_message_streaming(
         .await;
 
     Ok(())
+}
+
+async fn process_agent_message(
+    message: &GooseMessage,
+    sender: &Arc<Mutex<futures::stream::SplitSink<WebSocket, Message>>>,
+    agent: &Agent,
+) {
+    use goose::conversation::message::MessageContent;
+
+    for content in &message.content {
+        match content {
+            MessageContent::Text(text) => {
+                let mut sender = sender.lock().await;
+                let _ = sender
+                    .send(Message::Text(
+                        serde_json::to_string(&WebSocketMessage::Response {
+                            content: text.text.clone(),
+                            role: "assistant".to_string(),
+                            timestamp: chrono::Utc::now().timestamp_millis(),
+                        })
+                        .unwrap()
+                        .into(),
+                    ))
+                    .await;
+            }
+            MessageContent::ToolRequest(req) => {
+                let mut sender = sender.lock().await;
+                if let Ok(tool_call) = &req.tool_call {
+                    let _ = sender
+                        .send(Message::Text(
+                            serde_json::to_string(&WebSocketMessage::ToolRequest {
+                                id: req.id.clone(),
+                                tool_name: tool_call.name.to_string(),
+                                arguments: Value::from(tool_call.arguments.clone()),
+                            })
+                            .unwrap()
+                            .into(),
+                        ))
+                        .await;
+                }
+            }
+            MessageContent::ToolResponse(_) => {}
+            MessageContent::ToolConfirmationRequest(confirmation) => {
+                {
+                    let mut sender = sender.lock().await;
+                    let _ = sender
+                        .send(Message::Text(
+                            serde_json::to_string(&WebSocketMessage::ToolConfirmation {
+                                id: confirmation.id.clone(),
+                                tool_name: confirmation.tool_name.to_string(),
+                                arguments: Value::from(confirmation.arguments.clone()),
+                                needs_confirmation: true,
+                            })
+                            .unwrap()
+                            .into(),
+                        ))
+                        .await;
+                }
+
+                agent
+                    .handle_confirmation(
+                        confirmation.id.clone(),
+                        goose::permission::PermissionConfirmation {
+                            principal_type:
+                                goose::permission::permission_confirmation::PrincipalType::Tool,
+                            permission: goose::permission::Permission::AllowOnce,
+                        },
+                    )
+                    .await;
+            }
+            MessageContent::Thinking(thinking) => {
+                let mut sender = sender.lock().await;
+                let _ = sender
+                    .send(Message::Text(
+                        serde_json::to_string(&WebSocketMessage::Thinking {
+                            message: thinking.thinking.clone(),
+                        })
+                        .unwrap()
+                        .into(),
+                    ))
+                    .await;
+            }
+            _ => {}
+        }
+    }
+}
+
+async fn send_error(
+    sender: &Arc<Mutex<futures::stream::SplitSink<WebSocket, Message>>>,
+    message: &str,
+) {
+    let mut sender = sender.lock().await;
+    let _ = sender
+        .send(Message::Text(
+            serde_json::to_string(&WebSocketMessage::Error {
+                message: message.to_string(),
+            })
+            .unwrap()
+            .into(),
+        ))
+        .await;
 }

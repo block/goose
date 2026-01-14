@@ -832,10 +832,10 @@ enum Command {
         #[arg(long, help = "Authentication token to secure the web interface")]
         auth_token: Option<String>,
 
-        /// Allow running without authentication on non-loopback addresses (unsafe)
+        /// Allow running without authentication when exposed on the network (unsafe)
         #[arg(
             long,
-            help = "Skip auth requirement for non-loopback addresses (unsafe)"
+            help = "Skip auth requirement when exposed on the network (unsafe)"
         )]
         no_auth: bool,
     },
