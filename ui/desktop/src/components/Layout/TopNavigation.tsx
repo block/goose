@@ -500,8 +500,8 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
   const gridClasses = isOverlayMode || isVerticalOverlay || isHorizontalOverlay
     ? 'grid grid-cols-2 md:grid-cols-5 gap-[2px] w-full max-w-7xl mx-auto px-4 sm:px-6 md:px-8 auto-rows-fr'
     : isPushModeHorizontal
-      ? 'grid grid-cols-2 md:grid-cols-5 gap-[2px] w-full h-full overflow-y-auto px-1 auto-rows-min' // 2 cols mobile, 5 cols standard, scrollable
-    : 'grid grid-cols-2 gap-[2px] h-full overflow-y-auto auto-rows-min'; // Vertical push mode - 2 columns, scrollable
+      ? 'grid grid-cols-2 md:grid-cols-5 gap-[2px] w-full' // 2 cols mobile, 5 cols standard
+    : 'grid grid-cols-2 gap-[2px]'; // Vertical push mode - 2 columns
   
   const containerClasses = isOverlayMode || isHorizontalOverlay
     ? 'w-full h-full flex items-center justify-center overflow-hidden' // Centered for overlay mode or horizontal blade overlay
@@ -516,7 +516,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
             className={`${isOverlayMode || isVerticalOverlay || isHorizontalOverlay ? 'bg-transparent' : 'bg-background-muted overflow-hidden'} ${isVertical && !isOverlayMode && !isVerticalOverlay ? 'h-full' : ''} ${isPushModeHorizontal ? 'h-full' : ''} ${isClosing ? 'nav-overlay-exit' : 'nav-overlay-enter'} transition-all duration-300`}
           >
             <div
-              className={`${isOverlayMode || isVerticalOverlay || isHorizontalOverlay ? 'overflow-y-auto max-h-[90vh] py-4 sm:py-6 md:py-8' : 'p-1 h-full overflow-hidden'} transition-all duration-300`}
+              className={`${isOverlayMode || isVerticalOverlay || isHorizontalOverlay ? 'overflow-y-auto max-h-[90vh] py-4 sm:py-6 md:py-8' : 'p-1 h-full overflow-y-auto'} transition-all duration-300`}
               style={{ width: isVertical && !isOverlayMode && !isVerticalOverlay ? '360px' : undefined }}
             >
               <div 
