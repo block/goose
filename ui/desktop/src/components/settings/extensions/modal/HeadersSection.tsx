@@ -199,6 +199,7 @@ export default function HeadersSection({
             }}
             placeholder="Value"
             type={isSensitiveHeader(newKey) && !visibleValues.has(-1) ? 'password' : 'text'}
+            data-testid="new-header-value"
             className={cn(
               'w-full text-textStandard border-borderSubtle hover:border-borderStandard pr-10',
               invalidFields.value && 'border-red-500 focus:border-red-500'
