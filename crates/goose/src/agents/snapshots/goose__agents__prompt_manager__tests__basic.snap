@@ -9,7 +9,6 @@ goose uses LLM providers with tool calling capability. You can be used with diff
 claude-sonnet-4, o1, llama-3.2, deepseek-r1, etc).
 These models have varying knowledge cut-off dates depending on when they were trained, but typically it's between 5-10
 months prior to the current date.
-
 # Extensions
 
 Extensions allow other applications to provide context to goose. Extensions connect goose to different data sources and

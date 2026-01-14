@@ -440,18 +440,21 @@ impl CodeExecutionClient {
                 website_url: None,
             },
             instructions: Some(indoc! {r#"
-                BATCH MULTIPLE TOOL CALLS INTO ONE execute_code CALL.
+                BATCH MULTIPLE TOOL CALLS INTO ONE code_execution__execute_code CALL.
 
                 This extension exists to reduce round-trips. When a task requires multiple tool calls:
                 - WRONG: Multiple execute_code calls, each with one tool
                 - RIGHT: One execute_code call with a script that calls all needed tools
 
-                IMPORTANT: All tool calls are SYNCHRONOUS. Do NOT use async/await.
+                IMPORTANT: All tool calls are SYNCHRONOUS and return PARSED OBJECTS.
+                - Do NOT use async/await
+                - NEVER use JSON.parse() on tool results - they are already JavaScript objects
 
                 Workflow:
-                    1. Use the read_module tool to discover tools and signatures
+                    1. Use code_execution__read_module to discover tools and signatures
                     2. Write ONE script that imports and calls ALL tools needed for the task
                     3. Chain results: use output from one tool as input to the next
+                       Example: const user = get_me(); const prs = search({author: user.login});
             "#}.to_string()),
         };
 
@@ -521,6 +524,8 @@ impl CodeExecutionClient {
         let tools = self.get_tool_infos(session_id).await;
         let parts: Vec<&str> = path.trim_start_matches('/').split('/').collect();
 
+        let reminder = "\n\n// IMPORTANT: Use code_execution__execute_code to call these tools. Do NOT call them directly.";
+
         match parts.as_slice() {
             [server] => {
                 let server_tools: Vec<_> =
@@ -530,8 +535,9 @@ impl CodeExecutionClient {
                 }
                 let sigs: Vec<_> = server_tools.iter().map(|t| t.to_signature()).collect();
                 Ok(vec![Content::text(format!(
-                    "// import * as {server} from \"{server}\";\n\n{}",
-                    sigs.join("\n")
+                    "// import * as {server} from \"{server}\";\n\n{}{}",
+                    sigs.join("\n"),
+                    reminder
                 ))])
             }
             [server, tool] => {
@@ -540,9 +546,10 @@ impl CodeExecutionClient {
                     .find(|t| t.server_name == *server && t.tool_name == *tool)
                     .ok_or_else(|| format!("Tool not found: {server}/{tool}"))?;
                 Ok(vec![Content::text(format!(
-                    "// import * as {server} from \"{server}\";\n\n{}\n\n{}",
+                    "// import * as {server} from \"{server}\";\n\n{}\n\n{}{}",
                     t.to_signature(),
-                    t.description
+                    t.description,
+                    reminder
                 ))])
             }
             _ => Err(format!(
@@ -661,6 +668,8 @@ impl CodeExecutionClient {
             }
         }
 
+        output.push_str("\n// IMPORTANT: Use code_execution__execute_code to call these tools. Do NOT call them directly.");
+
         Ok(vec![Content::text(output)])
     }
 
@@ -730,9 +739,16 @@ impl McpClientTrait for CodeExecutionClient {
                     indoc! {r#"
                         Batch multiple MCP tool calls into ONE execution. This is the primary purpose of this tool.
 
-                        CRITICAL: Always combine related operations into a single execute_code call.
+                        CRITICAL RULES:
+                        1. Combine related operations into a single execute_code call
+                        2. Tool calls return PARSED OBJECTS - NEVER use JSON.parse() on results
+                        3. All calls are synchronous - do NOT use async/await
+
+                        WRONG vs RIGHT:
                         - WRONG: execute_code to read → execute_code to write (2 calls)
                         - RIGHT: execute_code that reads AND writes in one script (1 call)
+                        - WRONG: JSON.parse(get_me()) - results are already objects!
+                        - RIGHT: const user = get_me(); user.login - access properties directly
 
                         EXAMPLE - Read file and write to another (ONE call):
                         ```javascript
@@ -755,7 +771,7 @@ impl McpClientTrait for CodeExecutionClient {
                         - Import: import { tool1, tool2 } from "serverName";
                         - Call: toolName({ param1: value, param2: value })
                         - Result: record_result(value) - call this to return a value from the script
-                        - All calls are synchronous, return strings
+                        - All calls are synchronous and return parsed objects (NEVER use JSON.parse)
 
                         TOOL_GRAPH: Always provide tool_graph to describe the execution flow for the UI.
                         Each node has: tool (server/name), description (what it does), depends_on (indices of dependencies).
@@ -877,13 +893,14 @@ impl McpClientTrait for CodeExecutionClient {
 
         Some(format!(
             indoc::indoc! {r#"
-                ALWAYS batch multiple tool operations into ONE execute_code call.
+                ALWAYS batch multiple tool operations into ONE code_execution__execute_code call.
                 - WRONG: Separate execute_code calls for read file, then write file
                 - RIGHT: One execute_code with a script that reads AND writes
 
+                Tools: code_execution__execute_code, code_execution__read_module, code_execution__search_modules
                 Modules: {}
 
-                Use the read_module tool to see signatures before calling unfamiliar tools.
+                Use code_execution__read_module to see signatures before calling unfamiliar tools.
             "#},
             server_list.join(", ")
         ))

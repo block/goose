@@ -236,7 +236,8 @@ impl Agent {
         )));
 
         // Add repetition inspector (lower priority - basic repetition checking)
-        tool_inspection_manager.add_inspector(Box::new(RepetitionInspector::new(None)));
+        // Limit to 5 repetitions to allow model self-correction while preventing infinite loops
+        tool_inspection_manager.add_inspector(Box::new(RepetitionInspector::new(Some(5))));
 
         tool_inspection_manager
     }

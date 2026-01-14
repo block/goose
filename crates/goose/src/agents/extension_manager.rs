@@ -1196,24 +1196,11 @@ impl ExtensionManager {
         tool_call: CallToolRequestParams,
         cancellation_token: CancellationToken,
     ) -> Result<ToolCallResult> {
-        // Some models strip the tool prefix, so auto-add it for known code_execution tools
         let tool_name_str = tool_call.name.to_string();
-        let prefixed_name = if !tool_name_str.contains("__") {
-            let code_exec_tools = ["execute_code", "read_module", "search_modules"];
-            if code_exec_tools.contains(&tool_name_str.as_str())
-                && self.extensions.lock().await.contains_key("code_execution")
-            {
-                format!("code_execution__{}", tool_name_str)
-            } else {
-                tool_name_str
-            }
-        } else {
-            tool_name_str
-        };
 
         // Dispatch tool call based on the prefix naming convention
         let (client_name, client) =
-            self.get_client_for_tool(&prefixed_name)
+            self.get_client_for_tool(&tool_name_str)
                 .await
                 .ok_or_else(|| {
                     ErrorData::new(
@@ -1223,7 +1210,7 @@ impl ExtensionManager {
                     )
                 })?;
 
-        let tool_name = prefixed_name
+        let tool_name = tool_name_str
             .strip_prefix(client_name.as_str())
             .and_then(|s| s.strip_prefix("__"))
             .ok_or_else(|| {
