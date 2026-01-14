@@ -161,10 +161,6 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
       const extName = extractExtensionName(link);
       const extensionsList = await getExtensions(true);
 
-      console.log('Extension name:', extName);
-      console.log('Extensions list:', extensionsList);
-      console.log('Found match:', extensionsList.find((ext) => ext.name === extName));
-
       if (extensionsList?.find((ext) => ext.name === extName)) {
         console.log(`Extension Already Installed: ${extName}`);
 
@@ -174,7 +170,6 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
         });
         return;
       }
-
       console.log('Extension not found, continuing to show modal');
 
       const extensionInfo: ExtensionInfo = {
@@ -306,7 +301,7 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className={getTitleClassName()}>{config.title}</DialogTitle>
-          <DialogDescription className="whitespace-pre-wrap text-left">
+          <DialogDescription className="text-left whitespace-pre-wrap">
             {config.message}
           </DialogDescription>
         </DialogHeader>
