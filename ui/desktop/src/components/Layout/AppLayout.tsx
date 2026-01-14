@@ -215,12 +215,12 @@ const AppLayoutContent: React.FC<AppLayoutProps> = () => {
           <div className={`flex ${flexDirection} flex-1 w-full h-full bg-background-muted`}>
             {/* Navigation placement based on position - always render but let component handle visibility */}
             {navigationPosition === 'top' && (
-              <div className="flex flex-col">
+              <div className="flex flex-col max-h-[50vh]">
                 {navigationComponent}
               </div>
             )}
             {navigationPosition === 'left' && (
-              <div className="flex flex-col">
+              <div className="flex flex-col h-full">
                 {navigationComponent}
               </div>
             )}
@@ -230,12 +230,12 @@ const AppLayoutContent: React.FC<AppLayoutProps> = () => {
             
             {/* Navigation placement for bottom and right - always render but let component handle visibility */}
             {navigationPosition === 'bottom' && (
-              <div className="flex flex-col">
+              <div className="flex flex-col max-h-[50vh]">
                 {navigationComponent}
               </div>
             )}
             {navigationPosition === 'right' && (
-              <div className="flex flex-col">
+              <div className="flex flex-col h-full">
                 {navigationComponent}
               </div>
             )}
