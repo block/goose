@@ -493,6 +493,7 @@ fn select_model_from_list(
 fn try_store_secret(config: &Config, key_name: &str, value: String) -> anyhow::Result<bool> {
     match config.set_secret(key_name, &value) {
         Ok(_) => Ok(true),
+        Err(ConfigError::FallbackToFileStorage) => Ok(true),
         Err(e) => {
             cliclack::outro(style(format!(
                 "Failed to store {} securely: {}. Please ensure your system's secure storage is accessible. Alternatively you can run with GOOSE_DISABLE_KEYRING=true or set the key in your environment variables",
@@ -563,7 +564,6 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
                 }
             }
             None => {
-                // No env var, check config/secret storage
                 let existing: Result<String, _> = if key.secret {
                     config.get_secret(&key.name)
                 } else {
@@ -628,7 +628,9 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
                             };
 
                             if key.secret {
-                                config.set_secret(&key.name, &value)?;
+                                if !try_store_secret(config, &key.name, value)? {
+                                    return Ok(false);
+                                }
                             } else {
                                 config.set_param(&key.name, &value)?;
                             }
@@ -799,7 +801,7 @@ fn prompt_extension_name(placeholder: &str) -> anyhow::Result<String> {
 }
 
 fn collect_env_vars() -> anyhow::Result<(HashMap<String, String>, Vec<String>)> {
-    let mut envs = HashMap::new();
+    let envs = HashMap::new();
     let mut env_keys = Vec::new();
     let config = Config::global();
 
@@ -816,12 +818,10 @@ fn collect_env_vars() -> anyhow::Result<(HashMap<String, String>, Vec<String>)> 
             .mask('▪')
             .interact()?;
 
-        match config.set_secret(&key, &value) {
-            Ok(_) => env_keys.push(key),
-            Err(_) => {
-                envs.insert(key, value);
-            }
+        if !try_store_secret(config, &key, value)? {
+            return Err(anyhow::anyhow!("Failed to store secret"));
         }
+        env_keys.push(key);
 
         if !cliclack::confirm("Add another environment variable?").interact()? {
             break;
