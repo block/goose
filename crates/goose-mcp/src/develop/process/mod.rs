@@ -29,6 +29,14 @@ use serde::Deserialize;
 /// Maximum await timeout (5 minutes).
 const MAX_AWAIT_TIMEOUT_SECS: u64 = 300;
 
+/// Check if a command attempts to use shell backgrounding.
+/// This detects `&` at the end of a command (with optional trailing whitespace).
+fn is_backgrounded_command(command: &str) -> bool {
+    let trimmed = command.trim_end();
+    // Check for & at end, but not && (which is logical AND)
+    trimmed.ends_with('&') && !trimmed.ends_with("&&")
+}
+
 // ============================================================================
 // Tool Parameter Types
 // ============================================================================
@@ -37,9 +45,9 @@ const MAX_AWAIT_TIMEOUT_SECS: u64 = 300;
 pub struct ShellParams {
     /// The shell command to execute.
     command: String,
-    /// Optional timeout in seconds before promoting to background process.
-    /// Default is 2 seconds. Use higher values for commands you know will take
-    /// time (builds, tests, installs). Max is 300 seconds.
+    /// How long to wait for completion before promoting to a managed process (default: 2s, max: 300s).
+    /// - **Persistent processes** (servers, watch modes): Use default. Let them promote immediately, then poll output.
+    /// - **Slow-but-finite commands** (builds, tests, installs): Use higher values (e.g., 30-120s) to get complete output directly.
     #[serde(default)]
     timeout_secs: Option<u64>,
 }
@@ -103,6 +111,16 @@ impl ProcessTools {
 
     /// Execute a shell command.
     pub fn shell(&self, params: ShellParams) -> CallToolResult {
+        // Detect shell backgrounding which doesn't work with our process model
+        if is_backgrounded_command(&params.command) {
+            return CallToolResult::error(vec![Content::text(
+                "Error: Shell backgrounding (`&`) is not supported. \
+                Long-running commands are automatically managed - just run the command normally \
+                and it will return a process ID (e.g., proc01) that you can query with \
+                process_status, process_output, or process_await.",
+            )]);
+        }
+
         let timeout = params
             .timeout_secs
             .map(|s| Duration::from_secs(s.min(MAX_AWAIT_TIMEOUT_SECS)));
@@ -228,5 +246,26 @@ impl ProcessTools {
             ))]),
             Err(e) => CallToolResult::error(vec![Content::text(format!("Error: {}", e))]),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_backgrounded_command() {
+        // Should detect backgrounding
+        assert!(is_backgrounded_command("sleep 10 &"));
+        assert!(is_backgrounded_command("pnpm tauri dev &"));
+        assert!(is_backgrounded_command("cmd &  ")); // trailing whitespace
+        assert!(is_backgrounded_command("echo foo & "));
+
+        // Should NOT detect these as backgrounding
+        assert!(!is_backgrounded_command("echo hello && echo world"));
+        assert!(!is_backgrounded_command("cmd1 && cmd2"));
+        assert!(!is_backgrounded_command("ls -la"));
+        assert!(!is_backgrounded_command("echo 'test & test'"));
+        assert!(!is_backgrounded_command("FOO=bar && echo $FOO"));
     }
 }

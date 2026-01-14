@@ -79,12 +79,24 @@ impl DevelopServer {
 
             Capabilities:
             - **Process**: Execute shell commands with `shell`. Working directory and 
-              environment variables persist across calls. Long-running or large-output 
-              commands return a process ID for later querying.
+              environment variables persist across calls.
             - **Edit**: Create and modify files with `file_write` and `file_edit`
             - **Explore**: Navigate and analyze codebases with `map`
             - **Image**: Read images from files or capture windows/screen with `read_image`.
               Prefer capturing specific windows over full screen when possible.
+
+            **Process management**: The `timeout_secs` parameter controls how long to wait 
+            before promoting a command to a managed process (default 2s). Once promoted, 
+            you get a process ID (proc01, etc.) to use with process_status, process_output, 
+            process_await, or process_kill. Do NOT use shell backgrounding (`&`).
+
+            **Choosing timeout values:**
+            - **Persistent processes** (dev servers, watch modes, `tail -f`): Use default. 
+              Let them promote immediately, then poll output to check readiness.
+            - **Slow-but-finite commands** (builds, tests, installs): Use higher timeout 
+              (30-120s) to get complete output directly without process management overhead.
+
+            Examples: `npm run dev` → default timeout, `cargo build` → `timeout_secs: 60`
 
             **Strategy**: You are responsible for carefully managing your own context window.
             It is critical to your ability to solve problems to not fill it up too quickly.
@@ -127,7 +139,7 @@ impl DevelopServer {
 
     #[tool(
         name = "shell",
-        description = "Execute a shell command. Returns output directly for fast commands, or a process ID (proc01, etc.) for long-running commands or large output. Working directory and environment variables persist across calls."
+        description = "Execute a shell command. Returns output directly if it completes within timeout, otherwise returns a process ID (proc01, etc.) for management. Working directory and environment variables persist across calls. Do not use shell backgrounding (`&`)."
     )]
     pub async fn shell(
         &self,
