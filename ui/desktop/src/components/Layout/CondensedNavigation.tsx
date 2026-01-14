@@ -178,6 +178,16 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
     }
   };
 
+  // Determine layout based on position
+  const isVertical = position === 'left' || position === 'right';
+  const isHorizontal = position === 'top' || position === 'bottom';
+  
+  // Blade overlay mode: push mode on small screens becomes overlay-style
+  const isBladeOverlay = !isOverlayMode && shouldUseBladeOverlay;
+  
+  // For horizontal positions (top/bottom) in blade overlay, use launcher-style overlay
+  const shouldUseLauncherStyle = isBladeOverlay && isHorizontal;
+
   // Analog Clock Widget Component
   const AnalogClock: React.FC = () => {
     const [secondAngle, setSecondAngle] = useState(() => {
@@ -399,9 +409,9 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
       preferences.enabledItems.includes(item.id)
     );
 
-    // Filter widgets based on overlay mode
+    // Filter widgets based on overlay mode or launcher style
     const filteredItems = enabledItems.filter(item => 
-      isOverlayMode || !item.isWidget
+      isOverlayMode || shouldUseLauncherStyle || !item.isWidget
     );
 
     // Order items according to user preferences
@@ -416,7 +426,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
 
     return [...orderedItems, ...itemsNotInOrder];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preferences, forceUpdate, isOverlayMode, currentTime, todayChatsCount, totalSessions, recipesCount, totalTokens]);
+  }, [preferences, forceUpdate, isOverlayMode, shouldUseLauncherStyle, currentTime, todayChatsCount, totalSessions, recipesCount, totalTokens]);
 
   // Listen for navigation preferences updates
   useEffect(() => {
@@ -504,14 +514,8 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
     return location.pathname === path;
   };
 
-  // Determine layout based on position
-  const isVertical = position === 'left' || position === 'right';
-  
-  // Blade overlay mode: push mode on small screens becomes overlay-style (transparent but full height)
-  const isBladeOverlay = !isOverlayMode && shouldUseBladeOverlay;
-  
   // Position-aware container classes
-  const containerClasses = isOverlayMode
+  const containerClasses = isOverlayMode || shouldUseLauncherStyle
     ? `w-full h-full flex ${
         position === 'top' ? 'items-start justify-center' :
         position === 'bottom' ? 'items-end justify-center' :
@@ -545,8 +549,8 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
                   : !isOverlayMode ? 'pr-0.5' : ''
             }`}
           >
-{isOverlayMode ? (
-                // Overlay Mode: Responsive flex layout with scrolling
+{isOverlayMode || shouldUseLauncherStyle ? (
+                // Overlay Mode or Launcher Style: Responsive flex layout with scrolling
                 <div className={`flex flex-col md:flex-row gap-2 md:gap-4 max-h-[90vh] overflow-y-auto px-4 sm:px-6 md:px-8 py-4 sm:py-6 md:py-8 ${
                   position === 'left' || position === 'right' ? 'items-center' : 
                   position === 'bottom' ? 'items-end' : 'items-start'
