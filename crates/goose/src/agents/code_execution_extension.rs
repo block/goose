@@ -1,6 +1,6 @@
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::extension_manager::get_parameter_names;
-use crate::agents::mcp_client::{Error, McpClientTrait};
+use crate::agents::mcp_client::{Error, McpClientTrait, McpMeta};
 use anyhow::Result;
 use async_trait::async_trait;
 use boa_engine::builtins::promise::PromiseState;
@@ -824,11 +824,11 @@ impl McpClientTrait for CodeExecutionClient {
         &self,
         name: &str,
         arguments: Option<JsonObject>,
-        session_id: &str,
+        meta: McpMeta,
         _cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         let content = match name {
-            "execute_code" => self.handle_execute_code(session_id, arguments).await,
+            "execute_code" => self.handle_execute_code(&meta.session_id, arguments).await,
             "read_module" => self.handle_read_module(arguments).await,
             "search_modules" => self.handle_search_modules(arguments).await,
             _ => Err(format!("Unknown tool: {name}")),
@@ -902,7 +902,7 @@ mod tests {
             .call_tool(
                 "execute_code",
                 Some(args),
-                "test-session-id",
+                McpMeta::new("test-session-id"),
                 CancellationToken::new(),
             )
             .await

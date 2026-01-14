@@ -33,7 +33,7 @@ use super::tool_execution::ToolCallResult;
 use super::types::SharedProvider;
 use crate::agents::extension::{Envs, ProcessExit};
 use crate::agents::extension_malware_check;
-use crate::agents::mcp_client::{McpClient, McpClientTrait};
+use crate::agents::mcp_client::{McpClient, McpClientTrait, McpMeta};
 use crate::config::search_path::SearchPaths;
 use crate::config::{get_all_extensions, Config};
 use crate::oauth::oauth_flow;
@@ -1170,8 +1170,9 @@ impl ExtensionManager {
                 session_id
             );
             let client_guard = client.lock().await;
+            let meta = McpMeta::new(&session_id);
             client_guard
-                .call_tool(&tool_name, arguments, &session_id, cancellation_token)
+                .call_tool(&tool_name, arguments, meta, cancellation_token)
                 .await
                 .map_err(|e| match e {
                     ServiceError::McpError(error_data) => error_data,
@@ -1497,7 +1498,7 @@ mod tests {
             &self,
             name: &str,
             _arguments: Option<JsonObject>,
-            _session_id: &str,
+            _meta: McpMeta,
             _cancellation_token: CancellationToken,
         ) -> Result<CallToolResult, Error> {
             match name {

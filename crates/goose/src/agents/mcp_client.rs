@@ -37,6 +37,23 @@ pub type BoxError = Box<dyn std::error::Error + Sync + Send>;
 
 pub type Error = rmcp::ServiceError;
 
+#[derive(Clone, Debug)]
+pub struct McpMeta {
+    pub session_id: String,
+}
+
+impl McpMeta {
+    pub fn new(session_id: impl Into<String>) -> Self {
+        Self {
+            session_id: session_id.into(),
+        }
+    }
+
+    fn inject_into_extensions(&self, extensions: Extensions) -> Extensions {
+        inject_session_id_into_extensions(extensions, &self.session_id)
+    }
+}
+
 #[async_trait::async_trait]
 pub trait McpClientTrait: Send + Sync {
     async fn list_tools(
@@ -49,7 +66,7 @@ pub trait McpClientTrait: Send + Sync {
         &self,
         name: &str,
         arguments: Option<JsonObject>,
-        session_id: &str,
+        meta: McpMeta,
         cancel_token: CancellationToken,
     ) -> Result<CallToolResult, Error>;
 
@@ -452,7 +469,7 @@ impl McpClientTrait for McpClient {
         &self,
         name: &str,
         arguments: Option<JsonObject>,
-        session_id: &str,
+        meta: McpMeta,
         cancel_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         let res = self
@@ -463,7 +480,7 @@ impl McpClientTrait for McpClient {
                         arguments,
                     },
                     method: Default::default(),
-                    extensions: inject_session_id_into_extensions(Default::default(), session_id),
+                    extensions: meta.inject_into_extensions(Default::default()),
                 }),
                 cancel_token,
             )

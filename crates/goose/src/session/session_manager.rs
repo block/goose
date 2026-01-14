@@ -473,7 +473,7 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
 impl SessionStorage {
     fn create_pool(path: &Path) -> Pool<Sqlite> {
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).unwrap();
+            fs::create_dir_all(parent).expect("Failed to create session database directory");
         }
 
         let options = SqliteConnectOptions::new()

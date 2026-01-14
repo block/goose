@@ -43,10 +43,12 @@ impl PermissionManager {
     pub fn new(config_dir: PathBuf) -> Self {
         let permission_path = config_dir.join(PERMISSION_FILE);
         let permission_map = if permission_path.exists() {
-            let file_contents = fs::read_to_string(&permission_path).unwrap();
+            let file_contents =
+                fs::read_to_string(&permission_path).expect("Failed to read permission.yaml");
             serde_yaml::from_str(&file_contents).unwrap_or_else(|_| HashMap::new())
         } else {
-            fs::create_dir_all(&config_dir).unwrap();
+            // Consolidate directory creation for re-use in global singleton or ACP.
+            fs::create_dir_all(&config_dir).expect("Failed to create config directory");
             HashMap::new()
         };
         PermissionManager {
@@ -149,8 +151,9 @@ impl PermissionManager {
         }
 
         // Serialize the updated permission map and write it back to the config file
-        let yaml_content = serde_yaml::to_string(&*map).unwrap();
-        fs::write(&self.config_path, yaml_content).unwrap();
+        let yaml_content =
+            serde_yaml::to_string(&*map).expect("Failed to serialize permission config");
+        fs::write(&self.config_path, yaml_content).expect("Failed to write to permission.yaml");
     }
 
     /// Removes all entries where the principal name starts with the given extension name.
@@ -168,8 +171,9 @@ impl PermissionManager {
                 .retain(|p| !p.starts_with(extension_name));
         }
 
-        let yaml_content = serde_yaml::to_string(&*map).unwrap();
-        fs::write(&self.config_path, yaml_content).unwrap();
+        let yaml_content =
+            serde_yaml::to_string(&*map).expect("Failed to serialize permission config");
+        fs::write(&self.config_path, yaml_content).expect("Failed to write to permission.yaml");
     }
 }
 

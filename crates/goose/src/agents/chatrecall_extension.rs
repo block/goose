@@ -1,5 +1,5 @@
 use crate::agents::extension::PlatformExtensionContext;
-use crate::agents::mcp_client::{Error, McpClientTrait};
+use crate::agents::mcp_client::{Error, McpClientTrait, McpMeta};
 use anyhow::Result;
 use async_trait::async_trait;
 use indoc::indoc;
@@ -294,9 +294,10 @@ impl McpClientTrait for ChatRecallClient {
         &self,
         name: &str,
         arguments: Option<JsonObject>,
-        session_id: &str,
+        meta: McpMeta,
         _cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
+        let session_id = &meta.session_id;
         let content = match name {
             "chatrecall" => self.handle_chatrecall(session_id, arguments).await,
             _ => Err(format!("Unknown tool: {}", name)),
