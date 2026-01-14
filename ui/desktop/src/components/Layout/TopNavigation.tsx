@@ -376,8 +376,8 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
         const tokensInMillions = (totalTokens / 1000000).toFixed(2);
         
         return (
-          <div className="w-full h-full flex flex-col items-center justify-center p-6">
-            <div className="text-center">
+          <div className="w-full h-full flex flex-col items-start justify-end p-6">
+            <div className="text-left">
               <div className="text-3xl font-mono font-light text-text-default mb-2">
                 {tokensInMillions}M
               </div>
