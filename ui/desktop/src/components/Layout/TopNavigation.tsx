@@ -497,6 +497,9 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
   // Push mode horizontal (top/bottom) should fill height, not use blade overlay
   const isPushModeHorizontal = !isOverlayMode && isHorizontal && !shouldUseBladeOverlay;
   
+  // Push mode vertical (left/right) - not overlay
+  const isPushModeVertical = !isOverlayMode && isVertical && !isVerticalOverlay;
+  
   const gridClasses = isOverlayMode || isVerticalOverlay || isHorizontalOverlay
     ? 'grid grid-cols-2 md:grid-cols-5 gap-[2px] w-full max-w-7xl mx-auto px-4 sm:px-6 md:px-8 auto-rows-fr' // Responsive for overlay
     : isPushModeHorizontal
@@ -516,7 +519,12 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
             className={`${isOverlayMode || isVerticalOverlay || isHorizontalOverlay ? 'bg-transparent' : 'bg-background-muted'} ${isVertical && !isOverlayMode && !isVerticalOverlay ? 'h-full' : ''} ${isPushModeHorizontal ? 'h-full' : ''} ${isClosing ? 'nav-overlay-exit' : 'nav-overlay-enter'} transition-all duration-300 overflow-hidden`}
           >
             <div
-              className={`${isOverlayMode || isVerticalOverlay || isHorizontalOverlay ? 'overflow-y-auto max-h-[90vh] py-4 sm:py-6 md:py-8' : 'p-1 h-full overflow-y-auto'} transition-all duration-300`}
+              className={`${isOverlayMode || isVerticalOverlay || isHorizontalOverlay ? 'overflow-y-auto max-h-[90vh] py-4 sm:py-6 md:px-8' : `h-full overflow-y-auto ${isPushModeVertical ? 'flex flex-col' : ''} ${
+                position === 'left' && isPushModeVertical ? 'pr-[2px]' :
+                position === 'right' && isPushModeVertical ? 'pl-[2px]' :
+                position === 'top' && isPushModeHorizontal ? 'pb-[2px]' :
+                position === 'bottom' && isPushModeHorizontal ? 'pt-[2px]' : ''
+              }`} transition-all duration-300`}
               style={{ 
                 width: isVertical && !isOverlayMode && !isVerticalOverlay ? '360px' : undefined,
                 overflowY: 'auto',
@@ -642,6 +650,24 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
               );
             })}
               </div>
+              
+              {/* Single filler tile for vertical push mode that expands to fill remaining space */}
+              {isPushModeVertical && (
+                <div
+                  className={`
+                    ${isClosing ? 'nav-tile-exit' : isLayoutReady ? 'nav-tile' : ''}
+                    flex-1 bg-background-default rounded-2xl 
+                    overflow-hidden mt-[2px]
+                    ${!isLayoutReady ? 'opacity-0' : ''}
+                    min-h-[120px]
+                  `}
+                  style={{
+                    animationDelay: isLayoutReady ? `${navItems.length * 30}ms` : '0ms',
+                  }}
+                >
+                  {/* Empty filler that expands to fill remaining vertical space */}
+                </div>
+              )}
             </div>
           </div>
         )}
