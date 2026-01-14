@@ -22,7 +22,7 @@ use goose::model::ModelConfig;
 use goose::posthog::{get_telemetry_choice, TELEMETRY_ENABLED_KEY};
 use goose::providers::provider_test::test_provider_configuration;
 use goose::providers::{create, providers, retry_operation, RetryConfig};
-use goose::session::{SessionManager, SessionType};
+use goose::session::SessionType;
 use serde_json::Value;
 use std::collections::HashMap;
 
@@ -1081,8 +1081,7 @@ pub fn remove_extension_dialog() -> anyhow::Result<()> {
 
     for name in selected {
         remove_extension(&name_to_key(name));
-        let mut permission_manager = PermissionManager::default();
-        permission_manager.remove_extension(&name_to_key(name));
+        PermissionManager::instance().remove_extension(&name_to_key(name));
         cliclack::outro(format!("Removed {} extension", style(name).green()))?;
     }
 
@@ -1396,15 +1395,19 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
         .expect("No model configured. Please set model first");
     let model_config = ModelConfig::new(&model)?;
 
-    let session = SessionManager::create_session(
-        std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
-        "Tool Permission Configuration".to_string(),
-        SessionType::Hidden,
-    )
-    .await?;
-
     let agent = Agent::new();
     let new_provider = create(&provider_name, model_config).await?;
+
+    let session = agent
+        .config
+        .session_manager
+        .create_session(
+            std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
+            "Tool Permission Configuration".to_string(),
+            SessionType::Hidden,
+        )
+        .await?;
+
     agent.update_provider(new_provider, &session.id).await?;
     if let Some(config) = get_extension_by_name(&selected_extension_name) {
         agent
@@ -1426,9 +1429,9 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let mut permission_manager = PermissionManager::default();
+    let permission_manager = PermissionManager::instance();
     let selected_tools = agent
-        .list_tools(Some(selected_extension_name.clone()))
+        .list_tools(&session.id, Some(selected_extension_name.clone()))
         .await
         .into_iter()
         .map(|tool| {

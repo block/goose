@@ -11,7 +11,6 @@ use axum::{
     Json, Router,
 };
 use goose::agents::ExtensionLoadResult;
-use goose::config::PermissionManager;
 
 use base64::Engine;
 use goose::agents::ExtensionConfig;
@@ -23,7 +22,7 @@ use goose::recipe::Recipe;
 use goose::recipe_deeplink;
 use goose::session::extension_data::ExtensionState;
 use goose::session::session_manager::SessionType;
-use goose::session::{EnabledExtensionsState, Session, SessionManager};
+use goose::session::{EnabledExtensionsState, Session};
 use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
     config::permission::PermissionLevel,
@@ -208,17 +207,19 @@ async fn start_agent(
     let counter = state.session_counter.fetch_add(1, Ordering::SeqCst) + 1;
     let name = format!("New session {}", counter);
 
-    let mut session =
-        SessionManager::create_session(PathBuf::from(&working_dir), name, SessionType::User)
-            .await
-            .map_err(|err| {
-                error!("Failed to create session: {}", err);
-                goose::posthog::emit_error("session_create_failed", &err.to_string());
-                ErrorResponse {
-                    message: format!("Failed to create session: {}", err),
-                    status: StatusCode::BAD_REQUEST,
-                }
-            })?;
+    let manager = state.session_manager();
+
+    let mut session = manager
+        .create_session(PathBuf::from(&working_dir), name, SessionType::User)
+        .await
+        .map_err(|err| {
+            error!("Failed to create session: {}", err);
+            goose::posthog::emit_error("session_create_failed", &err.to_string());
+            ErrorResponse {
+                message: format!("Failed to create session: {}", err),
+                status: StatusCode::BAD_REQUEST,
+            }
+        })?;
 
     // Initialize session with extensions (either overrides from hub or global defaults)
     let extensions_to_use =
@@ -228,7 +229,8 @@ async fn start_agent(
     if let Err(e) = extensions_state.to_extension_data(&mut extension_data) {
         tracing::warn!("Failed to initialize session with extensions: {}", e);
     } else {
-        SessionManager::update_session(&session.id)
+        manager
+            .update(&session.id)
             .extension_data(extension_data.clone())
             .apply()
             .await
@@ -242,7 +244,8 @@ async fn start_agent(
     }
 
     if let Some(recipe) = original_recipe {
-        SessionManager::update_session(&session.id)
+        manager
+            .update(&session.id)
             .recipe(Some(recipe))
             .apply()
             .await
@@ -256,7 +259,8 @@ async fn start_agent(
     }
 
     // Refetch session to get all updates
-    session = SessionManager::get_session(&session.id, false)
+    session = manager
+        .get_session(&session.id, false)
         .await
         .map_err(|err| {
             error!("Failed to get updated session: {}", err);
@@ -317,7 +321,9 @@ async fn resume_agent(
 ) -> Result<Json<ResumeAgentResponse>, ErrorResponse> {
     goose::posthog::set_session_context("desktop", true);
 
-    let session = SessionManager::get_session(&payload.session_id, true)
+    let session = state
+        .session_manager()
+        .get_session(&payload.session_id, true)
         .await
         .map_err(|err| {
             error!("Failed to resume session {}: {}", payload.session_id, err);
@@ -395,7 +401,9 @@ async fn update_from_session(
             message: format!("Failed to get agent: {}", status),
             status,
         })?;
-    let session = SessionManager::get_session(&payload.session_id, false)
+    let session = state
+        .session_manager()
+        .get_session(&payload.session_id, false)
         .await
         .map_err(|err| ErrorResponse {
             message: format!("Failed to get session: {}", err),
@@ -453,11 +461,12 @@ async fn get_tools(
 ) -> Result<Json<Vec<ToolInfo>>, StatusCode> {
     let config = Config::global();
     let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
-    let agent = state.get_agent_for_route(query.session_id).await?;
-    let permission_manager = PermissionManager::default();
+    let session_id = query.session_id;
+    let agent = state.get_agent_for_route(session_id.clone()).await?;
+    let permission_manager = agent.config.permission_manager.clone();
 
     let mut tools: Vec<ToolInfo> = agent
-        .list_tools(query.extension_name)
+        .list_tools(&session_id, query.extension_name)
         .await
         .into_iter()
         .map(|tool| {
@@ -720,7 +729,9 @@ async fn restart_agent(
 ) -> Result<Json<RestartAgentResponse>, ErrorResponse> {
     let session_id = payload.session_id.clone();
 
-    let session = SessionManager::get_session(&session_id, false)
+    let session = state
+        .session_manager()
+        .get_session(&session_id, false)
         .await
         .map_err(|err| {
             error!("Failed to get session during restart: {}", err);
@@ -770,7 +781,9 @@ async fn update_working_dir(
     }
 
     // Update the session's working directory
-    SessionManager::update_session(&session_id)
+    state
+        .session_manager()
+        .update(&session_id)
         .working_dir(path)
         .apply()
         .await
@@ -783,7 +796,9 @@ async fn update_working_dir(
         })?;
 
     // Get the updated session and restart the agent
-    let session = SessionManager::get_session(&session_id, false)
+    let session = state
+        .session_manager()
+        .get_session(&session_id, false)
         .await
         .map_err(|err| {
             error!("Failed to get session after working dir update: {}", err);
@@ -901,7 +916,7 @@ async fn call_tool(
 
     let tool_result = agent
         .extension_manager
-        .dispatch_tool_call(tool_call, CancellationToken::default())
+        .dispatch_tool_call(&payload.session_id, tool_call, CancellationToken::default())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
