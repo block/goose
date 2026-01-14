@@ -22,7 +22,6 @@ pub fn extract_recipe_info_from_cli(
         print_recipe_info(&recipe, params);
     }
 
-    // Add additional sub-recipes from CLI to the recipe
     if !additional_sub_recipes.is_empty() {
         let mut all_sub_recipes = recipe.sub_recipes.clone().unwrap_or_default();
         for sub_recipe_name in additional_sub_recipes {

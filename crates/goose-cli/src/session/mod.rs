@@ -287,7 +287,6 @@ impl CliSession {
         })
     }
 
-    /// Parse a streamable HTTP extension URL into an ExtensionConfig
     pub fn parse_streamable_http_extension(extension_url: &str) -> ExtensionConfig {
         ExtensionConfig::StreamableHttp {
             name: String::new(),
@@ -329,57 +328,14 @@ impl CliSession {
             .collect()
     }
 
-    /// Add extension config, persist to session, and invalidate cache
-    async fn add_and_persist_extension(&mut self, config: ExtensionConfig) -> Result<()> {
-        self.agent
-            .add_extension(config)
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to start extension: {}", e))?;
-
-        // Save extension state to session (like Desktop)
-        self.agent
-            .persist_extension_state(&self.session_id)
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to save extension state: {}", e))?;
-
-        // Invalidate the completion cache when a new extension is added
-        self.invalidate_completion_cache().await;
-
-        Ok(())
-    }
-
-    /// Add a stdio extension to the session
-    ///
-    /// # Arguments
-    /// * `extension_command` - Full command string including environment variables
-    ///   Format: "ENV1=val1 ENV2=val2 command args..."
-    pub async fn add_extension(&mut self, extension_command: String) -> Result<()> {
-        let config = Self::parse_stdio_extension(&extension_command)?;
-        self.add_and_persist_extension(config).await
-    }
-
-    /// Add a streamable HTTP extension to the session
-    ///
-    /// # Arguments
-    /// * `extension_url` - URL of the server
-    pub async fn add_streamable_http_extension(&mut self, extension_url: String) -> Result<()> {
-        let config = Self::parse_streamable_http_extension(&extension_url);
-        self.add_and_persist_extension(config).await
-    }
-
-    /// Add a builtin extension to the session
-    ///
-    /// # Arguments
-    /// * `builtin_name` - Name of the builtin extension(s), comma separated
-    pub async fn add_builtin(&mut self, builtin_name: String) -> Result<()> {
-        for config in Self::parse_builtin_extensions(&builtin_name) {
+    async fn add_and_persist_extensions(&mut self, configs: Vec<ExtensionConfig>) -> Result<()> {
+        for config in configs {
             self.agent
                 .add_extension(config)
                 .await
-                .map_err(|e| anyhow::anyhow!("Failed to start builtin extension: {}", e))?;
+                .map_err(|e| anyhow::anyhow!("Failed to start extension: {}", e))?;
         }
 
-        // Save once after all builtins are added
         self.agent
             .persist_extension_state(&self.session_id)
             .await
@@ -388,6 +344,21 @@ impl CliSession {
         self.invalidate_completion_cache().await;
 
         Ok(())
+    }
+
+    pub async fn add_extension(&mut self, extension_command: String) -> Result<()> {
+        let config = Self::parse_stdio_extension(&extension_command)?;
+        self.add_and_persist_extensions(vec![config]).await
+    }
+
+    pub async fn add_streamable_http_extension(&mut self, extension_url: String) -> Result<()> {
+        let config = Self::parse_streamable_http_extension(&extension_url);
+        self.add_and_persist_extensions(vec![config]).await
+    }
+
+    pub async fn add_builtin(&mut self, builtin_name: String) -> Result<()> {
+        let configs = Self::parse_builtin_extensions(&builtin_name);
+        self.add_and_persist_extensions(configs).await
     }
 
     pub async fn list_prompts(

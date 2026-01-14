@@ -222,8 +222,9 @@ async fn start_agent(
                 }
             })?;
 
-    // Initialize session with extensions (recipe extensions → hub overrides → global defaults)
-    let recipe_extensions = original_recipe.as_ref().and_then(|r| r.extensions.as_deref());
+    let recipe_extensions = original_recipe
+        .as_ref()
+        .and_then(|r| r.extensions.as_deref());
     let extensions_to_use =
         resolve_extensions_for_new_session(recipe_extensions, extension_overrides);
     let mut extension_data = session.extension_data.clone();

@@ -3,6 +3,7 @@ use super::CliSession;
 use console::style;
 use goose::agents::extension::PlatformExtensionContext;
 use goose::agents::Agent;
+use goose::config::get_enabled_extensions;
 use goose::config::{
     extensions::get_extension_by_name, get_all_extensions, Config, ExtensionConfig,
 };
@@ -10,7 +11,6 @@ use goose::providers::create;
 use goose::recipe::Recipe;
 use goose::session::session_manager::SessionType;
 use goose::session::SessionManager;
-use goose::config::get_enabled_extensions;
 use goose::session::{resolve_extensions_for_new_session, EnabledExtensionsState, ExtensionState};
 use rustyline::EditMode;
 use std::collections::BTreeSet;
@@ -18,10 +18,8 @@ use std::process;
 use std::sync::Arc;
 use tokio::task::JoinSet;
 
-/// Maximum length for extension hint display in spinner messages
 const EXTENSION_HINT_MAX_LEN: usize = 5;
 
-/// Truncates a string to a maximum length, appending an ellipsis if truncated.
 fn truncate_with_ellipsis(s: &str, max_len: usize) -> String {
     let truncated: String = s.chars().take(max_len).collect();
     if s.chars().count() > max_len {
@@ -93,7 +91,7 @@ pub struct SessionBuilderConfig {
     pub streamable_http_extensions: Vec<String>,
     /// List of builtin extension commands to add
     pub builtins: Vec<String>,
-    /// Recipe configuration for the session
+    /// Recipe for the session
     pub recipe: Option<Recipe>,
     /// Any additional system prompt to append to the default
     pub additional_system_prompt: Option<String>,
@@ -302,7 +300,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         (None, None)
     };
 
-    // Extract recipe settings for provider/model/temperature
     let recipe_settings = session_config
         .recipe
         .as_ref()
@@ -344,7 +341,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
 
     let agent: Agent = Agent::new();
 
-    // Extract recipe components for agent
     let sub_recipes = session_config
         .recipe
         .as_ref()
@@ -601,12 +597,8 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     let debug_mode = session_config.debug || config.get_param("GOOSE_DEBUG").unwrap_or(false);
 
     // Extract retry config from recipe
-    let retry_config = session_config
-        .recipe
-        .as_ref()
-        .and_then(|r| r.retry.clone());
+    let retry_config = session_config.recipe.as_ref().and_then(|r| r.retry.clone());
 
-    // Create new session
     let session = CliSession::new(
         Arc::try_unwrap(agent_ptr).unwrap_or_else(|_| panic!("There should be no more references")),
         session_id.clone(),
@@ -732,20 +724,15 @@ mod tests {
 
     #[test]
     fn test_truncate_with_ellipsis() {
-        // String shorter than max length - no truncation
         assert_eq!(truncate_with_ellipsis("abc", 5), "abc");
 
-        // String exactly at max length - no truncation
         assert_eq!(truncate_with_ellipsis("abcde", 5), "abcde");
 
-        // String longer than max length - truncated with ellipsis
         assert_eq!(truncate_with_ellipsis("abcdef", 5), "abcde…");
         assert_eq!(truncate_with_ellipsis("hello world", 5), "hello…");
 
-        // Empty string
         assert_eq!(truncate_with_ellipsis("", 5), "");
 
-        // Unicode characters (each emoji is one char)
         assert_eq!(truncate_with_ellipsis("🎉🎊🎈", 5), "🎉🎊🎈");
         assert_eq!(truncate_with_ellipsis("🎉🎊🎈🎁🎀🎄", 5), "🎉🎊🎈🎁🎀…");
     }

@@ -935,7 +935,6 @@ pub struct InputConfig {
     pub additional_system_prompt: Option<String>,
 }
 
-
 fn get_command_name(command: &Option<Command>) -> &'static str {
     match command {
         Some(Command::Configure {}) => "configure",
@@ -1278,11 +1277,7 @@ async fn handle_run_command(
         session.interactive(input_config.contents).await
     } else if let Some(contents) = input_config.contents {
         let session_start = std::time::Instant::now();
-        let session_type = if recipe.is_some() {
-            "recipe"
-        } else {
-            "run"
-        };
+        let session_type = if recipe.is_some() { "recipe" } else { "run" };
 
         tracing::info!(
             counter.goose.session_starts = 1,
