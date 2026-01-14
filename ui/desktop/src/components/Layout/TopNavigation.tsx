@@ -175,7 +175,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
   useEffect(() => {
     const checkScreenSize = () => {
       setIsUltraWide(window.innerWidth >= 2536);
-      setShouldUseBladeOverlay(window.innerWidth < 1000);
+      setShouldUseBladeOverlay(window.innerWidth < 900);
     };
     
     checkScreenSize();
@@ -473,31 +473,41 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
   };
 
   const isVertical = position === 'left' || position === 'right';
-  // Apply blade overlay style (centered with gutters) to all horizontal push mode layouts
-  const useBladeOverlay = !isOverlayMode && !isVertical;
+  const isHorizontal = position === 'top' || position === 'bottom';
   
-  const gridClasses = isOverlayMode || useBladeOverlay
-    ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-[2px] w-full max-w-7xl mx-auto px-4 sm:px-6 md:px-8'
-    : 'grid grid-cols-1 gap-[2px] h-full overflow-y-auto'; // Vertical mode only
+  // When positions become overlays on small screens
+  const isVerticalOverlay = isVertical && shouldUseBladeOverlay;
+  const isHorizontalOverlay = isHorizontal && shouldUseBladeOverlay;
   
-  const containerClasses = isOverlayMode || useBladeOverlay
-    ? 'w-full h-full flex items-center justify-center overflow-hidden' // Centered for overlay mode or blade overlay
-    : 'h-full'; // Vertical mode only
+  // Push mode horizontal (top/bottom) should fill height, not use blade overlay
+  const isPushModeHorizontal = !isOverlayMode && isHorizontal && !shouldUseBladeOverlay;
+  
+  const gridClasses = isOverlayMode || isVerticalOverlay || isHorizontalOverlay
+    ? 'grid grid-cols-2 md:grid-cols-5 gap-[2px] w-full max-w-7xl mx-auto px-4 sm:px-6 md:px-8'
+    : isPushModeHorizontal
+      ? 'grid grid-cols-2 md:grid-cols-5 gap-[2px] w-full h-full px-1' // 2 cols mobile, 5 cols standard, single row on massive screens
+    : 'grid grid-cols-1 gap-[2px] h-full overflow-y-auto'; // Vertical push mode only
+  
+  const containerClasses = isOverlayMode || isHorizontalOverlay
+    ? 'w-full h-full flex items-center justify-center overflow-hidden' // Centered for overlay mode or horizontal blade overlay
+    : isVerticalOverlay
+      ? `w-full h-full flex items-center ${position === 'left' ? 'justify-start' : 'justify-end'} overflow-hidden` // Align to side for vertical overlays
+    : 'h-full w-full'; // Push mode (horizontal or vertical)
 
   return (
-    <div className={`${isOverlayMode || useBladeOverlay ? 'bg-transparent' : 'bg-background-muted'} ${containerClasses} relative z-[9998]`}>
+    <div className={`${isOverlayMode || isVerticalOverlay || isHorizontalOverlay ? 'bg-transparent' : 'bg-background-muted'} ${containerClasses} relative z-[9998]`}>
         {(isExpanded || isClosing) && (
           <div
-            className={`${isOverlayMode || useBladeOverlay ? 'bg-transparent' : 'bg-background-muted overflow-hidden'} ${isVertical && !isOverlayMode ? 'h-full' : ''} ${isClosing ? 'nav-overlay-exit' : 'nav-overlay-enter'} transition-all duration-300`}
+            className={`${isOverlayMode || isVerticalOverlay || isHorizontalOverlay ? 'bg-transparent' : 'bg-background-muted overflow-hidden'} ${isVertical && !isOverlayMode && !isVerticalOverlay ? 'h-full' : ''} ${isPushModeHorizontal ? 'h-full' : ''} ${isClosing ? 'nav-overlay-exit' : 'nav-overlay-enter'} transition-all duration-300`}
           >
             <div
-              className={`${isOverlayMode || useBladeOverlay ? 'overflow-y-auto max-h-[90vh] py-4 sm:py-6 md:py-8' : 'p-1 h-full'} transition-all duration-300`}
-              style={{ width: isVertical && !isOverlayMode ? '360px' : undefined }}
+              className={`${isOverlayMode || isVerticalOverlay || isHorizontalOverlay ? 'overflow-y-auto max-h-[90vh] py-4 sm:py-6 md:py-8' : 'p-1 h-full'} transition-all duration-300`}
+              style={{ width: isVertical && !isOverlayMode && !isVerticalOverlay ? '360px' : undefined }}
             >
               <div 
                 className={gridClasses} 
                 style={{ 
-                  ...(!isVertical && !isOverlayMode && isUltraWide ? { gridTemplateColumns: 'repeat(12, minmax(0, 1fr))' } : {}),
+                  ...(isPushModeHorizontal && isUltraWide ? { gridTemplateColumns: `repeat(${navItems.length}, minmax(0, 1fr))` } : {}),
                   ...(isVertical && !isOverlayMode ? { width: 'auto' } : {})
                 }}
               >

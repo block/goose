@@ -45,8 +45,31 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
   const [scheduledTodayCount, setScheduledTodayCount] = useState(0);
   const [totalTokens, setTotalTokens] = useState(0);
   const [isClosing, setIsClosing] = useState(false);
+  
+  const [sessionHeatmapData, setSessionHeatmapData] = useState<Record<string, number>>({});
+  
+  // Track previous values for pulse animation
+  const [prevValues, setPrevValues] = useState<Record<string, string>>({});
+  const [pulsingItems, setPulsingItems] = useState<Set<string>>(new Set());
+  
+  // Drag and drop state
+  const [draggedItem, setDraggedItem] = useState<string | null>(null);
+  const [dragOverItem, setDragOverItem] = useState<string | null>(null);
+  
+  // Track if we should use blade overlay (push mode on small screens)
+  const [shouldUseBladeOverlay, setShouldUseBladeOverlay] = useState(false);
 
-
+  // Check screen size for blade overlay mode
+  useEffect(() => {
+    const checkScreenSize = () => {
+      setShouldUseBladeOverlay(window.innerWidth < 900);
+    };
+    
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
 
   // Handle close with animation
   const handleClose = () => {
@@ -57,33 +80,25 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
     }, 250);
   };
 
-  // Handle escape key to close overlay
+  // Handle escape key to close overlay or blade overlay
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && isExpanded && isOverlayMode) {
+      const shouldCloseOnEscape = isOverlayMode || (!isOverlayMode && shouldUseBladeOverlay);
+      if (event.key === 'Escape' && isExpanded && shouldCloseOnEscape) {
         event.preventDefault();
         event.stopPropagation();
         handleClose();
       }
     };
 
-    if (isOverlayMode && isExpanded) {
+    const shouldListen = (isOverlayMode || shouldUseBladeOverlay) && isExpanded;
+    if (shouldListen) {
       document.addEventListener('keydown', handleKeyDown, { capture: true });
       return () => document.removeEventListener('keydown', handleKeyDown, { capture: true });
     }
     return undefined;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isExpanded, isOverlayMode]);
-
-  const [sessionHeatmapData, setSessionHeatmapData] = useState<Record<string, number>>({});
-  
-  // Track previous values for pulse animation
-  const [prevValues, setPrevValues] = useState<Record<string, string>>({});
-  const [pulsingItems, setPulsingItems] = useState<Set<string>>(new Set());
-  
-  // Drag and drop state
-  const [draggedItem, setDraggedItem] = useState<string | null>(null);
-  const [dragOverItem, setDragOverItem] = useState<string | null>(null);
+  }, [isExpanded, isOverlayMode, shouldUseBladeOverlay]);
 
   // Update time every second
   useEffect(() => {
@@ -492,7 +507,10 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
   // Determine layout based on position
   const isVertical = position === 'left' || position === 'right';
   
-  // Position-aware container classes for overlay mode (matches TopNavigation)
+  // Blade overlay mode: push mode on small screens becomes overlay-style (transparent but full height)
+  const isBladeOverlay = !isOverlayMode && shouldUseBladeOverlay;
+  
+  // Position-aware container classes
   const containerClasses = isOverlayMode
     ? `w-full h-full flex ${
         position === 'top' ? 'items-start justify-center' :
@@ -505,10 +523,10 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
       : 'w-full overflow-hidden';
 
   return (
-    <div className={`${isOverlayMode ? 'bg-transparent' : 'bg-background-muted'} ${containerClasses} relative z-[9998]`}>
+    <div className={`${isOverlayMode || isBladeOverlay ? 'bg-transparent' : 'bg-background-default'} ${containerClasses} relative z-[9998]`}>
       {(isExpanded || isClosing) && (
         <div
-          className={`${isClosing ? 'nav-tile-exit' : 'nav-tile'} transition-all duration-300 ${isOverlayMode ? 'bg-transparent' : 'bg-background-muted overflow-hidden'} ${
+          className={`${isClosing ? 'nav-tile-exit' : 'nav-tile'} transition-all duration-300 ${isOverlayMode || isBladeOverlay ? 'bg-transparent' : 'bg-background-default overflow-hidden'} ${
             !isOverlayMode && isVertical ? 'h-full lg:relative lg:z-auto absolute z-[10000] top-0 shadow-lg lg:shadow-none' : ''
           } ${
             !isOverlayMode && isVertical && position === 'left' ? 'left-0' : ''
@@ -641,7 +659,6 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
                             ${isDragOver ? 'ring-2 ring-blue-500 rounded-2xl' : ''}
                             ${isDragging ? 'scale-95' : ''}
                             aspect-square
-                            min-w-[120px] md:min-w-[160px]
                           `}
                           style={{
                             opacity: isDragging ? 0.5 : 1,
