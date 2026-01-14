@@ -369,9 +369,16 @@ fn run_js_module(
         .build()
         .map_err(|e| format!("Failed to create JS context: {e}"))?;
 
-    let record_result = NativeFunction::from_copy_closure(|_this, args, _ctx| {
+    let record_result = NativeFunction::from_copy_closure(|_this, args, ctx| {
         let value = args.first().cloned().unwrap_or(JsValue::undefined());
-        RESULT_CELL.with(|cell| *cell.borrow_mut() = Some(value.display().to_string()));
+        let fallback = || value.display().to_string();
+        let result_str = value
+            .to_json(ctx)
+            .ok()
+            .flatten()
+            .map(|v| serde_json::to_string_pretty(&v).unwrap_or_else(|_| fallback()))
+            .unwrap_or_else(fallback);
+        RESULT_CELL.with(|cell| *cell.borrow_mut() = Some(result_str));
         Ok(value)
     });
 
@@ -936,6 +943,38 @@ mod tests {
         assert!(!result.is_error.unwrap_or(false));
         if let RawContent::Text(text) = &result.content[0].raw {
             assert_eq!(text.text, "Result: 4");
+        } else {
+            panic!("Expected text content");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_record_result_outputs_valid_json() {
+        let context = PlatformExtensionContext {
+            session_id: None,
+            extension_manager: None,
+        };
+        let client = CodeExecutionClient::new(context).unwrap();
+
+        // Nested array in object - this triggers truncation with display() (e.g., "items: Array(3)")
+        let mut args = JsonObject::new();
+        args.insert(
+            "code".to_string(),
+            Value::String("record_result({items: [1, 2, 3], count: 3})".to_string()),
+        );
+
+        let result = client
+            .call_tool("execute_code", Some(args), CancellationToken::new())
+            .await
+            .unwrap();
+
+        assert!(!result.is_error.unwrap_or(false));
+        if let RawContent::Text(text) = &result.content[0].raw {
+            let json_str = text.text.strip_prefix("Result: ").unwrap_or(&text.text);
+            let parsed: serde_json::Value = serde_json::from_str(json_str)
+                .unwrap_or_else(|_| panic!("Output should be valid JSON, got: {}", text.text));
+            assert_eq!(parsed["items"].as_array().unwrap().len(), 3);
+            assert_eq!(parsed["count"], 3);
         } else {
             panic!("Expected text content");
         }
