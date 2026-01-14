@@ -111,6 +111,7 @@ ignore = { workspace = true }
 which = { workspace = true}
 boa_engine = "0.21.0"
 unbinder = "0.1.7"
+sse-stream = "0.2.1"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }

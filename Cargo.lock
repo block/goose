@@ -2946,6 +2946,7 @@ dependencies = [
  "sha2",
  "shellexpand",
  "sqlx",
+ "sse-stream",
  "sys-info",
  "temp-env",
  "tempfile",

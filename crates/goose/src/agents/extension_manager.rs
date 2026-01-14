@@ -264,8 +264,10 @@ async fn child_process_client(
         Ok::<String, std::io::Error>(String::from_utf8_lossy(&all_stderr).into())
     });
 
+    // Note: stdio transports don't support extensions injection yet
+    // (would require rmcp changes or a custom codec)
     let client_result = McpClient::connect(
-        WithExtensions(transport),
+        transport,
         Duration::from_secs(timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT)),
         provider,
     )
@@ -412,8 +414,9 @@ async fn create_streamable_http_client(
         .build()
         .map_err(|_| ExtensionError::ConfigError("could not construct http client".to_string()))?;
 
+    // Wrap the HTTP client with WithExtensions to inject MCP extensions capability
     let transport = StreamableHttpClientTransport::with_client(
-        http_client,
+        WithExtensions(http_client),
         StreamableHttpClientTransportConfig {
             uri: uri.into(),
             ..Default::default()
@@ -423,8 +426,7 @@ async fn create_streamable_http_client(
     let timeout_duration =
         Duration::from_secs(timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT));
 
-    let client_res =
-        McpClient::connect(WithExtensions(transport), timeout_duration, provider.clone()).await;
+    let client_res = McpClient::connect(transport, timeout_duration, provider.clone()).await;
 
     if extract_auth_error(&client_res).is_some() {
         let am = oauth_flow(&uri.to_string(), &name.to_string())
@@ -439,7 +441,7 @@ async fn create_streamable_http_client(
             },
         );
         Ok(Box::new(
-            McpClient::connect(WithExtensions(transport), timeout_duration, provider).await?,
+            McpClient::connect(transport, timeout_duration, provider).await?,
         ))
     } else {
         Ok(Box::new(client_res?))
