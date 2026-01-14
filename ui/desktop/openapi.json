@@ -6181,7 +6181,6 @@
         "properties": {
           "context_limit": {
             "type": "integer",
-            "description": "Optional context limit override",
             "nullable": true,
             "minimum": 0
           },
@@ -6194,7 +6193,6 @@
           },
           "request_params": {
             "type": "object",
-            "description": "Provider-specific request parameters (e.g., anthropic_beta headers)",
             "additionalProperties": {},
             "nullable": true
           },

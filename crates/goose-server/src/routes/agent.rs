@@ -48,9 +48,7 @@ pub struct UpdateProviderRequest {
     provider: String,
     model: Option<String>,
     session_id: String,
-    /// Optional context limit override
     context_limit: Option<usize>,
-    /// Provider-specific request parameters (e.g., anthropic_beta headers)
     request_params: Option<std::collections::HashMap<String, serde_json::Value>>,
 }
 

@@ -7,7 +7,6 @@ use utoipa::ToSchema;
 
 const DEFAULT_CONTEXT_LIMIT: usize = 128_000;
 
-/// Predefined model from GOOSE_PREDEFINED_MODELS environment variable
 #[derive(Debug, Clone, Deserialize)]
 struct PredefinedModel {
     name: String,
@@ -17,7 +16,6 @@ struct PredefinedModel {
     request_params: Option<HashMap<String, Value>>,
 }
 
-/// Parse predefined models from GOOSE_PREDEFINED_MODELS environment variable
 fn get_predefined_models() -> Vec<PredefinedModel> {
     static PREDEFINED_MODELS: Lazy<Vec<PredefinedModel>> =
         Lazy::new(|| match std::env::var("GOOSE_PREDEFINED_MODELS") {
@@ -30,7 +28,6 @@ fn get_predefined_models() -> Vec<PredefinedModel> {
     PREDEFINED_MODELS.clone()
 }
 
-/// Find a predefined model by name
 fn find_predefined_model(model_name: &str) -> Option<PredefinedModel> {
     get_predefined_models()
         .into_iter()
@@ -135,8 +132,6 @@ impl ModelConfig {
         let predefined = find_predefined_model(&model_name);
 
         let context_limit = if let Some(ref pm) = predefined {
-            // Predefined model context_limit takes precedence over pattern matching
-            // but explicit env var still overrides
             if let Some(env_var) = context_env_var {
                 if let Ok(val) = std::env::var(env_var) {
                     Some(Self::validate_context_limit(&val, env_var)?)

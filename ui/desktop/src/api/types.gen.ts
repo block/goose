@@ -1155,15 +1155,9 @@ export type UpdateFromSessionRequest = {
 };
 
 export type UpdateProviderRequest = {
-    /**
-     * Optional context limit override
-     */
     context_limit?: number | null;
     model?: string | null;
     provider: string;
-    /**
-     * Provider-specific request parameters (e.g., anthropic_beta headers)
-     */
     request_params?: {
         [key: string]: unknown;
     } | null;
