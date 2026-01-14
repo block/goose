@@ -18,10 +18,11 @@ use serde_json::{json, Value};
 use std::borrow::Cow;
 use std::ops::Deref;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 struct DeltaToolCallFunction {
     name: Option<String>,
-    arguments: String, // chunk of encoded JSON,
+    #[serde(default)]
+    arguments: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
