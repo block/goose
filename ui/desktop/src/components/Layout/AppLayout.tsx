@@ -48,7 +48,7 @@ const AppLayoutContent: React.FC<AppLayoutProps> = () => {
   // Check screen size to determine if we should use overlay mode on small screens
   useEffect(() => {
     const checkScreenSize = () => {
-      setShouldUseOverlayOnSmallScreen(window.innerWidth < 1000);
+      setShouldUseOverlayOnSmallScreen(window.innerWidth < 900);
     };
     
     checkScreenSize();
@@ -101,9 +101,9 @@ const AppLayoutContent: React.FC<AppLayoutProps> = () => {
   const isHorizontalNav = navigationPosition === 'top' || navigationPosition === 'bottom';
   const flexDirection = isHorizontalNav ? 'flex-col' : 'flex-row';
   
-  // On small screens, treat horizontal push mode as overlay mode
+  // On small screens, treat all push mode positions as overlay mode
   const shouldUseOverlayLayout = navigationMode === 'overlay' || 
-    (navigationMode === 'push' && isHorizontalNav && shouldUseOverlayOnSmallScreen);
+    (navigationMode === 'push' && shouldUseOverlayOnSmallScreen);
   
   // Render the main content area
   const mainContent = (
@@ -166,7 +166,7 @@ const AppLayoutContent: React.FC<AppLayoutProps> = () => {
         
         {shouldUseOverlayLayout ? (
           // Overlay Mode - Full screen content with floating navigation
-          // (Used for: overlay mode OR horizontal push mode on small screens < 1000px)
+          // (Used for: overlay mode OR any push mode on small screens < 900px)
           <div className="flex flex-1 w-full h-full bg-background-muted relative">
             {/* Main Content Area - Full Screen */}
             {mainContent}

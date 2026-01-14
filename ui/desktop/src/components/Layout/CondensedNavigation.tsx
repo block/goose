@@ -527,10 +527,10 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
       : 'w-full overflow-hidden';
 
   return (
-    <div className={`${isOverlayMode || isBladeOverlay ? 'bg-transparent' : 'bg-background-default'} ${containerClasses} relative z-[9998]`}>
+    <div className={`${isOverlayMode || isBladeOverlay ? 'bg-transparent' : 'bg-app'} ${containerClasses} relative z-[9998]`}>
       {(isExpanded || isClosing) && (
         <div
-          className={`${isClosing ? 'nav-tile-exit' : 'nav-tile'} transition-all duration-300 ${isOverlayMode || isBladeOverlay ? 'bg-transparent' : 'bg-background-default overflow-hidden'} ${
+          className={`${isClosing ? 'nav-tile-exit' : 'nav-tile'} transition-all duration-300 ${isOverlayMode || isBladeOverlay ? 'bg-transparent' : 'bg-app overflow-hidden'} ${
             !isOverlayMode && isVertical ? 'h-full lg:relative lg:z-auto absolute z-[10000] top-0 shadow-lg lg:shadow-none' : ''
           } ${
             !isOverlayMode && isVertical && position === 'left' ? 'left-0' : ''
