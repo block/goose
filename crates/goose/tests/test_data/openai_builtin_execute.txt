@@ -128,9 +128,9 @@ data: {"id":"chatcmpl-Cqnxk0p34ZkYNestA1fcahFGuLiRR","object":"chat.completion.c
 
 data: {"id":"chatcmpl-Cqnxk0p34ZkYNestA1fcahFGuLiRR","object":"chat.completion.chunk","created":1766701148,"model":"gpt-5-nano-2025-08-07","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"n"}}]},"finish_reason":null}],"usage":null,"obfuscation":"FcZzRbewbWzs"}
 
-data: {"id":"chatcmpl-Cqnxk0p34ZkYNestA1fcahFGuLiRR","object":"chat.completion.chunk","created":1766701148,"model":"gpt-5-nano-2025-08-07","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"write"}}]},"finish_reason":null}],"usage":null,"obfuscation":"yJ0heSJY"}
+data: {"id":"chatcmpl-Cqnxk0p34ZkYNestA1fcahFGuLiRR","object":"chat.completion.chunk","created":1766701148,"model":"gpt-5-nano-2025-08-07","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"record_result"}}]},"finish_reason":null}],"usage":null,"obfuscation":"yJ0heSJY"}
 
-data: {"id":"chatcmpl-Cqnxk0p34ZkYNestA1fcahFGuLiRR","object":"chat.completion.chunk","created":1766701148,"model":"gpt-5-nano-2025-08-07","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"Res"}}]},"finish_reason":null}],"usage":null,"obfuscation":"VCJyV87lb5"}
+data: {"id":"chatcmpl-Cqnxk0p34ZkYNestA1fcahFGuLiRR","object":"chat.completion.chunk","created":1766701148,"model":"gpt-5-nano-2025-08-07","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"(writeRes)"}}]},"finish_reason":null}],"usage":null,"obfuscation":"VCJyV87lb5"}
 
 data: {"id":"chatcmpl-Cqnxk0p34ZkYNestA1fcahFGuLiRR","object":"chat.completion.chunk","created":1766701148,"model":"gpt-5-nano-2025-08-07","service_tier":"default","system_fingerprint":null,"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\\n"}}]},"finish_reason":null}],"usage":null,"obfuscation":"LniNHGfSN9"}
 

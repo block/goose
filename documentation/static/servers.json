@@ -357,6 +357,8 @@
     "id": "jetbrains",
     "name": "JetBrains",
     "description": "Integrate with any JetBrains IDE (requires local setup, dependent on your IDE version)",
+    "command": "",
+    "show_install_command": false,
     "link": "https://github.com/JetBrains/mcp-jetbrains",
     "installation_notes": "Requires IDE v2025.2+. Use STDIO from Settings > Tools > MCP Server.",
     "is_builtin": false,
