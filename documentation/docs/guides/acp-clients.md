@@ -86,7 +86,7 @@ You should now be able to interact with goose directly in Zed. Your ACP sessions
 
 #### Using MCP Servers from ACP Clients
 
-MCP servers configured in the ACP client's `context_servers` are automatically available to goose. This allows you to use those MCP servers across both the client's native features and goose sessions.
+MCP servers configured in the ACP client's `context_servers` are automatically available to goose. This allows you to use those MCP servers when using both native client features and the goose agent integration.
 
 **Example (Zed):**
 
@@ -113,7 +113,7 @@ MCP servers configured in the ACP client's `context_servers` are automatically a
 }
 ```
 
-To find out what tools are available, just ask goose.
+To find out what tools are available, just ask goose while it's running in the client.
 
 :::info
 All MCP servers in `context_servers` are automatically available to goose, provided that they use stdio (command-based) or HTTP transports. goose doesn't support servers that use the deprecated SSE transport.
