@@ -2,8 +2,8 @@ use anyhow::Result;
 use clap::{Args, CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, Shell as ClapShell};
 use goose::config::Config;
-use goose::recipe::Recipe;
 use goose::posthog::get_telemetry_choice;
+use goose::recipe::Recipe;
 use goose_mcp::mcp_server_runner::{serve, McpCommand};
 use goose_mcp::{
     AutoVisualiserRouter, ComputerControllerServer, DeveloperServer, MemoryServer, TutorialServer,
