@@ -116,9 +116,9 @@ MCP servers configured in the ACP client's `context_servers` are automatically a
 To find out what tools are available, just ask goose.
 
 :::info
-MCP servers in `context_servers` are automatically available to goose, provided that they use stdio (command-based) or HTTP transports. SSE transport (deprecated) is not supported.
+All MCP servers in `context_servers` are automatically available to goose, provided that they use stdio (command-based) or HTTP transports. goose doesn't support servers that use the deprecated SSE transport.
 
-If an MCP server in `context_servers` has the same name as a goose extension, goose uses its own [configuration](/docs/guides/config-files).
+If a server in `context_servers` has the same name as a goose extension, goose uses its own [configuration](/docs/guides/config-files).
 :::
 
 #### Overriding Provider and Model
