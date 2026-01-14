@@ -1135,21 +1135,42 @@ impl ExtensionManager {
         tool_call: CallToolRequestParam,
         cancellation_token: CancellationToken,
     ) -> Result<ToolCallResult> {
+        // Some models strip the tool prefix, so auto-add it for known code_execution tools
+        let tool_name_str = tool_call.name.to_string();
+        let prefixed_name = if !tool_name_str.contains("__") {
+            let code_exec_tools = ["execute_code", "read_module", "search_modules"];
+            if code_exec_tools.contains(&tool_name_str.as_str())
+                && self.extensions.lock().await.contains_key("code_execution")
+            {
+                format!("code_execution__{}", tool_name_str)
+            } else {
+                tool_name_str
+            }
+        } else {
+            tool_name_str
+        };
+
         // Dispatch tool call based on the prefix naming convention
         let (client_name, client) =
-            self.get_client_for_tool(&tool_call.name)
+            self.get_client_for_tool(&prefixed_name)
                 .await
                 .ok_or_else(|| {
-                    ErrorData::new(ErrorCode::RESOURCE_NOT_FOUND, tool_call.name.clone(), None)
+                    ErrorData::new(
+                        ErrorCode::RESOURCE_NOT_FOUND,
+                        format!("Tool '{}' not found", tool_call.name),
+                        None,
+                    )
                 })?;
 
-        // rsplit returns the iterator in reverse, tool_name is then at 0
-        let tool_name = tool_call
-            .name
+        let tool_name = prefixed_name
             .strip_prefix(client_name.as_str())
             .and_then(|s| s.strip_prefix("__"))
             .ok_or_else(|| {
-                ErrorData::new(ErrorCode::RESOURCE_NOT_FOUND, tool_call.name.clone(), None)
+                ErrorData::new(
+                    ErrorCode::RESOURCE_NOT_FOUND,
+                    format!("Invalid tool name format: '{}'", tool_call.name),
+                    None,
+                )
             })?
             .to_string();
 
