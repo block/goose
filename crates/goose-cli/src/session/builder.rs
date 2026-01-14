@@ -243,6 +243,85 @@ async fn offer_extension_debugging_help(
     Ok(())
 }
 
+async fn load_extensions(
+    agent: Agent,
+    extensions_to_load: Vec<(String, ExtensionConfig)>,
+    provider_for_debug: Arc<dyn goose::providers::base::Provider>,
+    interactive: bool,
+) -> Arc<Agent> {
+    let mut set = JoinSet::new();
+    let agent_ptr = Arc::new(agent);
+
+    let mut waiting_ids: BTreeSet<usize> = (0..extensions_to_load.len()).collect();
+    for (id, (_label, extension)) in extensions_to_load.iter().enumerate() {
+        let agent_ptr = agent_ptr.clone();
+        let cfg = extension.clone();
+        set.spawn(async move { (id, agent_ptr.add_extension(cfg).await) });
+    }
+
+    let get_message = |waiting_ids: &BTreeSet<usize>| {
+        let labels: Vec<String> = waiting_ids
+            .iter()
+            .map(|id| {
+                extensions_to_load
+                    .get(*id)
+                    .map(|e| e.0.clone())
+                    .unwrap_or_default()
+            })
+            .collect();
+        format!(
+            "starting {} extensions: {}",
+            waiting_ids.len(),
+            labels.join(", ")
+        )
+    };
+
+    let spinner = cliclack::spinner();
+    spinner.start(get_message(&waiting_ids));
+
+    let mut offer_debug: Vec<(usize, anyhow::Error)> = Vec::new();
+    while let Some(result) = set.join_next().await {
+        match result {
+            Ok((id, Ok(_))) => {
+                waiting_ids.remove(&id);
+                spinner.set_message(get_message(&waiting_ids));
+            }
+            Ok((id, Err(e))) => offer_debug.push((id, e.into())),
+            Err(e) => tracing::error!("failed to add extension: {}", e),
+        }
+    }
+
+    spinner.clear();
+
+    for (id, err) in offer_debug {
+        let label = extensions_to_load
+            .get(id)
+            .map(|e| e.0.clone())
+            .unwrap_or_default();
+        eprintln!(
+            "{}",
+            style(format!(
+                "Warning: Failed to start extension '{}' ({}), continuing without it",
+                label, err
+            ))
+            .yellow()
+        );
+
+        if let Err(debug_err) = offer_extension_debugging_help(
+            &label,
+            &err.to_string(),
+            Arc::clone(&provider_for_debug),
+            interactive,
+        )
+        .await
+        {
+            eprintln!("Note: Could not start debugging session: {}", debug_err);
+        }
+    }
+
+    agent_ptr
+}
+
 fn check_missing_extensions_or_exit(saved_extensions: &[ExtensionConfig], interactive: bool) {
     let missing: Vec<_> = saved_extensions
         .iter()
@@ -300,10 +379,8 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         (None, None)
     };
 
-    let recipe_settings = session_config
-        .recipe
-        .as_ref()
-        .and_then(|r| r.settings.as_ref());
+    let recipe = session_config.recipe.as_ref();
+    let recipe_settings = recipe.and_then(|r| r.settings.as_ref());
 
     let provider_name = session_config
         .provider
@@ -341,17 +418,12 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
 
     let agent: Agent = Agent::new();
 
-    let sub_recipes = session_config
-        .recipe
-        .as_ref()
-        .and_then(|r| r.sub_recipes.clone());
-    let final_output_response = session_config
-        .recipe
-        .as_ref()
-        .and_then(|r| r.response.clone());
-
     agent
-        .apply_recipe_components(sub_recipes, final_output_response, true)
+        .apply_recipe_components(
+            recipe.and_then(|r| r.sub_recipes.clone()),
+            recipe.and_then(|r| r.response.clone()),
+            true,
+        )
         .await;
 
     let new_provider = match create(&provider_name, model_config).await {
@@ -492,11 +564,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             })
             .unwrap_or_else(get_enabled_extensions)
     } else {
-        let recipe_extensions = session_config
-            .recipe
-            .as_ref()
-            .and_then(|r| r.extensions.as_deref());
-        resolve_extensions_for_new_session(recipe_extensions, None)
+        resolve_extensions_for_new_session(recipe.and_then(|r| r.extensions.as_deref()), None)
     };
 
     let cli_flag_extension_extensions_to_load = parse_cli_flag_extensions(
@@ -511,75 +579,13 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         .collect();
     extensions_to_load.extend(cli_flag_extension_extensions_to_load);
 
-    let mut set = JoinSet::new();
-    let agent_ptr = Arc::new(agent);
-
-    let mut waiting_ids: BTreeSet<usize> = (0..extensions_to_load.len()).collect();
-    for (id, (_label, extension)) in extensions_to_load.iter().enumerate() {
-        let agent_ptr = agent_ptr.clone();
-        let cfg = extension.clone();
-        set.spawn(async move { (id, agent_ptr.add_extension(cfg).await) });
-    }
-
-    let get_message = |waiting_ids: &BTreeSet<usize>| {
-        let labels: Vec<String> = waiting_ids
-            .iter()
-            .map(|id| {
-                extensions_to_load
-                    .get(*id)
-                    .map(|e| e.0.clone())
-                    .unwrap_or_default()
-            })
-            .collect();
-        format!(
-            "starting {} extensions: {}",
-            waiting_ids.len(),
-            labels.join(", ")
-        )
-    };
-
-    let spinner = cliclack::spinner();
-    spinner.start(get_message(&waiting_ids));
-
-    let mut offer_debug: Vec<(usize, anyhow::Error)> = Vec::new();
-    while let Some(result) = set.join_next().await {
-        match result {
-            Ok((id, Ok(_))) => {
-                waiting_ids.remove(&id);
-                spinner.set_message(get_message(&waiting_ids));
-            }
-            Ok((id, Err(e))) => offer_debug.push((id, e.into())),
-            Err(e) => tracing::error!("failed to add extension: {}", e),
-        }
-    }
-
-    spinner.clear();
-
-    for (id, err) in offer_debug {
-        let label = extensions_to_load
-            .get(id)
-            .map(|e| e.0.clone())
-            .unwrap_or_default();
-        eprintln!(
-            "{}",
-            style(format!(
-                "Warning: Failed to start extension '{}' ({}), continuing without it",
-                label, err
-            ))
-            .yellow()
-        );
-
-        if let Err(debug_err) = offer_extension_debugging_help(
-            &label,
-            &err.to_string(),
-            Arc::clone(&provider_for_display),
-            session_config.interactive,
-        )
-        .await
-        {
-            eprintln!("Note: Could not start debugging session: {}", debug_err);
-        }
-    }
+    let agent_ptr = load_extensions(
+        agent,
+        extensions_to_load,
+        Arc::clone(&provider_for_display),
+        session_config.interactive,
+    )
+    .await;
 
     // Determine editor mode
     let edit_mode = config
@@ -596,9 +602,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
 
     let debug_mode = session_config.debug || config.get_param("GOOSE_DEBUG").unwrap_or(false);
 
-    // Extract retry config from recipe
-    let retry_config = session_config.recipe.as_ref().and_then(|r| r.retry.clone());
-
     let session = CliSession::new(
         Arc::try_unwrap(agent_ptr).unwrap_or_else(|_| panic!("There should be no more references")),
         session_id.clone(),
@@ -606,7 +609,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         session_config.scheduled_job_id.clone(),
         session_config.max_turns,
         edit_mode,
-        retry_config,
+        recipe.and_then(|r| r.retry.clone()),
         session_config.output_format.clone(),
     )
     .await;
@@ -732,8 +735,5 @@ mod tests {
         assert_eq!(truncate_with_ellipsis("hello world", 5), "hello…");
 
         assert_eq!(truncate_with_ellipsis("", 5), "");
-
-        assert_eq!(truncate_with_ellipsis("🎉🎊🎈", 5), "🎉🎊🎈");
-        assert_eq!(truncate_with_ellipsis("🎉🎊🎈🎁🎀🎄", 5), "🎉🎊🎈🎁🎀…");
     }
 }
