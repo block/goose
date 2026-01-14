@@ -501,7 +501,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
     ? 'grid grid-cols-2 md:grid-cols-5 gap-[2px] w-full max-w-7xl mx-auto px-4 sm:px-6 md:px-8 auto-rows-fr'
     : isPushModeHorizontal
       ? 'grid grid-cols-2 md:grid-cols-5 gap-[2px] w-full h-full px-1' // 2 cols mobile, 5 cols standard, single row on massive screens
-    : 'grid grid-cols-1 gap-[2px] h-full overflow-y-auto'; // Vertical push mode only
+    : 'grid grid-cols-2 gap-[2px] overflow-y-auto'; // Vertical push mode - 2 columns, scrollable
   
   const containerClasses = isOverlayMode || isHorizontalOverlay
     ? 'w-full h-full flex items-center justify-center overflow-hidden' // Centered for overlay mode or horizontal blade overlay
