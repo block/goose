@@ -245,12 +245,10 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
 
     const handleSessionCreated = (event: CustomEvent<{ session?: Session }>) => {
       // If session data is provided, add it immediately to the sidebar
-      // This handles empty sessions that won't be returned by the API (INNER JOIN)
+      // This is for displaying sessions that won't be returned by the API due to not having messages yet
       if (event.detail?.session) {
         setRecentSessions((prev) => {
-          // Don't add if already there
           if (prev.some((s) => s.id === event.detail.session!.id)) return prev;
-          // Add to beginning and keep max 10
           return [event.detail.session!, ...prev].slice(0, 10);
         });
       }
@@ -372,7 +370,6 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   // Guard ref to prevent duplicate session creation from key commands
   const isCreatingSessionRef = React.useRef(false);
 
-  // Create a stable handleNewChat that doesn't depend on recentSessions state
   const handleNewChat = React.useCallback(async () => {
     if (isCreatingSessionRef.current) {
       return;
