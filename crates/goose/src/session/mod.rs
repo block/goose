@@ -7,5 +7,5 @@ pub mod session_manager;
 
 pub use diagnostics::{generate_diagnostics, get_system_info, SystemInfo};
 pub use extension_data::{EnabledExtensionsState, ExtensionData, ExtensionState, TodoState};
-pub use extension_resolver::{resolve_extensions, ExtensionResolutionStrategy};
+pub use extension_resolver::resolve_extensions_for_new_session;
 pub use session_manager::{Session, SessionInsights, SessionManager, SessionType};

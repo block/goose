@@ -24,8 +24,7 @@ use goose::recipe_deeplink;
 use goose::session::extension_data::ExtensionState;
 use goose::session::session_manager::SessionType;
 use goose::session::{
-    resolve_extensions, EnabledExtensionsState, ExtensionResolutionStrategy, Session,
-    SessionManager,
+    resolve_extensions_for_new_session, EnabledExtensionsState, Session, SessionManager,
 };
 use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
@@ -223,11 +222,10 @@ async fn start_agent(
                 }
             })?;
 
-    // Initialize session with extensions (either overrides from hub, recipe extensions, or global defaults)
-    let recipe_extensions = original_recipe.as_ref().and_then(|r| r.extensions.as_ref());
-    let extensions_to_use = extension_overrides.unwrap_or_else(|| {
-        resolve_extensions(ExtensionResolutionStrategy::RecipeFirst, recipe_extensions, None)
-    });
+    // Initialize session with extensions (recipe extensions → hub overrides → global defaults)
+    let recipe_extensions = original_recipe.as_ref().and_then(|r| r.extensions.as_deref());
+    let extensions_to_use =
+        resolve_extensions_for_new_session(recipe_extensions, extension_overrides);
     let mut extension_data = session.extension_data.clone();
     let extensions_state = EnabledExtensionsState::new(extensions_to_use);
     if let Err(e) = extensions_state.to_extension_data(&mut extension_data) {
