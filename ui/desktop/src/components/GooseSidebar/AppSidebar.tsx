@@ -363,16 +363,37 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     return currentPath === path;
   };
 
+  // Use a ref to access the latest recentSessions without causing re-renders or dependency issues
+  const recentSessionsRef = React.useRef(recentSessions);
+  React.useEffect(() => {
+    recentSessionsRef.current = recentSessions;
+  }, [recentSessions]);
+
+  // Guard ref to prevent duplicate session creation from key commands
+  const isCreatingSessionRef = React.useRef(false);
+
+  // Create a stable handleNewChat that doesn't depend on recentSessions state
   const handleNewChat = React.useCallback(async () => {
-    const emptyNewSession = recentSessions.find((s) => shouldShowNewChatTitle(s));
+    if (isCreatingSessionRef.current) {
+      return;
+    }
+
+    const emptyNewSession = recentSessionsRef.current.find((s) => shouldShowNewChatTitle(s));
 
     if (emptyNewSession) {
       clearUnread(emptyNewSession.id);
       resumeSession(emptyNewSession, setView);
     } else {
-      await startNewSession('', setView, getInitialWorkingDir());
+      isCreatingSessionRef.current = true;
+      try {
+        await startNewSession('', setView, getInitialWorkingDir());
+      } finally {
+        setTimeout(() => {
+          isCreatingSessionRef.current = false;
+        }, 1000);
+      }
     }
-  }, [setView, recentSessions, clearUnread]);
+  }, [setView, clearUnread]);
 
   useEffect(() => {
     const handleTriggerNewChat = () => {
