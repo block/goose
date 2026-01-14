@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { IpcRendererEvent } from 'electron';
 import {
   HashRouter,
@@ -118,12 +118,14 @@ const PairRouteWrapper = ({
         }
       })();
     }
+    // Note: isCreatingSession is intentionally NOT in the dependency array
+    // It's only used as a guard to prevent concurrent session creation
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     initialMessage,
     recipeId,
     recipeDeeplinkFromConfig,
     resumeSessionId,
-    isCreatingSession,
     setSearchParams,
     extensionsList,
   ]);
@@ -580,22 +582,31 @@ export function AppInner() {
   }, []);
 
   // Handle initial message from launcher
+  const isProcessingRef = useRef(false);
+
   useEffect(() => {
     const handleSetInitialMessage = async (_event: IpcRendererEvent, ...args: unknown[]) => {
       const initialMessage = args[0] as string;
-      if (initialMessage) {
-        console.log('Received initial message from launcher:', initialMessage);
-        try {
-          const session = await createSession(getInitialWorkingDir(), {});
-          navigate('/pair', {
-            state: {
-              initialMessage,
-              resumeSessionId: session.id,
-            },
-          });
-        } catch (error) {
-          console.error('Failed to create session for launcher message:', error);
-        }
+      console.log(
+        '[App] Received set-initial-message event:',
+        initialMessage,
+        'isProcessing:',
+        isProcessingRef.current
+      );
+
+      if (initialMessage && !isProcessingRef.current) {
+        isProcessingRef.current = true;
+        console.log('[App] Processing initial message from launcher:', initialMessage);
+        navigate('/pair', {
+          state: {
+            initialMessage,
+          },
+        });
+        setTimeout(() => {
+          isProcessingRef.current = false;
+        }, 1000);
+      } else if (initialMessage) {
+        console.log('[App] Ignoring duplicate initial message (already processing)');
       }
     };
     window.electron.on('set-initial-message', handleSetInitialMessage);

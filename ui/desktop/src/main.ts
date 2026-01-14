@@ -852,7 +852,14 @@ const createChat = async (
   return mainWindow;
 };
 
+let activeLauncherWindow: BrowserWindow | null = null;
+
 const createLauncher = () => {
+  if (activeLauncherWindow && !activeLauncherWindow.isDestroyed()) {
+    activeLauncherWindow.focus();
+    return activeLauncherWindow;
+  }
+
   const launcherWindow = new BrowserWindow({
     width: 600,
     height: 80,
@@ -894,6 +901,11 @@ const createLauncher = () => {
 
   url.hash = '/launcher';
   launcherWindow.loadURL(formatUrl(url));
+  activeLauncherWindow = launcherWindow;
+
+  launcherWindow.on('closed', () => {
+    activeLauncherWindow = null;
+  });
 
   // Destroy window when it loses focus
   launcherWindow.on('blur', () => {
@@ -2233,12 +2245,33 @@ async function appMain() {
 
   ipcMain.on(
     'create-chat-window',
-    (_, query, dir, version, resumeSessionId, viewType, recipeId) => {
+    (event, query, dir, version, resumeSessionId, viewType, recipeId) => {
       if (!dir?.trim()) {
         const recentDirs = loadRecentDirs();
         dir = recentDirs.length > 0 ? recentDirs[0] : undefined;
       }
 
+      const isFromLauncher = query && !resumeSessionId && !viewType && !recipeId;
+
+      if (isFromLauncher) {
+        const senderWindow = BrowserWindow.fromWebContents(event.sender);
+        const launcherWindowId = senderWindow?.id;
+        const allWindows = BrowserWindow.getAllWindows();
+
+        const existingWindows = allWindows.filter(
+          (win) => !win.isDestroyed() && win.id !== launcherWindowId
+        );
+
+        if (existingWindows.length > 0) {
+          const targetWindow = existingWindows[0];
+          targetWindow.show();
+          targetWindow.focus();
+          targetWindow.webContents.send('set-initial-message', query);
+          return;
+        }
+      }
+
+      // Otherwise, create a new window
       createChat(
         app,
         query,
