@@ -133,6 +133,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
   const [isUltraWide, setIsUltraWide] = useState(false);
   const [shouldUseBladeOverlay, setShouldUseBladeOverlay] = useState(false);
   const [isLayoutReady, setIsLayoutReady] = useState(false);
+  const [isWideScreen, setIsWideScreen] = useState(false);
 
   // Handle close with animation
   const handleClose = () => {
@@ -191,6 +192,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
     const checkScreenSize = () => {
       setIsUltraWide(window.innerWidth >= 2536);
       setShouldUseBladeOverlay(window.innerWidth < 900);
+      setIsWideScreen(window.innerWidth >= 1660);
     };
     
     checkScreenSize();
@@ -503,7 +505,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
   const gridClasses = isOverlayMode || isVerticalOverlay || isHorizontalOverlay
     ? 'grid grid-cols-2 md:grid-cols-5 gap-[2px] w-full max-w-7xl mx-auto px-4 sm:px-6 md:px-8 auto-rows-fr' // Responsive for overlay
     : isPushModeHorizontal
-      ? 'grid grid-cols-5 gap-[2px] w-full' // Always 5 cols in push mode until 900px
+      ? 'grid gap-[2px] w-full' // Dynamic columns based on screen width
     : 'grid grid-cols-2 gap-[2px]'; // Vertical push mode - 2 columns
   
   const containerClasses = isOverlayMode || isHorizontalOverlay
@@ -534,6 +536,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
               <div 
                 className={gridClasses} 
                 style={{ 
+                  ...(isPushModeHorizontal && isWideScreen ? { gridTemplateColumns: 'repeat(10, minmax(0, 1fr))' } : isPushModeHorizontal ? { gridTemplateColumns: 'repeat(5, minmax(0, 1fr))' } : {}),
                   ...(isPushModeHorizontal && isUltraWide ? { gridTemplateColumns: `repeat(${navItems.length}, minmax(0, 1fr))` } : {}),
                   ...(isVertical && !isOverlayMode ? { width: 'auto' } : {})
                 }}
