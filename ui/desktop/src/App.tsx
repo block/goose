@@ -557,6 +557,16 @@ export function AppInner() {
   }, [navigate]);
 
   useEffect(() => {
+    const handleNewChat = (_event: IpcRendererEvent, ..._args: unknown[]) => {
+      console.log('Received new-chat event from keyboard shortcut');
+      window.dispatchEvent(new CustomEvent('trigger-new-chat'));
+    };
+
+    window.electron.on('new-chat', handleNewChat);
+    return () => window.electron.off('new-chat', handleNewChat);
+  }, []);
+
+  useEffect(() => {
     const handleFocusInput = (_event: IpcRendererEvent, ..._args: unknown[]) => {
       const inputField = document.querySelector('input[type="text"], textarea') as HTMLInputElement;
       if (inputField) {

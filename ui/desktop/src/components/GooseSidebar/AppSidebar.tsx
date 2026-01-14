@@ -374,6 +374,17 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     }
   }, [setView, recentSessions, clearUnread]);
 
+  useEffect(() => {
+    const handleTriggerNewChat = () => {
+      handleNewChat();
+    };
+
+    window.addEventListener('trigger-new-chat', handleTriggerNewChat);
+    return () => {
+      window.removeEventListener('trigger-new-chat', handleTriggerNewChat);
+    };
+  }, [handleNewChat]);
+
   const handleSessionClick = React.useCallback(
     async (session: Session) => {
       clearUnread(session.id);
