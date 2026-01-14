@@ -40,9 +40,8 @@ pub async fn agent_generator(
         extensions: requirements.external,
         streamable_http_extensions: requirements.streamable_http,
         builtins: requirements.builtin,
-        extensions_override: None,
+        recipe: None,
         additional_system_prompt: None,
-        settings: None,
         provider: None,
         model: None,
         debug: false,
@@ -51,9 +50,6 @@ pub async fn agent_generator(
         scheduled_job_id: None,
         max_turns: None,
         quiet: false,
-        sub_recipes: None,
-        final_output_response: None,
-        retry_config: None,
         output_format: "text".to_string(),
     })
     .await;

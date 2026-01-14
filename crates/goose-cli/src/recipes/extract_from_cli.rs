@@ -1,31 +1,30 @@
 use std::path::PathBuf;
 
 use anyhow::{anyhow, Result};
-use goose::recipe::SubRecipe;
+use goose::recipe::{Recipe, SubRecipe};
 
+use crate::cli::InputConfig;
 use crate::recipes::print_recipe::print_recipe_info;
 use crate::recipes::recipe::load_recipe;
 use crate::recipes::search_recipe::load_recipe_file;
-use crate::{
-    cli::{InputConfig, RecipeInfo},
-    session::SessionSettings,
-};
 
 pub fn extract_recipe_info_from_cli(
     recipe_name: String,
     params: Vec<(String, String)>,
     additional_sub_recipes: Vec<String>,
     quiet: bool,
-) -> Result<(InputConfig, RecipeInfo)> {
-    let recipe = load_recipe(&recipe_name, params.clone()).unwrap_or_else(|err| {
+) -> Result<(InputConfig, Recipe)> {
+    let mut recipe = load_recipe(&recipe_name, params.clone()).unwrap_or_else(|err| {
         eprintln!("{}: {}", console::style("Error").red().bold(), err);
         std::process::exit(1);
     });
     if !quiet {
         print_recipe_info(&recipe, params);
     }
-    let mut all_sub_recipes = recipe.sub_recipes.clone().unwrap_or_default();
+
+    // Add additional sub-recipes from CLI to the recipe
     if !additional_sub_recipes.is_empty() {
+        let mut all_sub_recipes = recipe.sub_recipes.clone().unwrap_or_default();
         for sub_recipe_name in additional_sub_recipes {
             match load_recipe_file(&sub_recipe_name) {
                 Ok(recipe_file) => {
@@ -49,25 +48,15 @@ pub fn extract_recipe_info_from_cli(
                 }
             }
         }
+        recipe.sub_recipes = Some(all_sub_recipes);
     }
+
     let input_config = InputConfig {
-        contents: recipe.prompt.filter(|s| !s.trim().is_empty()),
-        additional_system_prompt: recipe.instructions,
+        contents: recipe.prompt.clone().filter(|s| !s.trim().is_empty()),
+        additional_system_prompt: recipe.instructions.clone(),
     };
 
-    let recipe_info = RecipeInfo {
-        extensions: recipe.extensions,
-        session_settings: recipe.settings.map(|s| SessionSettings {
-            goose_provider: s.goose_provider,
-            goose_model: s.goose_model,
-            temperature: s.temperature,
-        }),
-        sub_recipes: Some(all_sub_recipes),
-        final_output_response: recipe.response,
-        retry_config: recipe.retry,
-    };
-
-    Ok((input_config, recipe_info))
+    Ok((input_config, recipe))
 }
 
 fn extract_recipe_name(recipe_identifier: &str) -> String {
@@ -98,18 +87,18 @@ mod tests {
         let params = vec![("name".to_string(), "my_value".to_string())];
         let recipe_name = recipe_path.to_str().unwrap().to_string();
 
-        let (input_config, recipe_info) =
+        let (input_config, recipe) =
             extract_recipe_info_from_cli(recipe_name, params, Vec::new(), false).unwrap();
-        let settings = recipe_info.session_settings;
-        let sub_recipes = recipe_info.sub_recipes;
-        let response = recipe_info.final_output_response;
+        let settings = recipe.settings;
+        let sub_recipes = recipe.sub_recipes;
+        let response = recipe.response;
 
         assert_eq!(input_config.contents, Some("test_prompt".to_string()));
         assert_eq!(
             input_config.additional_system_prompt,
             Some("test_instructions my_value".to_string())
         );
-        assert!(recipe_info.extensions.is_none());
+        assert!(recipe.extensions.is_none());
 
         assert!(settings.is_some());
         let settings = settings.unwrap();
@@ -162,19 +151,19 @@ mod tests {
             sub_recipe2_path.to_string_lossy().to_string(),
         ];
 
-        let (input_config, recipe_info) =
+        let (input_config, recipe) =
             extract_recipe_info_from_cli(recipe_name, params, additional_sub_recipes, false)
                 .unwrap();
-        let settings = recipe_info.session_settings;
-        let sub_recipes = recipe_info.sub_recipes;
-        let response = recipe_info.final_output_response;
+        let settings = recipe.settings;
+        let sub_recipes = recipe.sub_recipes;
+        let response = recipe.response;
 
         assert_eq!(input_config.contents, Some("test_prompt".to_string()));
         assert_eq!(
             input_config.additional_system_prompt,
             Some("test_instructions my_value".to_string())
         );
-        assert!(recipe_info.extensions.is_none());
+        assert!(recipe.extensions.is_none());
 
         assert!(settings.is_some());
         let settings = settings.unwrap();

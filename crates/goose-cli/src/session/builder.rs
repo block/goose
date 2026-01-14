@@ -2,13 +2,12 @@ use super::output;
 use super::CliSession;
 use console::style;
 use goose::agents::extension::PlatformExtensionContext;
-use goose::agents::types::RetryConfig;
 use goose::agents::Agent;
 use goose::config::{
     extensions::get_extension_by_name, get_all_extensions, Config, ExtensionConfig,
 };
 use goose::providers::create;
-use goose::recipe::{Response, SubRecipe};
+use goose::recipe::Recipe;
 use goose::session::session_manager::SessionType;
 use goose::session::SessionManager;
 use goose::config::get_enabled_extensions;
@@ -94,12 +93,10 @@ pub struct SessionBuilderConfig {
     pub streamable_http_extensions: Vec<String>,
     /// List of builtin extension commands to add
     pub builtins: Vec<String>,
-    /// List of extensions to enable, enable only this set and ignore configured ones
-    pub extensions_override: Option<Vec<ExtensionConfig>>,
+    /// Recipe configuration for the session
+    pub recipe: Option<Recipe>,
     /// Any additional system prompt to append to the default
     pub additional_system_prompt: Option<String>,
-    /// Settings to override the global Goose settings
-    pub settings: Option<SessionSettings>,
     /// Provider override from CLI arguments
     pub provider: Option<String>,
     /// Model override from CLI arguments
@@ -116,12 +113,6 @@ pub struct SessionBuilderConfig {
     pub interactive: bool,
     /// Quiet mode - suppress non-response output
     pub quiet: bool,
-    /// Sub-recipes to add to the session
-    pub sub_recipes: Option<Vec<SubRecipe>>,
-    /// Final output expected response
-    pub final_output_response: Option<Response>,
-    /// Retry configuration for automated validation and recovery
-    pub retry_config: Option<RetryConfig>,
     /// Output format (text, json)
     pub output_format: String,
 }
@@ -137,9 +128,8 @@ impl Default for SessionBuilderConfig {
             extensions: Vec::new(),
             streamable_http_extensions: Vec::new(),
             builtins: Vec::new(),
-            extensions_override: None,
+            recipe: None,
             additional_system_prompt: None,
-            settings: None,
             provider: None,
             model: None,
             debug: false,
@@ -148,9 +138,6 @@ impl Default for SessionBuilderConfig {
             scheduled_job_id: None,
             interactive: false,
             quiet: false,
-            sub_recipes: None,
-            final_output_response: None,
-            retry_config: None,
             output_format: "text".to_string(),
         }
     }
@@ -297,13 +284,6 @@ fn check_missing_extensions_or_exit(saved_extensions: &[ExtensionConfig], intera
     }
 }
 
-#[derive(Clone, Debug, Default)]
-pub struct SessionSettings {
-    pub goose_model: Option<String>,
-    pub goose_provider: Option<String>,
-    pub temperature: Option<f32>,
-}
-
 pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     goose::posthog::set_session_context("cli", session_config.resume);
 
@@ -322,27 +302,23 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         (None, None)
     };
 
+    // Extract recipe settings for provider/model/temperature
+    let recipe_settings = session_config
+        .recipe
+        .as_ref()
+        .and_then(|r| r.settings.as_ref());
+
     let provider_name = session_config
         .provider
         .or(saved_provider)
-        .or_else(|| {
-            session_config
-                .settings
-                .as_ref()
-                .and_then(|s| s.goose_provider.clone())
-        })
+        .or_else(|| recipe_settings.and_then(|s| s.goose_provider.clone()))
         .or_else(|| config.get_goose_provider().ok())
         .expect("No provider configured. Run 'goose configure' first");
 
     let model_name = session_config
         .model
         .or_else(|| saved_model_config.as_ref().map(|mc| mc.model_name.clone()))
-        .or_else(|| {
-            session_config
-                .settings
-                .as_ref()
-                .and_then(|s| s.goose_model.clone())
-        })
+        .or_else(|| recipe_settings.and_then(|s| s.goose_model.clone()))
         .or_else(|| config.get_goose_model().ok())
         .expect("No model configured. Run 'goose configure' first");
 
@@ -352,12 +328,12 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             .is_some_and(|mc| mc.model_name == model_name)
     {
         let mut config = saved_model_config.unwrap();
-        if let Some(temp) = session_config.settings.as_ref().and_then(|s| s.temperature) {
+        if let Some(temp) = recipe_settings.and_then(|s| s.temperature) {
             config = config.with_temperature(Some(temp));
         }
         config
     } else {
-        let temperature = session_config.settings.as_ref().and_then(|s| s.temperature);
+        let temperature = recipe_settings.and_then(|s| s.temperature);
         goose::model::ModelConfig::new(&model_name)
             .unwrap_or_else(|e| {
                 output::render_error(&format!("Failed to create model configuration: {}", e));
@@ -368,12 +344,18 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
 
     let agent: Agent = Agent::new();
 
+    // Extract recipe components for agent
+    let sub_recipes = session_config
+        .recipe
+        .as_ref()
+        .and_then(|r| r.sub_recipes.clone());
+    let final_output_response = session_config
+        .recipe
+        .as_ref()
+        .and_then(|r| r.response.clone());
+
     agent
-        .apply_recipe_components(
-            session_config.sub_recipes,
-            session_config.final_output_response,
-            true,
-        )
+        .apply_recipe_components(sub_recipes, final_output_response, true)
         .await;
 
     let new_provider = match create(&provider_name, model_config).await {
@@ -514,7 +496,11 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             })
             .unwrap_or_else(get_enabled_extensions)
     } else {
-        resolve_extensions_for_new_session(session_config.extensions_override.as_deref(), None)
+        let recipe_extensions = session_config
+            .recipe
+            .as_ref()
+            .and_then(|r| r.extensions.as_deref());
+        resolve_extensions_for_new_session(recipe_extensions, None)
     };
 
     let cli_flag_extension_extensions_to_load = parse_cli_flag_extensions(
@@ -614,6 +600,12 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
 
     let debug_mode = session_config.debug || config.get_param("GOOSE_DEBUG").unwrap_or(false);
 
+    // Extract retry config from recipe
+    let retry_config = session_config
+        .recipe
+        .as_ref()
+        .and_then(|r| r.retry.clone());
+
     // Create new session
     let session = CliSession::new(
         Arc::try_unwrap(agent_ptr).unwrap_or_else(|_| panic!("There should be no more references")),
@@ -622,7 +614,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         session_config.scheduled_job_id.clone(),
         session_config.max_turns,
         edit_mode,
-        session_config.retry_config.clone(),
+        retry_config,
         session_config.output_format.clone(),
     )
     .await;
@@ -679,9 +671,8 @@ mod tests {
             extensions: vec!["echo test".to_string()],
             streamable_http_extensions: vec!["http://localhost:8080/mcp".to_string()],
             builtins: vec!["developer".to_string()],
-            extensions_override: None,
+            recipe: None,
             additional_system_prompt: Some("Test prompt".to_string()),
-            settings: None,
             provider: None,
             model: None,
             debug: true,
@@ -690,9 +681,6 @@ mod tests {
             scheduled_job_id: None,
             interactive: true,
             quiet: false,
-            sub_recipes: None,
-            final_output_response: None,
-            retry_config: None,
             output_format: "text".to_string(),
         };
 
@@ -717,7 +705,7 @@ mod tests {
         assert!(config.extensions.is_empty());
         assert!(config.streamable_http_extensions.is_empty());
         assert!(config.builtins.is_empty());
-        assert!(config.extensions_override.is_none());
+        assert!(config.recipe.is_none());
         assert!(config.additional_system_prompt.is_none());
         assert!(!config.debug);
         assert!(config.max_tool_repetitions.is_none());
@@ -725,7 +713,6 @@ mod tests {
         assert!(config.scheduled_job_id.is_none());
         assert!(!config.interactive);
         assert!(!config.quiet);
-        assert!(config.final_output_response.is_none());
     }
 
     #[tokio::test]
