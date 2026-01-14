@@ -931,12 +931,12 @@ enum CliProviderVariant {
 #[derive(Debug)]
 pub struct InputConfig {
     pub contents: Option<String>,
-    pub extensions_override: Option<Vec<ExtensionConfig>>,
     pub additional_system_prompt: Option<String>,
 }
 
 #[derive(Debug)]
 pub struct RecipeInfo {
+    pub extensions: Option<Vec<ExtensionConfig>>,
     pub session_settings: Option<SessionSettings>,
     pub sub_recipes: Option<Vec<goose::recipe::SubRecipe>>,
     pub final_output_response: Option<goose::recipe::Response>,
@@ -1153,7 +1153,6 @@ fn parse_run_input(
             Ok(Some((
                 InputConfig {
                     contents: Some(contents),
-                    extensions_override: None,
                     additional_system_prompt: input_opts.system.clone(),
                 },
                 None,
@@ -1170,7 +1169,6 @@ fn parse_run_input(
             Ok(Some((
                 InputConfig {
                     contents: Some(contents),
-                    extensions_override: None,
                     additional_system_prompt: None,
                 },
                 None,
@@ -1179,7 +1177,6 @@ fn parse_run_input(
         (_, Some(text), _) => Ok(Some((
             InputConfig {
                 contents: Some(text.clone()),
-                extensions_override: None,
                 additional_system_prompt: input_opts.system.clone(),
             },
             None,
@@ -1274,7 +1271,7 @@ async fn handle_run_command(
         extensions: extension_opts.extensions,
         streamable_http_extensions: extension_opts.streamable_http_extensions,
         builtins: extension_opts.builtins,
-        extensions_override: input_config.extensions_override,
+        extensions_override: recipe_info.as_ref().and_then(|r| r.extensions.clone()),
         additional_system_prompt: input_config.additional_system_prompt,
         settings: recipe_info
             .as_ref()
