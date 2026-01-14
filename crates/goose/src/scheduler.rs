@@ -22,6 +22,7 @@ use crate::posthog;
 use crate::providers::create;
 use crate::recipe::Recipe;
 use crate::scheduler_trait::SchedulerTrait;
+use crate::session::resolve_extensions_for_new_session;
 use crate::session::session_manager::SessionType;
 use crate::session::{Session, SessionManager};
 
@@ -736,10 +737,9 @@ async fn execute_job(
 
     let agent_provider = create(&provider_name, model_config).await?;
 
-    if let Some(ref extensions) = recipe.extensions {
-        for ext in extensions {
-            agent.add_extension(ext.clone()).await?;
-        }
+    let extensions = resolve_extensions_for_new_session(recipe.extensions.as_deref(), None);
+    for ext in extensions {
+        agent.add_extension(ext.clone()).await?;
     }
 
     let session = SessionManager::create_session(
