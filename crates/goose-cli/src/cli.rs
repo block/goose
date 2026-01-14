@@ -832,6 +832,13 @@ enum Command {
         /// Authentication token for both Basic Auth (password) and Bearer token
         #[arg(long, help = "Authentication token to secure the web interface")]
         auth_token: Option<String>,
+
+        /// Allow running without authentication when exposed on the network (unsafe)
+        #[arg(
+            long,
+            help = "Skip auth requirement when exposed on the network (unsafe)"
+        )]
+        no_auth: bool,
     },
 
     /// Terminal-integrated session (one session per terminal)
@@ -1520,7 +1527,8 @@ pub async fn cli() -> anyhow::Result<()> {
             host,
             open,
             auth_token,
-        }) => crate::commands::web::handle_web(port, host, open, auth_token).await,
+            no_auth,
+        }) => crate::commands::web::handle_web(port, host, open, auth_token, no_auth).await,
         Some(Command::Term { command }) => handle_term_subcommand(command).await,
         None => handle_default_session().await,
     }
