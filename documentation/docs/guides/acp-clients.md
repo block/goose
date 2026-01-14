@@ -82,9 +82,38 @@ You should now be able to interact with goose directly in Zed. Your ACP sessions
 3. **Select goose**: Choose `New goose` to start a new conversation with goose
 4. **Start Chatting**: Interact with goose directly from the agent panel
 
-### Advanced Configuration
+#### Advanced Configuration
 
-#### Using MCP Servers from ACP Clients
+##### Overriding Provider and Model
+
+By default, goose will use the provider and model defined in your [configuration file](/docs/guides/config-files). You can override this for specific ACP configurations using the `GOOSE_PROVIDER` and `GOOSE_MODEL` environment variables.
+
+The following Zed settings example configures two goose agent instances. This is useful for:
+- Comparing model performance on the same task
+- Using cost-effective models for simple tasks and powerful models for complex ones
+
+```json
+{
+  "agent_servers": {
+    "goose": {
+      "command": "goose",
+      "args": ["acp"],
+      "env": {}
+    },
+    "goose (GPT-4o)": {
+      "command": "goose",
+      "args": ["acp"],
+      "env": {
+        "GOOSE_PROVIDER": "openai",
+        "GOOSE_MODEL": "gpt-4o"
+      }
+    }
+  },
+  // more settings
+}
+```
+
+## Using MCP Servers from ACP Clients
 
 MCP servers configured in the ACP client's `context_servers` are automatically available to goose. This allows you to use those MCP servers when using both native client features and the goose agent integration.
 
@@ -120,36 +149,6 @@ All MCP servers in `context_servers` are automatically available to goose, provi
 
 If a server in `context_servers` has the same name as a goose extension, goose uses its own [configuration](/docs/guides/config-files).
 :::
-
-#### Overriding Provider and Model
-
-By default, goose will use the provider and model defined in your [configuration file](/docs/guides/config-files). You can override this for specific ACP configurations using the `GOOSE_PROVIDER` and `GOOSE_MODEL` environment variables.
-
-The following Zed settings example configures two goose agent instances. This is useful for:
-- Comparing model performance on the same task
-- Using cost-effective models for simple tasks and powerful models for complex ones
-
-```json
-{
-  "agent_servers": {
-    "goose": {
-      "command": "goose",
-      "args": ["acp"],
-      "env": {}
-    },
-    "goose (GPT-4o)": {
-      "command": "goose",
-      "args": ["acp"],
-      "env": {
-        "GOOSE_PROVIDER": "openai",
-        "GOOSE_MODEL": "gpt-4o"
-      }
-    }
-  },
-  // more settings
-}
-```
-
 ## Additional Resources
 
 import ContentCardCarousel from '@site/src/components/ContentCardCarousel';
