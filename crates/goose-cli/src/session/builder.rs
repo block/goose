@@ -202,10 +202,17 @@ async fn offer_extension_debugging_help(
     Ok(())
 }
 
-fn check_missing_extensions_or_exit(saved_extensions: &[ExtensionConfig], interactive: bool) {
+fn check_missing_extensions_or_exit(
+    saved_extensions: &[ExtensionConfig],
+    cli_extension_names: &HashSet<String>,
+    interactive: bool,
+) {
     let missing: Vec<_> = saved_extensions
         .iter()
-        .filter(|ext| get_extension_by_name(&ext.name()).is_none())
+        .filter(|ext| {
+            !cli_extension_names.contains(&ext.name())
+                && get_extension_by_name(&ext.name()).is_none()
+        })
         .cloned()
         .collect();
 
@@ -447,6 +454,9 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         eprintln!("{}", style(format!("Warning: {}", warning)).yellow());
     }
 
+    // Collect CLI-provided extension names to avoid false "missing" warnings on resume
+    let cli_extension_names: HashSet<String> = session_config.builtins.iter().cloned().collect();
+
     // If we get extensions_override, only run those extensions and none other
     let extensions_to_run: Vec<_> = if let Some(extensions) = session_config.extensions_override {
         extensions.into_iter().collect()
@@ -458,6 +468,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
                 {
                     check_missing_extensions_or_exit(
                         &saved_state.extensions,
+                        &cli_extension_names,
                         session_config.interactive,
                     );
                     saved_state.extensions
