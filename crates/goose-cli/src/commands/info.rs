@@ -2,7 +2,7 @@ use anyhow::Result;
 use console::style;
 use goose::config::paths::Paths;
 use goose::config::Config;
-use goose::session::session_manager::{DB_NAME, SESSIONS_FOLDER};
+use goose::session::session_storage::{DB_NAME, SESSIONS_FOLDER};
 use serde_yaml;
 
 fn print_aligned(label: &str, value: &str, width: usize) {
