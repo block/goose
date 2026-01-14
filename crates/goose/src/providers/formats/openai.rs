@@ -609,8 +609,6 @@ where
                     msg = msg.with_id(id);
                 }
 
-                // Always yield usage when present - OpenRouter sends usage in a separate
-                // chunk that may have empty content and no finish_reason
                 yield (
                     Some(msg),
                     usage,
