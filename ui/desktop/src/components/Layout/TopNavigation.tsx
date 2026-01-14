@@ -132,6 +132,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
   
   const [isUltraWide, setIsUltraWide] = useState(false);
   const [shouldUseBladeOverlay, setShouldUseBladeOverlay] = useState(false);
+  const [isLayoutReady, setIsLayoutReady] = useState(false);
 
   // Handle close with animation
   const handleClose = () => {
@@ -141,6 +142,20 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
       setIsClosing(false);
     }, 250);
   };
+
+  // Allow layout to settle before starting animation on first open
+  useEffect(() => {
+    if (isExpanded && !isLayoutReady) {
+      // Use requestAnimationFrame to wait for layout calculation
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setIsLayoutReady(true);
+        });
+      });
+    } else if (!isExpanded) {
+      setIsLayoutReady(false);
+    }
+  }, [isExpanded, isLayoutReady]);
 
   // Handle escape key to close overlay or blade overlay
   useEffect(() => {
@@ -483,7 +498,7 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
   const isPushModeHorizontal = !isOverlayMode && isHorizontal && !shouldUseBladeOverlay;
   
   const gridClasses = isOverlayMode || isVerticalOverlay || isHorizontalOverlay
-    ? 'grid grid-cols-2 md:grid-cols-5 gap-[2px] w-full max-w-7xl mx-auto px-4 sm:px-6 md:px-8'
+    ? 'grid grid-cols-2 md:grid-cols-5 gap-[2px] w-full max-w-7xl mx-auto px-4 sm:px-6 md:px-8 auto-rows-fr'
     : isPushModeHorizontal
       ? 'grid grid-cols-2 md:grid-cols-5 gap-[2px] w-full h-full px-1' // 2 cols mobile, 5 cols standard, single row on massive screens
     : 'grid grid-cols-1 gap-[2px] h-full overflow-y-auto'; // Vertical push mode only
@@ -526,17 +541,18 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
                     onDrop={(e) => handleDrop(e as unknown as React.DragEvent, item.id)}
                     onDragEnd={handleDragEnd}
                     className={`
-                      ${isClosing ? 'nav-tile-exit' : 'nav-tile'}
+                      ${isClosing ? 'nav-tile-exit' : isLayoutReady ? 'nav-tile' : ''}
                       relative ${isOverlayMode ? 'bg-background-default backdrop-blur-md' : 'bg-background-default'} rounded-2xl 
                       overflow-hidden cursor-move group
                       ${isDragOver ? 'ring-2 ring-blue-500' : ''}
+                      ${isDragging ? 'opacity-50' : ''}
+                      ${!isLayoutReady ? 'opacity-0' : ''}
                       ${isPulsing ? 'animate-pulse' : ''}
                       aspect-square
-                      transition-all duration-300
+                      min-h-[120px]
                     `}
                     style={{
-                      opacity: isDragging ? 0.5 : 1,
-                      animationDelay: `${index * 30}ms`,
+                      animationDelay: isLayoutReady ? `${index * 30}ms` : '0ms',
                     }}
                   >
                     <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
@@ -559,14 +575,15 @@ export const TopNavigation: React.FC<TopNavigationProps> = ({ isExpanded, setIsE
                   onDrop={(e) => handleDrop(e as unknown as React.DragEvent, item.id)}
                   onDragEnd={handleDragEnd}
                   className={`
-                    ${isClosing ? 'nav-tile-exit' : 'nav-tile'}
+                    ${isClosing ? 'nav-tile-exit' : isLayoutReady ? 'nav-tile' : ''}
                     relative cursor-move group
                     ${isDragOver ? 'ring-2 ring-blue-500 rounded-2xl' : ''}
-                    transition-all duration-300
+                    ${isDragging ? 'opacity-50' : ''}
+                    ${!isLayoutReady ? 'opacity-0' : ''}
+                    min-h-[120px]
                   `}
                   style={{
-                    opacity: isDragging ? 0.5 : 1,
-                    animationDelay: `${index * 30}ms`,
+                    animationDelay: isLayoutReady ? `${index * 30}ms` : '0ms',
                   }}
                 >
                   <button

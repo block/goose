@@ -840,15 +840,9 @@ p > code.bg-inline-code {
 @keyframes nav-tile-in {
   0% {
     opacity: 0;
-    transform: translateY(24px) scale(0.92);
-  }
-  60% {
-    opacity: 1;
-    transform: translateY(-2px) scale(1.01);
   }
   100% {
     opacity: 1;
-    transform: translateY(0) scale(1);
   }
 }
 
@@ -927,16 +921,17 @@ p > code.bg-inline-code {
 
 /* Navigation tile stagger animation with enhanced easing */
 .nav-tile {
-  animation: nav-tile-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  animation: nav-tile-in 0.3s ease-out forwards;
   /* Start invisible, animation will make it visible and keep it that way */
   opacity: 0;
-  transform: translateY(24px) scale(0.92);
+  will-change: opacity;
 }
 
 .nav-tile-exit {
   animation: nav-tile-out 0.2s ease-in forwards;
   /* Start from current visible state */
   opacity: 1;
+  will-change: opacity, transform;
 }
 
 /* Enhanced stagger delays with better rhythm - faster start, gradual slowdown */
