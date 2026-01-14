@@ -1,7 +1,7 @@
 mod chat_history_search;
 mod diagnostics;
 pub mod extension_data;
-mod legacy;
+pub(crate) mod legacy;
 pub mod session_manager;
 
 pub use diagnostics::{generate_diagnostics, get_system_info, SystemInfo};

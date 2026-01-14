@@ -2,7 +2,7 @@
 
 use crate::config::paths::Paths;
 use crate::config::{get_enabled_extensions, Config};
-use crate::session::session_manager::CURRENT_SCHEMA_VERSION;
+use crate::storage::CURRENT_SCHEMA_VERSION;
 use crate::session::SessionManager;
 use chrono::{DateTime, Utc};
 use once_cell::sync::Lazy;
