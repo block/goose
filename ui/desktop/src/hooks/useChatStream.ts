@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChatState } from '../types/chatState';
 
 import {
+  getSession,
   Message,
   MessageEvent,
   reply,
@@ -209,10 +210,28 @@ export function useChatStream({
         window.dispatchEvent(new CustomEvent('message-stream-finished'));
       }
 
+      // Refresh session name if it's still the generic placeholder
+      // The backend auto-generates names after the first 3 user messages,
+      // so we only need to check a few times until the name is set
+      if (!error && sessionId && session?.name.startsWith('New session ')) {
+        try {
+          const response = await getSession({
+            path: { session_id: sessionId },
+            throwOnError: true,
+          });
+          if (response.data?.name && response.data.name !== session.name) {
+            setSession((prev) => (prev ? { ...prev, name: response.data.name } : prev));
+          }
+        } catch (refreshError) {
+          // Silently fail - this is a nice-to-have feature
+          console.warn('Failed to refresh session name:', refreshError);
+        }
+      }
+
       setChatState(ChatState.Idle);
       onStreamFinish();
     },
-    [onStreamFinish, sessionId]
+    [onStreamFinish, sessionId, session]
   );
 
   // Load session on mount or sessionId change
