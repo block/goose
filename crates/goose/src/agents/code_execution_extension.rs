@@ -925,9 +925,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_record_result_outputs_valid_json() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let session_manager = Arc::new(crate::session::SessionManager::new(
+            temp_dir.path().to_path_buf(),
+        ));
         let context = PlatformExtensionContext {
-            session_id: None,
             extension_manager: None,
+            session_manager,
         };
         let client = CodeExecutionClient::new(context).unwrap();
 
@@ -939,7 +943,12 @@ mod tests {
         );
 
         let result = client
-            .call_tool("execute_code", Some(args), CancellationToken::new())
+            .call_tool(
+                "execute_code",
+                Some(args),
+                McpMeta::new("test-session-id"),
+                CancellationToken::new(),
+            )
             .await
             .unwrap();
 
