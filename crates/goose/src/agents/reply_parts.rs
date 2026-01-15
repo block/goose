@@ -7,6 +7,7 @@ use serde_json::{json, Value};
 use tracing::debug;
 
 use super::super::agents::Agent;
+use crate::agents::code_execution_extension::EXTENSION_NAME as CODE_EXECUTION_EXTENSION;
 use crate::conversation::message::{Message, MessageContent, ToolRequest};
 use crate::conversation::Conversation;
 use crate::providers::base::{stream_from_single_message, MessageStream, Provider, ProviderUsage};
@@ -15,11 +16,6 @@ use crate::providers::toolshim::{
     augment_message_with_tool_calls, convert_tool_messages_to_text,
     modify_system_prompt_for_tool_json, OllamaInterpreter,
 };
-
-use crate::agents::code_execution_extension::EXTENSION_NAME as CODE_EXECUTION_EXTENSION;
-use crate::agents::subagent_tool::SUBAGENT_TOOL_NAME;
-#[cfg(test)]
-use crate::session::SessionType;
 use rmcp::model::Tool;
 
 fn coerce_value(s: &str, schema: &Value) -> Value {
@@ -129,9 +125,7 @@ impl Agent {
             .await;
         if code_execution_active {
             let code_exec_prefix = format!("{CODE_EXECUTION_EXTENSION}__");
-            tools.retain(|tool| {
-                tool.name.starts_with(&code_exec_prefix) || tool.name == SUBAGENT_TOOL_NAME
-            });
+            tools.retain(|tool| tool.name.starts_with(&code_exec_prefix));
         }
 
         // Stable tool ordering is important for multi session prompt caching.
@@ -139,8 +133,10 @@ impl Agent {
 
         // Prepare system prompt
         let extensions_info = self.extension_manager.get_extensions_info().await;
-        let (extension_count, tool_count) =
-            self.extension_manager.get_extension_and_tool_counts().await;
+        let (extension_count, tool_count) = self
+            .extension_manager
+            .get_extension_and_tool_counts(session_id)
+            .await;
 
         // Get model name from provider
         let provider = self.provider().await?;
@@ -175,6 +171,7 @@ impl Agent {
     /// Handles toolshim transformations if needed
     pub(crate) async fn stream_response_from_provider(
         provider: Arc<dyn Provider>,
+        session_id: &str,
         system_prompt: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -201,6 +198,7 @@ impl Agent {
             debug!("WAITING_LLM_STREAM_START");
             let result = provider
                 .stream(
+                    session_id,
                     system_prompt.as_str(),
                     messages_for_provider.messages(),
                     &tools,
@@ -212,6 +210,7 @@ impl Agent {
             debug!("WAITING_LLM_START");
             let complete_result = provider
                 .complete(
+                    session_id,
                     system_prompt.as_str(),
                     messages_for_provider.messages(),
                     &tools,
@@ -408,6 +407,7 @@ mod tests {
     use crate::model::ModelConfig;
     use crate::providers::base::{Provider, ProviderUsage, Usage};
     use crate::providers::errors::ProviderError;
+    use crate::session::session_manager::SessionType;
     use async_trait::async_trait;
     use rmcp::object;
 
@@ -432,6 +432,7 @@ mod tests {
 
         async fn complete_with_model(
             &self,
+            _session_id: &str,
             _model_config: &ModelConfig,
             _system: &str,
             _messages: &[Message],
@@ -452,7 +453,7 @@ mod tests {
             .config
             .session_manager
             .create_session(
-                std::path::PathBuf::default(),
+                std::env::current_dir().unwrap(),
                 "test-prepare-tools".to_string(),
                 SessionType::Hidden,
             )
@@ -488,9 +489,8 @@ mod tests {
             .await
             .unwrap();
 
-        let working_dir = std::env::current_dir()?;
         let (tools, _toolshim_tools, _system_prompt) = agent
-            .prepare_tools_and_prompt(&session.id, &working_dir)
+            .prepare_tools_and_prompt(&session.id, session.working_dir.as_path())
             .await?;
 
         let names: Vec<String> = tools.iter().map(|t| t.name.clone().into_owned()).collect();

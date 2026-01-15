@@ -25,6 +25,7 @@ use goose::providers::{create, providers, retry_operation, RetryConfig};
 use goose::session::SessionType;
 use serde_json::Value;
 use std::collections::HashMap;
+use uuid::Uuid;
 
 // useful for light themes where there is no dicernible colour contrast between
 // cursor-selected and cursor-unselected items.
@@ -682,8 +683,10 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
     let models_res = {
         let temp_model_config = ModelConfig::new(&provider_meta.default_model)?;
         let temp_provider = create(provider_name, temp_model_config).await?;
+        // Provider setup runs before any user session exists; use an ephemeral id.
+        let session_id = Uuid::new_v4().to_string();
         retry_operation(&RetryConfig::default(), || async {
-            temp_provider.fetch_recommended_models().await
+            temp_provider.fetch_recommended_models(&session_id).await
         })
         .await
     };
@@ -1655,9 +1658,11 @@ pub async fn handle_openrouter_auth() -> anyhow::Result<()> {
 
     match create("openrouter", model_config).await {
         Ok(provider) => {
-            // Simple test request
+            // Config verification runs before any user session exists; use an ephemeral id.
+            let session_id = Uuid::new_v4().to_string();
             let test_result = provider
                 .complete(
+                    &session_id,
                     "You are goose, an AI assistant.",
                     &[Message::user().with_text("Say 'Configuration test successful!'")],
                     &[],
@@ -1733,8 +1738,11 @@ pub async fn handle_tetrate_auth() -> anyhow::Result<()> {
 
     match create("tetrate", model_config).await {
         Ok(provider) => {
+            // Config verification runs before any user session exists; use an ephemeral id.
+            let session_id = Uuid::new_v4().to_string();
             let test_result = provider
                 .complete(
+                    &session_id,
                     "You are goose, an AI assistant.",
                     &[Message::user().with_text("Say 'Configuration test successful!'")],
                     &[],

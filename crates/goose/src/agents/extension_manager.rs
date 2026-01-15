@@ -33,7 +33,7 @@ use super::tool_execution::ToolCallResult;
 use super::types::SharedProvider;
 use crate::agents::extension::{Envs, ProcessExit};
 use crate::agents::extension_malware_check;
-use crate::agents::mcp_client::{McpClient, McpClientTrait, McpMeta};
+use crate::agents::mcp_client::{McpClient, McpClientTrait};
 use crate::config::search_path::SearchPaths;
 use crate::config::{get_all_extensions, Config};
 use crate::oauth::oauth_flow;
@@ -685,11 +685,11 @@ impl ExtensionManager {
         Ok(())
     }
 
-    pub async fn get_extension_and_tool_counts(&self) -> (usize, usize) {
+    pub async fn get_extension_and_tool_counts(&self, session_id: &str) -> (usize, usize) {
         let enabled_extensions_count = self.extensions.lock().await.len();
 
         let total_tools = self
-            .get_prefixed_tools(None)
+            .get_prefixed_tools(session_id, None)
             .await
             .map(|tools| tools.len())
             .unwrap_or(0);
@@ -717,14 +717,19 @@ impl ExtensionManager {
     /// Get all tools from all clients with proper prefixing
     pub async fn get_prefixed_tools(
         &self,
+        session_id: &str,
         extension_name: Option<String>,
     ) -> ExtensionResult<Vec<Tool>> {
-        let all_tools = self.get_all_tools_cached().await?;
+        let all_tools = self.get_all_tools_cached(session_id).await?;
         Ok(self.filter_tools(&all_tools, extension_name.as_deref(), None))
     }
 
-    pub async fn get_prefixed_tools_excluding(&self, exclude: &str) -> ExtensionResult<Vec<Tool>> {
-        let all_tools = self.get_all_tools_cached().await?;
+    pub async fn get_prefixed_tools_excluding(
+        &self,
+        session_id: &str,
+        exclude: &str,
+    ) -> ExtensionResult<Vec<Tool>> {
+        let all_tools = self.get_all_tools_cached(session_id).await?;
         Ok(self.filter_tools(&all_tools, None, Some(exclude)))
     }
 
@@ -755,7 +760,7 @@ impl ExtensionManager {
             .collect()
     }
 
-    async fn get_all_tools_cached(&self) -> ExtensionResult<Arc<Vec<Tool>>> {
+    async fn get_all_tools_cached(&self, session_id: &str) -> ExtensionResult<Arc<Vec<Tool>>> {
         {
             let cache = self.tools_cache.lock().await;
             if let Some(ref tools) = *cache {
@@ -764,7 +769,7 @@ impl ExtensionManager {
         }
 
         let version_before = self.tools_cache_version.load(Ordering::SeqCst);
-        let tools = Arc::new(self.fetch_all_tools().await?);
+        let tools = Arc::new(self.fetch_all_tools(session_id).await?);
 
         {
             let mut cache = self.tools_cache.lock().await;
@@ -782,7 +787,7 @@ impl ExtensionManager {
         *self.tools_cache.lock().await = None;
     }
 
-    async fn fetch_all_tools(&self) -> ExtensionResult<Vec<Tool>> {
+    async fn fetch_all_tools(&self, session_id: &str) -> ExtensionResult<Vec<Tool>> {
         let clients: Vec<_> = self
             .extensions
             .lock()
@@ -799,7 +804,7 @@ impl ExtensionManager {
                 let mut tools = Vec::new();
                 let client_guard = client.lock().await;
                 let mut client_tools = match client_guard
-                    .list_tools(None, cancel_token.clone())
+                    .list_tools(session_id, None, cancel_token.clone())
                     .await
                 {
                     Ok(t) => t,
@@ -830,7 +835,7 @@ impl ExtensionManager {
                     }
 
                     client_tools = match client_guard
-                        .list_tools(client_tools.next_cursor, cancel_token.clone())
+                        .list_tools(session_id, client_tools.next_cursor, cancel_token.clone())
                         .await
                     {
                         Ok(t) => t,
@@ -876,6 +881,7 @@ impl ExtensionManager {
     // Function that gets executed for read_resource tool
     pub async fn read_resource_tool(
         &self,
+        session_id: &str,
         params: Value,
         cancellation_token: CancellationToken,
     ) -> Result<Vec<Content>, ErrorData> {
@@ -886,7 +892,7 @@ impl ExtensionManager {
         // If extension name is provided, we can just look it up
         if let Some(ext_name) = extension_name {
             let read_result = self
-                .read_resource(uri, ext_name, cancellation_token.clone())
+                .read_resource(session_id, uri, ext_name, cancellation_token.clone())
                 .await?;
 
             let mut result = Vec::new();
@@ -909,7 +915,7 @@ impl ExtensionManager {
 
         for extension_name in extension_names {
             let read_result = self
-                .read_resource(uri, &extension_name, cancellation_token.clone())
+                .read_resource(session_id, uri, &extension_name, cancellation_token.clone())
                 .await;
             match read_result {
                 Ok(read_result) => {
@@ -949,6 +955,7 @@ impl ExtensionManager {
 
     pub async fn read_resource(
         &self,
+        session_id: &str,
         uri: &str,
         extension_name: &str,
         cancellation_token: CancellationToken,
@@ -973,7 +980,7 @@ impl ExtensionManager {
 
         let client_guard = client.lock().await;
         client_guard
-            .read_resource(uri, cancellation_token)
+            .read_resource(session_id, uri, cancellation_token)
             .await
             .map_err(|_| {
                 ErrorData::new(
@@ -984,7 +991,10 @@ impl ExtensionManager {
             })
     }
 
-    pub async fn get_ui_resources(&self) -> Result<Vec<(String, Resource)>, ErrorData> {
+    pub async fn get_ui_resources(
+        &self,
+        session_id: &str,
+    ) -> Result<Vec<(String, Resource)>, ErrorData> {
         let mut ui_resources = Vec::new();
 
         let extensions_to_check: Vec<(String, McpClientBox)> = {
@@ -999,7 +1009,7 @@ impl ExtensionManager {
             let client_guard = client.lock().await;
 
             match client_guard
-                .list_resources(None, CancellationToken::default())
+                .list_resources(session_id, None, CancellationToken::default())
                 .await
             {
                 Ok(list_response) => {
@@ -1020,6 +1030,7 @@ impl ExtensionManager {
 
     async fn list_resources_from_extension(
         &self,
+        session_id: &str,
         extension_name: &str,
         cancellation_token: CancellationToken,
     ) -> Result<Vec<Content>, ErrorData> {
@@ -1036,7 +1047,7 @@ impl ExtensionManager {
 
         let client_guard = client.lock().await;
         client_guard
-            .list_resources(None, cancellation_token)
+            .list_resources(session_id, None, cancellation_token)
             .await
             .map_err(|e| {
                 ErrorData::new(
@@ -1059,6 +1070,7 @@ impl ExtensionManager {
 
     pub async fn list_resources(
         &self,
+        session_id: &str,
         params: Value,
         cancellation_token: CancellationToken,
     ) -> Result<Vec<Content>, ErrorData> {
@@ -1067,7 +1079,7 @@ impl ExtensionManager {
         match extension {
             Some(extension_name) => {
                 // Handle single extension case
-                self.list_resources_from_extension(extension_name, cancellation_token)
+                self.list_resources_from_extension(session_id, extension_name, cancellation_token)
                     .await
             }
             None => {
@@ -1084,7 +1096,7 @@ impl ExtensionManager {
                     .for_each(|name| {
                         let token = cancellation_token.clone();
                         futures.push(async move {
-                            self.list_resources_from_extension(&name.clone(), token)
+                            self.list_resources_from_extension(session_id, name.as_str(), token)
                                 .await
                         });
                     });
@@ -1190,9 +1202,8 @@ impl ExtensionManager {
                 session_id
             );
             let client_guard = client.lock().await;
-            let meta = McpMeta::new(&session_id);
             client_guard
-                .call_tool(&tool_name, arguments, meta, cancellation_token)
+                .call_tool(&session_id, &tool_name, arguments, cancellation_token)
                 .await
                 .map_err(|e| match e {
                     ServiceError::McpError(error_data) => error_data,
@@ -1210,6 +1221,7 @@ impl ExtensionManager {
 
     pub async fn list_prompts_from_extension(
         &self,
+        session_id: &str,
         extension_name: &str,
         cancellation_token: CancellationToken,
     ) -> Result<Vec<Prompt>, ErrorData> {
@@ -1226,7 +1238,7 @@ impl ExtensionManager {
 
         let client_guard = client.lock().await;
         client_guard
-            .list_prompts(None, cancellation_token)
+            .list_prompts(session_id, None, cancellation_token)
             .await
             .map_err(|e| {
                 ErrorData::new(
@@ -1240,6 +1252,7 @@ impl ExtensionManager {
 
     pub async fn list_prompts(
         &self,
+        session_id: &str,
         cancellation_token: CancellationToken,
     ) -> Result<HashMap<String, Vec<Prompt>>, ErrorData> {
         let mut futures = FuturesUnordered::new();
@@ -1250,7 +1263,7 @@ impl ExtensionManager {
             futures.push(async move {
                 (
                     extension_name.clone(),
-                    self.list_prompts_from_extension(extension_name.as_str(), token)
+                    self.list_prompts_from_extension(session_id, extension_name.as_str(), token)
                         .await,
                 )
             });
@@ -1287,6 +1300,7 @@ impl ExtensionManager {
 
     pub async fn get_prompt(
         &self,
+        session_id: &str,
         extension_name: &str,
         name: &str,
         arguments: Value,
@@ -1299,7 +1313,7 @@ impl ExtensionManager {
 
         let client_guard = client.lock().await;
         client_guard
-            .get_prompt(name, arguments, cancellation_token)
+            .get_prompt(session_id, name, arguments, cancellation_token)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to get prompt: {}", e))
     }
@@ -1470,6 +1484,7 @@ mod tests {
 
         async fn list_resources(
             &self,
+            _session_id: &str,
             _next_cursor: Option<String>,
             _cancellation_token: CancellationToken,
         ) -> Result<ListResourcesResult, Error> {
@@ -1478,6 +1493,7 @@ mod tests {
 
         async fn read_resource(
             &self,
+            _session_id: &str,
             _uri: &str,
             _cancellation_token: CancellationToken,
         ) -> Result<ReadResourceResult, Error> {
@@ -1486,6 +1502,7 @@ mod tests {
 
         async fn list_tools(
             &self,
+            _session_id: &str,
             _next_cursor: Option<String>,
             _cancellation_token: CancellationToken,
         ) -> Result<ListToolsResult, Error> {
@@ -1516,9 +1533,9 @@ mod tests {
 
         async fn call_tool(
             &self,
+            _session_id: &str,
             name: &str,
             _arguments: Option<JsonObject>,
-            _meta: McpMeta,
             _cancellation_token: CancellationToken,
         ) -> Result<CallToolResult, Error> {
             match name {
@@ -1534,6 +1551,7 @@ mod tests {
 
         async fn list_prompts(
             &self,
+            _session_id: &str,
             _next_cursor: Option<String>,
             _cancellation_token: CancellationToken,
         ) -> Result<ListPromptsResult, Error> {
@@ -1542,6 +1560,7 @@ mod tests {
 
         async fn get_prompt(
             &self,
+            _session_id: &str,
             _name: &str,
             _arguments: Value,
             _cancellation_token: CancellationToken,
@@ -1767,7 +1786,10 @@ mod tests {
             )
             .await;
 
-        let tools = extension_manager.get_prefixed_tools(None).await.unwrap();
+        let tools = extension_manager
+            .get_prefixed_tools("test-session-id", None)
+            .await
+            .unwrap();
 
         let tool_names: Vec<String> = tools.iter().map(|t| t.name.to_string()).collect();
         assert!(!tool_names.iter().any(|name| name == "test_extension__tool")); // Default unavailable
@@ -1794,7 +1816,10 @@ mod tests {
             )
             .await;
 
-        let tools = extension_manager.get_prefixed_tools(None).await.unwrap();
+        let tools = extension_manager
+            .get_prefixed_tools("test-session-id", None)
+            .await
+            .unwrap();
 
         let tool_names: Vec<String> = tools.iter().map(|t| t.name.to_string()).collect();
         assert!(tool_names.iter().any(|name| name == "test_extension__tool"));
@@ -1956,7 +1981,10 @@ mod tests {
             )
             .await;
 
-        let tools_after_first = extension_manager.get_prefixed_tools(None).await.unwrap();
+        let tools_after_first = extension_manager
+            .get_prefixed_tools("test-session-id", None)
+            .await
+            .unwrap();
         let tool_names: Vec<String> = tools_after_first
             .iter()
             .map(|t| t.name.to_string())
@@ -1971,7 +1999,10 @@ mod tests {
             )
             .await;
 
-        let tools_after_second = extension_manager.get_prefixed_tools(None).await.unwrap();
+        let tools_after_second = extension_manager
+            .get_prefixed_tools("test-session-id", None)
+            .await
+            .unwrap();
         let tool_names: Vec<String> = tools_after_second
             .iter()
             .map(|t| t.name.to_string())
@@ -1999,14 +2030,20 @@ mod tests {
             )
             .await;
 
-        let tools_before = extension_manager.get_prefixed_tools(None).await.unwrap();
+        let tools_before = extension_manager
+            .get_prefixed_tools("test-session-id", None)
+            .await
+            .unwrap();
         let tool_names: Vec<String> = tools_before.iter().map(|t| t.name.to_string()).collect();
         assert!(tool_names.iter().any(|n| n.starts_with("ext_a__")));
         assert!(tool_names.iter().any(|n| n.starts_with("ext_b__")));
 
         extension_manager.remove_extension("ext_b").await.unwrap();
 
-        let tools_after = extension_manager.get_prefixed_tools(None).await.unwrap();
+        let tools_after = extension_manager
+            .get_prefixed_tools("test-session-id", None)
+            .await
+            .unwrap();
         let tool_names: Vec<String> = tools_after.iter().map(|t| t.name.to_string()).collect();
         assert!(tool_names.iter().any(|n| n.starts_with("ext_a__")));
         assert!(!tool_names.iter().any(|n| n.starts_with("ext_b__")));
@@ -2032,7 +2069,7 @@ mod tests {
             .await;
 
         let tools = extension_manager
-            .get_prefixed_tools_excluding("ext_a")
+            .get_prefixed_tools_excluding("test-session-id", "ext_a")
             .await
             .unwrap();
         let tool_names: Vec<String> = tools.iter().map(|t| t.name.to_string()).collect();
@@ -2061,7 +2098,7 @@ mod tests {
             .await;
 
         let tools = extension_manager
-            .get_prefixed_tools(Some("ext_a".to_string()))
+            .get_prefixed_tools("test-session-id", Some("ext_a".to_string()))
             .await
             .unwrap();
         let tool_names: Vec<String> = tools.iter().map(|t| t.name.to_string()).collect();
