@@ -1,6 +1,7 @@
 use axum::http::StatusCode;
 use goose::execution::manager::AgentManager;
 use goose::scheduler_trait::SchedulerTrait;
+use goose::session::SessionManager;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -76,6 +77,10 @@ impl AppState {
 
     pub fn scheduler(&self) -> Arc<dyn SchedulerTrait> {
         self.agent_manager.scheduler()
+    }
+
+    pub fn session_manager(&self) -> &SessionManager {
+        self.agent_manager.session_manager()
     }
 
     pub async fn set_recipe_file_hash_map(&self, hash_map: HashMap<String, PathBuf>) {

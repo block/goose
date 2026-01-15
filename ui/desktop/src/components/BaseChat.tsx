@@ -403,7 +403,15 @@ function BaseChatContent({
                 <div className="block h-8" />
               </>
             ) : !recipe && showPopularTopics ? (
-              <PopularChatTopics append={(text: string) => handleSubmit(text)} />
+              <PopularChatTopics
+                append={(text: string) => {
+                  const syntheticEvent = {
+                    detail: { value: text },
+                    preventDefault: () => {},
+                  } as unknown as React.FormEvent;
+                  handleFormSubmit(syntheticEvent);
+                }}
+              />
             ) : null}
           </ScrollArea>
 
