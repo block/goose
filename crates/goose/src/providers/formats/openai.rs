@@ -612,11 +612,7 @@ where
 
                 yield (
                     Some(msg),
-                    if chunk.choices[0].finish_reason.is_some() {
-                        usage
-                    } else {
-                        None
-                    },
+                    usage,
                 )
             } else if usage.is_some() {
                 yield (None, usage)
