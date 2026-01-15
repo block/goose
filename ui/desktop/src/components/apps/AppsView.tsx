@@ -147,7 +147,7 @@ export default function AppsView() {
             <GridLayout>
               {apps.map((app) => (
                 <div
-                  key={`${app.resourceUri}-${app.mcpServer}`}
+                  key={`${app.uri}-${app.mcpServer}`}
                   className="flex flex-col p-4 border border-border-muted rounded-lg bg-background-panel hover:border-border-default transition-colors"
                 >
                   <div className="flex-1 mb-4">

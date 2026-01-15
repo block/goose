@@ -2457,8 +2457,8 @@ async function appMain() {
 
       const appWindow = new BrowserWindow({
         title: gooseApp.name,
-        width: gooseApp.width || 800,
-        height: gooseApp.height || 600,
+        width: gooseApp.width ?? 800,
+        height: gooseApp.height ?? 600,
         resizable: gooseApp.resizable ?? true,
         webPreferences: {
           preload: path.join(__dirname, 'preload.js'),
@@ -2482,7 +2482,7 @@ async function appMain() {
           : gooseApp.mcpServer;
       const standaloneUrl =
         `${baseUrl}/#/standalone-app?` +
-        `resourceUri=${encodeURIComponent(gooseApp.resourceUri)}` +
+        `resourceUri=${encodeURIComponent(gooseApp.uri)}` +
         `&extensionName=${encodeURIComponent(extensionName)}` +
         `&appName=${encodeURIComponent(gooseApp.name)}` +
         `&workingDir=${encodeURIComponent(workingDir)}`;

@@ -3866,47 +3866,30 @@
         }
       },
       "GooseApp": {
-        "type": "object",
-        "required": [
-          "name",
-          "resourceUri",
-          "html"
-        ],
-        "properties": {
-          "description": {
-            "type": "string",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/McpAppResource"
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/WindowProps"
+              }
+            ],
             "nullable": true
           },
-          "height": {
-            "type": "integer",
-            "format": "int32",
-            "nullable": true,
-            "minimum": 0
-          },
-          "html": {
-            "type": "string"
-          },
-          "mcpServer": {
-            "type": "string",
-            "nullable": true
-          },
-          "name": {
-            "type": "string"
-          },
-          "resizable": {
-            "type": "boolean",
-            "nullable": true
-          },
-          "resourceUri": {
-            "type": "string"
-          },
-          "width": {
-            "type": "integer",
-            "format": "int32",
-            "nullable": true,
-            "minimum": 0
+          {
+            "type": "object",
+            "properties": {
+              "mcpServer": {
+                "type": "string",
+                "description": "Which MCP server/extension provides this app (tracking metadata)",
+                "nullable": true
+              }
+            }
           }
-        }
+        ],
+        "description": "A Goose App combining MCP resource data with Goose-specific metadata"
       },
       "Icon": {
         "type": "object",
@@ -6460,6 +6443,30 @@
             "items": {
               "$ref": "#/components/schemas/ToolPermission"
             }
+          }
+        }
+      },
+      "WindowProps": {
+        "type": "object",
+        "description": "Window properties for Goose-specific window management",
+        "required": [
+          "width",
+          "height",
+          "resizable"
+        ],
+        "properties": {
+          "height": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "resizable": {
+            "type": "boolean"
+          },
+          "width": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
           }
         }
       }

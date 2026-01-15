@@ -14,22 +14,28 @@ use utoipa::ToSchema;
 
 pub use resource::{CspMetadata, McpAppResource, ResourceMetadata, UiMetadata};
 
+/// Window properties for Goose-specific window management
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WindowProps {
+    pub width: u32,
+    pub height: u32,
+    pub resizable: bool,
+}
+
+/// A Goose App combining MCP resource data with Goose-specific metadata
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct GooseApp {
-    pub name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub width: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub height: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub resizable: Option<bool>,
+    /// The underlying MCP resource
+    #[serde(flatten)]
+    pub resource: McpAppResource,
+    /// Which MCP server/extension provides this app (tracking metadata)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_server: Option<String>,
-    pub resource_uri: String,
-    pub html: String,
+    /// Window properties for standalone app windows
+    #[serde(flatten, skip_serializing_if = "Option::is_none")]
+    pub window_props: Option<WindowProps>,
 }
 
 /// Manager for caching MCP apps to disk
@@ -79,7 +85,7 @@ impl McpAppCache {
         fs::create_dir_all(&self.cache_dir)?;
 
         if let Some(ref extension_name) = app.mcp_server {
-            let cache_key = Self::cache_key(extension_name, &app.resource_uri);
+            let cache_key = Self::cache_key(extension_name, &app.resource.uri);
             let app_path = self.cache_dir.join(format!("{}.json", cache_key));
             let json = serde_json::to_string_pretty(app).map_err(std::io::Error::other)?;
             fs::write(app_path, json)?;
@@ -177,20 +183,29 @@ pub async fn list_mcp_apps_with_cache(
                 }
 
                 if !html.is_empty() {
-                    let app = GooseApp {
+                    let mcp_resource = McpAppResource {
+                        uri: resource.uri.clone(),
                         name: format_resource_name(resource.name.clone()),
                         description: resource.description.clone(),
-                        resource_uri: resource.uri.clone(),
-                        html,
-                        width: None,
-                        height: None,
-                        resizable: Some(true),
+                        mime_type: "text/html;profile=mcp-app".to_string(),
+                        text: Some(html),
+                        blob: None,
+                        meta: None,
+                    };
+
+                    let app = GooseApp {
+                        resource: mcp_resource,
                         mcp_server: Some(extension_name),
+                        window_props: Some(WindowProps {
+                            width: 800,
+                            height: 600,
+                            resizable: true,
+                        }),
                     };
 
                     if let Some(cache) = cache {
                         if let Err(e) = cache.cache_app(&app) {
-                            warn!("Failed to cache app {}: {}", app.name, e);
+                            warn!("Failed to cache app {}: {}", app.resource.name, e);
                         }
                     }
 

@@ -553,6 +553,7 @@ derive_utoipa!(Icon as IconSchema);
         super::tunnel::TunnelState,
         super::routes::telemetry::TelemetryEventRequest,
         goose::goose_apps::GooseApp,
+        goose::goose_apps::WindowProps,
         goose::goose_apps::McpAppResource,
         goose::goose_apps::CspMetadata,
         goose::goose_apps::UiMetadata,

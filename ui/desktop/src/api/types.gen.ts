@@ -364,15 +364,14 @@ export type GetToolsQuery = {
     session_id: string;
 };
 
-export type GooseApp = {
-    description?: string | null;
-    height?: number | null;
-    html: string;
+/**
+ * A Goose App combining MCP resource data with Goose-specific metadata
+ */
+export type GooseApp = McpAppResource & (WindowProps | null) & {
+    /**
+     * Which MCP server/extension provides this app (tracking metadata)
+     */
     mcpServer?: string | null;
-    name: string;
-    resizable?: boolean | null;
-    resourceUri: string;
-    width?: number | null;
 };
 
 export type Icon = {
@@ -1215,6 +1214,15 @@ export type UpsertConfigQuery = {
 
 export type UpsertPermissionsQuery = {
     tool_permissions: Array<ToolPermission>;
+};
+
+/**
+ * Window properties for Goose-specific window management
+ */
+export type WindowProps = {
+    height: number;
+    resizable: boolean;
+    width: number;
 };
 
 export type ConfirmToolActionData = {
