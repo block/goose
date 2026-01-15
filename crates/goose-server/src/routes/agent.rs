@@ -998,7 +998,10 @@ async fn list_apps(
 
         for extension_name in active_extensions {
             if let Err(e) = cache.delete_extension_apps(&extension_name) {
-                warn!("Failed to clean cache for extension {}: {}", extension_name, e);
+                warn!(
+                    "Failed to clean cache for extension {}: {}",
+                    extension_name, e
+                );
             }
         }
 

@@ -276,9 +276,8 @@ export function useChatStream({
         });
         setChatState(ChatState.Idle);
 
-        // Populate apps cache in the background (don't await)
         listApps({
-          throwOnError: false,
+          throwOnError: true,
           query: { session_id: sessionId },
         }).catch((err) => {
           console.warn('Failed to populate apps cache:', err);
