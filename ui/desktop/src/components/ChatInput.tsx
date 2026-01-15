@@ -100,6 +100,8 @@ interface ChatInputProps {
   toolCount: number;
   append?: (message: Message) => void;
   onWorkingDirChange?: (newDir: string) => void;
+  isExtensionsLoading?: boolean;
+  autoSubmit?: boolean;
 }
 
 export default function ChatInput({
@@ -126,6 +128,8 @@ export default function ChatInput({
   toolCount,
   append: _append,
   onWorkingDirChange,
+  isExtensionsLoading: _isExtensionsLoading = false,
+  autoSubmit = false,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
@@ -342,6 +346,12 @@ export default function ChatInput({
   const [hasUserTyped, setHasUserTyped] = useState(false);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const timeoutRefsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+  const [didAutoSubmit, setDidAutoSubmit] = useState<boolean>(false);
+
+  // Reset auto-submit state when the active session changes so recipes can auto-submit again
+  useEffect(() => {
+    setDidAutoSubmit(false);
+  }, [sessionId]);
 
   // Use shared file drop hook for ChatInput
   const {
@@ -1001,6 +1011,23 @@ export default function ChatInput({
     ]
   );
 
+  const performSubmitRef = useRef(performSubmit);
+  useEffect(() => {
+    performSubmitRef.current = performSubmit;
+  }, [performSubmit]);
+
+  const displayValueRef = useRef(displayValue);
+  useEffect(() => {
+    displayValueRef.current = displayValue;
+  }, [displayValue]);
+
+  useEffect(() => {
+    if (!!autoSubmit && !didAutoSubmit) {
+      setDidAutoSubmit(true);
+      performSubmitRef.current(displayValueRef.current);
+    }
+  }, [autoSubmit, didAutoSubmit]);
+
   const handleKeyDown = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // If mention popover is open, handle arrow keys and enter
     if (mentionPopover.isOpen && mentionPopoverRef.current) {
@@ -1134,7 +1161,8 @@ export default function ChatInput({
     isAnyDroppedFileLoading ||
     isRecording ||
     isTranscribing ||
-    chatState === ChatState.RestartingAgent;
+    chatState === ChatState.RestartingAgent ||
+    _isExtensionsLoading;
 
   // Queue management functions - no storage persistence, only in-memory
   const handleRemoveQueuedMessage = (messageId: string) => {

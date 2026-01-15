@@ -95,6 +95,7 @@ export default function Hub({
         sessionCosts={undefined}
         toolCount={0}
         onWorkingDirChange={setWorkingDir}
+        autoSubmit={false}
       />
     </div>
   );

@@ -73,7 +73,7 @@ function BaseChatContent({
 
   const disableAnimation = location.state?.disableAnimation || false;
   const [hasStartedUsingRecipe, setHasStartedUsingRecipe] = React.useState(false);
-  const [hasNotAcceptedRecipe, setHasNotAcceptedRecipe] = useState<boolean>();
+  const [hasNotAcceptedRecipe, setHasNotAcceptedRecipe] = useState<boolean>(true);
   const [hasRecipeSecurityWarnings, setHasRecipeSecurityWarnings] = useState(false);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
 
@@ -128,6 +128,14 @@ function BaseChatContent({
       }, [])
       .reverse();
   }, [messages]);
+
+  const recipe = session?.recipe;
+
+  const autoSubmit = useMemo(() => {
+    if (!session || initialMessage) return false;
+    const hasMessages = (session.conversation?.length ?? 0) > 0;
+    return !!(recipe?.prompt && !hasMessages && hasNotAcceptedRecipe === false);
+  }, [session, recipe, hasNotAcceptedRecipe, initialMessage]);
 
   useEffect(() => {
     if (!session || hasAutoSubmittedRef.current) {
@@ -184,8 +192,6 @@ function BaseChatContent({
     localOutputTokens: 0,
     session,
   });
-
-  const recipe = session?.recipe;
 
   useEffect(() => {
     if (!recipe) return;
@@ -456,6 +462,7 @@ function BaseChatContent({
             recipeAccepted={!hasNotAcceptedRecipe}
             initialPrompt={initialPrompt}
             toolCount={toolCount || 0}
+            autoSubmit={autoSubmit}
             {...customChatInputProps}
           />
         </div>
