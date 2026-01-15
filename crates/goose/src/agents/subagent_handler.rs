@@ -182,6 +182,10 @@ fn get_agent_messages(
             retry_config: recipe.retry,
         };
 
+        // Expose session ID as environment variable for subagent processes
+        // This enables session-isolated paths (e.g., .goose/$GOOSE_SESSION_ID/handoff/)
+        std::env::set_var("GOOSE_SESSION_ID", &session_id);
+
         let mut stream = crate::session_context::with_session_id(Some(session_id.clone()), async {
             agent
                 .reply(user_message, session_config, cancellation_token)
