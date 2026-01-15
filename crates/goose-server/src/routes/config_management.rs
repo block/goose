@@ -780,6 +780,12 @@ pub async fn update_custom_provider(
         tracing::warn!("Failed to refresh custom providers after update: {}", e);
     }
 
+    if let Ok(manager) = goose::execution::manager::AgentManager::instance().await {
+        if let Err(e) = manager.refresh_provider_for_sessions(&id).await {
+            tracing::warn!("Failed to refresh provider for existing sessions: {}", e);
+        }
+    }
+
     Ok(Json(format!("Updated custom provider: {}", id)))
 }
 
