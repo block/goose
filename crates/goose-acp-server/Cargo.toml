@@ -1,0 +1,42 @@
+[package]
+name = "goose-acp-server"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "ACP server for goose over streamable HTTP"
+
+[[bin]]
+name = "goose-acp-server"
+path = "src/main.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+goose = { path = "../goose" }
+goose-acp = { path = "../goose-acp" }
+goose-mcp = { path = "../goose-mcp" }
+
+anyhow = { workspace = true }
+axum = "0.8"
+clap = { version = "4", features = ["derive"] }
+futures = { workspace = true }
+sacp = "10.1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { version = "0.7", features = ["compat", "rt"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors"] }
+tracing = { workspace = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+uuid = { version = "1.19.0", features = ["v4"] }
+chrono = { version = "0.4.43", features = ["serde"] }
+async-stream = "0.3.6"
+
+[dev-dependencies]
+axum = "0.8"
+tempfile = "3"
+tower = "0.5"
