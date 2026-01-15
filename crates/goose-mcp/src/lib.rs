@@ -65,6 +65,7 @@ macro_rules! builtin {
 
 pub static BUILTIN_EXTENSIONS: Lazy<HashMap<&'static str, BuiltinDef>> = Lazy::new(|| {
     HashMap::from([
+        builtin!(develop, DevelopServer),
         builtin!(developer, DeveloperServer),
         builtin!(autovisualiser, AutoVisualiserRouter),
         builtin!(computercontroller, ComputerControllerServer),
