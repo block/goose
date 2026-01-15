@@ -1,3 +1,5 @@
+use crate::cli::StreamableHttpOptions;
+
 use super::output;
 use super::CliSession;
 use console::style;
@@ -33,7 +35,7 @@ pub struct SessionBuilderConfig {
     /// List of stdio extension commands to add
     pub extensions: Vec<String>,
     /// List of streamable HTTP extension commands to add
-    pub streamable_http_extensions: Vec<String>,
+    pub streamable_http_extensions: Vec<StreamableHttpOptions>,
     /// List of builtin extension commands to add
     pub builtins: Vec<String>,
     /// List of extensions to enable, enable only this set and ignore configured ones
@@ -584,23 +586,23 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     }
 
     // Add streamable HTTP extensions if provided
-    for extension_str in session_config.streamable_http_extensions {
+    for extension_options in session_config.streamable_http_extensions {
         if let Err(e) = session
-            .add_streamable_http_extension(extension_str.clone())
+            .add_streamable_http_extension(extension_options.clone())
             .await
         {
             eprintln!(
                 "{}",
                 style(format!(
                     "Warning: Failed to start streamable HTTP extension '{}' ({}), continuing without it",
-                    extension_str, e
+                    extension_options.url, e
                 ))
                 .yellow()
             );
 
             // Offer debugging help
             if let Err(debug_err) = offer_extension_debugging_help(
-                &extension_str,
+                &extension_options.url,
                 &e.to_string(),
                 Arc::clone(&provider_for_display),
                 session_config.interactive,
@@ -695,7 +697,10 @@ mod tests {
             resume: false,
             no_session: false,
             extensions: vec!["echo test".to_string()],
-            streamable_http_extensions: vec!["http://localhost:8080/mcp".to_string()],
+            streamable_http_extensions: vec![StreamableHttpOptions {
+                url: "http://localhost:8080/mcp".to_string(),
+                timeout: goose::config::DEFAULT_EXTENSION_TIMEOUT,
+            }],
             builtins: vec!["developer".to_string()],
             extensions_override: None,
             additional_system_prompt: Some("Test prompt".to_string()),
