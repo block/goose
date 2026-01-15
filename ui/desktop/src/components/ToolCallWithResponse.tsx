@@ -291,9 +291,78 @@ interface Progress {
   message?: string;
 }
 
+interface SubagentToolRequestData {
+  type: 'subagent_tool_request';
+  subagent_id: string;
+  tool_call: {
+    name: string;
+    arguments?: { tool_graph?: ToolGraphNode[] };
+  };
+}
+
+const isSubagentToolRequestData = (data: unknown): data is SubagentToolRequestData => {
+  if (!data || typeof data !== 'object') {
+    return false;
+  }
+  const record = data as Record<string, unknown>;
+  if (record.type !== 'subagent_tool_request') {
+    return false;
+  }
+  if (typeof record.subagent_id !== 'string') {
+    return false;
+  }
+  if (!record.tool_call || typeof record.tool_call !== 'object') {
+    return false;
+  }
+  const toolCall = record.tool_call as Record<string, unknown>;
+  return typeof toolCall.name === 'string';
+};
+
+const formatSubagentToolCall = (data: SubagentToolRequestData): string => {
+  const subagentId = data.subagent_id;
+  const toolCall = data.tool_call;
+  const toolCallName = toolCall.name;
+
+  const shortId = subagentId?.split('_').pop() || subagentId;
+
+  const parts = toolCallName.split('__').reverse();
+  const toolName = parts[0] || 'unknown';
+  const extensionName = parts.slice(1).reverse().join('__') || '';
+  const toolGraph = toolCall.arguments?.tool_graph;
+
+  if (toolName === 'execute_code' && toolGraph && toolGraph.length > 0) {
+    const plural = toolGraph.length === 1 ? '' : 's';
+    const header = `[subagent:${shortId}] ${toolGraph.length} tool call${plural} | execute_code`;
+    const lines = toolGraph.map((node, idx) => {
+      const deps =
+        node.depends_on && node.depends_on.length > 0
+          ? ` (uses ${node.depends_on.map((d) => d + 1).join(', ')})`
+          : '';
+      return `  ${idx + 1}. ${node.tool}: ${node.description}${deps}`;
+    });
+    return [header, ...lines].join('\n');
+  }
+
+  return extensionName
+    ? `[subagent:${shortId}] ${toolName} | ${extensionName}`
+    : `[subagent:${shortId}] ${toolName}`;
+};
+
 const logToString = (logMessage: NotificationEvent) => {
   const message = logMessage.message as { method: string; params: unknown };
   const params = message.params as Record<string, unknown>;
+
+  if (
+    params &&
+    params.data &&
+    typeof params.data === 'object' &&
+    'type' in params.data &&
+    params.data.type === 'subagent_tool_request'
+  ) {
+    if (isSubagentToolRequestData(params.data)) {
+      return formatSubagentToolCall(params.data);
+    }
+  }
 
   // Special case for the developer system shell logs
   if (
