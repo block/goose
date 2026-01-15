@@ -22,9 +22,7 @@ use goose::recipe::Recipe;
 use goose::recipe_deeplink;
 use goose::session::extension_data::ExtensionState;
 use goose::session::session_manager::SessionType;
-use goose::session::{
-    resolve_extensions_for_new_session, EnabledExtensionsState, Session,
-};
+use goose::session::{resolve_extensions_for_new_session, EnabledExtensionsState, Session};
 use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
     config::permission::PermissionLevel,

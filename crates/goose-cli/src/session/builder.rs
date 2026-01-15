@@ -1,7 +1,6 @@
 use super::output;
 use super::CliSession;
 use console::style;
-use goose::agents::extension::PlatformExtensionContext;
 use goose::agents::Agent;
 use goose::config::get_enabled_extensions;
 use goose::config::{
@@ -10,7 +9,6 @@ use goose::config::{
 use goose::providers::create;
 use goose::recipe::Recipe;
 use goose::session::session_manager::SessionType;
-use goose::session::SessionManager;
 use goose::session::{resolve_extensions_for_new_session, EnabledExtensionsState, ExtensionState};
 use rustyline::EditMode;
 use std::collections::BTreeSet;
@@ -549,7 +547,10 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     }
 
     let configured_extensions: Vec<ExtensionConfig> = if session_config.resume {
-        agent.config.session_manager.get_session(&session_id, false)
+        agent
+            .config
+            .session_manager
+            .get_session(&session_id, false)
             .await
             .ok()
             .and_then(|s| EnabledExtensionsState::from_extension_data(&s.extension_data))
