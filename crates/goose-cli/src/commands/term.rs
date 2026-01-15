@@ -1,8 +1,7 @@
 use anyhow::{anyhow, Result};
 use chrono;
 use goose::conversation::message::{Message, MessageContent, MessageMetadata};
-use goose::session::SessionManager;
-use goose::session::SessionType;
+use goose::session::{SessionManager, SessionType};
 use rmcp::model::Role;
 
 use crate::session::{build_session, SessionBuilderConfig};
@@ -119,10 +118,13 @@ pub async fn handle_term_init(
     with_command_not_found: bool,
 ) -> Result<()> {
     let config = shell.config();
+    let session_manager = SessionManager::instance();
 
     let working_dir = std::env::current_dir()?;
     let named_session = if let Some(ref name) = name {
-        let sessions = SessionManager::list_sessions_by_types(&[SessionType::Terminal]).await?;
+        let sessions = session_manager
+            .list_sessions_by_types(&[SessionType::Terminal])
+            .await?;
         sessions.into_iter().find(|s| s.name == *name)
     } else {
         None
@@ -131,15 +133,17 @@ pub async fn handle_term_init(
     let session = match named_session {
         Some(s) => s,
         None => {
-            let session = SessionManager::create_session(
-                working_dir,
-                "Goose Term Session".to_string(),
-                SessionType::Terminal,
-            )
-            .await?;
+            let session = session_manager
+                .create_session(
+                    working_dir,
+                    "Goose Term Session".to_string(),
+                    SessionType::Terminal,
+                )
+                .await?;
 
             if let Some(name) = name {
-                SessionManager::update_session(&session.id)
+                session_manager
+                    .update(&session.id)
                     .user_provided_name(name)
                     .apply()
                     .await?;
@@ -184,7 +188,8 @@ pub async fn handle_term_log(command: String) -> Result<()> {
     )
     .with_metadata(MessageMetadata::user_only());
 
-    SessionManager::add_message(&session_id, &message).await?;
+    let session_manager = SessionManager::instance();
+    session_manager.add_message(&session_id, &message).await?;
 
     Ok(())
 }
@@ -201,13 +206,15 @@ pub async fn handle_term_run(prompt: Vec<String>) -> Result<()> {
     })?;
 
     let working_dir = std::env::current_dir()?;
+    let session_manager = SessionManager::instance();
 
-    SessionManager::update_session(&session_id)
+    session_manager
+        .update(&session_id)
         .working_dir(working_dir)
         .apply()
         .await?;
 
-    let session = SessionManager::get_session(&session_id, true).await?;
+    let session = session_manager.get_session(&session_id, true).await?;
     let user_messages_after_last_assistant: Vec<&Message> =
         if let Some(conv) = &session.conversation {
             conv.messages()
@@ -220,7 +227,9 @@ pub async fn handle_term_run(prompt: Vec<String>) -> Result<()> {
         };
 
     if let Some(oldest_user) = user_messages_after_last_assistant.last() {
-        SessionManager::truncate_conversation(&session_id, oldest_user.created).await?;
+        session_manager
+            .truncate_conversation(&session_id, oldest_user.created)
+            .await?;
     }
 
     let prompt_with_context = if user_messages_after_last_assistant.is_empty() {
@@ -260,7 +269,8 @@ pub async fn handle_term_info() -> Result<()> {
         Err(_) => return Ok(()),
     };
 
-    let session = SessionManager::get_session(&session_id, false).await.ok();
+    let session_manager = SessionManager::instance();
+    let session = session_manager.get_session(&session_id, false).await.ok();
     let total_tokens = session.as_ref().and_then(|s| s.total_tokens).unwrap_or(0) as usize;
 
     let config = goose::config::Config::global();

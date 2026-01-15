@@ -1,7 +1,10 @@
 use anyhow::Result;
-use goose::agents::extension::{Envs, PlatformExtensionContext, PLATFORM_EXTENSIONS};
-use goose::agents::{Agent, ExtensionConfig, SessionConfig};
-use goose::config::{get_all_extensions, Config};
+use fs_err as fs;
+use goose::agents::extension::{Envs, PLATFORM_EXTENSIONS};
+use goose::agents::{Agent, AgentConfig, ExtensionConfig, SessionConfig};
+use goose::config::paths::Paths;
+use goose::config::permission::PermissionManager;
+use goose::config::Config;
 use goose::conversation::message::{ActionRequiredData, Message, MessageContent};
 use goose::conversation::Conversation;
 use goose::mcp_utils::ToolResult;
@@ -9,25 +12,23 @@ use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::{Permission, PermissionConfirmation};
 use goose::providers::create;
 use goose::session::session_manager::SessionType;
-use goose::session::SessionManager;
+use goose::session::{Session, SessionManager};
 use rmcp::model::{CallToolResult, RawContent, ResourceContents, Role};
 use sacp::schema::{
     AgentCapabilities, AuthenticateRequest, AuthenticateResponse, BlobResourceContents,
     CancelNotification, Content, ContentBlock, ContentChunk, EmbeddedResource,
     EmbeddedResourceResource, ImageContent, InitializeRequest, InitializeResponse,
     LoadSessionRequest, LoadSessionResponse, McpCapabilities, McpServer, NewSessionRequest,
-    NewSessionResponse, PermissionOption, PermissionOptionId, PermissionOptionKind,
-    PromptCapabilities, PromptRequest, PromptResponse, RequestPermissionOutcome,
-    RequestPermissionRequest, ResourceLink, SessionId, SessionNotification, SessionUpdate,
-    StopReason, TextContent, TextResourceContents, ToolCall, ToolCallContent, ToolCallId,
-    ToolCallLocation, ToolCallStatus, ToolCallUpdate, ToolCallUpdateFields, ToolKind,
+    NewSessionResponse, PermissionOption, PermissionOptionKind, PromptCapabilities, PromptRequest,
+    PromptResponse, RequestPermissionOutcome, RequestPermissionRequest, ResourceLink, SessionId,
+    SessionNotification, SessionUpdate, StopReason, TextContent, TextResourceContents, ToolCall,
+    ToolCallContent, ToolCallId, ToolCallLocation, ToolCallStatus, ToolCallUpdate,
+    ToolCallUpdateFields, ToolKind,
 };
 use sacp::{AgentToClient, ByteStreams, Handled, JrConnectionCx, JrMessageHandler, MessageCx};
-use std::collections::{HashMap, HashSet};
-use std::fs;
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tokio::task::JoinSet;
 use tokio_util::compat::{TokioAsyncReadCompatExt as _, TokioAsyncWriteCompatExt as _};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
@@ -39,9 +40,19 @@ struct GooseAcpSession {
     cancel_token: Option<CancellationToken>,
 }
 
-struct GooseAcpAgent {
+pub struct GooseAcpAgent {
     sessions: Arc<Mutex<HashMap<String, GooseAcpSession>>>,
     agent: Arc<Agent>,
+    provider: Arc<dyn goose::providers::base::Provider>,
+}
+
+pub struct GooseAcpConfig {
+    pub provider: Arc<dyn goose::providers::base::Provider>,
+    pub builtins: Vec<String>,
+    pub work_dir: std::path::PathBuf,
+    pub data_dir: std::path::PathBuf,
+    pub config_dir: std::path::PathBuf,
+    pub goose_mode: goose::config::GooseMode,
 }
 
 fn mcp_server_to_extension_config(mcp_server: McpServer) -> Result<ExtensionConfig, String> {
@@ -259,15 +270,16 @@ async fn add_builtins(agent: &Agent, builtins: Vec<String>) {
                 available_tools: Vec::new(),
             }
         };
+
         match agent.add_extension(config).await {
-            Ok(_) => info!(extension = %builtin, "builtin extension loaded"),
-            Err(e) => warn!(extension = %builtin, error = %e, "builtin extension load failed"),
+            Ok(_) => info!(extension = %builtin, "extension loaded"),
+            Err(e) => warn!(extension = %builtin, error = %e, "extension load failed"),
         }
     }
 }
 
 impl GooseAcpAgent {
-    async fn new(builtins: Vec<String>) -> Result<Self> {
+    pub async fn new(builtins: Vec<String>) -> Result<Self> {
         let config = Config::global();
 
         let provider_name: String = config
@@ -288,67 +300,38 @@ impl GooseAcpAgent {
             fast_model: None,
         };
         let provider = create(&provider_name, model_config).await?;
+        let goose_mode = config
+            .get_goose_mode()
+            .unwrap_or(goose::config::GooseMode::Auto);
 
-        let session = SessionManager::create_session(
-            std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
-            "ACP Session".to_string(),
-            SessionType::Hidden,
-        )
-        .await?;
+        Self::with_config(GooseAcpConfig {
+            provider,
+            builtins,
+            work_dir: std::env::current_dir().unwrap_or_default(),
+            data_dir: Paths::data_dir(),
+            config_dir: Paths::config_dir(),
+            goose_mode,
+        })
+        .await
+    }
 
-        let agent = Agent::new();
-        agent.update_provider(provider.clone(), &session.id).await?;
+    pub async fn with_config(config: GooseAcpConfig) -> Result<Self> {
+        let session_manager = Arc::new(SessionManager::new(config.data_dir));
+        let permission_manager = Arc::new(PermissionManager::new(config.config_dir));
 
-        let extensions_to_run: Vec<_> = get_all_extensions()
-            .into_iter()
-            .filter(|ext| ext.enabled)
-            .map(|ext| ext.config)
-            .collect();
+        let agent = Agent::with_config(AgentConfig::new(
+            Arc::clone(&session_manager),
+            permission_manager,
+            None,
+            config.goose_mode,
+        ));
 
         let agent_ptr = Arc::new(agent);
 
-        // ACP loads the same default extensions as CLI
-        agent_ptr
-            .extension_manager
-            .set_context(PlatformExtensionContext {
-                session_id: Some(session.id.clone()),
-                extension_manager: Some(Arc::downgrade(&agent_ptr.extension_manager)),
-            })
-            .await;
-
-        let mut set = JoinSet::new();
-        let mut waiting_on = HashSet::new();
-
-        for extension in extensions_to_run {
-            waiting_on.insert(extension.name());
-            let agent_ptr_clone = agent_ptr.clone();
-            set.spawn(async move {
-                (
-                    extension.name(),
-                    agent_ptr_clone.add_extension(extension.clone()).await,
-                )
-            });
-        }
-
-        while let Some(result) = set.join_next().await {
-            match result {
-                Ok((name, Ok(_))) => {
-                    waiting_on.remove(&name);
-                    info!(extension = %name, "extension loaded");
-                }
-                Ok((name, Err(e))) => {
-                    warn!(extension = %name, error = %e, "extension load failed");
-                    waiting_on.remove(&name);
-                }
-                Err(e) => {
-                    error!(error = %e, "extension task error");
-                }
-            }
-        }
-
-        add_builtins(&agent_ptr, builtins).await;
+        add_builtins(&agent_ptr, config.builtins).await;
 
         Ok(Self {
+            provider: config.provider.clone(),
             sessions: Arc::new(Mutex::new(HashMap::new())),
             agent: agent_ptr,
         })
@@ -407,7 +390,7 @@ impl GooseAcpAgent {
                 cx.send_notification(SessionNotification::new(
                     session_id.clone(),
                     SessionUpdate::AgentMessageChunk(ContentChunk::new(ContentBlock::Text(
-                        TextContent::new(&text.text),
+                        TextContent::new(text.text.clone()),
                     ))),
                 ))?;
             }
@@ -424,7 +407,7 @@ impl GooseAcpAgent {
                 cx.send_notification(SessionNotification::new(
                     session_id.clone(),
                     SessionUpdate::AgentThoughtChunk(ContentChunk::new(ContentBlock::Text(
-                        TextContent::new(&thinking.thinking),
+                        TextContent::new(thinking.thinking.clone()),
                     ))),
                 ))?;
             }
@@ -493,11 +476,10 @@ impl GooseAcpAgent {
         session: &mut GooseAcpSession,
         cx: &JrConnectionCx<AgentToClient>,
     ) -> Result<(), sacp::Error> {
-        // Determine if the tool call succeeded or failed
-        let status = if tool_response.tool_result.is_ok() {
-            ToolCallStatus::Completed
-        } else {
-            ToolCallStatus::Failed
+        let status = match &tool_response.tool_result {
+            Ok(result) if result.is_error == Some(true) => ToolCallStatus::Failed,
+            Ok(_) => ToolCallStatus::Completed,
+            Err(_) => ToolCallStatus::Failed,
         };
 
         let content = build_tool_call_content(&tool_response.tool_result);
@@ -559,12 +541,13 @@ impl GooseAcpAgent {
                 .as_str()
                 .unwrap()
                 .to_string();
-            PermissionOption::new(PermissionOptionId::from(id.clone()), id, kind)
+            PermissionOption::new(id.clone(), id, kind)
         }
         let options = vec![
             option(PermissionOptionKind::AllowAlways),
             option(PermissionOptionKind::AllowOnce),
             option(PermissionOptionKind::RejectOnce),
+            option(PermissionOptionKind::RejectAlways),
         ];
 
         let permission_request =
@@ -607,13 +590,12 @@ fn outcome_to_confirmation(outcome: &RequestPermissionOutcome) -> PermissionConf
         RequestPermissionOutcome::Cancelled => Permission::Cancel,
         RequestPermissionOutcome::Selected(selected) => {
             match serde_json::from_value::<PermissionOptionKind>(serde_json::Value::String(
-                selected.option_id.to_string(),
+                selected.option_id.0.to_string(),
             )) {
                 Ok(PermissionOptionKind::AllowAlways) => Permission::AlwaysAllow,
                 Ok(PermissionOptionKind::AllowOnce) => Permission::AllowOnce,
-                Ok(PermissionOptionKind::RejectOnce | PermissionOptionKind::RejectAlways) => {
-                    Permission::DenyOnce
-                }
+                Ok(PermissionOptionKind::RejectOnce) => Permission::DenyOnce,
+                Ok(PermissionOptionKind::RejectAlways) => Permission::AlwaysDeny,
                 Ok(_) => Permission::Cancel, // Handle any future permission kinds
                 Err(_) => Permission::Cancel,
             }
@@ -633,10 +615,10 @@ fn build_tool_call_content(tool_result: &ToolResult<CallToolResult>) -> Vec<Tool
             .iter()
             .filter_map(|content| match &content.raw {
                 RawContent::Text(val) => Some(ToolCallContent::Content(Content::new(
-                    ContentBlock::Text(TextContent::new(&val.text)),
+                    ContentBlock::Text(TextContent::new(val.text.clone())),
                 ))),
                 RawContent::Image(val) => Some(ToolCallContent::Content(Content::new(
-                    ContentBlock::Image(ImageContent::new(&val.data, &val.mime_type)),
+                    ContentBlock::Image(ImageContent::new(val.data.clone(), val.mime_type.clone())),
                 ))),
                 RawContent::Resource(val) => {
                     let resource = match &val.resource {
@@ -645,25 +627,19 @@ fn build_tool_call_content(tool_result: &ToolResult<CallToolResult>) -> Vec<Tool
                             text,
                             uri,
                             ..
-                        } => {
-                            let mut r = TextResourceContents::new(text.clone(), uri.clone());
-                            if let Some(mt) = mime_type {
-                                r = r.mime_type(mt.clone());
-                            }
-                            EmbeddedResourceResource::TextResourceContents(r)
-                        }
+                        } => EmbeddedResourceResource::TextResourceContents(
+                            TextResourceContents::new(text.clone(), uri.clone())
+                                .mime_type(mime_type.clone()),
+                        ),
                         ResourceContents::BlobResourceContents {
                             mime_type,
                             blob,
                             uri,
                             ..
-                        } => {
-                            let mut r = BlobResourceContents::new(blob.clone(), uri.clone());
-                            if let Some(mt) = mime_type {
-                                r = r.mime_type(mt.clone());
-                            }
-                            EmbeddedResourceResource::BlobResourceContents(r)
-                        }
+                        } => EmbeddedResourceResource::BlobResourceContents(
+                            BlobResourceContents::new(blob.clone(), uri.clone())
+                                .mime_type(mime_type.clone()),
+                        ),
                     };
                     Some(ToolCallContent::Content(Content::new(
                         ContentBlock::Resource(EmbeddedResource::new(resource)),
@@ -709,18 +685,33 @@ impl GooseAcpAgent {
     ) -> Result<NewSessionResponse, sacp::Error> {
         debug!(?args, "new session request");
 
-        let goose_session = SessionManager::create_session(
-            std::env::current_dir().unwrap_or_default(),
-            "ACP Session".to_string(), // just an initial name - may be replaced by maybe_update_name
-            SessionType::User,
-        )
-        .await
-        .map_err(|e| {
-            sacp::Error::new(
-                sacp::ErrorCode::InternalError.into(),
-                format!("Failed to create session: {}", e),
+        let manager = self.agent.config.session_manager.clone();
+        let goose_session = manager
+            .create_session(
+                std::env::current_dir().unwrap_or_default(),
+                "ACP Session".to_string(), // just an initial name - may be replaced by maybe_update_name
+                SessionType::User,
             )
-        })?;
+            .await
+            .map_err(|e| {
+                sacp::Error::internal_error().data(format!("Failed to create session: {}", e))
+            })?;
+        self.update_session_with_provider(&goose_session).await?;
+
+        // Add MCP servers specified in the session request
+        for mcp_server in args.mcp_servers {
+            let config = match mcp_server_to_extension_config(mcp_server) {
+                Ok(c) => c,
+                Err(msg) => {
+                    return Err(sacp::Error::invalid_params().data(msg));
+                }
+            };
+            let name = config.name().to_string();
+            if let Err(e) = self.agent.add_extension(config).await {
+                return Err(sacp::Error::internal_error()
+                    .data(format!("Failed to add MCP server '{}': {}", name, e)));
+            }
+        }
 
         let session = GooseAcpSession {
             messages: Conversation::new_unvalidated(Vec::new()),
@@ -731,23 +722,6 @@ impl GooseAcpAgent {
         let mut sessions = self.sessions.lock().await;
         sessions.insert(goose_session.id.clone(), session);
 
-        // Add MCP servers specified in the session request
-        for mcp_server in args.mcp_servers {
-            let config = match mcp_server_to_extension_config(mcp_server) {
-                Ok(c) => c,
-                Err(msg) => {
-                    return Err(sacp::Error::new(sacp::ErrorCode::InvalidParams.into(), msg));
-                }
-            };
-            let name = config.name().to_string();
-            if let Err(e) = self.agent.add_extension(config).await {
-                return Err(sacp::Error::new(
-                    sacp::ErrorCode::InternalError.into(),
-                    format!("Failed to add MCP server '{}': {}", name, e),
-                ));
-            }
-        }
-
         info!(
             session_id = %goose_session.id,
             session_type = "acp",
@@ -755,6 +729,19 @@ impl GooseAcpAgent {
         );
 
         Ok(NewSessionResponse::new(SessionId::new(goose_session.id)))
+    }
+
+    async fn update_session_with_provider(
+        &self,
+        goose_session: &Session,
+    ) -> Result<(), sacp::Error> {
+        self.agent
+            .update_provider(self.provider.clone(), &goose_session.id)
+            .await
+            .map_err(|e| {
+                sacp::Error::internal_error().data(format!("Failed to set provider: {}", e))
+            })?;
+        Ok(())
     }
 
     async fn on_load_session(
@@ -766,31 +753,26 @@ impl GooseAcpAgent {
 
         let session_id = args.session_id.0.to_string();
 
-        let goose_session = SessionManager::get_session(&session_id, true)
-            .await
-            .map_err(|e| {
-                sacp::Error::new(
-                    sacp::ErrorCode::InvalidParams.into(),
-                    format!("Failed to load session {}: {}", session_id, e),
-                )
-            })?;
+        let manager = self.agent.config.session_manager.clone();
+        let goose_session = manager.get_session(&session_id, true).await.map_err(|e| {
+            sacp::Error::invalid_params()
+                .data(format!("Failed to load session {}: {}", session_id, e))
+        })?;
+        self.update_session_with_provider(&goose_session).await?;
 
         let conversation = goose_session.conversation.ok_or_else(|| {
-            sacp::Error::new(
-                sacp::ErrorCode::InternalError.into(),
-                format!("Session {} has no conversation data", session_id),
-            )
+            sacp::Error::internal_error()
+                .data(format!("Session {} has no conversation data", session_id))
         })?;
 
-        SessionManager::update_session(&session_id)
+        manager
+            .update(&session_id)
             .working_dir(args.cwd.clone())
             .apply()
             .await
             .map_err(|e| {
-                sacp::Error::new(
-                    sacp::ErrorCode::InternalError.into(),
-                    format!("Failed to update session working directory: {}", e),
-                )
+                sacp::Error::internal_error()
+                    .data(format!("Failed to update session working directory: {}", e))
             })?;
 
         let mut session = GooseAcpSession {
@@ -809,8 +791,9 @@ impl GooseAcpAgent {
             for content_item in &message.content {
                 match content_item {
                     MessageContent::Text(text) => {
-                        let chunk =
-                            ContentChunk::new(ContentBlock::Text(TextContent::new(&text.text)));
+                        let chunk = ContentChunk::new(ContentBlock::Text(TextContent::new(
+                            text.text.clone(),
+                        )));
                         let update = match message.role {
                             Role::User => SessionUpdate::UserMessageChunk(chunk),
                             Role::Assistant => SessionUpdate::AgentMessageChunk(chunk),
@@ -837,7 +820,7 @@ impl GooseAcpAgent {
                         cx.send_notification(SessionNotification::new(
                             args.session_id.clone(),
                             SessionUpdate::AgentThoughtChunk(ContentChunk::new(
-                                ContentBlock::Text(TextContent::new(&thinking.thinking)),
+                                ContentBlock::Text(TextContent::new(thinking.thinking.clone())),
                             )),
                         ))?;
                     }
@@ -871,10 +854,7 @@ impl GooseAcpAgent {
         {
             let mut sessions = self.sessions.lock().await;
             let session = sessions.get_mut(&session_id).ok_or_else(|| {
-                sacp::Error::new(
-                    sacp::ErrorCode::InvalidParams.into(),
-                    format!("Session not found: {}", session_id),
-                )
+                sacp::Error::invalid_params().data(format!("Session not found: {}", session_id))
             })?;
             session.cancel_token = Some(cancel_token.clone());
         }
@@ -893,10 +873,7 @@ impl GooseAcpAgent {
             .reply(user_message, session_config, Some(cancel_token.clone()))
             .await
             .map_err(|e| {
-                sacp::Error::new(
-                    sacp::ErrorCode::InternalError.into(),
-                    format!("Error getting agent reply: {}", e),
-                )
+                sacp::Error::internal_error().data(format!("Error getting agent reply: {}", e))
             })?;
 
         use futures::StreamExt;
@@ -913,10 +890,8 @@ impl GooseAcpAgent {
                 Ok(goose::agents::AgentEvent::Message(message)) => {
                     let mut sessions = self.sessions.lock().await;
                     let session = sessions.get_mut(&session_id).ok_or_else(|| {
-                        sacp::Error::new(
-                            sacp::ErrorCode::InvalidParams.into(),
-                            format!("Session not found: {}", session_id),
-                        )
+                        sacp::Error::invalid_params()
+                            .data(format!("Session not found: {}", session_id))
                     })?;
 
                     session.messages.push(message.clone());
@@ -928,10 +903,8 @@ impl GooseAcpAgent {
                 }
                 Ok(_) => {}
                 Err(e) => {
-                    return Err(sacp::Error::new(
-                        sacp::ErrorCode::InternalError.into(),
-                        format!("Error in agent response stream: {}", e),
-                    ));
+                    return Err(sacp::Error::internal_error()
+                        .data(format!("Error in agent response stream: {}", e)));
                 }
             }
         }
@@ -941,12 +914,11 @@ impl GooseAcpAgent {
             session.cancel_token = None;
         }
 
-        let stop_reason = if was_cancelled {
+        Ok(PromptResponse::new(if was_cancelled {
             StopReason::Cancelled
         } else {
             StopReason::EndTurn
-        };
-        Ok(PromptResponse::new(stop_reason))
+        }))
     }
 
     async fn on_cancel(&self, args: CancelNotification) -> Result<(), sacp::Error> {
@@ -968,8 +940,8 @@ impl GooseAcpAgent {
     }
 }
 
-struct GooseAcpHandler {
-    agent: Arc<GooseAcpAgent>,
+pub struct GooseAcpHandler {
+    pub agent: Arc<GooseAcpAgent>,
 }
 
 impl JrMessageHandler for GooseAcpHandler {
@@ -1041,22 +1013,31 @@ impl JrMessageHandler for GooseAcpHandler {
     }
 }
 
-pub async fn run_acp_agent(builtins: Vec<String>) -> Result<()> {
+/// Serve ACP on a given transport (for in-process testing)
+pub async fn serve<R, W>(agent: Arc<GooseAcpAgent>, read: R, write: W) -> Result<()>
+where
+    R: futures::AsyncRead + Unpin + Send + 'static,
+    W: futures::AsyncWrite + Unpin + Send + 'static,
+{
+    let handler = GooseAcpHandler { agent };
+
+    AgentToClient::builder()
+        .name("goose-acp")
+        .with_handler(handler)
+        .serve(ByteStreams::new(write, read))
+        .await?;
+
+    Ok(())
+}
+
+pub async fn run(builtins: Vec<String>) -> Result<()> {
     info!("listening on stdio");
 
     let outgoing = tokio::io::stdout().compat_write();
     let incoming = tokio::io::stdin().compat();
 
     let agent = Arc::new(GooseAcpAgent::new(builtins).await?);
-    let handler = GooseAcpHandler { agent };
-
-    AgentToClient::builder()
-        .name("goose-acp")
-        .with_handler(handler)
-        .serve(ByteStreams::new(outgoing, incoming))
-        .await?;
-
-    Ok(())
+    serve(agent, incoming, outgoing).await
 }
 
 #[cfg(test)]
@@ -1064,25 +1045,17 @@ mod tests {
     use super::*;
     use sacp::schema::{
         EnvVariable, HttpHeader, McpServer, McpServerHttp, McpServerSse, McpServerStdio,
-        ResourceLink, SelectedPermissionOutcome,
+        PermissionOptionId, ResourceLink, SelectedPermissionOutcome,
     };
     use std::io::Write;
     use tempfile::NamedTempFile;
     use test_case::test_case;
 
-    use crate::commands::acp::{
-        format_tool_name, mcp_server_to_extension_config, read_resource_link,
-    };
-    use goose::agents::ExtensionConfig;
-
     #[test_case(
         McpServer::Stdio(
             McpServerStdio::new("github", "/path/to/github-mcp-server")
                 .args(vec!["stdio".into()])
-                .env(vec![EnvVariable::new(
-                    "GITHUB_PERSONAL_ACCESS_TOKEN",
-                    "ghp_xxxxxxxxxxxx"
-                )])
+                .env(vec![EnvVariable::new("GITHUB_PERSONAL_ACCESS_TOKEN", "ghp_xxxxxxxxxxxx")])
         ),
         Ok(ExtensionConfig::Stdio {
             name: "github".into(),
@@ -1195,27 +1168,27 @@ print(\"hello, world\")
     }
 
     #[test_case(
-        RequestPermissionOutcome::Selected(SelectedPermissionOutcome::new("allow_once")),
+        RequestPermissionOutcome::Selected(SelectedPermissionOutcome::new(PermissionOptionId::from("allow_once".to_string()))),
         PermissionConfirmation { principal_type: PrincipalType::Tool, permission: Permission::AllowOnce };
         "allow_once_maps_to_allow_once"
     )]
     #[test_case(
-        RequestPermissionOutcome::Selected(SelectedPermissionOutcome::new("allow_always")),
+        RequestPermissionOutcome::Selected(SelectedPermissionOutcome::new(PermissionOptionId::from("allow_always".to_string()))),
         PermissionConfirmation { principal_type: PrincipalType::Tool, permission: Permission::AlwaysAllow };
         "allow_always_maps_to_always_allow"
     )]
     #[test_case(
-        RequestPermissionOutcome::Selected(SelectedPermissionOutcome::new("reject_once")),
+        RequestPermissionOutcome::Selected(SelectedPermissionOutcome::new(PermissionOptionId::from("reject_once".to_string()))),
         PermissionConfirmation { principal_type: PrincipalType::Tool, permission: Permission::DenyOnce };
         "reject_once_maps_to_deny_once"
     )]
     #[test_case(
-        RequestPermissionOutcome::Selected(SelectedPermissionOutcome::new("reject_always")),
-        PermissionConfirmation { principal_type: PrincipalType::Tool, permission: Permission::DenyOnce };
-        "reject_always_maps_to_deny_once"
+        RequestPermissionOutcome::Selected(SelectedPermissionOutcome::new(PermissionOptionId::from("reject_always".to_string()))),
+        PermissionConfirmation { principal_type: PrincipalType::Tool, permission: Permission::AlwaysDeny };
+        "reject_always_maps_to_always_deny"
     )]
     #[test_case(
-        RequestPermissionOutcome::Selected(SelectedPermissionOutcome::new("unknown")),
+        RequestPermissionOutcome::Selected(SelectedPermissionOutcome::new(PermissionOptionId::from("unknown".to_string()))),
         PermissionConfirmation { principal_type: PrincipalType::Tool, permission: Permission::Cancel };
         "unknown_option_maps_to_cancel"
     )]

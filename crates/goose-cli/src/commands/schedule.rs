@@ -3,16 +3,9 @@ use goose::scheduler::{
     get_default_scheduled_recipes_dir, get_default_scheduler_storage_path, ScheduledJob, Scheduler,
     SchedulerError,
 };
+use goose::session::SessionManager;
 use std::path::Path;
 use std::sync::Arc;
-
-async fn create_scheduler() -> Result<Arc<Scheduler>> {
-    let storage_path =
-        get_default_scheduler_storage_path().context("Failed to get scheduler storage path")?;
-    Scheduler::new(storage_path)
-        .await
-        .context("Failed to initialize scheduler")
-}
 
 fn validate_cron_expression(cron: &str) -> Result<()> {
     // Basic validation and helpful suggestions
@@ -97,7 +90,12 @@ pub async fn handle_schedule_add(
         process_start_time: None,
     };
 
-    let scheduler = create_scheduler().await?;
+    let scheduler_storage_path =
+        get_default_scheduler_storage_path().context("Failed to get scheduler storage path")?;
+    let session_manager = Arc::new(SessionManager::instance());
+    let scheduler = Scheduler::new(scheduler_storage_path, session_manager)
+        .await
+        .context("Failed to initialize scheduler")?;
 
     match scheduler.add_scheduled_job(job, true).await {
         Ok(_) => {
@@ -139,7 +137,12 @@ pub async fn handle_schedule_add(
 }
 
 pub async fn handle_schedule_list() -> Result<()> {
-    let scheduler = create_scheduler().await?;
+    let scheduler_storage_path =
+        get_default_scheduler_storage_path().context("Failed to get scheduler storage path")?;
+    let session_manager = Arc::new(SessionManager::instance());
+    let scheduler = Scheduler::new(scheduler_storage_path, session_manager)
+        .await
+        .context("Failed to initialize scheduler")?;
 
     let jobs = scheduler.list_scheduled_jobs().await;
     if jobs.is_empty() {
@@ -170,7 +173,12 @@ pub async fn handle_schedule_list() -> Result<()> {
 }
 
 pub async fn handle_schedule_remove(schedule_id: String) -> Result<()> {
-    let scheduler = create_scheduler().await?;
+    let scheduler_storage_path =
+        get_default_scheduler_storage_path().context("Failed to get scheduler storage path")?;
+    let session_manager = Arc::new(SessionManager::instance());
+    let scheduler = Scheduler::new(scheduler_storage_path, session_manager)
+        .await
+        .context("Failed to initialize scheduler")?;
 
     match scheduler.remove_scheduled_job(&schedule_id, true).await {
         Ok(_) => {
@@ -193,7 +201,12 @@ pub async fn handle_schedule_remove(schedule_id: String) -> Result<()> {
 }
 
 pub async fn handle_schedule_sessions(schedule_id: String, limit: Option<usize>) -> Result<()> {
-    let scheduler = create_scheduler().await?;
+    let scheduler_storage_path =
+        get_default_scheduler_storage_path().context("Failed to get scheduler storage path")?;
+    let session_manager = Arc::new(SessionManager::instance());
+    let scheduler = Scheduler::new(scheduler_storage_path, session_manager)
+        .await
+        .context("Failed to initialize scheduler")?;
 
     match scheduler.sessions(&schedule_id, limit.unwrap_or(50)).await {
         Ok(sessions) => {
@@ -225,7 +238,12 @@ pub async fn handle_schedule_sessions(schedule_id: String, limit: Option<usize>)
 }
 
 pub async fn handle_schedule_run_now(schedule_id: String) -> Result<()> {
-    let scheduler = create_scheduler().await?;
+    let scheduler_storage_path =
+        get_default_scheduler_storage_path().context("Failed to get scheduler storage path")?;
+    let session_manager = Arc::new(SessionManager::instance());
+    let scheduler = Scheduler::new(scheduler_storage_path, session_manager)
+        .await
+        .context("Failed to initialize scheduler")?;
 
     match scheduler.run_now(&schedule_id).await {
         Ok(session_id) => {

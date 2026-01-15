@@ -5,7 +5,6 @@ use crate::eval_suites::{EvaluationSuite, ExtensionRequirements};
 use crate::reporting::EvaluationResult;
 use crate::utilities::await_process_exits;
 use anyhow::{bail, Context, Result};
-use goose::session::SessionManager;
 use std::env;
 use std::fs;
 use std::future::Future;
@@ -156,8 +155,7 @@ impl EvalRunner {
                 .canonicalize()
                 .context("Failed to canonicalize current directory path")?;
 
-            let session_id = agent.get_session_id()?.to_string();
-            let session = SessionManager::get_session(&session_id, true).await?;
+            let session = agent.get_session().await?;
 
             let session_json = serde_json::to_string_pretty(&session)
                 .context("Failed to serialize session to JSON")?;

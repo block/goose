@@ -2,14 +2,14 @@ use anyhow::Result;
 use clap::{Args, CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, Shell as ClapShell};
 use goose::config::{Config, ExtensionConfig};
+use goose::posthog::get_telemetry_choice;
 use goose_mcp::mcp_server_runner::{serve, McpCommand};
 use goose_mcp::{
     AutoVisualiserRouter, ComputerControllerServer, DeveloperServer, MemoryServer, TutorialServer,
 };
 
-use crate::commands::acp::run_acp_agent;
 use crate::commands::bench::agent_generator;
-use crate::commands::configure::handle_configure;
+use crate::commands::configure::{configure_telemetry_consent_dialog, handle_configure};
 use crate::commands::info::handle_info;
 use crate::commands::project::{handle_project_default, handle_projects_interactive};
 use crate::commands::recipe::{handle_deeplink, handle_list, handle_open, handle_validate};
@@ -319,21 +319,24 @@ async fn get_or_create_session_id(
         return Ok(None);
     }
 
+    let session_manager = SessionManager::instance();
+
     let Some(id) = identifier else {
         return if resume {
-            let sessions = SessionManager::list_sessions().await?;
+            let sessions = session_manager.list_sessions().await?;
             let session_id = sessions
                 .first()
                 .map(|s| s.id.clone())
                 .ok_or_else(|| anyhow::anyhow!("No session found to resume"))?;
             Ok(Some(session_id))
         } else {
-            let session = SessionManager::create_session(
-                std::env::current_dir()?,
-                "CLI Session".to_string(),
-                SessionType::User,
-            )
-            .await?;
+            let session = session_manager
+                .create_session(
+                    std::env::current_dir()?,
+                    "CLI Session".to_string(),
+                    SessionType::User,
+                )
+                .await?;
             Ok(Some(session.id))
         };
     };
@@ -342,7 +345,7 @@ async fn get_or_create_session_id(
         Ok(Some(session_id))
     } else if let Some(name) = id.name {
         if resume {
-            let sessions = SessionManager::list_sessions().await?;
+            let sessions = session_manager.list_sessions().await?;
             let session_id = sessions
                 .into_iter()
                 .find(|s| s.name == name || s.id == name)
@@ -350,14 +353,12 @@ async fn get_or_create_session_id(
                 .ok_or_else(|| anyhow::anyhow!("No session found with name '{}'", name))?;
             Ok(Some(session_id))
         } else {
-            let session = SessionManager::create_session(
-                std::env::current_dir()?,
-                name.clone(),
-                SessionType::User,
-            )
-            .await?;
+            let session = session_manager
+                .create_session(std::env::current_dir()?, name.clone(), SessionType::User)
+                .await?;
 
-            SessionManager::update_session(&session.id)
+            session_manager
+                .update(&session.id)
                 .user_provided_name(name)
                 .apply()
                 .await?;
@@ -372,12 +373,13 @@ async fn get_or_create_session_id(
             .ok_or_else(|| anyhow::anyhow!("Could not extract session ID from path: {:?}", path))?;
         Ok(Some(session_id))
     } else {
-        let session = SessionManager::create_session(
-            std::env::current_dir()?,
-            "CLI Session".to_string(),
-            SessionType::User,
-        )
-        .await?;
+        let session = session_manager
+            .create_session(
+                std::env::current_dir()?,
+                "CLI Session".to_string(),
+                SessionType::User,
+            )
+            .await?;
         Ok(Some(session.id))
     }
 }
@@ -386,7 +388,8 @@ async fn lookup_session_id(identifier: Identifier) -> Result<String> {
     if let Some(session_id) = identifier.session_id {
         Ok(session_id)
     } else if let Some(name) = identifier.name {
-        let sessions = SessionManager::list_sessions().await?;
+        let session_manager = SessionManager::instance();
+        let sessions = session_manager.list_sessions().await?;
         sessions
             .into_iter()
             .find(|s| s.name == name || s.id == name)
@@ -831,6 +834,13 @@ enum Command {
         /// Authentication token for both Basic Auth (password) and Bearer token
         #[arg(long, help = "Authentication token to secure the web interface")]
         auth_token: Option<String>,
+
+        /// Allow running without authentication when exposed on the network (unsafe)
+        #[arg(
+            long,
+            help = "Skip auth requirement when exposed on the network (unsafe)"
+        )]
+        no_auth: bool,
     },
 
     /// Terminal-integrated session (one session per terminal)
@@ -1000,10 +1010,15 @@ async fn handle_session_subcommand(command: SessionCommand) -> Result<()> {
             output,
             format,
         } => {
+            let session_manager = SessionManager::instance();
             let session_identifier = if let Some(id) = identifier {
                 lookup_session_id(id).await?
             } else {
-                match crate::commands::session::prompt_interactive_session_selection().await {
+                match crate::commands::session::prompt_interactive_session_selection(
+                    &session_manager,
+                )
+                .await
+                {
                     Ok(id) => id,
                     Err(e) => {
                         eprintln!("Error: {}", e);
@@ -1015,10 +1030,15 @@ async fn handle_session_subcommand(command: SessionCommand) -> Result<()> {
                 .await?;
         }
         SessionCommand::Diagnostics { identifier, output } => {
+            let session_manager = SessionManager::instance();
             let session_id = if let Some(id) = identifier {
                 lookup_session_id(id).await?
             } else {
-                match crate::commands::session::prompt_interactive_session_selection().await {
+                match crate::commands::session::prompt_interactive_session_selection(
+                    &session_manager,
+                )
+                .await
+                {
                     Ok(id) => id,
                     Err(e) => {
                         eprintln!("Error: {}", e);
@@ -1039,6 +1059,10 @@ async fn handle_interactive_session(
     session_opts: SessionOptions,
     extension_opts: ExtensionOptions,
 ) -> Result<()> {
+    if get_telemetry_choice().is_none() {
+        configure_telemetry_consent_dialog()?;
+    }
+
     let session_start = std::time::Instant::now();
     let session_type = if resume { "resumed" } else { "new" };
 
@@ -1247,6 +1271,10 @@ async fn handle_run_command(
     output_opts: OutputOptions,
     model_opts: ModelOptions,
 ) -> Result<()> {
+    if run_behavior.interactive && get_telemetry_choice().is_none() {
+        configure_telemetry_consent_dialog()?;
+    }
+
     let parsed = parse_run_input(&input_opts, output_opts.quiet)?;
 
     let Some((input_config, recipe_info)) = parsed else {
@@ -1397,6 +1425,10 @@ async fn handle_default_session() -> Result<()> {
         return handle_configure().await;
     }
 
+    if get_telemetry_choice().is_none() {
+        configure_telemetry_consent_dialog()?;
+    }
+
     let session_id = get_or_create_session_id(None, false, false).await?;
 
     let mut session = build_session(SessionBuilderConfig {
@@ -1449,7 +1481,7 @@ pub async fn cli() -> anyhow::Result<()> {
         Some(Command::Configure {}) => handle_configure().await,
         Some(Command::Info { verbose }) => handle_info(verbose),
         Some(Command::Mcp { server }) => handle_mcp_command(server).await,
-        Some(Command::Acp { builtins }) => run_acp_agent(builtins).await,
+        Some(Command::Acp { builtins }) => goose_acp::server::run(builtins).await,
         Some(Command::Session {
             command: Some(cmd), ..
         }) => handle_session_subcommand(cmd).await,
@@ -1507,7 +1539,8 @@ pub async fn cli() -> anyhow::Result<()> {
             host,
             open,
             auth_token,
-        }) => crate::commands::web::handle_web(port, host, open, auth_token).await,
+            no_auth,
+        }) => crate::commands::web::handle_web(port, host, open, auth_token, no_auth).await,
         Some(Command::Term { command }) => handle_term_subcommand(command).await,
         None => handle_default_session().await,
     }
