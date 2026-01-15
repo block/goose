@@ -42,7 +42,7 @@ jobs:
 
       - name: Deploy preview
         uses: rossjrw/pr-preview-action@8ff09e486b4c23709012eedd3b42e9f0b95dd0c5 # v1
-        if: ${{ github.event.pull_request.head.repo.full_name == 'block/goose' }}
+        if: ${{ github.event.pull_request.head.repo.full_name == 'aaif/goose' }}
         with:
           source-dir: documentation/build
 

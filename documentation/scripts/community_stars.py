@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Community Stars Analysis Script for block/goose repository
+Community Stars Analysis Script for aaif/goose repository
 
 This script analyzes GitHub contributor statistics and generates rankings for:
 - Top 5 Community All-Stars (External contributors)
@@ -33,7 +33,7 @@ from pathlib import Path
 import time
 
 # GitHub URL for team list file
-TEAMS_FILE_URL = "https://raw.githubusercontent.com/block/goose/main/documentation/scripts/community_stars_teams.txt"
+TEAMS_FILE_URL = "https://raw.githubusercontent.com/aaif/goose/main/documentation/scripts/community_stars_teams.txt"
 LOCAL_TEAMS_FILE = Path(__file__).parent / "community_stars_teams.txt"
 
 # Block-related organizations to check
@@ -215,7 +215,7 @@ def main():
         
         for attempt in range(max_retries):
             try:
-                url = "https://api.github.com/repos/block/goose/stats/contributors"
+                url = "https://api.github.com/repos/aaif/goose/stats/contributors"
                 with urllib.request.urlopen(url, timeout=30) as response:
                     contributors_data = json.loads(response.read().decode('utf-8'))
                 

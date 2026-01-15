@@ -24,7 +24,7 @@ These checks provide a safeguard, not a guarantee. They detect known patterns bu
 
 When enabled, goose scans tool calls for risky patterns before they run:
 
-1. **Tool call is intercepted and analyzed** - When goose prepares to execute a tool, the security system extracts the tool parameter text and checks it against [threat patterns](https://github.com/block/goose/blob/main/crates/goose/src/security/patterns.rs)
+1. **Tool call is intercepted and analyzed** - When goose prepares to execute a tool, the security system extracts the tool parameter text and checks it against [threat patterns](https://github.com/aaif/goose/blob/main/crates/goose/src/security/patterns.rs)
 2. **Risk is assessed** - Detected threats are assigned confidence scores
 3. **Execution pauses** - Threats that exceed your configured threshold need your decision
 4. **Security alert appears** - The alert displays the confidence level, a description of the finding, and a unique finding ID. For example:

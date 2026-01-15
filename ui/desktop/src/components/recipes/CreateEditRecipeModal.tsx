@@ -345,7 +345,7 @@ export default function CreateEditRecipeModal({
                   ? 'Create a new recipe to define agent behavior and capabilities for reusable chat sessions.'
                   : "You can edit the recipe below to change the agent's behavior in a new session."}{' '}
                 <a
-                  href="https://block.github.io/goose/docs/guides/recipes/"
+                  href="https://aaif.github.io/goose/docs/guides/recipes/"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-blue-500 hover:text-blue-600 hover:underline"

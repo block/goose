@@ -45,7 +45,7 @@ Let's begin 🚀
         Run the following command to install goose:
 
         ```sh
-        curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash
+        curl -fsSL https://github.com/aaif/goose/releases/download/stable/download_cli.sh | bash
         ```
       </TabItem>
     </Tabs>
@@ -70,7 +70,7 @@ Let's begin 🚀
         Run the following command to install the goose CLI on Linux:
 
         ```sh
-        curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash
+        curl -fsSL https://github.com/aaif/goose/releases/download/stable/download_cli.sh | bash
         ```   
       </TabItem>
     </Tabs>
@@ -92,7 +92,7 @@ Let's begin 🚀
         Run the following command in **Git Bash**, **MSYS2**, or **PowerShell** to install the goose CLI natively on Windows:
 
         ```bash
-        curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash
+        curl -fsSL https://github.com/aaif/goose/releases/download/stable/download_cli.sh | bash
         ```
         
         Learn about prerequisites in the [installation guide](/docs/getting-started/installation).

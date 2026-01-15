@@ -133,12 +133,12 @@ I hope this clarifies how to converse with an agent and accomplish complex tasks
 <head>
   <meta property="og:title" content="How to Successfully Migrate Your App with an AI Agent" />
   <meta property="og:type" content="article" />
-  <meta property="og:url" content="https://block.github.io/goose/blog/2025/11/17/migrate-app-with-ai-agent" />
+  <meta property="og:url" content="https://aaif.github.io/goose/blog/2025/11/17/migrate-app-with-ai-agent" />
   <meta property="og:description" content="A step-by-step prompt strategy for AI-assisted code migration with real examples from a Next.js refactor" />
-  <meta property="og:image" content="https://block.github.io/goose/assets/images/migrate-app-ai-agent-e8e3dcddf74909b6f84f85c8c776aaed.png" />
+  <meta property="og:image" content="https://aaif.github.io/goose/assets/images/migrate-app-ai-agent-e8e3dcddf74909b6f84f85c8c776aaed.png" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta property="twitter:domain" content="block.github.io/goose" />
+  <meta property="twitter:domain" content="aaif.github.io/goose" />
   <meta name="twitter:title" content="How to Successfully Migrate Your App with an AI Agent" />
   <meta name="twitter:description" content="A step-by-step prompt strategy for AI-assisted code migration with real examples from a Next.js refactor" />
-  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/migrate-app-ai-agent-e8e3dcddf74909b6f84f85c8c776aaed.png"/>
+  <meta name="twitter:image" content="https://aaif.github.io/goose/assets/images/migrate-app-ai-agent-e8e3dcddf74909b6f84f85c8c776aaed.png"/>
 </head>

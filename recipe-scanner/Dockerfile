@@ -45,7 +45,7 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
     uv --version && uvx --version
 
 # Pre-download and install Goose CLI to avoid network issues during runtime
-RUN curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | \
+RUN curl -fsSL https://github.com/aaif/goose/releases/download/stable/download_cli.sh | \
     CONFIGURE=false GOOSE_BIN_DIR=/usr/local/bin bash && \
     echo "✅ Goose CLI pre-installed: $(/usr/local/bin/goose --version)"
 
