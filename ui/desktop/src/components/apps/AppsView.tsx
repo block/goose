@@ -69,8 +69,7 @@ export default function AppsView() {
     };
 
     refreshApps();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId]);
+  }, [sessionId, apps.length]);
 
   const loadApps = useCallback(async () => {
     if (!sessionId) return;

@@ -93,8 +93,7 @@ export default function StandaloneAppView() {
     }
 
     initSession();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resourceUri, extensionName, workingDir]);
+  }, [resourceUri, extensionName, workingDir, cachedHtml]);
 
   useEffect(() => {
     if (appName) {
