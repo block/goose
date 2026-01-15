@@ -72,7 +72,6 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
   const getExtensionsRef = useRef(getExtensions);
   const processingLinkRef = useRef<string | null>(null);
 
-  // Keep ref updated with latest getExtensions
   useEffect(() => {
     getExtensionsRef.current = getExtensions;
   }, [getExtensions]);
@@ -160,7 +159,6 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
   };
 
   const handleExtensionRequest = useCallback(async (link: string): Promise<void> => {
-    // Prevent duplicate processing of the same link while it's being processed
     if (processingLinkRef.current === link) {
       console.log(`Skipping duplicate extension request (already processing): ${link}`);
       return;
