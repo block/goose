@@ -16,7 +16,6 @@ use futures::{sink::SinkExt, stream::StreamExt};
 use goose::agents::{Agent, AgentEvent};
 use goose::conversation::message::Message as GooseMessage;
 use goose::session::session_manager::SessionType;
-use goose::session::SessionManager;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{net::ToSocketAddrs, sync::Arc};
@@ -171,14 +170,17 @@ fn get_provider_and_model() -> (String, String) {
 async fn create_agent(provider_name: &str, model: &str) -> Result<Agent> {
     let model_config = goose::model::ModelConfig::new(model)?;
 
-    let init_session = SessionManager::create_session(
-        std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
-        "Web Agent Initialization".to_string(),
-        SessionType::Hidden,
-    )
-    .await?;
-
     let agent = Agent::new();
+
+    let session_manager = agent.config.session_manager.clone();
+    let init_session = session_manager
+        .create_session(
+            std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
+            "Web Agent Initialization".to_string(),
+            SessionType::Hidden,
+        )
+        .await?;
+
     let provider = goose::providers::create(provider_name, model_config).await?;
     agent.update_provider(provider, &init_session.id).await?;
 
@@ -284,14 +286,21 @@ pub async fn handle_web(
     Ok(())
 }
 
-async fn serve_index(uri: Uri) -> Result<Redirect, (http::StatusCode, String)> {
-    let session = SessionManager::create_session(
-        std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
-        "Web session".to_string(),
-        SessionType::User,
-    )
-    .await
-    .map_err(|err| (http::StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))?;
+async fn serve_index(
+    State(state): State<AppState>,
+    uri: Uri,
+) -> Result<Redirect, (http::StatusCode, String)> {
+    let session = state
+        .agent
+        .config
+        .session_manager
+        .create_session(
+            std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
+            "Web session".to_string(),
+            SessionType::User,
+        )
+        .await
+        .map_err(|err| (http::StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))?;
 
     let redirect_url = if let Some(query) = uri.query() {
         format!("/session/{}?{}", session.id, query)
@@ -351,8 +360,8 @@ async fn health_check() -> Json<serde_json::Value> {
     }))
 }
 
-async fn list_sessions() -> Json<serde_json::Value> {
-    match SessionManager::list_sessions().await {
+async fn list_sessions(State(state): State<AppState>) -> Json<serde_json::Value> {
+    match state.agent.config.session_manager.list_sessions().await {
         Ok(sessions) => {
             let mut session_info = Vec::new();
 
@@ -375,9 +384,16 @@ async fn list_sessions() -> Json<serde_json::Value> {
     }
 }
 async fn get_session(
+    State(state): State<AppState>,
     axum::extract::Path(session_id): axum::extract::Path<String>,
 ) -> Json<serde_json::Value> {
-    match SessionManager::get_session(&session_id, true).await {
+    match state
+        .agent
+        .config
+        .session_manager
+        .get_session(&session_id, true)
+        .await
+    {
         Ok(session) => Json(serde_json::json!({
             "metadata": session,
             "messages": session.conversation.unwrap_or_default().messages()
@@ -544,7 +560,11 @@ async fn process_message_streaming(
         return Ok(());
     }
 
-    let session = SessionManager::get_session(&session_id, true).await?;
+    let session = agent
+        .config
+        .session_manager
+        .get_session(&session_id, true)
+        .await?;
     let mut messages = session.conversation.unwrap_or_default();
     messages.push(user_message.clone());
 

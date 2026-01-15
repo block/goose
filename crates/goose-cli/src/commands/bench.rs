@@ -3,6 +3,7 @@ use crate::session::SessionBuilderConfig;
 use crate::{logging, CliSession};
 use async_trait::async_trait;
 use goose::conversation::Conversation;
+use goose::session::session_manager::Session;
 use goose_bench::bench_session::{BenchAgent, BenchBaseSession};
 use goose_bench::eval_suites::ExtensionRequirements;
 use std::sync::Arc;
@@ -25,8 +26,8 @@ impl BenchBaseSession for CliSession {
         })
     }
 
-    fn get_session_id(&self) -> anyhow::Result<String> {
-        Ok(self.session_id().to_string())
+    async fn get_session(&self) -> anyhow::Result<Session> {
+        self.get_session().await
     }
 }
 pub async fn agent_generator(
