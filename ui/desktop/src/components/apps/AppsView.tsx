@@ -69,7 +69,10 @@ export default function AppsView() {
     };
 
     refreshApps();
-  }, [sessionId, apps.length]);
+    // apps.length intentionally not in deps: we want to capture the initial apps.length to check
+    // "did we have cached apps when refresh started?" Adding it would cause infinite loop since setApps() changes apps.length
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId]);
 
   const loadApps = useCallback(async () => {
     if (!sessionId) return;

@@ -2476,7 +2476,7 @@ async function appMain() {
       });
 
       const workingDir = app.getPath('home');
-      const extensionName = !gooseApp.mcpServer ? 'undefined' : gooseApp.mcpServer;
+      const extensionName = gooseApp.mcpServer ?? '';
       const standaloneUrl =
         `${baseUrl}/#/standalone-app?` +
         `resourceUri=${encodeURIComponent(gooseApp.uri)}` +

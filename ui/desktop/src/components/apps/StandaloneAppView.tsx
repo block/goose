@@ -53,15 +53,7 @@ export default function StandaloneAppView() {
 
   useEffect(() => {
     async function initSession() {
-      if (
-        !resourceUri ||
-        !extensionName ||
-        !workingDir ||
-        resourceUri === 'undefined' ||
-        extensionName === 'undefined' ||
-        workingDir === 'undefined' ||
-        workingDir === 'null'
-      ) {
+      if (!resourceUri || !extensionName || !workingDir) {
         return;
       }
 
@@ -157,7 +149,7 @@ export default function StandaloneAppView() {
         <McpAppRenderer
           resourceUri={resourceUri!}
           extensionName={extensionName!}
-          sessionId={sessionId || 'loading'}
+          sessionId={sessionId || null}
           fullscreen={true}
           cachedHtml={cachedHtml || undefined}
         />

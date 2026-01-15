@@ -24,7 +24,7 @@ import { readResource, callTool } from '../../api';
 interface McpAppRendererProps {
   resourceUri: string;
   extensionName: string;
-  sessionId: string;
+  sessionId?: string | null;
   toolInput?: ToolInput;
   toolInputPartial?: ToolInputPartial;
   toolResult?: ToolResult;
@@ -61,7 +61,7 @@ export default function McpAppRenderer({
   const [iframeHeight, setIframeHeight] = useState(DEFAULT_IFRAME_HEIGHT);
 
   useEffect(() => {
-    if (sessionId === 'loading') {
+    if (!sessionId) {
       return;
     }
 
@@ -107,6 +107,12 @@ export default function McpAppRenderer({
       params: Record<string, unknown> = {},
       _id?: string | number
     ): Promise<unknown> => {
+      // Methods that require a session
+      const requiresSession = ['tools/call', 'resources/read'];
+      if (requiresSession.includes(method) && !sessionId) {
+        throw new Error('Session not initialized for MCP request');
+      }
+
       switch (method) {
         case 'ui/open-link': {
           const { url } = params as McpMethodParams['ui/open-link'];
@@ -135,7 +141,7 @@ export default function McpAppRenderer({
           const fullToolName = `${extensionName}__${name}`;
           const response = await callTool({
             body: {
-              session_id: sessionId,
+              session_id: sessionId!,
               name: fullToolName,
               arguments: args || {},
             },
@@ -153,7 +159,7 @@ export default function McpAppRenderer({
           const { uri } = params as McpMethodParams['resources/read'];
           const response = await readResource({
             body: {
-              session_id: sessionId,
+              session_id: sessionId!,
               uri,
               extension_name: extensionName,
             },
