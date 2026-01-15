@@ -567,7 +567,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         resolve_extensions_for_new_session(recipe.and_then(|r| r.extensions.as_deref()), None)
     };
 
-    let cli_flag_extension_extensions_to_load = parse_cli_flag_extensions(
+    let cli_flag_extensions_to_load = parse_cli_flag_extensions(
         &session_config.extensions,
         &session_config.streamable_http_extensions,
         &session_config.builtins,
@@ -577,7 +577,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         .iter()
         .map(|cfg| (cfg.name(), cfg.clone()))
         .collect();
-    extensions_to_load.extend(cli_flag_extension_extensions_to_load);
+    extensions_to_load.extend(cli_flag_extensions_to_load);
 
     let agent_ptr = load_extensions(
         agent,
