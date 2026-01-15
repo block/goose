@@ -17,7 +17,6 @@ use crate::providers::toolshim::{
 };
 
 use crate::agents::code_execution_extension::EXTENSION_NAME as CODE_EXECUTION_EXTENSION;
-use crate::session::SessionManager;
 #[cfg(test)]
 use crate::session::SessionType;
 use rmcp::model::Tool;
@@ -111,10 +110,11 @@ async fn toolshim_postprocess(
 impl Agent {
     pub async fn prepare_tools_and_prompt(
         &self,
+        session_id: &str,
         working_dir: &std::path::Path,
     ) -> Result<(Vec<Tool>, Vec<Tool>, String)> {
         // Get tools from extension manager
-        let mut tools = self.list_tools(None).await;
+        let mut tools = self.list_tools(session_id, None).await;
 
         // Add frontend tools
         let frontend_tools = self.frontend_tools.lock().await;
@@ -151,7 +151,7 @@ impl Agent {
             .with_extension_and_tool_counts(extension_count, tool_count)
             .with_code_execution_mode(code_execution_active)
             .with_hints(working_dir)
-            .with_enable_subagents(self.subagents_enabled().await)
+            .with_enable_subagents(self.subagents_enabled(session_id).await)
             .build();
 
         // Handle toolshim if enabled
@@ -347,12 +347,14 @@ impl Agent {
     }
 
     pub(crate) async fn update_session_metrics(
+        &self,
         session_config: &crate::agents::types::SessionConfig,
         usage: &ProviderUsage,
         is_compaction_usage: bool,
     ) -> Result<()> {
         let session_id = session_config.id.as_str();
-        let session = SessionManager::get_session(session_id, false).await?;
+        let manager = self.config.session_manager.clone();
+        let session = manager.get_session(session_id, false).await?;
 
         let accumulate = |a: Option<i32>, b: Option<i32>| -> Option<i32> {
             match (a, b) {
@@ -380,7 +382,8 @@ impl Agent {
             )
         };
 
-        SessionManager::update_session(session_id)
+        manager
+            .update(session_id)
             .schedule_id(session_config.schedule_id.clone())
             .total_tokens(current_total)
             .input_tokens(current_input)
@@ -442,12 +445,15 @@ mod tests {
     async fn prepare_tools_returns_sorted_tools_including_frontend() -> anyhow::Result<()> {
         let agent = crate::agents::Agent::new();
 
-        let session = SessionManager::create_session(
-            std::path::PathBuf::default(),
-            "test-prepare-tools".to_string(),
-            SessionType::Hidden,
-        )
-        .await?;
+        let session = agent
+            .config
+            .session_manager
+            .create_session(
+                std::path::PathBuf::default(),
+                "test-prepare-tools".to_string(),
+                SessionType::Hidden,
+            )
+            .await?;
 
         let model_config = ModelConfig::new("test-model").unwrap();
         let provider = std::sync::Arc::new(MockProvider { model_config });
@@ -480,8 +486,9 @@ mod tests {
             .unwrap();
 
         let working_dir = std::env::current_dir()?;
-        let (tools, _toolshim_tools, _system_prompt) =
-            agent.prepare_tools_and_prompt(&working_dir).await?;
+        let (tools, _toolshim_tools, _system_prompt) = agent
+            .prepare_tools_and_prompt(&session.id, &working_dir)
+            .await?;
 
         let names: Vec<String> = tools.iter().map(|t| t.name.clone().into_owned()).collect();
         assert!(names.iter().any(|n| n == "frontend__a_tool"));

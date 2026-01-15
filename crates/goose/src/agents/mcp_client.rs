@@ -3,7 +3,7 @@ use crate::agents::types::SharedProvider;
 use crate::session_context::SESSION_ID_HEADER;
 use rmcp::model::{
     Content, CreateElicitationRequestParam, CreateElicitationResult, ElicitationAction, ErrorCode,
-    JsonObject,
+    Extensions, JsonObject, Meta,
 };
 /// MCP client implementation for Goose
 use rmcp::{
@@ -39,20 +39,25 @@ pub type BoxError = Box<dyn std::error::Error + Sync + Send>;
 
 pub type Error = rmcp::ServiceError;
 
+#[derive(Clone, Debug)]
+pub struct McpMeta {
+    pub session_id: String,
+}
+
+impl McpMeta {
+    pub fn new(session_id: impl Into<String>) -> Self {
+        Self {
+            session_id: session_id.into(),
+        }
+    }
+
+    fn inject_into_extensions(&self, extensions: Extensions) -> Extensions {
+        inject_session_id_into_extensions(extensions, &self.session_id)
+    }
+}
+
 #[async_trait::async_trait]
 pub trait McpClientTrait: Send + Sync {
-    async fn list_resources(
-        &self,
-        next_cursor: Option<String>,
-        cancel_token: CancellationToken,
-    ) -> Result<ListResourcesResult, Error>;
-
-    async fn read_resource(
-        &self,
-        uri: &str,
-        cancel_token: CancellationToken,
-    ) -> Result<ReadResourceResult, Error>;
-
     async fn list_tools(
         &self,
         next_cursor: Option<String>,
@@ -63,27 +68,50 @@ pub trait McpClientTrait: Send + Sync {
         &self,
         name: &str,
         arguments: Option<JsonObject>,
+        meta: McpMeta,
         cancel_token: CancellationToken,
     ) -> Result<CallToolResult, Error>;
 
+    fn get_info(&self) -> Option<&InitializeResult>;
+
+    async fn list_resources(
+        &self,
+        _next_cursor: Option<String>,
+        _cancel_token: CancellationToken,
+    ) -> Result<ListResourcesResult, Error> {
+        Err(Error::TransportClosed)
+    }
+
+    async fn read_resource(
+        &self,
+        _uri: &str,
+        _cancel_token: CancellationToken,
+    ) -> Result<ReadResourceResult, Error> {
+        Err(Error::TransportClosed)
+    }
+
     async fn list_prompts(
         &self,
-        next_cursor: Option<String>,
-        cancel_token: CancellationToken,
-    ) -> Result<ListPromptsResult, Error>;
+        _next_cursor: Option<String>,
+        _cancel_token: CancellationToken,
+    ) -> Result<ListPromptsResult, Error> {
+        Err(Error::TransportClosed)
+    }
 
     async fn get_prompt(
         &self,
-        name: &str,
-        arguments: Value,
-        cancel_token: CancellationToken,
-    ) -> Result<GetPromptResult, Error>;
+        _name: &str,
+        _arguments: Value,
+        _cancel_token: CancellationToken,
+    ) -> Result<GetPromptResult, Error> {
+        Err(Error::TransportClosed)
+    }
 
-    async fn subscribe(&self) -> mpsc::Receiver<ServerNotification>;
+    async fn subscribe(&self) -> mpsc::Receiver<ServerNotification> {
+        mpsc::channel(1).1
+    }
 
-    fn get_info(&self) -> Option<&InitializeResult>;
-
-    async fn get_moim(&self) -> Option<String> {
+    async fn get_moim(&self, _session_id: &str) -> Option<String> {
         None
     }
 }
@@ -381,7 +409,7 @@ impl McpClientTrait for McpClient {
                 ClientRequest::ListResourcesRequest(ListResourcesRequest {
                     params: Some(PaginatedRequestParam { cursor }),
                     method: Default::default(),
-                    extensions: inject_session_into_extensions(Default::default()),
+                    extensions: inject_current_session_id_into_extensions(Default::default()),
                 }),
                 cancel_token,
             )
@@ -405,7 +433,7 @@ impl McpClientTrait for McpClient {
                         uri: uri.to_string(),
                     },
                     method: Default::default(),
-                    extensions: inject_session_into_extensions(Default::default()),
+                    extensions: inject_current_session_id_into_extensions(Default::default()),
                 }),
                 cancel_token,
             )
@@ -427,7 +455,7 @@ impl McpClientTrait for McpClient {
                 ClientRequest::ListToolsRequest(ListToolsRequest {
                     params: Some(PaginatedRequestParam { cursor }),
                     method: Default::default(),
-                    extensions: inject_session_into_extensions(Default::default()),
+                    extensions: inject_current_session_id_into_extensions(Default::default()),
                 }),
                 cancel_token,
             )
@@ -443,6 +471,7 @@ impl McpClientTrait for McpClient {
         &self,
         name: &str,
         arguments: Option<JsonObject>,
+        meta: McpMeta,
         cancel_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         let res = self
@@ -453,7 +482,7 @@ impl McpClientTrait for McpClient {
                         arguments,
                     },
                     method: Default::default(),
-                    extensions: inject_session_into_extensions(Default::default()),
+                    extensions: meta.inject_into_extensions(Default::default()),
                 }),
                 cancel_token,
             )
@@ -475,7 +504,7 @@ impl McpClientTrait for McpClient {
                 ClientRequest::ListPromptsRequest(ListPromptsRequest {
                     params: Some(PaginatedRequestParam { cursor }),
                     method: Default::default(),
-                    extensions: inject_session_into_extensions(Default::default()),
+                    extensions: inject_current_session_id_into_extensions(Default::default()),
                 }),
                 cancel_token,
             )
@@ -505,7 +534,7 @@ impl McpClientTrait for McpClient {
                         arguments,
                     },
                     method: Default::default(),
-                    extensions: inject_session_into_extensions(Default::default()),
+                    extensions: inject_current_session_id_into_extensions(Default::default()),
                 }),
                 cancel_token,
             )
@@ -524,27 +553,32 @@ impl McpClientTrait for McpClient {
     }
 }
 
-/// Replaces session ID, case-insensitively, in Extensions._meta.
-fn inject_session_into_extensions(
-    mut extensions: rmcp::model::Extensions,
-) -> rmcp::model::Extensions {
-    use rmcp::model::Meta;
+/// Injects the given session_id into Extensions._meta.
+fn inject_session_id_into_extensions(mut extensions: Extensions, session_id: &str) -> Extensions {
+    let mut meta_map = extensions
+        .get::<Meta>()
+        .map(|meta| meta.0.clone())
+        .unwrap_or_default();
 
-    if let Some(session_id) = crate::session_context::current_session_id() {
-        let mut meta_map = extensions
-            .get::<Meta>()
-            .map(|meta| meta.0.clone())
-            .unwrap_or_default();
+    // JsonObject is case-sensitive, so we use retain for case-insensitive removal
+    meta_map.retain(|k, _| !k.eq_ignore_ascii_case(SESSION_ID_HEADER));
 
-        // JsonObject is case-sensitive, so we use retain for case-insensitive removal
-        meta_map.retain(|k, _| !k.eq_ignore_ascii_case(SESSION_ID_HEADER));
+    meta_map.insert(
+        SESSION_ID_HEADER.to_string(),
+        Value::String(session_id.to_string()),
+    );
 
-        meta_map.insert(SESSION_ID_HEADER.to_string(), Value::String(session_id));
-
-        extensions.insert(Meta(meta_map));
-    }
-
+    extensions.insert(Meta(meta_map));
     extensions
+}
+
+/// Injects session ID from task-local context into Extensions._meta.
+fn inject_current_session_id_into_extensions(extensions: Extensions) -> Extensions {
+    if let Some(session_id) = crate::session_context::current_session_id() {
+        inject_session_id_into_extensions(extensions, &session_id)
+    } else {
+        extensions
+    }
 }
 
 #[cfg(test)]
@@ -558,7 +592,7 @@ mod tests {
 
         let session_id = "test-session-789";
         crate::session_context::with_session_id(Some(session_id.to_string()), async {
-            let extensions = inject_session_into_extensions(Default::default());
+            let extensions = inject_current_session_id_into_extensions(Default::default());
             let meta = extensions.get::<Meta>().unwrap();
 
             assert_eq!(
@@ -575,7 +609,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_no_session_id_in_mcp_when_absent() {
-        let extensions = inject_session_into_extensions(Default::default());
+        let extensions = inject_current_session_id_into_extensions(Default::default());
         let meta = extensions.get::<Meta>();
 
         assert!(meta.is_none());
@@ -587,9 +621,9 @@ mod tests {
 
         let session_id = "consistent-session-id";
         crate::session_context::with_session_id(Some(session_id.to_string()), async {
-            let ext1 = inject_session_into_extensions(Default::default());
-            let ext2 = inject_session_into_extensions(Default::default());
-            let ext3 = inject_session_into_extensions(Default::default());
+            let ext1 = inject_current_session_id_into_extensions(Default::default());
+            let ext2 = inject_current_session_id_into_extensions(Default::default());
+            let ext3 = inject_current_session_id_into_extensions(Default::default());
 
             for ext in [&ext1, &ext2, &ext3] {
                 assert_eq!(
@@ -622,7 +656,7 @@ mod tests {
                 .unwrap(),
             );
 
-            let extensions = inject_session_into_extensions(extensions);
+            let extensions = inject_current_session_id_into_extensions(extensions);
             let meta = extensions.get::<Meta>().unwrap();
 
             assert_eq!(

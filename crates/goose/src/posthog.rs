@@ -403,7 +403,8 @@ async fn send_session_event(installation: &InstallationData) -> Result<(), Strin
         .insert_prop("db_schema_version", CURRENT_SCHEMA_VERSION)
         .ok();
 
-    if let Ok(insights) = SessionManager::get_insights().await {
+    let session_manager = SessionManager::instance();
+    if let Ok(insights) = session_manager.get_insights().await {
         event
             .insert_prop("total_sessions", insights.total_sessions)
             .ok();

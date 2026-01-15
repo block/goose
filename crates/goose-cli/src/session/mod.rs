@@ -33,7 +33,6 @@ use goose::agents::extension::{Envs, ExtensionConfig, PLATFORM_EXTENSIONS};
 use goose::agents::types::RetryConfig;
 use goose::agents::{Agent, SessionConfig, COMPACT_TRIGGERS};
 use goose::config::{Config, GooseMode};
-use goose::session::SessionManager;
 use input::InputResult;
 use rmcp::model::PromptMessage;
 use rmcp::model::ServerNotification;
@@ -229,7 +228,10 @@ impl CliSession {
         retry_config: Option<RetryConfig>,
         output_format: String,
     ) -> Self {
-        let messages = SessionManager::get_session(&session_id, true)
+        let messages = agent
+            .config
+            .session_manager
+            .get_session(&session_id, true)
             .await
             .map(|session| session.conversation.unwrap_or_default())
             .unwrap();
@@ -693,14 +695,22 @@ impl CliSession {
     }
 
     async fn handle_clear(&mut self) -> Result<()> {
-        if let Err(e) =
-            SessionManager::replace_conversation(&self.session_id, &Conversation::default()).await
+        if let Err(e) = self
+            .agent
+            .config
+            .session_manager
+            .replace_conversation(&self.session_id, &Conversation::default())
+            .await
         {
             output::render_error(&format!("Failed to clear session: {}", e));
             return Ok(());
         }
 
-        if let Err(e) = SessionManager::update_session(&self.session_id)
+        if let Err(e) = self
+            .agent
+            .config
+            .session_manager
+            .update(&self.session_id)
             .total_tokens(Some(0))
             .input_tokens(Some(0))
             .output_tokens(Some(0))
@@ -1021,7 +1031,13 @@ impl CliSession {
         }
 
         if is_json_mode {
-            let metadata = match SessionManager::get_session(&self.session_id, false).await {
+            let metadata = match self
+                .agent
+                .config
+                .session_manager
+                .get_session(&self.session_id, false)
+                .await
+            {
                 Ok(session) => JsonMetadata {
                     total_tokens: session.total_tokens,
                     status: "completed".to_string(),
@@ -1037,7 +1053,11 @@ impl CliSession {
             };
             println!("{}", serde_json::to_string_pretty(&json_output)?);
         } else if is_stream_json_mode {
-            let total_tokens = SessionManager::get_session(&self.session_id, false)
+            let total_tokens = self
+                .agent
+                .config
+                .session_manager
+                .get_session(&self.session_id, false)
                 .await
                 .ok()
                 .and_then(|s| s.total_tokens);
@@ -1207,7 +1227,11 @@ impl CliSession {
     }
 
     pub async fn get_session(&self) -> Result<goose::session::Session> {
-        SessionManager::get_session(&self.session_id, false).await
+        self.agent
+            .config
+            .session_manager
+            .get_session(&self.session_id, false)
+            .await
     }
 
     // Get the session's total token usage
