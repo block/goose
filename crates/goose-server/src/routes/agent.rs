@@ -11,7 +11,7 @@ use axum::{
     Json, Router,
 };
 use goose::agents::ExtensionLoadResult;
-use goose::goose_apps::{list_mcp_apps_with_cache, GooseApp, McpAppCache};
+use goose::goose_apps::{fetch_mcp_apps, GooseApp, McpAppCache};
 
 use base64::Engine;
 use goose::agents::ExtensionConfig;
@@ -36,7 +36,7 @@ use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
-use tracing::error;
+use tracing::{error, warn};
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdateFromSessionRequest {
@@ -973,11 +973,12 @@ async fn list_apps(
     if params.use_cache || params.session_id.is_none() {
         let apps = cache
             .as_ref()
-            .and_then(|c| c.list_cached_apps().ok())
+            .and_then(|c| c.list_apps().ok())
             .unwrap_or_default();
         return Ok(Json(ListAppsResponse { apps }));
     }
 
+    // Fetch fresh apps from MCP servers
     let session_id = params.session_id.ok_or_else(|| ErrorResponse {
         message: "Missing session_id for list_apps request".to_string(),
         status: StatusCode::BAD_REQUEST,
@@ -991,12 +992,37 @@ async fn list_apps(
             status,
         })?;
 
-    let apps = list_mcp_apps_with_cache(&agent.extension_manager, cache.as_ref())
+    let apps = fetch_mcp_apps(&agent.extension_manager)
         .await
         .map_err(|e| ErrorResponse {
             message: format!("Failed to list apps: {}", e.message),
             status: StatusCode::INTERNAL_SERVER_ERROR,
         })?;
+
+    // Cache the fetched apps
+    if let Some(cache) = cache.as_ref() {
+        // First, clean up cached apps for active extensions
+        let active_extensions: std::collections::HashSet<String> = apps
+            .iter()
+            .filter_map(|app| app.mcp_server.clone())
+            .collect();
+
+        for extension_name in active_extensions {
+            if let Err(e) = cache.delete_extension_apps(&extension_name) {
+                warn!(
+                    "Failed to clean cache for extension {}: {}",
+                    extension_name, e
+                );
+            }
+        }
+
+        // Then cache the new apps
+        for app in &apps {
+            if let Err(e) = cache.cache_app(app) {
+                warn!("Failed to cache app {}: {}", app.resource.name, e);
+            }
+        }
+    }
 
     Ok(Json(ListAppsResponse { apps }))
 }

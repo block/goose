@@ -5,7 +5,6 @@ use crate::config::paths::Paths;
 use rmcp::model::ErrorData;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::collections::HashSet;
 use std::fs;
 use std::path::PathBuf;
 use tokio_util::sync::CancellationToken;
@@ -14,7 +13,6 @@ use utoipa::ToSchema;
 
 pub use resource::{CspMetadata, McpAppResource, ResourceMetadata, UiMetadata};
 
-/// Window properties for Goose-specific window management
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct WindowProps {
@@ -27,18 +25,14 @@ pub struct WindowProps {
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct GooseApp {
-    /// The underlying MCP resource
     #[serde(flatten)]
     pub resource: McpAppResource,
-    /// Which MCP server/extension provides this app (tracking metadata)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mcp_server: Option<String>,
-    /// Window properties for standalone app windows
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
     pub window_props: Option<WindowProps>,
 }
 
-/// Manager for caching MCP apps to disk
 pub struct McpAppCache {
     cache_dir: PathBuf,
 }
@@ -56,7 +50,7 @@ impl McpAppCache {
         format!("{}_{:x}", extension_name, hash)
     }
 
-    pub fn list_cached_apps(&self) -> Result<Vec<GooseApp>, std::io::Error> {
+    pub fn list_apps(&self) -> Result<Vec<GooseApp>, std::io::Error> {
         let mut apps = Vec::new();
 
         if !self.cache_dir.exists() {
@@ -119,7 +113,6 @@ impl McpAppCache {
             let path = entry.path();
 
             if path.extension().and_then(|s| s.to_str()) == Some("json") {
-                // Read the cached app to check its extension
                 if let Ok(content) = fs::read_to_string(&path) {
                     if let Ok(app) = serde_json::from_str::<GooseApp>(&content) {
                         if app.mcp_server.as_deref() == Some(extension_name)
@@ -136,35 +129,12 @@ impl McpAppCache {
     }
 }
 
-pub async fn list_mcp_apps(
+pub async fn fetch_mcp_apps(
     extension_manager: &ExtensionManager,
-) -> Result<Vec<GooseApp>, ErrorData> {
-    list_mcp_apps_with_cache(extension_manager, None).await
-}
-
-pub async fn list_mcp_apps_with_cache(
-    extension_manager: &ExtensionManager,
-    cache: Option<&McpAppCache>,
 ) -> Result<Vec<GooseApp>, ErrorData> {
     let mut apps = Vec::new();
 
     let ui_resources = extension_manager.get_ui_resources().await?;
-
-    if let Some(cache) = cache {
-        let active_extensions: HashSet<String> = ui_resources
-            .iter()
-            .map(|(ext_name, _)| ext_name.clone())
-            .collect();
-
-        for extension_name in active_extensions {
-            if let Err(e) = cache.delete_extension_apps(&extension_name) {
-                warn!(
-                    "Failed to clean cache for extension {}: {}",
-                    extension_name, e
-                );
-            }
-        }
-    }
 
     for (extension_name, resource) in ui_resources {
         match extension_manager
@@ -202,12 +172,6 @@ pub async fn list_mcp_apps_with_cache(
                             resizable: true,
                         }),
                     };
-
-                    if let Some(cache) = cache {
-                        if let Err(e) = cache.cache_app(&app) {
-                            warn!("Failed to cache app {}: {}", app.resource.name, e);
-                        }
-                    }
 
                     apps.push(app);
                 }
