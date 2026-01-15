@@ -15,7 +15,7 @@ uninlined_format_args = "allow"
 string_slice = "warn"
 
 [workspace.dependencies]
-rmcp = { version = "0.12.0", features = ["schemars", "auth"] }
+rmcp = { version = "0.13.0", features = ["schemars", "auth"] }
 anyhow = "1.0"
 futures = "0.3"
 regex = "1.12"
