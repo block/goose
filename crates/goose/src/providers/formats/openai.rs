@@ -287,10 +287,8 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
         .and_then(|c| c.get(0))
         .and_then(|m| m.get("message"))
     else {
-        return Ok(Message::new(
-            Role::Assistant,
-            chrono::Utc::now().timestamp(),
-            Vec::new(),
+        return Err(anyhow::anyhow!(
+            "No message in API response. This may indicate a quota limit or other restriction."
         ));
     };
 
