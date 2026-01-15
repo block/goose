@@ -336,6 +336,45 @@ impl GooseAcpAgent {
         })
     }
 
+    /// Create a new session and return its ID.
+    /// This is called by the HTTP transport layer to create the session upfront.
+    pub async fn create_session(&self) -> Result<String> {
+        let manager = self.agent.config.session_manager.clone();
+        let goose_session = manager
+            .create_session(
+                std::env::current_dir().unwrap_or_default(),
+                "ACP Session".to_string(),
+                SessionType::User,
+            )
+            .await?;
+
+        self.agent
+            .update_provider(self.provider.clone(), &goose_session.id)
+            .await?;
+
+        let session = GooseAcpSession {
+            messages: Conversation::new_unvalidated(Vec::new()),
+            tool_requests: HashMap::new(),
+            cancel_token: None,
+        };
+
+        let mut sessions = self.sessions.lock().await;
+        sessions.insert(goose_session.id.clone(), session);
+
+        info!(
+            session_id = %goose_session.id,
+            session_type = "acp",
+            "Session created"
+        );
+
+        Ok(goose_session.id)
+    }
+
+    /// Check if a session exists
+    pub async fn has_session(&self, session_id: &str) -> bool {
+        self.sessions.lock().await.contains_key(session_id)
+    }
+
     fn convert_acp_prompt_to_message(&self, prompt: Vec<ContentBlock>) -> Message {
         let mut user_message = Message::user();
 

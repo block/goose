@@ -7,11 +7,16 @@ license.workspace = true
 repository.workspace = true
 description.workspace = true
 
+[[bin]]
+name = "goose-acp-server"
+path = "src/bin/server.rs"
+
 [lints]
 workspace = true
 
 [dependencies]
 goose = { path = "../goose" }
+goose-mcp = { path = "../goose-mcp" }
 rmcp = { workspace = true }
 sacp = "10.1.0"
 anyhow = { workspace = true }
@@ -23,6 +28,15 @@ futures = { workspace = true }
 regex = { workspace = true }
 fs-err = "3"
 url = { workspace = true }
+
+# HTTP server dependencies
+axum = "0.8"
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+tower-http = { version = "0.6", features = ["cors"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+uuid = { version = "1.19.0", features = ["v4"] }
+async-stream = "0.3.6"
 
 [dev-dependencies]
 assert-json-diff = "2.0.2"
