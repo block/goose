@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { IpcRendererEvent } from 'electron';
 import {
   Dialog,
@@ -69,6 +69,13 @@ function extractRemoteUrl(link: string): string | null {
 
 export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstallModalProps) {
   const { getExtensions } = useConfig();
+  const getExtensionsRef = useRef(getExtensions);
+  const processingLinkRef = useRef<string | null>(null);
+
+  // Keep ref updated with latest getExtensions
+  useEffect(() => {
+    getExtensionsRef.current = getExtensions;
+  }, [getExtensions]);
 
   const [modalState, setModalState] = useState<ExtensionModalState>({
     isOpen: false,
@@ -153,13 +160,20 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
   };
 
   const handleExtensionRequest = useCallback(async (link: string): Promise<void> => {
+    // Prevent duplicate processing of the same link while it's being processed
+    if (processingLinkRef.current === link) {
+      console.log(`Skipping duplicate extension request (already processing): ${link}`);
+      return;
+    }
+    processingLinkRef.current = link;
+
     try {
       console.log(`Processing extension request: ${link}`);
 
       const command = extractCommand(link);
       const remoteUrl = extractRemoteUrl(link);
       const extName = extractExtensionName(link);
-      const extensionsList = await getExtensions(true);
+      const extensionsList = await getExtensionsRef.current(true);
 
       if (extensionsList?.find((ext) => ext.name === extName)) {
         console.log(`Extension Already Installed: ${extName}`);
@@ -198,8 +212,10 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
         ...prev,
         error: error instanceof Error ? error.message : 'Unknown error',
       }));
+    } finally {
+      processingLinkRef.current = null;
     }
-  }, [getExtensions]);
+  }, []);
 
   const dismissModal = useCallback(() => {
     setModalState({
