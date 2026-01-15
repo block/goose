@@ -143,14 +143,6 @@
               "type": "string",
               "nullable": true
             }
-          },
-          {
-            "name": "use_cache",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean"
-            }
           }
         ],
         "responses": {
@@ -3883,7 +3875,6 @@
             "properties": {
               "mcpServer": {
                 "type": "string",
-                "description": "Which MCP server/extension provides this app (tracking metadata)",
                 "nullable": true
               }
             }
@@ -3990,9 +3981,6 @@
           "session_id": {
             "type": "string",
             "nullable": true
-          },
-          "use_cache": {
-            "type": "boolean"
           }
         }
       },
@@ -6448,7 +6436,6 @@
       },
       "WindowProps": {
         "type": "object",
-        "description": "Window properties for Goose-specific window management",
         "required": [
           "width",
           "height",

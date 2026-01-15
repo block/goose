@@ -368,9 +368,6 @@ export type GetToolsQuery = {
  * A Goose App combining MCP resource data with Goose-specific metadata
  */
 export type GooseApp = McpAppResource & (WindowProps | null) & {
-    /**
-     * Which MCP server/extension provides this app (tracking metadata)
-     */
     mcpServer?: string | null;
 };
 
@@ -411,7 +408,6 @@ export type KillJobResponse = {
 
 export type ListAppsRequest = {
     session_id?: string | null;
-    use_cache?: boolean;
 };
 
 export type ListAppsResponse = {
@@ -1216,9 +1212,6 @@ export type UpsertPermissionsQuery = {
     tool_permissions: Array<ToolPermission>;
 };
 
-/**
- * Window properties for Goose-specific window management
- */
 export type WindowProps = {
     height: number;
     resizable: boolean;
@@ -1321,7 +1314,6 @@ export type ListAppsData = {
     path?: never;
     query?: {
         session_id?: string | null;
-        use_cache?: boolean;
     };
     url: '/agent/list_apps';
 };

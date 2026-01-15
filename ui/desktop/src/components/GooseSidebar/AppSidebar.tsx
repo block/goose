@@ -120,8 +120,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     const checkApps = async () => {
       try {
         const response = await listApps({
-          throwOnError: false,
-          query: { use_cache: true },
+          throwOnError: true,
         });
         setHasApps((response.data?.apps || []).length > 0);
       } catch (err) {

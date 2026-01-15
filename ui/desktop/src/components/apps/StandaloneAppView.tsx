@@ -30,8 +30,7 @@ export default function StandaloneAppView() {
 
       try {
         const response = await listApps({
-          throwOnError: false,
-          query: { use_cache: true },
+          throwOnError: true,
         });
 
         const apps = response.data?.apps || [];

@@ -937,8 +937,6 @@ async fn call_tool(
 #[derive(Deserialize, utoipa::IntoParams, utoipa::ToSchema)]
 pub struct ListAppsRequest {
     session_id: Option<String>,
-    #[serde(default)]
-    use_cache: bool,
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
@@ -969,20 +967,13 @@ async fn list_apps(
 ) -> Result<Json<ListAppsResponse>, ErrorResponse> {
     let cache = McpAppCache::new().ok();
 
-    // If use_cache is true or no session_id provided, return cached apps
-    if params.use_cache || params.session_id.is_none() {
+    let Some(session_id) = params.session_id else {
         let apps = cache
             .as_ref()
             .and_then(|c| c.list_apps().ok())
             .unwrap_or_default();
         return Ok(Json(ListAppsResponse { apps }));
-    }
-
-    // Fetch fresh apps from MCP servers
-    let session_id = params.session_id.ok_or_else(|| ErrorResponse {
-        message: "Missing session_id for list_apps request".to_string(),
-        status: StatusCode::BAD_REQUEST,
-    })?;
+    };
 
     let agent = state
         .get_agent_for_route(session_id)
@@ -999,9 +990,7 @@ async fn list_apps(
             status: StatusCode::INTERNAL_SERVER_ERROR,
         })?;
 
-    // Cache the fetched apps
     if let Some(cache) = cache.as_ref() {
-        // First, clean up cached apps for active extensions
         let active_extensions: std::collections::HashSet<String> = apps
             .iter()
             .filter_map(|app| app.mcp_server.clone())
@@ -1009,16 +998,12 @@ async fn list_apps(
 
         for extension_name in active_extensions {
             if let Err(e) = cache.delete_extension_apps(&extension_name) {
-                warn!(
-                    "Failed to clean cache for extension {}: {}",
-                    extension_name, e
-                );
+                warn!("Failed to clean cache for extension {}: {}", extension_name, e);
             }
         }
 
-        // Then cache the new apps
         for app in &apps {
-            if let Err(e) = cache.cache_app(app) {
+            if let Err(e) = cache.store_app(app) {
                 warn!("Failed to cache app {}: {}", app.resource.name, e);
             }
         }

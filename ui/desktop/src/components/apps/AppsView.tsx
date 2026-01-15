@@ -31,8 +31,7 @@ export default function AppsView() {
     const loadCachedApps = async () => {
       try {
         const response = await listApps({
-          throwOnError: false,
-          query: { use_cache: true },
+          throwOnError: true,
         });
         const cachedApps = response.data?.apps || [];
         setApps(cachedApps);

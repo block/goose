@@ -75,7 +75,7 @@ impl McpAppCache {
         Ok(apps)
     }
 
-    pub fn cache_app(&self, app: &GooseApp) -> Result<(), std::io::Error> {
+    pub fn store_app(&self, app: &GooseApp) -> Result<(), std::io::Error> {
         fs::create_dir_all(&self.cache_dir)?;
 
         if let Some(ref extension_name) = app.mcp_server {
@@ -88,7 +88,7 @@ impl McpAppCache {
         Ok(())
     }
 
-    pub fn get_cached_app(&self, extension_name: &str, resource_uri: &str) -> Option<GooseApp> {
+    pub fn get_app(&self, extension_name: &str, resource_uri: &str) -> Option<GooseApp> {
         let cache_key = Self::cache_key(extension_name, resource_uri);
         let app_path = self.cache_dir.join(format!("{}.json", cache_key));
 
