@@ -56,7 +56,7 @@ impl CodexProvider {
         // Get reasoning effort from config, default to "high"
         let reasoning_effort = config
             .get_codex_reasoning_effort()
-            .map(|r| r.to_string())
+            .map(String::from)
             .unwrap_or_else(|_| "high".to_string());
 
         // Validate reasoning effort
