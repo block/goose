@@ -12,6 +12,9 @@ use super::final_output_tool::FinalOutputTool;
 use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::action_required_manager::ActionRequiredManager;
+use crate::agents::code_summary_tool::{
+    create_summarize_tool, handle_summarize_tool, SUMMARIZE_TOOL_NAME,
+};
 use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{get_parameter_names, normalize, ExtensionManager};
 use crate::agents::extension_manager_extension::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
@@ -541,6 +544,28 @@ impl Agent {
                 session.working_dir.clone(),
                 cancellation_token,
             )
+        } else if tool_call.name == SUMMARIZE_TOOL_NAME {
+            let provider = match self.provider().await {
+                Ok(p) => p,
+                Err(e) => {
+                    return (
+                        request_id,
+                        Err(ErrorData::new(
+                            ErrorCode::INTERNAL_ERROR,
+                            format!("Failed to get provider: {}", e),
+                            None,
+                        )),
+                    );
+                }
+            };
+
+            let arguments = tool_call
+                .arguments
+                .clone()
+                .map(Value::Object)
+                .unwrap_or(Value::Object(serde_json::Map::new()));
+
+            handle_summarize_tool(provider, arguments, session.working_dir.clone())
         } else if self.is_frontend_tool(&tool_call.name).await {
             // For frontend tools, return an error indicating we need frontend execution
             ToolCallResult::from(Err(ErrorData::new(
@@ -790,6 +815,8 @@ impl Agent {
                 let sub_recipes_vec: Vec<_> = sub_recipes.values().cloned().collect();
                 prefixed_tools.push(create_subagent_tool(&sub_recipes_vec));
             }
+
+            prefixed_tools.push(create_summarize_tool());
         }
 
         prefixed_tools

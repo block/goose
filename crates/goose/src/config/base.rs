@@ -929,6 +929,10 @@ config_value!(GOOSE_PROVIDER, String);
 config_value!(GOOSE_MODEL, String);
 config_value!(GOOSE_MAX_ACTIVE_AGENTS, usize);
 
+/// Config key to enable/disable automatic session name generation.
+/// Set to "false" to disable. Defaults to true if not set.
+pub const GOOSE_SESSION_NAME_GENERATION: &str = "GOOSE_SESSION_NAME_GENERATION";
+
 /// Load init-config.yaml from workspace root if it exists.
 /// This function is shared between the config recovery and the init_config endpoint.
 pub fn load_init_config_from_workspace() -> Result<Mapping, ConfigError> {

@@ -712,6 +712,15 @@ pub fn create_request(
         payload["stream_options"] = json!({"include_usage": true});
     }
 
+    // Merge any extra parameters into the payload
+    if let Some(extra) = &model_config.extra_params {
+        if let Some(obj) = payload.as_object_mut() {
+            for (key, value) in extra {
+                obj.insert(key.clone(), value.clone());
+            }
+        }
+    }
+
     Ok(payload)
 }
 
@@ -1284,6 +1293,7 @@ mod tests {
             toolshim: false,
             toolshim_model: None,
             fast_model: None,
+            extra_params: None,
         };
         let request = create_request(
             &model_config,
@@ -1323,6 +1333,7 @@ mod tests {
             toolshim: false,
             toolshim_model: None,
             fast_model: None,
+            extra_params: None,
         };
         let request = create_request(
             &model_config,
@@ -1363,6 +1374,7 @@ mod tests {
             toolshim: false,
             toolshim_model: None,
             fast_model: None,
+            extra_params: None,
         };
         let request = create_request(
             &model_config,
