@@ -325,6 +325,12 @@ export function useChatStream({
                   ? { ...currentState.session, name: response.data.name }
                   : undefined,
               });
+              // Notify sidebar of the name change
+              window.dispatchEvent(
+                new CustomEvent('session-renamed', {
+                  detail: { sessionId, newName: response.data.name },
+                })
+              );
             }
           } catch (refreshError) {
             // Silently fail - this is a nice-to-have feature
