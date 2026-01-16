@@ -13,7 +13,7 @@ use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::action_required_manager::ActionRequiredManager;
 use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
-use crate::agents::extension_manager::{get_parameter_names, normalize, ExtensionManager};
+use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
 use crate::agents::extension_manager_extension::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
 use crate::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
@@ -659,11 +659,10 @@ impl Agent {
 
                 async move {
                     let name = config_clone.name().to_string();
-                    let normalized_name = normalize(&name);
 
                     if agent_ref
                         .extension_manager
-                        .is_extension_enabled(&normalized_name)
+                        .is_extension_enabled(&name)
                         .await
                     {
                         tracing::debug!("Extension {} already loaded, skipping", name);
