@@ -213,7 +213,7 @@ export function useChatStream({
       // Refresh session name after each reply for the first 3 user messages
       // The backend regenerates the name after each of the first 3 user messages
       // to refine it as more context becomes available
-      if (!error && sessionId && session) {
+      if (!error && sessionId) {
         const userMessageCount = messagesRef.current.filter(
           (m) => m.role === 'user'
         ).length;
@@ -225,7 +225,7 @@ export function useChatStream({
               path: { session_id: sessionId },
               throwOnError: true,
             });
-            if (response.data?.name && response.data.name !== session.name) {
+            if (response.data?.name) {
               setSession((prev) => (prev ? { ...prev, name: response.data.name } : prev));
             }
           } catch (refreshError) {
@@ -238,7 +238,7 @@ export function useChatStream({
       setChatState(ChatState.Idle);
       onStreamFinish();
     },
-    [onStreamFinish, sessionId, session]
+    [onStreamFinish, sessionId]
   );
 
   // Load session on mount or sessionId change
