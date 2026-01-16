@@ -133,7 +133,7 @@ export default function McpAppRenderer({
             throw new Error('Invalid message format: content must be an array of ContentBlock');
           }
 
-          // Extract first text from content blocks, ignoring other text blocks
+          // Extract first text block from content, ignoring other block types
           const textContent = content.find((block) => block.type === 'text');
           if (!textContent || textContent.type !== 'text') {
             throw new Error('Invalid message format: content must contain a text block');
