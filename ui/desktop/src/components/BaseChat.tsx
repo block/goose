@@ -59,6 +59,7 @@ interface BaseChatProps {
 }
 
 function BaseChatContent({
+  setChat,
   renderHeader,
   customChatInputProps = {},
   customMainLayoutProps = {},
