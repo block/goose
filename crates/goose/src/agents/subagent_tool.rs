@@ -51,6 +51,9 @@ pub struct SubagentSettings {
     pub provider: Option<String>,
     pub model: Option<String>,
     pub temperature: Option<f32>,
+    /// Arbitrary extra parameters to forward to the provider API (e.g., top_p, disable_reasoning)
+    #[serde(flatten)]
+    pub extra: Option<std::collections::HashMap<String, serde_json::Value>>,
 }
 
 pub fn create_subagent_tool(sub_recipes: &[SubRecipe]) -> Tool {
@@ -84,7 +87,8 @@ pub fn create_subagent_tool(sub_recipes: &[SubRecipe]) -> Tool {
                     "model": {"type": "string", "description": "Override model"},
                     "temperature": {"type": "number", "description": "Override temperature"}
                 },
-                "description": "Override model/provider settings."
+                "additionalProperties": true,
+                "description": "Override model/provider settings. Additional properties (e.g., top_p, disable_reasoning) are forwarded to the provider API."
             },
             "summary": {
                 "type": "boolean",
@@ -392,7 +396,12 @@ async fn apply_settings_overrides(
     params: &SubagentParams,
 ) -> Result<TaskConfig> {
     if let Some(settings) = &params.settings {
-        if settings.provider.is_some() || settings.model.is_some() || settings.temperature.is_some()
+        // Check if we have any settings to apply (known fields or extra params)
+        let has_extra = settings.extra.as_ref().is_some_and(|e| !e.is_empty());
+        if settings.provider.is_some()
+            || settings.model.is_some()
+            || settings.temperature.is_some()
+            || has_extra
         {
             let provider_name = settings
                 .provider
@@ -407,6 +416,19 @@ async fn apply_settings_overrides(
 
             if let Some(temp) = settings.temperature {
                 model_config = model_config.with_temperature(Some(temp));
+            }
+
+            // Forward any extra parameters to the provider
+            if let Some(extra) = &settings.extra {
+                // Filter out the known fields that were flattened
+                let filtered: std::collections::HashMap<String, serde_json::Value> = extra
+                    .iter()
+                    .filter(|(k, _)| !matches!(k.as_str(), "provider" | "model" | "temperature"))
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect();
+                if !filtered.is_empty() {
+                    model_config = model_config.with_extra_params(filtered);
+                }
             }
 
             task_config.provider = providers::create(&provider_name, model_config)
