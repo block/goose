@@ -1,3 +1,4 @@
+import { AppEvents } from '../../constants/events';
 import { useRef, useEffect, useCallback, useState } from 'react';
 import { FaCircle } from 'react-icons/fa';
 import { isEqual } from 'lodash';
@@ -179,9 +180,9 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
       }
     };
 
-    window.addEventListener('hide-alert-popover', handleHidePopover);
+    window.addEventListener(AppEvents.HIDE_ALERT_POPOVER, handleHidePopover);
     return () => {
-      window.removeEventListener('hide-alert-popover', handleHidePopover);
+      window.removeEventListener(AppEvents.HIDE_ALERT_POPOVER, handleHidePopover);
     };
   }, [isOpen]);
 

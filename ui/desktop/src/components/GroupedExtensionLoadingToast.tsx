@@ -114,9 +114,9 @@ export function GroupedExtensionLoadingToast({
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   startNewSession(
-                                    getInitialWorkingDir(),
                                     ext.recoverHints,
-                                    setView
+                                    setView,
+                                    getInitialWorkingDir()
                                   );
                                 }}
                               >

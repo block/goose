@@ -853,7 +853,14 @@ const createChat = async (
   return mainWindow;
 };
 
+let activeLauncherWindow: BrowserWindow | null = null;
+
 const createLauncher = () => {
+  if (activeLauncherWindow && !activeLauncherWindow.isDestroyed()) {
+    activeLauncherWindow.focus();
+    return activeLauncherWindow;
+  }
+
   const launcherWindow = new BrowserWindow({
     width: 600,
     height: 80,
@@ -895,6 +902,11 @@ const createLauncher = () => {
 
   url.hash = '/launcher';
   launcherWindow.loadURL(formatUrl(url));
+  activeLauncherWindow = launcherWindow;
+
+  launcherWindow.on('closed', () => {
+    activeLauncherWindow = null;
+  });
 
   // Destroy window when it loses focus
   launcherWindow.on('blur', () => {
@@ -1953,13 +1965,11 @@ async function appMain() {
     callback({ cancel: false, requestHeaders: details.requestHeaders });
   });
 
-  // Create tray if enabled in settings
   const settings = loadSettings();
   if (settings.showMenuBarIcon) {
     createTray();
   }
 
-  // Handle dock icon visibility (macOS only)
   if (process.platform === 'darwin' && !settings.showDockIcon && settings.showMenuBarIcon) {
     app.dock?.hide();
   }
@@ -1982,9 +1992,8 @@ async function appMain() {
         log.error('Error setting up auto-updater:', error);
       }
     }
-  }, 2000); // 2 second delay after window is shown
+  }, 2000);
 
-  // Setup macOS dock menu
   if (process.platform === 'darwin') {
     const dockMenu = Menu.buildFromTemplate([
       {
@@ -1997,13 +2006,10 @@ async function appMain() {
     app.dock?.setMenu(dockMenu);
   }
 
-  // Get the existing menu
   const menu = Menu.getApplicationMenu();
 
-  // App menu
   const appMenu = menu?.items.find((item) => item.label === 'Goose');
   if (appMenu?.submenu) {
-    // add Settings to app menu after About
     appMenu.submenu.insert(1, new MenuItem({ type: 'separator' }));
     appMenu.submenu.insert(
       1,
@@ -2019,13 +2025,10 @@ async function appMain() {
     appMenu.submenu.insert(1, new MenuItem({ type: 'separator' }));
   }
 
-  // Add Find submenu to Edit menu
   const editMenu = menu?.items.find((item) => item.label === 'Edit');
   if (editMenu?.submenu) {
-    // Find the index of Select All to insert after it
     const selectAllIndex = editMenu.submenu.items.findIndex((item) => item.label === 'Select All');
 
-    // Create Find submenu
     const findSubmenu = Menu.buildFromTemplate([
       {
         label: 'Find…',
@@ -2062,7 +2065,6 @@ async function appMain() {
       },
     ]);
 
-    // Add Find submenu to Edit menu
     editMenu.submenu.insert(
       selectAllIndex + 1,
       new MenuItem({
@@ -2082,7 +2084,7 @@ async function appMain() {
         accelerator: 'CmdOrCtrl+T',
         click() {
           const focusedWindow = BrowserWindow.getFocusedWindow();
-          if (focusedWindow) focusedWindow.webContents.send('set-view', '');
+          if (focusedWindow) focusedWindow.webContents.send('new-chat');
         },
       })
     );
@@ -2098,7 +2100,6 @@ async function appMain() {
       })
     );
 
-    // Open goose to specific dir and set that as its working space
     fileMenu.submenu.insert(
       2,
       new MenuItem({
@@ -2108,7 +2109,6 @@ async function appMain() {
       })
     );
 
-    // Add Recent Files submenu
     const recentFilesSubmenu = buildRecentFilesMenu();
     if (recentFilesSubmenu.length > 0) {
       fileMenu.submenu.insert(
@@ -2122,15 +2122,22 @@ async function appMain() {
 
     fileMenu.submenu.insert(4, new MenuItem({ type: 'separator' }));
 
-    // The Close Window item is here.
-
-    // Add menu item to tell the user about the keyboard shortcut
     fileMenu.submenu.append(
       new MenuItem({
         label: 'Focus Goose Window',
         accelerator: 'CmdOrCtrl+Alt+G',
         click() {
           focusWindow();
+        },
+      })
+    );
+
+    fileMenu.submenu.append(
+      new MenuItem({
+        label: 'Quick Launcher',
+        accelerator: 'CmdOrCtrl+Alt+Shift+G',
+        click() {
+          createLauncher();
         },
       })
     );
@@ -2234,12 +2241,33 @@ async function appMain() {
 
   ipcMain.on(
     'create-chat-window',
-    (_, query, dir, version, resumeSessionId, viewType, recipeId) => {
+    (event, query, dir, version, resumeSessionId, viewType, recipeId) => {
       if (!dir?.trim()) {
         const recentDirs = loadRecentDirs();
         dir = recentDirs.length > 0 ? recentDirs[0] : undefined;
       }
 
+      const isFromLauncher = query && !resumeSessionId && !viewType && !recipeId;
+
+      if (isFromLauncher) {
+        const senderWindow = BrowserWindow.fromWebContents(event.sender);
+        const launcherWindowId = senderWindow?.id;
+        const allWindows = BrowserWindow.getAllWindows();
+
+        const existingWindows = allWindows.filter(
+          (win) => !win.isDestroyed() && win.id !== launcherWindowId
+        );
+
+        if (existingWindows.length > 0) {
+          const targetWindow = existingWindows[0];
+          targetWindow.show();
+          targetWindow.focus();
+          targetWindow.webContents.send('set-initial-message', query);
+          return;
+        }
+      }
+
+      // Otherwise, create a new window
       createChat(
         app,
         query,

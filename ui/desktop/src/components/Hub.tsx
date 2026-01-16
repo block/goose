@@ -1,3 +1,4 @@
+import { AppEvents } from '../constants/events';
 /**
  * Hub Component
  *
@@ -52,6 +53,13 @@ export default function Hub({
           extensionConfigs,
           allExtensions: extensionConfigs.length > 0 ? undefined : extensionsList,
         });
+
+        window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
+        window.dispatchEvent(
+          new CustomEvent(AppEvents.ADD_ACTIVE_SESSION, {
+            detail: { sessionId: session.id, initialMessage: combinedTextFromInput },
+          })
+        );
 
         setView('pair', {
           disableAnimation: true,
