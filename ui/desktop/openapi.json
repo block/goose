@@ -4369,6 +4369,12 @@
             "nullable": true,
             "minimum": 0
           },
+          "extra_params": {
+            "type": "object",
+            "description": "Arbitrary extra parameters to forward to the provider API",
+            "additionalProperties": {},
+            "nullable": true
+          },
           "fast_model": {
             "type": "string",
             "nullable": true

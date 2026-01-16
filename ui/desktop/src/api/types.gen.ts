@@ -524,6 +524,12 @@ export type MessageMetadata = {
 
 export type ModelConfig = {
     context_limit?: number | null;
+    /**
+     * Arbitrary extra parameters to forward to the provider API
+     */
+    extra_params?: {
+        [key: string]: unknown;
+    } | null;
     fast_model?: string | null;
     max_tokens?: number | null;
     model_name: string;
