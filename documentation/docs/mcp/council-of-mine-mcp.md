@@ -10,7 +10,7 @@ import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructi
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 
-<!--<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/VIDEO_ID" />-->
+<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/7Vn_Rixi3tQ" />
 
 
 This tutorial covers how to add the [Council of Mine MCP Server](https://github.com/block/mcp-council-of-mine) as a goose extension featuring 9 LLM council members with distinct personalities who debate topics, vote on each other's opinions, and generate synthesized conclusions through AI-powered deliberation. This is great for helping you make a decision.
