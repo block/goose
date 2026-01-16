@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
 import { ChatState } from '../types/chatState';
 
 import {
+  getSession,
   Message,
   MessageEvent,
   reply,
@@ -301,6 +302,35 @@ export function useChatStream({
           'useChatStream: Message stream finished for new session, emitting message-stream-finished event'
         );
         window.dispatchEvent(new CustomEvent('message-stream-finished'));
+      }
+
+      // Refresh session name after each reply for the first 3 user messages
+      // The backend regenerates the name after each of the first 3 user messages
+      // to refine it as more context becomes available
+      if (!error && sessionId) {
+        const currentState = stateRef.current;
+        const userMessageCount = currentState.messages.filter((m) => m.role === 'user').length;
+
+        // Only refresh for the first 3 user messages
+        if (userMessageCount <= 3) {
+          try {
+            const response = await getSession({
+              path: { session_id: sessionId },
+              throwOnError: true,
+            });
+            if (response.data?.name) {
+              dispatch({
+                type: 'SET_SESSION',
+                payload: currentState.session
+                  ? { ...currentState.session, name: response.data.name }
+                  : undefined,
+              });
+            }
+          } catch (refreshError) {
+            // Silently fail - this is a nice-to-have feature
+            console.warn('Failed to refresh session name:', refreshError);
+          }
+        }
       }
 
       onStreamFinish();

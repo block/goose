@@ -4524,6 +4524,12 @@
           "model_name": {
             "type": "string"
           },
+          "request_params": {
+            "type": "object",
+            "description": "Provider-specific request parameters (e.g., anthropic_beta headers)",
+            "additionalProperties": {},
+            "nullable": true
+          },
           "temperature": {
             "type": "number",
             "format": "float",
@@ -6327,12 +6333,22 @@
           "session_id"
         ],
         "properties": {
+          "context_limit": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0
+          },
           "model": {
             "type": "string",
             "nullable": true
           },
           "provider": {
             "type": "string"
+          },
+          "request_params": {
+            "type": "object",
+            "additionalProperties": {},
+            "nullable": true
           },
           "session_id": {
             "type": "string"

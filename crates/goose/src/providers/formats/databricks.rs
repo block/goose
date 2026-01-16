@@ -642,6 +642,15 @@ pub fn create_request(
         apply_cache_control_for_claude(&mut payload);
     }
 
+    // Add request_params to the payload (e.g., anthropic_beta for extended context)
+    if let Some(params) = &model_config.request_params {
+        if let Some(obj) = payload.as_object_mut() {
+            for (key, value) in params {
+                obj.insert(key.clone(), value.clone());
+            }
+        }
+    }
+
     Ok(payload)
 }
 
@@ -1013,6 +1022,7 @@ mod tests {
             toolshim: false,
             toolshim_model: None,
             fast_model: None,
+            request_params: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         let obj = request.as_object().unwrap();
@@ -1044,6 +1054,7 @@ mod tests {
             toolshim: false,
             toolshim_model: None,
             fast_model: None,
+            request_params: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         assert_eq!(request["reasoning_effort"], "high");
@@ -1360,6 +1371,7 @@ mod tests {
             toolshim: false,
             toolshim_model: None,
             fast_model: None,
+            request_params: None,
         };
 
         let messages = vec![
@@ -1411,6 +1423,7 @@ mod tests {
             toolshim: false,
             toolshim_model: None,
             fast_model: None,
+            request_params: None,
         };
 
         let messages = vec![Message::user().with_text("Hello")];
