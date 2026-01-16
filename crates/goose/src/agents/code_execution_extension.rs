@@ -1,6 +1,6 @@
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::extension_manager::get_parameter_names;
-use crate::agents::mcp_client::{Error, McpClientTrait};
+use crate::agents::mcp_client::{Error, McpClientTrait, McpMeta};
 use anyhow::Result;
 use async_trait::async_trait;
 use boa_engine::builtins::promise::PromiseState;
@@ -9,10 +9,9 @@ use boa_engine::{js_string, Context, JsNativeError, JsString, JsValue, NativeFun
 use indoc::indoc;
 use regex::Regex;
 use rmcp::model::{
-    CallToolRequestParam, CallToolResult, Content, GetPromptResult, Implementation,
-    InitializeResult, JsonObject, ListPromptsResult, ListResourcesResult, ListToolsResult,
-    ProtocolVersion, RawContent, ReadResourceResult, ServerCapabilities, ServerNotification,
-    Tool as McpTool, ToolAnnotations, ToolsCapability,
+    CallToolRequestParam, CallToolResult, Content, Implementation, InitializeResult, JsonObject,
+    ListToolsResult, ProtocolVersion, RawContent, ServerCapabilities, Tool as McpTool,
+    ToolAnnotations, ToolsCapability,
 };
 use schemars::{schema_for, JsonSchema};
 use serde::{Deserialize, Serialize};
@@ -369,9 +368,16 @@ fn run_js_module(
         .build()
         .map_err(|e| format!("Failed to create JS context: {e}"))?;
 
-    let record_result = NativeFunction::from_copy_closure(|_this, args, _ctx| {
+    let record_result = NativeFunction::from_copy_closure(|_this, args, ctx| {
         let value = args.first().cloned().unwrap_or(JsValue::undefined());
-        RESULT_CELL.with(|cell| *cell.borrow_mut() = Some(value.display().to_string()));
+        let fallback = || value.display().to_string();
+        let result_str = value
+            .to_json(ctx)
+            .ok()
+            .flatten()
+            .map(|v| serde_json::to_string_pretty(&v).unwrap_or_else(|_| fallback()))
+            .unwrap_or_else(fallback);
+        RESULT_CELL.with(|cell| *cell.borrow_mut() = Some(result_str));
         Ok(value)
     });
 
@@ -416,6 +422,7 @@ impl CodeExecutionClient {
         let info = InitializeResult {
             protocol_version: ProtocolVersion::V_2025_03_26,
             capabilities: ServerCapabilities {
+                tasks: None,
                 tools: Some(ToolsCapability {
                     list_changed: Some(false),
                 }),
@@ -471,6 +478,7 @@ impl CodeExecutionClient {
 
     async fn handle_execute_code(
         &self,
+        session_id: &str,
         arguments: Option<JsonObject>,
     ) -> Result<Vec<Content>, String> {
         let code = arguments
@@ -483,6 +491,7 @@ impl CodeExecutionClient {
         let tools = self.get_tool_infos().await;
         let (call_tx, call_rx) = mpsc::unbounded_channel();
         let tool_handler = tokio::spawn(Self::run_tool_handler(
+            session_id.to_string(),
             call_rx,
             self.context.extension_manager.clone(),
         ));
@@ -651,6 +660,7 @@ impl CodeExecutionClient {
     }
 
     async fn run_tool_handler(
+        session_id: String,
         mut call_rx: mpsc::UnboundedReceiver<ToolCallRequest>,
         extension_manager: Option<std::sync::Weak<crate::agents::ExtensionManager>>,
     ) {
@@ -658,11 +668,12 @@ impl CodeExecutionClient {
             let result = match extension_manager.as_ref().and_then(|w| w.upgrade()) {
                 Some(manager) => {
                     let tool_call = CallToolRequestParam {
+                        task: None,
                         name: tool_name.into(),
                         arguments: serde_json::from_str(&arguments).ok(),
                     };
                     match manager
-                        .dispatch_tool_call(tool_call, CancellationToken::new())
+                        .dispatch_tool_call(&session_id, tool_call, CancellationToken::new())
                         .await
                     {
                         Ok(dispatch_result) => match dispatch_result.result.await {
@@ -693,22 +704,6 @@ impl CodeExecutionClient {
 
 #[async_trait]
 impl McpClientTrait for CodeExecutionClient {
-    async fn list_resources(
-        &self,
-        _next_cursor: Option<String>,
-        _cancellation_token: CancellationToken,
-    ) -> Result<ListResourcesResult, Error> {
-        Err(Error::TransportClosed)
-    }
-
-    async fn read_resource(
-        &self,
-        _uri: &str,
-        _cancellation_token: CancellationToken,
-    ) -> Result<ReadResourceResult, Error> {
-        Err(Error::TransportClosed)
-    }
-
     #[allow(clippy::too_many_lines)]
     async fn list_tools(
         &self,
@@ -838,10 +833,11 @@ impl McpClientTrait for CodeExecutionClient {
         &self,
         name: &str,
         arguments: Option<JsonObject>,
+        meta: McpMeta,
         _cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         let content = match name {
-            "execute_code" => self.handle_execute_code(arguments).await,
+            "execute_code" => self.handle_execute_code(&meta.session_id, arguments).await,
             "read_module" => self.handle_read_module(arguments).await,
             "search_modules" => self.handle_search_modules(arguments).await,
             _ => Err(format!("Unknown tool: {name}")),
@@ -855,32 +851,11 @@ impl McpClientTrait for CodeExecutionClient {
         }
     }
 
-    async fn list_prompts(
-        &self,
-        _next_cursor: Option<String>,
-        _cancellation_token: CancellationToken,
-    ) -> Result<ListPromptsResult, Error> {
-        Err(Error::TransportClosed)
-    }
-
-    async fn get_prompt(
-        &self,
-        _name: &str,
-        _arguments: Value,
-        _cancellation_token: CancellationToken,
-    ) -> Result<GetPromptResult, Error> {
-        Err(Error::TransportClosed)
-    }
-
-    async fn subscribe(&self) -> mpsc::Receiver<ServerNotification> {
-        mpsc::channel(1).1
-    }
-
     fn get_info(&self) -> Option<&InitializeResult> {
         Some(&self.info)
     }
 
-    async fn get_moim(&self) -> Option<String> {
+    async fn get_moim(&self, _session_id: &str) -> Option<String> {
         let tools = self.get_tool_infos().await;
         if tools.is_empty() {
             return None;
@@ -916,9 +891,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_execute_code_simple() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let session_manager = Arc::new(crate::session::SessionManager::new(
+            temp_dir.path().to_path_buf(),
+        ));
         let context = PlatformExtensionContext {
-            session_id: None,
             extension_manager: None,
+            session_manager,
         };
         let client = CodeExecutionClient::new(context).unwrap();
 
@@ -929,7 +908,12 @@ mod tests {
         );
 
         let result = client
-            .call_tool("execute_code", Some(args), CancellationToken::new())
+            .call_tool(
+                "execute_code",
+                Some(args),
+                McpMeta::new("test-session-id"),
+                CancellationToken::new(),
+            )
             .await
             .unwrap();
 
@@ -942,10 +926,55 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_read_module_not_found() {
+    async fn test_record_result_outputs_valid_json() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let session_manager = Arc::new(crate::session::SessionManager::new(
+            temp_dir.path().to_path_buf(),
+        ));
         let context = PlatformExtensionContext {
-            session_id: None,
             extension_manager: None,
+            session_manager,
+        };
+        let client = CodeExecutionClient::new(context).unwrap();
+
+        // Nested array in object - this triggers truncation with display() (e.g., "items: Array(3)")
+        let mut args = JsonObject::new();
+        args.insert(
+            "code".to_string(),
+            Value::String("record_result({items: [1, 2, 3], count: 3})".to_string()),
+        );
+
+        let result = client
+            .call_tool(
+                "execute_code",
+                Some(args),
+                McpMeta::new("test-session-id"),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+
+        assert!(!result.is_error.unwrap_or(false));
+        if let RawContent::Text(text) = &result.content[0].raw {
+            let json_str = text.text.strip_prefix("Result: ").unwrap_or(&text.text);
+            let parsed: serde_json::Value = serde_json::from_str(json_str)
+                .unwrap_or_else(|_| panic!("Output should be valid JSON, got: {}", text.text));
+            assert_eq!(parsed["items"].as_array().unwrap().len(), 3);
+            assert_eq!(parsed["count"], 3);
+        } else {
+            panic!("Expected text content");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_read_module_not_found() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let session_manager = Arc::new(crate::session::SessionManager::new(
+            temp_dir.path().to_path_buf(),
+        ));
+        let context = PlatformExtensionContext {
+            extension_manager: None,
+            session_manager,
         };
         let client = CodeExecutionClient::new(context).unwrap();
 

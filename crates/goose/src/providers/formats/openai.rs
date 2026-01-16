@@ -1,4 +1,4 @@
-use crate::conversation::message::{Message, MessageContent};
+use crate::conversation::message::{Message, MessageContent, ProviderMetadata};
 use crate::model::ModelConfig;
 use crate::providers::base::{ProviderUsage, Usage};
 use crate::providers::utils::{
@@ -18,10 +18,11 @@ use serde_json::{json, Value};
 use std::borrow::Cow;
 use std::ops::Deref;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default)]
 struct DeltaToolCallFunction {
     name: Option<String>,
-    arguments: String, // chunk of encoded JSON,
+    #[serde(default)]
+    arguments: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -37,6 +38,7 @@ struct Delta {
     content: Option<String>,
     role: Option<String>,
     tool_calls: Option<Vec<DeltaToolCall>>,
+    reasoning_details: Option<Vec<Value>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -338,6 +340,7 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                             content.push(MessageContent::tool_request(
                                 id,
                                 Ok(CallToolRequestParam {
+                                    task: None,
                                     name: function_name.into(),
                                     arguments: Some(object(params)),
                                 }),
@@ -449,6 +452,8 @@ where
     try_stream! {
         use futures::StreamExt;
 
+        let mut accumulated_reasoning: Vec<Value> = Vec::new();
+
         'outer: while let Some(response) = stream.next().await {
             if response.as_ref().is_ok_and(|s| s == "data: [DONE]") {
                 break 'outer;
@@ -463,6 +468,12 @@ where
             let chunk: StreamingChunk = serde_json::from_str(line
                 .ok_or_else(|| anyhow!("unexpected stream format"))?)
                 .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line))?;
+
+            if !chunk.choices.is_empty() {
+                if let Some(details) = &chunk.choices[0].delta.reasoning_details {
+                    accumulated_reasoning.extend(details.iter().cloned());
+                }
+            }
 
             let usage = chunk.usage.as_ref().and_then(|u| {
                 chunk.model.as_ref().map(|model| {
@@ -486,7 +497,6 @@ where
                     }
                 }
 
-                // Check if this chunk already has finish_reason "tool_calls"
                 let is_complete = chunk.choices[0].finish_reason == Some("tool_calls".to_string());
 
                 if !is_complete {
@@ -502,6 +512,9 @@ where
                                     .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line))?;
 
                                 if !tool_chunk.choices.is_empty() {
+                                    if let Some(details) = &tool_chunk.choices[0].delta.reasoning_details {
+                                        accumulated_reasoning.extend(details.iter().cloned());
+                                    }
                                     if let Some(delta_tool_calls) = &tool_chunk.choices[0].delta.tool_calls {
                                         for delta_call in delta_tool_calls {
                                             if let Some(index) = delta_call.index {
@@ -526,6 +539,14 @@ where
                     }
                 }
 
+                let metadata: Option<ProviderMetadata> = if !accumulated_reasoning.is_empty() {
+                    let mut map = ProviderMetadata::new();
+                    map.insert("reasoning_details".to_string(), json!(accumulated_reasoning));
+                    Some(map)
+                } else {
+                    None
+                };
+
                 let mut contents = Vec::new();
                 let mut sorted_indices: Vec<_> = tool_call_data.keys().cloned().collect();
                 sorted_indices.sort();
@@ -540,9 +561,14 @@ where
 
                         let content = match parsed {
                             Ok(params) => {
-                                MessageContent::tool_request(
+                                MessageContent::tool_request_with_metadata(
                                     id.clone(),
-                                    Ok(CallToolRequestParam { name: function_name.clone().into(), arguments: Some(object(params)) }),
+                                    Ok(CallToolRequestParam {
+                                        task: None,
+                                        name: function_name.clone().into(),
+                                        arguments: Some(object(params))
+                                    }),
+                                    metadata.as_ref(),
                                 )
                             },
                             Err(e) => {
@@ -554,7 +580,7 @@ where
                                     )),
                                     data: None,
                                 };
-                                MessageContent::tool_request(id.clone(), Err(error))
+                                MessageContent::tool_request_with_metadata(id.clone(), Err(error), metadata.as_ref())
                             }
                         };
                         contents.push(content);
@@ -591,11 +617,7 @@ where
 
                 yield (
                     Some(msg),
-                    if chunk.choices[0].finish_reason.is_some() {
-                        usage
-                    } else {
-                        None
-                    },
+                    usage,
                 )
             } else if usage.is_some() {
                 yield (None, usage)
@@ -848,6 +870,7 @@ mod tests {
             Message::assistant().with_tool_request(
                 "tool1",
                 Ok(CallToolRequestParam {
+                    task: None,
                     name: "example".into(),
                     arguments: Some(object!({"param1": "value1"})),
                 }),
@@ -892,6 +915,7 @@ mod tests {
         let mut messages = vec![Message::assistant().with_tool_request(
             "tool1",
             Ok(CallToolRequestParam {
+                task: None,
                 name: "example".into(),
                 arguments: Some(object!({"param1": "value1"})),
             }),
@@ -1131,6 +1155,7 @@ mod tests {
         let message = Message::assistant().with_tool_request(
             "tool1",
             Ok(CallToolRequestParam {
+                task: None,
                 name: "test_tool".into(),
                 arguments: None, // This is the key case the fix addresses
             }),
@@ -1158,6 +1183,7 @@ mod tests {
         let message = Message::assistant().with_tool_request(
             "tool1",
             Ok(CallToolRequestParam {
+                task: None,
                 name: "test_tool".into(),
                 arguments: Some(object!({"param": "value", "number": 42})),
             }),
@@ -1188,6 +1214,7 @@ mod tests {
         let message = Message::assistant().with_frontend_tool_request(
             "frontend_tool1",
             Ok(CallToolRequestParam {
+                task: None,
                 name: "frontend_test_tool".into(),
                 arguments: None, // This is the key case the fix addresses
             }),
@@ -1215,6 +1242,7 @@ mod tests {
         let message = Message::assistant().with_frontend_tool_request(
             "frontend_tool1",
             Ok(CallToolRequestParam {
+                task: None,
                 name: "frontend_test_tool".into(),
                 arguments: Some(object!({"action": "click", "element": "button"})),
             }),

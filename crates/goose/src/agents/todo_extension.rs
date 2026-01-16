@@ -1,19 +1,16 @@
 use crate::agents::extension::PlatformExtensionContext;
-use crate::agents::mcp_client::{Error, McpClientTrait};
+use crate::agents::mcp_client::{Error, McpClientTrait, McpMeta};
+use crate::session::extension_data;
 use crate::session::extension_data::ExtensionState;
-use crate::session::{extension_data, SessionManager};
 use anyhow::Result;
 use async_trait::async_trait;
 use indoc::indoc;
 use rmcp::model::{
-    CallToolResult, Content, GetPromptResult, Implementation, InitializeResult, JsonObject,
-    ListPromptsResult, ListResourcesResult, ListToolsResult, ProtocolVersion, ReadResourceResult,
-    ServerCapabilities, ServerNotification, Tool, ToolAnnotations, ToolsCapability,
+    CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
+    ProtocolVersion, ServerCapabilities, Tool, ToolAnnotations, ToolsCapability,
 };
 use schemars::{schema_for, JsonSchema};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 pub static EXTENSION_NAME: &str = "todo";
@@ -26,7 +23,6 @@ struct TodoWriteParams {
 pub struct TodoClient {
     info: InitializeResult,
     context: PlatformExtensionContext,
-    fallback_content: tokio::sync::RwLock<String>,
 }
 
 impl TodoClient {
@@ -34,6 +30,7 @@ impl TodoClient {
         let info = InitializeResult {
             protocol_version: ProtocolVersion::V_2025_03_26,
             capabilities: ServerCapabilities {
+                tasks: None,
                 tools: Some(ToolsCapability {
                     list_changed: Some(false),
                 }),
@@ -70,15 +67,12 @@ impl TodoClient {
             ),
         };
 
-        Ok(Self {
-            info,
-            context,
-            fallback_content: tokio::sync::RwLock::new(String::new()),
-        })
+        Ok(Self { info, context })
     }
 
     async fn handle_write_todo(
         &self,
+        session_id: &str,
         arguments: Option<JsonObject>,
     ) -> Result<Vec<Content>, String> {
         let content = arguments
@@ -102,38 +96,31 @@ impl TodoClient {
             ));
         }
 
-        if let Some(session_id) = &self.context.session_id {
-            match SessionManager::get_session(session_id, false).await {
-                Ok(mut session) => {
-                    let todo_state = extension_data::TodoState::new(content);
-                    if todo_state
-                        .to_extension_data(&mut session.extension_data)
-                        .is_ok()
+        let manager = &self.context.session_manager;
+        match manager.get_session(session_id, false).await {
+            Ok(mut session) => {
+                let todo_state = extension_data::TodoState::new(content);
+                if todo_state
+                    .to_extension_data(&mut session.extension_data)
+                    .is_ok()
+                {
+                    match manager
+                        .update(session_id)
+                        .extension_data(session.extension_data)
+                        .apply()
+                        .await
                     {
-                        match SessionManager::update_session(session_id)
-                            .extension_data(session.extension_data)
-                            .apply()
-                            .await
-                        {
-                            Ok(_) => Ok(vec![Content::text(format!(
-                                "Updated ({} chars)",
-                                char_count
-                            ))]),
-                            Err(_) => Err("Failed to update session metadata".to_string()),
-                        }
-                    } else {
-                        Err("Failed to serialize TODO state".to_string())
+                        Ok(_) => Ok(vec![Content::text(format!(
+                            "Updated ({} chars)",
+                            char_count
+                        ))]),
+                        Err(_) => Err("Failed to update session metadata".to_string()),
                     }
+                } else {
+                    Err("Failed to serialize TODO state".to_string())
                 }
-                Err(_) => Err("Failed to read session metadata".to_string()),
             }
-        } else {
-            let mut fallback = self.fallback_content.write().await;
-            *fallback = content;
-            Ok(vec![Content::text(format!(
-                "Updated ({} chars)",
-                char_count
-            ))])
+            Err(_) => Err("Failed to read session metadata".to_string()),
         }
     }
 
@@ -169,22 +156,6 @@ impl TodoClient {
 
 #[async_trait]
 impl McpClientTrait for TodoClient {
-    async fn list_resources(
-        &self,
-        _next_cursor: Option<String>,
-        _cancellation_token: CancellationToken,
-    ) -> Result<ListResourcesResult, Error> {
-        Err(Error::TransportClosed)
-    }
-
-    async fn read_resource(
-        &self,
-        _uri: &str,
-        _cancellation_token: CancellationToken,
-    ) -> Result<ReadResourceResult, Error> {
-        Err(Error::TransportClosed)
-    }
-
     async fn list_tools(
         &self,
         _next_cursor: Option<String>,
@@ -201,10 +172,12 @@ impl McpClientTrait for TodoClient {
         &self,
         name: &str,
         arguments: Option<JsonObject>,
+        meta: McpMeta,
         _cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
+        let session_id = &meta.session_id;
         let content = match name {
-            "todo_write" => self.handle_write_todo(arguments).await,
+            "todo_write" => self.handle_write_todo(session_id, arguments).await,
             _ => Err(format!("Unknown tool: {}", name)),
         };
 
@@ -217,34 +190,17 @@ impl McpClientTrait for TodoClient {
         }
     }
 
-    async fn list_prompts(
-        &self,
-        _next_cursor: Option<String>,
-        _cancellation_token: CancellationToken,
-    ) -> Result<ListPromptsResult, Error> {
-        Err(Error::TransportClosed)
-    }
-
-    async fn get_prompt(
-        &self,
-        _name: &str,
-        _arguments: Value,
-        _cancellation_token: CancellationToken,
-    ) -> Result<GetPromptResult, Error> {
-        Err(Error::TransportClosed)
-    }
-
-    async fn subscribe(&self) -> mpsc::Receiver<ServerNotification> {
-        mpsc::channel(1).1
-    }
-
     fn get_info(&self) -> Option<&InitializeResult> {
         Some(&self.info)
     }
 
-    async fn get_moim(&self) -> Option<String> {
-        let session_id = self.context.session_id.as_ref()?;
-        let metadata = SessionManager::get_session(session_id, false).await.ok()?;
+    async fn get_moim(&self, session_id: &str) -> Option<String> {
+        let metadata = self
+            .context
+            .session_manager
+            .get_session(session_id, false)
+            .await
+            .ok()?;
 
         match extension_data::TodoState::from_extension_data(&metadata.extension_data) {
             Some(state) if !state.content.trim().is_empty() => {

@@ -135,10 +135,14 @@ pub struct Scheduler {
     jobs: Arc<Mutex<JobsMap>>,
     storage_path: PathBuf,
     running_tasks: Arc<Mutex<RunningTasksMap>>,
+    session_manager: Arc<SessionManager>,
 }
 
 impl Scheduler {
-    pub async fn new(storage_path: PathBuf) -> Result<Arc<Self>, SchedulerError> {
+    pub async fn new(
+        storage_path: PathBuf,
+        session_manager: Arc<SessionManager>,
+    ) -> Result<Arc<Self>, SchedulerError> {
         let internal_scheduler = TokioJobScheduler::new()
             .await
             .map_err(|e| SchedulerError::SchedulerInternalError(e.to_string()))?;
@@ -151,6 +155,7 @@ impl Scheduler {
             jobs,
             storage_path,
             running_tasks,
+            session_manager,
         });
 
         arc_self.load_jobs_from_storage().await;
@@ -500,7 +505,9 @@ impl Scheduler {
         sched_id: &str,
         limit: usize,
     ) -> Result<Vec<(String, Session)>, SchedulerError> {
-        let all_sessions = SessionManager::list_sessions()
+        let all_sessions = self
+            .session_manager
+            .list_sessions()
             .await
             .map_err(|e| SchedulerError::StorageError(io::Error::other(e)))?;
 
@@ -742,12 +749,15 @@ async fn execute_job(
         }
     }
 
-    let session = SessionManager::create_session(
-        std::env::current_dir()?,
-        format!("Scheduled job: {}", job.id),
-        SessionType::Scheduled,
-    )
-    .await?;
+    let session = agent
+        .config
+        .session_manager
+        .create_session(
+            std::env::current_dir()?,
+            format!("Scheduled job: {}", job.id),
+            SessionType::Scheduled,
+        )
+        .await?;
 
     agent.update_provider(agent_provider, &session.id).await?;
 
@@ -814,7 +824,10 @@ async fn execute_job(
         }
     }
 
-    SessionManager::update_session(&session.id)
+    agent
+        .config
+        .session_manager
+        .update(&session.id)
         .schedule_id(Some(job.id.clone()))
         .recipe(Some(recipe))
         .apply()
@@ -930,7 +943,8 @@ mod tests {
         let temp_dir = tempdir().unwrap();
         let storage_path = temp_dir.path().join("schedule.json");
         let recipe_path = create_test_recipe(temp_dir.path(), "scheduled_job");
-        let scheduler = Scheduler::new(storage_path).await.unwrap();
+        let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+        let scheduler = Scheduler::new(storage_path, session_manager).await.unwrap();
 
         let job = ScheduledJob {
             id: "scheduled_job".to_string(),
@@ -955,7 +969,8 @@ mod tests {
         let temp_dir = tempdir().unwrap();
         let storage_path = temp_dir.path().join("schedule.json");
         let recipe_path = create_test_recipe(temp_dir.path(), "paused_job");
-        let scheduler = Scheduler::new(storage_path).await.unwrap();
+        let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+        let scheduler = Scheduler::new(storage_path, session_manager).await.unwrap();
 
         let job = ScheduledJob {
             id: "paused_job".to_string(),

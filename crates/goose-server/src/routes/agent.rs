@@ -11,7 +11,7 @@ use axum::{
     Json, Router,
 };
 use goose::agents::ExtensionLoadResult;
-use goose::config::PermissionManager;
+use goose::goose_apps::{fetch_mcp_apps, GooseApp, McpAppCache};
 
 use base64::Engine;
 use goose::agents::ExtensionConfig;
@@ -23,7 +23,7 @@ use goose::recipe::Recipe;
 use goose::recipe_deeplink;
 use goose::session::extension_data::ExtensionState;
 use goose::session::session_manager::SessionType;
-use goose::session::{EnabledExtensionsState, Session, SessionManager};
+use goose::session::{EnabledExtensionsState, Session};
 use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
     config::permission::PermissionLevel,
@@ -36,7 +36,7 @@ use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
-use tracing::error;
+use tracing::{error, warn};
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdateFromSessionRequest {
@@ -210,17 +210,19 @@ async fn start_agent(
     let counter = state.session_counter.fetch_add(1, Ordering::SeqCst) + 1;
     let name = format!("New session {}", counter);
 
-    let mut session =
-        SessionManager::create_session(PathBuf::from(&working_dir), name, SessionType::User)
-            .await
-            .map_err(|err| {
-                error!("Failed to create session: {}", err);
-                goose::posthog::emit_error("session_create_failed", &err.to_string());
-                ErrorResponse {
-                    message: format!("Failed to create session: {}", err),
-                    status: StatusCode::BAD_REQUEST,
-                }
-            })?;
+    let manager = state.session_manager();
+
+    let mut session = manager
+        .create_session(PathBuf::from(&working_dir), name, SessionType::User)
+        .await
+        .map_err(|err| {
+            error!("Failed to create session: {}", err);
+            goose::posthog::emit_error("session_create_failed", &err.to_string());
+            ErrorResponse {
+                message: format!("Failed to create session: {}", err),
+                status: StatusCode::BAD_REQUEST,
+            }
+        })?;
 
     // Initialize session with extensions (either overrides from hub or global defaults)
     let extensions_to_use =
@@ -230,7 +232,8 @@ async fn start_agent(
     if let Err(e) = extensions_state.to_extension_data(&mut extension_data) {
         tracing::warn!("Failed to initialize session with extensions: {}", e);
     } else {
-        SessionManager::update_session(&session.id)
+        manager
+            .update(&session.id)
             .extension_data(extension_data.clone())
             .apply()
             .await
@@ -244,7 +247,8 @@ async fn start_agent(
     }
 
     if let Some(recipe) = original_recipe {
-        SessionManager::update_session(&session.id)
+        manager
+            .update(&session.id)
             .recipe(Some(recipe))
             .apply()
             .await
@@ -258,7 +262,8 @@ async fn start_agent(
     }
 
     // Refetch session to get all updates
-    session = SessionManager::get_session(&session.id, false)
+    session = manager
+        .get_session(&session.id, false)
         .await
         .map_err(|err| {
             error!("Failed to get updated session: {}", err);
@@ -319,7 +324,9 @@ async fn resume_agent(
 ) -> Result<Json<ResumeAgentResponse>, ErrorResponse> {
     goose::posthog::set_session_context("desktop", true);
 
-    let session = SessionManager::get_session(&payload.session_id, true)
+    let session = state
+        .session_manager()
+        .get_session(&payload.session_id, true)
         .await
         .map_err(|err| {
             error!("Failed to resume session {}: {}", payload.session_id, err);
@@ -397,7 +404,9 @@ async fn update_from_session(
             message: format!("Failed to get agent: {}", status),
             status,
         })?;
-    let session = SessionManager::get_session(&payload.session_id, false)
+    let session = state
+        .session_manager()
+        .get_session(&payload.session_id, false)
         .await
         .map_err(|err| ErrorResponse {
             message: format!("Failed to get session: {}", err),
@@ -455,11 +464,12 @@ async fn get_tools(
 ) -> Result<Json<Vec<ToolInfo>>, StatusCode> {
     let config = Config::global();
     let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
-    let agent = state.get_agent_for_route(query.session_id).await?;
-    let permission_manager = PermissionManager::default();
+    let session_id = query.session_id;
+    let agent = state.get_agent_for_route(session_id.clone()).await?;
+    let permission_manager = agent.config.permission_manager.clone();
 
     let mut tools: Vec<ToolInfo> = agent
-        .list_tools(query.extension_name)
+        .list_tools(&session_id, query.extension_name)
         .await
         .into_iter()
         .map(|tool| {
@@ -725,7 +735,9 @@ async fn restart_agent(
 ) -> Result<Json<RestartAgentResponse>, ErrorResponse> {
     let session_id = payload.session_id.clone();
 
-    let session = SessionManager::get_session(&session_id, false)
+    let session = state
+        .session_manager()
+        .get_session(&session_id, false)
         .await
         .map_err(|err| {
             error!("Failed to get session during restart: {}", err);
@@ -775,7 +787,9 @@ async fn update_working_dir(
     }
 
     // Update the session's working directory
-    SessionManager::update_session(&session_id)
+    state
+        .session_manager()
+        .update(&session_id)
         .working_dir(path)
         .apply()
         .await
@@ -788,7 +802,9 @@ async fn update_working_dir(
         })?;
 
     // Get the updated session and restart the agent
-    let session = SessionManager::get_session(&session_id, false)
+    let session = state
+        .session_manager()
+        .get_session(&session_id, false)
         .await
         .map_err(|err| {
             error!("Failed to get session after working dir update: {}", err);
@@ -900,13 +916,14 @@ async fn call_tool(
     };
 
     let tool_call = CallToolRequestParam {
+        task: None,
         name: payload.name.into(),
         arguments,
     };
 
     let tool_result = agent
         .extension_manager
-        .dispatch_tool_call(tool_call, CancellationToken::default())
+        .dispatch_tool_call(&payload.session_id, tool_call, CancellationToken::default())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -923,6 +940,87 @@ async fn call_tool(
     }))
 }
 
+#[derive(Deserialize, utoipa::IntoParams, utoipa::ToSchema)]
+pub struct ListAppsRequest {
+    session_id: Option<String>,
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ListAppsResponse {
+    pub apps: Vec<GooseApp>,
+}
+
+#[utoipa::path(
+    get,
+    path = "/agent/list_apps",
+    params(
+        ListAppsRequest
+    ),
+    responses(
+        (status = 200, description = "List of apps retrieved successfully", body = ListAppsResponse),
+        (status = 401, description = "Unauthorized - Invalid or missing API key", body = ErrorResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse),
+    ),
+    security(
+        ("api_key" = [])
+    ),
+    tag = "Agent"
+)]
+async fn list_apps(
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<ListAppsRequest>,
+) -> Result<Json<ListAppsResponse>, ErrorResponse> {
+    let cache = McpAppCache::new().ok();
+
+    let Some(session_id) = params.session_id else {
+        let apps = cache
+            .as_ref()
+            .and_then(|c| c.list_apps().ok())
+            .unwrap_or_default();
+        return Ok(Json(ListAppsResponse { apps }));
+    };
+
+    let agent = state
+        .get_agent_for_route(session_id)
+        .await
+        .map_err(|status| ErrorResponse {
+            message: "Failed to get agent".to_string(),
+            status,
+        })?;
+
+    let apps = fetch_mcp_apps(&agent.extension_manager)
+        .await
+        .map_err(|e| ErrorResponse {
+            message: format!("Failed to list apps: {}", e.message),
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+        })?;
+
+    if let Some(cache) = cache.as_ref() {
+        let active_extensions: std::collections::HashSet<String> = apps
+            .iter()
+            .filter_map(|app| app.mcp_server.clone())
+            .collect();
+
+        for extension_name in active_extensions {
+            if let Err(e) = cache.delete_extension_apps(&extension_name) {
+                warn!(
+                    "Failed to clean cache for extension {}: {}",
+                    extension_name, e
+                );
+            }
+        }
+
+        for app in &apps {
+            if let Err(e) = cache.store_app(app) {
+                warn!("Failed to cache app {}: {}", app.resource.name, e);
+            }
+        }
+    }
+
+    Ok(Json(ListAppsResponse { apps }))
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/agent/start", post(start_agent))
@@ -932,6 +1030,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/agent/tools", get(get_tools))
         .route("/agent/read_resource", post(read_resource))
         .route("/agent/call_tool", post(call_tool))
+        .route("/agent/list_apps", get(list_apps))
         .route("/agent/update_provider", post(update_agent_provider))
         .route("/agent/update_from_session", post(update_from_session))
         .route("/agent/add_extension", post(agent_add_extension))

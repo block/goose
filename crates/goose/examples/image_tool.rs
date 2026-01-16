@@ -33,6 +33,7 @@ async fn main() -> Result<()> {
             Message::assistant().with_tool_request(
                 "000",
                 Ok(CallToolRequestParam {
+                    task: None,
                     name: "view_image".into(),
                     arguments: Some(object!({"path": "./test_image.png"})),
                 }),

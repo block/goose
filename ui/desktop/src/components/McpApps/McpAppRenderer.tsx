@@ -24,12 +24,14 @@ import { readResource, callTool } from '../../api';
 interface McpAppRendererProps {
   resourceUri: string;
   extensionName: string;
-  sessionId: string;
+  sessionId?: string | null;
   toolInput?: ToolInput;
   toolInputPartial?: ToolInputPartial;
   toolResult?: ToolResult;
   toolCancelled?: ToolCancelled;
   append?: (text: string) => void;
+  fullscreen?: boolean;
+  cachedHtml?: string;
 }
 
 interface ResourceData {
@@ -47,9 +49,11 @@ export default function McpAppRenderer({
   toolResult,
   toolCancelled,
   append,
+  fullscreen = false,
+  cachedHtml,
 }: McpAppRendererProps) {
   const [resource, setResource] = useState<ResourceData>({
-    html: null,
+    html: cachedHtml || null,
     csp: null,
     prefersBorder: true,
   });
@@ -57,6 +61,10 @@ export default function McpAppRenderer({
   const [iframeHeight, setIframeHeight] = useState(DEFAULT_IFRAME_HEIGHT);
 
   useEffect(() => {
+    if (!sessionId) {
+      return;
+    }
+
     const fetchResource = async () => {
       try {
         const response = await readResource({
@@ -73,19 +81,25 @@ export default function McpAppRenderer({
             | { ui?: { csp?: CspMetadata; prefersBorder?: boolean } }
             | undefined;
 
-          setResource({
-            html: content.text,
-            csp: meta?.ui?.csp || null,
-            prefersBorder: meta?.ui?.prefersBorder ?? true,
-          });
+          if (content.text !== cachedHtml) {
+            setResource({
+              html: content.text,
+              csp: meta?.ui?.csp || null,
+              prefersBorder: meta?.ui?.prefersBorder ?? true,
+            });
+          }
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load resource');
+        if (!cachedHtml) {
+          setError(err instanceof Error ? err.message : 'Failed to load resource');
+        } else {
+          console.warn('Failed to fetch fresh resource, using cached version:', err);
+        }
       }
     };
 
     fetchResource();
-  }, [resourceUri, extensionName, sessionId]);
+  }, [resourceUri, extensionName, sessionId, cachedHtml]);
 
   const handleMcpRequest = useCallback(
     async (
@@ -93,6 +107,12 @@ export default function McpAppRenderer({
       params: Record<string, unknown> = {},
       _id?: string | number
     ): Promise<unknown> => {
+      // Methods that require a session
+      const requiresSession = ['tools/call', 'resources/read'];
+      if (requiresSession.includes(method) && !sessionId) {
+        throw new Error('Session not initialized for MCP request');
+      }
+
       switch (method) {
         case 'ui/open-link': {
           const { url } = params as McpMethodParams['ui/open-link'];
@@ -121,7 +141,7 @@ export default function McpAppRenderer({
           const fullToolName = `${extensionName}__${name}`;
           const response = await callTool({
             body: {
-              session_id: sessionId,
+              session_id: sessionId!,
               name: fullToolName,
               arguments: args || {},
             },
@@ -139,7 +159,7 @@ export default function McpAppRenderer({
           const { uri } = params as McpMethodParams['resources/read'];
           const response = await readResource({
             body: {
-              session_id: sessionId,
+              session_id: sessionId!,
               uri,
               extension_name: extensionName,
             },
@@ -189,6 +209,33 @@ export default function McpAppRenderer({
     return (
       <div className="p-4 border border-red-500 rounded-lg bg-red-50 dark:bg-red-900/20">
         <div className="text-red-700 dark:text-red-300">Failed to load MCP app: {error}</div>
+      </div>
+    );
+  }
+
+  if (fullscreen) {
+    return proxyUrl ? (
+      <iframe
+        ref={iframeRef}
+        src={proxyUrl}
+        style={{
+          width: '100%',
+          height: '100%',
+          border: 'none',
+        }}
+        sandbox="allow-scripts allow-same-origin"
+      />
+    ) : (
+      <div
+        style={{
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        Loading...
       </div>
     );
   }

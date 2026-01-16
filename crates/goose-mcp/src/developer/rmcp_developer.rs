@@ -1,5 +1,6 @@
 use anyhow::anyhow;
 use base64::Engine;
+use etcetera::AppStrategy;
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use include_dir::{include_dir, Dir};
 use indoc::{formatdoc, indoc};
@@ -1289,14 +1290,26 @@ impl DeveloperServer {
     fn build_ignore_patterns(cwd: &PathBuf) -> Gitignore {
         let mut builder = GitignoreBuilder::new(cwd);
         let local_ignore_path = cwd.join(".gooseignore");
-        let mut has_ignore_file = false;
 
-        if local_ignore_path.is_file() {
-            let _ = builder.add(local_ignore_path);
-            has_ignore_file = true;
+        let global_ignore_path = etcetera::choose_app_strategy(crate::APP_STRATEGY.clone())
+            .map(|strategy| strategy.config_dir().join(".gooseignore"))
+            .ok();
+
+        let has_local_ignore = local_ignore_path.is_file();
+        let has_global_ignore = global_ignore_path
+            .as_ref()
+            .map(|p| p.is_file())
+            .unwrap_or(false);
+
+        if has_global_ignore {
+            let _ = builder.add(global_ignore_path.as_ref().unwrap());
         }
 
-        if !has_ignore_file {
+        if has_local_ignore {
+            let _ = builder.add(&local_ignore_path);
+        }
+
+        if !has_local_ignore && !has_global_ignore {
             let _ = builder.add_line(None, "**/.env");
             let _ = builder.add_line(None, "**/.env.*");
             let _ = builder.add_line(None, "**/secrets.*");

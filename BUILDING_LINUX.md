@@ -138,8 +138,23 @@ If you see "Could not find goosed binary", ensure you've:
 - The RPM maker is disabled by default as it's not compatible with Arch-based systems
 - Use the ZIP distribution method for maximum compatibility
 
-#### Flatpak/Snap
-Building as Flatpak or Snap packages is not currently supported but may be added in the future.
+#### Flatpak
+Flatpak builds are supported via CI. To build locally:
+```bash
+# Install flatpak and flatpak-builder
+sudo apt install flatpak flatpak-builder
+
+# Add Flathub remote
+flatpak remote-add --if-not-exists --user flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+
+# Build with Electron Forge
+npm run make -- --targets=@electron-forge/maker-flatpak
+```
+
+Output: `out/make/flatpak/x86_64/*.flatpak`
+
+#### Snap
+Building as Snap packages is not currently supported but may be added in the future.
 
 ## Development Workflow
 
