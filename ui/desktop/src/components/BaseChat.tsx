@@ -59,6 +59,7 @@ interface BaseChatProps {
 }
 
 function BaseChatContent({
+  setChat,
   renderHeader,
   customChatInputProps = {},
   customMainLayoutProps = {},
@@ -300,6 +301,18 @@ function BaseChatContent({
     sessionId,
     name: session?.name || 'No Session',
   };
+
+  // Update the global chat context when session changes
+  useEffect(() => {
+    if (session) {
+      setChat({
+        messages,
+        recipe,
+        sessionId,
+        name: session.name,
+      });
+    }
+  }, [session?.name, sessionId, messages, recipe, setChat]);
 
   // Only use initialMessage for the prompt if it hasn't been submitted yet
   // If we have a recipe prompt and user recipe values, substitute parameters
