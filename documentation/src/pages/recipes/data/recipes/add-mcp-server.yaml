@@ -223,7 +223,7 @@ instructions: |
   - Env vars only in one file
   - Missing prerequisites
   - Empty Example Usage
-  - Inconsistent descriptions between servers.json and tutorial
+  - Inconsistent command/url between servers.json and tutorial
   - `extensionId` in tutorial doesn't match `id` in servers.json
 
 parameters:
