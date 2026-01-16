@@ -303,27 +303,20 @@ function BaseChatContent({
   };
 
   // Update the global chat context when session name changes
-  // Use refs to get current values without triggering re-renders
   const lastSetNameRef = useRef<string>('');
-  const messagesRef = useRef(messages);
-  const recipeRef = useRef(recipe);
-  const sessionIdRef = useRef(sessionId);
-  
-  messagesRef.current = messages;
-  recipeRef.current = recipe;
-  sessionIdRef.current = sessionId;
   
   useEffect(() => {
     const currentSessionName = session?.name;
     if (currentSessionName && currentSessionName !== lastSetNameRef.current) {
       lastSetNameRef.current = currentSessionName;
       setChat({
-        messages: messagesRef.current,
-        recipe: recipeRef.current,
-        sessionId: sessionIdRef.current,
+        messages,
+        recipe,
+        sessionId,
         name: currentSessionName,
       });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.name, setChat]);
 
   // Only use initialMessage for the prompt if it hasn't been submitted yet
