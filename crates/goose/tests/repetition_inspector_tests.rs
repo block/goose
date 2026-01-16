@@ -14,6 +14,7 @@ fn test_repetition_inspector_denies_after_exceeding_and_resets_on_param_change()
 
     // First identical call → allowed
     let call_v1 = CallToolRequestParam {
+        task: None,
         name: "fetch_user".into(),
         arguments: Some(object!({"id": 123})),
     };
@@ -27,6 +28,7 @@ fn test_repetition_inspector_denies_after_exceeding_and_resets_on_param_change()
 
     // Change parameters; this should reset the consecutive counter
     let call_v2 = CallToolRequestParam {
+        task: None,
         name: "fetch_user".into(),
         arguments: Some(object!({"id": 456})),
     };

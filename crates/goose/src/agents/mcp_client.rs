@@ -476,6 +476,7 @@ impl McpClientTrait for McpClient {
             .send_request(
                 ClientRequest::CallToolRequest(CallToolRequest {
                     params: CallToolRequestParam {
+                        task: None,
                         name: name.to_string().into(),
                         arguments,
                     },
