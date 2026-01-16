@@ -1,5 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { ChefHat, Clock, FileText, History, Home, MessageSquarePlus, Puzzle } from 'lucide-react';
+import {
+  AppWindow,
+  ChefHat,
+  Clock,
+  FileText,
+  History,
+  Home,
+  MessageSquarePlus,
+  Puzzle,
+} from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   SidebarContent,
@@ -15,7 +24,7 @@ import { Gear } from '../icons';
 import { View, ViewOptions } from '../../utils/navigationUtils';
 import { DEFAULT_CHAT_TITLE, useChatContext } from '../../contexts/ChatContext';
 import EnvironmentBadge from './EnvironmentBadge';
-import { listSessions, Session } from '../../api';
+import { listSessions, listApps, Session } from '../../api';
 import { resumeSession, startNewSession, shouldShowNewChatTitle } from '../../sessions';
 import { useNavigation } from '../../hooks/useNavigation';
 import { SessionIndicators } from '../SessionIndicators';
@@ -65,6 +74,13 @@ const menuItems: NavigationEntry[] = [
     label: 'Extensions',
     icon: Puzzle,
     tooltip: 'Manage your extensions',
+  },
+  {
+    type: 'item',
+    path: '/apps',
+    label: 'Apps',
+    icon: AppWindow,
+    tooltip: 'Browse and launch MCP apps',
   },
   { type: 'separator' },
   {
@@ -187,6 +203,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   const setView = useNavigation();
   const [searchParams] = useSearchParams();
   const [recentSessions, setRecentSessions] = useState<Session[]>([]);
+  const [hasApps, setHasApps] = useState(false);
   const activeSessionId = searchParams.get('resumeSessionId') ?? undefined;
   const { getSessionStatus, clearUnread } = useSidebarSessionStatus(activeSessionId);
 
@@ -238,6 +255,21 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
 
     loadRecentSessions();
   }, []);
+
+  useEffect(() => {
+    const checkApps = async () => {
+      try {
+        const response = await listApps({
+          throwOnError: true,
+        });
+        setHasApps((response.data?.apps || []).length > 0);
+      } catch (err) {
+        console.warn('Failed to check for apps:', err);
+      }
+    };
+
+    checkApps();
+  }, [currentPath]);
 
   useEffect(() => {
     let pollingTimeouts: ReturnType<typeof setTimeout>[] = [];
@@ -444,6 +476,13 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     );
   };
 
+  const visibleMenuItems = menuItems.filter((entry) => {
+    if (entry.type === 'item' && entry.path === '/apps') {
+      return hasApps;
+    }
+    return true;
+  });
+
   return (
     <>
       <SidebarContent className="pt-16">
@@ -505,8 +544,8 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
 
           <SidebarSeparator />
 
-          {/* Other menu items */}
-          {menuItems.map((entry, index) => renderMenuItem(entry, index))}
+          {/* Other menu items - filter out Apps if no apps available */}
+          {visibleMenuItems.map((entry, index) => renderMenuItem(entry, index))}
         </SidebarMenu>
       </SidebarContent>
 

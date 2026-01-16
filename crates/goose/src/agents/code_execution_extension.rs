@@ -422,6 +422,7 @@ impl CodeExecutionClient {
         let info = InitializeResult {
             protocol_version: ProtocolVersion::V_2025_03_26,
             capabilities: ServerCapabilities {
+                tasks: None,
                 tools: Some(ToolsCapability {
                     list_changed: Some(false),
                 }),
@@ -667,6 +668,7 @@ impl CodeExecutionClient {
             let result = match extension_manager.as_ref().and_then(|w| w.upgrade()) {
                 Some(manager) => {
                     let tool_call = CallToolRequestParam {
+                        task: None,
                         name: tool_name.into(),
                         arguments: serde_json::from_str(&arguments).ok(),
                     };

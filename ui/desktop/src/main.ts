@@ -49,6 +49,7 @@ import {
 import { UPDATES_ENABLED } from './updates';
 import './utils/recipeHash';
 import { Client, createClient, createConfig } from './api/client';
+import { GooseApp } from './api';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 
 // Updater functions (moved here to keep updates.ts minimal for release replacement)
@@ -2463,6 +2464,59 @@ async function appMain() {
     } catch (error) {
       console.error('Error opening directory in explorer:', error);
       return false;
+    }
+  });
+
+  ipcMain.handle('launch-app', async (event, gooseApp: GooseApp) => {
+    try {
+      const launchingWindow = BrowserWindow.fromWebContents(event.sender);
+      if (!launchingWindow) {
+        throw new Error('Could not find launching window');
+      }
+
+      const launchingWindowId = launchingWindow.id;
+      const launchingClient = goosedClients.get(launchingWindowId);
+      if (!launchingClient) {
+        throw new Error('No client found for launching window');
+      }
+
+      const currentUrl = launchingWindow.webContents.getURL();
+      const baseUrl = new URL(currentUrl).origin;
+
+      const appWindow = new BrowserWindow({
+        title: gooseApp.name,
+        width: gooseApp.width ?? 800,
+        height: gooseApp.height ?? 600,
+        resizable: gooseApp.resizable ?? true,
+        webPreferences: {
+          preload: path.join(__dirname, 'preload.js'),
+          nodeIntegration: false,
+          contextIsolation: true,
+          webSecurity: true,
+          partition: 'persist:goose',
+        },
+      });
+
+      goosedClients.set(appWindow.id, launchingClient);
+
+      appWindow.on('close', () => {
+        goosedClients.delete(appWindow.id);
+      });
+
+      const workingDir = app.getPath('home');
+      const extensionName = gooseApp.mcpServer ?? '';
+      const standaloneUrl =
+        `${baseUrl}/#/standalone-app?` +
+        `resourceUri=${encodeURIComponent(gooseApp.uri)}` +
+        `&extensionName=${encodeURIComponent(extensionName)}` +
+        `&appName=${encodeURIComponent(gooseApp.name)}` +
+        `&workingDir=${encodeURIComponent(workingDir)}`;
+
+      await appWindow.loadURL(standaloneUrl);
+      appWindow.show();
+    } catch (error) {
+      console.error('Failed to launch app:', error);
+      throw error;
     }
   });
 }

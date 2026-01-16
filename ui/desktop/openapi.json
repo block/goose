@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.19.0"
+    "version": "1.20.0"
   },
   "paths": {
     "/action-required/tool-confirmation": {
@@ -126,6 +126,62 @@
             "description": "Internal server error"
           }
         }
+      }
+    },
+    "/agent/list_apps": {
+      "get": {
+        "tags": [
+          "Agent"
+        ],
+        "operationId": "list_apps",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of apps retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListAppsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
       }
     },
     "/agent/read_resource": {
@@ -336,6 +392,45 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/agent/stop": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "stop_agent",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StopAgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Agent stopped successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "500": {
+            "description": "Internal server error"
           }
         }
       }
@@ -3762,6 +3857,31 @@
           }
         }
       },
+      "GooseApp": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/McpAppResource"
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/WindowProps"
+              }
+            ],
+            "nullable": true
+          },
+          {
+            "type": "object",
+            "properties": {
+              "mcpServer": {
+                "type": "string",
+                "nullable": true
+              }
+            }
+          }
+        ],
+        "description": "A Goose App combining MCP resource data with Goose-specific metadata"
+      },
       "Icon": {
         "type": "object",
         "required": [
@@ -3852,6 +3972,29 @@
         "properties": {
           "message": {
             "type": "string"
+          }
+        }
+      },
+      "ListAppsRequest": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ListAppsResponse": {
+        "type": "object",
+        "required": [
+          "apps"
+        ],
+        "properties": {
+          "apps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GooseApp"
+            }
           }
         }
       },
@@ -5674,6 +5817,17 @@
           }
         }
       },
+      "StopAgentRequest": {
+        "type": "object",
+        "required": [
+          "session_id"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
+          }
+        }
+      },
       "SubRecipe": {
         "type": "object",
         "required": [
@@ -6277,6 +6431,29 @@
             "items": {
               "$ref": "#/components/schemas/ToolPermission"
             }
+          }
+        }
+      },
+      "WindowProps": {
+        "type": "object",
+        "required": [
+          "width",
+          "height",
+          "resizable"
+        ],
+        "properties": {
+          "height": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "resizable": {
+            "type": "boolean"
+          },
+          "width": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
           }
         }
       }

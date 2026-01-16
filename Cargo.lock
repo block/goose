@@ -2971,7 +2971,7 @@ dependencies = [
 
 [[package]]
 name = "goose"
-version = "1.19.0"
+version = "1.20.0"
 dependencies = [
  "agent-client-protocol-schema",
  "ahash",
@@ -3021,7 +3021,7 @@ dependencies = [
  "rand 0.8.5",
  "regex",
  "reqwest 0.12.28",
- "rmcp",
+ "rmcp 0.13.0",
  "schemars",
  "serde",
  "serde_json",
@@ -3059,7 +3059,7 @@ dependencies = [
 
 [[package]]
 name = "goose-acp"
-version = "1.19.0"
+version = "1.20.0"
 dependencies = [
  "anyhow",
  "assert-json-diff",
@@ -3069,7 +3069,7 @@ dependencies = [
  "goose",
  "goose-mcp",
  "regex",
- "rmcp",
+ "rmcp 0.13.0",
  "sacp",
  "serde_json",
  "tempfile",
@@ -3084,7 +3084,7 @@ dependencies = [
 
 [[package]]
 name = "goose-bench"
-version = "1.19.0"
+version = "1.20.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3096,7 +3096,7 @@ dependencies = [
  "once_cell",
  "paste",
  "regex",
- "rmcp",
+ "rmcp 0.13.0",
  "serde",
  "serde_json",
  "tokio",
@@ -3107,7 +3107,7 @@ dependencies = [
 
 [[package]]
 name = "goose-cli"
-version = "1.19.0"
+version = "1.20.0"
 dependencies = [
  "anstream",
  "anyhow",
@@ -3132,7 +3132,7 @@ dependencies = [
  "open",
  "rand 0.8.5",
  "regex",
- "rmcp",
+ "rmcp 0.13.0",
  "rustyline",
  "serde",
  "serde_json",
@@ -3157,7 +3157,7 @@ dependencies = [
 
 [[package]]
 name = "goose-mcp"
-version = "1.19.0"
+version = "1.20.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3184,7 +3184,7 @@ dependencies = [
  "rayon",
  "regex",
  "reqwest 0.11.27",
- "rmcp",
+ "rmcp 0.13.0",
  "schemars",
  "serde",
  "serde_json",
@@ -3218,7 +3218,7 @@ dependencies = [
 
 [[package]]
 name = "goose-server"
-version = "1.19.0"
+version = "1.20.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3237,7 +3237,7 @@ dependencies = [
  "http 1.4.0",
  "rand 0.9.2",
  "reqwest 0.12.28",
- "rmcp",
+ "rmcp 0.13.0",
  "rustls 0.23.31",
  "schemars",
  "serde",
@@ -3265,7 +3265,7 @@ dependencies = [
 
 [[package]]
 name = "goose-test"
-version = "1.19.0"
+version = "1.20.0"
 dependencies = [
  "clap",
  "serde_json",
@@ -6261,6 +6261,29 @@ checksum = "528d42f8176e6e5e71ea69182b17d1d0a19a6b3b894b564678b74cd7cab13cfa"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
+ "chrono",
+ "futures",
+ "pastey",
+ "pin-project-lite",
+ "rmcp-macros 0.12.0",
+ "schemars",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.17",
+ "tokio",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
+name = "rmcp"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d1815dbc06c414d720f8bc1951eccd66bc99efc6376331f1e7093a119b3eb508"
+dependencies = [
+ "async-trait",
+ "axum 0.8.8",
+ "base64 0.22.1",
  "bytes",
  "chrono",
  "futures",
@@ -6273,7 +6296,7 @@ dependencies = [
  "process-wrap",
  "rand 0.9.2",
  "reqwest 0.12.28",
- "rmcp-macros",
+ "rmcp-macros 0.13.0",
  "schemars",
  "serde",
  "serde_json",
@@ -6293,6 +6316,19 @@ name = "rmcp-macros"
 version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3f81daaa494eb8e985c9462f7d6ce1ab05e5299f48aafd76cdd3d8b060e6f59"
+dependencies = [
+ "darling 0.23.0",
+ "proc-macro2",
+ "quote",
+ "serde_json",
+ "syn 2.0.111",
+]
+
+[[package]]
+name = "rmcp-macros"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "11f0bc7008fa102e771a76c6d2c9b253be3f2baa5964e060464d038ae1cbc573"
 dependencies = [
  "darling 0.23.0",
  "proc-macro2",
@@ -6547,7 +6583,7 @@ dependencies = [
  "futures-concurrency",
  "fxhash",
  "jsonrpcmsg",
- "rmcp",
+ "rmcp 0.12.0",
  "sacp-derive",
  "schemars",
  "serde",
