@@ -309,7 +309,6 @@ function BaseChatContent({
   const recipeRef = useRef(recipe);
   const sessionIdRef = useRef(sessionId);
   
-  // Update refs during render (more efficient than useEffect with no deps)
   messagesRef.current = messages;
   recipeRef.current = recipe;
   sessionIdRef.current = sessionId;
