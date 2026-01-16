@@ -1,3 +1,4 @@
+import { AppEvents } from '../constants/events';
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import { Bug, ScrollText, ChefHat } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/Tooltip';
@@ -510,7 +511,7 @@ export default function ChatInput({
         showCompactButton: true,
         compactButtonDisabled: !totalTokens,
         onCompact: () => {
-          window.dispatchEvent(new CustomEvent('hide-alert-popover'));
+          window.dispatchEvent(new CustomEvent(AppEvents.HIDE_ALERT_POPOVER));
 
           const customEvent = new CustomEvent('submit', {
             detail: { value: MANUAL_COMPACT_TRIGGER },

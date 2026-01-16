@@ -1,3 +1,4 @@
+import { AppEvents } from '../constants/events';
 import { ToolIconWithStatus, ToolCallStatus } from './ToolCallStatusIndicator';
 import { getToolCallIcon } from '../utils/toolIconMapping';
 import React, { useEffect, useRef, useState, useMemo } from 'react';
@@ -344,11 +345,11 @@ function ToolCallView({
 
     window.addEventListener('storage', handleStorageChange);
 
-    window.addEventListener('responseStyleChanged', handleStorageChange);
+    window.addEventListener(AppEvents.RESPONSE_STYLE_CHANGED, handleStorageChange);
 
     return () => {
       window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('responseStyleChanged', handleStorageChange);
+      window.removeEventListener(AppEvents.RESPONSE_STYLE_CHANGED, handleStorageChange);
     };
   }, []);
 

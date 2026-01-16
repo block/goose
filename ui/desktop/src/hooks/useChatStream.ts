@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
+import { AppEvents } from '../constants/events';
 import { ChatState } from '../types/chatState';
 
 import {
@@ -301,7 +302,7 @@ export function useChatStream({
         console.log(
           'useChatStream: Message stream finished for new session, emitting message-stream-finished event'
         );
-        window.dispatchEvent(new CustomEvent('message-stream-finished'));
+        window.dispatchEvent(new CustomEvent(AppEvents.MESSAGE_STREAM_FINISHED));
       }
 
       // Refresh session name after each reply for the first 3 user messages
@@ -327,7 +328,7 @@ export function useChatStream({
               });
               // Notify sidebar of the name change
               window.dispatchEvent(
-                new CustomEvent('session-renamed', {
+                new CustomEvent(AppEvents.SESSION_RENAMED, {
                   detail: { sessionId, newName: response.data.name },
                 })
               );
@@ -450,7 +451,7 @@ export function useChatStream({
 
       // Emit session-created event for first message in a new session
       if (!hasExistingMessages && hasNewMessage) {
-        window.dispatchEvent(new CustomEvent('session-created'));
+        window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
       }
 
       const newMessage = hasNewMessage
@@ -611,7 +612,7 @@ export function useChatStream({
         }
 
         if (editType === 'fork') {
-          const event = new CustomEvent('session-forked', {
+          const event = new CustomEvent(AppEvents.SESSION_FORKED, {
             detail: {
               newSessionId: targetSessionId,
               shouldStartAgent: true,

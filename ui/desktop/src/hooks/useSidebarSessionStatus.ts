@@ -1,3 +1,4 @@
+import { AppEvents } from '../constants/events';
 import { useState, useCallback, useRef, useEffect } from 'react';
 
 type StreamState = 'idle' | 'streaming' | 'error';
@@ -58,8 +59,8 @@ export function useSidebarSessionStatus(activeSessionId: string | undefined) {
       });
     };
 
-    window.addEventListener('session-status-update', handleStatusUpdate);
-    return () => window.removeEventListener('session-status-update', handleStatusUpdate);
+    window.addEventListener(AppEvents.SESSION_STATUS_UPDATE, handleStatusUpdate);
+    return () => window.removeEventListener(AppEvents.SESSION_STATUS_UPDATE, handleStatusUpdate);
   }, []);
 
   const getSessionStatus = useCallback(

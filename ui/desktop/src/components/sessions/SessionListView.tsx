@@ -1,3 +1,4 @@
+import { AppEvents } from '../../constants/events';
 import React, { useEffect, useState, useRef, useCallback, useMemo, startTransition } from 'react';
 import {
   MessageSquareText,
@@ -420,7 +421,9 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       );
       // Notify sidebar of the rename
       window.dispatchEvent(
-        new CustomEvent('session-renamed', { detail: { sessionId, newName: newDescription } })
+        new CustomEvent(AppEvents.SESSION_RENAMED, {
+          detail: { sessionId, newName: newDescription },
+        })
       );
     }, []);
 
@@ -450,7 +453,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         toast.success('Session deleted successfully');
         // Notify sidebar of the deletion
         window.dispatchEvent(
-          new CustomEvent('session-deleted', { detail: { sessionId: sessionToDeleteId } })
+          new CustomEvent(AppEvents.SESSION_DELETED, { detail: { sessionId: sessionToDeleteId } })
         );
       } catch (error) {
         console.error('Error deleting session:', error);

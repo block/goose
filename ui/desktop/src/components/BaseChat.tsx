@@ -1,3 +1,4 @@
+import { AppEvents } from '../constants/events';
 import React, {
   createContext,
   useCallback,
@@ -128,7 +129,7 @@ function BaseChatContent({
     }
 
     window.dispatchEvent(
-      new CustomEvent('session-status-update', {
+      new CustomEvent(AppEvents.SESSION_STATUS_UPDATE, {
         detail: {
           sessionId,
           streamState,
@@ -227,8 +228,9 @@ function BaseChatContent({
       }, 200);
     };
 
-    window.addEventListener('scroll-chat-to-bottom', handleGlobalScrollRequest);
-    return () => window.removeEventListener('scroll-chat-to-bottom', handleGlobalScrollRequest);
+    window.addEventListener(AppEvents.SCROLL_CHAT_TO_BOTTOM, handleGlobalScrollRequest);
+    return () =>
+      window.removeEventListener(AppEvents.SCROLL_CHAT_TO_BOTTOM, handleGlobalScrollRequest);
   }, []);
 
   useEffect(() => {
@@ -262,7 +264,7 @@ function BaseChatContent({
         shouldStartAgent?: boolean;
         editedMessage?: string;
       }>;
-      window.dispatchEvent(new CustomEvent('session-created'));
+      window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
       const { newSessionId, shouldStartAgent, editedMessage } = customEvent.detail;
 
       const params = new URLSearchParams();
@@ -279,10 +281,10 @@ function BaseChatContent({
       });
     };
 
-    window.addEventListener('session-forked', handleSessionForked);
+    window.addEventListener(AppEvents.SESSION_FORKED, handleSessionForked);
 
     return () => {
-      window.removeEventListener('session-forked', handleSessionForked);
+      window.removeEventListener(AppEvents.SESSION_FORKED, handleSessionForked);
     };
   }, [location.pathname, navigate]);
 

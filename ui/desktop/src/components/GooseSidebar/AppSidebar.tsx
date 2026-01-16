@@ -1,3 +1,4 @@
+import { AppEvents } from '../../constants/events';
 import React, { useEffect, useState } from 'react';
 import {
   AppWindow,
@@ -246,7 +247,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
         const hasSessionWithDefaultName = sessions.some((s) => shouldShowNewChatTitle(s));
 
         if (hasSessionWithDefaultName) {
-          window.dispatchEvent(new CustomEvent('session-needs-name-update'));
+          window.dispatchEvent(new CustomEvent(AppEvents.SESSION_NEEDS_NAME_UPDATE));
         }
       } catch (error) {
         console.error('Failed to load recent sessions:', error);
@@ -339,7 +340,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     };
 
     const handleSessionNeedsNameUpdate = () => {
-      handleSessionCreated(new CustomEvent('session-created', { detail: {} }));
+      handleSessionCreated(new CustomEvent(AppEvents.SESSION_CREATED, { detail: {} }));
     };
 
     const handleSessionDeleted = (event: CustomEvent<{ sessionId: string }>) => {
@@ -354,16 +355,34 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
       );
     };
 
-    window.addEventListener('session-created', handleSessionCreated as (event: Event) => void);
-    window.addEventListener('session-needs-name-update', handleSessionNeedsNameUpdate);
-    window.addEventListener('session-deleted', handleSessionDeleted as (event: Event) => void);
-    window.addEventListener('session-renamed', handleSessionRenamed as (event: Event) => void);
+    window.addEventListener(
+      AppEvents.SESSION_CREATED,
+      handleSessionCreated as (event: Event) => void
+    );
+    window.addEventListener(AppEvents.SESSION_NEEDS_NAME_UPDATE, handleSessionNeedsNameUpdate);
+    window.addEventListener(
+      AppEvents.SESSION_DELETED,
+      handleSessionDeleted as (event: Event) => void
+    );
+    window.addEventListener(
+      AppEvents.SESSION_RENAMED,
+      handleSessionRenamed as (event: Event) => void
+    );
 
     return () => {
-      window.removeEventListener('session-created', handleSessionCreated as (event: Event) => void);
-      window.removeEventListener('session-needs-name-update', handleSessionNeedsNameUpdate);
-      window.removeEventListener('session-deleted', handleSessionDeleted as (event: Event) => void);
-      window.removeEventListener('session-renamed', handleSessionRenamed as (event: Event) => void);
+      window.removeEventListener(
+        AppEvents.SESSION_CREATED,
+        handleSessionCreated as (event: Event) => void
+      );
+      window.removeEventListener(AppEvents.SESSION_NEEDS_NAME_UPDATE, handleSessionNeedsNameUpdate);
+      window.removeEventListener(
+        AppEvents.SESSION_DELETED,
+        handleSessionDeleted as (event: Event) => void
+      );
+      window.removeEventListener(
+        AppEvents.SESSION_RENAMED,
+        handleSessionRenamed as (event: Event) => void
+      );
       pollingTimeouts.forEach(clearTimeout);
       isPolling = false;
     };
@@ -429,9 +448,9 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
       handleNewChat();
     };
 
-    window.addEventListener('trigger-new-chat', handleTriggerNewChat);
+    window.addEventListener(AppEvents.TRIGGER_NEW_CHAT, handleTriggerNewChat);
     return () => {
-      window.removeEventListener('trigger-new-chat', handleTriggerNewChat);
+      window.removeEventListener(AppEvents.TRIGGER_NEW_CHAT, handleTriggerNewChat);
     };
   }, [handleNewChat]);
 

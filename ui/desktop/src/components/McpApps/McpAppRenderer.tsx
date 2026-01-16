@@ -1,3 +1,4 @@
+import { AppEvents } from '../../constants/events';
 /**
  * MCP Apps Renderer
  *
@@ -129,7 +130,7 @@ export default function McpAppRenderer({
             throw new Error('Message handler not available in this context');
           }
           append(content.text);
-          window.dispatchEvent(new CustomEvent('scroll-chat-to-bottom'));
+          window.dispatchEvent(new CustomEvent(AppEvents.SCROLL_CHAT_TO_BOTTOM));
           return {
             status: 'success',
             message: 'Message appended successfully',

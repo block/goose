@@ -47,6 +47,7 @@ import { errorMessage } from './utils/conversionUtils';
 import { getInitialWorkingDir } from './utils/workingDir';
 import { usePageViewTracking } from './hooks/useAnalytics';
 import { trackOnboardingCompleted, trackErrorWithContext } from './utils/analytics';
+import { AppEvents } from './constants/events';
 
 function PageViewTracker() {
   usePageViewTracking();
@@ -95,7 +96,7 @@ const PairRouteWrapper = ({
           });
 
           window.dispatchEvent(
-            new CustomEvent('add-active-session', {
+            new CustomEvent(AppEvents.ADD_ACTIVE_SESSION, {
               detail: {
                 sessionId: newSession.id,
                 initialMessage,
@@ -136,7 +137,7 @@ const PairRouteWrapper = ({
   useEffect(() => {
     if (resumeSessionId && !activeSessions.some((s) => s.sessionId === resumeSessionId)) {
       window.dispatchEvent(
-        new CustomEvent('add-active-session', {
+        new CustomEvent(AppEvents.ADD_ACTIVE_SESSION, {
           detail: {
             sessionId: resumeSessionId,
             initialMessage: initialMessage,
@@ -361,14 +362,9 @@ export function AppInner() {
         let updated: Array<{ sessionId: string; initialMessage?: string }>;
 
         if (existingIndex !== -1) {
-          // Session exists - move to end and update initialMessage if provided
+          // Session exists - move to end of LRU list (most recently used)
           const existing = prev[existingIndex];
-          const updatedSession = initialMessage ? { ...existing, initialMessage } : existing;
-          updated = [
-            ...prev.slice(0, existingIndex),
-            ...prev.slice(existingIndex + 1),
-            updatedSession,
-          ];
+          updated = [...prev.slice(0, existingIndex), ...prev.slice(existingIndex + 1), existing];
         } else {
           const newSession = { sessionId, initialMessage };
           updated = [...prev, newSession];
@@ -397,20 +393,20 @@ export function AppInner() {
     };
 
     window.addEventListener(
-      'add-active-session',
+      AppEvents.ADD_ACTIVE_SESSION,
       handleAddActiveSession as unknown as (event: Event) => void
     );
     window.addEventListener(
-      'clear-initial-message',
+      AppEvents.CLEAR_INITIAL_MESSAGE,
       handleClearInitialMessage as unknown as (event: Event) => void
     );
     return () => {
       window.removeEventListener(
-        'add-active-session',
+        AppEvents.ADD_ACTIVE_SESSION,
         handleAddActiveSession as unknown as (event: Event) => void
       );
       window.removeEventListener(
-        'clear-initial-message',
+        AppEvents.CLEAR_INITIAL_MESSAGE,
         handleClearInitialMessage as unknown as (event: Event) => void
       );
     };
@@ -563,7 +559,7 @@ export function AppInner() {
   useEffect(() => {
     const handleNewChat = (_event: IpcRendererEvent, ..._args: unknown[]) => {
       console.log('Received new-chat event from keyboard shortcut');
-      window.dispatchEvent(new CustomEvent('trigger-new-chat'));
+      window.dispatchEvent(new CustomEvent(AppEvents.TRIGGER_NEW_CHAT));
     };
 
     window.electron.on('new-chat', handleNewChat);

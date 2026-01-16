@@ -1,3 +1,4 @@
+import { AppEvents } from '../constants/events';
 import { useCallback, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Session } from '../api';
@@ -42,7 +43,7 @@ export function useAutoSubmit({
 
   const clearInitialMessage = useCallback(() => {
     window.dispatchEvent(
-      new CustomEvent('clear-initial-message', {
+      new CustomEvent(AppEvents.CLEAR_INITIAL_MESSAGE, {
         detail: { sessionId },
       })
     );

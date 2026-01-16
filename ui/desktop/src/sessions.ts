@@ -6,6 +6,7 @@ import {
   hasExtensionOverrides,
 } from './store/extensionOverrides';
 import type { FixedExtensionEntry } from './components/ConfigContext';
+import { AppEvents } from './constants/events';
 
 export function shouldShowNewChatTitle(session: Session): boolean {
   return !session.user_set_name && session.message_count === 0;
@@ -18,7 +19,7 @@ export function resumeSession(session: Session, setView: setViewType) {
   };
 
   window.dispatchEvent(
-    new CustomEvent('add-active-session', {
+    new CustomEvent(AppEvents.ADD_ACTIVE_SESSION, {
       detail: eventDetail,
     })
   );
@@ -85,7 +86,7 @@ export async function startNewSession(
   const session = await createSession(workingDir, options);
 
   // Include session data so sidebar can add it immediately (before it has messages)
-  window.dispatchEvent(new CustomEvent('session-created', { detail: { session } }));
+  window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED, { detail: { session } }));
 
   const eventDetail = {
     sessionId: session.id,
@@ -93,7 +94,7 @@ export async function startNewSession(
   };
 
   window.dispatchEvent(
-    new CustomEvent('add-active-session', {
+    new CustomEvent(AppEvents.ADD_ACTIVE_SESSION, {
       detail: eventDetail,
     })
   );
