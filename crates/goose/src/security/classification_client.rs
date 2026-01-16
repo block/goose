@@ -114,12 +114,6 @@ impl ClassificationClient {
     }
 
     pub async fn classify(&self, text: &str) -> Result<f32> {
-        tracing::debug!(
-            endpoint = %self.endpoint_url,
-            text_length = text.len(),
-            "Sending classification request"
-        );
-
         let parameters = self
             .extra_params
             .as_ref()
@@ -196,14 +190,6 @@ impl ClassificationClient {
                 0.0
             }
         };
-
-        tracing::info!(
-            injection_score = %injection_score,
-            top_label = %top_label.label,
-            top_score = %top_label.score,
-            normalized = !is_probabilities,
-            "Classification complete"
-        );
 
         Ok(injection_score)
     }

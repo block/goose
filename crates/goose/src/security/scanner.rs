@@ -9,13 +9,30 @@ use rmcp::model::CallToolRequestParam;
 const USER_SCAN_LIMIT: usize = 10;
 const ML_SCAN_CONCURRENCY: usize = 3;
 
+#[derive(Debug, Clone, Copy)]
+enum ClassifierType {
+    Command,
+    Prompt,
+}
+
 #[derive(Debug, Clone)]
 pub struct ScanResult {
     pub is_malicious: bool,
     pub confidence: f32,
     pub explanation: String,
+    pub detection_type: Option<DetectionType>,
+    pub command_confidence: Option<f32>,
+    pub prompt_confidence: Option<f32>,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum DetectionType {
+    CommandInjection,
+    PromptInjection,
+    PatternMatch,
+}
+
+#[derive(Clone)]
 struct DetailedScanResult {
     confidence: f32,
     pattern_matches: Vec<PatternMatch>,
@@ -24,78 +41,75 @@ struct DetailedScanResult {
 
 pub struct PromptInjectionScanner {
     pattern_matcher: PatternMatcher,
-    classifier_client: Option<ClassificationClient>,
+    command_classifier: Option<ClassificationClient>,
+    prompt_classifier: Option<ClassificationClient>,
 }
 
 impl PromptInjectionScanner {
     pub fn new() -> Self {
         Self {
             pattern_matcher: PatternMatcher::new(),
-            classifier_client: None,
+            command_classifier: None,
+            prompt_classifier: None,
         }
     }
 
     pub fn with_ml_detection() -> Result<Self> {
-        let classifier_client = Self::create_classifier_from_config()?;
+        let command_classifier = Self::create_classifier(ClassifierType::Command).ok();
+        let prompt_classifier = Self::create_classifier(ClassifierType::Prompt).ok();
+
+        if command_classifier.is_none() && prompt_classifier.is_none() {
+            anyhow::bail!("ML detection enabled but no classifiers could be initialized");
+        }
+
         Ok(Self {
             pattern_matcher: PatternMatcher::new(),
-            classifier_client: Some(classifier_client),
+            command_classifier,
+            prompt_classifier,
         })
     }
 
-    fn create_classifier_from_config() -> Result<ClassificationClient> {
+    fn create_classifier(classifier_type: ClassifierType) -> Result<ClassificationClient> {
         let config = Config::global();
+        let prefix = match classifier_type {
+            ClassifierType::Command => "COMMAND",
+            ClassifierType::Prompt => "PROMPT",
+        };
 
-        let mut model_name = config
-            .get_param::<String>("SECURITY_PROMPT_CLASSIFIER_MODEL")
+        let enabled = config
+            .get_param::<bool>(&format!("SECURITY_{}_CLASSIFIER_ENABLED", prefix))
+            .unwrap_or(false);
+
+        if !enabled {
+            anyhow::bail!("{} classifier not enabled", prefix);
+        }
+
+        let model_name = config
+            .get_param::<String>(&format!("SECURITY_{}_CLASSIFIER_MODEL", prefix))
             .ok()
             .filter(|s| !s.trim().is_empty());
         let endpoint = config
-            .get_param::<String>("SECURITY_PROMPT_CLASSIFIER_ENDPOINT")
+            .get_param::<String>(&format!("SECURITY_{}_CLASSIFIER_ENDPOINT", prefix))
             .ok()
             .filter(|s| !s.trim().is_empty());
         let token = config
-            .get_secret::<String>("SECURITY_PROMPT_CLASSIFIER_TOKEN")
+            .get_secret::<String>(&format!("SECURITY_{}_CLASSIFIER_TOKEN", prefix))
             .ok()
             .filter(|s| !s.trim().is_empty());
 
-        if model_name.is_none() {
-            if let Ok(mapping_json) = std::env::var("SECURITY_ML_MODEL_MAPPING") {
-                if let Ok(mapping) = serde_json::from_str::<
-                    crate::security::classification_client::ModelMappingConfig,
-                >(&mapping_json)
-                {
-                    if let Some(first_model) = mapping.models.keys().next() {
-                        tracing::info!(
-                            default_model = %first_model,
-                            "SECURITY_ML_MODEL_MAPPING available but no model selected - using first available model as default"
-                        );
-                        model_name = Some(first_model.clone());
-                    }
-                }
-            }
-        }
-
-        tracing::debug!(
-            model_name = ?model_name,
-            has_endpoint = endpoint.is_some(),
-            has_token = token.is_some(),
-            "Initializing classifier from config"
-        );
-
         if let Some(model) = model_name {
-            tracing::info!(model_name = %model, "Using model-based configuration (internal)");
             return ClassificationClient::from_model_name(&model, None);
         }
 
         if let Some(endpoint_url) = endpoint {
-            tracing::info!(endpoint = %endpoint_url, "Using endpoint-based configuration (external)");
             return ClassificationClient::from_endpoint(endpoint_url, None, token);
         }
 
         anyhow::bail!(
-            "ML detection requires either SECURITY_PROMPT_CLASSIFIER_MODEL (for model mapping) \
-             or SECURITY_PROMPT_CLASSIFIER_ENDPOINT (for direct endpoint configuration)"
+            "{} classifier requires either SECURITY_{}_CLASSIFIER_MODEL or SECURITY_{}_CLASSIFIER_ENDPOINT",
+            prefix,
+            prefix,
+            prefix
         )
     }
 
@@ -127,39 +141,83 @@ impl PromptInjectionScanner {
         let context_result = context_result?;
         let threshold = self.get_threshold_from_config();
 
+        tracing::info!(
+            "📊 Classifier Results - Command: {:.3}, Prompt: {:.3}, Threshold: {:.3}",
+            tool_result.confidence,
+            context_result.confidence,
+            threshold
+        );
+
         let final_result =
-            self.select_result_with_context_awareness(tool_result, context_result, threshold);
+            self.select_result_with_context_awareness(tool_result.clone(), context_result.clone(), threshold);
 
         tracing::info!(
-            "Security analysis complete: confidence={:.3}, malicious={}",
+            "Security analysis complete: final_confidence={:.3}, malicious={}",
             final_result.confidence,
             final_result.confidence >= threshold
         );
 
+        // Determine detection type based on which classifier triggered
+        let detection_type = if final_result.confidence >= threshold {
+            if !final_result.pattern_matches.is_empty() {
+                Some(DetectionType::PatternMatch)
+            } else if tool_result.confidence >= context_result.confidence {
+                Some(DetectionType::CommandInjection)
+            } else {
+                Some(DetectionType::PromptInjection)
+            }
+        } else {
+            None
+        };
+
         Ok(ScanResult {
             is_malicious: final_result.confidence >= threshold,
             confidence: final_result.confidence,
-            explanation: self.build_explanation(&final_result, threshold),
+            explanation: self.build_explanation(&final_result, threshold, &tool_content),
+            detection_type,
+            command_confidence: tool_result.ml_confidence,
+            prompt_confidence: context_result.ml_confidence,
         })
     }
 
     async fn analyze_text(&self, text: &str) -> Result<DetailedScanResult> {
-        let (pattern_confidence, pattern_matches) = self.pattern_based_scanning(text);
-        let ml_confidence = self.scan_with_classifier(text).await;
-        let confidence = ml_confidence.unwrap_or(0.0).max(pattern_confidence);
+        let text_preview = if text.len() > 80 {
+            format!("{}...", &text[..80])
+        } else {
+            text.to_string()
+        };
 
+        if let Some(ml_confidence) = self.scan_command_with_classifier(text).await {
+            tracing::info!(
+                "🔍 [Command] conf={:.3} | {}",
+                ml_confidence,
+                text_preview
+            );
+            return Ok(DetailedScanResult {
+                confidence: ml_confidence,
+                pattern_matches: Vec::new(),
+                ml_confidence: Some(ml_confidence),
+            });
+        }
+
+        let (pattern_confidence, pattern_matches) = self.pattern_based_scanning(text);
+        tracing::info!(
+            "🔍 [Pattern] conf={:.3}, matches={} | {}",
+            pattern_confidence,
+            pattern_matches.len(),
+            text_preview
+        );
         Ok(DetailedScanResult {
-            confidence,
+            confidence: pattern_confidence,
             pattern_matches,
-            ml_confidence,
+            ml_confidence: None,
         })
     }
 
     async fn scan_conversation(&self, messages: &[Message]) -> Result<DetailedScanResult> {
         let user_messages = self.extract_user_messages(messages, USER_SCAN_LIMIT);
 
-        if user_messages.is_empty() || self.classifier_client.is_none() {
-            tracing::debug!("Skipping conversation scan - no classifier or messages");
+        if user_messages.is_empty() || self.prompt_classifier.is_none() {
             return Ok(DetailedScanResult {
                 confidence: 0.0,
                 pattern_matches: Vec::new(),
@@ -167,15 +225,27 @@ impl PromptInjectionScanner {
             });
         }
 
-        tracing::debug!(
-            "Scanning {} user messages ({} chars) with concurrency limit of {}",
-            user_messages.len(),
-            user_messages.iter().map(|m| m.len()).sum::<usize>(),
-            ML_SCAN_CONCURRENCY
-        );
+        // Create message-preview pairs for concurrent scanning
+        let message_pairs: Vec<(String, String)> = user_messages
+            .into_iter()
+            .map(|msg| {
+                let preview = if msg.len() > 60 {
+                    format!("{}...", &msg[..60])
+                } else {
+                    msg.clone()
+                };
+                (msg, preview)
+            })
+            .collect();
 
-        let max_confidence = stream::iter(user_messages)
-            .map(|msg| async move { self.scan_with_classifier(&msg).await })
+        let max_confidence = stream::iter(message_pairs)
+            .map(|(msg, preview)| async move {
+                let result = self.scan_prompt_with_classifier(&msg).await;
+                if let Some(conf) = result {
+                    tracing::info!("🔍 [Prompt] conf={:.3} | {}", conf, preview);
+                }
+                result
+            })
             .buffer_unordered(ML_SCAN_CONCURRENCY)
             .fold(0.0_f32, |acc, result| async move {
                 result.unwrap_or(0.0).max(acc)
@@ -190,6 +260,7 @@ impl PromptInjectionScanner {
     }
 
     fn select_result_with_context_awareness(
+        // TODO: this may need some finetuning, based on how testing goes
         &self,
         tool_result: DetailedScanResult,
         context_result: DetailedScanResult,
@@ -218,26 +289,36 @@ impl PromptInjectionScanner {
         }
     }
 
-    async fn scan_with_classifier(&self, text: &str) -> Option<f32> {
-        let classifier = self.classifier_client.as_ref()?;
-
-        tracing::debug!("🤖 Running classifier scan ({} chars)", text.len());
-        let start = std::time::Instant::now();
+    async fn scan_with_classifier(
+        &self,
+        text: &str,
+        classifier: &ClassificationClient,
+        classifier_type: ClassifierType,
+    ) -> Option<f32> {
+        let type_name = match classifier_type {
+            ClassifierType::Command => "command injection",
+            ClassifierType::Prompt => "prompt injection",
+        };
 
         match classifier.classify(text).await {
-            Ok(conf) => {
-                tracing::debug!(
-                    "✅ Classifier scan: confidence={:.3}, duration={:.0}ms",
-                    conf,
-                    start.elapsed().as_secs_f64() * 1000.0
-                );
-                Some(conf)
-            }
+            Ok(conf) => Some(conf),
             Err(e) => {
-                tracing::warn!("Classifier scan failed: {:#}", e);
+                tracing::warn!("{} classifier scan failed: {:#}", type_name, e);
                 None
             }
         }
+    }
+
+    async fn scan_command_with_classifier(&self, text: &str) -> Option<f32> {
+        let classifier = self.command_classifier.as_ref()?;
+        self.scan_with_classifier(text, classifier, ClassifierType::Command)
+            .await
+    }
+
+    async fn scan_prompt_with_classifier(&self, text: &str) -> Option<f32> {
+        let classifier = self.prompt_classifier.as_ref()?;
+        self.scan_with_classifier(text, classifier, ClassifierType::Prompt)
+            .await
     }
 
     fn pattern_based_scanning(&self, text: &str) -> (f32, Vec<PatternMatch>) {
@@ -250,23 +331,43 @@ impl PromptInjectionScanner {
         (confidence, matches)
     }
 
-    fn build_explanation(&self, result: &DetailedScanResult, threshold: f32) -> String {
+    fn build_explanation(&self, result: &DetailedScanResult, threshold: f32, tool_content: &str) -> String {
         if result.confidence < threshold {
             return "No security threats detected".to_string();
         }
 
+        // Extract just the command from tool_content (skip "Tool: xxx" prefix)
+        let command_preview = if let Some(args_start) = tool_content.find('\n') {
+            let args = &tool_content[args_start + 1..];
+            if args.len() > 150 {
+                format!("{}...", &args[..150])
+            } else {
+                args.to_string()
+            }
+        } else {
+            if tool_content.len() > 150 {
+                format!("{}...", &tool_content[..150])
+            } else {
+                tool_content.to_string()
+            }
+        };
+
         if let Some(top_match) = result.pattern_matches.first() {
             let preview = top_match.matched_text.chars().take(50).collect::<String>();
             return format!(
-                "Security threat detected: {} (Risk: {:?}) - Found: '{}'",
-                top_match.threat.description, top_match.threat.risk_level, preview
+                "Pattern-based detection: {} (Risk: {:?})\nFound: '{}'\n\nCommand:\n{}",
+                top_match.threat.description, top_match.threat.risk_level, preview, command_preview
             );
         }
 
         if let Some(ml_conf) = result.ml_confidence {
-            format!("Security threat detected (ML confidence: {:.2})", ml_conf)
+            format!(
+                "Command injection detected (confidence: {:.1}%)\n\nCommand:\n{}",
+                ml_conf * 100.0,
+                command_preview
+            )
         } else {
-            "Security threat detected".to_string()
+            format!("Security threat detected\n\nCommand:\n{}", command_preview)
         }
     }
 
