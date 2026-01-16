@@ -302,7 +302,7 @@ function BaseChatContent({
     name: session?.name || 'No Session',
   };
 
-  // Update the global chat context when session name changes
+  // Update the global chat context to keep it in sync with local state
   useEffect(() => {
     if (session) {
       setChat({
