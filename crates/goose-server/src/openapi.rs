@@ -20,8 +20,9 @@ use goose::config::declarative_providers::{
 };
 use goose::conversation::message::{
     ActionRequired, ActionRequiredData, FrontendToolRequest, Message, MessageContent,
-    MessageMetadata, RedactedThinkingContent, SystemNotificationContent, SystemNotificationType,
-    ThinkingContent, TokenState, ToolConfirmationRequest, ToolRequest, ToolResponse,
+    MessageMetadata, RedactedThinkingContent, SystemNotificationContent,
+    SystemNotificationType, ThinkingContent, TokenState, ToolConfirmationRequest, ToolRequest,
+    ToolResponse,
 };
 
 use crate::routes::recipe_utils::RecipeManifest;

@@ -369,6 +369,10 @@ export type GetToolsQuery = {
  */
 export type GooseApp = McpAppResource & (WindowProps | null) & {
     mcpServer?: string | null;
+    /**
+     * Product requirements document for LLM-based iteration
+     */
+    prd?: string | null;
 };
 
 export type Icon = {
@@ -1018,6 +1022,7 @@ export type SystemInfo = {
 };
 
 export type SystemNotificationContent = {
+    data?: unknown;
     msg: string;
     notificationType: SystemNotificationType;
 };

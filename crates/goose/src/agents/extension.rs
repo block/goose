@@ -1,3 +1,4 @@
+use crate::agents::apps_extension;
 use crate::agents::chatrecall_extension;
 use crate::agents::code_execution_extension;
 use crate::agents::extension_manager_extension;
@@ -51,6 +52,17 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                     "Enable a todo list for goose so it can keep track of what it is doing",
                 default_enabled: true,
                 client_factory: |ctx| Box::new(todo_extension::TodoClient::new(ctx).unwrap()),
+            },
+        );
+
+        map.insert(
+            apps_extension::EXTENSION_NAME,
+            PlatformExtensionDef {
+                name: apps_extension::EXTENSION_NAME,
+                description:
+                    "Create and manage custom Goose apps through chat. Apps are HTML/CSS/JavaScript and run in sandboxed windows.",
+                default_enabled: true,
+                client_factory: |ctx| Box::new(apps_extension::AppsManagerClient::new(ctx).unwrap()),
             },
         );
 
@@ -109,6 +121,52 @@ pub struct PlatformExtensionContext {
     pub extension_manager:
         Option<std::sync::Weak<crate::agents::extension_manager::ExtensionManager>>,
     pub session_manager: std::sync::Arc<crate::session::SessionManager>,
+}
+
+impl PlatformExtensionContext {
+    /// Helper method to attach a platform notification to a tool result.
+    /// The notification will be emitted as a MessageEvent::Notification to update client state.
+    ///
+    /// # Arguments
+    /// * `result` - The CallToolResult to attach the notification to
+    /// * `extension_name` - Name of the extension emitting the event (e.g., "apps")
+    /// * `event_type` - Type of event (e.g., "app_created", "app_updated")
+    /// * `additional_params` - Additional parameters to include in the notification
+    pub fn result_with_platform_notification(
+        &self,
+        mut result: rmcp::model::CallToolResult,
+        extension_name: impl Into<String>,
+        event_type: impl Into<String>,
+        mut additional_params: serde_json::Map<String, serde_json::Value>,
+    ) -> rmcp::model::CallToolResult {
+        // Add core fields
+        additional_params.insert("extension".to_string(), extension_name.into().into());
+        additional_params.insert("event_type".to_string(), event_type.into().into());
+
+        // Store notification in meta for agent loop to process
+        let meta_value = serde_json::json!({
+            "platform_notification": {
+                "method": "platform_event",
+                "params": additional_params
+            }
+        });
+
+        if let Some(ref mut meta) = result.meta {
+            // Merge with existing meta
+            if let Some(obj) = meta_value.as_object() {
+                for (k, v) in obj {
+                    meta.0.insert(k.clone(), v.clone());
+                }
+            }
+        } else {
+            // Create new meta
+            result.meta = Some(rmcp::model::Meta(
+                meta_value.as_object().unwrap().clone()
+            ));
+        }
+
+        result
+    }
 }
 
 #[derive(Debug, Clone)]

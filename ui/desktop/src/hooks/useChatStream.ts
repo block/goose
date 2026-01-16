@@ -82,7 +82,8 @@ async function streamFromResponse(
   updateTokenState: (tokenState: TokenState) => void,
   updateChatState: (state: ChatState) => void,
   updateNotifications: (notification: NotificationEvent) => void,
-  onFinish: (error?: string) => void
+  onFinish: (error?: string) => void,
+  sessionId: string
 ): Promise<void> {
   let currentMessages = initialMessages;
 
@@ -136,6 +137,21 @@ async function streamFromResponse(
         }
         case 'Notification': {
           updateNotifications(event as NotificationEvent);
+
+          // Check if this is a platform event notification
+          // NOTE: If we add more notification types beyond platform_event, consider
+          // implementing a registry pattern to map notification methods to handlers
+          if (event.message && typeof event.message === 'object' && 'method' in event.message) {
+            const notification = event.message as { method?: string; params?: unknown };
+            if (notification.method === 'platform_event' && notification.params) {
+              // Dispatch window event with sessionId included
+              window.dispatchEvent(
+                new CustomEvent('platform-event', {
+                  detail: { ...notification.params, sessionId },
+                })
+              );
+            }
+          }
           break;
         }
         case 'Ping':
@@ -184,9 +200,12 @@ export function useChatStream({
     messagesRef.current = newMessages;
   }, []);
 
-  const updateNotifications = useCallback((notification: NotificationEvent) => {
-    setNotifications((prev) => [...prev, notification]);
-  }, []);
+  const updateNotifications = useCallback(
+    (notification: NotificationEvent) => {
+      setNotifications((prev) => [...prev, notification]);
+    },
+    []
+  );
 
   const onFinish = useCallback(
     async (error?: string): Promise<void> => {
@@ -351,7 +370,8 @@ export function useChatStream({
           setTokenState,
           setChatState,
           updateNotifications,
-          onFinish
+          onFinish,
+          sessionId
         );
       } catch (error) {
         // AbortError is expected when user stops streaming
@@ -399,7 +419,8 @@ export function useChatStream({
           setTokenState,
           setChatState,
           updateNotifications,
-          onFinish
+          onFinish,
+          sessionId
         );
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') {

@@ -3876,6 +3876,11 @@
               "mcpServer": {
                 "type": "string",
                 "nullable": true
+              },
+              "prd": {
+                "type": "string",
+                "description": "Product requirements document for LLM-based iteration",
+                "nullable": true
               }
             }
           }
@@ -5930,6 +5935,9 @@
           "msg"
         ],
         "properties": {
+          "data": {
+            "nullable": true
+          },
           "msg": {
             "type": "string"
           },

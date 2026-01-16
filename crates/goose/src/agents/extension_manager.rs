@@ -466,6 +466,11 @@ impl ExtensionManager {
         &self.context
     }
 
+    /// Get the provider
+    pub fn get_provider(&self) -> &SharedProvider {
+        &self.provider
+    }
+
     /// Resolve the working directory for an extension.
     /// Falls back to current_dir when working_dir is not available.
     async fn resolve_working_dir(&self) -> PathBuf {

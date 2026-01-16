@@ -171,6 +171,8 @@ pub enum SystemNotificationType {
 pub struct SystemNotificationContent {
     pub notification_type: SystemNotificationType,
     pub msg: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -369,6 +371,19 @@ impl MessageContent {
         MessageContent::SystemNotification(SystemNotificationContent {
             notification_type,
             msg: msg.into(),
+            data: None,
+        })
+    }
+
+    pub fn system_notification_with_data<S: Into<String>>(
+        notification_type: SystemNotificationType,
+        msg: S,
+        data: serde_json::Value,
+    ) -> Self {
+        MessageContent::SystemNotification(SystemNotificationContent {
+            notification_type,
+            msg: msg.into(),
+            data: Some(data),
         })
     }
 
@@ -814,6 +829,20 @@ impl Message {
     ) -> Self {
         self.with_content(MessageContent::system_notification(notification_type, msg))
             .with_metadata(MessageMetadata::user_only())
+    }
+
+    pub fn with_system_notification_with_data<S: Into<String>>(
+        self,
+        notification_type: SystemNotificationType,
+        msg: S,
+        data: serde_json::Value,
+    ) -> Self {
+        self.with_content(MessageContent::system_notification_with_data(
+            notification_type,
+            msg,
+            data,
+        ))
+        .with_metadata(MessageMetadata::user_only())
     }
 
     /// Set the visibility metadata for the message

@@ -31,6 +31,9 @@ pub struct GooseApp {
     pub mcp_server: Option<String>,
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
     pub window_props: Option<WindowProps>,
+    /// Product requirements document for LLM-based iteration
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prd: Option<String>,
 }
 
 pub struct McpAppCache {
@@ -171,6 +174,7 @@ pub async fn fetch_mcp_apps(
                             height: 600,
                             resizable: true,
                         }),
+                        prd: None,
                     };
 
                     apps.push(app);

@@ -73,6 +73,66 @@ export default function AppsView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
+  // Listen for platform events (app created/updated/deleted) and handle accordingly
+  useEffect(() => {
+    const handlePlatformEvent = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const eventData = customEvent.detail;
+
+      if (eventData?.extension === 'apps') {
+        const { event_type, app_name } = eventData;
+        const eventSessionId = eventData.sessionId || sessionId;
+
+        // Refresh apps list to get latest state
+        if (eventSessionId) {
+          listApps({
+            throwOnError: false,
+            query: { session_id: eventSessionId },
+          }).then((response) => {
+            if (response.data?.apps) {
+              setApps(response.data.apps);
+
+              // Handle specific event types
+              const targetApp = response.data.apps.find((app) => app.name === app_name);
+
+              switch (event_type) {
+                case 'app_created':
+                  // Open the newly created app
+                  if (targetApp) {
+                    window.electron.launchApp(targetApp).catch((err) => {
+                      console.error('Failed to launch newly created app:', err);
+                    });
+                  }
+                  break;
+
+                case 'app_updated':
+                  // Refresh the app if it's currently open
+                  if (targetApp) {
+                    window.electron.refreshApp(targetApp).catch((err) => {
+                      console.error('Failed to refresh updated app:', err);
+                    });
+                  }
+                  break;
+
+                case 'app_deleted':
+                  // Close the app if it's currently open
+                  if (app_name) {
+                    window.electron.closeApp(app_name).catch((err) => {
+                      console.error('Failed to close deleted app:', err);
+                    });
+                  }
+                  break;
+              }
+            }
+          });
+        }
+      }
+    };
+
+    window.addEventListener('platform-event', handlePlatformEvent);
+    return () => window.removeEventListener('platform-event', handlePlatformEvent);
+  }, [sessionId]);
+
   const loadApps = useCallback(async () => {
     if (!sessionId) return;
 
