@@ -302,17 +302,15 @@ function BaseChatContent({
     name: session?.name || 'No Session',
   };
 
-  // Update the global chat context when session changes
+  // Update the global chat context when session name changes
   useEffect(() => {
     if (session) {
-      setChat({
-        messages,
-        recipe,
-        sessionId,
+      setChat(prev => ({
+        ...prev,
         name: session.name,
-      });
+      }));
     }
-  }, [session?.name, sessionId, messages, recipe, setChat]);
+  }, [session?.name, setChat]);
 
   // Only use initialMessage for the prompt if it hasn't been submitted yet
   // If we have a recipe prompt and user recipe values, substitute parameters
