@@ -48,6 +48,8 @@ pub struct UpdateProviderRequest {
     provider: String,
     model: Option<String>,
     session_id: String,
+    context_limit: Option<usize>,
+    request_params: Option<std::collections::HashMap<String, serde_json::Value>>,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -528,12 +530,15 @@ async fn update_agent_provider(
         }
     };
 
-    let model_config = ModelConfig::new(&model).map_err(|e| {
-        (
-            StatusCode::BAD_REQUEST,
-            format!("Invalid model config: {}", e),
-        )
-    })?;
+    let model_config = ModelConfig::new(&model)
+        .map_err(|e| {
+            (
+                StatusCode::BAD_REQUEST,
+                format!("Invalid model config: {}", e),
+            )
+        })?
+        .with_context_limit(payload.context_limit)
+        .with_request_params(payload.request_params);
 
     let new_provider = create(&payload.provider, model_config).await.map_err(|e| {
         (
