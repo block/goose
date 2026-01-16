@@ -11,9 +11,12 @@ This creates a poor user experience because:
 
 ### Before This Fix
 
-**Screenshot showing "New session 1" in dock/window title even after sending messages:**
+The window title remains stuck on "New session 1" even after the backend has generated a meaningful name:
 
-[Screenshot placeholder - shows window title stuck on "New session 1"]
+**Before - Window title stuck on generic name:**
+
+![Before Screenshot](screenshot-before.png)
+*Window title shows "Goose - New session 1" even after multiple messages have been sent*
 
 This breaks the multi-session workflow because you can't tell what each session is about without closing and reopening them.
 
@@ -43,19 +46,29 @@ This PR makes the UI **match this backend behavior** by:
 
 ### After This Fix - Name Evolution in Action
 
-**After 1st message:**
+The window title now updates in real-time as the backend refines the session name:
 
-[Screenshot placeholder - shows "Goose - 500 error" in dock]
+**After 1st message** - "My queries are really slow":
 
-**After 2nd message:**
+![After 1st Message](screenshot-after-1.png)
+*Window title updates to "Goose - Query performance optimization"*
 
-[Screenshot placeholder - shows "Goose - Flask file upload" in dock]
+**After 2nd message** - "I'm using PostgreSQL with a table that has 50 million rows":
 
-**After 3rd message:**
+![After 2nd Message](screenshot-after-2.png)
+*Window title refines to "Goose - PostgreSQL large table performance"*
 
-[Screenshot placeholder - shows "Goose - Nginx proxy configuration" in dock]
+**After 3rd message** - "The slow query is doing a full table scan because I forgot to add an index on the user_id column":
 
-The name becomes **more specific and accurate** with each message as the backend gains more context!
+![After 3rd Message](screenshot-after-3.png)
+*Window title refines to "Goose - PostgreSQL missing index fix" (final, most specific name)*
+
+**After 4th message** - "Can you show me the exact SQL command to create the index with the best performance settings?":
+
+![After 4th Message](screenshot-after-4.png)
+*Window title remains "Goose - PostgreSQL missing index fix" (no change - stops after 3 messages)*
+
+The name becomes **more specific and accurate** with each of the first 3 messages as the backend gains more context. After the 3rd message, the name is finalized and no more API calls are made.
 
 ### Why This Approach is Optimal
 
