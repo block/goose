@@ -305,7 +305,7 @@ function BaseChatContent({
   // Update the global chat context when session name changes
   useEffect(() => {
     if (session) {
-      setChat(prev => ({
+      setChat((prev: ChatType) => ({
         ...prev,
         name: session.name,
       }));
