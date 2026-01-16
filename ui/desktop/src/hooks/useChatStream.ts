@@ -10,6 +10,7 @@ import {
   TokenState,
   updateFromSession,
   updateSessionUserRecipeValues,
+  listApps,
 } from '../api';
 
 import {
@@ -274,6 +275,14 @@ export function useChatStream({
           accumulatedTotalTokens: loadedSession?.accumulated_total_tokens ?? 0,
         });
         setChatState(ChatState.Idle);
+
+        listApps({
+          throwOnError: true,
+          query: { session_id: sessionId },
+        }).catch((err) => {
+          console.warn('Failed to populate apps cache:', err);
+        });
+
         onSessionLoaded?.();
       } catch (error) {
         if (cancelled) return;

@@ -364,6 +364,13 @@ export type GetToolsQuery = {
     session_id: string;
 };
 
+/**
+ * A Goose App combining MCP resource data with Goose-specific metadata
+ */
+export type GooseApp = McpAppResource & (WindowProps | null) & {
+    mcpServer?: string | null;
+};
+
 export type Icon = {
     mimeType?: string;
     sizes?: Array<string>;
@@ -397,6 +404,14 @@ export type JsonObject = {
 
 export type KillJobResponse = {
     message: string;
+};
+
+export type ListAppsRequest = {
+    session_id?: string | null;
+};
+
+export type ListAppsResponse = {
+    apps: Array<GooseApp>;
 };
 
 export type ListRecipeResponse = {
@@ -967,6 +982,10 @@ export type StartAgentRequest = {
     working_dir: string;
 };
 
+export type StopAgentRequest = {
+    session_id: string;
+};
+
 export type SubRecipe = {
     description?: string | null;
     name: string;
@@ -1193,6 +1212,12 @@ export type UpsertPermissionsQuery = {
     tool_permissions: Array<ToolPermission>;
 };
 
+export type WindowProps = {
+    height: number;
+    resizable: boolean;
+    width: number;
+};
+
 export type ConfirmToolActionData = {
     body: ConfirmToolActionRequest;
     path?: never;
@@ -1283,6 +1308,37 @@ export type CallToolResponses = {
 };
 
 export type CallToolResponse2 = CallToolResponses[keyof CallToolResponses];
+
+export type ListAppsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        session_id?: string | null;
+    };
+    url: '/agent/list_apps';
+};
+
+export type ListAppsErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type ListAppsError = ListAppsErrors[keyof ListAppsErrors];
+
+export type ListAppsResponses = {
+    /**
+     * List of apps retrieved successfully
+     */
+    200: ListAppsResponse;
+};
+
+export type ListAppsResponse2 = ListAppsResponses[keyof ListAppsResponses];
 
 export type ReadResourceData = {
     body: ReadResourceRequest;
@@ -1444,6 +1500,37 @@ export type StartAgentResponses = {
 };
 
 export type StartAgentResponse = StartAgentResponses[keyof StartAgentResponses];
+
+export type StopAgentData = {
+    body: StopAgentRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/stop';
+};
+
+export type StopAgentErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type StopAgentResponses = {
+    /**
+     * Agent stopped successfully
+     */
+    200: string;
+};
+
+export type StopAgentResponse = StopAgentResponses[keyof StopAgentResponses];
 
 export type GetToolsData = {
     body?: never;
