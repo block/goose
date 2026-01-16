@@ -302,17 +302,31 @@ function BaseChatContent({
     name: session?.name || 'No Session',
   };
 
-  // Update the global chat context to keep it in sync with local state
+  // Update the global chat context when session name changes
+  // Use refs to get current values without triggering re-renders
+  const lastSetNameRef = useRef<string>('');
+  const messagesRef = useRef(messages);
+  const recipeRef = useRef(recipe);
+  const sessionIdRef = useRef(sessionId);
+  
+  // Keep refs up to date
   useEffect(() => {
-    if (session) {
+    messagesRef.current = messages;
+    recipeRef.current = recipe;
+    sessionIdRef.current = sessionId;
+  });
+  
+  useEffect(() => {
+    if (session && session.name !== lastSetNameRef.current) {
+      lastSetNameRef.current = session.name;
       setChat({
-        messages,
-        recipe,
-        sessionId,
+        messages: messagesRef.current,
+        recipe: recipeRef.current,
+        sessionId: sessionIdRef.current,
         name: session.name,
       });
     }
-  }, [session, messages, recipe, sessionId, setChat]);
+  }, [session?.name, setChat]);
 
   // Only use initialMessage for the prompt if it hasn't been submitted yet
   // If we have a recipe prompt and user recipe values, substitute parameters
