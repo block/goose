@@ -312,7 +312,7 @@ function BaseChatContent({
         name: session.name,
       });
     }
-  }, [session?.name, messages, recipe, sessionId, setChat]);
+  }, [session, messages, recipe, sessionId, setChat]);
 
   // Only use initialMessage for the prompt if it hasn't been submitted yet
   // If we have a recipe prompt and user recipe values, substitute parameters
