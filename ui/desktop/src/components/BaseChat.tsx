@@ -317,13 +317,14 @@ function BaseChatContent({
   });
   
   useEffect(() => {
-    if (session && session.name !== lastSetNameRef.current) {
-      lastSetNameRef.current = session.name;
+    const currentSessionName = session?.name;
+    if (currentSessionName && currentSessionName !== lastSetNameRef.current) {
+      lastSetNameRef.current = currentSessionName;
       setChat({
         messages: messagesRef.current,
         recipe: recipeRef.current,
         sessionId: sessionIdRef.current,
-        name: session.name,
+        name: currentSessionName,
       });
     }
   }, [session?.name, setChat]);
