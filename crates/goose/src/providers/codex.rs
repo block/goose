@@ -39,10 +39,13 @@ pub struct CodexProvider {
     model: ModelConfig,
     #[serde(skip)]
     name: String,
-    /// Reasoning effort level (low, medium, high)
     reasoning_effort: String,
-    /// Whether to enable skills
     enable_skills: bool,
+    // NOTE: Codex CLI removed the `skills` feature flag in openai/codex#8850 and now loads
+    // skills unconditionally. To stay compatible with older Codex CLIs (where `skills` was a
+    // feature flag), we only pass `--enable/--disable skills` if the installed CLI still
+    // advertises that flag via `codex features list`.
+    skills_feature_flag_supported: bool,
     /// Whether to skip git repo check
     skip_git_check: bool,
 }
@@ -70,11 +73,15 @@ impl CodexProvider {
             "high".to_string()
         };
 
-        // Get enable_skills from config, default to true
         let enable_skills = config
             .get_codex_enable_skills()
             .map(|s| s.to_lowercase() == "true")
             .unwrap_or(true);
+
+        let skills_feature_flag_supported =
+            Self::supports_feature_flag(&resolved_command, "skills")
+                .await
+                .unwrap_or(false);
 
         // Get skip_git_check from config, default to false
         let skip_git_check = config
@@ -88,8 +95,64 @@ impl CodexProvider {
             name: Self::metadata().name,
             reasoning_effort,
             enable_skills,
+            skills_feature_flag_supported,
             skip_git_check,
         })
+    }
+
+    fn feature_list_contains_feature(stdout: &str, feature: &str) -> bool {
+        // `codex features list` output is a whitespace-separated sequence of:
+        // `<name> <stability> <enabled>` repeated, e.g.:
+        // `undo stable false shell_tool stable true ...`
+        //
+        // We match by token to be robust to both newline- and space-delimited output.
+        stdout
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .windows(3)
+            .any(|w| {
+                w[0] == feature
+                    && matches!(w[1], "stable" | "beta" | "experimental")
+                    && matches!(w[2], "true" | "false")
+            })
+    }
+
+    fn skills_feature_flag_args(
+        skills_feature_flag_supported: bool,
+        enable_skills: bool,
+    ) -> Option<(&'static str, &'static str)> {
+        if !skills_feature_flag_supported {
+            return None;
+        }
+
+        Some((
+            if enable_skills {
+                "--enable"
+            } else {
+                "--disable"
+            },
+            "skills",
+        ))
+    }
+
+    async fn supports_feature_flag(command: &PathBuf, feature: &str) -> Result<bool> {
+        let mut cmd = Command::new(command);
+        configure_command_no_window(&mut cmd);
+        cmd.arg("features")
+            .arg("list")
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+
+        let output = cmd.output().await?;
+        if !output.status.success() {
+            return Ok(false);
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        Ok(Self::feature_list_contains_feature(
+            stdout.as_ref(),
+            feature,
+        ))
     }
 
     /// Convert goose messages to a simple text prompt format
@@ -165,6 +228,10 @@ impl CodexProvider {
             println!("Model: {}", self.model.model_name);
             println!("Reasoning effort: {}", self.reasoning_effort);
             println!("Enable skills: {}", self.enable_skills);
+            println!(
+                "Skills feature flag supported: {}",
+                self.skills_feature_flag_supported
+            );
             println!("Skip git check: {}", self.skip_git_check);
             println!("Prompt length: {} chars", prompt.len());
             println!("Prompt: {}", prompt);
@@ -189,9 +256,10 @@ impl CodexProvider {
             self.reasoning_effort
         ));
 
-        // Enable skills if configured
-        if self.enable_skills {
-            cmd.arg("--enable").arg("skills");
+        if let Some((flag, feature)) =
+            Self::skills_feature_flag_args(self.skills_feature_flag_supported, self.enable_skills)
+        {
+            cmd.arg(flag).arg(feature);
         }
 
         // JSON output format for structured parsing
@@ -527,6 +595,7 @@ impl Provider for CodexProvider {
             "model": model_config.model_name,
             "reasoning_effort": self.reasoning_effort,
             "enable_skills": self.enable_skills,
+            "skills_feature_flag_supported": self.skills_feature_flag_supported,
             "system_length": system.len(),
             "messages_count": messages.len()
         });
@@ -576,6 +645,7 @@ mod tests {
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
             enable_skills: true,
+            skills_feature_flag_supported: false,
             skip_git_check: false,
         };
 
@@ -591,6 +661,7 @@ mod tests {
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
             enable_skills: true,
+            skills_feature_flag_supported: false,
             skip_git_check: false,
         };
 
@@ -607,6 +678,7 @@ mod tests {
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
             enable_skills: true,
+            skills_feature_flag_supported: false,
             skip_git_check: false,
         };
 
@@ -636,6 +708,7 @@ mod tests {
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
             enable_skills: true,
+            skills_feature_flag_supported: false,
             skip_git_check: false,
         };
 
@@ -656,6 +729,7 @@ mod tests {
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
             enable_skills: true,
+            skills_feature_flag_supported: false,
             skip_git_check: false,
         };
 
@@ -689,6 +763,7 @@ mod tests {
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
             enable_skills: true,
+            skills_feature_flag_supported: false,
             skip_git_check: false,
         };
 
@@ -721,6 +796,7 @@ mod tests {
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
             enable_skills: true,
+            skills_feature_flag_supported: false,
             skip_git_check: false,
         };
 
@@ -746,6 +822,7 @@ mod tests {
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
             enable_skills: true,
+            skills_feature_flag_supported: false,
             skip_git_check: false,
         };
 
@@ -770,6 +847,7 @@ mod tests {
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
             enable_skills: true,
+            skills_feature_flag_supported: false,
             skip_git_check: false,
         };
 
@@ -792,6 +870,7 @@ mod tests {
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
             enable_skills: true,
+            skills_feature_flag_supported: false,
             skip_git_check: false,
         };
 
@@ -819,6 +898,7 @@ mod tests {
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
             enable_skills: true,
+            skills_feature_flag_supported: false,
             skip_git_check: false,
         };
 
@@ -851,6 +931,7 @@ mod tests {
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
             enable_skills: true,
+            skills_feature_flag_supported: false,
             skip_git_check: false,
         };
 
@@ -898,6 +979,7 @@ mod tests {
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
             enable_skills: true,
+            skills_feature_flag_supported: false,
             skip_git_check: false,
         };
 
@@ -924,6 +1006,7 @@ mod tests {
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
             enable_skills: true,
+            skills_feature_flag_supported: false,
             skip_git_check: false,
         };
 
@@ -951,5 +1034,21 @@ mod tests {
     #[test]
     fn test_default_model() {
         assert_eq!(CODEX_DEFAULT_MODEL, "gpt-5.2-codex");
+    }
+
+    #[test]
+    fn test_skills_feature_flag_args_based_on_features_list_support() {
+        let stdout = "undo stable false shell_tool stable true skills stable true steer beta false";
+        let skills_supported = CodexProvider::feature_list_contains_feature(stdout, "skills");
+        assert!(skills_supported);
+
+        assert_eq!(
+            CodexProvider::skills_feature_flag_args(skills_supported, true),
+            Some(("--enable", "skills"))
+        );
+        assert_eq!(
+            CodexProvider::skills_feature_flag_args(skills_supported, false),
+            Some(("--disable", "skills"))
+        );
     }
 }
