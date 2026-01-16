@@ -135,7 +135,7 @@ export default function McpAppRenderer({
 
           // Extract first text block from content, ignoring other block types
           const textContent = content.find((block) => block.type === 'text');
-          if (!textContent || textContent.type !== 'text') {
+          if (!textContent) {
             throw new Error('Invalid message format: content must contain a text block');
           }
 
