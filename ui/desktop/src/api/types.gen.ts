@@ -82,6 +82,11 @@ export type ConfigKey = {
      */
     default?: string | null;
     /**
+     * Optional group name for organizing related configuration fields in the UI
+     * Fields with the same group name will be rendered together in a collapsible section
+     */
+    group?: string | null;
+    /**
      * The name of the configuration key (e.g., "API_KEY")
      */
     name: string;

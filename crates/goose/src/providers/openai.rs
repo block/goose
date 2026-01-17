@@ -1,4 +1,5 @@
-use super::api_client::{ApiClient, AuthMethod};
+use super::api_client::{ApiClient, AuthMethod, AuthProvider};
+use super::azureauth::{AzureAuth, AzureAuthConfig};
 use super::base::{ConfigKey, ModelInfo, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::embedding::{EmbeddingCapable, EmbeddingRequest, EmbeddingResponse};
 use super::errors::ProviderError;
@@ -30,6 +31,27 @@ use crate::model::ModelConfig;
 use crate::providers::base::MessageStream;
 use crate::providers::utils::RequestLog;
 use rmcp::model::Tool;
+
+/// Auth provider that wraps AzureAuth for OpenAI endpoints protected by Entra ID.
+struct EntraAuthProvider {
+    auth: AzureAuth,
+}
+
+#[async_trait]
+impl AuthProvider for EntraAuthProvider {
+    async fn get_auth_header(&self) -> Result<(String, String)> {
+        let auth_token = self
+            .auth
+            .get_token()
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to get Entra authentication token: {}", e))?;
+
+        Ok((
+            "Authorization".to_string(),
+            format!("Bearer {}", auth_token.token_value),
+        ))
+    }
+}
 
 pub const OPEN_AI_DEFAULT_MODEL: &str = "gpt-4o";
 pub const OPEN_AI_DEFAULT_FAST_MODEL: &str = "gpt-4o-mini";
@@ -67,8 +89,40 @@ impl OpenAiProvider {
         let model = model.with_fast(OPEN_AI_DEFAULT_FAST_MODEL.to_string());
 
         let config = crate::config::Config::global();
-        let secrets = config.get_secrets("OPENAI_API_KEY", &["OPENAI_CUSTOM_HEADERS"])?;
-        let api_key = secrets.get("OPENAI_API_KEY").unwrap().clone();
+
+        // Build Azure Entra ID authentication configuration
+        let auth_config = AzureAuthConfig {
+            tenant_id: config.get_param("OPENAI_AZURE_TENANT_ID").ok(),
+            client_id: config.get_param("OPENAI_AZURE_CLIENT_ID").ok(),
+            client_secret: config.get_secret("OPENAI_AZURE_CLIENT_SECRET").ok(),
+            certificate_path: config.get_param("OPENAI_AZURE_CERTIFICATE_PATH").ok(),
+            certificate_pem: config.get_secret("OPENAI_AZURE_CERTIFICATE").ok(),
+            token_scope: config.get_param("OPENAI_AZURE_TOKEN_SCOPE").ok(),
+            use_managed_identity: config
+                .get_param::<String>("OPENAI_AZURE_USE_MANAGED_IDENTITY")
+                .map(|v| v.to_lowercase() == "true" || v == "1")
+                .unwrap_or(false),
+            api_key: None, // OpenAI uses BearerToken for API key, not AzureAuth
+        };
+
+        // Use Entra auth if configured, otherwise fall back to API key
+        let auth = if auth_config.has_entra_auth() {
+            let azure_auth = auth_config.build("OPENAI_AZURE")?;
+            let auth_provider = EntraAuthProvider { auth: azure_auth };
+            AuthMethod::Custom(Box::new(auth_provider))
+        } else {
+            // Use standard API key authentication
+            let secrets = config.get_secrets("OPENAI_API_KEY", &["OPENAI_CUSTOM_HEADERS"])?;
+            let api_key = secrets.get("OPENAI_API_KEY").unwrap().clone();
+            AuthMethod::BearerToken(api_key)
+        };
+
+        // Get custom headers (only relevant for API key auth, but allow for both)
+        let custom_headers: Option<HashMap<String, String>> = config
+            .get_secret("OPENAI_CUSTOM_HEADERS")
+            .ok()
+            .map(parse_custom_headers);
+
         let host: String = config
             .get_param("OPENAI_HOST")
             .unwrap_or_else(|_| "https://api.openai.com".to_string());
@@ -77,13 +131,8 @@ impl OpenAiProvider {
             .unwrap_or_else(|_| "v1/chat/completions".to_string());
         let organization: Option<String> = config.get_param("OPENAI_ORGANIZATION").ok();
         let project: Option<String> = config.get_param("OPENAI_PROJECT").ok();
-        let custom_headers: Option<HashMap<String, String>> = secrets
-            .get("OPENAI_CUSTOM_HEADERS")
-            .cloned()
-            .map(parse_custom_headers);
         let timeout_secs: u64 = config.get_param("OPENAI_TIMEOUT").unwrap_or(600);
 
-        let auth = AuthMethod::BearerToken(api_key);
         let mut api_client =
             ApiClient::with_timeout(host, auth, std::time::Duration::from_secs(timeout_secs))?;
 
@@ -219,18 +268,80 @@ impl Provider for OpenAiProvider {
         ProviderMetadata::with_models(
             "openai",
             "OpenAI",
-            "GPT-4 and other OpenAI models, including OpenAI compatible ones",
+            "GPT-4 and other OpenAI models, including OpenAI compatible ones. \
+             Supports Azure Entra ID authentication via client secret, certificate, \
+             or managed identity.",
             OPEN_AI_DEFAULT_MODEL,
             models,
             OPEN_AI_DOC_URL,
             vec![
-                ConfigKey::new("OPENAI_API_KEY", true, true, None),
-                ConfigKey::new("OPENAI_HOST", true, false, Some("https://api.openai.com")),
-                ConfigKey::new("OPENAI_BASE_PATH", true, false, Some("v1/chat/completions")),
+                // Standard API key auth (required unless using Entra ID)
+                ConfigKey::new("OPENAI_API_KEY", false, true, None),
+                ConfigKey::new("OPENAI_HOST", false, false, Some("https://api.openai.com")),
+                ConfigKey::new(
+                    "OPENAI_BASE_PATH",
+                    false,
+                    false,
+                    Some("v1/chat/completions"),
+                ),
                 ConfigKey::new("OPENAI_ORGANIZATION", false, false, None),
                 ConfigKey::new("OPENAI_PROJECT", false, false, None),
                 ConfigKey::new("OPENAI_CUSTOM_HEADERS", false, true, None),
                 ConfigKey::new("OPENAI_TIMEOUT", false, false, Some("600")),
+                // Azure Entra ID authentication
+                ConfigKey::new_with_group(
+                    "OPENAI_AZURE_TENANT_ID",
+                    false,
+                    false,
+                    None,
+                    Some("Azure Entra ID Authentication"),
+                ),
+                ConfigKey::new_with_group(
+                    "OPENAI_AZURE_CLIENT_ID",
+                    false,
+                    false,
+                    None,
+                    Some("Azure Entra ID Authentication"),
+                ),
+                // Client secret auth
+                ConfigKey::new_with_group(
+                    "OPENAI_AZURE_CLIENT_SECRET",
+                    false,
+                    true,
+                    None,
+                    Some("Azure Entra ID Authentication"),
+                ),
+                // Client certificate auth
+                ConfigKey::new_with_group(
+                    "OPENAI_AZURE_CERTIFICATE_PATH",
+                    false,
+                    false,
+                    None,
+                    Some("Azure Entra ID Authentication"),
+                ),
+                ConfigKey::new_with_group(
+                    "OPENAI_AZURE_CERTIFICATE",
+                    false,
+                    true,
+                    None,
+                    Some("Azure Entra ID Authentication"),
+                ),
+                // Managed identity auth
+                ConfigKey::new_with_group(
+                    "OPENAI_AZURE_USE_MANAGED_IDENTITY",
+                    false,
+                    false,
+                    None,
+                    Some("Azure Entra ID Authentication"),
+                ),
+                // Token scope (applies to all Entra auth methods)
+                ConfigKey::new_with_group(
+                    "OPENAI_AZURE_TOKEN_SCOPE",
+                    false,
+                    false,
+                    None,
+                    Some("Azure Entra ID Authentication"),
+                ),
             ],
         )
     }

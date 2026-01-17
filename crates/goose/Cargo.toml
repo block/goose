@@ -90,6 +90,9 @@ aws-sdk-sagemakerruntime = "1.62.0"
 # For GCP Vertex AI provider auth
 jsonwebtoken = "9.3.1"
 
+# For Azure certificate parsing
+pem = "3.0"
+
 blake3 = "1.5"
 fs2 = "0.4.3"
 tokio-stream = "0.1.17"

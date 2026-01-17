@@ -4,7 +4,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 use super::api_client::{ApiClient, AuthMethod, AuthProvider};
-use super::azureauth::{AuthError, AzureAuth};
+use super::azureauth::{AzureAuth, AzureAuthConfig};
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::formats::openai::{create_request, get_usage, response_to_message};
@@ -61,7 +61,10 @@ impl AuthProvider for AzureAuthProvider {
             super::azureauth::AzureCredentials::ApiKey(_) => {
                 Ok(("api-key".to_string(), auth_token.token_value))
             }
-            super::azureauth::AzureCredentials::DefaultCredential => Ok((
+            super::azureauth::AzureCredentials::DefaultCredential
+            | super::azureauth::AzureCredentials::ClientSecret(_)
+            | super::azureauth::AzureCredentials::ClientCertificate(_)
+            | super::azureauth::AzureCredentials::ManagedIdentity(_) => Ok((
                 "Authorization".to_string(),
                 format!("Bearer {}", auth_token.token_value),
             )),
@@ -78,14 +81,25 @@ impl AzureProvider {
             .get_param("AZURE_OPENAI_API_VERSION")
             .unwrap_or_else(|_| AZURE_DEFAULT_API_VERSION.to_string());
 
-        let api_key = config
-            .get_secret("AZURE_OPENAI_API_KEY")
-            .ok()
-            .filter(|key: &String| !key.is_empty());
-        let auth = AzureAuth::new(api_key).map_err(|e| match e {
-            AuthError::Credentials(msg) => anyhow::anyhow!("Credentials error: {}", msg),
-            AuthError::TokenExchange(msg) => anyhow::anyhow!("Token exchange error: {}", msg),
-        })?;
+        // Build Azure authentication configuration
+        let auth_config = AzureAuthConfig {
+            tenant_id: config.get_param("AZURE_OPENAI_TENANT_ID").ok(),
+            client_id: config.get_param("AZURE_OPENAI_CLIENT_ID").ok(),
+            client_secret: config.get_secret("AZURE_OPENAI_CLIENT_SECRET").ok(),
+            certificate_path: config.get_param("AZURE_OPENAI_CERTIFICATE_PATH").ok(),
+            certificate_pem: config.get_secret("AZURE_OPENAI_CERTIFICATE").ok(),
+            token_scope: config.get_param("AZURE_OPENAI_TOKEN_SCOPE").ok(),
+            use_managed_identity: config
+                .get_param::<String>("AZURE_OPENAI_USE_MANAGED_IDENTITY")
+                .map(|v| v.to_lowercase() == "true" || v == "1")
+                .unwrap_or(false),
+            api_key: config
+                .get_secret("AZURE_OPENAI_API_KEY")
+                .ok()
+                .filter(|key: &String| !key.is_empty()),
+        };
+
+        let auth = auth_config.build("AZURE_OPENAI")?;
 
         let auth_provider = AzureAuthProvider { auth };
         let api_client = ApiClient::new(endpoint, AuthMethod::Custom(Box::new(auth_provider)))?;
@@ -117,15 +131,30 @@ impl Provider for AzureProvider {
         ProviderMetadata::new(
             "azure_openai",
             "Azure OpenAI",
-            "Models through Azure OpenAI Service (uses Azure credential chain by default)",
+            "Models through Azure OpenAI Service. Supports API key, client secret, \
+             client certificate, managed identity, or Azure CLI authentication.",
             "gpt-4o",
             AZURE_OPENAI_KNOWN_MODELS.to_vec(),
             AZURE_DOC_URL,
             vec![
+                // Required configuration
                 ConfigKey::new("AZURE_OPENAI_ENDPOINT", true, false, None),
                 ConfigKey::new("AZURE_OPENAI_DEPLOYMENT_NAME", true, false, None),
-                ConfigKey::new("AZURE_OPENAI_API_VERSION", true, false, Some("2024-10-21")),
-                ConfigKey::new("AZURE_OPENAI_API_KEY", false, true, Some("")),
+                ConfigKey::new("AZURE_OPENAI_API_VERSION", false, false, Some("2024-10-21")),
+                // API key auth (optional - falls back to Azure CLI if not provided)
+                ConfigKey::new("AZURE_OPENAI_API_KEY", false, true, None),
+                // Service principal auth (tenant + client ID required for these)
+                ConfigKey::new("AZURE_OPENAI_TENANT_ID", false, false, None),
+                ConfigKey::new("AZURE_OPENAI_CLIENT_ID", false, false, None),
+                // Client secret auth
+                ConfigKey::new("AZURE_OPENAI_CLIENT_SECRET", false, true, None),
+                // Client certificate auth
+                ConfigKey::new("AZURE_OPENAI_CERTIFICATE_PATH", false, false, None),
+                ConfigKey::new("AZURE_OPENAI_CERTIFICATE", false, true, None),
+                // Managed identity auth
+                ConfigKey::new("AZURE_OPENAI_USE_MANAGED_IDENTITY", false, false, None),
+                // Token scope (applies to all Entra auth methods)
+                ConfigKey::new("AZURE_OPENAI_TOKEN_SCOPE", false, false, None),
             ],
         )
     }
