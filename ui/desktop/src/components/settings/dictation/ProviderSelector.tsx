@@ -83,23 +83,31 @@ export const ProviderSelector = ({ settings, onProviderChange }: ProviderSelecto
           </button>
 
           {showProviderDropdown && (
-            <div className="absolute right-0 mt-1 w-48 bg-background-default border border-border-default rounded-md shadow-lg z-10">
+            <div className="absolute right-0 mt-1 w-max min-w-[250px] max-w-[350px] bg-background-default border border-border-default rounded-md shadow-lg z-50">
               <button
                 onClick={() => handleProviderChange('openai')}
-                className={`w-full px-3 py-2 text-left text-sm transition-colors hover:bg-background-subtle text-text-default ${!VOICE_DICTATION_ELEVENLABS_ENABLED ? 'first:rounded-t-md last:rounded-b-md' : 'first:rounded-t-md'}`}
+                className={`w-full px-3 py-2 text-left text-sm transition-colors hover:bg-background-subtle text-text-default whitespace-nowrap ${!VOICE_DICTATION_ELEVENLABS_ENABLED ? 'first:rounded-t-md last:rounded-b-md' : 'first:rounded-t-md'}`}
               >
-                OpenAI Whisper
-                {!hasOpenAIKey && <span className="text-xs ml-1">(not configured)</span>}
-                {settings.provider === 'openai' && <span className="float-right">✓</span>}
+                <span className="flex items-center justify-between gap-2">
+                  <span>
+                    OpenAI Whisper
+                    {!hasOpenAIKey && (
+                      <span className="text-xs ml-1 text-text-muted">(not configured)</span>
+                    )}
+                  </span>
+                  {settings.provider === 'openai' && <span>✓</span>}
+                </span>
               </button>
 
               {VOICE_DICTATION_ELEVENLABS_ENABLED && (
                 <button
                   onClick={() => handleProviderChange('elevenlabs')}
-                  className="w-full px-3 py-2 text-left text-sm hover:bg-background-subtle transition-colors text-text-default last:rounded-b-md"
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-background-subtle transition-colors text-text-default last:rounded-b-md whitespace-nowrap"
                 >
-                  ElevenLabs
-                  {settings.provider === 'elevenlabs' && <span className="float-right">✓</span>}
+                  <span className="flex items-center justify-between gap-2">
+                    <span>ElevenLabs</span>
+                    {settings.provider === 'elevenlabs' && <span>✓</span>}
+                  </span>
                 </button>
               )}
             </div>

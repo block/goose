@@ -7,16 +7,28 @@ export const ElevenLabsKeyInput = () => {
   const [elevenLabsApiKey, setElevenLabsApiKey] = useState('');
   const [isLoadingKey, setIsLoadingKey] = useState(false);
   const [hasElevenLabsKey, setHasElevenLabsKey] = useState(false);
+  const [validationError, setValidationError] = useState('');
   const elevenLabsApiKeyRef = useRef('');
-  const { upsert, read } = useConfig();
+  const { upsert, read, remove } = useConfig();
 
   useEffect(() => {
     const loadKey = async () => {
       setIsLoadingKey(true);
       try {
         const keyExists = await read(ELEVENLABS_API_KEY, true);
-        if (keyExists === true) {
+        const hasKey =
+          keyExists !== null &&
+          keyExists !== '' &&
+          (typeof keyExists === 'object' && 'masked_value' in keyExists
+            ? keyExists.masked_value
+            : keyExists);
+
+        if (hasKey) {
           setHasElevenLabsKey(true);
+          setElevenLabsApiKey('••••••••••••••••');
+        } else {
+          setHasElevenLabsKey(false);
+          setElevenLabsApiKey('');
         }
       } catch (error) {
         console.error('Error checking ElevenLabs API key:', error);
@@ -28,10 +40,9 @@ export const ElevenLabsKeyInput = () => {
     loadKey();
   }, [read]);
 
-  // Save key on unmount to avoid losing unsaved changes
   useEffect(() => {
     return () => {
-      if (elevenLabsApiKeyRef.current) {
+      if (elevenLabsApiKeyRef.current && elevenLabsApiKeyRef.current !== '••••••••••••••••') {
         const keyToSave = elevenLabsApiKeyRef.current;
         if (keyToSave.trim()) {
           upsert(ELEVENLABS_API_KEY, keyToSave, true).catch((error) => {
@@ -45,26 +56,42 @@ export const ElevenLabsKeyInput = () => {
   const handleElevenLabsKeyChange = (key: string) => {
     setElevenLabsApiKey(key);
     elevenLabsApiKeyRef.current = key;
-    if (key.length > 0) {
+    if (validationError) {
+      setValidationError('');
+    }
+    if (key.length > 0 && key !== '••••••••••••••••') {
       setHasElevenLabsKey(false);
     }
   };
 
   const saveElevenLabsKey = async () => {
     try {
-      if (elevenLabsApiKey.trim()) {
-        console.log('Saving ElevenLabs API key to secure storage...');
-        await upsert(ELEVENLABS_API_KEY, elevenLabsApiKey, true);
+      if (elevenLabsApiKey === '••••••••••••••••') {
+        return;
+      }
+
+      const trimmedKey = elevenLabsApiKey.trim();
+
+      if (trimmedKey) {
+        if (trimmedKey.length < 32) {
+          setValidationError('API key must be at least 32 characters long');
+          setHasElevenLabsKey(false);
+          return;
+        }
+
+        await upsert(ELEVENLABS_API_KEY, trimmedKey, true);
         setHasElevenLabsKey(true);
-        console.log('ElevenLabs API key saved successfully');
+        setElevenLabsApiKey('••••••••••••••••');
+        setValidationError('');
       } else {
-        console.log('Removing ElevenLabs API key from secure storage...');
-        await upsert(ELEVENLABS_API_KEY, null, true);
+        await remove(ELEVENLABS_API_KEY, true);
         setHasElevenLabsKey(false);
-        console.log('ElevenLabs API key removed successfully');
+        setElevenLabsApiKey('');
+        setValidationError('');
       }
     } catch (error) {
       console.error('Error saving ElevenLabs API key:', error);
+      setValidationError('Failed to save API key');
     }
   };
 
@@ -82,12 +109,19 @@ export const ElevenLabsKeyInput = () => {
         value={elevenLabsApiKey}
         onChange={(e) => handleElevenLabsKeyChange(e.target.value)}
         onBlur={saveElevenLabsKey}
+        onFocus={(e) => {
+          if (e.target.value === '••••••••••••••••') {
+            setElevenLabsApiKey('');
+            elevenLabsApiKeyRef.current = '';
+          }
+        }}
         placeholder={
           hasElevenLabsKey ? 'Enter new API key to update' : 'Enter your ElevenLabs API key'
         }
         className="max-w-md"
         disabled={isLoadingKey}
       />
+      {validationError && <p className="text-xs text-red-600 mt-1">{validationError}</p>}
     </div>
   );
 };
