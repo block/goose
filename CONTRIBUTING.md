@@ -233,7 +233,7 @@ This process will help you keep your branch aligned with the ongoing changes in 
 
 ### Before Submitting a Pull Request
 
-Before submitting a pull request, please ensure your fork is synchronized as described above. This check ensures your changes are compatible with the latest in the main repository and streamlines the review process.
+Before you submit a pull request, please ensure your fork is synchronized as described above. This check ensures your changes are compatible with the latest in the main repository and streamlines the review process.
 
 If you encounter any issues during this process or have any questions, please reach out by opening an issue [here][issues], and we'll be happy to help.
 
