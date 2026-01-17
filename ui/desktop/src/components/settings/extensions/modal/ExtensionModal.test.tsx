@@ -55,18 +55,10 @@ describe('ExtensionModal', () => {
     await user.type(descriptionInput, 'Test MCP extension');
 
     const headerNameInput = screen.getByPlaceholderText('Header name');
-    const headerValueInput = screen
-      .getAllByPlaceholderText('Value')
-      .find(
-        (input) =>
-          input.closest('div')?.textContent?.includes('Request Headers') ||
-          input.parentElement?.parentElement?.textContent?.includes('Request Headers')
-      );
+    const headerValueInput = screen.getByTestId('new-header-value');
 
     await user.type(headerNameInput, 'Authorization');
-    if (headerValueInput) {
-      await user.type(headerValueInput, 'Bearer abc123');
-    }
+    await user.type(headerValueInput, 'Bearer abc123');
 
     await user.click(submitButton);
 
