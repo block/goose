@@ -631,6 +631,10 @@ export type ProviderEngine = 'openai' | 'ollama' | 'anthropic';
  */
 export type ProviderMetadata = {
     /**
+     * Whether this provider allows entering model names not in the fetched list
+     */
+    allows_unlisted_models?: boolean;
+    /**
      * Required configuration keys
      */
     config_keys: Array<ConfigKey>;
