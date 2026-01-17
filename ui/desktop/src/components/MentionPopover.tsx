@@ -553,10 +553,9 @@ const MentionPopover = forwardRef<
                   <div
                     key={item.extra}
                     onClick={() => handleItemClick(index)}
+                    data-selected={index === selectedIndex}
                     className={`flex items-center gap-3 p-2 rounded-md cursor-pointer transition-colors ${
-                      index === selectedIndex
-                        ? 'bg-bgProminent text-textProminentInverse'
-                        : 'hover:bg-bgSubtle'
+                      index === selectedIndex ? 'bg-sidebar-accent' : 'hover:bg-sidebar-accent/50'
                     }`}
                   >
                     <div className="flex-shrink-0 text-textSubtle">
@@ -564,7 +563,7 @@ const MentionPopover = forwardRef<
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm truncate text-textStandard">{item.name}</div>
-                      <div className="text-xs text-textSubtle truncate">{item.extra}</div>
+                      <div className="text-xs truncate text-textSubtle">{item.extra}</div>
                     </div>
                   </div>
                 ))}
