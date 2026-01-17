@@ -76,6 +76,12 @@ function pushMessage(currentMessages: Message[], incomingMsg: Message): Message[
   }
 }
 
+function prefersReducedMotion(): boolean {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+const REDUCED_MOTION_BATCH_INTERVAL = 1000;
+
 async function streamFromResponse(
   stream: AsyncIterable<MessageEvent>,
   initialMessages: Message[],
@@ -86,6 +92,43 @@ async function streamFromResponse(
   onFinish: (error?: string) => void
 ): Promise<void> {
   let currentMessages = initialMessages;
+  const reduceMotion = prefersReducedMotion();
+  let latestTokenState: TokenState | null = null;
+  let lastBatchUpdate = Date.now();
+  let hasPendingUpdate = false;
+
+  // Helper to flush batched updates in reduced motion mode
+  const flushBatchedUpdates = () => {
+    if (reduceMotion && hasPendingUpdate && latestTokenState) {
+      updateTokenState(latestTokenState);
+      updateMessages(currentMessages);
+      hasPendingUpdate = false;
+      lastBatchUpdate = Date.now();
+    }
+  };
+
+  // Helper to maybe update UI based on reduced motion preference
+  const maybeUpdateUI = (tokenState: TokenState, forceImmediate = false) => {
+    if (!reduceMotion) {
+      // Normal mode: update immediately
+      updateTokenState(tokenState);
+      updateMessages(currentMessages);
+    } else if (forceImmediate) {
+      // Reduced motion but forced (e.g., user input needed)
+      updateTokenState(tokenState);
+      updateMessages(currentMessages);
+      hasPendingUpdate = false;
+      lastBatchUpdate = Date.now();
+    } else {
+      // Reduced motion: batch updates
+      latestTokenState = tokenState;
+      hasPendingUpdate = true;
+      const now = Date.now();
+      if (now - lastBatchUpdate >= REDUCED_MOTION_BATCH_INTERVAL) {
+        flushBatchedUpdates();
+      }
+    }
+  };
 
   try {
     for await (const event of stream) {
@@ -105,23 +148,26 @@ async function streamFromResponse(
 
           if (hasToolConfirmation || hasElicitation) {
             updateChatState(ChatState.WaitingForUserInput);
+            maybeUpdateUI(event.token_state, true);
           } else if (getCompactingMessage(msg)) {
             updateChatState(ChatState.Compacting);
+            maybeUpdateUI(event.token_state);
           } else if (getThinkingMessage(msg)) {
             updateChatState(ChatState.Thinking);
+            maybeUpdateUI(event.token_state);
           } else {
             updateChatState(ChatState.Streaming);
+            maybeUpdateUI(event.token_state);
           }
-
-          updateTokenState(event.token_state);
-          updateMessages(currentMessages);
           break;
         }
         case 'Error': {
+          flushBatchedUpdates();
           onFinish('Stream error: ' + event.error);
           return;
         }
         case 'Finish': {
+          flushBatchedUpdates();
           onFinish();
           return;
         }
@@ -132,7 +178,11 @@ async function streamFromResponse(
           // WARNING: Since Message handler uses this local variable, we need to update it here to avoid the client clobbering it.
           // Longterm fix is to only send the agent the new messages, not the entire conversation.
           currentMessages = event.conversation;
-          updateMessages(event.conversation);
+          if (!reduceMotion) {
+            updateMessages(event.conversation);
+          } else {
+            hasPendingUpdate = true;
+          }
           break;
         }
         case 'Notification': {
@@ -144,8 +194,10 @@ async function streamFromResponse(
       }
     }
 
+    flushBatchedUpdates();
     onFinish();
   } catch (error) {
+    flushBatchedUpdates();
     if (error instanceof Error && error.name !== 'AbortError') {
       onFinish('Stream error: ' + errorMessage(error));
     }
@@ -215,10 +267,8 @@ export function useChatStream({
       // The backend regenerates the name after each of the first 3 user messages
       // to refine it as more context becomes available
       if (!error && sessionId) {
-        const userMessageCount = messagesRef.current.filter(
-          (m) => m.role === 'user'
-        ).length;
-        
+        const userMessageCount = messagesRef.current.filter((m) => m.role === 'user').length;
+
         // Only refresh for the first 3 user messages
         if (userMessageCount <= 3) {
           try {

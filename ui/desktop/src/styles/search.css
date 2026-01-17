@@ -41,3 +41,12 @@
   animation: collapseUp 0.15s ease-out forwards;
   overflow: hidden;
 }
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .search-bar-enter,
+  .search-bar-exit {
+    animation: none;
+    max-height: var(--search-bar-height);
+  }
+}
