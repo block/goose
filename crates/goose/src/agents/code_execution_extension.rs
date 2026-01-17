@@ -517,6 +517,8 @@ impl CodeExecutionClient {
         let tools = self.get_tool_infos().await;
         let parts: Vec<&str> = path.trim_start_matches('/').split('/').collect();
 
+        let reminder = "\n\n// IMPORTANT: Use code_execution__execute_code to call these tools. Do NOT call them directly.";
+
         match parts.as_slice() {
             [server] => {
                 let server_tools: Vec<_> =
@@ -526,8 +528,9 @@ impl CodeExecutionClient {
                 }
                 let sigs: Vec<_> = server_tools.iter().map(|t| t.to_signature()).collect();
                 Ok(vec![Content::text(format!(
-                    "// import * as {server} from \"{server}\";\n\n{}",
-                    sigs.join("\n")
+                    "// import * as {server} from \"{server}\";\n\n{}{}",
+                    sigs.join("\n"),
+                    reminder
                 ))])
             }
             [server, tool] => {
@@ -536,9 +539,10 @@ impl CodeExecutionClient {
                     .find(|t| t.server_name == *server && t.tool_name == *tool)
                     .ok_or_else(|| format!("Tool not found: {server}/{tool}"))?;
                 Ok(vec![Content::text(format!(
-                    "// import * as {server} from \"{server}\";\n\n{}\n\n{}",
+                    "// import * as {server} from \"{server}\";\n\n{}\n\n{}{}",
                     t.to_signature(),
-                    t.description
+                    t.description,
+                    reminder
                 ))])
             }
             _ => Err(format!(
@@ -656,6 +660,8 @@ impl CodeExecutionClient {
             }
         }
 
+        output.push_str("\n// IMPORTANT: Use code_execution__execute_code to call these tools. Do NOT call them directly.");
+
         Ok(vec![Content::text(output)])
     }
 
@@ -748,7 +754,7 @@ impl McpClientTrait for CodeExecutionClient {
                         - Import: import { tool1, tool2 } from "serverName";
                         - Call: toolName({ param1: value, param2: value })
                         - Result: record_result(value) - call this to return a value from the script
-                        - All calls are synchronous, return strings
+                        - All calls are synchronous and return parsed objects (NEVER use JSON.parse)
 
                         TOOL_GRAPH: Always provide tool_graph to describe the execution flow for the UI.
                         Each node has: tool (server/name), description (what it does), depends_on (indices of dependencies).

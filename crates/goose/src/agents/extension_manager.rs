@@ -642,10 +642,11 @@ impl ExtensionManager {
         info: Option<ServerInfo>,
         temp_dir: Option<TempDir>,
     ) {
-        self.extensions
-            .lock()
-            .await
-            .insert(name, Extension::new(config, client, info, temp_dir));
+        let normalized_name = normalize(&name);
+        self.extensions.lock().await.insert(
+            normalized_name,
+            Extension::new(config, client, info, temp_dir),
+        );
         self.invalidate_tools_cache_and_bump_version().await;
     }
 
@@ -690,7 +691,8 @@ impl ExtensionManager {
     }
 
     pub async fn is_extension_enabled(&self, name: &str) -> bool {
-        self.extensions.lock().await.contains_key(name)
+        let normalized = normalize(name);
+        self.extensions.lock().await.contains_key(&normalized)
     }
 
     pub async fn get_extension_configs(&self) -> Vec<ExtensionConfig> {
@@ -1114,19 +1116,17 @@ impl ExtensionManager {
         cancellation_token: CancellationToken,
     ) -> Result<ToolCallResult> {
         // Some models strip the tool prefix, so auto-add it for known code_execution tools
+        const CODE_EXEC_TOOLS: [&str; 3] = ["execute_code", "read_module", "search_modules"];
         let tool_name_str = tool_call.name.to_string();
-        let prefixed_name = if !tool_name_str.contains("__") {
-            let code_exec_tools = ["execute_code", "read_module", "search_modules"];
-            if code_exec_tools.contains(&tool_name_str.as_str())
-                && self.extensions.lock().await.contains_key("code_execution")
-            {
+        let is_code_exec_tool = CODE_EXEC_TOOLS.contains(&tool_name_str.as_str());
+        let code_exec_enabled = self.is_extension_enabled("code_execution").await;
+
+        let prefixed_name =
+            if !tool_name_str.contains("__") && is_code_exec_tool && code_exec_enabled {
                 format!("code_execution__{}", tool_name_str)
             } else {
                 tool_name_str
-            }
-        } else {
-            tool_name_str
-        };
+            };
 
         // Dispatch tool call based on the prefix naming convention
         let (client_name, client) =

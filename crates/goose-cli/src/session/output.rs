@@ -284,7 +284,9 @@ fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
         Ok(call) => match call.name.to_string().as_str() {
             "developer__text_editor" => render_text_editor_request(call, debug),
             "developer__shell" => render_shell_request(call, debug),
-            "code_execution__execute_code" => render_execute_code_request(call, debug),
+            "code_execution__execute_code" | "execute_code" => {
+                render_execute_code_request(call, debug)
+            }
             "subagent" => render_subagent_request(call, debug),
             "todo__write" => render_todo_request(call, debug),
             _ => render_default_request(call, debug),
@@ -575,7 +577,21 @@ fn render_default_request(call: &CallToolRequestParam, debug: bool) {
 // Helper functions
 
 fn print_tool_header(call: &CallToolRequestParam) {
-    let parts: Vec<_> = call.name.rsplit("__").collect();
+    let tool_name = call.name.to_string();
+
+    // Handle code_execution tools that might be called without prefix (fallback adds it)
+    const CODE_EXEC_TOOLS: [&str; 3] = ["execute_code", "read_module", "search_modules"];
+    let effective_name = if !tool_name.contains("__") {
+        if CODE_EXEC_TOOLS.contains(&tool_name.as_str()) {
+            format!("code_execution__{}", tool_name)
+        } else {
+            tool_name
+        }
+    } else {
+        tool_name
+    };
+
+    let parts: Vec<_> = effective_name.rsplit("__").collect();
     let tool_header = format!(
         "─── {} | {} ──────────────────────────",
         style(parts.first().unwrap_or(&"unknown")),
