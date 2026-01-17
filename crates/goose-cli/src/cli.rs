@@ -102,6 +102,38 @@ pub struct SessionOptions {
     pub max_turns: Option<u32>,
 }
 
+#[derive(Debug, Clone)]
+pub struct StreamableHttpOptions {
+    pub url: String,
+    pub timeout: u64,
+}
+
+fn parse_streamable_http_extension(input: &str) -> Result<StreamableHttpOptions, String> {
+    let mut input_iter = input.split_whitespace();
+    let (mut url, mut timeout) = (String::new(), goose::config::DEFAULT_EXTENSION_TIMEOUT);
+
+    if let Some(url_str) = input_iter.next() {
+        url.push_str(url_str);
+    }
+
+    for kv_pair in input_iter {
+        if !kv_pair.contains('=') {
+            continue;
+        }
+
+        let (key, value) = kv_pair.split_once('=').unwrap();
+
+        // We Can have more keys here for setting other properties
+        if key == "timeout" {
+            if let Ok(seconds) = value.parse::<u64>() {
+                timeout = seconds;
+            }
+        }
+    }
+
+    Ok(StreamableHttpOptions { url, timeout })
+}
+
 /// Extension configuration options shared between Session and Run commands
 #[derive(Args, Debug, Clone, Default)]
 pub struct ExtensionOptions {
@@ -118,10 +150,11 @@ pub struct ExtensionOptions {
         long = "with-streamable-http-extension",
         value_name = "URL",
         help = "Add streamable HTTP extensions (can be specified multiple times)",
-        long_help = "Add streamable HTTP extensions from a URL. Can be specified multiple times. Format: 'url...'",
-        action = clap::ArgAction::Append
+        long_help = "Add streamable HTTP extensions from a URL. Can be specified multiple times. Format: 'url...' or 'url... timeout=100' to set up timeout other than default",
+        action = clap::ArgAction::Append,
+        value_parser = parse_streamable_http_extension
     )]
-    pub streamable_http_extensions: Vec<String>,
+    pub streamable_http_extensions: Vec<StreamableHttpOptions>,
 
     #[arg(
         long = "with-builtin",

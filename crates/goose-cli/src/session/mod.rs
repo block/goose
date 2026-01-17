@@ -8,6 +8,7 @@ mod prompt;
 mod task_execution_display;
 mod thinking;
 
+use crate::cli::StreamableHttpOptions;
 use crate::session::task_execution_display::{
     format_task_execution_notification, TASK_EXECUTION_NOTIFICATION_TYPE,
 };
@@ -306,17 +307,20 @@ impl CliSession {
     /// Add a streamable HTTP extension to the session
     ///
     /// # Arguments
-    /// * `extension_url` - URL of the server
-    pub async fn add_streamable_http_extension(&mut self, extension_url: String) -> Result<()> {
+    /// * `extension_options` - Options including both URL and timeout
+    ///   See [`crate::cli::StreamableHttpOptions`] for details
+    pub async fn add_streamable_http_extension(
+        &mut self,
+        extension_options: StreamableHttpOptions,
+    ) -> Result<()> {
         let config = ExtensionConfig::StreamableHttp {
             name: String::new(),
-            uri: extension_url,
+            uri: extension_options.url,
             envs: Envs::new(HashMap::new()),
             env_keys: Vec::new(),
             headers: HashMap::new(),
             description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
-            // TODO: should set timeout
-            timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
+            timeout: Some(extension_options.timeout),
             bundled: None,
             available_tools: Vec::new(),
         };
