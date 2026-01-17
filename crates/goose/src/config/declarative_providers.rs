@@ -1,7 +1,9 @@
+use crate::config::generic_provider_config::GenericProviderConfig;
 use crate::config::paths::Paths;
 use crate::config::Config;
 use crate::providers::anthropic::AnthropicProvider;
 use crate::providers::base::{ModelInfo, ProviderType};
+use crate::providers::generic_http::{metadata_from_config, GenericHttpProvider};
 use crate::providers::ollama::OllamaProvider;
 use crate::providers::openai::OpenAiProvider;
 use anyhow::Result;
@@ -234,17 +236,43 @@ pub fn load_custom_providers(dir: &Path) -> Result<Vec<DeclarativeProviderConfig
         return Ok(Vec::new());
     }
 
-    std::fs::read_dir(dir)?
-        .filter_map(|entry| {
-            let path = entry.ok()?.path();
-            (path.extension()? == "json").then_some(path)
-        })
-        .map(|path| {
-            let content = std::fs::read_to_string(&path)?;
-            serde_json::from_str(&content)
-                .map_err(|e| anyhow::anyhow!("Failed to parse {}: {}", path.display(), e))
-        })
-        .collect()
+    let mut providers = Vec::new();
+
+    for entry in std::fs::read_dir(dir)? {
+        let path = match entry {
+            Ok(e) => e.path(),
+            Err(_) => continue,
+        };
+
+        if path.extension().and_then(|s| s.to_str()) != Some("json") {
+            continue;
+        }
+
+        let content = match std::fs::read_to_string(&path) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+
+        // First check if this is a generic_http provider (skip if so)
+        if let Ok(raw) = serde_json::from_str::<serde_json::Value>(&content) {
+            if let Some(engine) = raw.get("engine").and_then(|e| e.as_str()) {
+                if engine == "generic_http" {
+                    // Skip generic_http providers - they are handled separately
+                    continue;
+                }
+            }
+        }
+
+        // Try to parse as DeclarativeProviderConfig
+        match serde_json::from_str::<DeclarativeProviderConfig>(&content) {
+            Ok(config) => providers.push(config),
+            Err(e) => {
+                tracing::warn!("Failed to parse provider config {}: {}", path.display(), e);
+            }
+        }
+    }
+
+    Ok(providers)
 }
 
 fn load_fixed_providers() -> Result<Vec<DeclarativeProviderConfig>> {
@@ -279,7 +307,82 @@ pub fn register_declarative_providers(
         register_declarative_provider(registry, config, ProviderType::Custom);
     }
 
+    // Load and register generic HTTP providers
+    let generic_providers = load_generic_http_providers(&dir)?;
+    for config in generic_providers {
+        register_generic_http_provider(registry, config, ProviderType::Custom);
+    }
+
     Ok(())
+}
+
+/// Load generic HTTP provider configurations from the custom providers directory
+pub fn load_generic_http_providers(dir: &Path) -> Result<Vec<GenericProviderConfig>> {
+    if !dir.exists() {
+        return Ok(Vec::new());
+    }
+
+    let mut providers = Vec::new();
+
+    for entry in std::fs::read_dir(dir)? {
+        let path = match entry {
+            Ok(e) => e.path(),
+            Err(_) => continue,
+        };
+
+        if path.extension().and_then(|s| s.to_str()) != Some("json") {
+            continue;
+        }
+
+        let content = match std::fs::read_to_string(&path) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+
+        // First, try to parse as a raw JSON to check the engine field
+        let raw: serde_json::Value = match serde_json::from_str(&content) {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+
+        // Check if this is a generic_http provider
+        if let Some(engine) = raw.get("engine").and_then(|e| e.as_str()) {
+            if engine == "generic_http" {
+                match serde_json::from_str::<GenericProviderConfig>(&content) {
+                    Ok(config) => providers.push(config),
+                    Err(e) => {
+                        tracing::warn!(
+                            "Failed to parse generic HTTP provider config {}: {}",
+                            path.display(),
+                            e
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(providers)
+}
+
+/// Register a generic HTTP provider with the registry
+pub fn register_generic_http_provider(
+    registry: &mut crate::providers::provider_registry::ProviderRegistry,
+    config: GenericProviderConfig,
+    provider_type: ProviderType,
+) {
+    let metadata = metadata_from_config(&config);
+    let name = config.name.clone();
+    let config_clone = config.clone();
+
+    registry.register_with_metadata(&name, metadata, provider_type, move |model| {
+        let cfg = config_clone.clone();
+        Box::pin(async move {
+            let provider = GenericHttpProvider::from_config(cfg, model)?;
+            Ok(std::sync::Arc::new(provider)
+                as std::sync::Arc<dyn crate::providers::base::Provider>)
+        })
+    });
 }
 
 pub fn register_declarative_provider(

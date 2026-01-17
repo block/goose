@@ -1,0 +1,56 @@
+{
+  "name": "custom_llm",
+  "display_name": "Custom LLM Provider",
+  "description": "Custom LLM provider using generic HTTP provider",
+  "engine": "generic_http",
+  "env_prefix": "CUSTOM_LLM",
+  "endpoint": {
+    "url_template": "http://localhost:8765/v1/chat/messages",
+    "method": "POST",
+    "timeout_seconds": 120,
+    "skip_ssl_verify": false
+  },
+  "auth": {
+    "type": "header",
+    "header_name": "Authorization",
+    "value_template": "Bearer ${TOKEN}"
+  },
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "request": {
+    "template": {
+      "model": "${MODEL}",
+      "messages": [{"role": "user", "content": "${PROMPT}"}],
+      "stream": "${IS_STREAM:bool}"
+    }
+  },
+  "response": {
+    "content_path": "$.content",
+    "error_path": "$.error"
+  },
+  "streaming": {
+    "enabled": true,
+    "format": "sse",
+    "content_path": "$.content"
+  },
+  "tool_injection": {
+    "enabled": true,
+    "format": "markdown_codeblock",
+    "block_name": "tool_call"
+  },
+  "config_keys": [
+    {
+      "name": "TOKEN",
+      "required": true,
+      "secret": true,
+      "description": "API authentication token"
+    }
+  ],
+  "models": [
+    {
+      "name": "custom-model-v1",
+      "context_limit": 8000
+    }
+  ]
+}
