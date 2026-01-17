@@ -2,6 +2,10 @@
 
 ---
 
+This policy applies only to Block-hosted services and does not restrict the use, modification, or redistribution of the goose software licensed under the [Apache License 2.0](LICENSE).
+
+---
+
 We want everyone to use goose safely and responsibly. You agree you will not use, or allow others to use, goose to:
 
 ### 1. Violate the law or others’ rights, including use of goose to:
