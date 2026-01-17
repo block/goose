@@ -69,6 +69,7 @@ Since goose requires Hermit for managing dependencies, let's activate hermit.
 ```
 cd goose
 source ./bin/activate-hermit
+cargo build
 ```
 
 when that is done, you should now have debug builds of the binaries like the goose cli:
