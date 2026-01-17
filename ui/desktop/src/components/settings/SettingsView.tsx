@@ -29,11 +29,21 @@ export default function SettingsView({
   setView: (view: View, viewOptions?: ViewOptions) => void;
   viewOptions: SettingsViewOptions;
 }) {
-  const [activeTab, setActiveTab] = useState('models');
+  const [activeTab, setActiveTab] = useState(() => {
+    // Persist active tab in sessionStorage to survive re-renders
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      const stored = window.sessionStorage.getItem('settings_active_tab');
+      return stored || 'models';
+    }
+    return 'models';
+  });
   const hasTrackedInitialTab = useRef(false);
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      window.sessionStorage.setItem('settings_active_tab', tab);
+    }
     trackSettingsTabViewed(tab);
   };
 
