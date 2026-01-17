@@ -219,12 +219,21 @@ interface UseTextAnimatorProps {
   text: string;
 }
 
+function prefersReducedMotion(): boolean {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
 export function useTextAnimator({ text }: UseTextAnimatorProps) {
   const elementRef = useRef<HTMLDivElement>(null);
   const animator = useRef<TextAnimator | null>(null);
 
   useEffect(() => {
     if (!elementRef.current) return;
+
+    // Skip animation if user prefers reduced motion
+    if (prefersReducedMotion()) {
+      return;
+    }
 
     // Create animator
     animator.current = new TextAnimator(elementRef.current);
