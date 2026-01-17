@@ -1,0 +1,318 @@
+---
+date: 2025-12-22T23:43:05-06:00
+git_commit: 2f876725d3c08f821358e1391a7daadf468193d8
+branch: remove-llm-tool-discovery
+repository: goose
+topic: "LLM Tool Selection Strategy (Tool Discovery Feature)"
+tags: [research, codebase, tools, router, llm-selection, experimental]
+status: complete
+---
+
+# Research: LLM Tool Selection Strategy
+
+## Research Question
+How is the "Tool Selection Strategy" feature implemented? This is the experimental feature that uses "LLM-based intelligence to select the most relevant tools based on the user query context."
+
+## Summary
+
+The **Tool Selection Strategy** is an experimental feature (preview) that dynamically filters which tools are presented to the LLM based on the user's query. Instead of sending all tools from all extensions to the LLM, it:
+
+1. Provides a single `router__llm_search` tool to the main LLM
+2. When invoked, uses a secondary LLM call to search indexed tools and return only relevant ones
+3. Tracks recently used tools to include them automatically
+
+This saves context window space when many extensions are enabled.
+
+**Configuration**: `GOOSE_ENABLE_ROUTER` (boolean, default: false)
+
+## Detailed Findings
+
+### 1. Feature Toggle - Configuration
+
+The feature is controlled by the `GOOSE_ENABLE_ROUTER` config parameter:
+
+**File: `crates/goose/src/agents/tool_route_manager.rs:79-86`**
+```rust
+pub async fn is_router_enabled(&self) -> bool {
+    if *self.router_disabled_override.lock().await {
+        return false;
+    }
+
+    let config = Config::global();
+    if let Ok(config_value) = config.get_param::<String>("GOOSE_ENABLE_ROUTER") {
+        return config_value.to_lowercase() == "true";
+    }
+
+    // Default to false if neither is set
+    false
+}
+```
+
+**UI Toggle: `ui/desktop/src/components/settings/tool_selection_strategy/ToolSelectionStrategySection.tsx`**
+- Displays "Disabled" (default) and "Enabled" radio options
+- Updates `GOOSE_ENABLE_ROUTER` config via upsert
+- Calls `/agent/update_router_tool_selector` endpoint to reinitialize
+
+### 2. Core Components
+
+#### 2.1 ToolRouteManager
+**File: `crates/goose/src/agents/tool_route_manager.rs`**
+
+Central manager that:
+- Holds the `RouterToolSelector` instance
+- Checks if router is enabled/functional
+- Dispatches search tool calls
+- Provides tools for router mode
+
+```rust
+pub struct ToolRouteManager {
+    router_tool_selector: Mutex<Option<Arc<Box<dyn RouterToolSelector>>>>,
+    router_disabled_override: Mutex<bool>,  // For recipes that need all tools
+}
+```
+
+Key methods:
+- `is_router_enabled()` - Checks config
+- `is_router_functional()` - Enabled AND selector initialized
+- `dispatch_route_search_tool()` - Handles `router__llm_search` calls
+- `list_tools_for_router()` - Returns search tool + recently used tools
+
+#### 2.2 RouterToolSelector Trait & LLMToolSelector
+**File: `crates/goose/src/agents/router_tool_selector.rs`**
+
+```rust
+#[async_trait]
+pub trait RouterToolSelector: Send + Sync {
+    async fn select_tools(&self, params: JsonObject) -> Result<Vec<Content>, ErrorData>;
+    async fn index_tools(&self, tools: &[Tool], extension_name: &str) -> Result<(), ErrorData>;
+    async fn remove_tool(&self, tool_name: &str) -> Result<(), ErrorData>;
+    async fn record_tool_call(&self, tool_name: &str) -> Result<(), ErrorData>;
+    async fn get_recent_tool_calls(&self, limit: usize) -> Result<Vec<String>, ErrorData>;
+}
+```
+
+**LLMToolSelector** implementation:
+- Stores tool strings indexed by extension name
+- Uses an LLM provider to search tools based on query
+- Tracks last 100 tool calls for "recently used" feature
+
+#### 2.3 The Search Tool Definition
+**File: `crates/goose/src/agents/router_tools.rs`**
+
+```rust
+pub const ROUTER_LLM_SEARCH_TOOL_NAME: &str = "router__llm_search";
+
+pub fn llm_search_tool() -> Tool {
+    Tool::new(
+        ROUTER_LLM_SEARCH_TOOL_NAME.to_string(),
+        r#"Searches for relevant tools based on the user's messages.
+        Format a query to search for the most relevant tools...
+        Extension name is not optional, it is required.
+        The returned result will be a list of tool names, descriptions, and schemas..."#,
+        // Schema requires: extension_name (string), query (string), optional k (integer)
+    )
+}
+```
+
+#### 2.4 Tool Indexing Manager
+**File: `crates/goose/src/agents/tool_router_index_manager.rs`**
+
+Handles indexing/removing tools when extensions are added/removed:
+
+```rust
+impl ToolRouterIndexManager {
+    pub async fn update_extension_tools(
+        selector: &Arc<Box<dyn RouterToolSelector>>,
+        extension_manager: &ExtensionManager,
+        extension_name: &str,
+        action: &str,  // "add" or "remove"
+    ) -> Result<()>
+}
+```
+
+### 3. Flow: How Tool Selection Works
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    INITIALIZATION                               │
+├─────────────────────────────────────────────────────────────────┤
+│ 1. User enables "Tool Selection Strategy" in settings           │
+│ 2. GOOSE_ENABLE_ROUTER = "true" saved to config                 │
+│ 3. /agent/update_router_tool_selector called                    │
+│ 4. ToolRouteManager.update_router_tool_selector():              │
+│    a. Creates LLMToolSelector with provider                     │
+│    b. Indexes all tools from all enabled extensions             │
+│    c. Stores selector in router_tool_selector mutex             │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    TOOL LISTING (Router Mode)                   │
+├─────────────────────────────────────────────────────────────────┤
+│ When agent.list_tools() is called with router enabled:          │
+│                                                                 │
+│ Instead of returning ALL tools, returns:                        │
+│   1. router__llm_search tool                                    │
+│   2. Recently used tools (last 20 calls)                        │
+│   3. Platform tools (extension manager, etc.)                   │
+│                                                                 │
+│ This dramatically reduces context sent to LLM                   │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    RUNTIME: User Query                          │
+├─────────────────────────────────────────────────────────────────┤
+│ 1. User: "list files in current directory"                      │
+│ 2. LLM sees router__llm_search tool in available tools          │
+│ 3. LLM invokes: router__llm_search(                             │
+│      extension_name: "developer",                               │
+│      query: "list files directory"                              │
+│    )                                                            │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    SEARCH EXECUTION                             │
+├─────────────────────────────────────────────────────────────────┤
+│ Agent.dispatch_tool_call() routes to:                           │
+│   ToolRouteManager.dispatch_route_search_tool()                 │
+│     → LLMToolSelector.select_tools()                            │
+│                                                                 │
+│ LLMToolSelector:                                                │
+│   1. Gets indexed tool strings for extension                    │
+│   2. Renders router_tool_selector.md prompt template            │
+│   3. Calls LLM provider with tool list + query                  │
+│   4. Parses response for "Tool: X\nDescription: Y\nSchema: Z"   │
+│   5. Returns matching tools as Content                          │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    LLM RECEIVES RESULTS                         │
+├─────────────────────────────────────────────────────────────────┤
+│ Main LLM receives tool definitions in response                  │
+│ Can now invoke the actual tool (e.g., developer__shell)         │
+│ Tool call is recorded for "recently used" feature               │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 4. System Prompt Integration
+
+**File: `crates/goose/src/agents/prompt_manager.rs`**
+
+When router is enabled, the system prompt includes special instructions:
+
+```rust
+tool_selection_strategy: self.router_enabled.then(llm_search_tool_prompt),
+```
+
+**File: `crates/goose/src/agents/router_tools.rs:41-57`**
+```rust
+pub fn llm_search_tool_prompt() -> String {
+    format!(
+        r#"# LLM Tool Selection Instructions
+    Important: the user has opted to dynamically enable tools, so although an extension could be enabled, \
+    please invoke the llm search tool to actually retrieve the most relevant tools to use according to the user's messages.
+    ...
+    By dynamically enabling tools, you (goose) as the agent save context window space and allow the user to dynamically retrieve the most relevant tools.
+    "#,
+        // Lists platform extension tools that are always available
+    )
+}
+```
+
+This is injected into `system.md` via `{{tool_selection_strategy}}`.
+
+### 5. LLM Search Prompt Template
+
+**File: `crates/goose/src/prompts/router_tool_selector.md`**
+```markdown
+You are a tool selection assistant. Your task is to find the most relevant tools based on the user's query.
+
+Given the following tools:
+{{ tools }}
+
+Find the most relevant tools for the query: {{ query }}
+
+Return the tools in this exact format for each tool:
+Tool: <tool_name>
+Description: <tool_description>
+Schema: <tool_schema>
+```
+
+### 6. Server Endpoint
+
+**File: `crates/goose-server/src/routes/agent.rs`**
+
+```rust
+#[utoipa::path(
+    post,
+    path = "/agent/update_router_tool_selector",
+    ...
+)]
+async fn update_router_tool_selector(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<UpdateRouterToolSelectorRequest>,
+) -> Result<Json<String>, StatusCode> {
+    let agent = state.get_agent_for_route(payload.session_id).await?;
+    agent
+        .update_router_tool_selector(None, Some(true))  // reindex_all = true
+        .await
+        .map_err(...)?;
+
+    Ok(Json("Tool selection strategy updated successfully".to_string()))
+}
+```
+
+### 7. Recipe Override
+
+Recipes can disable the router to ensure all tools are available:
+
+**File: `crates/goose/src/agents/tool_route_manager.rs:31-34`**
+```rust
+pub async fn disable_router_for_recipe(&self) {
+    *self.router_disabled_override.lock().await = true;
+    *self.router_tool_selector.lock().await = None;
+}
+```
+
+## Code References
+
+### Core Implementation
+- `crates/goose/src/agents/tool_route_manager.rs` - Main manager, config check, dispatch
+- `crates/goose/src/agents/router_tool_selector.rs` - `RouterToolSelector` trait, `LLMToolSelector` impl
+- `crates/goose/src/agents/router_tools.rs` - `router__llm_search` tool definition, prompt function
+- `crates/goose/src/agents/tool_router_index_manager.rs` - Tool indexing on extension add/remove
+
+### Integration Points
+- `crates/goose/src/agents/agent.rs` - `dispatch_tool_call()` routes `ROUTER_LLM_SEARCH_TOOL_NAME`
+- `crates/goose/src/agents/prompt_manager.rs` - `with_router_enabled()`, injects prompt
+- `crates/goose-server/src/routes/agent.rs` - `/agent/update_router_tool_selector` endpoint
+
+### UI
+- `ui/desktop/src/components/settings/tool_selection_strategy/ToolSelectionStrategySection.tsx` - Settings toggle
+
+### Prompts
+- `crates/goose/src/prompts/router_tool_selector.md` - LLM search prompt template
+- `crates/goose/src/prompts/system.md` - `{{tool_selection_strategy}}` placeholder
+
+## Key Design Patterns
+
+1. **Two-stage LLM calls**: Main LLM calls search tool → Search LLM finds relevant tools → Main LLM uses them
+2. **Extension-based indexing**: Tools indexed by extension name for filtered searches
+3. **Recently used caching**: Last 20 tool calls automatically included (no search needed)
+4. **Override mechanism**: Recipes can disable router to get all tools
+5. **Lazy initialization**: Selector only created when enabled AND provider available
+
+## Limitations Noted in UI
+
+- "Only tested with Claude models currently" (from UI description)
+- Experimental/preview feature
+
+## Open Questions
+
+1. **Performance**: What's the latency impact of the secondary LLM call for tool search?
+2. **Accuracy**: How well does the search LLM match tools to queries in practice?
+3. **Token savings**: What's the actual context window savings for typical extension counts?
+4. **Model compatibility**: Why only tested with Claude? What breaks with other models?
