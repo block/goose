@@ -121,6 +121,27 @@ pub struct PromptArgumentTemplate {
 // Embeds the prompts directory to the build
 static PROMPTS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/developer/prompts");
 
+const DEFAULT_GOOSEIGNORE_CONTENT: &str = concat!(
+    "# This file is created automatically if no .gooseignore exists.\n",
+    "# Customize or uncomment the patterns below instead of deleting the file.\n",
+    "# Removing it will simply cause goose to recreate it on the next start.\n",
+    "#\n",
+    "# Suggested patterns you can uncomment if desired:\n",
+    "# **/.ssh/**        # block SSH keys and configs\n",
+    "# **/*.key         # block loose private keys\n",
+    "# **/*.pem         # block certificates/private keys\n",
+    "# **/.git/**        # block git metadata entirely\n",
+    "# **/target/**     # block Rust build artifacts\n",
+    "# **/node_modules/** # block JS/TS dependencies\n",
+    "# **/*.db          # block local database files\n",
+    "# **/*.sqlite      # block SQLite databases\n",
+    "#\n",
+    "\n",
+    "**/.env\n",
+    "**/.env.*\n",
+    "**/secrets.*\n",
+);
+
 /// Loads prompt files from the embedded PROMPTS_DIR and returns a HashMap of prompts.
 /// Ensures that each prompt name is unique.
 fn load_prompt_files() -> HashMap<String, Prompt> {
@@ -1295,11 +1316,34 @@ impl DeveloperServer {
             .map(|strategy| strategy.config_dir().join(".gooseignore"))
             .ok();
 
-        let has_local_ignore = local_ignore_path.is_file();
+        let mut has_local_ignore = local_ignore_path.is_file();
         let has_global_ignore = global_ignore_path
             .as_ref()
             .map(|p| p.is_file())
             .unwrap_or(false);
+
+        if !has_local_ignore && !has_global_ignore {
+            match std::fs::write(&local_ignore_path, DEFAULT_GOOSEIGNORE_CONTENT) {
+                Ok(_) => {
+                    has_local_ignore = true;
+                }
+                Err(err) => {
+                    tracing::warn!(
+                        "Failed to create default .gooseignore at {}: {}",
+                        local_ignore_path.display(),
+                        err
+                    );
+
+                    for pattern in DEFAULT_GOOSEIGNORE_CONTENT.lines() {
+                        let trimmed = pattern.trim();
+                        if trimmed.is_empty() || trimmed.starts_with('#') {
+                            continue;
+                        }
+                        let _ = builder.add_line(None, trimmed);
+                    }
+                }
+            }
+        }
 
         if has_global_ignore {
             let _ = builder.add(global_ignore_path.as_ref().unwrap());
@@ -1307,12 +1351,6 @@ impl DeveloperServer {
 
         if has_local_ignore {
             let _ = builder.add(&local_ignore_path);
-        }
-
-        if !has_local_ignore && !has_global_ignore {
-            let _ = builder.add_line(None, "**/.env");
-            let _ = builder.add_line(None, "**/.env.*");
-            let _ = builder.add_line(None, "**/secrets.*");
         }
 
         builder.build().expect("Failed to build ignore patterns")
@@ -2959,6 +2997,11 @@ mod tests {
 
         let server = create_test_server();
 
+        let gooseignore_path = temp_path.join(".gooseignore");
+        if gooseignore_path.exists() {
+            fs::remove_file(&gooseignore_path).unwrap();
+        }
+
         let result = server
             .text_editor(Parameters(TextEditorParams {
                 command: "view".to_string(),
@@ -3235,6 +3278,14 @@ mod tests {
 
         // Don't create any ignore files
         let server = create_test_server();
+
+        let gooseignore_path = temp_dir.path().join(".gooseignore");
+        assert!(
+            gooseignore_path.exists(),
+            ".gooseignore should be created by default"
+        );
+        let default_contents = fs::read_to_string(gooseignore_path).unwrap();
+        assert_eq!(default_contents, DEFAULT_GOOSEIGNORE_CONTENT);
 
         // Default patterns should be used
         assert!(
