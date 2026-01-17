@@ -7,6 +7,7 @@ export const ElevenLabsKeyInput = () => {
   const [elevenLabsApiKey, setElevenLabsApiKey] = useState('');
   const [isLoadingKey, setIsLoadingKey] = useState(false);
   const [hasElevenLabsKey, setHasElevenLabsKey] = useState(false);
+  const [validationError, setValidationError] = useState('');
   const elevenLabsApiKeyRef = useRef('');
   const { upsert, read, remove } = useConfig();
 
@@ -55,6 +56,9 @@ export const ElevenLabsKeyInput = () => {
   const handleElevenLabsKeyChange = (key: string) => {
     setElevenLabsApiKey(key);
     elevenLabsApiKeyRef.current = key;
+    if (validationError) {
+      setValidationError('');
+    }
     if (key.length > 0 && key !== '••••••••••••••••') {
       setHasElevenLabsKey(false);
     }
@@ -70,6 +74,7 @@ export const ElevenLabsKeyInput = () => {
 
       if (trimmedKey) {
         if (trimmedKey.length < 32) {
+          setValidationError('API key must be at least 32 characters long');
           setHasElevenLabsKey(false);
           return;
         }
@@ -77,13 +82,16 @@ export const ElevenLabsKeyInput = () => {
         await upsert(ELEVENLABS_API_KEY, trimmedKey, true);
         setHasElevenLabsKey(true);
         setElevenLabsApiKey('••••••••••••••••');
+        setValidationError('');
       } else {
         await remove(ELEVENLABS_API_KEY, true);
         setHasElevenLabsKey(false);
         setElevenLabsApiKey('');
+        setValidationError('');
       }
     } catch (error) {
       console.error('Error saving ElevenLabs API key:', error);
+      setValidationError('Failed to save API key');
     }
   };
 
@@ -97,13 +105,14 @@ export const ElevenLabsKeyInput = () => {
         </p>
       </div>
       <Input
-        type="text"
+        type="password"
         value={elevenLabsApiKey}
         onChange={(e) => handleElevenLabsKeyChange(e.target.value)}
         onBlur={saveElevenLabsKey}
         onFocus={(e) => {
           if (e.target.value === '••••••••••••••••') {
             setElevenLabsApiKey('');
+            elevenLabsApiKeyRef.current = '';
           }
         }}
         placeholder={
@@ -112,6 +121,7 @@ export const ElevenLabsKeyInput = () => {
         className="max-w-md"
         disabled={isLoadingKey}
       />
+      {validationError && <p className="text-xs text-red-600 mt-1">{validationError}</p>}
     </div>
   );
 };
