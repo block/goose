@@ -287,6 +287,17 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
         .and_then(|c| c.get(0))
         .and_then(|m| m.get("message"))
     else {
+        // Check for an error object in the response
+        if let Some(error) = response.get("error") {
+            let error_message = error
+                .get("message")
+                .and_then(|m| m.as_str())
+                .unwrap_or("Unknown error");
+            return Err(anyhow::anyhow!(
+                    "API error: {}",
+                    error_message
+            ));
+        }
         return Err(anyhow::anyhow!(
             "No message in API response. This may indicate a quota limit or other restriction."
         ));
