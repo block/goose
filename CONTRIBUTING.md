@@ -62,8 +62,9 @@ sudo apt install libxcb1-dev      # libxcb1-dev is the development package for t
 
 ### Rust
 
-First let's activate Hermit.  
-Goose requires Hermit for managing dependencies.
+
+First let's compile goose and try it out
+Since goose requires Hermit for managing dependencies, let's activate hermit.
 
 ```
 cd goose
