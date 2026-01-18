@@ -4,7 +4,6 @@ import { Greeting } from '../common/Greeting';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../ui/button';
 import { ChatSmart } from '../icons/';
-import { Goose } from '../icons/Goose';
 import { Skeleton } from '../ui/skeleton';
 import {
   getSessionInsights,
@@ -120,10 +119,7 @@ export function SessionInsights() {
     <div className="bg-background-muted flex flex-col h-full">
       {/* Header container with rounded bottom */}
       <div className="bg-background-default rounded-b-2xl mb-0.5">
-        <div className="px-8 pb-12 pt-19 space-y-4">
-          <div className="origin-bottom-left goose-icon-animation">
-            <Goose className="size-8" />
-          </div>
+        <div className="px-8 pb-12 pt-19">
           <Greeting />
         </div>
       </div>
@@ -213,10 +209,7 @@ export function SessionInsights() {
     <div className="bg-background-muted flex flex-col h-full">
       {/* Header container with rounded bottom */}
       <div className="bg-background-default rounded-b-2xl mb-0.5">
-        <div className="px-8 pb-12 pt-19 space-y-4">
-          <div className="origin-bottom-left goose-icon-animation">
-            <Goose className="size-8" />
-          </div>
+        <div className="px-8 pb-12 pt-19">
           <Greeting />
         </div>
       </div>
