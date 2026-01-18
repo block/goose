@@ -108,7 +108,7 @@ just run-ui
 This command builds a release build of Rust (equivalent to `cargo build -r`) and starts the Electron process.
 The app opens a window and displays first-time setup. After completing setup, goose is ready for use.
 
-Changes to the GUI can be made in the code under `ui/desktop`.
+Make GUI changes in `ui/desktop`.
 
 ### Regenerating the OpenAPI schema
 
