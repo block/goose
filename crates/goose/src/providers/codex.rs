@@ -1050,5 +1050,17 @@ mod tests {
             CodexProvider::skills_feature_flag_args(skills_supported, false),
             Some(("--disable", "skills"))
         );
+
+        let stdout = "undo stable false shell_tool stable true steer beta false";
+        let skills_supported = CodexProvider::feature_list_contains_feature(stdout, "skills");
+        assert!(!skills_supported);
+        assert_eq!(
+            CodexProvider::skills_feature_flag_args(skills_supported, true),
+            None
+        );
+        assert_eq!(
+            CodexProvider::skills_feature_flag_args(skills_supported, false),
+            None
+        );
     }
 }
