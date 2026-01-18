@@ -12,6 +12,7 @@ import {
   SidebarSeparator,
 } from '../ui/sidebar';
 import { ChatSmart, Gear } from '../icons';
+import { Goose } from '../icons/Goose';
 import { ViewOptions, View } from '../../utils/navigationUtils';
 import { useChatContext } from '../../contexts/ChatContext';
 import { DEFAULT_CHAT_TITLE } from '../../contexts/ChatContext';
@@ -210,7 +211,11 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
         </SidebarMenu>
       </SidebarContent>
 
-      <SidebarFooter className="pb-2 flex items-start">
+      <SidebarFooter className="pb-6 px-3 flex items-center justify-between">
+        <div className="flex flex-col items-center">
+          <Goose className="size-14 goose-icon-animation" />
+          <span className="text-base font-medium">goose</span>
+        </div>
         <EnvironmentBadge />
       </SidebarFooter>
     </>
