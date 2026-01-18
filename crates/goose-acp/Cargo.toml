@@ -12,7 +12,6 @@ workspace = true
 
 [dependencies]
 goose = { path = "../goose" }
-goose-mcp = { path = "../goose-mcp" }
 rmcp = { workspace = true }
 sacp = "10.1.0"
 anyhow = { workspace = true }
