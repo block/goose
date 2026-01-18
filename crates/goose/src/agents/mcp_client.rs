@@ -308,6 +308,7 @@ pub struct McpClient {
     notification_subscribers: Arc<Mutex<Vec<mpsc::Sender<ServerNotification>>>>,
     server_info: Option<InitializeResult>,
     timeout: std::time::Duration,
+    docker_container: Option<String>,
 }
 
 impl McpClient {
@@ -315,6 +316,19 @@ impl McpClient {
         transport: T,
         timeout: std::time::Duration,
         provider: SharedProvider,
+    ) -> Result<Self, ClientInitializeError>
+    where
+        T: IntoTransport<RoleClient, E, A>,
+        E: std::error::Error + From<std::io::Error> + Send + Sync + 'static,
+    {
+        Self::connect_with_container(transport, timeout, provider, None).await
+    }
+
+    pub async fn connect_with_container<T, E, A>(
+        transport: T,
+        timeout: std::time::Duration,
+        provider: SharedProvider,
+        docker_container: Option<String>,
     ) -> Result<Self, ClientInitializeError>
     where
         T: IntoTransport<RoleClient, E, A>,
@@ -333,7 +347,12 @@ impl McpClient {
             notification_subscribers,
             server_info,
             timeout,
+            docker_container,
         })
+    }
+
+    pub fn docker_container(&self) -> Option<&str> {
+        self.docker_container.as_deref()
     }
 
     async fn send_request(

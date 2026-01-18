@@ -208,7 +208,7 @@ impl ExtensionManagerClient {
         };
 
         extension_manager
-            .add_extension(config)
+            .add_extension(config, None)
             .await
             .map(|_| {
                 vec![Content::text(format!(

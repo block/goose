@@ -8,6 +8,7 @@ use futures::stream::BoxStream;
 use futures::{stream, FutureExt, Stream, StreamExt, TryStreamExt};
 use uuid::Uuid;
 
+use super::container::Container;
 use super::final_output_tool::FinalOutputTool;
 use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
@@ -129,6 +130,7 @@ pub struct Agent {
 
     pub(super) retry_manager: RetryManager,
     pub(super) tool_inspection_manager: ToolInspectionManager,
+    container: Mutex<Option<Container>>,
 }
 
 #[derive(Clone, Debug)]
@@ -213,6 +215,7 @@ impl Agent {
             tool_result_rx: Arc::new(Mutex::new(tool_rx)),
             retry_manager: RetryManager::new(),
             tool_inspection_manager: Self::create_tool_inspection_manager(permission_manager),
+            container: Mutex::new(None),
         }
     }
 
@@ -408,6 +411,18 @@ impl Agent {
             Some(provider) => Ok(Arc::clone(provider)),
             None => Err(anyhow!("Provider not set")),
         }
+    }
+
+    /// Sets the Docker container for running stdio extensions.
+    /// When set, all stdio extensions will be started via `docker exec` in the specified container.
+    /// This also updates the ExtensionManager's container setting.
+    pub async fn set_container(&self, container: Option<Container>) {
+        *self.container.lock().await = container.clone();
+    }
+
+    /// Returns a clone of the current container if set.
+    pub async fn container(&self) -> Option<Container> {
+        self.container.lock().await.clone()
     }
 
     /// Check if a tool is a frontend tool
@@ -725,8 +740,9 @@ impl Agent {
                 }
             }
             _ => {
+                let container = self.container.lock().await;
                 self.extension_manager
-                    .add_extension(extension.clone())
+                    .add_extension(extension.clone(), container.as_ref())
                     .await?;
             }
         }

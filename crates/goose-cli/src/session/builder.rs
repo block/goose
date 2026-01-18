@@ -2,7 +2,7 @@ use super::output;
 use super::CliSession;
 use console::style;
 use goose::agents::types::{RetryConfig, SessionConfig};
-use goose::agents::Agent;
+use goose::agents::{Agent, Container};
 use goose::config::{
     extensions::get_extension_by_name, get_all_extensions, get_enabled_extensions, Config,
     ExtensionConfig,
@@ -66,6 +66,8 @@ pub struct SessionBuilderConfig {
     pub retry_config: Option<RetryConfig>,
     /// Output format (text, json)
     pub output_format: String,
+    /// Docker container to run stdio extensions inside
+    pub container: Option<Container>,
 }
 
 /// Manual implementation of Default to ensure proper initialization of output_format
@@ -94,6 +96,7 @@ impl Default for SessionBuilderConfig {
             final_output_response: None,
             retry_config: None,
             output_format: "text".to_string(),
+            container: None,
         }
     }
 }
@@ -254,6 +257,11 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
 
     let config = Config::global();
     let agent: Agent = Agent::new();
+
+    if session_config.container.is_some() {
+        agent.set_container(session_config.container.clone()).await;
+    }
+
     let session_manager = agent.config.session_manager.clone();
 
     let (saved_provider, saved_model_config) = if session_config.resume {
@@ -712,6 +720,7 @@ mod tests {
             final_output_response: None,
             retry_config: None,
             output_format: "text".to_string(),
+            container: None,
         };
 
         assert_eq!(config.extensions.len(), 1);
