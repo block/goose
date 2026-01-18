@@ -1305,6 +1305,7 @@ impl CliSession {
                     let num_messages = messages.len();
                     for (i, prompt_message) in messages.into_iter().enumerate() {
                         let msg = Message::from(prompt_message);
+                        // ensure we get a User - Assistant - User type pattern
                         let expected_role = if i % 2 == 0 {
                             rmcp::model::Role::User
                         } else {
@@ -1317,6 +1318,7 @@ impl CliSession {
                                 expected_role, i, msg.role
                             ));
                             valid = false;
+                            // get rid of everything we added to messages
                             self.messages.truncate(start_len);
                             break;
                         }
