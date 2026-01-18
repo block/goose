@@ -17,6 +17,8 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
+pub const DEFAULT_MIN_PRIORITY: f32 = 0.0;
+
 // Re-export theme for use in main
 #[derive(Clone, Copy)]
 pub enum Theme {
@@ -308,7 +310,7 @@ fn render_tool_response(resp: &ToolResponse, theme: Theme, debug: bool) {
                 let min_priority = config
                     .get_param::<f32>("GOOSE_CLI_MIN_PRIORITY")
                     .ok()
-                    .unwrap_or(0.5);
+                    .unwrap_or(DEFAULT_MIN_PRIORITY);
 
                 if content
                     .priority()

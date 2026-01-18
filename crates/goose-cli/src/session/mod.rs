@@ -1558,7 +1558,7 @@ fn format_logging_notification(
                         let min_priority = config
                             .get_param::<f32>("GOOSE_CLI_MIN_PRIORITY")
                             .ok()
-                            .unwrap_or(0.5);
+                            .unwrap_or(output::DEFAULT_MIN_PRIORITY);
 
                         if min_priority > 0.1 && !debug {
                             if let Some(response_content) = msg.strip_prefix("Responded: ") {
@@ -1618,11 +1618,19 @@ fn display_log_notification(
                 std::io::stdout().flush().unwrap();
             }
         } else if ntype == "shell_output" {
-            if interactive {
-                let _ = progress_bars.hide();
-            }
-            if !is_json_mode {
-                println!("{}", formatted_message);
+            let config = Config::global();
+            let min_priority = config
+                .get_param::<f32>("GOOSE_CLI_MIN_PRIORITY")
+                .ok()
+                .unwrap_or(output::DEFAULT_MIN_PRIORITY);
+
+            if min_priority < 0.1 {
+                if interactive {
+                    let _ = progress_bars.hide();
+                }
+                if !is_json_mode {
+                    println!("{}", formatted_message);
+                }
             }
         }
     } else if output::is_showing_thinking() {
