@@ -211,7 +211,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
         </SidebarMenu>
       </SidebarContent>
 
-      <SidebarFooter className="pb-6 px-3 flex items-center justify-between">
+      <SidebarFooter className="pb-6 px-3 flex items-center justify-center">
         <div className="flex flex-col items-center">
           <Goose className="size-14 goose-icon-animation" />
           <span className="text-base font-medium">goose</span>
