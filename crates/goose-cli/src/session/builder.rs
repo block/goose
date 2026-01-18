@@ -3,13 +3,14 @@ use super::CliSession;
 use console::style;
 use goose::agents::Agent;
 use goose::config::get_enabled_extensions;
+use goose::config::resolve_extensions_for_new_session;
 use goose::config::{
     extensions::get_extension_by_name, get_all_extensions, Config, ExtensionConfig,
 };
 use goose::providers::create;
 use goose::recipe::Recipe;
 use goose::session::session_manager::SessionType;
-use goose::session::{resolve_extensions_for_new_session, EnabledExtensionsState, ExtensionState};
+use goose::session::{EnabledExtensionsState, ExtensionState};
 use rustyline::EditMode;
 use std::collections::BTreeSet;
 use std::process;

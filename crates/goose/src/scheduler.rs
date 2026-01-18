@@ -15,14 +15,13 @@ use tokio_util::sync::CancellationToken;
 use crate::agents::AgentEvent;
 use crate::agents::{Agent, SessionConfig};
 use crate::config::paths::Paths;
-use crate::config::Config;
+use crate::config::{resolve_extensions_for_new_session, Config};
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use crate::posthog;
 use crate::providers::create;
 use crate::recipe::Recipe;
 use crate::scheduler_trait::SchedulerTrait;
-use crate::session::resolve_extensions_for_new_session;
 use crate::session::session_manager::SessionType;
 use crate::session::{Session, SessionManager};
 
