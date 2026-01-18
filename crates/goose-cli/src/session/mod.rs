@@ -1302,9 +1302,9 @@ impl CliSession {
                 Ok(messages) => {
                     let start_len = self.messages.len();
                     let mut valid = true;
+                    let num_messages = messages.len();
                     for (i, prompt_message) in messages.into_iter().enumerate() {
                         let msg = Message::from(prompt_message);
-                        // ensure we get a User - Assistant - User type pattern
                         let expected_role = if i % 2 == 0 {
                             rmcp::model::Role::User
                         } else {
@@ -1317,7 +1317,6 @@ impl CliSession {
                                 expected_role, i, msg.role
                             ));
                             valid = false;
-                            // get rid of everything we added to messages
                             self.messages.truncate(start_len);
                             break;
                         }
@@ -1329,6 +1328,17 @@ impl CliSession {
                     }
 
                     if valid {
+                        if num_messages > 1 {
+                            for i in 0..(num_messages - 1) {
+                                let msg = &self.messages.messages()[start_len + i];
+                                self.agent
+                                    .config
+                                    .session_manager
+                                    .add_message(&self.session_id, msg)
+                                    .await?;
+                            }
+                        }
+
                         output::show_thinking();
                         self.process_agent_response(true, CancellationToken::default())
                             .await?;
