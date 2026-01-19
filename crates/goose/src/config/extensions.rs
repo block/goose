@@ -155,3 +155,18 @@ pub fn get_warnings() -> Vec<String> {
     }
     warnings
 }
+
+pub fn resolve_extensions_for_new_session(
+    recipe_extensions: Option<&[ExtensionConfig]>,
+    override_extensions: Option<Vec<ExtensionConfig>>,
+) -> Vec<ExtensionConfig> {
+    if let Some(exts) = recipe_extensions {
+        return exts.to_vec();
+    }
+
+    if let Some(exts) = override_extensions {
+        return exts;
+    }
+
+    get_enabled_extensions()
+}
