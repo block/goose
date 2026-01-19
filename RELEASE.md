@@ -19,7 +19,7 @@ You can cherry pick fixes into this branch.
 To trigger the release, find [the corresponding PR](https://github.com/block/goose/pulls?q=is%3Apr+%22chore%28release%29%22+%22%28patch%29%22+author%3Aapp%2Fgithub-actions+) and follow the instructions in the PR description.
 
 
-##  high level release flow: 
+## High level release flow:
 
 * check out and cherry pick (if needed) changes to the branch you are going to release (eg the patch branch)
 * Test locally if you can (just run-ui)
