@@ -30,7 +30,6 @@ For mobile client to work for personal (ie desktop/laptop/PC agents, not really 
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2026/01/20/goose-mobile-apps" />
   <meta property="og:description" content="Consolidating agent apps for ios and android and ACP" />
-  <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="Goose Mobile Apps" />
   <meta name="twitter:description" content="Consolidating agent apps for ios and android and ACP" />
