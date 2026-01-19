@@ -6,7 +6,6 @@ use goose::conversation::message::Message;
 use goose::providers::create_with_named_model;
 use goose::providers::databricks::DATABRICKS_DEFAULT_MODEL;
 use goose::session::session_manager::SessionType;
-use goose::session::SessionManager;
 use std::path::PathBuf;
 
 #[tokio::main]
@@ -17,14 +16,17 @@ async fn main() -> anyhow::Result<()> {
 
     let agent = Agent::new();
 
-    let session = SessionManager::create_session(
-        PathBuf::default(),
-        "max-turn-test".to_string(),
-        SessionType::Hidden,
-    )
-    .await?;
+    let session = agent
+        .config
+        .session_manager
+        .create_session(
+            PathBuf::default(),
+            "max-turn-test".to_string(),
+            SessionType::Hidden,
+        )
+        .await?;
 
-    let _ = agent.update_provider(provider, &session.id).await;
+    agent.update_provider(provider, &session.id).await?;
 
     let config = ExtensionConfig::stdio(
         "developer",

@@ -337,6 +337,7 @@ mod tests {
         let scanner = PromptInjectionScanner::new();
 
         let tool_call = CallToolRequestParam {
+            task: None,
             name: "shell".into(),
             arguments: Some(object!({
                 "command": "rm -rf /tmp/malicious"

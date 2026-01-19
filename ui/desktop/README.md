@@ -75,11 +75,15 @@ npm run make -- --targets=@electron-forge/maker-zip
 
 # For DEB package (Debian/Ubuntu)
 npm run make -- --targets=@electron-forge/maker-deb
+
+# For Flatpak (requires flatpak and flatpak-builder)
+npm run make -- --targets=@electron-forge/maker-flatpak
 ```
 
 The built application will be available in:
 - ZIP: `out/make/zip/linux/x64/goose-linux-x64-{version}.zip`
 - DEB: `out/make/deb/x64/goose_{version}_amd64.deb`
+- Flatpak: `out/make/flatpak/x86_64/*.flatpak`
 - Executable: `out/goose-linux-x64/goose`
 
 ### Windows

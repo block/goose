@@ -146,8 +146,9 @@ pub enum MessageEvent {
     Ping,
 }
 
-async fn get_token_state(session_id: &str) -> TokenState {
-    SessionManager::get_session(session_id, false)
+async fn get_token_state(session_manager: &SessionManager, session_id: &str) -> TokenState {
+    session_manager
+        .get_session(session_id, false)
         .await
         .map(|session| TokenState {
             input_tokens: session.input_tokens.unwrap_or(0),
@@ -258,7 +259,7 @@ pub async fn reply(
             }
         };
 
-        let session = match SessionManager::get_session(&session_id, true).await {
+        let session = match state.session_manager().get_session(&session_id, true).await {
             Ok(metadata) => metadata,
             Err(e) => {
                 tracing::error!("Failed to read session for {}: {}", session_id, e);
@@ -284,7 +285,11 @@ pub async fn reply(
         let mut all_messages = match conversation_so_far {
             Some(history) => {
                 let conv = Conversation::new_unvalidated(history);
-                if let Err(e) = SessionManager::replace_conversation(&session_id, &conv).await {
+                if let Err(e) = state
+                    .session_manager()
+                    .replace_conversation(&session_id, &conv)
+                    .await
+                {
                     tracing::warn!(
                         "Failed to replace session conversation for {}: {}",
                         session_id,
@@ -339,7 +344,7 @@ pub async fn reply(
 
                             all_messages.push(message.clone());
 
-                            let token_state = get_token_state(&session_id).await;
+                            let token_state = get_token_state(state.session_manager(), &session_id).await;
 
                             stream_event(MessageEvent::Message { message, token_state }, &tx, &cancel_token).await;
                         }
@@ -385,7 +390,7 @@ pub async fn reply(
 
         let session_duration = session_start.elapsed();
 
-        if let Ok(session) = SessionManager::get_session(&session_id, true).await {
+        if let Ok(session) = state.session_manager().get_session(&session_id, true).await {
             let total_tokens = session.total_tokens.unwrap_or(0);
             tracing::info!(
                 counter.goose.session_completions = 1,
@@ -433,7 +438,7 @@ pub async fn reply(
             );
         }
 
-        let final_token_state = get_token_state(&session_id).await;
+        let final_token_state = get_token_state(state.session_manager(), &session_id).await;
 
         let _ = stream_event(
             MessageEvent::Finish {

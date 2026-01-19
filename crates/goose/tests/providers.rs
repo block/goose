@@ -317,6 +317,7 @@ impl ProviderTester {
         let tool_request = Message::assistant().with_tool_request(
             "test_id",
             Ok(CallToolRequestParam {
+                task: None,
                 name: "get_screenshot".into(),
                 arguments: Some(object!({})),
             }),

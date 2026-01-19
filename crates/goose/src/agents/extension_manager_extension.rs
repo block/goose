@@ -1,5 +1,5 @@
 use crate::agents::extension::PlatformExtensionContext;
-use crate::agents::mcp_client::{Error, McpClientTrait};
+use crate::agents::mcp_client::{Error, McpClientTrait, McpMeta};
 use crate::config::get_extension_by_name;
 use anyhow::Result;
 use async_trait::async_trait;
@@ -85,6 +85,7 @@ impl ExtensionManagerClient {
         let info = InitializeResult {
             protocol_version: ProtocolVersion::V_2025_03_26,
             capabilities: ServerCapabilities {
+                tasks: None,
                 tools: Some(ToolsCapability {
                     list_changed: Some(false),
                 }),
@@ -418,6 +419,7 @@ impl McpClientTrait for ExtensionManagerClient {
         &self,
         name: &str,
         arguments: Option<JsonObject>,
+        _meta: McpMeta,
         _cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         let result = match name {

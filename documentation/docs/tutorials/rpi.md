@@ -193,17 +193,19 @@ The **[RPI Create Plan](https://raw.githubusercontent.com/block/goose/refs/heads
 
 Then it did three key things:
 
-1. Asked clarifying questions
-For example:
+1. **Asked clarifying questions**
+
+    For example:
     - Full removal vs deprecation?
     - How should config cleanup behave?
     - Should OpenAPI artifacts be regenerated?
     - Where do related tests live?
 
-2. Presented design options
+2. **Presented design options**
+    
     Where there were multiple reasonable approaches, goose laid them out and asked me to choose.
 
-3. Produced a phased implementation plan
+3. **Produced a phased implementation plan**
 
 
 The output was a detailed plan:

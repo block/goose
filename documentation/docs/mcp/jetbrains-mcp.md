@@ -21,10 +21,9 @@ This tutorial covers how to add the JetBrains extension to integrate with any Je
 <Tabs groupId="ideVersion">
   <TabItem value="later" label="2025.2 and later" default>
 
-    Versions 2025.2 and later have built-in MCP server support and generate a dynamic configuration specific to your IDE instance.
+    Versions 2025.2 and later have built-in MCP server support and generate a dynamic configuration specific to your IDE instance. See your IDE's documentation for more details (e.g. [MCP Server](https://www.jetbrains.com/help/idea/mcp-server.html) for IntelliJ IDEA).
 
-    See your IDE's documentation for more details (e.g. [MCP Server](https://www.jetbrains.com/help/idea/mcp-server.html) for IntelliJ IDEA).
-
+    <!-- hide until parsing bugs for paths with spaces are fixed in Desktop and CLI
     :::tip TLDR
     <Tabs groupId="interface">
       <TabItem value="ui" label="goose Desktop" default>
@@ -35,6 +34,7 @@ This tutorial covers how to add the JetBrains extension to integrate with any Je
       </TabItem>
     </Tabs>
     :::
+    -->
 
     <br/>
     Configure the extension using your IDE's built-in MCP server support:
@@ -48,6 +48,11 @@ This tutorial covers how to add the JetBrains extension to integrate with any Je
        5. Copy the `command`, `args`, and `env` values from the config
 
     2. Add the JetBrains extension to goose using the command from the config:
+
+       :::info 
+       If the goose Desktop or goose CLI configuration steps aren't successful, follow the `Config File` steps.
+       :::
+
        <Tabs groupId="interface">
          <TabItem value="ui" label="goose Desktop" default>
            1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
@@ -76,6 +81,35 @@ This tutorial covers how to add the JetBrains extension to integrate with any Je
                </>
              }
            />
+         </TabItem>
+         <TabItem value="config" label="Config File">
+           1. Open your goose [`config.yaml`](/docs/guides/config-files) file
+           2. In the `extensions` section, add an entry that uses your IDE's Stdio config, for example:
+
+              ```yaml
+              extensions:
+                jetbrains:
+                  enabled: true
+                  type: stdio
+                  name: JetBrains
+                  description: Integrate goose with any JetBrains IDE
+                  cmd: /Applications/IntelliJ IDEA.app/Contents/jbr/Contents/Home/bin/java
+                  args:
+                  - -classpath
+                  - /Applications/IntelliJ IDEA.app/Contents/plugins/mcpserver/lib/mcpserver-frontend.jar:/Applications/IntelliJ IDEA.app/Contents/lib/util-8.jar
+                  - com.intellij.mcpserver.stdio.McpStdioRunnerKt
+                  envs:
+                    IJ_MCP_SERVER_PORT: "63342"
+                  env_keys:
+                  - IJ_MCP_SERVER_PORT
+                  timeout: 300
+                  bundled: null
+                  available_tools: []
+              ```
+
+              Make sure to:
+              - Replace the `cmd` and `args` values in the example to match your JetBrains IDE installation
+              - Update `IJ_MCP_SERVER_PORT` to match your IDE's MCP server port
          </TabItem>
        </Tabs>
   </TabItem>

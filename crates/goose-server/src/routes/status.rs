@@ -1,8 +1,12 @@
 use axum::body::Body;
+use axum::extract::State;
 use axum::http::HeaderValue;
 use axum::response::IntoResponse;
 use axum::{extract::Path, http::StatusCode, routing::get, Json, Router};
 use goose::session::{generate_diagnostics, get_system_info, SystemInfo};
+use std::sync::Arc;
+
+use crate::state::AppState;
 
 #[utoipa::path(get, path = "/status",
     responses(
@@ -28,8 +32,11 @@ async fn system_info() -> Json<SystemInfo> {
         (status = 500, description = "Failed to generate diagnostics"),
     )
 )]
-async fn diagnostics(Path(session_id): Path<String>) -> impl IntoResponse {
-    match generate_diagnostics(&session_id).await {
+async fn diagnostics(
+    State(state): State<Arc<AppState>>,
+    Path(session_id): Path<String>,
+) -> impl IntoResponse {
+    match generate_diagnostics(state.session_manager(), &session_id).await {
         Ok(zip_data) => {
             let filename = format!("attachment; filename=\"diagnostics_{}.zip\"", session_id);
             let headers = [
@@ -48,9 +55,10 @@ async fn diagnostics(Path(session_id): Path<String>) -> impl IntoResponse {
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
 }
-pub fn routes() -> Router {
+pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/status", get(status))
         .route("/system_info", get(system_info))
         .route("/diagnostics/{session_id}", get(diagnostics))
+        .with_state(state)
 }

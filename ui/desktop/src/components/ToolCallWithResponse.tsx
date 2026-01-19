@@ -96,10 +96,14 @@ function McpAppWrapper({
     }
   }
 
-  const extensionName =
-    requestWithMeta.toolCall.status === 'success'
-      ? requestWithMeta.toolCall.value.name.split('__')[0]
-      : '';
+  // Tool names are formatted as "{extension_name}__{tool_name}".
+  // Extension names can contain underscores (special chars like parentheses are normalized to "_"),
+  // so we must use lastIndexOf to find the delimiter.
+  // e.g., "my_server(local)" -> "my_server_local_" -> "my_server_local___get_time"
+  const toolCallName =
+    requestWithMeta.toolCall.status === 'success' ? requestWithMeta.toolCall.value.name : '';
+  const delimiterIndex = toolCallName.lastIndexOf('__');
+  const extensionName = delimiterIndex === -1 ? '' : toolCallName.substring(0, delimiterIndex);
 
   const toolArguments =
     requestWithMeta.toolCall.status === 'success'

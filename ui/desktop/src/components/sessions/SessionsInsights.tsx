@@ -4,7 +4,6 @@ import { Greeting } from '../common/Greeting';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../ui/button';
 import { ChatSmart } from '../icons/';
-import { Goose } from '../icons/Goose';
 import { Skeleton } from '../ui/skeleton';
 import {
   getSessionInsights,
@@ -109,15 +108,18 @@ export function SessionInsights() {
       .replace(/\//g, '/');
   };
 
+  const formatTokens = (tokens: number | undefined): string => {
+    return new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 2 }).format(
+      tokens || 0
+    );
+  };
+
   // Render skeleton loader while data is loading
   const renderSkeleton = () => (
     <div className="bg-background-muted flex flex-col h-full">
       {/* Header container with rounded bottom */}
       <div className="bg-background-default rounded-b-2xl mb-0.5">
-        <div className="px-8 pb-12 pt-19 space-y-4">
-          <div className="origin-bottom-left goose-icon-animation">
-            <Goose className="size-8" />
-          </div>
+        <div className="px-8 pb-12 pt-19">
           <Greeting />
         </div>
       </div>
@@ -207,10 +209,7 @@ export function SessionInsights() {
     <div className="bg-background-muted flex flex-col h-full">
       {/* Header container with rounded bottom */}
       <div className="bg-background-default rounded-b-2xl mb-0.5">
-        <div className="px-8 pb-12 pt-19 space-y-4">
-          <div className="origin-bottom-left goose-icon-animation">
-            <Goose className="size-8" />
-          </div>
+        <div className="px-8 pb-12 pt-19">
           <Greeting />
         </div>
       </div>
@@ -262,9 +261,7 @@ export function SessionInsights() {
             <CardContent className="page-transition flex flex-col justify-end h-full p-0">
               <div className="flex flex-col justify-end">
                 <p className="text-4xl font-mono font-light flex items-end">
-                  {insights?.totalTokens && insights.totalTokens > 0
-                    ? `${(insights.totalTokens / 1000000).toFixed(2)}M`
-                    : '0.00M'}
+                  {formatTokens(insights?.totalTokens)}
                 </p>
                 <span className="text-xs text-text-muted">Total tokens</span>
               </div>

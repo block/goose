@@ -1,6 +1,5 @@
 import ExtensionItem from './ExtensionItem';
 import builtInExtensionsData from '../../../../built-in-extensions.json';
-import { quote } from 'shell-quote';
 import { ExtensionConfig } from '../../../../api';
 import { FixedExtensionEntry } from '../../../ConfigContext';
 
@@ -136,7 +135,7 @@ export function getSubtitle(config: ExtensionConfig) {
     default:
       return {
         description: config.description || null,
-        command: 'cmd' in config ? quote([config.cmd, ...config.args]) : null,
+        command: 'cmd' in config ? [config.cmd, ...config.args].join(' ') : null,
       };
   }
 }

@@ -1,20 +1,17 @@
 use crate::agents::extension::PlatformExtensionContext;
-use crate::agents::mcp_client::{Error, McpClientTrait};
+use crate::agents::mcp_client::{Error, McpClientTrait, McpMeta};
 use crate::config::paths::Paths;
 use anyhow::Result;
 use async_trait::async_trait;
 use indoc::indoc;
 use rmcp::model::{
-    CallToolResult, Content, GetPromptResult, Implementation, InitializeResult, JsonObject,
-    ListPromptsResult, ListResourcesResult, ListToolsResult, ProtocolVersion, ReadResourceResult,
-    ServerCapabilities, ServerNotification, Tool, ToolAnnotations, ToolsCapability,
+    CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
+    ProtocolVersion, ServerCapabilities, Tool, ToolAnnotations, ToolsCapability,
 };
 use schemars::{schema_for, JsonSchema};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 pub static EXTENSION_NAME: &str = "skills";
@@ -48,6 +45,7 @@ impl SkillsClient {
         let info = InitializeResult {
             protocol_version: ProtocolVersion::V_2025_03_26,
             capabilities: ServerCapabilities {
+                tasks: None,
                 tools: Some(ToolsCapability {
                     list_changed: Some(false),
                 }),
@@ -263,22 +261,6 @@ impl SkillsClient {
 
 #[async_trait]
 impl McpClientTrait for SkillsClient {
-    async fn list_resources(
-        &self,
-        _next_cursor: Option<String>,
-        _cancellation_token: CancellationToken,
-    ) -> Result<ListResourcesResult, Error> {
-        Err(Error::TransportClosed)
-    }
-
-    async fn read_resource(
-        &self,
-        _uri: &str,
-        _cancellation_token: CancellationToken,
-    ) -> Result<ReadResourceResult, Error> {
-        Err(Error::TransportClosed)
-    }
-
     async fn list_tools(
         &self,
         _next_cursor: Option<String>,
@@ -300,6 +282,7 @@ impl McpClientTrait for SkillsClient {
         &self,
         name: &str,
         arguments: Option<JsonObject>,
+        _meta: McpMeta,
         _cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         let content = match name {
@@ -314,27 +297,6 @@ impl McpClientTrait for SkillsClient {
                 error
             ))])),
         }
-    }
-
-    async fn list_prompts(
-        &self,
-        _next_cursor: Option<String>,
-        _cancellation_token: CancellationToken,
-    ) -> Result<ListPromptsResult, Error> {
-        Err(Error::TransportClosed)
-    }
-
-    async fn get_prompt(
-        &self,
-        _name: &str,
-        _arguments: Value,
-        _cancellation_token: CancellationToken,
-    ) -> Result<GetPromptResult, Error> {
-        Err(Error::TransportClosed)
-    }
-
-    async fn subscribe(&self) -> mpsc::Receiver<ServerNotification> {
-        mpsc::channel(1).1
     }
 
     fn get_info(&self) -> Option<&InitializeResult> {
@@ -573,6 +535,7 @@ Content from dir3
             info: InitializeResult {
                 protocol_version: ProtocolVersion::V_2025_03_26,
                 capabilities: ServerCapabilities {
+                    tasks: None,
                     tools: Some(ToolsCapability {
                         list_changed: Some(false),
                     }),
@@ -615,6 +578,7 @@ Content from dir3
             info: InitializeResult {
                 protocol_version: ProtocolVersion::V_2025_03_26,
                 capabilities: ServerCapabilities {
+                    tasks: None,
                     tools: Some(ToolsCapability {
                         list_changed: Some(false),
                     }),
@@ -669,6 +633,7 @@ Content
             info: InitializeResult {
                 protocol_version: ProtocolVersion::V_2025_03_26,
                 capabilities: ServerCapabilities {
+                    tasks: None,
                     tools: Some(ToolsCapability {
                         list_changed: Some(false),
                     }),
@@ -737,6 +702,7 @@ Content
             info: InitializeResult {
                 protocol_version: ProtocolVersion::V_2025_03_26,
                 capabilities: ServerCapabilities {
+                    tasks: None,
                     tools: Some(ToolsCapability {
                         list_changed: Some(false),
                     }),

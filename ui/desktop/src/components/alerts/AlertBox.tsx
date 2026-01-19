@@ -24,6 +24,17 @@ const alertStyles: Record<AlertType, string> = {
   [AlertType.Info]: 'dark:bg-white dark:text-black bg-black text-white',
 };
 
+const formatTokenCount = (count: number): string => {
+  if (count >= 1000000) {
+    const millions = count / 1000000;
+    return millions % 1 === 0 ? `${millions.toFixed(0)}M` : `${millions.toFixed(1)}M`;
+  } else if (count >= 1000) {
+    const thousands = count / 1000;
+    return thousands % 1 === 0 ? `${thousands.toFixed(0)}k` : `${thousands.toFixed(1)}k`;
+  }
+  return count.toString();
+};
+
 export const AlertBox = ({ alert, className }: AlertBoxProps) => {
   const { read } = useConfig();
   const [isEditingThreshold, setIsEditingThreshold] = useState(false);
@@ -242,18 +253,14 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
           <div className="flex justify-between items-baseline text-[11px]">
             <div className="flex gap-1 items-baseline">
               <span className={'dark:text-black/60 text-white/60'}>
-                {alert.progress!.current >= 1000
-                  ? (alert.progress!.current / 1000).toFixed(1) + 'k'
-                  : alert.progress!.current}
+                {formatTokenCount(alert.progress!.current)}
               </span>
               <span className={'dark:text-black/40 text-white/40'}>
                 {Math.round((alert.progress!.current / alert.progress!.total) * 100)}%
               </span>
             </div>
             <span className={'dark:text-black/60 text-white/60'}>
-              {alert.progress!.total >= 1000
-                ? (alert.progress!.total / 1000).toFixed(0) + 'k'
-                : alert.progress!.total}
+              {formatTokenCount(alert.progress!.total)}
             </span>
           </div>
           {alert.showCompactButton && alert.onCompact && (

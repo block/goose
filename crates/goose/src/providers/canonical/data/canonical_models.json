@@ -185,6 +185,7 @@
     "id": "anthropic/claude-opus-4.1",
     "name": "Anthropic: Claude Opus 4.1",
     "context_length": 200000,
+    "max_completion_tokens": 32000,
     "input_modalities": [
       "file",
       "image",
@@ -205,7 +206,7 @@
     "id": "anthropic/claude-opus-4.5",
     "name": "Anthropic: Claude Opus 4.5",
     "context_length": 200000,
-    "max_completion_tokens": 32000,
+    "max_completion_tokens": 64000,
     "input_modalities": [
       "file",
       "image",
@@ -1159,9 +1160,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 3e-7,
-      "completion": 9e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 9e-7
     }
   },
   {
@@ -1196,9 +1195,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 4e-7,
-      "completion": 2e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 2e-6
     }
   },
   {
@@ -1233,9 +1230,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2e-7,
-      "completion": 2e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 2e-7
     }
   },
   {
@@ -1251,9 +1246,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 4e-8,
-      "completion": 4e-8,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 4e-8
     }
   },
   {
@@ -1269,9 +1262,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1e-7,
-      "completion": 1e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 1e-7
     }
   },
   {
@@ -1306,9 +1297,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2e-6,
-      "completion": 6e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 6e-6
     }
   },
   {
@@ -1325,9 +1314,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 4e-7,
-      "completion": 2e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 2e-6
     }
   },
   {
@@ -1344,9 +1331,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 4e-7,
-      "completion": 2e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 2e-6
     }
   },
   {
@@ -1381,9 +1366,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2e-7,
-      "completion": 6e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 6e-7
     }
   },
   {
@@ -1458,9 +1441,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1e-7,
-      "completion": 3e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 3e-7
     }
   },
   {
@@ -1476,9 +1457,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2.5e-7,
-      "completion": 2.5e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 2.5e-7
     }
   },
   {
@@ -1494,9 +1473,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2e-6,
-      "completion": 6e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 6e-6
     }
   },
   {
@@ -1551,9 +1528,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2e-6,
-      "completion": 6e-6,
-      "request": 0.0,
-      "image": 0.002888
+      "completion": 6e-6
     }
   },
   {
@@ -1570,9 +1545,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1e-7,
-      "completion": 3e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 3e-7
     }
   },
   {
@@ -2522,7 +2495,7 @@
     "output_modalities": [
       "text"
     ],
-    "supports_tools": false,
+    "supports_tools": true,
     "pricing": {
       "prompt": 4e-8,
       "completion": 1e-7,

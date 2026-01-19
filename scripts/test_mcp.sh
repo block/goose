@@ -16,6 +16,7 @@ SCRIPT_DIR=$(pwd)
 
 JUDGE_PROVIDER=${GOOSE_JUDGE_PROVIDER:-openrouter}
 JUDGE_MODEL=${GOOSE_JUDGE_MODEL:-google/gemini-2.5-flash}
+MCP_SAMPLING_TOOL="trigger-sampling-request"
 
 PROVIDERS=(
   #"google:gemini-2.5-pro"
@@ -52,9 +53,9 @@ for provider_config in "${PROVIDERS[@]}"; do
     echo "Model: ${MODEL}"
     echo ""
     TMPFILE=$(mktemp)
-    (cd "$TESTDIR" && "$SCRIPT_DIR/target/release/goose" run --text "Use the sampleLLM tool to ask for a quote from The Great Gatsby" --with-extension "npx -y @modelcontextprotocol/server-everything" 2>&1) | tee "$TMPFILE"
+    (cd "$TESTDIR" && "$SCRIPT_DIR/target/release/goose" run --text "Use the sampleLLM tool to ask for a quote from The Great Gatsby" --with-extension "npx -y @modelcontextprotocol/server-everything@2026.1.14" 2>&1) | tee "$TMPFILE"
     echo ""
-    if grep -q "sampleLLM | " "$TMPFILE"; then
+    if grep -q "$MCP_SAMPLING_TOOL | " "$TMPFILE"; then
 
       JUDGE_PROMPT=$(cat <<EOF
 You are a validator. You will be given a transcript of a CLI run that used an MCP tool to initiate MCP sampling.
@@ -93,7 +94,7 @@ EOF
         RESULTS+=("✗ MCP Sampling ${PROVIDER}: ${MODEL}")
       fi
     else
-      echo "✗ FAILED: MCP sampling test failed - sampleLLM tool not called"
+      echo "✗ FAILED: MCP sampling test failed - $MCP_SAMPLING_TOOL tool not called"
       RESULTS+=("✗ MCP Sampling ${PROVIDER}: ${MODEL}")
     fi
     rm "$TMPFILE"

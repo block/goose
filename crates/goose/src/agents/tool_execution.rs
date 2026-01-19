@@ -131,6 +131,12 @@ impl Agent {
                                     request.metadata.as_ref(),
                                 );
                             }
+
+                            if confirmation.permission == Permission::AlwaysDeny {
+                                self.tool_inspection_manager
+                                    .update_permission_manager(&tool_call.name, PermissionLevel::NeverAllow)
+                                    .await;
+                            }
                         }
                         break; // Exit the loop once the matching `req_id` is found
                     }

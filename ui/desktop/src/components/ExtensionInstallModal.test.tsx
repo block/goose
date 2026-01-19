@@ -19,6 +19,13 @@ const mockElectron = {
 
 (window as any).electron = mockElectron;
 
+vi.mock('./ConfigContext', () => ({
+  useConfig: () => ({
+    extensionsList: [],
+    getExtensions: vi.fn().mockResolvedValue([]),
+  }),
+}));
+
 describe('ExtensionInstallModal', () => {
   const mockAddExtension = vi.fn();
   const mockSetView = vi.fn();

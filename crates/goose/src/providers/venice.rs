@@ -461,6 +461,7 @@ impl Provider for VeniceProvider {
                     };
 
                     let tool_call = CallToolRequestParam {
+                        task: None,
                         name: name.into(),
                         arguments: Some(object(arguments)),
                     };

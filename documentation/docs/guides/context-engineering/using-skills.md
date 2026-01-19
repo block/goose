@@ -28,7 +28,7 @@ goose skills are compatible with Claude Desktop and other [agents that support A
 Skills can be stored globally and/or per-project. goose checks all of these directories in order and combines what it finds. If the same skill name exists in multiple directories, later directories take priority:
 
 1. `~/.claude/skills/` — Global, shared with Claude Desktop
-2. `~/.config/agents/skills/` — Global, portable across AI coding agents
+2. `~/.config/agent/skills/` — Global, portable across AI coding agents (`~/.config/agents/skills` in goose v1.20.0 and later)
 3. `~/.config/goose/skills/` — Global, goose-specific
 4. `./.claude/skills/` — Project-level, shared with Claude Desktop
 5. `./.goose/skills/` — Project-level, goose-specific

@@ -1,5 +1,6 @@
 use super::completion::GooseCompleter;
 use anyhow::Result;
+use goose::config::Config;
 use rustyline::Editor;
 use shlex;
 use std::collections::HashMap;
@@ -55,12 +56,24 @@ impl rustyline::ConditionalEventHandler for CtrlCHandler {
     }
 }
 
+pub fn get_newline_key() -> char {
+    Config::global()
+        .get_param::<String>("GOOSE_CLI_NEWLINE_KEY")
+        .ok()
+        .and_then(|s| s.chars().next())
+        .map(|c| c.to_ascii_lowercase())
+        .unwrap_or('j')
+}
+
 pub fn get_input(
     editor: &mut Editor<GooseCompleter, rustyline::history::DefaultHistory>,
 ) -> Result<InputResult> {
-    // Ensure Ctrl-J binding is set for newlines
+    let newline_key = get_newline_key();
     editor.bind_sequence(
-        rustyline::KeyEvent(rustyline::KeyCode::Char('j'), rustyline::Modifiers::CTRL),
+        rustyline::KeyEvent(
+            rustyline::KeyCode::Char(newline_key),
+            rustyline::Modifiers::CTRL,
+        ),
         rustyline::EventHandler::Simple(rustyline::Cmd::Newline),
     );
 
@@ -297,6 +310,7 @@ fn get_input_prompt_string() -> String {
 }
 
 fn print_help() {
+    let newline_key = get_newline_key().to_ascii_uppercase();
     println!(
         "Available commands:
 /exit or /quit - Exit the session
@@ -322,7 +336,7 @@ fn print_help() {
 
 Navigation:
 Ctrl+C - Clear current line if text is entered, otherwise exit the session
-Ctrl+J - Add a newline
+Ctrl+{newline_key} - Add a newline (configurable via GOOSE_CLI_NEWLINE_KEY)
 Up/Down arrows - Navigate through command history"
     );
 }

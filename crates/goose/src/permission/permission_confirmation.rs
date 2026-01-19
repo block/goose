@@ -7,6 +7,7 @@ pub enum Permission {
     AllowOnce,
     Cancel,
     DenyOnce,
+    AlwaysDeny,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, ToSchema)]
