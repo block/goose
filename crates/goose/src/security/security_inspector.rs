@@ -25,39 +25,13 @@ impl SecurityInspector {
         tool_request_id: String,
     ) -> InspectionResult {
         let action = if security_result.is_malicious && security_result.should_ask_user {
-            // Build detection type message
-            let detection_msg = if let Some(ref detection_type) = security_result.detection_type {
-                match detection_type.as_str() {
-                    "CommandInjection" => {
-                        let cmd_conf = security_result.command_confidence.unwrap_or(0.0);
-                        format!("Command Injection (confidence: {:.1}%)", cmd_conf * 100.0)
-                    }
-                    "PromptInjection" => {
-                        let prompt_conf = security_result.prompt_confidence.unwrap_or(0.0);
-                        format!("Prompt Injection (confidence: {:.1}%)", prompt_conf * 100.0)
-                    }
-                    "PatternMatch" => "Pattern-based Detection".to_string(),
-                    _ => format!(
-                        "Security Threat (confidence: {:.1}%)",
-                        security_result.confidence * 100.0
-                    ),
-                }
-            } else {
-                format!(
-                    "Security Threat (confidence: {:.1}%)",
-                    security_result.confidence * 100.0
-                )
-            };
-
-            // High confidence threat - require user approval with warning
             InspectionAction::RequireApproval(Some(format!(
-                "🔒 Security Alert: {}\n\n\
+                "🔒 Security Alert\n\n\
                 {}\n\n\
                 Finding ID: {}",
-                detection_msg, security_result.explanation, security_result.finding_id
+                security_result.explanation, security_result.finding_id
             )))
         } else {
-            // Either not malicious, or below threshold (already logged) - allow
             InspectionAction::Allow
         };
 

@@ -20,17 +20,9 @@ pub struct ScanResult {
     pub is_malicious: bool,
     pub confidence: f32,
     pub explanation: String,
-    pub detection_type: Option<DetectionType>,
-    pub command_confidence: Option<f32>,
-    pub prompt_confidence: Option<f32>,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum DetectionType {
-    CommandInjection,
-    PromptInjection,
-    PatternMatch,
-}
+
 
 #[derive(Clone)]
 struct DetailedScanResult {
@@ -167,19 +159,6 @@ impl PromptInjectionScanner {
             final_result.confidence >= threshold
         );
 
-        // Determine detection type based on which classifier triggered
-        let detection_type = if final_result.confidence >= threshold {
-            if !final_result.pattern_matches.is_empty() {
-                Some(DetectionType::PatternMatch)
-            } else if tool_result.confidence >= context_result.confidence {
-                Some(DetectionType::CommandInjection)
-            } else {
-                Some(DetectionType::PromptInjection)
-            }
-        } else {
-            None
-        };
-
         Ok(ScanResult {
             is_malicious: final_result.confidence >= threshold,
             confidence: final_result.confidence,
@@ -187,37 +166,25 @@ impl PromptInjectionScanner {
                 &final_result,
                 threshold,
                 &tool_content,
-                detection_type,
             ),
-            detection_type,
-            command_confidence: tool_result.ml_confidence,
-            prompt_confidence: context_result.ml_confidence,
         })
     }
 
     async fn analyze_text(&self, text: &str) -> Result<DetailedScanResult> {
-        let text_preview = if text.len() > 80 {
-            format!("{}...", &text[..80])
-        } else {
-            text.to_string()
-        };
-
-        if let Some(ml_confidence) = self.scan_command_with_classifier(text).await {
-            tracing::info!("🔍 [Command] conf={:.3} | {}", ml_confidence, text_preview);
-            return Ok(DetailedScanResult {
-                confidence: ml_confidence,
-                pattern_matches: Vec::new(),
-                ml_confidence: Some(ml_confidence),
-            });
+        if let Some(classifier) = self.command_classifier.as_ref() {
+            if let Some(ml_confidence) = self
+                .scan_with_classifier(text, classifier, ClassifierType::Command)
+                .await
+            {
+                return Ok(DetailedScanResult {
+                    confidence: ml_confidence,
+                    pattern_matches: Vec::new(),
+                    ml_confidence: Some(ml_confidence),
+                });
+            }
         }
 
         let (pattern_confidence, pattern_matches) = self.pattern_based_scanning(text);
-        tracing::info!(
-            "🔍 [Pattern] conf={:.3}, matches={} | {}",
-            pattern_confidence,
-            pattern_matches.len(),
-            text_preview
-        );
         Ok(DetailedScanResult {
             confidence: pattern_confidence,
             pattern_matches,
@@ -228,7 +195,15 @@ impl PromptInjectionScanner {
     async fn scan_conversation(&self, messages: &[Message]) -> Result<DetailedScanResult> {
         let user_messages = self.extract_user_messages(messages, USER_SCAN_LIMIT);
 
-        if user_messages.is_empty() || self.prompt_classifier.is_none() {
+        let Some(classifier) = self.prompt_classifier.as_ref() else {
+            return Ok(DetailedScanResult {
+                confidence: 0.0,
+                pattern_matches: Vec::new(),
+                ml_confidence: None,
+            });
+        };
+
+        if user_messages.is_empty() {
             return Ok(DetailedScanResult {
                 confidence: 0.0,
                 pattern_matches: Vec::new(),
@@ -236,26 +211,10 @@ impl PromptInjectionScanner {
             });
         }
 
-        // Create message-preview pairs for concurrent scanning
-        let message_pairs: Vec<(String, String)> = user_messages
-            .into_iter()
-            .map(|msg| {
-                let preview = if msg.len() > 60 {
-                    format!("{}...", &msg[..60])
-                } else {
-                    msg.clone()
-                };
-                (msg, preview)
-            })
-            .collect();
-
-        let max_confidence = stream::iter(message_pairs)
-            .map(|(msg, preview)| async move {
-                let result = self.scan_prompt_with_classifier(&msg).await;
-                if let Some(conf) = result {
-                    tracing::info!("🔍 [Prompt] conf={:.3} | {}", conf, preview);
-                }
-                result
+        let max_confidence = stream::iter(user_messages)
+            .map(|msg| async move {
+                self.scan_with_classifier(&msg, classifier, ClassifierType::Prompt)
+                    .await
             })
             .buffer_unordered(ML_SCAN_CONCURRENCY)
             .fold(0.0_f32, |acc, result| async move {
@@ -271,7 +230,6 @@ impl PromptInjectionScanner {
     }
 
     fn select_result_with_context_awareness(
-        // TODO: this may need some finetuning, based on how testing goes
         &self,
         tool_result: DetailedScanResult,
         context_result: DetailedScanResult,
@@ -320,18 +278,6 @@ impl PromptInjectionScanner {
         }
     }
 
-    async fn scan_command_with_classifier(&self, text: &str) -> Option<f32> {
-        let classifier = self.command_classifier.as_ref()?;
-        self.scan_with_classifier(text, classifier, ClassifierType::Command)
-            .await
-    }
-
-    async fn scan_prompt_with_classifier(&self, text: &str) -> Option<f32> {
-        let classifier = self.prompt_classifier.as_ref()?;
-        self.scan_with_classifier(text, classifier, ClassifierType::Prompt)
-            .await
-    }
-
     fn pattern_based_scanning(&self, text: &str) -> (f32, Vec<PatternMatch>) {
         let matches = self.pattern_matcher.scan_for_patterns(text);
         let confidence = self
@@ -347,7 +293,6 @@ impl PromptInjectionScanner {
         result: &DetailedScanResult,
         threshold: f32,
         tool_content: &str,
-        detection_type: Option<DetectionType>,
     ) -> String {
         if result.confidence < threshold {
             return "No security threats detected".to_string();
@@ -378,15 +323,8 @@ impl PromptInjectionScanner {
         }
 
         if let Some(ml_conf) = result.ml_confidence {
-            let detection_description = match detection_type {
-                Some(DetectionType::PromptInjection) => "Prompt injection detected",
-                Some(DetectionType::CommandInjection) => "Command injection detected",
-                _ => "Security threat detected",
-            };
-
             format!(
-                "{} (confidence: {:.1}%)\n\nCommand:\n{}",
-                detection_description,
+                "Security threat detected (confidence: {:.1}%)\n\nCommand:\n{}",
                 ml_conf * 100.0,
                 command_preview
             )

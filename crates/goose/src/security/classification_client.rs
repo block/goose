@@ -51,10 +51,7 @@ impl ClassificationClient {
     ) -> Result<Self> {
         let timeout = Duration::from_millis(timeout_ms.unwrap_or(5000));
 
-        let client = reqwest::Client::builder()
-            .timeout(timeout)
-            .build()
-            .context("Failed to create HTTP client")?;
+        let client = reqwest::Client::builder().timeout(timeout).build()?;
 
         Ok(Self {
             endpoint_url,
@@ -107,15 +104,6 @@ impl ClassificationClient {
                 model_type
             ))?;
 
-        // TODO: remove the following, just for testing
-        tracing::info!(
-            model_name = %model_name,
-            model_type = %model_type,
-            endpoint = %model_info.endpoint,
-            extra_params = ?model_info.extra_params,
-            "Creating classification client from model type"
-        );
-
         Self::new(
             model_info.endpoint.clone(),
             timeout_ms,
@@ -131,8 +119,7 @@ impl ClassificationClient {
     ) -> Result<Self> {
         let endpoint_url = endpoint_url.trim().to_string();
 
-        Url::parse(&endpoint_url)
-            .context("Invalid endpoint URL format. Must be a valid HTTP/HTTPS URL")?;
+        Url::parse(&endpoint_url)?;
 
         let auth_token = auth_token
             .map(|t| t.trim().to_string())
@@ -165,10 +152,7 @@ impl ClassificationClient {
             request_builder = request_builder.header("Authorization", format!("Bearer {}", token));
         }
 
-        let response = request_builder
-            .send()
-            .await
-            .context("Failed to send classification request")?;
+        let response = request_builder.send().await?;
 
         let status = response.status();
         let response = if !status.is_success() {
@@ -182,10 +166,7 @@ impl ClassificationClient {
             response
         };
 
-        let classification_response: ClassificationResponse = response
-            .json()
-            .await
-            .context("Failed to parse classification response")?;
+        let classification_response: ClassificationResponse = response.json().await?;
 
         let batch_result = classification_response
             .first()
