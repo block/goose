@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Plus, Edit2, Trash2, FileText } from 'lucide-react';
+import { Plus, Edit2, Trash2, FilePlus } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { SubRecipeFormData } from './recipeFormSchema';
 import SubRecipeModal from './SubRecipeModal';
+import CreateSubRecipeInline from './CreateSubRecipeInline';
 
 interface SubRecipeEditorProps {
   subRecipes: SubRecipeFormData[];
@@ -13,11 +14,16 @@ export default function SubRecipeEditor({ subRecipes, onChange }: SubRecipeEdito
   const [showModal, setShowModal] = useState(false);
   const [editingSubRecipe, setEditingSubRecipe] = useState<SubRecipeFormData | null>(null);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [showCreateRecipeModal, setShowCreateRecipeModal] = useState(false);
 
   const handleAddSubRecipe = () => {
     setEditingSubRecipe(null);
     setEditingIndex(null);
     setShowModal(true);
+  };
+
+  const handleCreateNewRecipe = () => {
+    setShowCreateRecipeModal(true);
   };
 
   const handleEditSubRecipe = (subRecipe: SubRecipeFormData, index: number) => {
@@ -41,20 +47,37 @@ export default function SubRecipeEditor({ subRecipes, onChange }: SubRecipeEdito
     }
   };
 
+  const handleSubRecipeSaved = (subRecipe: SubRecipeFormData) => {
+    // Directly add the subrecipe with all its configuration
+    onChange([...subRecipes, subRecipe]);
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
         <label className="block text-md text-textProminent font-bold">Subrecipes</label>
-        <Button
-          type="button"
-          onClick={handleAddSubRecipe}
-          variant="outline"
-          size="sm"
-          className="flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          Add Subrecipe
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            onClick={handleCreateNewRecipe}
+            variant="outline"
+            size="sm"
+            className="flex items-center gap-2"
+          >
+            <FilePlus className="w-4 h-4" />
+            Create New Subrecipe
+          </Button>
+          <Button
+            type="button"
+            onClick={handleAddSubRecipe}
+            variant="outline"
+            size="sm"
+            className="flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Add Existing
+          </Button>
+        </div>
       </div>
 
       <p className="text-textSubtle text-sm mb-4">
@@ -62,22 +85,7 @@ export default function SubRecipeEditor({ subRecipes, onChange }: SubRecipeEdito
         workflows and reusable components.
       </p>
 
-      {subRecipes.length === 0 ? (
-        <div className="border-2 border-dashed border-border-subtle rounded-lg p-8 text-center">
-          <FileText className="w-12 h-12 text-text-muted mx-auto mb-3" />
-          <p className="text-text-muted text-sm mb-3">No subrecipes configured</p>
-          <Button
-            type="button"
-            onClick={handleAddSubRecipe}
-            variant="outline"
-            size="sm"
-            className="flex items-center gap-2 mx-auto"
-          >
-            <Plus className="w-4 h-4" />
-            Add Your First Subrecipe
-          </Button>
-        </div>
-      ) : (
+      {subRecipes.length > 0 && (
         <div className="space-y-2">
           {subRecipes.map((subRecipe, index) => (
             <div
@@ -144,9 +152,20 @@ export default function SubRecipeEditor({ subRecipes, onChange }: SubRecipeEdito
 
       <SubRecipeModal
         isOpen={showModal}
-        onClose={() => setShowModal(false)}
+        onClose={() => {
+          setShowModal(false);
+        }}
         onSave={handleSaveSubRecipe}
         subRecipe={editingSubRecipe}
+      />
+
+      {/* Create Subrecipe Modal */}
+      <CreateSubRecipeInline
+        isOpen={showCreateRecipeModal}
+        onClose={() => {
+          setShowCreateRecipeModal(false);
+        }}
+        onSubRecipeSaved={handleSubRecipeSaved}
       />
     </div>
   );
