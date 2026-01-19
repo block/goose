@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { FileText, Clock, Home, Puzzle, History, AppWindow } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -16,7 +16,7 @@ import { ViewOptions, View } from '../../utils/navigationUtils';
 import { useChatContext } from '../../contexts/ChatContext';
 import { DEFAULT_CHAT_TITLE } from '../../contexts/ChatContext';
 import EnvironmentBadge from './EnvironmentBadge';
-import { listApps } from '../../api';
+import { useConfig } from '../ConfigContext';
 
 interface SidebarProps {
   onSelectSession: (sessionId: string) => void;
@@ -106,30 +106,19 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const chatContext = useChatContext();
+  const configContext = useConfig();
   const lastSessionIdRef = useRef<string | null>(null);
   const currentSessionId = currentPath === '/pair' ? searchParams.get('resumeSessionId') : null;
-  const [hasApps, setHasApps] = useState(false);
+
+  // Check if apps extension is enabled from config context
+  const appsExtensionEnabled =
+    configContext.extensionsList.find((ext) => ext.name === 'apps')?.enabled ?? false;
 
   useEffect(() => {
     if (currentSessionId) {
       lastSessionIdRef.current = currentSessionId;
     }
   }, [currentSessionId]);
-
-  useEffect(() => {
-    const checkApps = async () => {
-      try {
-        const response = await listApps({
-          throwOnError: true,
-        });
-        setHasApps((response.data?.apps || []).length > 0);
-      } catch (err) {
-        console.warn('Failed to check for apps:', err);
-      }
-    };
-
-    checkApps();
-  }, [currentPath]);
 
   useEffect(() => {
     const currentItem = menuItems.find(
@@ -197,7 +186,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
 
   const visibleMenuItems = menuItems.filter((entry) => {
     if (entry.type === 'item' && entry.path === '/apps') {
-      return hasApps;
+      return appsExtensionEnabled;
     }
     return true;
   });

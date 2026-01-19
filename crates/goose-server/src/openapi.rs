@@ -20,9 +20,8 @@ use goose::config::declarative_providers::{
 };
 use goose::conversation::message::{
     ActionRequired, ActionRequiredData, FrontendToolRequest, Message, MessageContent,
-    MessageMetadata, RedactedThinkingContent, SystemNotificationContent,
-    SystemNotificationType, ThinkingContent, TokenState, ToolConfirmationRequest, ToolRequest,
-    ToolResponse,
+    MessageMetadata, RedactedThinkingContent, SystemNotificationContent, SystemNotificationType,
+    ThinkingContent, TokenState, ToolConfirmationRequest, ToolRequest, ToolResponse,
 };
 
 use crate::routes::recipe_utils::RecipeManifest;
@@ -363,6 +362,8 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::agent::read_resource,
         super::routes::agent::call_tool,
         super::routes::agent::list_apps,
+        super::routes::agent::export_app,
+        super::routes::agent::import_app,
         super::routes::agent::update_from_session,
         super::routes::agent::agent_add_extension,
         super::routes::agent::agent_remove_extension,
@@ -538,6 +539,8 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::agent::CallToolResponse,
         super::routes::agent::ListAppsRequest,
         super::routes::agent::ListAppsResponse,
+        super::routes::agent::ImportAppRequest,
+        super::routes::agent::ImportAppResponse,
         super::routes::agent::StartAgentRequest,
         super::routes::agent::ResumeAgentRequest,
         super::routes::agent::StopAgentRequest,

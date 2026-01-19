@@ -392,6 +392,15 @@ export type ImageContent = {
     mimeType: string;
 };
 
+export type ImportAppRequest = {
+    html: string;
+};
+
+export type ImportAppResponse = {
+    message: string;
+    name: string;
+};
+
 export type ImportSessionRequest = {
     json: string;
 };
@@ -1313,6 +1322,69 @@ export type CallToolResponses = {
 };
 
 export type CallToolResponse2 = CallToolResponses[keyof CallToolResponses];
+
+export type ExportAppData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the app to export
+         */
+        name: string;
+    };
+    query?: never;
+    url: '/agent/export_app/{name}';
+};
+
+export type ExportAppErrors = {
+    /**
+     * App not found
+     */
+    404: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type ExportAppError = ExportAppErrors[keyof ExportAppErrors];
+
+export type ExportAppResponses = {
+    /**
+     * App HTML exported successfully
+     */
+    200: string;
+};
+
+export type ExportAppResponse = ExportAppResponses[keyof ExportAppResponses];
+
+export type ImportAppData = {
+    body: ImportAppRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/import_app';
+};
+
+export type ImportAppErrors = {
+    /**
+     * Bad request - Invalid HTML
+     */
+    400: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type ImportAppError = ImportAppErrors[keyof ImportAppErrors];
+
+export type ImportAppResponses = {
+    /**
+     * App imported successfully
+     */
+    201: ImportAppResponse;
+};
+
+export type ImportAppResponse2 = ImportAppResponses[keyof ImportAppResponses];
 
 export type ListAppsData = {
     body?: never;

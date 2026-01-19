@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
 import { Button } from '../ui/button';
-import { Play } from 'lucide-react';
-import { GooseApp, listApps } from '../../api';
+import { Download, Play, Upload } from 'lucide-react';
+import { exportApp, GooseApp, importApp, listApps } from '../../api';
 import { useChatContext } from '../../contexts/ChatContext';
+import { formatAppName } from '../../utils/conversionUtils';
 
 const GridLayout = ({ children }: { children: React.ReactNode }) => {
   return (
@@ -73,14 +74,14 @@ export default function AppsView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
-  // Listen for platform events (app created/updated/deleted) and handle accordingly
+  // Listen for platform events to refresh the displayed apps list
+  // Note: App window lifecycle (launch/refresh/close) is handled globally in AppInner
   useEffect(() => {
     const handlePlatformEvent = (event: Event) => {
       const customEvent = event as CustomEvent;
       const eventData = customEvent.detail;
 
       if (eventData?.extension === 'apps') {
-        const { event_type, app_name } = eventData;
         const eventSessionId = eventData.sessionId || sessionId;
 
         // Refresh apps list to get latest state
@@ -91,38 +92,6 @@ export default function AppsView() {
           }).then((response) => {
             if (response.data?.apps) {
               setApps(response.data.apps);
-
-              // Handle specific event types
-              const targetApp = response.data.apps.find((app) => app.name === app_name);
-
-              switch (event_type) {
-                case 'app_created':
-                  // Open the newly created app
-                  if (targetApp) {
-                    window.electron.launchApp(targetApp).catch((err) => {
-                      console.error('Failed to launch newly created app:', err);
-                    });
-                  }
-                  break;
-
-                case 'app_updated':
-                  // Refresh the app if it's currently open
-                  if (targetApp) {
-                    window.electron.refreshApp(targetApp).catch((err) => {
-                      console.error('Failed to refresh updated app:', err);
-                    });
-                  }
-                  break;
-
-                case 'app_deleted':
-                  // Close the app if it's currently open
-                  if (app_name) {
-                    window.electron.closeApp(app_name).catch((err) => {
-                      console.error('Failed to close deleted app:', err);
-                    });
-                  }
-                  break;
-              }
             }
           });
         }
@@ -164,6 +133,62 @@ export default function AppsView() {
     }
   };
 
+  const handleDownloadApp = async (app: GooseApp) => {
+    try {
+      const response = await exportApp({
+        throwOnError: true,
+        path: { name: app.name },
+      });
+
+      if (response.data) {
+        const blob = new Blob([response.data as string], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${app.name}.html`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+    } catch (err) {
+      console.error('Failed to export app:', err);
+      setError(err instanceof Error ? err.message : 'Failed to export app');
+    }
+  };
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleUploadApp = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      await importApp({
+        throwOnError: true,
+        body: { html: text },
+      });
+
+      // Refresh from cache (import already wrote to cache)
+      const response = await listApps({
+        throwOnError: true,
+      });
+      setApps(response.data?.apps || []);
+      setError(null);
+    } catch (err) {
+      console.error('Failed to import app:', err);
+      setError(err instanceof Error ? err.message : 'Failed to import app');
+    }
+
+    // Reset file input
+    event.target.value = '';
+  };
+
   // Only show error-only UI if we have no apps to display
   if (error && apps.length === 0) {
     return (
@@ -179,10 +204,26 @@ export default function AppsView() {
   return (
     <MainPanelLayout>
       <div className="flex-1 flex flex-col min-h-0">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".html"
+          onChange={handleUploadApp}
+          style={{ display: 'none' }}
+        />
         <div className="bg-background-default px-8 pb-8 pt-16">
           <div className="flex flex-col page-transition">
             <div className="flex justify-between items-center mb-1">
               <h1 className="text-4xl font-light">Apps</h1>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleImportClick}
+                className="flex items-center gap-2"
+              >
+                <Upload className="h-4 w-4" />
+                Import App
+              </Button>
             </div>
             <p className="text-sm text-text-muted mb-4">
               Applications from your MCP servers that can run in standalone windows.
@@ -200,7 +241,9 @@ export default function AppsView() {
               <div className="text-center">
                 <h3 className="text-lg font-medium mb-2">No apps available</h3>
                 <p className="text-sm text-text-muted">
-                  Install MCP servers that provide UI resources to see apps here.
+                  Open a chat and ask goose for the app you want to have. It can build one for you
+                  and that will appear here. Or if somebody shared an, app you can import it using
+                  the button above.i
                 </p>
               </div>
             </div>
@@ -212,7 +255,9 @@ export default function AppsView() {
                   className="flex flex-col p-4 border border-border-muted rounded-lg bg-background-panel hover:border-border-default transition-colors"
                 >
                   <div className="flex-1 mb-4">
-                    <h3 className="font-medium text-text-default mb-2">{app.name}</h3>
+                    <h3 className="font-medium text-text-default mb-2">
+                      {formatAppName(app.name)}
+                    </h3>
                     {app.description && (
                       <p className="text-sm text-text-muted mb-2">{app.description}</p>
                     )}
@@ -231,6 +276,14 @@ export default function AppsView() {
                     >
                       <Play className="h-4 w-4" />
                       Launch
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDownloadApp(app)}
+                      className="flex items-center gap-2"
+                    >
+                      <Download className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>

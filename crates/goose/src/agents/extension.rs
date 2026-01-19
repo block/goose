@@ -160,9 +160,7 @@ impl PlatformExtensionContext {
             }
         } else {
             // Create new meta
-            result.meta = Some(rmcp::model::Meta(
-                meta_value.as_object().unwrap().clone()
-            ));
+            result.meta = Some(rmcp::model::Meta(meta_value.as_object().unwrap().clone()));
         }
 
         result

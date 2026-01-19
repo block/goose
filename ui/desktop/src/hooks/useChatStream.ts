@@ -22,6 +22,7 @@ import {
 } from '../types/message';
 import { errorMessage } from '../utils/conversionUtils';
 import { showExtensionLoadResults } from '../utils/extensionErrorUtils';
+import { maybe_handle_platform_event } from '../utils/platform_events';
 
 const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
 
@@ -137,21 +138,7 @@ async function streamFromResponse(
         }
         case 'Notification': {
           updateNotifications(event as NotificationEvent);
-
-          // Check if this is a platform event notification
-          // NOTE: If we add more notification types beyond platform_event, consider
-          // implementing a registry pattern to map notification methods to handlers
-          if (event.message && typeof event.message === 'object' && 'method' in event.message) {
-            const notification = event.message as { method?: string; params?: unknown };
-            if (notification.method === 'platform_event' && notification.params) {
-              // Dispatch window event with sessionId included
-              window.dispatchEvent(
-                new CustomEvent('platform-event', {
-                  detail: { ...notification.params, sessionId },
-                })
-              );
-            }
-          }
+          maybe_handle_platform_event(event.message, sessionId);
           break;
         }
         case 'Ping':
@@ -200,12 +187,9 @@ export function useChatStream({
     messagesRef.current = newMessages;
   }, []);
 
-  const updateNotifications = useCallback(
-    (notification: NotificationEvent) => {
-      setNotifications((prev) => [...prev, notification]);
-    },
-    []
-  );
+  const updateNotifications = useCallback((notification: NotificationEvent) => {
+    setNotifications((prev) => [...prev, notification]);
+  }, []);
 
   const onFinish = useCallback(
     async (error?: string): Promise<void> => {

@@ -47,6 +47,7 @@ import { errorMessage } from './utils/conversionUtils';
 import { getInitialWorkingDir } from './utils/workingDir';
 import { usePageViewTracking } from './hooks/useAnalytics';
 import { trackOnboardingCompleted, trackErrorWithContext } from './utils/analytics';
+import { registerPlatformEventHandlers } from './utils/platform_events';
 
 function PageViewTracker() {
   usePageViewTracking();
@@ -552,6 +553,11 @@ export function AppInner() {
       window.electron.off('set-initial-message', handleSetInitialMessage);
     };
   }, [navigate]);
+
+  // Register platform event handlers for app lifecycle management
+  useEffect(() => {
+    return registerPlatformEventHandlers();
+  }, []);
 
   if (fatalError) {
     return <ErrorUI error={errorMessage(fatalError)} />;
