@@ -95,6 +95,9 @@ static MODEL_SPECIFIC_LIMITS: Lazy<Vec<(&'static str, usize)>> = Lazy::new(|| {
         ("grok-4", 256_000),
         ("grok-code-fast-1", 256_000),
         ("grok", 131_072),
+        // mistral
+        ("devstral-2512", 262_144),
+        ("devstral-medium", 131_072),
         // other
         ("kimi-k2", 131_072),
     ]
@@ -444,5 +447,61 @@ mod tests {
         ]);
         let config = ModelConfig::new("test-model").unwrap();
         assert_eq!(config.max_tokens, None);
+    }
+
+    #[test]
+    fn test_devstral_2512_context_limit() {
+        assert_eq!(
+            ModelConfig::get_model_specific_limit("devstral-2512"),
+            Some(262_144)
+        );
+    }
+
+    #[test]
+    fn test_devstral_2512_openrouter_context_limit() {
+        assert_eq!(
+            ModelConfig::get_model_specific_limit("mistralai/devstral-2512:free"),
+            Some(262_144)
+        );
+    }
+
+    #[test]
+    fn test_devstral_2512_openrouter_paid_context_limit() {
+        assert_eq!(
+            ModelConfig::get_model_specific_limit("mistralai/devstral-2512"),
+            Some(262_144)
+        );
+    }
+
+    #[test]
+    fn test_devstral_medium_context_limit() {
+        assert_eq!(
+            ModelConfig::get_model_specific_limit("devstral-medium"),
+            Some(131_072)
+        );
+    }
+
+    #[test]
+    fn test_devstral_small_context_limit() {
+        assert_eq!(
+            ModelConfig::get_model_specific_limit("devstral-small"),
+            None
+        );
+    }
+
+    #[test]
+    fn test_context_limit_prefers_fast_model_min_when_unset() {
+        let config = ModelConfig {
+            model_name: "devstral-2512".to_string(),
+            context_limit: None,
+            temperature: None,
+            max_tokens: None,
+            toolshim: false,
+            toolshim_model: None,
+            fast_model: Some("devstral-medium".to_string()),
+            request_params: None,
+        };
+
+        assert_eq!(config.context_limit(), 131_072);
     }
 }
