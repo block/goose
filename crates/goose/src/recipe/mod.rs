@@ -760,7 +760,7 @@ isGlobal: true"#;
 
         assert!(recipe.extensions.is_some());
         let extensions = recipe.extensions.unwrap();
-        assert_eq!(extensions.len(), 1);
+        assert_eq!(extensions.len(), 2);
 
         if let ExtensionConfig::Stdio {
             name, description, ..
