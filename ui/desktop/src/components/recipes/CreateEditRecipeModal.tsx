@@ -19,6 +19,7 @@ interface CreateEditRecipeModalProps {
   recipe?: Recipe;
   isCreateMode?: boolean;
   recipeId?: string | null;
+  onRecipeSaved?: (savedRecipeId: string) => void;
 }
 
 export default function CreateEditRecipeModal({
@@ -27,6 +28,7 @@ export default function CreateEditRecipeModal({
   recipe,
   isCreateMode = false,
   recipeId,
+  onRecipeSaved,
 }: CreateEditRecipeModalProps) {
   const getInitialValues = React.useCallback((): RecipeFormData => {
     if (recipe) {
@@ -45,7 +47,7 @@ export default function CreateEditRecipeModal({
           path: sr.path,
           description: sr.description || undefined,
           values: sr.values || undefined,
-          sequential_when_repeated: sr.sequential_when_repeated || undefined,
+          sequential_when_repeated: sr.sequential_when_repeated ?? false,
         })),
       };
     }
@@ -146,7 +148,7 @@ export default function CreateEditRecipeModal({
             path: subRecipe.path,
             description: subRecipe.description || undefined,
             values: subRecipe.values || undefined,
-            sequential_when_repeated: subRecipe.sequential_when_repeated || undefined,
+            sequential_when_repeated: subRecipe.sequential_when_repeated,
           }))
         : undefined;
 
@@ -283,7 +285,12 @@ export default function CreateEditRecipeModal({
     try {
       const recipe = getCurrentRecipe();
 
-      await saveRecipe(recipe, recipeId);
+      const savedRecipeId = await saveRecipe(recipe, recipeId);
+
+      // Call the callback with the saved recipe ID if provided
+      if (onRecipeSaved) {
+        onRecipeSaved(savedRecipeId);
+      }
 
       onClose(true);
 
