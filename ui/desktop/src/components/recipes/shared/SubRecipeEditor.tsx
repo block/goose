@@ -48,7 +48,6 @@ export default function SubRecipeEditor({ subRecipes, onChange }: SubRecipeEdito
   };
 
   const handleSubRecipeSaved = (subRecipe: SubRecipeFormData) => {
-    // Directly add the subrecipe with all its configuration
     onChange([...subRecipes, subRecipe]);
   };
 
