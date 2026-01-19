@@ -340,6 +340,7 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                             content.push(MessageContent::tool_request(
                                 id,
                                 Ok(CallToolRequestParam {
+                                    task: None,
                                     name: function_name.into(),
                                     arguments: Some(object(params)),
                                 }),
@@ -562,7 +563,11 @@ where
                             Ok(params) => {
                                 MessageContent::tool_request_with_metadata(
                                     id.clone(),
-                                    Ok(CallToolRequestParam { name: function_name.clone().into(), arguments: Some(object(params)) }),
+                                    Ok(CallToolRequestParam {
+                                        task: None,
+                                        name: function_name.clone().into(),
+                                        arguments: Some(object(params))
+                                    }),
                                     metadata.as_ref(),
                                 )
                             },
@@ -612,11 +617,7 @@ where
 
                 yield (
                     Some(msg),
-                    if chunk.choices[0].finish_reason.is_some() {
-                        usage
-                    } else {
-                        None
-                    },
+                    usage,
                 )
             } else if usage.is_some() {
                 yield (None, usage)
@@ -716,10 +717,10 @@ pub fn create_request(
         payload["stream_options"] = json!({"include_usage": true});
     }
 
-    // Merge any extra parameters into the payload
-    if let Some(extra) = &model_config.extra_params {
+    // Add request_params to the payload (e.g., anthropic_beta for extended context)
+    if let Some(params) = &model_config.request_params {
         if let Some(obj) = payload.as_object_mut() {
-            for (key, value) in extra {
+            for (key, value) in params {
                 obj.insert(key.clone(), value.clone());
             }
         }
@@ -878,6 +879,7 @@ mod tests {
             Message::assistant().with_tool_request(
                 "tool1",
                 Ok(CallToolRequestParam {
+                    task: None,
                     name: "example".into(),
                     arguments: Some(object!({"param1": "value1"})),
                 }),
@@ -922,6 +924,7 @@ mod tests {
         let mut messages = vec![Message::assistant().with_tool_request(
             "tool1",
             Ok(CallToolRequestParam {
+                task: None,
                 name: "example".into(),
                 arguments: Some(object!({"param1": "value1"})),
             }),
@@ -1161,6 +1164,7 @@ mod tests {
         let message = Message::assistant().with_tool_request(
             "tool1",
             Ok(CallToolRequestParam {
+                task: None,
                 name: "test_tool".into(),
                 arguments: None, // This is the key case the fix addresses
             }),
@@ -1188,6 +1192,7 @@ mod tests {
         let message = Message::assistant().with_tool_request(
             "tool1",
             Ok(CallToolRequestParam {
+                task: None,
                 name: "test_tool".into(),
                 arguments: Some(object!({"param": "value", "number": 42})),
             }),
@@ -1218,6 +1223,7 @@ mod tests {
         let message = Message::assistant().with_frontend_tool_request(
             "frontend_tool1",
             Ok(CallToolRequestParam {
+                task: None,
                 name: "frontend_test_tool".into(),
                 arguments: None, // This is the key case the fix addresses
             }),
@@ -1245,6 +1251,7 @@ mod tests {
         let message = Message::assistant().with_frontend_tool_request(
             "frontend_tool1",
             Ok(CallToolRequestParam {
+                task: None,
                 name: "frontend_test_tool".into(),
                 arguments: Some(object!({"action": "click", "element": "button"})),
             }),
@@ -1297,7 +1304,7 @@ mod tests {
             toolshim: false,
             toolshim_model: None,
             fast_model: None,
-            extra_params: None,
+            request_params: None,
         };
         let request = create_request(
             &model_config,
@@ -1337,7 +1344,7 @@ mod tests {
             toolshim: false,
             toolshim_model: None,
             fast_model: None,
-            extra_params: None,
+            request_params: None,
         };
         let request = create_request(
             &model_config,
@@ -1378,7 +1385,7 @@ mod tests {
             toolshim: false,
             toolshim_model: None,
             fast_model: None,
-            extra_params: None,
+            request_params: None,
         };
         let request = create_request(
             &model_config,

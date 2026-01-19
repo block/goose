@@ -422,6 +422,7 @@ impl CodeExecutionClient {
         let info = InitializeResult {
             protocol_version: ProtocolVersion::V_2025_03_26,
             capabilities: ServerCapabilities {
+                tasks: None,
                 tools: Some(ToolsCapability {
                     list_changed: Some(false),
                 }),
@@ -667,6 +668,7 @@ impl CodeExecutionClient {
             let result = match extension_manager.as_ref().and_then(|w| w.upgrade()) {
                 Some(manager) => {
                     let tool_call = CallToolRequestParam {
+                        task: None,
                         name: tool_name.into(),
                         arguments: serde_json::from_str(&arguments).ok(),
                     };
@@ -925,9 +927,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_record_result_outputs_valid_json() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let session_manager = Arc::new(crate::session::SessionManager::new(
+            temp_dir.path().to_path_buf(),
+        ));
         let context = PlatformExtensionContext {
-            session_id: None,
             extension_manager: None,
+            session_manager,
         };
         let client = CodeExecutionClient::new(context).unwrap();
 
@@ -939,7 +945,12 @@ mod tests {
         );
 
         let result = client
-            .call_tool("execute_code", Some(args), CancellationToken::new())
+            .call_tool(
+                "execute_code",
+                Some(args),
+                McpMeta::new("test-session-id"),
+                CancellationToken::new(),
+            )
             .await
             .unwrap();
 

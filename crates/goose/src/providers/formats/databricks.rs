@@ -341,6 +341,7 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                             content.push(MessageContent::tool_request(
                                 id,
                                 Ok(CallToolRequestParam {
+                                    task: None,
                                     name: function_name.into(),
                                     arguments: Some(object(params)),
                                 }),
@@ -641,6 +642,15 @@ pub fn create_request(
         apply_cache_control_for_claude(&mut payload);
     }
 
+    // Add request_params to the payload (e.g., anthropic_beta for extended context)
+    if let Some(params) = &model_config.request_params {
+        if let Some(obj) = payload.as_object_mut() {
+            for (key, value) in params {
+                obj.insert(key.clone(), value.clone());
+            }
+        }
+    }
+
     Ok(payload)
 }
 
@@ -726,6 +736,7 @@ mod tests {
             Message::assistant().with_tool_request(
                 "tool1",
                 Ok(CallToolRequestParam {
+                    task: None,
                     name: "example".into(),
                     arguments: Some(object!({"param1": "value1"})),
                 }),
@@ -771,6 +782,7 @@ mod tests {
         let mut messages = vec![Message::assistant().with_tool_request(
             "tool1",
             Ok(CallToolRequestParam {
+                task: None,
                 name: "example".into(),
                 arguments: Some(object!({"param1": "value1"})),
             }),
@@ -1010,7 +1022,7 @@ mod tests {
             toolshim: false,
             toolshim_model: None,
             fast_model: None,
-            extra_params: None,
+            request_params: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         let obj = request.as_object().unwrap();
@@ -1042,7 +1054,7 @@ mod tests {
             toolshim: false,
             toolshim_model: None,
             fast_model: None,
-            extra_params: None,
+            request_params: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         assert_eq!(request["reasoning_effort"], "high");
@@ -1149,6 +1161,7 @@ mod tests {
         let message = Message::assistant().with_tool_request(
             "tool1",
             Ok(CallToolRequestParam {
+                task: None,
                 name: "test_tool".into(),
                 arguments: None, // This is the key case the fix addresses
             }),
@@ -1178,6 +1191,7 @@ mod tests {
         let message = Message::assistant().with_tool_request(
             "tool1",
             Ok(CallToolRequestParam {
+                task: None,
                 name: "test_tool".into(),
                 arguments: Some(object!({"param": "value", "number": 42})),
             }),
@@ -1357,7 +1371,7 @@ mod tests {
             toolshim: false,
             toolshim_model: None,
             fast_model: None,
-            extra_params: None,
+            request_params: None,
         };
 
         let messages = vec![
@@ -1409,7 +1423,7 @@ mod tests {
             toolshim: false,
             toolshim_model: None,
             fast_model: None,
-            extra_params: None,
+            request_params: None,
         };
 
         let messages = vec![Message::user().with_text("Hello")];

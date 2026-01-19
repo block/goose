@@ -219,7 +219,7 @@ async fn create_provider(
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect();
         if !filtered.is_empty() {
-            model_config = model_config.with_extra_params(filtered);
+            model_config = model_config.with_request_params(Some(filtered));
         }
     }
 
