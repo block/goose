@@ -1,68 +1,32 @@
-import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, FolderOpen } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, Save, Loader2, Plus, Trash2 } from 'lucide-react';
 import { Button } from '../../ui/button';
+import { toastSuccess, toastError } from '../../../toasts';
+import { saveRecipe } from '../../../recipe/recipe_management';
+import { Recipe } from '../../../recipe';
 import { SubRecipeFormData } from './recipeFormSchema';
-import { useEscapeKey } from '../../../hooks/useEscapeKey';
 
-interface SubRecipeModalProps {
+interface CreateSubRecipeInlineProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (subRecipe: SubRecipeFormData) => void;
-  subRecipe?: SubRecipeFormData | null;
+  onSubRecipeSaved: (subRecipe: SubRecipeFormData) => void;
 }
 
-export default function SubRecipeModal({
+export default function CreateSubRecipeInline({
   isOpen,
   onClose,
-  onSave,
-  subRecipe,
-}: SubRecipeModalProps) {
+  onSubRecipeSaved,
+}: CreateSubRecipeInlineProps) {
   const [name, setName] = useState('');
-  const [path, setPath] = useState('');
+  const [title, setTitle] = useState('');
+  const [recipeDescription, setRecipeDescription] = useState('');
+  const [instructions, setInstructions] = useState('');
   const [description, setDescription] = useState('');
   const [sequentialWhenRepeated, setSequentialWhenRepeated] = useState(false);
   const [values, setValues] = useState<Record<string, string>>({});
   const [newValueKey, setNewValueKey] = useState('');
   const [newValueValue, setNewValueValue] = useState('');
-
-  useEscapeKey(isOpen, onClose);
-
-  useEffect(() => {
-    if (isOpen) {
-      if (subRecipe) {
-        setName(subRecipe.name);
-        setPath(subRecipe.path);
-        setDescription(subRecipe.description || '');
-        setSequentialWhenRepeated(subRecipe.sequential_when_repeated || false);
-        setValues(subRecipe.values || {});
-      } else {
-        setName('');
-        setPath('');
-        setDescription('');
-        setSequentialWhenRepeated(false);
-        setValues({});
-      }
-      setNewValueKey('');
-      setNewValueValue('');
-    }
-  }, [isOpen, subRecipe]);
-
-  const handleSave = () => {
-    if (!name.trim() || !path.trim()) {
-      return;
-    }
-
-    const subRecipeData: SubRecipeFormData = {
-      name: name.trim(),
-      path: path.trim(),
-      description: description.trim() || undefined,
-      sequential_when_repeated: sequentialWhenRepeated,
-      values: Object.keys(values).length > 0 ? values : undefined,
-    };
-
-    onSave(subRecipeData);
-    onClose();
-  };
+  const [isSaving, setIsSaving] = useState(false);
 
   const handleAddValue = () => {
     if (newValueKey.trim() && newValueValue.trim()) {
@@ -85,30 +49,73 @@ export default function SubRecipeModal({
     }
   };
 
-  const handleBrowseFile = async () => {
+  const handleSave = async () => {
+    if (!name.trim() || !title.trim() || !recipeDescription.trim() || !instructions.trim()) {
+      toastError({
+        title: 'Validation Failed',
+        msg: 'Name, title, recipe description, and instructions are required.',
+      });
+      return;
+    }
+
+    setIsSaving(true);
     try {
-      const selectedPath = await window.electron.selectFileOrDirectory();
-      if (selectedPath) {
-        setPath(selectedPath);
-      }
+      const recipe: Recipe = {
+        version: '1.0.0',
+        title: title.trim(),
+        description: recipeDescription.trim(),
+        instructions: instructions.trim(),
+      };
+
+      const savedRecipeId = await saveRecipe(recipe, null);
+
+      const subRecipe: SubRecipeFormData = {
+        name: name.trim(),
+        path: `${savedRecipeId}.yaml`,
+        description: description.trim() || undefined,
+        sequential_when_repeated: sequentialWhenRepeated,
+        values: Object.keys(values).length > 0 ? values : undefined,
+      };
+
+      toastSuccess({
+        title: title.trim(),
+        msg: 'Subrecipe created successfully',
+      });
+
+      onSubRecipeSaved(subRecipe);
+      onClose();
+
+      // Reset form
+      setName('');
+      setTitle('');
+      setRecipeDescription('');
+      setInstructions('');
+      setDescription('');
+      setSequentialWhenRepeated(false);
+      setValues({});
     } catch (error) {
-      console.error('Failed to browse for file:', error);
+      console.error('Failed to save subrecipe:', error);
+
+      toastError({
+        title: 'Save Failed',
+        msg: `Failed to save subrecipe: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      });
+    } finally {
+      setIsSaving(false);
     }
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[500] flex items-center justify-center bg-black/50">
+    <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/50">
       <div className="bg-background-default border border-borderSubtle rounded-lg w-[90vw] max-w-2xl max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-borderSubtle">
           <div>
-            <h2 className="text-xl font-medium text-textProminent">
-              {subRecipe ? 'Configure Subrecipe' : 'Add Subrecipe'}
-            </h2>
+            <h2 className="text-xl font-medium text-textProminent">Create New Subrecipe</h2>
             <p className="text-textSubtle text-sm">
-              Configure a subrecipe that can be called as a tool during recipe execution
+              Create a simple recipe to use as a callable tool in your main recipe
             </p>
           </div>
           <Button
@@ -144,53 +151,75 @@ export default function SubRecipeModal({
             </p>
           </div>
 
-          {/* Path Field */}
+          {/* Title Field */}
           <div>
             <label
-              htmlFor="subrecipe-path"
+              htmlFor="subrecipe-title"
               className="block text-sm font-medium text-text-standard mb-2"
             >
-              Path <span className="text-red-500">*</span>
+              Recipe Title <span className="text-red-500">*</span>
             </label>
-            <div className="flex gap-2">
-              <input
-                id="subrecipe-path"
-                type="text"
-                value={path}
-                onChange={(e) => setPath(e.target.value)}
-                className="flex-1 p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="e.g., ./subrecipes/security-analysis.yaml"
-              />
-              <Button
-                type="button"
-                onClick={handleBrowseFile}
-                variant="outline"
-                className="px-4 py-2 flex items-center gap-2"
-              >
-                <FolderOpen className="w-4 h-4" />
-                Browse
-              </Button>
-            </div>
-            <p className="text-xs text-text-muted mt-1">
-              Browse for an existing recipe file or enter a path manually
-            </p>
+            <input
+              id="subrecipe-title"
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="e.g., Security Analysis Tool"
+            />
           </div>
 
-          {/* Description Field */}
+          {/* Recipe Description Field */}
           <div>
             <label
-              htmlFor="subrecipe-description"
+              htmlFor="recipe-description"
               className="block text-sm font-medium text-text-standard mb-2"
             >
-              Description
+              Recipe Description <span className="text-red-500">*</span>
+            </label>
+            <input
+              id="recipe-description"
+              type="text"
+              value={recipeDescription}
+              onChange={(e) => setRecipeDescription(e.target.value)}
+              className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="What this recipe does when executed"
+            />
+          </div>
+
+          {/* Instructions Field */}
+          <div>
+            <label
+              htmlFor="subrecipe-instructions"
+              className="block text-sm font-medium text-text-standard mb-2"
+            >
+              Instructions <span className="text-red-500">*</span>
             </label>
             <textarea
-              id="subrecipe-description"
+              id="subrecipe-instructions"
+              value={instructions}
+              onChange={(e) => setInstructions(e.target.value)}
+              className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono text-sm"
+              placeholder="Instructions for the AI when this subrecipe is called..."
+              rows={8}
+            />
+          </div>
+
+          {/* Tool Description Field */}
+          <div>
+            <label
+              htmlFor="tool-description"
+              className="block text-sm font-medium text-text-standard mb-2"
+            >
+              Tool Description
+            </label>
+            <textarea
+              id="tool-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-              placeholder="Optional description of what this subrecipe does..."
-              rows={3}
+              placeholder="Optional description shown when this is called as a tool"
+              rows={2}
             />
           </div>
 
@@ -207,11 +236,11 @@ export default function SubRecipeModal({
               Sequential when repeated
             </label>
             <span className="text-xs text-text-muted">
-              (Forces sequential execution of multiple subrecipe instances)
+              (Forces sequential execution of multiple instances)
             </span>
           </div>
 
-          {/* Values Section */}
+          {/* Pre-configured Values */}
           <div>
             <label className="block text-sm font-medium text-text-standard mb-2">
               Pre-configured Values
@@ -280,16 +309,32 @@ export default function SubRecipeModal({
         </div>
 
         {/* Footer */}
-        <div className="flex gap-2 p-6 border-t border-borderSubtle">
-          <Button onClick={onClose} variant="outline" className="flex-1">
+        <div className="flex gap-3 p-6 border-t border-borderSubtle justify-end">
+          <Button onClick={onClose} variant="outline">
             Cancel
           </Button>
           <Button
             onClick={handleSave}
-            disabled={!name.trim() || !path.trim()}
-            className="flex-1 bg-blue-500 hover:bg-blue-600 text-white"
+            disabled={
+              !name.trim() ||
+              !title.trim() ||
+              !recipeDescription.trim() ||
+              !instructions.trim() ||
+              isSaving
+            }
+            className="bg-blue-500 hover:bg-blue-600 text-white inline-flex items-center gap-2"
           >
-            {subRecipe ? 'Apply' : 'Add Subrecipe'}
+            {isSaving ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Creating...
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4" />
+                Create & Add Subrecipe
+              </>
+            )}
           </Button>
         </div>
       </div>

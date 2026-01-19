@@ -20,7 +20,7 @@ const subRecipeSchema = z.object({
   path: z.string().min(1, 'Subrecipe path is required'),
   description: z.string().optional(),
   values: z.record(z.string()).nullable().optional(),
-  sequential_when_repeated: z.boolean().optional(),
+  sequential_when_repeated: z.boolean().default(false),
 });
 
 export type SubRecipeFormData = z.infer<typeof subRecipeSchema>;
