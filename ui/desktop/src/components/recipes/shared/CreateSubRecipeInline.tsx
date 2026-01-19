@@ -85,7 +85,6 @@ export default function CreateSubRecipeInline({
       onSubRecipeSaved(subRecipe);
       onClose();
 
-      // Reset form
       setName('');
       setTitle('');
       setRecipeDescription('');
