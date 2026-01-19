@@ -262,7 +262,7 @@
       "prompt": 3e-6,
       "completion": 0.000015,
       "request": 0.0,
-      "image": 0.0
+      "image": 0.0048
     }
   },
   {
@@ -2818,8 +2818,7 @@
   {
     "id": "qwen/qwen3-next-80b-a3b-thinking",
     "name": "Qwen: Qwen3 Next 80B A3B Thinking",
-    "context_length": 262144,
-    "max_completion_tokens": 262144,
+    "context_length": 128000,
     "input_modalities": [
       "text"
     ],
@@ -2856,8 +2855,8 @@
   {
     "id": "qwen/qwen3-vl-235b-a22b-thinking",
     "name": "Qwen: Qwen3 VL 235B A22B Thinking",
-    "context_length": 262144,
-    "max_completion_tokens": 262144,
+    "context_length": 131072,
+    "max_completion_tokens": 32768,
     "input_modalities": [
       "image",
       "text"
@@ -2865,10 +2864,10 @@
     "output_modalities": [
       "text"
     ],
-    "supports_tools": true,
+    "supports_tools": false,
     "pricing": {
-      "prompt": 4.5e-7,
-      "completion": 3.5e-6,
+      "prompt": 9.8e-7,
+      "completion": 3.95e-6,
       "request": 0.0,
       "image": 0.0
     }
