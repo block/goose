@@ -59,6 +59,7 @@ pub struct OpenAiProvider {
     model: ModelConfig,
     custom_headers: Option<HashMap<String, String>>,
     supports_streaming: bool,
+    supports_structured_output: bool,
     name: String,
 }
 
@@ -109,6 +110,7 @@ impl OpenAiProvider {
             api_client = api_client.with_headers(header_map)?;
         }
 
+        let supports_structured_output = Self::model_supports_structured_output(&model.model_name);
         Ok(Self {
             api_client,
             base_path,
@@ -117,12 +119,14 @@ impl OpenAiProvider {
             model,
             custom_headers,
             supports_streaming: true,
+            supports_structured_output,
             name: Self::metadata().name,
         })
     }
 
     #[doc(hidden)]
     pub fn new(api_client: ApiClient, model: ModelConfig) -> Self {
+        let supports_structured_output = Self::model_supports_structured_output(&model.model_name);
         Self {
             api_client,
             base_path: "v1/chat/completions".to_string(),
@@ -131,8 +135,17 @@ impl OpenAiProvider {
             model,
             custom_headers: None,
             supports_streaming: true,
+            supports_structured_output,
             name: Self::metadata().name,
         }
+    }
+
+    fn model_supports_structured_output(model_name: &str) -> bool {
+        model_name.starts_with("gpt-4o")
+            || model_name.starts_with("gpt-4.")
+            || model_name.starts_with("o1")
+            || model_name.starts_with("o3")
+            || model_name.starts_with("o4")
     }
 
     pub fn from_custom_config(
@@ -195,6 +208,7 @@ impl OpenAiProvider {
             model,
             custom_headers: config.headers,
             supports_streaming: config.supports_streaming.unwrap_or(true),
+            supports_structured_output: config.supports_structured_output.unwrap_or(false),
             name: config.name.clone(),
         })
     }
@@ -381,6 +395,10 @@ impl Provider for OpenAiProvider {
 
     fn supports_streaming(&self) -> bool {
         self.supports_streaming
+    }
+
+    fn supports_structured_output(&self) -> bool {
+        self.supports_structured_output
     }
 
     async fn stream(
