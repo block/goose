@@ -19,7 +19,6 @@ import type {
   ExtensionQuery,
   ExtensionConfig,
 } from '../api';
-import { syncBundledExtensions } from './settings/extensions';
 
 export type { ExtensionConfig } from '../api/types.gen';
 
@@ -216,28 +215,11 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
         setProvidersList([]);
       }
 
-      // Load extensions and sync bundled extensions
+      // Load extensions
       try {
         const extensionsResponse = await apiGetExtensions();
-        let extensions = extensionsResponse.data?.extensions || [];
-
-        // Sync bundled extensions (adds any missing bundled extensions to config)
-        // Use a simple addExtension function that doesn't refresh after each call
-        const addExtensionForSync = async (
-          name: string,
-          config: ExtensionConfig,
-          enabled: boolean
-        ) => {
-          const query: ExtensionQuery = { name, config, enabled };
-          await apiAddExtension({ body: query });
-        };
-
-        await syncBundledExtensions(extensions, addExtensionForSync);
-
-        // Refresh extensions after sync to get the updated list
-        const updatedExtensionsResponse = await apiGetExtensions();
-        setExtensionsList(updatedExtensionsResponse.data?.extensions || []);
-        setExtensionWarnings(updatedExtensionsResponse.data?.warnings || []);
+        setExtensionsList(extensionsResponse.data?.extensions || []);
+        setExtensionWarnings(extensionsResponse.data?.warnings || []);
       } catch (error) {
         console.error('Failed to load extensions:', error);
       }

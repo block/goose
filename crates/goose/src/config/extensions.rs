@@ -2,6 +2,7 @@ use super::base::Config;
 use crate::agents::extension::PLATFORM_EXTENSIONS;
 use crate::agents::ExtensionConfig;
 use indexmap::IndexMap;
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use serde_yaml::Mapping;
 use tracing::warn;
@@ -19,6 +20,71 @@ pub struct ExtensionEntry {
     #[serde(flatten)]
     pub config: ExtensionConfig,
 }
+
+/// Default bundled extensions (builtin MCP servers) that should be available on fresh installs.
+/// These are distinct from PLATFORM_EXTENSIONS which run in-process.
+pub static BUNDLED_EXTENSIONS: Lazy<Vec<ExtensionEntry>> = Lazy::new(|| {
+    vec![
+        ExtensionEntry {
+            config: ExtensionConfig::Builtin {
+                name: "developer".to_string(),
+                display_name: Some("Developer".to_string()),
+                description: "General development tools useful for software engineering."
+                    .to_string(),
+                timeout: Some(DEFAULT_EXTENSION_TIMEOUT),
+                bundled: Some(true),
+                available_tools: Vec::new(),
+            },
+            enabled: true,
+        },
+        ExtensionEntry {
+            config: ExtensionConfig::Builtin {
+                name: "computercontroller".to_string(),
+                display_name: Some("Computer Controller".to_string()),
+                description:
+                    "General computer control tools that don't require you to be a developer or engineer."
+                        .to_string(),
+                timeout: Some(DEFAULT_EXTENSION_TIMEOUT),
+                bundled: Some(true),
+                available_tools: Vec::new(),
+            },
+            enabled: false,
+        },
+        ExtensionEntry {
+            config: ExtensionConfig::Builtin {
+                name: "autovisualiser".to_string(),
+                display_name: Some("Auto Visualiser".to_string()),
+                description: "Data visualization and UI generation tools".to_string(),
+                timeout: Some(DEFAULT_EXTENSION_TIMEOUT),
+                bundled: Some(true),
+                available_tools: Vec::new(),
+            },
+            enabled: false,
+        },
+        ExtensionEntry {
+            config: ExtensionConfig::Builtin {
+                name: "memory".to_string(),
+                display_name: Some("Memory".to_string()),
+                description: "Teach goose your preferences as you go.".to_string(),
+                timeout: Some(DEFAULT_EXTENSION_TIMEOUT),
+                bundled: Some(true),
+                available_tools: Vec::new(),
+            },
+            enabled: false,
+        },
+        ExtensionEntry {
+            config: ExtensionConfig::Builtin {
+                name: "tutorial".to_string(),
+                display_name: Some("Tutorial".to_string()),
+                description: "Access interactive tutorials and guides".to_string(),
+                timeout: Some(DEFAULT_EXTENSION_TIMEOUT),
+                bundled: Some(true),
+                available_tools: Vec::new(),
+            },
+            enabled: false,
+        },
+    ]
+});
 
 pub fn name_to_key(name: &str) -> String {
     name.chars()
@@ -54,6 +120,7 @@ fn get_extensions_map() -> IndexMap<String, ExtensionEntry> {
         }
     }
 
+    // Always add platform extensions if they aren't present (including fresh installs)
     for (name, def) in PLATFORM_EXTENSIONS.iter() {
         if !extensions_map.contains_key(*name) {
             extensions_map.insert(
@@ -70,6 +137,15 @@ fn get_extensions_map() -> IndexMap<String, ExtensionEntry> {
             );
         }
     }
+
+    // Always add bundled extensions if they aren't present (including fresh installs)
+    for entry in BUNDLED_EXTENSIONS.iter() {
+        let key = entry.config.key();
+        if !extensions_map.contains_key(&key) {
+            extensions_map.insert(key, entry.clone());
+        }
+    }
+
     extensions_map
 }
 
