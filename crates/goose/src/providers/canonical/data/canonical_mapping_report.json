@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-01-13T00:27:41.273882436+00:00",
+  "timestamp": "2026-01-16T16:01:49.633971987+00:00",
   "unmapped_models": [
     {
       "provider": "google",
@@ -112,6 +112,10 @@
     {
       "provider": "google",
       "model": "veo-3.0-generate-001"
+    },
+    {
+      "provider": "google",
+      "model": "veo-3.1-fast-generate-preview"
     },
     {
       "provider": "google",
@@ -1987,6 +1991,30 @@
     },
     {
       "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::Cy63W2h8:ckpt-step-50"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::Cy63XYAu:ckpt-step-100"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::Cy63XzSN"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::Cy6efk9E:ckpt-step-50"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::Cy6egfYw:ckpt-step-100"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4o-2024-08-06:square::Cy6egyr1"
+    },
+    {
+      "provider": "openai",
       "model": "ft:gpt-4o-2024-08-06:square:presale-prod-update:A1VLdLFo:ckpt-step-772"
     },
     {
@@ -2315,6 +2343,10 @@
     },
     {
       "provider": "openai",
+      "model": "gpt-5.2-codex"
+    },
+    {
+      "provider": "openai",
       "model": "gpt-audio"
     },
     {
@@ -2416,10 +2448,6 @@
     {
       "provider": "openrouter",
       "model": "alibaba/tongyi-deepresearch-30b-a3b"
-    },
-    {
-      "provider": "openrouter",
-      "model": "allenai/olmo-3-7b-instruct"
     },
     {
       "provider": "openrouter",
@@ -2527,10 +2555,6 @@
     },
     {
       "provider": "openrouter",
-      "model": "mistralai/mistral-7b-instruct:free"
-    },
-    {
-      "provider": "openrouter",
       "model": "mistralai/mistral-small-3.1-24b-instruct:free"
     },
     {
@@ -2591,6 +2615,10 @@
     },
     {
       "provider": "openrouter",
+      "model": "openai/gpt-5.2-codex"
+    },
+    {
+      "provider": "openrouter",
       "model": "openai/gpt-oss-120b:free"
     },
     {
@@ -2608,6 +2636,10 @@
     {
       "provider": "openrouter",
       "model": "qwen/qwen3-coder:free"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-next-80b-a3b-instruct:free"
     },
     {
       "provider": "openrouter",
@@ -2652,6 +2684,10 @@
     {
       "provider": "openrouter",
       "model": "x-ai/grok-3-mini-beta"
+    },
+    {
+      "provider": "openrouter",
+      "model": "xiaomi/mimo-v2-flash"
     },
     {
       "provider": "openrouter",
@@ -2768,10 +2804,6 @@
       },
       {
         "provider_model": "gemini-2.5-flash-image",
-        "canonical_model": "google/gemini-2.5-flash-image"
-      },
-      {
-        "provider_model": "gemini-2.5-flash-image-preview",
         "canonical_model": "google/gemini-2.5-flash-image"
       },
       {
@@ -3127,10 +3159,6 @@
         "canonical_model": "anthropic/claude-3.5-haiku"
       },
       {
-        "provider_model": "anthropic/claude-3.5-haiku-20241022",
-        "canonical_model": "anthropic/claude-3.5-haiku"
-      },
-      {
         "provider_model": "anthropic/claude-3.5-sonnet",
         "canonical_model": "anthropic/claude-3.5-sonnet"
       },
@@ -3263,10 +3291,6 @@
         "canonical_model": "google/gemma-3-27b-it"
       },
       {
-        "provider_model": "meta-llama/llama-3-70b-instruct",
-        "canonical_model": "meta-llama/llama-3-70b-instruct"
-      },
-      {
         "provider_model": "meta-llama/llama-3-8b-instruct",
         "canonical_model": "meta-llama/llama-3-8b-instruct"
       },
@@ -3281,10 +3305,6 @@
       {
         "provider_model": "meta-llama/llama-3.1-8b-instruct",
         "canonical_model": "meta-llama/llama-3.1-8b-instruct"
-      },
-      {
-        "provider_model": "meta-llama/llama-3.2-3b-instruct",
-        "canonical_model": "meta-llama/llama-3.2-3b-instruct"
       },
       {
         "provider_model": "meta-llama/llama-3.3-70b-instruct",
@@ -3333,10 +3353,6 @@
       {
         "provider_model": "mistralai/ministral-8b-2512",
         "canonical_model": "mistralai/ministral-8b"
-      },
-      {
-        "provider_model": "mistralai/mistral-7b-instruct",
-        "canonical_model": "mistralai/mistral-7b-instruct"
       },
       {
         "provider_model": "mistralai/mistral-large",
@@ -3409,10 +3425,6 @@
       {
         "provider_model": "mistralai/voxtral-small-24b-2507",
         "canonical_model": "mistralai/voxtral-small-24b"
-      },
-      {
-        "provider_model": "openai/codex-mini",
-        "canonical_model": "openai/codex-mini"
       },
       {
         "provider_model": "openai/gpt-3.5-turbo",
@@ -3847,11 +3859,6 @@
     {
       "provider": "google",
       "model": "gemini-2.5-flash-image",
-      "canonical": "google/gemini-2.5-flash-image"
-    },
-    {
-      "provider": "google",
-      "model": "gemini-2.5-flash-image-preview",
       "canonical": "google/gemini-2.5-flash-image"
     },
     {
@@ -4291,11 +4298,6 @@
     },
     {
       "provider": "openrouter",
-      "model": "anthropic/claude-3.5-haiku-20241022",
-      "canonical": "anthropic/claude-3.5-haiku"
-    },
-    {
-      "provider": "openrouter",
       "model": "anthropic/claude-3.5-sonnet",
       "canonical": "anthropic/claude-3.5-sonnet"
     },
@@ -4461,11 +4463,6 @@
     },
     {
       "provider": "openrouter",
-      "model": "meta-llama/llama-3-70b-instruct",
-      "canonical": "meta-llama/llama-3-70b-instruct"
-    },
-    {
-      "provider": "openrouter",
       "model": "meta-llama/llama-3-8b-instruct",
       "canonical": "meta-llama/llama-3-8b-instruct"
     },
@@ -4483,11 +4480,6 @@
       "provider": "openrouter",
       "model": "meta-llama/llama-3.1-8b-instruct",
       "canonical": "meta-llama/llama-3.1-8b-instruct"
-    },
-    {
-      "provider": "openrouter",
-      "model": "meta-llama/llama-3.2-3b-instruct",
-      "canonical": "meta-llama/llama-3.2-3b-instruct"
     },
     {
       "provider": "openrouter",
@@ -4548,11 +4540,6 @@
       "provider": "openrouter",
       "model": "mistralai/ministral-8b-2512",
       "canonical": "mistralai/ministral-8b"
-    },
-    {
-      "provider": "openrouter",
-      "model": "mistralai/mistral-7b-instruct",
-      "canonical": "mistralai/mistral-7b-instruct"
     },
     {
       "provider": "openrouter",
@@ -4643,11 +4630,6 @@
       "provider": "openrouter",
       "model": "mistralai/voxtral-small-24b-2507",
       "canonical": "mistralai/voxtral-small-24b"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/codex-mini",
-      "canonical": "openai/codex-mini"
     },
     {
       "provider": "openrouter",
@@ -5078,8 +5060,8 @@
   "model_counts": {
     "anthropic": 9,
     "google": 50,
-    "openai": 646,
-    "openrouter": 231,
+    "openai": 653,
+    "openrouter": 227,
     "tetrate": 0,
     "xai": 0
   },
@@ -5117,12 +5099,10 @@
     "google/gemma-3-27b-it",
     "google/gemma-3-4b-it",
     "google/gemma-3n-e4b-it",
-    "meta-llama/llama-3-70b-instruct",
     "meta-llama/llama-3-8b-instruct",
     "meta-llama/llama-3.1-405b-instruct",
     "meta-llama/llama-3.1-70b-instruct",
     "meta-llama/llama-3.1-8b-instruct",
-    "meta-llama/llama-3.2-3b-instruct",
     "meta-llama/llama-3.3-70b-instruct",
     "meta-llama/llama-4-maverick",
     "meta-llama/llama-4-scout",
@@ -5133,7 +5113,6 @@
     "mistralai/ministral-14b",
     "mistralai/ministral-3b",
     "mistralai/ministral-8b",
-    "mistralai/mistral-7b-instruct",
     "mistralai/mistral-large",
     "mistralai/mistral-medium-3",
     "mistralai/mistral-medium-3.1",
