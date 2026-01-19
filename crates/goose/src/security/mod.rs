@@ -141,7 +141,9 @@ impl SecurityManager {
                             should_ask_user: true, // Always ask user for threats above threshold
                             finding_id,
                             tool_request_id: tool_request.id.clone(),
-                            detection_type: analysis_result.detection_type.map(|dt| format!("{:?}", dt)),
+                            detection_type: analysis_result
+                                .detection_type
+                                .map(|dt| format!("{:?}", dt)),
                             command_confidence: analysis_result.command_confidence,
                             prompt_confidence: analysis_result.prompt_confidence,
                         });
