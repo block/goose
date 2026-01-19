@@ -9,7 +9,7 @@ use rmcp::model::CallToolRequestParam;
 const USER_SCAN_LIMIT: usize = 10;
 const ML_SCAN_CONCURRENCY: usize = 3;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 enum ClassifierType {
     Command,
     Prompt,
@@ -76,18 +76,9 @@ impl PromptInjectionScanner {
             ClassifierType::Prompt => "PROMPT",
         };
 
-        // For command classifier, auto-enable if model mapping is available (internal Block users)
-        // For prompt classifier, require explicit opt-in
-        let default_enabled = match classifier_type {
-            ClassifierType::Command => {
-                config.get_param::<String>("SECURITY_ML_MODEL_MAPPING").is_ok()
-            }
-            ClassifierType::Prompt => false,
-        };
-
         let enabled = config
             .get_param::<bool>(&format!("SECURITY_{}_CLASSIFIER_ENABLED", prefix))
-            .unwrap_or(default_enabled);
+            .unwrap_or(false);
 
         if !enabled {
             anyhow::bail!("{} classifier not enabled", prefix);
@@ -97,6 +88,7 @@ impl PromptInjectionScanner {
             .get_param::<String>(&format!("SECURITY_{}_CLASSIFIER_MODEL", prefix))
             .ok()
             .filter(|s| !s.trim().is_empty());
+
         let endpoint = config
             .get_param::<String>(&format!("SECURITY_{}_CLASSIFIER_ENDPOINT", prefix))
             .ok()
@@ -112,6 +104,12 @@ impl PromptInjectionScanner {
 
         if let Some(endpoint_url) = endpoint {
             return ClassificationClient::from_endpoint(endpoint_url, None, token);
+        }
+
+        if classifier_type == ClassifierType::Command {
+            if let Ok(client) = ClassificationClient::from_model_type("command", None) {
+                return Ok(client);
+            }
         }
 
         anyhow::bail!(
@@ -157,8 +155,11 @@ impl PromptInjectionScanner {
             threshold
         );
 
-        let final_result =
-            self.select_result_with_context_awareness(tool_result.clone(), context_result.clone(), threshold);
+        let final_result = self.select_result_with_context_awareness(
+            tool_result.clone(),
+            context_result.clone(),
+            threshold,
+        );
 
         tracing::info!(
             "Security analysis complete: final_confidence={:.3}, malicious={}",
@@ -182,7 +183,12 @@ impl PromptInjectionScanner {
         Ok(ScanResult {
             is_malicious: final_result.confidence >= threshold,
             confidence: final_result.confidence,
-            explanation: self.build_explanation(&final_result, threshold, &tool_content, detection_type),
+            explanation: self.build_explanation(
+                &final_result,
+                threshold,
+                &tool_content,
+                detection_type,
+            ),
             detection_type,
             command_confidence: tool_result.ml_confidence,
             prompt_confidence: context_result.ml_confidence,
@@ -197,11 +203,7 @@ impl PromptInjectionScanner {
         };
 
         if let Some(ml_confidence) = self.scan_command_with_classifier(text).await {
-            tracing::info!(
-                "🔍 [Command] conf={:.3} | {}",
-                ml_confidence,
-                text_preview
-            );
+            tracing::info!("🔍 [Command] conf={:.3} | {}", ml_confidence, text_preview);
             return Ok(DetailedScanResult {
                 confidence: ml_confidence,
                 pattern_matches: Vec::new(),
@@ -340,7 +342,13 @@ impl PromptInjectionScanner {
         (confidence, matches)
     }
 
-    fn build_explanation(&self, result: &DetailedScanResult, threshold: f32, tool_content: &str, detection_type: Option<DetectionType>) -> String {
+    fn build_explanation(
+        &self,
+        result: &DetailedScanResult,
+        threshold: f32,
+        tool_content: &str,
+        detection_type: Option<DetectionType>,
+    ) -> String {
         if result.confidence < threshold {
             return "No security threats detected".to_string();
         }
@@ -375,7 +383,7 @@ impl PromptInjectionScanner {
                 Some(DetectionType::CommandInjection) => "Command injection detected",
                 _ => "Security threat detected",
             };
-            
+
             format!(
                 "{} (confidence: {:.1}%)\n\nCommand:\n{}",
                 detection_description,
@@ -412,7 +420,7 @@ impl PromptInjectionScanner {
     fn extract_tool_content(&self, tool_call: &CallToolRequestParam) -> String {
         let mut s = format!("Tool: {}", tool_call.name);
         if let Some(args) = &tool_call.arguments {
-            if let Ok(json) = serde_json::to_string_pretty(args) {
+            if let Ok(json) = serde_json::to_string(args) {
                 s.push('\n');
                 s.push_str(&json);
             }

@@ -23,11 +23,14 @@ export const SecurityToggle = () => {
     }
 
     try {
-      const mapping = JSON.parse(mappingEnv);
-      return Object.keys(mapping).map((modelName) => ({
-        value: modelName,
-        label: modelName,
-      }));
+      const mapping = JSON.parse(mappingEnv) as Record<string, { model_type?: string }>;
+      // Filter only models with model_type: "prompt"
+      return Object.entries(mapping)
+        .filter(([_, modelInfo]) => modelInfo.model_type === 'prompt')
+        .map(([modelName, _]) => ({
+          value: modelName,
+          label: modelName,
+        }));
     } catch {
       // Invalid JSON in optional env var - gracefully fall back to manual endpoint input
       return [];
@@ -52,9 +55,7 @@ export const SecurityToggle = () => {
     const mappingEnv = window.appConfig?.get('SECURITY_ML_MODEL_MAPPING') as string | undefined;
     return !!mappingEnv;
   }, []);
-
-  const effectiveCommandClassifierEnabled = commandClassifierEnabled ?? hasModelMapping;
-
+  const effectiveCommandClassifierEnabled = commandClassifierEnabled ?? false;
   const effectiveModel = mlModel || availableModels[0]?.value || '';
   const [thresholdInput, setThresholdInput] = useState(configThreshold.toString());
   const [endpointInput, setEndpointInput] = useState(mlEndpoint);

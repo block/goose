@@ -23,6 +23,7 @@ type ClassificationResponse = Vec<Vec<ClassificationLabel>>;
 #[derive(Debug, Deserialize, Clone)]
 pub struct ModelEndpointInfo {
     pub endpoint: String,
+    pub model_type: Option<String>,
     #[serde(flatten)]
     pub extra_params: HashMap<String, serde_json::Value>,
 }
@@ -80,6 +81,39 @@ impl ClassificationClient {
             endpoint = %model_info.endpoint,
             extra_params = ?model_info.extra_params,
             "Creating classification client from model mapping"
+        );
+
+        Self::new(
+            model_info.endpoint.clone(),
+            timeout_ms,
+            None,
+            Some(model_info.extra_params.clone()),
+        )
+    }
+
+    pub fn from_model_type(model_type: &str, timeout_ms: Option<u64>) -> Result<Self> {
+        let mapping = serde_json::from_str::<ModelMappingConfig>(
+            &std::env::var("SECURITY_ML_MODEL_MAPPING")
+                .context("SECURITY_ML_MODEL_MAPPING environment variable not set")?,
+        )
+        .context("Failed to parse SECURITY_ML_MODEL_MAPPING JSON")?;
+
+        let (model_name, model_info) = mapping
+            .models
+            .iter()
+            .find(|(_, info)| info.model_type.as_deref() == Some(model_type))
+            .context(format!(
+                "No model with type '{}' found in SECURITY_ML_MODEL_MAPPING",
+                model_type
+            ))?;
+
+        // TODO: remove the following, just for testing
+        tracing::info!(
+            model_name = %model_name,
+            model_type = %model_type,
+            endpoint = %model_info.endpoint,
+            extra_params = ?model_info.extra_params,
+            "Creating classification client from model type"
         );
 
         Self::new(
