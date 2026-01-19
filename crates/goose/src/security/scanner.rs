@@ -76,9 +76,18 @@ impl PromptInjectionScanner {
             ClassifierType::Prompt => "PROMPT",
         };
 
+        // For command classifier, auto-enable if model mapping is available (internal Block users)
+        // For prompt classifier, require explicit opt-in
+        let default_enabled = match classifier_type {
+            ClassifierType::Command => {
+                config.get_param::<String>("SECURITY_ML_MODEL_MAPPING").is_ok()
+            }
+            ClassifierType::Prompt => false,
+        };
+
         let enabled = config
             .get_param::<bool>(&format!("SECURITY_{}_CLASSIFIER_ENABLED", prefix))
-            .unwrap_or(false);
+            .unwrap_or(default_enabled);
 
         if !enabled {
             anyhow::bail!("{} classifier not enabled", prefix);
@@ -173,7 +182,7 @@ impl PromptInjectionScanner {
         Ok(ScanResult {
             is_malicious: final_result.confidence >= threshold,
             confidence: final_result.confidence,
-            explanation: self.build_explanation(&final_result, threshold, &tool_content),
+            explanation: self.build_explanation(&final_result, threshold, &tool_content, detection_type),
             detection_type,
             command_confidence: tool_result.ml_confidence,
             prompt_confidence: context_result.ml_confidence,
@@ -331,7 +340,7 @@ impl PromptInjectionScanner {
         (confidence, matches)
     }
 
-    fn build_explanation(&self, result: &DetailedScanResult, threshold: f32, tool_content: &str) -> String {
+    fn build_explanation(&self, result: &DetailedScanResult, threshold: f32, tool_content: &str, detection_type: Option<DetectionType>) -> String {
         if result.confidence < threshold {
             return "No security threats detected".to_string();
         }
@@ -361,8 +370,15 @@ impl PromptInjectionScanner {
         }
 
         if let Some(ml_conf) = result.ml_confidence {
+            let detection_description = match detection_type {
+                Some(DetectionType::PromptInjection) => "Prompt injection detected",
+                Some(DetectionType::CommandInjection) => "Command injection detected",
+                _ => "Security threat detected",
+            };
+            
             format!(
-                "Command injection detected (confidence: {:.1}%)\n\nCommand:\n{}",
+                "{} (confidence: {:.1}%)\n\nCommand:\n{}",
+                detection_description,
                 ml_conf * 100.0,
                 command_preview
             )

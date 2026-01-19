@@ -10,6 +10,7 @@ interface SecurityConfig {
   SECURITY_PROMPT_CLASSIFIER_MODEL?: string;
   SECURITY_PROMPT_CLASSIFIER_ENDPOINT?: string;
   SECURITY_PROMPT_CLASSIFIER_TOKEN?: string;
+  SECURITY_COMMAND_CLASSIFIER_ENABLED?: boolean;
 }
 
 export const SecurityToggle = () => {
@@ -44,7 +45,15 @@ export const SecurityToggle = () => {
     SECURITY_PROMPT_CLASSIFIER_MODEL: mlModel = '',
     SECURITY_PROMPT_CLASSIFIER_ENDPOINT: mlEndpoint = '',
     SECURITY_PROMPT_CLASSIFIER_TOKEN: mlToken = '',
+    SECURITY_COMMAND_CLASSIFIER_ENABLED: commandClassifierEnabled,
   } = (config as SecurityConfig) ?? {};
+
+  const hasModelMapping = useMemo(() => {
+    const mappingEnv = window.appConfig?.get('SECURITY_ML_MODEL_MAPPING') as string | undefined;
+    return !!mappingEnv;
+  }, []);
+
+  const effectiveCommandClassifierEnabled = commandClassifierEnabled ?? hasModelMapping;
 
   const effectiveModel = mlModel || availableModels[0]?.value || '';
   const [thresholdInput, setThresholdInput] = useState(configThreshold.toString());
@@ -98,6 +107,11 @@ export const SecurityToggle = () => {
 
   const handleTokenChange = async (token: string) => {
     await upsert('SECURITY_PROMPT_CLASSIFIER_TOKEN', token, true); // true = secret
+  };
+
+  const handleCommandClassifierToggle = async (enabled: boolean) => {
+    await upsert('SECURITY_COMMAND_CLASSIFIER_ENABLED', enabled, false);
+    trackSettingToggled('command_classifier', enabled);
   };
 
   return (
@@ -272,6 +286,31 @@ export const SecurityToggle = () => {
               </div>
             </div>
           </div>
+
+          {hasModelMapping && (
+            <div className="border-t border-border-default pt-4">
+              <div className="flex items-center justify-between py-2 hover:bg-background-muted rounded-lg transition-all">
+                <div>
+                  <h4
+                    className={`text-sm font-medium ${enabled ? 'text-text-default' : 'text-text-muted'}`}
+                  >
+                    Enable Command Injection ML Detection
+                  </h4>
+                  <p className="text-xs text-text-muted max-w-md mt-[2px]">
+                    Use ML models to detect malicious shell commands (enabled by default)
+                  </p>
+                </div>
+                <div className="flex items-center">
+                  <Switch
+                    checked={effectiveCommandClassifierEnabled}
+                    onCheckedChange={handleCommandClassifierToggle}
+                    disabled={!enabled}
+                    variant="mono"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
