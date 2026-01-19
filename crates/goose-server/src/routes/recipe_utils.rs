@@ -162,11 +162,17 @@ pub async fn apply_recipe_to_agent(
     recipe: &Recipe,
     include_final_output_tool: bool,
 ) -> Option<String> {
+    let provider_supports_structured_output = agent
+        .provider()
+        .await
+        .map(|p| p.supports_structured_output())
+        .unwrap_or(false);
     agent
         .apply_recipe_components(
             recipe.sub_recipes.clone(),
             recipe.response.clone(),
             include_final_output_tool,
+            provider_supports_structured_output,
         )
         .await;
 

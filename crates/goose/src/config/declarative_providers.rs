@@ -40,6 +40,7 @@ pub struct DeclarativeProviderConfig {
     pub headers: Option<HashMap<String, String>>,
     pub timeout_seconds: Option<u64>,
     pub supports_streaming: Option<bool>,
+    pub supports_structured_output: Option<bool>,
     #[serde(default = "default_requires_auth")]
     pub requires_auth: bool,
 }
@@ -100,6 +101,7 @@ pub struct CreateCustomProviderParams {
     pub api_key: String,
     pub models: Vec<String>,
     pub supports_streaming: Option<bool>,
+    pub supports_structured_output: Option<bool>,
     pub headers: Option<HashMap<String, String>>,
     pub requires_auth: bool,
 }
@@ -113,6 +115,7 @@ pub struct UpdateCustomProviderParams {
     pub api_key: String,
     pub models: Vec<String>,
     pub supports_streaming: Option<bool>,
+    pub supports_structured_output: Option<bool>,
     pub headers: Option<HashMap<String, String>>,
     pub requires_auth: bool,
 }
@@ -153,6 +156,7 @@ pub fn create_custom_provider(
         headers: params.headers,
         timeout_seconds: None,
         supports_streaming: params.supports_streaming,
+        supports_structured_output: params.supports_structured_output,
         requires_auth: params.requires_auth,
     };
 
@@ -210,6 +214,7 @@ pub fn update_custom_provider(params: UpdateCustomProviderParams) -> Result<()> 
             headers: params.headers.or(existing_config.headers),
             timeout_seconds: existing_config.timeout_seconds,
             supports_streaming: params.supports_streaming,
+            supports_structured_output: params.supports_structured_output,
             requires_auth: params.requires_auth,
         };
 

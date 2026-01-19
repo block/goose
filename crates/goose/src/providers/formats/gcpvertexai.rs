@@ -218,7 +218,8 @@ fn create_anthropic_request(
     messages: &[Message],
     tools: &[Tool],
 ) -> Result<Value> {
-    let mut request = anthropic::create_request(model_config, system, messages, tools)?;
+    // Vertex AI Claude doesn't support structured output (beta header not available)
+    let mut request = anthropic::create_request(model_config, system, messages, tools, None)?;
 
     let obj = request
         .as_object_mut()
@@ -251,7 +252,13 @@ fn create_google_request(
     messages: &[Message],
     tools: &[Tool],
 ) -> Result<Value> {
-    google::create_request(model_config, system, messages, tools)
+    google::create_request(
+        model_config,
+        system,
+        messages,
+        tools,
+        model_config.response_schema.as_ref(),
+    )
 }
 
 /// Creates a provider-specific request payload and context.

@@ -399,14 +399,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             .with_temperature(temperature)
     };
 
-    agent
-        .apply_recipe_components(
-            recipe.and_then(|r| r.sub_recipes.clone()),
-            recipe.and_then(|r| r.response.clone()),
-            true,
-        )
-        .await;
-
     let new_provider = match create(&provider_name, model_config).await {
         Ok(provider) => provider,
         Err(e) => {
@@ -420,6 +412,15 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             process::exit(1);
         }
     };
+
+    agent
+        .apply_recipe_components(
+            recipe.and_then(|r| r.sub_recipes.clone()),
+            recipe.and_then(|r| r.response.clone()),
+            true,
+            new_provider.supports_structured_output(),
+        )
+        .await;
     let provider_for_display = Arc::clone(&new_provider);
 
     if let Some(lead_worker) = new_provider.as_lead_worker() {

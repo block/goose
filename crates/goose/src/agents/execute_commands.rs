@@ -278,6 +278,7 @@ impl Agent {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     async fn handle_recipe_command(
         &self,
         command: &str,
@@ -378,8 +379,18 @@ impl Agent {
             Err(e) => return Err(anyhow!("Failed to build recipe: {}", e)),
         };
 
-        self.apply_recipe_components(recipe.sub_recipes.clone(), recipe.response.clone(), true)
-            .await;
+        let provider_supports_structured_output = self
+            .provider()
+            .await
+            .map(|p| p.supports_structured_output())
+            .unwrap_or(false);
+        self.apply_recipe_components(
+            recipe.sub_recipes.clone(),
+            recipe.response.clone(),
+            true,
+            provider_supports_structured_output,
+        )
+        .await;
 
         let prompt = [recipe.instructions.as_deref(), recipe.prompt.as_deref()]
             .into_iter()

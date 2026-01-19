@@ -53,6 +53,7 @@ impl AcpServer {
             toolshim: false,
             toolshim_model: None,
             fast_model: None,
+            response_schema: None,
         };
 
         let provider = create(&provider_name, model_config).await?;

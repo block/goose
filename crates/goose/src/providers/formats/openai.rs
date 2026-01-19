@@ -733,6 +733,17 @@ pub fn create_request(
         payload["stream_options"] = json!({"include_usage": true});
     }
 
+    if let Some(schema) = model_config.response_schema.as_ref() {
+        payload["response_format"] = json!({
+            "type": "json_schema",
+            "json_schema": {
+                "name": "response",
+                "strict": true,
+                "schema": schema
+            }
+        });
+    }
+
     Ok(payload)
 }
 
@@ -1389,6 +1400,7 @@ mod tests {
             toolshim_model: None,
             fast_model: None,
             request_params: None,
+            response_schema: None,
         };
         let request = create_request(
             &model_config,
@@ -1429,6 +1441,7 @@ mod tests {
             toolshim_model: None,
             fast_model: None,
             request_params: None,
+            response_schema: None,
         };
         let request = create_request(
             &model_config,
@@ -1470,6 +1483,7 @@ mod tests {
             toolshim_model: None,
             fast_model: None,
             request_params: None,
+            response_schema: None,
         };
         let request = create_request(
             &model_config,
@@ -1658,6 +1672,84 @@ data: [DONE]
         assert_eq!(result.tool_calls.len(), 1, "Expected 1 tool call");
         assert_eq!(result.tool_calls[0], "developer__shell");
         assert_usage_yielded_once(&result, 12376, 79, 12455);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_request_with_response_schema() -> anyhow::Result<()> {
+        let schema = json!({
+            "type": "object",
+            "properties": {
+                "sentiment": { "type": "string", "enum": ["positive", "negative", "neutral"] },
+                "confidence": { "type": "number" }
+            },
+            "required": ["sentiment", "confidence"]
+        });
+
+        let model_config = ModelConfig {
+            model_name: "gpt-4o".to_string(),
+            context_limit: Some(4096),
+            temperature: None,
+            max_tokens: Some(1024),
+            toolshim: false,
+            toolshim_model: None,
+            fast_model: None,
+            request_params: None,
+            response_schema: Some(schema.clone()),
+        };
+
+        let request = create_request(
+            &model_config,
+            "system",
+            &[],
+            &[],
+            &ImageFormat::OpenAi,
+            false,
+        )?;
+
+        let obj = request.as_object().unwrap();
+
+        let response_format = obj
+            .get("response_format")
+            .expect("response_format should be present");
+        assert_eq!(response_format["type"], "json_schema");
+        assert_eq!(response_format["json_schema"]["name"], "response");
+        assert_eq!(response_format["json_schema"]["strict"], true);
+        assert_eq!(response_format["json_schema"]["schema"], schema);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_request_without_response_schema() -> anyhow::Result<()> {
+        let model_config = ModelConfig {
+            model_name: "gpt-4o".to_string(),
+            context_limit: Some(4096),
+            temperature: None,
+            max_tokens: Some(1024),
+            toolshim: false,
+            toolshim_model: None,
+            fast_model: None,
+            request_params: None,
+            response_schema: None,
+        };
+
+        let request = create_request(
+            &model_config,
+            "system",
+            &[],
+            &[],
+            &ImageFormat::OpenAi,
+            false,
+        )?;
+
+        let obj = request.as_object().unwrap();
+
+        assert!(
+            obj.get("response_format").is_none(),
+            "response_format should not be present when schema is None"
+        );
 
         Ok(())
     }
