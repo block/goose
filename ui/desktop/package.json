@@ -110,7 +110,7 @@
     "@electron-forge/plugin-fuses": "^7.11.1",
     "@electron-forge/plugin-vite": "^7.11.1",
     "@electron/fuses": "^1.8.0",
-    "@electron/node-gyp": "git+https://github.com/electron/node-gyp.git#06b29aafb7708acef8b3669835c8a7857ebc92d2",
+    "@electron/node-gyp": "^10.2.0-electron.2",
     "@electron/remote": "^2.1.3",
     "@eslint/js": "^9.39.2",
     "@hey-api/openapi-ts": "^0.92.3",
