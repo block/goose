@@ -298,7 +298,6 @@ impl PromptInjectionScanner {
             return "No security threats detected".to_string();
         }
 
-        // Extract just the command from tool_content (skip "Tool: xxx" prefix)
         let command_preview = if let Some(args_start) = tool_content.find('\n') {
             let args = &tool_content[args_start + 1..];
             if args.len() > 150 {
