@@ -7,6 +7,33 @@ use utoipa::ToSchema;
 
 const DEFAULT_CONTEXT_LIMIT: usize = 128_000;
 
+#[derive(Debug, Clone, Deserialize)]
+struct PredefinedModel {
+    name: String,
+    #[serde(default)]
+    context_limit: Option<usize>,
+    #[serde(default)]
+    request_params: Option<HashMap<String, Value>>,
+}
+
+fn get_predefined_models() -> Vec<PredefinedModel> {
+    static PREDEFINED_MODELS: Lazy<Vec<PredefinedModel>> =
+        Lazy::new(|| match std::env::var("GOOSE_PREDEFINED_MODELS") {
+            Ok(json_str) => serde_json::from_str(&json_str).unwrap_or_else(|e| {
+                tracing::warn!("Failed to parse GOOSE_PREDEFINED_MODELS: {}", e);
+                Vec::new()
+            }),
+            Err(_) => Vec::new(),
+        });
+    PREDEFINED_MODELS.clone()
+}
+
+fn find_predefined_model(model_name: &str) -> Option<PredefinedModel> {
+    get_predefined_models()
+        .into_iter()
+        .find(|m| m.name == model_name)
+}
+
 #[derive(Error, Debug)]
 pub enum ConfigError {
     #[error("Environment variable '{0}' not found")]
@@ -82,9 +109,9 @@ pub struct ModelConfig {
     pub toolshim: bool,
     pub toolshim_model: Option<String>,
     pub fast_model: Option<String>,
-    /// Arbitrary extra parameters to forward to the provider API
+    /// Provider-specific request parameters (e.g., anthropic_beta headers)
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub extra_params: Option<HashMap<String, Value>>,
+    pub request_params: Option<HashMap<String, Value>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -102,7 +129,26 @@ impl ModelConfig {
         model_name: String,
         context_env_var: Option<&str>,
     ) -> Result<Self, ConfigError> {
-        let context_limit = Self::parse_context_limit(&model_name, None, context_env_var)?;
+        let predefined = find_predefined_model(&model_name);
+
+        let context_limit = if let Some(ref pm) = predefined {
+            if let Some(env_var) = context_env_var {
+                if let Ok(val) = std::env::var(env_var) {
+                    Some(Self::validate_context_limit(&val, env_var)?)
+                } else {
+                    pm.context_limit
+                }
+            } else if let Ok(val) = std::env::var("GOOSE_CONTEXT_LIMIT") {
+                Some(Self::validate_context_limit(&val, "GOOSE_CONTEXT_LIMIT")?)
+            } else {
+                pm.context_limit
+            }
+        } else {
+            Self::parse_context_limit(&model_name, None, context_env_var)?
+        };
+
+        let request_params = predefined.and_then(|pm| pm.request_params);
+
         let temperature = Self::parse_temperature()?;
         let max_tokens = Self::parse_max_tokens()?;
         let toolshim = Self::parse_toolshim()?;
@@ -116,7 +162,7 @@ impl ModelConfig {
             toolshim,
             toolshim_model,
             fast_model: None,
-            extra_params: None,
+            request_params,
         })
     }
 
@@ -291,8 +337,8 @@ impl ModelConfig {
         self
     }
 
-    pub fn with_extra_params(mut self, extra_params: HashMap<String, Value>) -> Self {
-        self.extra_params = Some(extra_params);
+    pub fn with_request_params(mut self, params: Option<HashMap<String, Value>>) -> Self {
+        self.request_params = params;
         self
     }
 

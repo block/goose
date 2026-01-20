@@ -59,6 +59,7 @@ interface BaseChatProps {
 }
 
 function BaseChatContent({
+  setChat,
   renderHeader,
   customChatInputProps = {},
   customMainLayoutProps = {},
@@ -301,6 +302,23 @@ function BaseChatContent({
     name: session?.name || 'No Session',
   };
 
+  // Update the global chat context when session name changes
+  const lastSetNameRef = useRef<string>('');
+
+  useEffect(() => {
+    const currentSessionName = session?.name;
+    if (currentSessionName && currentSessionName !== lastSetNameRef.current) {
+      lastSetNameRef.current = currentSessionName;
+      setChat({
+        messages,
+        recipe,
+        sessionId,
+        name: currentSessionName,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.name, setChat]);
+
   // Only use initialMessage for the prompt if it hasn't been submitted yet
   // If we have a recipe prompt and user recipe values, substitute parameters
   let recipePrompt = '';
@@ -402,7 +420,15 @@ function BaseChatContent({
                 <div className="block h-8" />
               </>
             ) : !recipe && showPopularTopics ? (
-              <PopularChatTopics append={(text: string) => handleSubmit(text)} />
+              <PopularChatTopics
+                append={(text: string) => {
+                  const syntheticEvent = {
+                    detail: { value: text },
+                    preventDefault: () => {},
+                  } as unknown as React.FormEvent;
+                  handleFormSubmit(syntheticEvent);
+                }}
+              />
             ) : null}
           </ScrollArea>
 

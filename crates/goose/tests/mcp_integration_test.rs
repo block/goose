@@ -121,18 +121,18 @@ enum TestMode {
 #[test_case(
     vec!["npx", "-y", "@modelcontextprotocol/server-everything"],
     vec![
-        CallToolRequestParam { name: "echo".into(), arguments: Some(object!({"message": "Hello, world!" })) },
-        CallToolRequestParam { name: "add".into(), arguments: Some(object!({"a": 1, "b": 2 })) },
-        CallToolRequestParam { name: "longRunningOperation".into(), arguments: Some(object!({"duration": 1, "steps": 5 })) },
-        CallToolRequestParam { name: "structuredContent".into(), arguments: Some(object!({"location": "11238"})) },
-        CallToolRequestParam { name: "sampleLLM".into(), arguments: Some(object!({"prompt": "Please provide a quote from The Great Gatsby", "maxTokens": 100 })) }
+        CallToolRequestParam { task: None, name: "echo".into(), arguments: Some(object!({"message": "Hello, world!" })) },
+        CallToolRequestParam { task: None, name: "add".into(), arguments: Some(object!({"a": 1, "b": 2 })) },
+        CallToolRequestParam { task: None, name: "longRunningOperation".into(), arguments: Some(object!({"duration": 1, "steps": 5 })) },
+        CallToolRequestParam { task: None, name: "structuredContent".into(), arguments: Some(object!({"location": "11238"})) },
+        CallToolRequestParam { task: None, name: "sampleLLM".into(), arguments: Some(object!({"prompt": "Please provide a quote from The Great Gatsby", "maxTokens": 100 })) }
     ],
     vec![]
 )]
 #[test_case(
     vec!["github-mcp-server", "stdio"],
     vec![
-        CallToolRequestParam { name: "get_file_contents".into(), arguments: Some(object!({
+        CallToolRequestParam { task: None, name: "get_file_contents".into(), arguments: Some(object!({
             "owner": "block",
             "repo": "goose",
             "path": "README.md",
@@ -144,7 +144,7 @@ enum TestMode {
 #[test_case(
     vec!["uvx", "mcp-server-fetch"],
     vec![
-        CallToolRequestParam { name: "fetch".into(), arguments: Some(object!({
+        CallToolRequestParam { task: None, name: "fetch".into(), arguments: Some(object!({
             "url": "https://example.com",
         })) }
     ],
@@ -153,28 +153,28 @@ enum TestMode {
 #[test_case(
     vec!["cargo", "run", "--quiet", "-p", "goose-server", "--bin", "goosed", "--", "mcp", "developer"],
     vec![
-        CallToolRequestParam { name: "text_editor".into(), arguments: Some(object!({
+        CallToolRequestParam { task: None, name: "text_editor".into(), arguments: Some(object!({
             "command": "view",
             "path": "/tmp/goose_test/goose.txt"
         }))},
-        CallToolRequestParam { name: "text_editor".into(), arguments: Some(object!({
+        CallToolRequestParam { task: None, name: "text_editor".into(), arguments: Some(object!({
             "command": "str_replace",
             "path": "/tmp/goose_test/goose.txt",
             "old_str": "# goose",
             "new_str": "# goose (modified by test)"
         }))},
         // Test shell command to verify file was modified
-        CallToolRequestParam { name: "shell".into(), arguments: Some(object!({
+        CallToolRequestParam { task: None, name: "shell".into(), arguments: Some(object!({
             "command": "cat /tmp/goose_test/goose.txt"
         })) },
         // Test text_editor tool to restore original content
-        CallToolRequestParam { name: "text_editor".into(), arguments: Some(object!({
+        CallToolRequestParam { task: None, name: "text_editor".into(), arguments: Some(object!({
             "command": "str_replace",
             "path": "/tmp/goose_test/goose.txt",
             "old_str": "# goose (modified by test)",
             "new_str": "# goose"
         }))},
-        CallToolRequestParam { name: "list_windows".into(), arguments: Some(object!({})) },
+        CallToolRequestParam { task: None, name: "list_windows".into(), arguments: Some(object!({})) },
     ],
     vec![]
 )]
@@ -268,6 +268,7 @@ async fn test_replayed_session(
         let mut results = Vec::new();
         for tool_call in tool_calls {
             let tool_call = CallToolRequestParam {
+                task: None,
                 name: format!("test__{}", tool_call.name).into(),
                 arguments: tool_call.arguments,
             };

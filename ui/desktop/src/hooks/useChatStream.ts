@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChatState } from '../types/chatState';
 
 import {
+  getSession,
   Message,
   MessageEvent,
   reply,
@@ -10,6 +11,7 @@ import {
   TokenState,
   updateFromSession,
   updateSessionUserRecipeValues,
+  listApps,
 } from '../api';
 
 import {
@@ -209,6 +211,29 @@ export function useChatStream({
         window.dispatchEvent(new CustomEvent('message-stream-finished'));
       }
 
+      // Refresh session name after each reply for the first 3 user messages
+      // The backend regenerates the name after each of the first 3 user messages
+      // to refine it as more context becomes available
+      if (!error && sessionId) {
+        const userMessageCount = messagesRef.current.filter((m) => m.role === 'user').length;
+
+        // Only refresh for the first 3 user messages
+        if (userMessageCount <= 3) {
+          try {
+            const response = await getSession({
+              path: { session_id: sessionId },
+              throwOnError: true,
+            });
+            if (response.data?.name) {
+              setSession((prev) => (prev ? { ...prev, name: response.data.name } : prev));
+            }
+          } catch (refreshError) {
+            // Silently fail - this is a nice-to-have feature
+            console.warn('Failed to refresh session name:', refreshError);
+          }
+        }
+      }
+
       setChatState(ChatState.Idle);
       onStreamFinish();
     },
@@ -274,6 +299,14 @@ export function useChatStream({
           accumulatedTotalTokens: loadedSession?.accumulated_total_tokens ?? 0,
         });
         setChatState(ChatState.Idle);
+
+        listApps({
+          throwOnError: true,
+          query: { session_id: sessionId },
+        }).catch((err) => {
+          console.warn('Failed to populate apps cache:', err);
+        });
+
         onSessionLoaded?.();
       } catch (error) {
         if (cancelled) return;
