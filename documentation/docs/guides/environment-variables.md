@@ -296,6 +296,32 @@ When the keyring is disabled, secrets are stored here:
 * Windows: `%APPDATA%\Block\goose\config\secrets.yaml`
 :::
 
+## Network Configuration
+
+These variables configure network proxy settings for goose.
+
+### HTTP Proxy
+
+goose supports standard HTTP proxy environment variables for users behind corporate firewalls or proxy servers.
+
+| Variable | Purpose | Values | Default |
+|----------|---------|---------|---------|
+| `HTTP_PROXY` | Proxy URL for HTTP connections | URL (e.g., `http://proxy.company.com:8080`) | None |
+| `HTTPS_PROXY` | Proxy URL for HTTPS connections (takes precedence over `HTTP_PROXY` when both are set)| URL (e.g., `http://proxy.company.com:8080`) | None |
+| `NO_PROXY` | Hosts to bypass the proxy | Comma-separated list (e.g., `localhost,127.0.0.1,.internal.com`) | None |
+
+**Examples**
+
+```bash
+# Configure proxy for all connections
+export HTTPS_PROXY="http://proxy.company.com:8080"
+export NO_PROXY="localhost,127.0.0.1,.internal,.local,10.0.0.0/8"
+
+# Or with authentication
+export HTTPS_PROXY="http://username:password@proxy.company.com:8080"
+export NO_PROXY="localhost,127.0.0.1,.internal"
+```
+
 ## Observability
 
 Beyond goose's built-in [logging system](/docs/guides/logs), you can export telemetry to external observability platforms for advanced monitoring, performance analysis, and production insights.
@@ -448,6 +474,23 @@ if [[ -n "$GOOSE_TERMINAL" ]]; then
   alias find="echo 'Use rg instead: rg --files | rg <pattern> for filenames, or rg <pattern> for content search'"
 fi
 ```
+
+## Enterprise Environments
+
+When deploying goose in enterprise environments, administrators might need to control behavior and infrastructure, or enforce consistent settings across teams. The following environment variables are commonly used:
+
+**Network and Infrastructure** - Control how goose connects to external services and internal infrastructure:
+- [Network Configuration](#network-configuration) - Proxy configuration and network settings
+- [Advanced Provider Configuration](#advanced-provider-configuration) - Point to internal LLM endpoints (e.g., Databricks, custom deployments)
+- [Model Context Limit Overrides](#model-context-limit-overrides) - Configure context limits for LiteLLM proxies and custom models
+
+**Security and Access Control** - Manage which extensions can run and how secrets are stored:
+
+- [Security Configuration](#security-configuration) - Control extension loading (`GOOSE_ALLOWLIST`) and secrets management (`GOOSE_DISABLE_KEYRING`)
+
+**Compliance and Monitoring** - Track usage and export telemetry for auditing:
+
+- [Observability](#observability) - Export telemetry to monitoring platforms (OTLP, Langfuse)
 
 ## Notes
 
