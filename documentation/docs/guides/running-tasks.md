@@ -120,12 +120,6 @@ goose run --with-builtin "developer,computercontroller" -t "your instructions"
 goose run --with-extension "ENV1=value1 custom-extension-args" -t "your instructions"
 ```
 
-- Using remote SSE extensions
-
-```bash
-goose run --with-remote-extension "url" -t "your instructions"
-```
-
 - Using streamable HTTP extensions
 
 ```bash
@@ -155,11 +149,17 @@ goose run --debug --recipe recipe.yaml
 
 ### JSON Output Format
 
-For automation, scripting, and CI/CD integration, you can get structured output from `goose run` using the `--output-format json` flag:
+For automation, scripting, and CI/CD integration, you can get structured output from `goose run` using the `--output-format` flag:
+
+- `json` - Complete JSON output after execution finishes (best for CI pipelines, logging)
+- `stream-json` - Real-time structured output as events occur (best for progress monitoring, long-running tasks)
 
 ```bash
 # Run with JSON output for automation
 goose run --output-format json -t "your instructions"
+
+# Stream JSON events in real-time
+goose run --output-format stream-json -t "your instructions"
 
 # Run a recipe with JSON output
 goose run --output-format json --recipe recipe.yaml

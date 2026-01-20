@@ -160,8 +160,6 @@ const MentionPopover = forwardRef<
             '.hg',
             'node_modules',
             '__pycache__',
-            '.vscode',
-            '.idea',
             'target',
             'dist',
             'build',
@@ -172,6 +170,17 @@ const MentionPopover = forwardRef<
             'System',
             'Applications',
             '.Trash',
+          ];
+
+          const allowedHiddenDirs = [
+            '.github',
+            '.vscode',
+            '.idea',
+            '.config',
+            '.gitlab',
+            '.circleci',
+            '.azure',
+            '.jenkins',
           ];
 
           // Don't skip as many directories at deeper levels to find more items
@@ -194,8 +203,13 @@ const MentionPopover = forwardRef<
             const fullPath = `${dirPath}/${item}`;
             const itemRelativePath = relativePath ? `${relativePath}/${item}` : item;
 
-            // Skip hidden items and common ignore patterns
-            if (item.startsWith('.') || skipDirsAtDepth.includes(item)) {
+            // Skip items in the skip list
+            if (skipDirsAtDepth.includes(item)) {
+              continue;
+            }
+
+            // Skip hidden items except for allowed hidden directories
+            if (item.startsWith('.') && !allowedHiddenDirs.includes(item)) {
               continue;
             }
 

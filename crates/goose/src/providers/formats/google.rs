@@ -31,7 +31,7 @@ pub fn get_thought_signature(metadata: &Option<ProviderMetadata>) -> Option<&str
 
 /// Convert internal Message format to Google's API message specification
 pub fn format_messages(messages: &[Message]) -> Vec<Value> {
-    messages
+    let filtered: Vec<_> = messages
         .iter()
         .filter(|m| m.is_agent_visible())
         .filter(|message| {
@@ -42,11 +42,27 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                 )
             })
         })
-        .map(|message| {
+        .collect();
+
+    let last_assistant_idx = filtered
+        .iter()
+        .enumerate()
+        .filter(|(_, m)| m.role != Role::User)
+        .map(|(i, _)| i)
+        .next_back();
+
+    filtered
+        .iter()
+        .enumerate()
+        .map(|(idx, message)| {
             let role = if message.role == Role::User {
                 "user"
             } else {
                 "model"
+            };
+            let include_signature = match last_assistant_idx {
+                Some(last_idx) => idx >= last_idx,
+                None => false,
             };
             let mut parts = Vec::new();
             for message_content in message.content.iter() {
@@ -74,8 +90,13 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                             let mut part = Map::new();
                             part.insert("functionCall".to_string(), json!(function_call_part));
 
-                            if let Some(signature) = get_thought_signature(&request.metadata) {
-                                part.insert(THOUGHT_SIGNATURE_KEY.to_string(), json!(signature));
+                            if include_signature {
+                                if let Some(signature) = get_thought_signature(&request.metadata) {
+                                    part.insert(
+                                        THOUGHT_SIGNATURE_KEY.to_string(),
+                                        json!(signature),
+                                    );
+                                }
                             }
 
                             parts.push(json!(part));
@@ -144,11 +165,15 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                                     "functionResponse".to_string(),
                                     json!(function_response),
                                 );
-                                if let Some(signature) = get_thought_signature(&response.metadata) {
-                                    part.insert(
-                                        THOUGHT_SIGNATURE_KEY.to_string(),
-                                        json!(signature),
-                                    );
+                                if include_signature {
+                                    if let Some(signature) =
+                                        get_thought_signature(&response.metadata)
+                                    {
+                                        part.insert(
+                                            THOUGHT_SIGNATURE_KEY.to_string(),
+                                            json!(signature),
+                                        );
+                                    }
                                 }
                                 parts.push(json!(part));
                             }
@@ -164,11 +189,15 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                                     "functionResponse".to_string(),
                                     json!(function_response),
                                 );
-                                if let Some(signature) = get_thought_signature(&response.metadata) {
-                                    part.insert(
-                                        THOUGHT_SIGNATURE_KEY.to_string(),
-                                        json!(signature),
-                                    );
+                                if include_signature {
+                                    if let Some(signature) =
+                                        get_thought_signature(&response.metadata)
+                                    {
+                                        part.insert(
+                                            THOUGHT_SIGNATURE_KEY.to_string(),
+                                            json!(signature),
+                                        );
+                                    }
                                 }
                                 parts.push(json!(part));
                             }
@@ -177,7 +206,9 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                     MessageContent::Thinking(thinking) => {
                         let mut part = Map::new();
                         part.insert("text".to_string(), json!(thinking.thinking));
-                        part.insert("thoughtSignature".to_string(), json!(thinking.signature));
+                        if include_signature {
+                            part.insert("thoughtSignature".to_string(), json!(thinking.signature));
+                        }
                         parts.push(json!(part));
                     }
 
@@ -309,7 +340,6 @@ pub fn process_map(map: &Map<String, Value>, parent_key: Option<&str>) -> Value 
 
 #[derive(Clone, Copy)]
 enum SignedTextHandling {
-    SkipSignedText,
     SignedTextAsThinking,
     SignedTextAsRegularText,
 }
@@ -318,8 +348,12 @@ pub fn process_response_part(
     part: &Value,
     last_signature: &mut Option<String>,
 ) -> Option<MessageContent> {
-    // For streaming: skip text with signatures (matches Anthropic/OpenAI behavior)
-    process_response_part_impl(part, last_signature, SignedTextHandling::SkipSignedText)
+    // Gemini 2.5 models include thoughtSignature on the first streaming chunk
+    process_response_part_impl(
+        part,
+        last_signature,
+        SignedTextHandling::SignedTextAsRegularText,
+    )
 }
 
 fn process_response_part_non_streaming(
@@ -353,7 +387,6 @@ fn process_response_part_impl(
             return None;
         }
         match (signature, signed_text_handling) {
-            (Some(_), SignedTextHandling::SkipSignedText) => None,
             (Some(sig), SignedTextHandling::SignedTextAsThinking) => {
                 Some(MessageContent::thinking(text.to_string(), sig.to_string()))
             }
@@ -389,6 +422,7 @@ fn process_response_part_impl(
             Some(MessageContent::tool_request_with_metadata(
                 id,
                 Ok(CallToolRequestParam {
+                    task: None,
                     name: name.to_string().into(),
                     arguments,
                 }),
@@ -737,6 +771,7 @@ mod tests {
             set_up_tool_request_message(
                 "id",
                 CallToolRequestParam {
+                    task: None,
                     name: "tool_name".into(),
                     arguments: Some(object(arguments.clone())),
                 },
@@ -744,6 +779,7 @@ mod tests {
             set_up_action_required_message(
                 "id2",
                 CallToolRequestParam {
+                    task: None,
                     name: "tool_name_2".into(),
                     arguments: Some(object(arguments.clone())),
                 },
@@ -1228,9 +1264,20 @@ mod tests {
             Ok(tool_result("output")),
             req1.metadata.as_ref(),
         );
-        let google_out = format_messages(&[native, tool_response]);
+        let google_out = format_messages(&[native.clone(), tool_response.clone()]);
         assert_eq!(google_out[0]["parts"][0]["thoughtSignature"], SIG);
         assert_eq!(google_out[1]["parts"][0]["thoughtSignature"], SIG);
+
+        let second_assistant =
+            Message::assistant().with_thinking("More thinking".to_string(), "sig_456".to_string());
+        let google_multi = format_messages(&[native, tool_response, second_assistant]);
+        assert!(google_multi[0]["parts"][0]
+            .get("thoughtSignature")
+            .is_none());
+        assert!(google_multi[1]["parts"][0]
+            .get("thoughtSignature")
+            .is_none());
+        assert_eq!(google_multi[2]["parts"][0]["thoughtSignature"], "sig_456");
 
         // Text-only response WITH signature but WITHOUT function calls should be regular text
         // (per original behavior: thinking is only when reasoning before tool calls)
@@ -1341,6 +1388,39 @@ mod tests {
         }
 
         assert_eq!(tool_calls, vec!["test_tool"]);
+    }
+
+    #[tokio::test]
+    async fn test_streaming_with_thought_signature() {
+        use futures::StreamExt;
+
+        let signed_stream = concat!(
+            r#"data: {"candidates": [{"content": {"role": "model", "#,
+            r#""parts": [{"text": "Begin", "thoughtSignature": "sig123"}]}}]}"#,
+            "\n",
+            r#"data: {"candidates": [{"content": {"role": "model", "#,
+            r#""parts": [{"text": " middle"}]}}]}"#,
+            "\n",
+            r#"data: {"candidates": [{"content": {"role": "model", "#,
+            r#""parts": [{"text": " end"}]}}]}"#
+        );
+        let lines: Vec<Result<String, anyhow::Error>> =
+            signed_stream.lines().map(|l| Ok(l.to_string())).collect();
+        let stream = Box::pin(futures::stream::iter(lines));
+        let mut message_stream = std::pin::pin!(response_to_streaming_message(stream));
+
+        let mut text_parts = Vec::new();
+
+        while let Some(result) = message_stream.next().await {
+            let (message, _usage) = result.unwrap();
+            if let Some(msg) = message {
+                if let Some(MessageContent::Text(text)) = msg.content.first() {
+                    text_parts.push(text.text.clone());
+                }
+            }
+        }
+
+        assert_eq!(text_parts, vec!["Begin", " middle", " end"]);
     }
 
     #[tokio::test]

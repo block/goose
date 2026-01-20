@@ -1,5 +1,6 @@
 import Electron, { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { Recipe } from './recipe';
+import { GooseApp } from './api';
 
 interface NotificationData {
   title: string;
@@ -96,6 +97,8 @@ type ElectronAPI = {
   getGoosedHostPort: () => Promise<string | null>;
   setWakelock: (enable: boolean) => Promise<boolean>;
   getWakelockState: () => Promise<boolean>;
+  setSpellcheck: (enable: boolean) => Promise<boolean>;
+  getSpellcheckState: () => Promise<boolean>;
   openNotificationsSettings: () => Promise<boolean>;
   onMouseBackButtonClicked: (callback: () => void) => void;
   offMouseBackButtonClicked: (callback: () => void) => void;
@@ -134,6 +137,7 @@ type ElectronAPI = {
   hasAcceptedRecipeBefore: (recipe: Recipe) => Promise<boolean>;
   recordRecipeHash: (recipe: Recipe) => Promise<boolean>;
   openDirectoryInExplorer: (directoryPath: string) => Promise<boolean>;
+  launchApp: (app: GooseApp) => Promise<void>;
   addRecentDir: (dir: string) => Promise<boolean>;
 };
 
@@ -201,6 +205,8 @@ const electronAPI: ElectronAPI = {
   getGoosedHostPort: () => ipcRenderer.invoke('get-goosed-host-port'),
   setWakelock: (enable: boolean) => ipcRenderer.invoke('set-wakelock', enable),
   getWakelockState: () => ipcRenderer.invoke('get-wakelock-state'),
+  setSpellcheck: (enable: boolean) => ipcRenderer.invoke('set-spellcheck', enable),
+  getSpellcheckState: () => ipcRenderer.invoke('get-spellcheck-state'),
   openNotificationsSettings: () => ipcRenderer.invoke('open-notifications-settings'),
   onMouseBackButtonClicked: (callback: () => void) => {
     // Wrapper that ignores the event parameter.
@@ -271,6 +277,7 @@ const electronAPI: ElectronAPI = {
   recordRecipeHash: (recipe: Recipe) => ipcRenderer.invoke('record-recipe-hash', recipe),
   openDirectoryInExplorer: (directoryPath: string) =>
     ipcRenderer.invoke('open-directory-in-explorer', directoryPath),
+  launchApp: (app: GooseApp) => ipcRenderer.invoke('launch-app', app),
   addRecentDir: (dir: string) => ipcRenderer.invoke('add-recent-dir', dir),
 };
 

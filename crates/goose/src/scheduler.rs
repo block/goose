@@ -15,7 +15,7 @@ use tokio_util::sync::CancellationToken;
 use crate::agents::AgentEvent;
 use crate::agents::{Agent, SessionConfig};
 use crate::config::paths::Paths;
-use crate::config::Config;
+use crate::config::{resolve_extensions_for_new_session, Config};
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use crate::posthog;
@@ -31,7 +31,7 @@ type JobsMap = HashMap<String, (JobId, ScheduledJob)>;
 pub fn get_default_scheduler_storage_path() -> Result<PathBuf, io::Error> {
     let data_dir = Paths::data_dir();
     fs::create_dir_all(&data_dir)?;
-    Ok(data_dir.join("schedules.json"))
+    Ok(data_dir.join("schedule.json"))
 }
 
 pub fn get_default_scheduled_recipes_dir() -> Result<PathBuf, SchedulerError> {
@@ -135,10 +135,14 @@ pub struct Scheduler {
     jobs: Arc<Mutex<JobsMap>>,
     storage_path: PathBuf,
     running_tasks: Arc<Mutex<RunningTasksMap>>,
+    session_manager: Arc<SessionManager>,
 }
 
 impl Scheduler {
-    pub async fn new(storage_path: PathBuf) -> Result<Arc<Self>, SchedulerError> {
+    pub async fn new(
+        storage_path: PathBuf,
+        session_manager: Arc<SessionManager>,
+    ) -> Result<Arc<Self>, SchedulerError> {
         let internal_scheduler = TokioJobScheduler::new()
             .await
             .map_err(|e| SchedulerError::SchedulerInternalError(e.to_string()))?;
@@ -151,6 +155,7 @@ impl Scheduler {
             jobs,
             storage_path,
             running_tasks,
+            session_manager,
         });
 
         arc_self.load_jobs_from_storage().await;
@@ -395,7 +400,8 @@ impl Scheduler {
             Ok(data) => data,
             Err(e) => {
                 tracing::error!(
-                    "Failed to read schedules.json: {}. Starting with empty schedule list.",
+                    "Failed to read {}: {}. Starting with empty schedule list.",
+                    self.storage_path.display(),
                     e
                 );
                 return;
@@ -409,7 +415,8 @@ impl Scheduler {
             Ok(jobs) => jobs,
             Err(e) => {
                 tracing::error!(
-                    "Failed to parse schedules.json: {}. Starting with empty schedule list.",
+                    "Failed to parse {}: {}. Starting with empty schedule list.",
+                    self.storage_path.display(),
                     e
                 );
                 return;
@@ -498,7 +505,9 @@ impl Scheduler {
         sched_id: &str,
         limit: usize,
     ) -> Result<Vec<(String, Session)>, SchedulerError> {
-        let all_sessions = SessionManager::list_sessions()
+        let all_sessions = self
+            .session_manager
+            .list_sessions()
             .await
             .map_err(|e| SchedulerError::StorageError(io::Error::other(e)))?;
 
@@ -734,18 +743,20 @@ async fn execute_job(
 
     let agent_provider = create(&provider_name, model_config).await?;
 
-    if let Some(ref extensions) = recipe.extensions {
-        for ext in extensions {
-            agent.add_extension(ext.clone()).await?;
-        }
+    let extensions = resolve_extensions_for_new_session(recipe.extensions.as_deref(), None);
+    for ext in extensions {
+        agent.add_extension(ext.clone()).await?;
     }
 
-    let session = SessionManager::create_session(
-        std::env::current_dir()?,
-        format!("Scheduled job: {}", job.id),
-        SessionType::Scheduled,
-    )
-    .await?;
+    let session = agent
+        .config
+        .session_manager
+        .create_session(
+            std::env::current_dir()?,
+            format!("Scheduled job: {}", job.id),
+            SessionType::Scheduled,
+        )
+        .await?;
 
     agent.update_provider(agent_provider, &session.id).await?;
 
@@ -812,7 +823,10 @@ async fn execute_job(
         }
     }
 
-    SessionManager::update_session(&session.id)
+    agent
+        .config
+        .session_manager
+        .update(&session.id)
         .schedule_id(Some(job.id.clone()))
         .recipe(Some(recipe))
         .apply()
@@ -926,9 +940,10 @@ mod tests {
     #[tokio::test]
     async fn test_job_runs_on_schedule() {
         let temp_dir = tempdir().unwrap();
-        let storage_path = temp_dir.path().join("schedules.json");
+        let storage_path = temp_dir.path().join("schedule.json");
         let recipe_path = create_test_recipe(temp_dir.path(), "scheduled_job");
-        let scheduler = Scheduler::new(storage_path).await.unwrap();
+        let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+        let scheduler = Scheduler::new(storage_path, session_manager).await.unwrap();
 
         let job = ScheduledJob {
             id: "scheduled_job".to_string(),
@@ -951,9 +966,10 @@ mod tests {
     #[tokio::test]
     async fn test_paused_job_does_not_run() {
         let temp_dir = tempdir().unwrap();
-        let storage_path = temp_dir.path().join("schedules.json");
+        let storage_path = temp_dir.path().join("schedule.json");
         let recipe_path = create_test_recipe(temp_dir.path(), "paused_job");
-        let scheduler = Scheduler::new(storage_path).await.unwrap();
+        let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+        let scheduler = Scheduler::new(storage_path, session_manager).await.unwrap();
 
         let job = ScheduledJob {
             id: "paused_job".to_string(),

@@ -9,7 +9,6 @@ use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
 use goose::recipe::local_recipes;
 use goose::recipe::validate_recipe::validate_recipe_template_from_content;
 use goose::recipe::Recipe;
-use goose::session::SessionManager;
 use goose::{recipe_deeplink, slash_commands};
 
 use serde::{Deserialize, Serialize};
@@ -168,7 +167,11 @@ async fn create_recipe(
         request.session_id
     );
 
-    let session = match SessionManager::get_session(&request.session_id, true).await {
+    let session = match state
+        .session_manager()
+        .get_session(&request.session_id, true)
+        .await
+    {
         Ok(session) => session,
         Err(e) => {
             tracing::error!("Failed to get session: {}", e);

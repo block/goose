@@ -24,7 +24,7 @@ use axum::Router;
 // Function to configure all routes
 pub fn configure(state: Arc<crate::state::AppState>, secret_key: String) -> Router {
     Router::new()
-        .merge(status::routes())
+        .merge(status::routes(state.clone()))
         .merge(reply::routes(state.clone()))
         .merge(action_required::routes(state.clone()))
         .merge(agent::routes(state.clone()))

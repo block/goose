@@ -121,25 +121,15 @@
     "id": "cloudinary-asset-management-mcp",
     "name": "Cloudinary Asset Management",
     "description": "Cloud-based image and video management",
-    "command": "npx -y cloudinary-asset-management-mcp",
+    "command": "npx -y --package @cloudinary/asset-management -- mcp start",
     "link": "https://github.com/cloudinary/asset-management-js",
-    "installation_notes": "Install using npx package manager.",
+    "installation_notes": "Requires Node.js v20 or greater. Get your Cloudinary URL from the Cloudinary Console (https://console.cloudinary.com/settings/api-keys).",
     "is_builtin": false,
     "endorsed": true,
     "environmentVariables": [
       {
-        "name": "CLOUDINARY_CLOUD_NAME",
-        "description": "Required environment variable",
-        "required": true
-      },
-      {
-        "name": "CLOUDINARY_API_KEY",
-        "description": "Required environment variable",
-        "required": true
-      },
-      {
-        "name": "CLOUDINARY_API_SECRET",
-        "description": "Required environment variable",
+        "name": "CLOUDINARY_URL",
+        "description": "Your Cloudinary URL (cloudinary://api_key:api_secret@cloud_name)",
         "required": true
       }
     ]
@@ -367,10 +357,10 @@
     "id": "jetbrains",
     "name": "JetBrains",
     "description": "Integrate with any JetBrains IDE (requires local setup, dependent on your IDE version)",
-    "url": "http://localhost:<PORT>/sse",
-    "type": "remote",
+    "command": "",
+    "show_install_command": false,
     "link": "https://github.com/JetBrains/mcp-jetbrains",
-    "installation_notes": "IDE v2025.2 and later: Enable SSE configuration from Settings > Tools > MCP Server, then update the placeholder SSE URL in the following command. If installing from the link, you must update the URL from the Extensions page before activating the extension. For earlier IDE versions, you must install the MCP Server plugin and use npx package manager to install the extension.",
+    "installation_notes": "Requires IDE v2025.2+. Use STDIO from Settings > Tools > MCP Server.",
     "is_builtin": false,
     "endorsed": true,
     "environmentVariables": []
@@ -460,7 +450,7 @@
     "type": "streamable-http",
     "url": "https://mcp.neon.tech/mcp",
     "link": "https://github.com/neondatabase/mcp-server-neon",
-    "installation_notes": "Streaming HTTP extension with OAuth browser authentication to your Neon account.",
+    "installation_notes": "Streamable HTTP extension with OAuth browser authentication to your Neon account.",
     "is_builtin": false,
     "endorsed": true,
     "environmentVariables": []
@@ -525,13 +515,12 @@
     "id": "pieces",
     "name": "Pieces",
     "description": "Provides access to your Pieces long-term memory. You need to have Pieces installed to use this.",
-    "url": "http://localhost:39300/model_context_protocol/2024-11-05/sse",
+    "command": "uvx --from pieces-cli pieces --ignore-onboarding mcp start",
     "link": "https://pieces.app?utm_source=goose&utm_medium=collab&utm_campaign=mcp",
-    "installation_notes": "You need to install Pieces first, and have this running.",
+    "installation_notes": "Install PiecesOS first.",
     "is_builtin": false,
     "endorsed": true,
-    "environmentVariables": [],
-    "type": "remote"
+    "environmentVariables": []
   },
   {
     "id": "playwright",
@@ -543,6 +532,23 @@
     "is_builtin": false,
     "endorsed": true,
     "environmentVariables": []
+  },
+  {
+    "id": "prompts-chat-mcp",
+    "name": "prompts.chat",
+    "description": "Access thousands of AI prompts directly in your AI assistant",
+    "command": "npx -y @fkadev/prompts.chat-mcp@latest",
+    "link": "https://github.com/f/prompts.chat-mcp",
+    "installation_notes": "Install using npx package manager.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [
+      {
+        "name": "PROMPTS_API_KEY",
+        "description": "API Key to save and list private prompts on prompts.chat",
+        "required": false
+      }
+    ]
   },
   {
     "id": "reddit-mcp",
@@ -584,7 +590,7 @@
     "type": "streamable-http",
     "url": "https://rube.app/mcp",
     "link": "https://rube.app",
-    "installation_notes": "Streaming HTTP extension with OAuth browser authentication to your Rube account.",
+    "installation_notes": "Streamable HTTP extension with OAuth browser authentication to your Rube account.",
     "is_builtin": false,
     "endorsed": true,
     "environmentVariables": []
@@ -629,7 +635,7 @@
     "type": "streamable-http",
     "url": "https://mcp.supabase.com/mcp",
     "link": "https://github.com/supabase-community/supabase-mcp",
-    "installation_notes": "Streaming HTTP extension with OAuth browser authentication to your Supabase account.",
+    "installation_notes": "Streamable HTTP extension with OAuth browser authentication to your Supabase account.",
     "is_builtin": false,
     "endorsed": true,
     "environmentVariables": [

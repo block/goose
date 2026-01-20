@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChatState } from '../types/chatState';
 
 import {
+  getSession,
   Message,
   MessageEvent,
   reply,
@@ -10,6 +11,7 @@ import {
   TokenState,
   updateFromSession,
   updateSessionUserRecipeValues,
+  listApps,
 } from '../api';
 
 import {
@@ -170,6 +172,7 @@ export function useChatStream({
   });
   const [notifications, setNotifications] = useState<NotificationEvent[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const lastInteractionTimeRef = useRef<number>(Date.now());
 
   useEffect(() => {
     if (session) {
@@ -192,12 +195,43 @@ export function useChatStream({
         setSessionLoadError(error);
       }
 
+      const timeSinceLastInteraction = Date.now() - lastInteractionTimeRef.current;
+      if (!error && timeSinceLastInteraction > 60000) {
+        window.electron.showNotification({
+          title: 'goose finished the task.',
+          body: 'Click here to expand.',
+        });
+      }
+
       const isNewSession = sessionId && sessionId.match(/^\d{8}_\d{6}$/);
       if (isNewSession) {
         console.log(
           'useChatStream: Message stream finished for new session, emitting message-stream-finished event'
         );
         window.dispatchEvent(new CustomEvent('message-stream-finished'));
+      }
+
+      // Refresh session name after each reply for the first 3 user messages
+      // The backend regenerates the name after each of the first 3 user messages
+      // to refine it as more context becomes available
+      if (!error && sessionId) {
+        const userMessageCount = messagesRef.current.filter((m) => m.role === 'user').length;
+
+        // Only refresh for the first 3 user messages
+        if (userMessageCount <= 3) {
+          try {
+            const response = await getSession({
+              path: { session_id: sessionId },
+              throwOnError: true,
+            });
+            if (response.data?.name) {
+              setSession((prev) => (prev ? { ...prev, name: response.data.name } : prev));
+            }
+          } catch (refreshError) {
+            // Silently fail - this is a nice-to-have feature
+            console.warn('Failed to refresh session name:', refreshError);
+          }
+        }
       }
 
       setChatState(ChatState.Idle);
@@ -265,6 +299,14 @@ export function useChatStream({
           accumulatedTotalTokens: loadedSession?.accumulated_total_tokens ?? 0,
         });
         setChatState(ChatState.Idle);
+
+        listApps({
+          throwOnError: true,
+          query: { session_id: sessionId },
+        }).catch((err) => {
+          console.warn('Failed to populate apps cache:', err);
+        });
+
         onSessionLoaded?.();
       } catch (error) {
         if (cancelled) return;
@@ -293,6 +335,8 @@ export function useChatStream({
       if (!hasNewMessage && !hasExistingMessages) {
         return;
       }
+
+      lastInteractionTimeRef.current = Date.now();
 
       // Emit session-created event for first message in a new session
       if (!hasExistingMessages && hasNewMessage) {
@@ -351,6 +395,8 @@ export function useChatStream({
       if (!session || chatState === ChatState.LoadingConversation) {
         return;
       }
+
+      lastInteractionTimeRef.current = Date.now();
 
       const responseMessage = createElicitationResponseMessage(elicitationId, userData);
       const currentMessages = [...messagesRef.current, responseMessage];
@@ -431,6 +477,7 @@ export function useChatStream({
   const stopStreaming = useCallback(() => {
     abortControllerRef.current?.abort();
     setChatState(ChatState.Idle);
+    lastInteractionTimeRef.current = Date.now();
   }, []);
 
   const onMessageUpdate = useCallback(

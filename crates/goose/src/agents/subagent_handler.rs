@@ -1,7 +1,6 @@
 use crate::{
-    agents::{subagent_task_config::TaskConfig, AgentEvent, SessionConfig},
+    agents::{subagent_task_config::TaskConfig, Agent, AgentConfig, AgentEvent, SessionConfig},
     conversation::{message::Message, Conversation},
-    execution::manager::AgentManager,
     prompt_template::render_template,
     recipe::Recipe,
 };
@@ -11,6 +10,7 @@ use rmcp::model::{ErrorCode, ErrorData};
 use serde::Serialize;
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info};
 
@@ -28,6 +28,7 @@ type AgentMessagesFuture =
 
 /// Standalone function to run a complete subagent task with output options
 pub async fn run_complete_subagent_task(
+    config: AgentConfig,
     recipe: Recipe,
     task_config: TaskConfig,
     return_last_only: bool,
@@ -35,7 +36,7 @@ pub async fn run_complete_subagent_task(
     cancellation_token: Option<CancellationToken>,
 ) -> Result<String, anyhow::Error> {
     let (messages, final_output) =
-        get_agent_messages(recipe, task_config, session_id, cancellation_token)
+        get_agent_messages(config, recipe, task_config, session_id, cancellation_token)
             .await
             .map_err(|e| {
                 ErrorData::new(
@@ -111,6 +112,7 @@ pub async fn run_complete_subagent_task(
 }
 
 fn get_agent_messages(
+    config: AgentConfig,
     recipe: Recipe,
     task_config: TaskConfig,
     session_id: String,
@@ -123,14 +125,7 @@ fn get_agent_messages(
             .clone()
             .unwrap_or_else(|| "Begin.".to_string());
 
-        let agent_manager = AgentManager::instance()
-            .await
-            .map_err(|e| anyhow!("Failed to create AgentManager: {}", e))?;
-
-        let agent = agent_manager
-            .get_or_create_agent(session_id.clone())
-            .await
-            .map_err(|e| anyhow!("Failed to get sub agent session file path: {}", e))?;
+        let agent = Arc::new(Agent::with_config(config));
 
         agent
             .update_provider(task_config.provider, &session_id)
@@ -152,7 +147,7 @@ fn get_agent_messages(
             .apply_recipe_components(recipe.sub_recipes.clone(), recipe.response.clone(), true)
             .await;
 
-        let tools = agent.list_tools(None).await;
+        let tools = agent.list_tools(&session_id, None).await;
         let subagent_prompt = render_template(
             "subagent_system.md",
             &SubagentPromptContext {

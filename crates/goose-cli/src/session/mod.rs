@@ -18,7 +18,7 @@ use tokio::signal::ctrl_c;
 use tokio_util::task::AbortOnDropHandle;
 
 pub use self::export::message_to_markdown;
-pub use builder::{build_session, SessionBuilderConfig, SessionSettings};
+pub use builder::{build_session, SessionBuilderConfig};
 use console::Color;
 use goose::agents::AgentEvent;
 use goose::permission::permission_confirmation::PrincipalType;
@@ -33,7 +33,6 @@ use goose::agents::extension::{Envs, ExtensionConfig, PLATFORM_EXTENSIONS};
 use goose::agents::types::RetryConfig;
 use goose::agents::{Agent, SessionConfig, COMPACT_TRIGGERS};
 use goose::config::{Config, GooseMode};
-use goose::session::SessionManager;
 use input::InputResult;
 use rmcp::model::PromptMessage;
 use rmcp::model::ServerNotification;
@@ -229,7 +228,10 @@ impl CliSession {
         retry_config: Option<RetryConfig>,
         output_format: String,
     ) -> Self {
-        let messages = SessionManager::get_session(&session_id, true)
+        let messages = agent
+            .config
+            .session_manager
+            .get_session(&session_id, true)
             .await
             .map(|session| session.conversation.unwrap_or_default())
             .unwrap();
@@ -253,12 +255,9 @@ impl CliSession {
         &self.session_id
     }
 
-    /// Add a stdio extension to the session
-    ///
-    /// # Arguments
-    /// * `extension_command` - Full command string including environment variables
-    ///   Format: "ENV1=val1 ENV2=val2 command args..."
-    pub async fn add_extension(&mut self, extension_command: String) -> Result<()> {
+    /// Parse a stdio extension command string into an ExtensionConfig
+    /// Format: "ENV1=val1 ENV2=val2 command args..."
+    pub fn parse_stdio_extension(extension_command: &str) -> Result<ExtensionConfig> {
         let mut parts: Vec<&str> = extension_command.split_whitespace().collect();
         let mut envs = HashMap::new();
 
@@ -277,94 +276,91 @@ impl CliSession {
 
         let cmd = parts.remove(0).to_string();
 
-        let config = ExtensionConfig::Stdio {
+        Ok(ExtensionConfig::Stdio {
             name: String::new(),
             cmd,
             args: parts.iter().map(|s| s.to_string()).collect(),
             envs: Envs::new(envs),
             env_keys: Vec::new(),
             description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
-            // TODO: should set timeout
             timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
             bundled: None,
             available_tools: Vec::new(),
-        };
-
-        self.agent
-            .add_extension(config)
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to start extension: {}", e))?;
-
-        // Invalidate the completion cache when a new extension is added
-        self.invalidate_completion_cache().await;
-
-        Ok(())
+        })
     }
 
-    /// Add a streamable HTTP extension to the session
-    ///
-    /// # Arguments
-    /// * `extension_url` - URL of the server
-    pub async fn add_streamable_http_extension(&mut self, extension_url: String) -> Result<()> {
-        let config = ExtensionConfig::StreamableHttp {
+    pub fn parse_streamable_http_extension(extension_url: &str) -> ExtensionConfig {
+        ExtensionConfig::StreamableHttp {
             name: String::new(),
-            uri: extension_url,
+            uri: extension_url.to_string(),
             envs: Envs::new(HashMap::new()),
             env_keys: Vec::new(),
             headers: HashMap::new(),
             description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
-            // TODO: should set timeout
             timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
             bundled: None,
             available_tools: Vec::new(),
-        };
+        }
+    }
+
+    /// Parse builtin extension names (comma-separated) into ExtensionConfigs
+    pub fn parse_builtin_extensions(builtin_name: &str) -> Vec<ExtensionConfig> {
+        builtin_name
+            .split(',')
+            .map(|name| {
+                let extension_name = name.trim();
+                if PLATFORM_EXTENSIONS.contains_key(extension_name) {
+                    ExtensionConfig::Platform {
+                        name: extension_name.to_string(),
+                        bundled: None,
+                        description: extension_name.to_string(),
+                        available_tools: Vec::new(),
+                    }
+                } else {
+                    ExtensionConfig::Builtin {
+                        name: extension_name.to_string(),
+                        display_name: None,
+                        timeout: None,
+                        bundled: None,
+                        description: extension_name.to_string(),
+                        available_tools: Vec::new(),
+                    }
+                }
+            })
+            .collect()
+    }
+
+    async fn add_and_persist_extensions(&mut self, configs: Vec<ExtensionConfig>) -> Result<()> {
+        for config in configs {
+            self.agent
+                .add_extension(config)
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to start extension: {}", e))?;
+        }
 
         self.agent
-            .add_extension(config)
+            .persist_extension_state(&self.session_id)
             .await
-            .map_err(|e| anyhow::anyhow!("Failed to start extension: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("Failed to save extension state: {}", e))?;
 
-        // Invalidate the completion cache when a new extension is added
         self.invalidate_completion_cache().await;
 
         Ok(())
     }
 
-    /// Add a builtin extension to the session
-    ///
-    /// # Arguments
-    /// * `builtin_name` - Name of the builtin extension(s), comma separated
+    pub async fn add_extension(&mut self, extension_command: String) -> Result<()> {
+        let config = Self::parse_stdio_extension(&extension_command)?;
+        self.add_and_persist_extensions(vec![config]).await
+    }
+
+    pub async fn add_streamable_http_extension(&mut self, extension_url: String) -> Result<()> {
+        let config = Self::parse_streamable_http_extension(&extension_url);
+        self.add_and_persist_extensions(vec![config]).await
+    }
+
     pub async fn add_builtin(&mut self, builtin_name: String) -> Result<()> {
-        for name in builtin_name.split(',') {
-            let extension_name = name.trim();
-
-            let config = if PLATFORM_EXTENSIONS.contains_key(extension_name) {
-                ExtensionConfig::Platform {
-                    name: extension_name.to_string(),
-                    bundled: None,
-                    description: name.to_string(),
-                    available_tools: Vec::new(),
-                }
-            } else {
-                ExtensionConfig::Builtin {
-                    name: extension_name.to_string(),
-                    display_name: None,
-                    timeout: None,
-                    bundled: None,
-                    description: name.to_string(),
-                    available_tools: Vec::new(),
-                }
-            };
-            self.agent
-                .add_extension(config)
-                .await
-                .map_err(|e| anyhow::anyhow!("Failed to start builtin extension: {}", e))?;
-        }
-
-        // Invalidate the completion cache when a new extension is added
-        self.invalidate_completion_cache().await;
-
-        Ok(())
+        let configs = Self::parse_builtin_extensions(&builtin_name);
+        self.add_and_persist_extensions(configs).await
     }
 
     pub async fn list_prompts(
@@ -507,6 +503,10 @@ impl CliSession {
                 history.save(editor);
                 self.handle_toggle_theme();
             }
+            InputResult::ToggleFullToolOutput => {
+                history.save(editor);
+                self.handle_toggle_full_tool_output();
+            }
             InputResult::SelectTheme(theme_name) => {
                 history.save(editor);
                 self.handle_select_theme(&theme_name);
@@ -635,6 +635,27 @@ impl CliSession {
         output::set_theme(new_theme);
     }
 
+    fn handle_toggle_full_tool_output(&self) {
+        let enabled = output::toggle_full_tool_output();
+        if enabled {
+            println!(
+                "{}",
+                console::style(
+                    "✓ Full tool output enabled - tool parameters will no longer be truncated"
+                )
+                .green()
+            );
+        } else {
+            println!(
+                "{}",
+                console::style(
+                    "✓ Full tool output disabled - tool parameters will be truncated to fit terminal width"
+                )
+                .dim()
+            );
+        }
+    }
+
     fn handle_goose_mode(&self, mode: &str) -> Result<()> {
         let config = Config::global();
         let mode = match GooseMode::from_str(&mode.to_lowercase()) {
@@ -668,14 +689,22 @@ impl CliSession {
     }
 
     async fn handle_clear(&mut self) -> Result<()> {
-        if let Err(e) =
-            SessionManager::replace_conversation(&self.session_id, &Conversation::default()).await
+        if let Err(e) = self
+            .agent
+            .config
+            .session_manager
+            .replace_conversation(&self.session_id, &Conversation::default())
+            .await
         {
             output::render_error(&format!("Failed to clear session: {}", e));
             return Ok(());
         }
 
-        if let Err(e) = SessionManager::update_session(&self.session_id)
+        if let Err(e) = self
+            .agent
+            .config
+            .session_manager
+            .update(&self.session_id)
             .total_tokens(Some(0))
             .input_tokens(Some(0))
             .output_tokens(Some(0))
@@ -839,13 +868,6 @@ impl CliSession {
         let is_json_mode = self.output_format == "json";
         let is_stream_json_mode = self.output_format == "stream-json";
 
-        // Helper to emit a streaming JSON event
-        let emit_stream_event = |event: &StreamEvent| {
-            if let Ok(json) = serde_json::to_string(event) {
-                println!("{}", json);
-            }
-        };
-
         let session_config = SessionConfig {
             id: self.session_id.clone(),
             schedule_id: self.scheduled_job_id.clone(),
@@ -883,91 +905,30 @@ impl CliSession {
                 result = stream.next() => {
                     match result {
                         Some(Ok(AgentEvent::Message(message))) => {
-                            let tool_call_confirmation = message.content.iter().find_map(|content| {
-                                if let MessageContent::ActionRequired(action) = content {
-                                    #[allow(irrefutable_let_patterns)] // this is a one variant enum right now but it will have more
-                                    if let ActionRequiredData::ToolConfirmation { id, tool_name, arguments, prompt } = &action.data {
-                                        Some((id.clone(), tool_name.clone(), arguments.clone(), prompt.clone()))
-                                    } else {
-                                        None
-                                    }
-                                } else {
-                                    None
-                                }
-                            });
-
-                            let elicitation_request = message.content.iter().find_map(|content| {
-                                if let MessageContent::ActionRequired(action) = content {
-                                    if let ActionRequiredData::Elicitation { id, message, requested_schema } = &action.data {
-                                        Some((id.clone(), message.clone(), requested_schema.clone()))
-                                    } else {
-                                        None
-                                    }
-                                } else {
-                                    None
-                                }
-                            });
-
-                            if let Some((id, _tool_name, _arguments, security_prompt)) = tool_call_confirmation {
-                                output::hide_thinking();
-
-                                // Format the confirmation prompt - use security message if present, otherwise use generic message
-                                let prompt = if let Some(security_message) = &security_prompt {
-                                    println!("\n{}", security_message);
-                                    "Do you allow this tool call?".to_string()
-                                } else {
-                                    "Goose would like to call the above tool, do you allow?".to_string()
-                                };
-
-                                // Get confirmation from user
-                                let permission_result = if security_prompt.is_none() {
-                                    // No security message - show all options including "Always Allow"
-                                    cliclack::select(prompt)
-                                        .item(Permission::AllowOnce, "Allow", "Allow the tool call once")
-                                        .item(Permission::AlwaysAllow, "Always Allow", "Always allow the tool call")
-                                        .item(Permission::DenyOnce, "Deny", "Deny the tool call")
-                                        .item(Permission::Cancel, "Cancel", "Cancel the AI response and tool call")
-                                        .interact()
-                                } else {
-                                    // Security message present - don't show "Always Allow"
-                                    cliclack::select(prompt)
-                                        .item(Permission::AllowOnce, "Allow", "Allow the tool call once")
-                                        .item(Permission::DenyOnce, "Deny", "Deny the tool call")
-                                        .item(Permission::Cancel, "Cancel", "Cancel the AI response and tool call")
-                                        .interact()
-                                };
-
-                                let permission = match permission_result {
-                                    Ok(p) => p,
-                                    Err(e) => {
-                                        if e.kind() == std::io::ErrorKind::Interrupted {
-                                            Permission::Cancel
-                                        } else {
-                                            return Err(e.into());
-                                        }
-                                    }
-                                };
+                            if let Some((id, security_prompt)) = find_tool_confirmation(&message) {
+                                let permission = prompt_tool_confirmation(&security_prompt)?;
 
                                 if permission == Permission::Cancel {
                                     output::render_text("Tool call cancelled. Returning to chat...", Some(Color::Yellow), true);
-
                                     let mut response_message = Message::user();
                                     response_message.content.push(MessageContent::tool_response(
-                                        id.clone(),
-                                        Err(ErrorData { code: ErrorCode::INVALID_REQUEST, message: std::borrow::Cow::from("Tool call cancelled by user".to_string()), data: None })
+                                        id,
+                                        Err(ErrorData {
+                                            code: ErrorCode::INVALID_REQUEST,
+                                            message: std::borrow::Cow::from("Tool call cancelled by user"),
+                                            data: None,
+                                        }),
                                     ));
                                     self.messages.push(response_message);
                                     cancel_token_clone.cancel();
                                     drop(stream);
                                     break;
-                                } else {
-                                    self.agent.handle_confirmation(id.clone(), PermissionConfirmation {
-                                        principal_type: PrincipalType::Tool,
-                                        permission,
-                                    }).await;
                                 }
-                            }
-                            else if let Some((elicitation_id, elicitation_message, schema)) = elicitation_request {
+                                self.agent.handle_confirmation(id, PermissionConfirmation {
+                                    principal_type: PrincipalType::Tool,
+                                    permission,
+                                }).await;
+                            } else if let Some((elicitation_id, elicitation_message, schema)) = find_elicitation_request(&message) {
                                 output::hide_thinking();
                                 let _ = progress_bars.hide();
 
@@ -975,25 +936,16 @@ impl CliSession {
                                     Ok(Some(user_data)) => {
                                         let user_data_value = serde_json::to_value(user_data)
                                             .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
-
                                         let response_message = Message::user()
                                             .with_content(MessageContent::action_required_elicitation_response(
-                                                elicitation_id.clone(),
+                                                elicitation_id,
                                                 user_data_value,
                                             ))
                                             .with_visibility(false, true);
-
                                         self.messages.push(response_message.clone());
                                         // Elicitation responses return an empty stream - the response
                                         // unblocks the waiting tool call via ActionRequiredManager
-                                        let _ = self
-                                            .agent
-                                            .reply(
-                                                response_message,
-                                                session_config.clone(),
-                                                Some(cancel_token.clone()),
-                                            )
-                                            .await?;
+                                        let _ = self.agent.reply(response_message, session_config.clone(), Some(cancel_token.clone())).await?;
                                     }
                                     Ok(None) => {
                                         output::render_text("Information request cancelled.", Some(Color::Yellow), true);
@@ -1008,57 +960,13 @@ impl CliSession {
                                         break;
                                     }
                                 }
-                            }
-                            else {
-                                for content in &message.content {
-                                    if let MessageContent::ToolRequest(tool_request) = content {
-                                        if let Ok(tool_call) = &tool_request.tool_call {
-                                            tracing::info!(counter.goose.tool_calls = 1,
-                                                tool_name = %tool_call.name,
-                                                "Tool call started"
-                                            );
-                                        }
-                                    }
-                                    if let MessageContent::ToolResponse(tool_response) = content {
-                                        let tool_name = self.messages
-                                            .iter()
-                                            .rev()
-                                            .find_map(|msg| {
-                                                msg.content.iter().find_map(|c| {
-                                                    if let MessageContent::ToolRequest(req) = c {
-                                                        if req.id == tool_response.id {
-                                                            if let Ok(tool_call) = &req.tool_call {
-                                                                Some(tool_call.name.clone())
-                                                            } else {
-                                                                None
-                                                            }
-                                                        } else {
-                                                            None
-                                                        }
-                                                    } else {
-                                                        None
-                                                    }
-                                                })
-                                            })
-                                            .unwrap_or_else(|| "unknown".to_string().into());
-
-                                        let success = tool_response.tool_result.is_ok();
-                                        let result_status = if success { "success" } else { "error" };
-                                        tracing::info!(
-                                            counter.goose.tool_completions = 1,
-                                            tool_name = %tool_name,
-                                            result = %result_status,
-                                            "Tool call completed"
-                                        );
-                                    }
-                                }
-
+                            } else {
+                                log_tool_metrics(&message, &self.messages);
                                 self.messages.push(message.clone());
 
-                                if interactive {output::hide_thinking()};
+                                if interactive { output::hide_thinking() };
                                 let _ = progress_bars.hide();
 
-                                // Handle different output formats
                                 if is_stream_json_mode {
                                     emit_stream_event(&StreamEvent::Message { message: message.clone() });
                                 } else if !is_json_mode {
@@ -1066,181 +974,29 @@ impl CliSession {
                                 }
                             }
                         }
-                        Some(Ok(AgentEvent::McpNotification((extension_id, message)))) => {
-                            match &message {
-                                ServerNotification::LoggingMessageNotification(notification) => {
-                                    let data = &notification.params.data;
-                                    let (formatted_message, subagent_id, message_notification_type) = match data {
-                                        Value::String(s) => (s.clone(), None, None),
-                                        Value::Object(o) => {
-                                            // Check for subagent notification structure first
-                                            if let Some(Value::String(msg)) = o.get("message") {
-                                                // Extract subagent info for better display
-                                                let subagent_id = o.get("subagent_id")
-                                                    .and_then(|v| v.as_str());
-                                                let notification_type = o.get("type")
-                                                    .and_then(|v| v.as_str());
-
-                                                let formatted = match notification_type {
-                                                    Some("subagent_created") | Some("completed") | Some("terminated") => {
-                                                        format!("🤖 {}", msg)
-                                                    }
-                                                    Some("tool_usage") | Some("tool_completed") | Some("tool_error") => {
-                                                        format!("🔧 {}", msg)
-                                                    }
-                                                    Some("message_processing") | Some("turn_progress") => {
-                                                        format!("💭 {}", msg)
-                                                    }
-                                                    Some("response_generated") => {
-                                                        // Check verbosity setting for subagent response content
-                                                        let config = Config::global();
-                                                        let min_priority = config
-                                                            .get_param::<f32>("GOOSE_CLI_MIN_PRIORITY")
-                                                            .ok()
-                                                            .unwrap_or(0.5);
-
-                                                        if min_priority > 0.1 && !self.debug {
-                                                            // High/Medium verbosity: show truncated response
-                                                            if let Some(response_content) = msg.strip_prefix("Responded: ") {
-                                                                format!("🤖 Responded: {}", safe_truncate(response_content, 100))
-                                                            } else {
-                                                                format!("🤖 {}", msg)
-                                                            }
-                                                        } else {
-                                                            // All verbosity or debug: show full response
-                                                            format!("🤖 {}", msg)
-                                                        }
-                                                    }
-                                                    _ => {
-                                                        msg.to_string()
-                                                    }
-                                                };
-                                                (formatted, subagent_id.map(str::to_string), notification_type.map(str::to_string))
-                                            } else if let Some(Value::String(output)) = o.get("output") {
-                                                // Extract type if present (e.g., "shell_output")
-                                                let notification_type = o.get("type")
-                                                    .and_then(|v| v.as_str())
-                                                    .map(str::to_string);
-
-                                                (output.to_owned(), None, notification_type)
-                                            } else if let Some(result) = format_task_execution_notification(data) {
-                                                result
-                                            } else {
-                                                (data.to_string(), None, None)
-                                            }
-                                        },
-                                        v => {
-                                            (v.to_string(), None, None)
-                                        },
-                                    };
-
-                                    if is_stream_json_mode {
-                                        emit_stream_event(&StreamEvent::Notification {
-                                            extension_id: extension_id.clone(),
-                                            data: NotificationData::Log { message: formatted_message.clone() },
-                                        });
-                                    }
-                                    // Handle subagent notifications - show immediately
-                                    else if let Some(_id) = subagent_id {
-                                        if interactive {
-                                            let _ = progress_bars.hide();
-                                            if !is_json_mode {
-                                                println!("{}", console::style(&formatted_message).green().dim());
-                                            }
-                                        } else if !is_json_mode {
-                                            progress_bars.log(&formatted_message);
-                                        }
-                                    } else if let Some(ref notification_type) = message_notification_type {
-                                        if notification_type == TASK_EXECUTION_NOTIFICATION_TYPE {
-                                            if interactive {
-                                                let _ = progress_bars.hide();
-                                                if !is_json_mode {
-                                                    print!("{}", formatted_message);
-                                                    std::io::stdout().flush().unwrap();
-                                                }
-                                            } else if !is_json_mode {
-                                                print!("{}", formatted_message);
-                                                std::io::stdout().flush().unwrap();
-                                            }
-                                        } else if notification_type == "shell_output" {
-                                            if interactive {
-                                                let _ = progress_bars.hide();
-                                            }
-                                            if !is_json_mode {
-                                                println!("{}", formatted_message);
-                                            }
-                                        }
-                                    }
-                                    else if output::is_showing_thinking() {
-                                        output::set_thinking_message(&formatted_message);
-                                    } else {
-                                        progress_bars.log(&formatted_message);
-                                    }
-                                },
-                                ServerNotification::ProgressNotification(notification) => {
-                                    let progress = notification.params.progress;
-                                    let text = notification.params.message.as_deref();
-                                    let total = notification.params.total;
-                                    let token = &notification.params.progress_token;
-
-                                    if is_stream_json_mode {
-                                        emit_stream_event(&StreamEvent::Notification {
-                                            extension_id: extension_id.clone(),
-                                            data: NotificationData::Progress {
-                                                progress,
-                                                total,
-                                                message: text.map(String::from),
-                                            },
-                                        });
-                                    } else {
-                                        progress_bars.update(
-                                            &token.0.to_string(),
-                                            progress,
-                                            total,
-                                            text,
-                                        );
-                                    }
-                                },
-                                _ => (),
-                            }
+                        Some(Ok(AgentEvent::McpNotification((extension_id, notification)))) => {
+                            handle_mcp_notification(
+                                &extension_id,
+                                &notification,
+                                &mut progress_bars,
+                                is_stream_json_mode,
+                                interactive,
+                                is_json_mode,
+                                self.debug,
+                            );
                         }
                         Some(Ok(AgentEvent::HistoryReplaced(updated_conversation))) => {
                             self.messages = updated_conversation;
                         }
                         Some(Ok(AgentEvent::ModelChange { model, mode })) => {
                             if is_stream_json_mode {
-                                emit_stream_event(&StreamEvent::ModelChange {
-                                    model: model.clone(),
-                                    mode: mode.clone(),
-                                });
+                                emit_stream_event(&StreamEvent::ModelChange { model: model.clone(), mode: mode.clone() });
                             } else if self.debug {
                                 eprintln!("Model changed to {} in {} mode", model, mode);
                             }
                         }
-
                         Some(Err(e)) => {
-                            let error_msg = e.to_string();
-
-                            if is_stream_json_mode {
-                                emit_stream_event(&StreamEvent::Error { error: error_msg.clone() });
-                            }
-
-                            if e.downcast_ref::<goose::providers::errors::ProviderError>()
-                                .map(|provider_error| matches!(provider_error, goose::providers::errors::ProviderError::ContextLengthExceeded(_)))
-                                .unwrap_or(false) {
-
-                                if !is_stream_json_mode {
-                                    output::render_text(
-                                        "Compaction requested. Should have happened in the agent!",
-                                        Some(Color::Yellow),
-                                        true
-                                    );
-                                }
-                                warn!("Compaction requested. Should have happened in the agent!");
-                            }
-                            if !is_stream_json_mode {
-                                eprintln!("Error: {}", error_msg);
-                            }
+                            handle_agent_error(&e, is_stream_json_mode);
                             cancel_token_clone.cancel();
                             drop(stream);
                             if let Err(e) = self.handle_interrupted_messages(false).await {
@@ -1268,9 +1024,14 @@ impl CliSession {
             }
         }
 
-        // Output based on format
         if is_json_mode {
-            let metadata = match SessionManager::get_session(&self.session_id, false).await {
+            let metadata = match self
+                .agent
+                .config
+                .session_manager
+                .get_session(&self.session_id, false)
+                .await
+            {
                 Ok(session) => JsonMetadata {
                     total_tokens: session.total_tokens,
                     status: "completed".to_string(),
@@ -1280,15 +1041,17 @@ impl CliSession {
                     status: "completed".to_string(),
                 },
             };
-
             let json_output = JsonOutput {
                 messages: self.messages.messages().to_vec(),
                 metadata,
             };
-
             println!("{}", serde_json::to_string_pretty(&json_output)?);
         } else if is_stream_json_mode {
-            let total_tokens = SessionManager::get_session(&self.session_id, false)
+            let total_tokens = self
+                .agent
+                .config
+                .session_manager
+                .get_session(&self.session_id, false)
                 .await
                 .ok()
                 .and_then(|s| s.total_tokens);
@@ -1458,7 +1221,11 @@ impl CliSession {
     }
 
     pub async fn get_session(&self) -> Result<goose::session::Session> {
-        SessionManager::get_session(&self.session_id, false).await
+        self.agent
+            .config
+            .session_manager
+            .get_session(&self.session_id, false)
+            .await
     }
 
     // Get the session's total token usage
@@ -1529,6 +1296,7 @@ impl CliSession {
                 Ok(messages) => {
                     let start_len = self.messages.len();
                     let mut valid = true;
+                    let num_messages = messages.len();
                     for (i, prompt_message) in messages.into_iter().enumerate() {
                         let msg = Message::from(prompt_message);
                         // ensure we get a User - Assistant - User type pattern
@@ -1556,6 +1324,17 @@ impl CliSession {
                     }
 
                     if valid {
+                        if num_messages > 1 {
+                            for i in 0..(num_messages - 1) {
+                                let msg = &self.messages.messages()[start_len + i];
+                                self.agent
+                                    .config
+                                    .session_manager
+                                    .add_message(&self.session_id, msg)
+                                    .await?;
+                            }
+                        }
+
                         output::show_thinking();
                         self.process_agent_response(true, CancellationToken::default())
                             .await?;
@@ -1614,6 +1393,328 @@ impl CliSession {
 
     fn push_message(&mut self, message: Message) {
         self.messages.push(message);
+    }
+}
+
+fn emit_stream_event(event: &StreamEvent) {
+    if let Ok(json) = serde_json::to_string(event) {
+        println!("{}", json);
+    }
+}
+
+/// Prompt user for tool call confirmation, returns the Permission selected
+fn prompt_tool_confirmation(security_prompt: &Option<String>) -> Result<Permission> {
+    output::hide_thinking();
+
+    let prompt = if let Some(security_message) = security_prompt {
+        println!("\n{}", security_message);
+        "Do you allow this tool call?".to_string()
+    } else {
+        "Goose would like to call the above tool, do you allow?".to_string()
+    };
+
+    let permission_result = if security_prompt.is_none() {
+        cliclack::select(prompt)
+            .item(Permission::AllowOnce, "Allow", "Allow the tool call once")
+            .item(
+                Permission::AlwaysAllow,
+                "Always Allow",
+                "Always allow the tool call",
+            )
+            .item(Permission::DenyOnce, "Deny", "Deny the tool call")
+            .item(
+                Permission::Cancel,
+                "Cancel",
+                "Cancel the AI response and tool call",
+            )
+            .interact()
+    } else {
+        cliclack::select(prompt)
+            .item(Permission::AllowOnce, "Allow", "Allow the tool call once")
+            .item(Permission::DenyOnce, "Deny", "Deny the tool call")
+            .item(
+                Permission::Cancel,
+                "Cancel",
+                "Cancel the AI response and tool call",
+            )
+            .interact()
+    };
+
+    match permission_result {
+        Ok(p) => Ok(p),
+        Err(e) => {
+            if e.kind() == std::io::ErrorKind::Interrupted {
+                Ok(Permission::Cancel)
+            } else {
+                Err(e.into())
+            }
+        }
+    }
+}
+
+/// Extract tool confirmation request from a message
+fn find_tool_confirmation(message: &Message) -> Option<(String, Option<String>)> {
+    message.content.iter().find_map(|content| {
+        if let MessageContent::ActionRequired(action) = content {
+            if let ActionRequiredData::ToolConfirmation { id, prompt, .. } = &action.data {
+                return Some((id.clone(), prompt.clone()));
+            }
+        }
+        None
+    })
+}
+
+/// Extract elicitation request from a message
+fn find_elicitation_request(message: &Message) -> Option<(String, String, Value)> {
+    message.content.iter().find_map(|content| {
+        if let MessageContent::ActionRequired(action) = content {
+            if let ActionRequiredData::Elicitation {
+                id,
+                message,
+                requested_schema,
+            } = &action.data
+            {
+                return Some((id.clone(), message.clone(), requested_schema.clone()));
+            }
+        }
+        None
+    })
+}
+
+/// Handle MCP notification event (logging or progress)
+fn handle_mcp_notification(
+    extension_id: &str,
+    notification: &ServerNotification,
+    progress_bars: &mut output::McpSpinners,
+    is_stream_json_mode: bool,
+    interactive: bool,
+    is_json_mode: bool,
+    debug: bool,
+) {
+    match notification {
+        ServerNotification::LoggingMessageNotification(log_notif) => {
+            let (formatted, subagent_id, notif_type) =
+                format_logging_notification(&log_notif.params.data, debug);
+
+            if is_stream_json_mode {
+                emit_stream_event(&StreamEvent::Notification {
+                    extension_id: extension_id.to_string(),
+                    data: NotificationData::Log {
+                        message: formatted.clone(),
+                    },
+                });
+            } else {
+                display_log_notification(
+                    &formatted,
+                    subagent_id.as_deref(),
+                    notif_type.as_deref(),
+                    progress_bars,
+                    interactive,
+                    is_json_mode,
+                );
+            }
+        }
+        ServerNotification::ProgressNotification(prog_notif) => {
+            if is_stream_json_mode {
+                emit_stream_event(&StreamEvent::Notification {
+                    extension_id: extension_id.to_string(),
+                    data: NotificationData::Progress {
+                        progress: prog_notif.params.progress,
+                        total: prog_notif.params.total,
+                        message: prog_notif.params.message.clone(),
+                    },
+                });
+            } else {
+                progress_bars.update(
+                    &prog_notif.params.progress_token.0.to_string(),
+                    prog_notif.params.progress,
+                    prog_notif.params.total,
+                    prog_notif.params.message.as_deref(),
+                );
+            }
+        }
+        _ => (),
+    }
+}
+
+/// Format a logging notification from MCP, returns (formatted_message, subagent_id, notification_type)
+fn format_logging_notification(
+    data: &Value,
+    debug: bool,
+) -> (String, Option<String>, Option<String>) {
+    match data {
+        Value::String(s) => (s.clone(), None, None),
+        Value::Object(o) => {
+            if let Some(Value::String(msg)) = o.get("message") {
+                let subagent_id = o.get("subagent_id").and_then(|v| v.as_str());
+                let notification_type = o.get("type").and_then(|v| v.as_str());
+
+                let formatted = match notification_type {
+                    Some("subagent_created") | Some("completed") | Some("terminated") => {
+                        format!("🤖 {}", msg)
+                    }
+                    Some("tool_usage") | Some("tool_completed") | Some("tool_error") => {
+                        format!("🔧 {}", msg)
+                    }
+                    Some("message_processing") | Some("turn_progress") => {
+                        format!("💭 {}", msg)
+                    }
+                    Some("response_generated") => {
+                        let config = Config::global();
+                        let min_priority = config
+                            .get_param::<f32>("GOOSE_CLI_MIN_PRIORITY")
+                            .ok()
+                            .unwrap_or(0.5);
+
+                        if min_priority > 0.1 && !debug {
+                            if let Some(response_content) = msg.strip_prefix("Responded: ") {
+                                format!("🤖 Responded: {}", safe_truncate(response_content, 100))
+                            } else {
+                                format!("🤖 {}", msg)
+                            }
+                        } else {
+                            format!("🤖 {}", msg)
+                        }
+                    }
+                    _ => msg.to_string(),
+                };
+                (
+                    formatted,
+                    subagent_id.map(str::to_string),
+                    notification_type.map(str::to_string),
+                )
+            } else if let Some(Value::String(output)) = o.get("output") {
+                let notification_type = o.get("type").and_then(|v| v.as_str()).map(str::to_string);
+                (output.to_owned(), None, notification_type)
+            } else if let Some(result) = format_task_execution_notification(data) {
+                result
+            } else {
+                (data.to_string(), None, None)
+            }
+        }
+        v => (v.to_string(), None, None),
+    }
+}
+
+/// Display a logging notification based on its type and context
+fn display_log_notification(
+    formatted_message: &str,
+    subagent_id: Option<&str>,
+    notification_type: Option<&str>,
+    progress_bars: &mut output::McpSpinners,
+    interactive: bool,
+    is_json_mode: bool,
+) {
+    if subagent_id.is_some() {
+        if interactive {
+            let _ = progress_bars.hide();
+            if !is_json_mode {
+                println!("{}", console::style(formatted_message).green().dim());
+            }
+        } else if !is_json_mode {
+            progress_bars.log(formatted_message);
+        }
+    } else if let Some(ntype) = notification_type {
+        if ntype == TASK_EXECUTION_NOTIFICATION_TYPE {
+            if interactive {
+                let _ = progress_bars.hide();
+            }
+            if !is_json_mode {
+                print!("{}", formatted_message);
+                std::io::stdout().flush().unwrap();
+            }
+        } else if ntype == "shell_output" {
+            if interactive {
+                let _ = progress_bars.hide();
+            }
+            if !is_json_mode {
+                println!("{}", formatted_message);
+            }
+        }
+    } else if output::is_showing_thinking() {
+        output::set_thinking_message(&formatted_message.to_string());
+    } else {
+        progress_bars.log(formatted_message);
+    }
+}
+
+/// Log tool request/response metrics
+fn log_tool_metrics(message: &Message, messages: &Conversation) {
+    for content in &message.content {
+        if let MessageContent::ToolRequest(tool_request) = content {
+            if let Ok(tool_call) = &tool_request.tool_call {
+                tracing::info!(
+                    counter.goose.tool_calls = 1,
+                    tool_name = %tool_call.name,
+                    "Tool call started"
+                );
+            }
+        }
+        if let MessageContent::ToolResponse(tool_response) = content {
+            let tool_name = messages
+                .iter()
+                .rev()
+                .find_map(|msg| {
+                    msg.content.iter().find_map(|c| {
+                        if let MessageContent::ToolRequest(req) = c {
+                            if req.id == tool_response.id {
+                                req.tool_call.as_ref().ok().map(|tc| tc.name.clone())
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    })
+                })
+                .unwrap_or_else(|| "unknown".to_string().into());
+
+            let result_status = if tool_response.tool_result.is_ok() {
+                "success"
+            } else {
+                "error"
+            };
+            tracing::info!(
+                counter.goose.tool_completions = 1,
+                tool_name = %tool_name,
+                result = %result_status,
+                "Tool call completed"
+            );
+        }
+    }
+}
+
+/// Handle and display an agent error
+fn handle_agent_error(e: &anyhow::Error, is_stream_json_mode: bool) {
+    let error_msg = e.to_string();
+
+    if is_stream_json_mode {
+        emit_stream_event(&StreamEvent::Error {
+            error: error_msg.clone(),
+        });
+    }
+
+    if e.downcast_ref::<goose::providers::errors::ProviderError>()
+        .map(|provider_error| {
+            matches!(
+                provider_error,
+                goose::providers::errors::ProviderError::ContextLengthExceeded(_)
+            )
+        })
+        .unwrap_or(false)
+    {
+        if !is_stream_json_mode {
+            output::render_text(
+                "Compaction requested. Should have happened in the agent!",
+                Some(Color::Yellow),
+                true,
+            );
+        }
+        warn!("Compaction requested. Should have happened in the agent!");
+    }
+
+    if !is_stream_json_mode {
+        eprintln!("Error: {}", error_msg);
     }
 }
 

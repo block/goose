@@ -26,11 +26,12 @@ import { DroppedFile, useFileDrop } from '../hooks/useFileDrop';
 import { Recipe } from '../recipe';
 import MessageQueue from './MessageQueue';
 import { detectInterruption } from '../utils/interruptionDetector';
-import { DiagnosticsModal } from './ui/DownloadDiagnostics';
+import { DiagnosticsModal } from './ui/Diagnostics';
 import { getSession, Message } from '../api';
 import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal';
 import CreateEditRecipeModal from './recipes/CreateEditRecipeModal';
 import { getInitialWorkingDir } from '../utils/workingDir';
+import { getPredefinedModelsFromEnv } from './settings/models/predefinedModelsUtils';
 import {
   trackFileAttached,
   trackVoiceDictation,
@@ -444,6 +445,15 @@ export default function ChatInput({
       const { model, provider } = await getCurrentModelAndProvider();
       if (!model || !provider) {
         console.log('No model or provider found');
+        setIsTokenLimitLoaded(true);
+        return;
+      }
+
+      // First, check predefined models from environment (highest priority)
+      const predefinedModels = getPredefinedModelsFromEnv();
+      const predefinedModel = predefinedModels.find((m) => m.name === model);
+      if (predefinedModel?.context_limit) {
+        setTokenLimit(predefinedModel.context_limit);
         setIsTokenLimitLoaded(true);
         return;
       }
