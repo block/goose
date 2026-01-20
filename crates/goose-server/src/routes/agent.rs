@@ -18,7 +18,7 @@ use goose::agents::ExtensionConfig;
 use goose::config::resolve_extensions_for_new_session;
 use goose::config::{Config, GooseMode};
 use goose::model::ModelConfig;
-use goose::prompt_template::render_global_file;
+use goose::prompt_template::render_template;
 use goose::providers::create;
 use goose::recipe::Recipe;
 use goose::recipe_deeplink;
@@ -418,7 +418,7 @@ async fn update_from_session(
         })?;
     let context: HashMap<&str, Value> = HashMap::new();
     let desktop_prompt =
-        render_global_file("desktop_prompt.md", &context).expect("Prompt should render");
+        render_template("desktop_prompt.md", &context).expect("Prompt should render");
     let mut update_prompt = desktop_prompt;
     if let Some(recipe) = session.recipe {
         match build_recipe_with_parameter_values(
@@ -691,7 +691,7 @@ async fn restart_agent_internal(
 
     let context: HashMap<&str, Value> = HashMap::new();
     let desktop_prompt =
-        render_global_file("desktop_prompt.md", &context).expect("Prompt should render");
+        render_template("desktop_prompt.md", &context).expect("Prompt should render");
     let mut update_prompt = desktop_prompt;
 
     if let Some(ref recipe) = session.recipe {

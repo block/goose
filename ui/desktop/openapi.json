@@ -1125,6 +1125,140 @@
         }
       }
     },
+    "/config/prompts": {
+      "get": {
+        "tags": [
+          "super::routes::prompts"
+        ],
+        "operationId": "get_prompts",
+        "responses": {
+          "200": {
+            "description": "List of all available prompts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptsListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/config/prompts/{name}": {
+      "get": {
+        "tags": [
+          "super::routes::prompts"
+        ],
+        "operationId": "get_prompt",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Prompt template name (e.g., system.md)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Prompt content retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptContentResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Prompt not found"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "super::routes::prompts"
+        ],
+        "operationId": "save_prompt",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Prompt template name (e.g., system.md)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavePromptRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Prompt saved successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Prompt not found"
+          },
+          "500": {
+            "description": "Failed to save prompt"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "super::routes::prompts"
+        ],
+        "operationId": "reset_prompt",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Prompt template name (e.g., system.md)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Prompt reset to default successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Prompt not found"
+          },
+          "500": {
+            "description": "Failed to reset prompt"
+          }
+        }
+      }
+    },
     "/config/providers": {
       "get": {
         "tags": [
@@ -3990,13 +4124,11 @@
               },
               "prd": {
                 "type": "string",
-                "description": "Product requirements document for LLM-based iteration",
                 "nullable": true
               }
             }
           }
-        ],
-        "description": "A Goose App combining MCP resource data with Goose-specific metadata"
+        ]
       },
       "Icon": {
         "type": "object",
@@ -4833,6 +4965,43 @@
           "Tool"
         ]
       },
+      "PromptContentResponse": {
+        "type": "object",
+        "required": [
+          "name",
+          "content",
+          "default_content",
+          "is_customized"
+        ],
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "default_content": {
+            "type": "string"
+          },
+          "is_customized": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "PromptsListResponse": {
+        "type": "object",
+        "required": [
+          "prompts"
+        ],
+        "properties": {
+          "prompts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Template"
+            }
+          }
+        }
+      },
       "ProviderDetails": {
         "type": "object",
         "required": [
@@ -5494,6 +5663,17 @@
           }
         }
       },
+      "SavePromptRequest": {
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string"
+          }
+        }
+      },
       "SaveRecipeRequest": {
         "type": "object",
         "required": [
@@ -6112,6 +6292,34 @@
           "properties": {
             "type": "object",
             "additionalProperties": {}
+          }
+        }
+      },
+      "Template": {
+        "type": "object",
+        "description": "Information about a template including its content and customization status",
+        "required": [
+          "name",
+          "description",
+          "default_content",
+          "is_customized"
+        ],
+        "properties": {
+          "default_content": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "is_customized": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "user_content": {
+            "type": "string",
+            "nullable": true
           }
         }
       },

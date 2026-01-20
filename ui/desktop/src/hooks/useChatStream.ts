@@ -218,10 +218,8 @@ export function useChatStream({
       // The backend regenerates the name after each of the first 3 user messages
       // to refine it as more context becomes available
       if (!error && sessionId) {
-        const userMessageCount = messagesRef.current.filter(
-          (m) => m.role === 'user'
-        ).length;
-        
+        const userMessageCount = messagesRef.current.filter((m) => m.role === 'user').length;
+
         // Only refresh for the first 3 user messages
         if (userMessageCount <= 3) {
           try {
