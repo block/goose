@@ -360,6 +360,7 @@ mod tests {
                 _tools: &[Tool],
             ) -> Result<(Message, ProviderUsage), ProviderError> {
                 let tool_call = CallToolRequestParam {
+                    task: None,
                     name: "test_tool".into(),
                     arguments: Some(object!({"param": "value"})),
                 };
@@ -396,6 +397,7 @@ mod tests {
                     known_models: vec![],
                     model_doc_link: "".to_string(),
                     config_keys: vec![],
+                    allows_unlisted_models: false,
                 }
             }
 

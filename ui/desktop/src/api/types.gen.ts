@@ -555,6 +555,12 @@ export type ModelConfig = {
     fast_model?: string | null;
     max_tokens?: number | null;
     model_name: string;
+    /**
+     * Provider-specific request parameters (e.g., anthropic_beta headers)
+     */
+    request_params?: {
+        [key: string]: unknown;
+    } | null;
     temperature?: number | null;
     toolshim: boolean;
     toolshim_model?: string | null;
@@ -637,6 +643,10 @@ export type ProviderEngine = 'openai' | 'ollama' | 'anthropic';
  * Metadata about a provider's configuration requirements and capabilities
  */
 export type ProviderMetadata = {
+    /**
+     * Whether this provider allows entering model names not in the fetched list
+     */
+    allows_unlisted_models?: boolean;
     /**
      * Required configuration keys
      */
@@ -1182,8 +1192,12 @@ export type UpdateFromSessionRequest = {
 };
 
 export type UpdateProviderRequest = {
+    context_limit?: number | null;
     model?: string | null;
     provider: string;
+    request_params?: {
+        [key: string]: unknown;
+    } | null;
     session_id: string;
 };
 

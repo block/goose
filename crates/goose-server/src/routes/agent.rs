@@ -15,6 +15,7 @@ use goose::goose_apps::{fetch_mcp_apps, GooseApp, McpAppCache};
 
 use base64::Engine;
 use goose::agents::ExtensionConfig;
+use goose::config::resolve_extensions_for_new_session;
 use goose::config::{Config, GooseMode};
 use goose::model::ModelConfig;
 use goose::prompt_template::render_global_file;
@@ -48,6 +49,8 @@ pub struct UpdateProviderRequest {
     provider: String,
     model: Option<String>,
     session_id: String,
+    context_limit: Option<usize>,
+    request_params: Option<std::collections::HashMap<String, serde_json::Value>>,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -131,6 +134,7 @@ pub struct CallToolRequest {
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct CallToolResponse {
     content: Vec<Content>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     structured_content: Option<Value>,
     is_error: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -222,9 +226,11 @@ async fn start_agent(
             }
         })?;
 
-    // Initialize session with extensions (either overrides from hub or global defaults)
+    let recipe_extensions = original_recipe
+        .as_ref()
+        .and_then(|r| r.extensions.as_deref());
     let extensions_to_use =
-        extension_overrides.unwrap_or_else(goose::config::get_enabled_extensions);
+        resolve_extensions_for_new_session(recipe_extensions, extension_overrides);
     let mut extension_data = session.extension_data.clone();
     let extensions_state = EnabledExtensionsState::new(extensions_to_use);
     if let Err(e) = extensions_state.to_extension_data(&mut extension_data) {
@@ -528,12 +534,15 @@ async fn update_agent_provider(
         }
     };
 
-    let model_config = ModelConfig::new(&model).map_err(|e| {
-        (
-            StatusCode::BAD_REQUEST,
-            format!("Invalid model config: {}", e),
-        )
-    })?;
+    let model_config = ModelConfig::new(&model)
+        .map_err(|e| {
+            (
+                StatusCode::BAD_REQUEST,
+                format!("Invalid model config: {}", e),
+            )
+        })?
+        .with_context_limit(payload.context_limit)
+        .with_request_params(payload.request_params);
 
     let new_provider = create(&payload.provider, model_config).await.map_err(|e| {
         (
@@ -911,6 +920,7 @@ async fn call_tool(
     };
 
     let tool_call = CallToolRequestParam {
+        task: None,
         name: payload.name.into(),
         arguments,
     };

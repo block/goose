@@ -444,6 +444,7 @@ mod tests {
                     toolshim: false,
                     toolshim_model: None,
                     fast_model: None,
+                    request_params: None,
                 },
                 max_tool_responses: None,
             }
@@ -511,6 +512,7 @@ mod tests {
             Message::assistant().with_tool_request(
                 "tool_0",
                 Ok(CallToolRequestParam {
+                    task: None,
                     name: "read_file".into(),
                     arguments: None,
                 }),
@@ -549,6 +551,7 @@ mod tests {
             messages.push(Message::assistant().with_tool_request(
                 format!("tool_{}", i),
                 Ok(CallToolRequestParam {
+                    task: None,
                     name: "read_file".into(),
                     arguments: None,
                 }),
