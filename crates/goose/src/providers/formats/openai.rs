@@ -394,14 +394,16 @@ pub fn get_usage(usage: &Value) -> Usage {
 }
 
 fn extract_usage_with_output_tokens(chunk: &StreamingChunk) -> Option<ProviderUsage> {
-    chunk.usage.as_ref().and_then(|u| {
-        chunk.model.as_ref().map(|model| {
-            ProviderUsage {
+    chunk
+        .usage
+        .as_ref()
+        .and_then(|u| {
+            chunk.model.as_ref().map(|model| ProviderUsage {
                 usage: get_usage(u),
                 model: model.clone(),
-            }
+            })
         })
-    }).filter(|u| u.usage.output_tokens.is_some())
+        .filter(|u| u.usage.output_tokens.is_some())
 }
 
 /// Validates and fixes tool schemas to ensure they have proper parameter structure.
@@ -512,12 +514,11 @@ where
                             }
                             let response_str = response_chunk?;
                             if let Some(line) = strip_data_prefix(&response_str) {
+
                                 let tool_chunk: StreamingChunk = serde_json::from_str(line)
                                     .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line))?;
 
-                                // Capture usage from inner loop chunks (the final chunk with
-                                // complete usage data is often consumed here for tool calls)
-                                if let Some(chunk_usage) = extract_usage_with_output_tokens(&tool_chunk) {
+                                if let Some(chunk_usage) = extract_usage_witqh_output_tokens(&tool_chunk) {
                                     usage = Some(chunk_usage);
                                 }
 
@@ -1416,9 +1417,72 @@ mod tests {
         Ok(())
     }
 
+    struct StreamingUsageTestResult {
+        usage_count: usize,
+        usage: Option<ProviderUsage>,
+        tool_calls: Vec<String>,
+        has_text_content: bool,
+    }
+
+    async fn run_streaming_test(response_lines: &str) -> anyhow::Result<StreamingUsageTestResult> {
+        let lines: Vec<String> = response_lines.lines().map(|s| s.to_string()).collect();
+        let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
+        let messages = response_to_streaming_message(response_stream);
+        pin!(messages);
+
+        let mut result = StreamingUsageTestResult {
+            usage_count: 0,
+            usage: None,
+            tool_calls: Vec::new(),
+            has_text_content: false,
+        };
+
+        while let Some(Ok((message, usage))) = messages.next().await {
+            if let Some(u) = usage {
+                result.usage_count += 1;
+                result.usage = Some(u);
+            }
+            if let Some(msg) = message {
+                for content in &msg.content {
+                    match content {
+                        MessageContent::ToolRequest(req) => {
+                            if let Ok(tool_call) = &req.tool_call {
+                                result.tool_calls.push(tool_call.name.to_string());
+                            }
+                        }
+                        MessageContent::Text(text) if !text.text.is_empty() => {
+                            result.has_text_content = true;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        Ok(result)
+    }
+
+    fn assert_usage_yielded_once(
+        result: &StreamingUsageTestResult,
+        expected_input: i32,
+        expected_output: i32,
+        expected_total: i32,
+    ) {
+        assert_eq!(
+            result.usage_count, 1,
+            "Usage should be yielded exactly once, but was yielded {} times",
+            result.usage_count
+        );
+
+        let usage = result.usage.as_ref().expect("Expected usage to be present");
+        assert_eq!(usage.usage.input_tokens, Some(expected_input));
+        assert_eq!(usage.usage.output_tokens, Some(expected_output));
+        assert_eq!(usage.usage.total_tokens, Some(expected_total));
+    }
+
     #[tokio::test]
     async fn test_streamed_multi_tool_response_to_messages() -> anyhow::Result<()> {
-        let response_lines = r#"
+        let responqse_lines = r#"
 data: {"model":"us.anthropic.claude-sonnet-4-20250514-v1:0","choices":[{"delta":{"role":"assistant","content":"I'll run both"},"index":0,"finish_reason":null}],"usage":{"prompt_tokens":4982,"completion_tokens":null,"total_tokens":null},"object":"chat.completion.chunk","id":"msg_bdrk_014pifLTHsNZz6Lmtw1ywgDJ","created":1753288340}
 data: {"model":"us.anthropic.claude-sonnet-4-20250514-v1:0","choices":[{"delta":{"role":"assistant","content":" `ls` commands in a"},"index":0,"finish_reason":null}],"usage":{"prompt_tokens":4982,"completion_tokens":null,"total_tokens":null},"object":"chat.completion.chunk","id":"msg_bdrk_014pifLTHsNZz6Lmtw1ywgDJ","created":1753288340}
 data: {"model":"us.anthropic.claude-sonnet-4-20250514-v1:0","choices":[{"delta":{"role":"assistant","content":" single turn for you -"},"index":0,"finish_reason":null}],"usage":{"prompt_tokens":4982,"completion_tokens":null,"total_tokens":null},"object":"chat.completion.chunk","id":"msg_bdrk_014pifLTHsNZz6Lmtw1ywgDJ","created":1753288340}
@@ -1440,45 +1504,78 @@ data: {"model":"us.anthropic.claude-sonnet-4-20250514-v1:0","choices":[{"delta":
 data: [DONE]
 "#;
 
-        let response_stream =
-            tokio_stream::iter(response_lines.lines().map(|line| Ok(line.to_string())));
-        let messages = response_to_streaming_message(response_stream);
-        pin!(messages);
+        let result = run_streaming_test(response_lines).await?;
+        assert_eq!(
+            result.tool_calls.len(),
+            2,
+            "Expected 2 tool calls, got {}",
+            result.tool_calls.len()
+        );
+        assert!(result
+            .tool_calls
+            .iter()
+            .all(|name| name == "developer__shell"));
 
-        let mut usage_count = 0;
-        let mut last_usage: Option<ProviderUsage> = None;
-        let mut found_tool_calls = false;
+        assert_usage_yielded_once(&result, 4982, 122, 5104);
 
-        while let Some(Ok((message, usage))) = messages.next().await {
-            if let Some(u) = usage {
-                usage_count += 1;
-                last_usage = Some(u);
-            }
-            if let Some(msg) = message {
-                println!("{:?}", msg);
-                if msg.content.len() == 2 {
-                    if let (MessageContent::ToolRequest(req1), MessageContent::ToolRequest(req2)) =
-                        (&msg.content[0], &msg.content[1])
-                    {
-                        if req1.tool_call.is_ok() && req2.tool_call.is_ok() {
-                            // We expect two tool calls in the response
-                            assert_eq!(req1.tool_call.as_ref().unwrap().name, "developer__shell");
-                            assert_eq!(req2.tool_call.as_ref().unwrap().name, "developer__shell");
-                            found_tool_calls = true;
-                        }
-                    }
-                }
-            }
-        }
+        Ok(())
+    }
 
-        assert!(found_tool_calls, "Expected tool call message with two calls, but did not see it");
+    #[tokio::test]
+    async fn test_openrouter_streaming_usage_yielded_once() -> anyhow::Result<()> {
+        let response_lines = r#"
+data: {"id":"gen-1768896871-9HgAQqS1Z72C6gApaidi","provider":"OpenInference","model":"openai/gpt-oss-120b:free","object":"chat.completion.chunk","created":1768896871,"choices":[{"index":0,"delta":{"role":"assistant","content":"","reasoning":null,"reasoning_details":[]},"finish_reason":null,"native_finish_reason":null,"logprobs":null}]}
+data: {"id":"gen-1768896871-9HgAQqS1Z72C6gApaidi","provider":"OpenInference","model":"openai/gpt-oss-120b:free","object":"chat.completion.chunk","created":1768896871,"choices":[{"index":0,"delta":{"role":"assistant","content":"There","reasoning":"","reasoning_details":[]},"finish_reason":null,"native_finish_reason":null,"logprobs":null}]}
+data: {"id":"gen-1768896871-9HgAQqS1Z72C6gApaidi","provider":"OpenInference","model":"openai/gpt-oss-120b:free","object":"chat.completion.chunk","created":1768896871,"choices":[{"index":0,"delta":{"role":"assistant","content":" are","reasoning":null,"reasoning_details":[]},"finish_reason":null,"native_finish_reason":null,"logprobs":null}]}
+data: {"id":"gen-1768896871-9HgAQqS1Z72C6gApaidi","provider":"OpenInference","model":"openai/gpt-oss-120b:free","object":"chat.completion.chunk","created":1768896871,"choices":[{"index":0,"delta":{"role":"assistant","content":" **47**","reasoning":null,"reasoning_details":[]},"finish_reason":null,"native_finish_reason":null,"logprobs":null}]}
+data: {"id":"gen-1768896871-9HgAQqS1Z72C6gApaidi","provider":"OpenInference","model":"openai/gpt-oss-120b:free","object":"chat.completion.chunk","created":1768896871,"choices":[{"index":0,"delta":{"role":"assistant","content":" files.","reasoning":null,"reasoning_details":[]},"finish_reason":null,"native_finish_reason":null,"logprobs":null}]}
+data: {"id":"gen-1768896871-9HgAQqS1Z72C6gApaidi","provider":"OpenInference","model":"openai/gpt-oss-120b:free","object":"chat.completion.chunk","created":1768896871,"choices":[{"index":0,"delta":{"role":"assistant","content":"","reasoning":null,"reasoning_details":[]},"finish_reason":"stop","native_finish_reason":"stop","logprobs":null}]}
+data: {"id":"gen-1768896871-9HgAQqS1Z72C6gApaidi","provider":"OpenInference","model":"openai/gpt-oss-120b:free","object":"chat.completion.chunk","created":1768896871,"choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null,"native_finish_reason":null,"logprobs":null}],"usage":{"prompt_tokens":7007,"completion_tokens":49,"total_tokens":7056}}
+data: [DONE]
+"#;
 
-        assert_eq!(usage_count, 1, "Usage should be yielded exactly once, but was yielded {} times", usage_count);
+        let result = run_streaming_test(response_lines).await?;
 
-        let usage = last_usage.expect("Expected usage to be present");
-        assert_eq!(usage.usage.input_tokens, Some(4982));
-        assert_eq!(usage.usage.output_tokens, Some(122));
-        assert_eq!(usage.usage.total_tokens, Some(5104));
+        assert!(result.has_text_content, "Expected text content in response");
+        assert_usage_yielded_once(&result, 7007, 49, 7056);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_openai_gpt5_streaming_usage_yielded_once() -> anyhow::Result<()> {
+        let response_lines = r#"
+data: {"id":"chatcmpl-Bk9Ye6Y0t9E7bC3DOMxCpW8eJkTKU","object":"chat.completion.chunk","created":1737368310,"model":"gpt-5.2-1106-preview","service_tier":"default","system_fingerprint":"fp_5f325d54e6","choices":[{"index":0,"delta":{"role":"assistant","content":null,"tool_calls":[{"index":0,"id":"call_x4CIvBVfQhYMhyO0T1VEddua","type":"function","function":{"name":"developer__shell","arguments":""}}],"refusal":null},"logprobs":null,"finish_reason":null}],"usage":null}
+data: {"id":"chatcmpl-Bk9Ye6Y0t9E7bC3DOMxCpW8eJkTKU","object":"chat.completion.chunk","created":1737368310,"model":"gpt-5.2-1106-preview","service_tier":"default","system_fingerprint":"fp_5f325d54e6","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"command\":\"ls ~/Desktop | wc -l\"}"}}]},"logprobs":null,"finish_reason":null}],"usage":null}
+data: {"id":"chatcmpl-Bk9Ye6Y0t9E7bC3DOMxCpW8eJkTKU","object":"chat.completion.chunk","created":1737368310,"model":"gpt-5.2-1106-preview","service_tier":"default","system_fingerprint":"fp_5f325d54e6","choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"tool_calls"}],"usage":null}
+data: {"id":"chatcmpl-Bk9Ye6Y0t9E7bC3DOMxCpW8eJkTKU","object":"chat.completion.chunk","created":1737368310,"model":"gpt-5.2-1106-preview","service_tier":"default","system_fingerprint":"fp_5f325d54e6","choices":[],"usage":{"prompt_tokens":8320,"completion_tokens":172,"total_tokens":8492}}
+data: [DONE]
+"#;
+
+        let result = run_streaming_test(response_lines).await?;
+
+        assert_eq!(result.tool_calls.len(), 1, "Expected 1 tool call");
+        assert_eq!(result.tool_calls[0], "developer__shell");
+        assert_usage_yielded_once(&result, 8320, 172, 8492);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_tetrate_claude_streaming_usage_yielded_once() -> anyhow::Result<()> {
+        let response_lines = r#"
+data: {"id":"msg_01BbvMfNhbdm2hmmTbWjaeYt","choices":[{"index":0,"delta":{"role":"assistant"}}],"created":1768898776,"model":"claude-sonnet-4-5-20250929","object":"chat.completion.chunk"}
+data: {"id":"msg_01BbvMfNhbdm2hmmTbWjaeYt","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"toolu_011Yj5pGczhs1597iLXp5XJK","type":"function","function":{"name":"developer__shell","arguments":""}}]}}],"created":1768898776,"model":"claude-sonnet-4-5-20250929","object":"chat.completion.chunk"}
+data: {"id":"msg_01BbvMfNhbdm2hmmTbWjaeYt","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"type":"function","function":{"arguments":"{\"command\": \"find ~/Desktop -type f | wc -l\"}"}}]}}],"created":1768898776,"model":"claude-sonnet-4-5-20250929","object":"chat.completion.chunk"}
+data: {"id":"msg_01BbvMfNhbdm2hmmTbWjaeYt","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}],"created":1768898776,"model":"claude-sonnet-4-5-20250929","object":"chat.completion.chunk","usage":{"completion_tokens":79,"prompt_tokens":12376,"total_tokens":12455}}
+data: [DONE]
+"#;
+
+        let result = run_streaming_test(response_lines).await?;
+
+        assert_eq!(result.tool_calls.len(), 1, "Expected 1 tool call");
+        assert_eq!(result.tool_calls[0], "developer__shell");
+        assert_usage_yielded_once(&result, 12376, 79, 12455);
 
         Ok(())
     }
