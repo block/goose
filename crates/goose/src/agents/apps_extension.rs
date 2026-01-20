@@ -2,8 +2,9 @@ use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait, McpMeta};
 use crate::config::paths::Paths;
 use crate::conversation::message::Message;
-use crate::goose_apps::GooseApp;
+use crate::goose_apps::{GooseApp, WindowProps};
 use crate::goose_apps::McpAppResource;
+use crate::prompt_template::render_template;
 use crate::providers::base::Provider;
 use async_trait::async_trait;
 use rmcp::model::{
@@ -14,12 +15,19 @@ use rmcp::model::{
 use schemars::{schema_for, JsonSchema};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
 pub static EXTENSION_NAME: &str = "apps";
+
+const DEFAULT_WINDOW_PROPS: WindowProps = WindowProps {
+    width: 800,
+    height: 600,
+    resizable: true,
+};
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 struct CreateAppParams {
@@ -125,27 +133,11 @@ impl AppsManagerClient {
             ),
         };
 
-        let mut client = Self {
+        Ok(Self {
             info,
             context,
             apps_dir,
-        };
-
-        if let Err(e) = client.ensure_default_apps() {
-            tracing::warn!("Failed to create default apps: {}", e);
-        }
-
-        Ok(client)
-    }
-
-    fn ensure_default_apps(&mut self) -> Result<(), String> {
-        let clock_path = self.apps_dir.join("clock.html");
-        if !clock_path.exists() {
-            let clock_html = include_str!("../goose_apps/clock.html");
-            fs::write(&clock_path, clock_html)
-                .map_err(|e| format!("Failed to write clock.html: {}", e))?;
-        }
-        Ok(())
+        })
     }
 
     fn list_stored_apps(&self) -> Result<Vec<String>, String> {
@@ -194,6 +186,18 @@ impl AppsManagerClient {
         fs::remove_file(&path).map_err(|e| format!("Failed to delete app file: {}", e))?;
 
         Ok(())
+    }
+
+    fn with_platform_notification(
+        &self,
+        result: CallToolResult,
+        event_type: &str,
+        app_name: &str,
+    ) -> CallToolResult {
+        let mut params = serde_json::Map::new();
+        params.insert("app_name".to_string(), json!(app_name));
+        self.context
+            .result_with_platform_notification(result, EXTENSION_NAME, event_type, params)
     }
 
     async fn get_provider(&self) -> Result<Arc<dyn Provider>, String> {
@@ -245,25 +249,9 @@ impl AppsManagerClient {
         let existing_apps = self.list_stored_apps().unwrap_or_default();
         let existing_names = existing_apps.join(", ");
 
-        let system_prompt = r#"You are an expert HTML/CSS/JavaScript developer. Generate standalone, single-file HTML applications.
-
-REQUIREMENTS:
-- Create a complete, self-contained HTML file with embedded CSS and JavaScript
-- Use modern, clean design with good UX
-- Make it responsive and work well in different window sizes
-- Use semantic HTML5
-- Add appropriate error handling
-- Make the app interactive and functional
-- Use vanilla JavaScript (no external dependencies unless absolutely necessary)
-- If you need external resources (fonts, icons), use CDN links
-- The app will be sandboxed with strict CSP, so all scripts must be inline or from trusted CDNs
-
-WINDOW SIZING:
-- Choose appropriate width and height based on the app's content and layout
-- Typical sizes: small utilities (400x300), standard apps (800x600), large apps (1200x800)
-- Set resizable to false for fixed-size apps, true for flexible layouts
-
-You must call the create_app_content tool to return the app name, description, HTML, and window properties."#;
+        let context: HashMap<&str, &str> = HashMap::new();
+        let system_prompt = render_template("apps_create.md", &context)
+            .map_err(|e| format!("Failed to render template: {}", e))?;
 
         let user_prompt = format!(
             "REQUESTED APP:\n{}\n\nEXISTING APPS: {}\n\nGenerate a unique name (lowercase with hyphens, not in existing apps), a brief description, complete HTML, and appropriate window size for this app.",
@@ -275,30 +263,11 @@ You must call the create_app_content tool to return the app name, description, H
         let tools = vec![Self::create_app_content_tool()];
 
         let (response, _usage) = provider
-            .complete(system_prompt, &messages, &tools)
+            .complete(&system_prompt, &messages, &tools)
             .await
             .map_err(|e| format!("LLM call failed: {}", e))?;
 
-        for content in &response.content {
-            if let crate::conversation::message::MessageContent::ToolRequest(tool_req) = content {
-                if let Ok(tool_call) = &tool_req.tool_call {
-                    if tool_call.name == "create_app_content" {
-                        let params = tool_call
-                            .arguments
-                            .as_ref()
-                            .ok_or("Missing tool call parameters")?;
-
-                        let response: CreateAppContentResponse =
-                            serde_json::from_value(serde_json::Value::Object(params.clone()))
-                                .map_err(|e| format!("Failed to parse tool response: {}", e))?;
-
-                        return Ok(response);
-                    }
-                }
-            }
-        }
-
-        Err("LLM did not call the required tool".to_string())
+        extract_tool_response(&response, "create_app_content")
     }
 
     async fn generate_updated_app_content(
@@ -309,31 +278,9 @@ You must call the create_app_content tool to return the app name, description, H
     ) -> Result<UpdateAppContentResponse, String> {
         let provider = self.get_provider().await?;
 
-        let system_prompt = r#"You are an expert HTML/CSS/JavaScript developer. Generate standalone, single-file HTML applications.
-
-REQUIREMENTS:
-- Create a complete, self-contained HTML file with embedded CSS and JavaScript
-- Use modern, clean design with good UX
-- Make it responsive and work well in different window sizes
-- Use semantic HTML5
-- Add appropriate error handling
-- Make the app interactive and functional
-- Use vanilla JavaScript (no external dependencies unless absolutely necessary)
-- If you need external resources (fonts, icons), use CDN links
-- The app will be sandboxed with strict CSP, so all scripts must be inline or from trusted CDNs
-
-WINDOW SIZING:
-- Optionally update width/height if the changes warrant a different window size
-- Only include size properties if they should change
-- Set resizable to false for fixed-size apps, true for flexible layouts
-
-PRD UPDATE:
-- Update the PRD to reflect the current state of the app after implementing the feedback
-- Keep the core requirements but add/update sections based on what was actually changed
-- Document new features, changed behavior, or updated requirements
-- Keep the PRD concise and focused on what the app should do, not implementation details
-
-You must call the update_app_content tool to return the updated description, HTML, updated PRD, and optionally updated window properties."#;
+        let context: HashMap<&str, &str> = HashMap::new();
+        let system_prompt = render_template("apps_iterate.md", &context)
+            .map_err(|e| format!("Failed to render template: {}", e))?;
 
         let user_prompt = format!(
             "ORIGINAL PRD:\n{}\n\nCURRENT APP:\n```html\n{}\n```\n\nFEEDBACK: {}\n\nImplement the requested changes and return:\n1. Updated description\n2. Updated HTML implementing the feedback\n3. Updated PRD reflecting the current state of the app\n4. Optionally updated window size if appropriate",
@@ -346,30 +293,11 @@ You must call the update_app_content tool to return the updated description, HTM
         let tools = vec![Self::update_app_content_tool()];
 
         let (response, _usage) = provider
-            .complete(system_prompt, &messages, &tools)
+            .complete(&system_prompt, &messages, &tools)
             .await
             .map_err(|e| format!("LLM call failed: {}", e))?;
 
-        for content in &response.content {
-            if let crate::conversation::message::MessageContent::ToolRequest(tool_req) = content {
-                if let Ok(tool_call) = &tool_req.tool_call {
-                    if tool_call.name == "update_app_content" {
-                        let params = tool_call
-                            .arguments
-                            .as_ref()
-                            .ok_or("Missing tool call parameters")?;
-
-                        let response: UpdateAppContentResponse =
-                            serde_json::from_value(serde_json::Value::Object(params.clone()))
-                                .map_err(|e| format!("Failed to parse tool response: {}", e))?;
-
-                        return Ok(response);
-                    }
-                }
-            }
-        }
-
-        Err("LLM did not call the required tool".to_string())
+        extract_tool_response(&response, "update_app_content")
     }
 
     async fn handle_list_apps(
@@ -443,10 +371,10 @@ You must call the update_app_content tool to return the updated description, HTM
                 meta: None,
             },
             mcp_server: Some(EXTENSION_NAME.to_string()),
-            window_props: Some(crate::goose_apps::WindowProps {
-                width: content.width.unwrap_or(800),
-                height: content.height.unwrap_or(600),
-                resizable: content.resizable.unwrap_or(true),
+            window_props: Some(WindowProps {
+                width: content.width.unwrap_or(DEFAULT_WINDOW_PROPS.width),
+                height: content.height.unwrap_or(DEFAULT_WINDOW_PROPS.height),
+                resizable: content.resizable.unwrap_or(DEFAULT_WINDOW_PROPS.resizable),
             }),
             prd: Some(prd),
         };
@@ -458,14 +386,7 @@ You must call the update_app_content tool to return the updated description, HTM
             content.name
         ))]);
 
-        let mut params = serde_json::Map::new();
-        params.insert("app_name".to_string(), json!(content.name));
-
-        let result =
-            self.context
-                .result_with_platform_notification(result, EXTENSION_NAME, "app_created", params);
-
-        Ok(result)
+        Ok(self.with_platform_notification(result, "app_created", &content.name))
     }
 
     async fn handle_iterate_app(
@@ -497,11 +418,17 @@ You must call the update_app_content tool to return the updated description, HTM
         app.prd = Some(content.prd);
         if content.width.is_some() || content.height.is_some() || content.resizable.is_some() {
             let current_props = app.window_props.as_ref();
-            let default_width = current_props.map(|p| p.width).unwrap_or(800);
-            let default_height = current_props.map(|p| p.height).unwrap_or(600);
-            let default_resizable = current_props.map(|p| p.resizable).unwrap_or(true);
+            let default_width = current_props
+                .map(|p| p.width)
+                .unwrap_or(DEFAULT_WINDOW_PROPS.width);
+            let default_height = current_props
+                .map(|p| p.height)
+                .unwrap_or(DEFAULT_WINDOW_PROPS.height);
+            let default_resizable = current_props
+                .map(|p| p.resizable)
+                .unwrap_or(DEFAULT_WINDOW_PROPS.resizable);
 
-            app.window_props = Some(crate::goose_apps::WindowProps {
+            app.window_props = Some(WindowProps {
                 width: content.width.unwrap_or(default_width),
                 height: content.height.unwrap_or(default_height),
                 resizable: content.resizable.unwrap_or(default_resizable),
@@ -515,14 +442,7 @@ You must call the update_app_content tool to return the updated description, HTM
             name
         ))]);
 
-        let mut params = serde_json::Map::new();
-        params.insert("app_name".to_string(), json!(name));
-
-        let result =
-            self.context
-                .result_with_platform_notification(result, EXTENSION_NAME, "app_updated", params);
-
-        Ok(result)
+        Ok(self.with_platform_notification(result, "app_updated", &name))
     }
 
     async fn handle_delete_app(
@@ -539,14 +459,7 @@ You must call the update_app_content tool to return the updated description, HTM
         let result =
             CallToolResult::success(vec![Content::text(format!("Deleted app '{}'", name))]);
 
-        let mut params = serde_json::Map::new();
-        params.insert("app_name".to_string(), json!(name));
-
-        let result =
-            self.context
-                .result_with_platform_notification(result, EXTENSION_NAME, "app_deleted", params);
-
-        Ok(result)
+        Ok(self.with_platform_notification(result, "app_deleted", &name))
     }
 }
 
@@ -557,12 +470,6 @@ impl McpClientTrait for AppsManagerClient {
         _next_cursor: Option<String>,
         _cancel_token: CancellationToken,
     ) -> Result<ListToolsResult, Error> {
-        fn schema<T: JsonSchema>() -> JsonObject {
-            serde_json::to_value(schema_for!(T))
-                .map(|v| v.as_object().unwrap().clone())
-                .expect("valid schema")
-        }
-
         let tools = vec![
             McpTool::new(
                 "list_apps".to_string(),
@@ -697,9 +604,38 @@ impl McpClientTrait for AppsManagerClient {
     }
 }
 
+fn schema<T: JsonSchema>() -> JsonObject {
+    serde_json::to_value(schema_for!(T))
+        .map(|v| v.as_object().unwrap().clone())
+        .expect("valid schema")
+}
+
 fn extract_string(args: &JsonObject, key: &str) -> Result<String, String> {
     args.get(key)
         .and_then(|v| v.as_str())
         .map(|s| s.to_string())
         .ok_or_else(|| format!("Missing or invalid '{}'", key))
+}
+
+fn extract_tool_response<T: serde::de::DeserializeOwned>(
+    response: &Message,
+    tool_name: &str,
+) -> Result<T, String> {
+    for content in &response.content {
+        if let crate::conversation::message::MessageContent::ToolRequest(tool_req) = content {
+            if let Ok(tool_call) = &tool_req.tool_call {
+                if tool_call.name == tool_name {
+                    let params = tool_call
+                        .arguments
+                        .as_ref()
+                        .ok_or("Missing tool call parameters")?;
+
+                    return serde_json::from_value(serde_json::Value::Object(params.clone()))
+                        .map_err(|e| format!("Failed to parse tool response: {}", e));
+                }
+            }
+        }
+    }
+
+    Err(format!("LLM did not call the required tool: {}", tool_name))
 }

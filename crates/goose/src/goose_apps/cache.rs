@@ -6,6 +6,9 @@ use tracing::warn;
 
 use super::app::GooseApp;
 
+static CLOCK_HTML: &str = include_str!("../goose_apps/clock.html");
+const APPS_EXTENSION_NAME: &str = "apps";
+
 pub struct McpAppCache {
     cache_dir: PathBuf,
 }
@@ -14,7 +17,22 @@ impl McpAppCache {
     pub fn new() -> Result<Self, std::io::Error> {
         let config_dir = Paths::config_dir();
         let cache_dir = config_dir.join("mcp-apps-cache");
-        Ok(Self { cache_dir })
+        let cache = Self { cache_dir };
+
+        // Ensure default apps are cached on initialization
+        cache.ensure_default_apps();
+
+        Ok(cache)
+    }
+
+    fn ensure_default_apps(&self) {
+        // Check if clock app is already cached
+        if self.get_app(APPS_EXTENSION_NAME, "apps://clock").is_none() {
+            if let Ok(mut clock_app) = GooseApp::from_html(CLOCK_HTML) {
+                clock_app.mcp_server = Some(APPS_EXTENSION_NAME.to_string());
+                let _ = self.store_app(&clock_app);
+            }
+        }
     }
 
     fn cache_key(extension_name: &str, resource_uri: &str) -> String {
