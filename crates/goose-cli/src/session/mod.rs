@@ -314,8 +314,9 @@ impl CliSession {
                 if PLATFORM_EXTENSIONS.contains_key(extension_name) {
                     ExtensionConfig::Platform {
                         name: extension_name.to_string(),
-                        bundled: None,
                         description: extension_name.to_string(),
+                        display_name: None,
+                        bundled: None,
                         available_tools: Vec::new(),
                     }
                 } else {
