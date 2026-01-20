@@ -393,6 +393,17 @@ pub fn get_usage(usage: &Value) -> Usage {
     Usage::new(input_tokens, output_tokens, total_tokens)
 }
 
+fn extract_usage_with_output_tokens(chunk: &StreamingChunk) -> Option<ProviderUsage> {
+    chunk.usage.as_ref().and_then(|u| {
+        chunk.model.as_ref().map(|model| {
+            ProviderUsage {
+                usage: get_usage(u),
+                model: model.clone(),
+            }
+        })
+    }).filter(|u| u.usage.output_tokens.is_some())
+}
+
 /// Validates and fixes tool schemas to ensure they have proper parameter structure.
 /// If parameters exist, ensures they have properties and required fields, or removes parameters entirely.
 pub fn validate_tool_schemas(tools: &mut [Value]) {
@@ -475,14 +486,7 @@ where
                 }
             }
 
-            let usage = chunk.usage.as_ref().and_then(|u| {
-                chunk.model.as_ref().map(|model| {
-                    ProviderUsage {
-                        usage: get_usage(u),
-                        model: model.clone(),
-                    }
-                })
-            });
+            let mut usage = extract_usage_with_output_tokens(&chunk);
 
             if chunk.choices.is_empty() {
                 yield (None, usage)
@@ -510,6 +514,12 @@ where
                             if let Some(line) = strip_data_prefix(&response_str) {
                                 let tool_chunk: StreamingChunk = serde_json::from_str(line)
                                     .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line))?;
+
+                                // Capture usage from inner loop chunks (the final chunk with
+                                // complete usage data is often consumed here for tool calls)
+                                if let Some(chunk_usage) = extract_usage_with_output_tokens(&tool_chunk) {
+                                    usage = Some(chunk_usage);
+                                }
 
                                 if !tool_chunk.choices.is_empty() {
                                     if let Some(details) = &tool_chunk.choices[0].delta.reasoning_details {
@@ -1435,7 +1445,15 @@ data: [DONE]
         let messages = response_to_streaming_message(response_stream);
         pin!(messages);
 
-        while let Some(Ok((message, _usage))) = messages.next().await {
+        let mut usage_count = 0;
+        let mut last_usage: Option<ProviderUsage> = None;
+        let mut found_tool_calls = false;
+
+        while let Some(Ok((message, usage))) = messages.next().await {
+            if let Some(u) = usage {
+                usage_count += 1;
+                last_usage = Some(u);
+            }
             if let Some(msg) = message {
                 println!("{:?}", msg);
                 if msg.content.len() == 2 {
@@ -1446,13 +1464,22 @@ data: [DONE]
                             // We expect two tool calls in the response
                             assert_eq!(req1.tool_call.as_ref().unwrap().name, "developer__shell");
                             assert_eq!(req2.tool_call.as_ref().unwrap().name, "developer__shell");
-                            return Ok(());
+                            found_tool_calls = true;
                         }
                     }
                 }
             }
         }
 
-        panic!("Expected tool call message with two calls, but did not see it");
+        assert!(found_tool_calls, "Expected tool call message with two calls, but did not see it");
+
+        assert_eq!(usage_count, 1, "Usage should be yielded exactly once, but was yielded {} times", usage_count);
+
+        let usage = last_usage.expect("Expected usage to be present");
+        assert_eq!(usage.usage.input_tokens, Some(4982));
+        assert_eq!(usage.usage.output_tokens, Some(122));
+        assert_eq!(usage.usage.total_tokens, Some(5104));
+
+        Ok(())
     }
 }
