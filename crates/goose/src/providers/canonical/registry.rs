@@ -13,7 +13,12 @@ static BUNDLED_REGISTRY: Lazy<Result<CanonicalModelRegistry>> = Lazy::new(|| {
 
     let mut registry = CanonicalModelRegistry::new();
     for model in models {
-        registry.register(model);
+        // Extract provider and model from id (format: "provider/model")
+        if let Some((provider, model_name)) = model.id.split_once('/') {
+            let provider = provider.to_string();
+            let model_name = model_name.to_string();
+            registry.register(&provider, &model_name, model);
+        }
     }
 
     Ok(registry)
@@ -21,7 +26,8 @@ static BUNDLED_REGISTRY: Lazy<Result<CanonicalModelRegistry>> = Lazy::new(|| {
 
 #[derive(Debug, Clone)]
 pub struct CanonicalModelRegistry {
-    models: HashMap<String, CanonicalModel>,
+    // Key: (provider, model) tuple
+    models: HashMap<(String, String), CanonicalModel>,
 }
 
 impl CanonicalModelRegistry {
@@ -46,7 +52,11 @@ impl CanonicalModelRegistry {
 
         let mut registry = Self::new();
         for model in models {
-            registry.register(model);
+            if let Some((provider, model_name)) = model.id.split_once('/') {
+                let provider = provider.to_string();
+                let model_name = model_name.to_string();
+                registry.register(&provider, &model_name, model);
+            }
         }
 
         Ok(registry)
@@ -64,12 +74,12 @@ impl CanonicalModelRegistry {
         Ok(())
     }
 
-    pub fn register(&mut self, model: CanonicalModel) {
-        self.models.insert(model.id.clone(), model);
+    pub fn register(&mut self, provider: &str, model: &str, canonical_model: CanonicalModel) {
+        self.models.insert((provider.to_string(), model.to_string()), canonical_model);
     }
 
-    pub fn get(&self, name: &str) -> Option<&CanonicalModel> {
-        self.models.get(name)
+    pub fn get(&self, provider: &str, model: &str) -> Option<&CanonicalModel> {
+        self.models.get(&(provider.to_string(), model.to_string()))
     }
 
     pub fn all_models(&self) -> Vec<&CanonicalModel> {
@@ -78,10 +88,6 @@ impl CanonicalModelRegistry {
 
     pub fn count(&self) -> usize {
         self.models.len()
-    }
-
-    pub fn contains(&self, name: &str) -> bool {
-        self.models.contains_key(name)
     }
 }
 

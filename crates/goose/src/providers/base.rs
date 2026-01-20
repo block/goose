@@ -448,8 +448,12 @@ pub trait Provider: Send + Sync {
             .iter()
             .filter(|model| {
                 map_to_canonical_model(provider_name, model, registry)
-                    .and_then(|canonical_id| registry.get(&canonical_id))
-                    .map(|m| m.input_modalities.contains(&"text".to_string()))
+                    .and_then(|canonical_id| {
+                        // canonical_id is "provider/model", split and lookup
+                        canonical_id.split_once('/')
+                            .and_then(|(p, m)| registry.get(p, m))
+                    })
+                    .map(|m| m.modalities.input.contains(&"text".to_string()))
                     .unwrap_or(false)
             })
             .cloned()

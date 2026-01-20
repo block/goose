@@ -172,4 +172,39 @@ impl Provider for XaiProvider {
 
         stream_openai_compat(response, log)
     }
+
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+        // Try to fetch from API first (XAI uses OpenAI-compatible endpoint)
+        let response = match self.api_client.response_get("models").await {
+            Ok(response) => response,
+            Err(e) => {
+                tracing::warn!("Failed to fetch models from XAI API: {}, falling back to known models", e);
+                let models: Vec<String> = XAI_KNOWN_MODELS.iter().map(|s| s.to_string()).collect();
+                return Ok(Some(models));
+            }
+        };
+
+        let json = match handle_response_openai_compat(response).await {
+            Ok(json) => json,
+            Err(e) => {
+                tracing::warn!("Failed to parse XAI models response: {}, falling back to known models", e);
+                let models: Vec<String> = XAI_KNOWN_MODELS.iter().map(|s| s.to_string()).collect();
+                return Ok(Some(models));
+            }
+        };
+
+        if let Some(data) = json.get("data").and_then(|v| v.as_array()) {
+            let models: Vec<String> = data
+                .iter()
+                .filter_map(|m| m.get("id").and_then(|id| id.as_str()).map(|s| s.to_string()))
+                .collect();
+            if !models.is_empty() {
+                return Ok(Some(models));
+            }
+        }
+
+        // Fallback to known models if API doesn't return what we expect
+        let models: Vec<String> = XAI_KNOWN_MODELS.iter().map(|s| s.to_string()).collect();
+        Ok(Some(models))
+    }
 }

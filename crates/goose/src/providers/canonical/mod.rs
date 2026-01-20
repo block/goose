@@ -2,7 +2,7 @@ mod model;
 mod name_builder;
 mod registry;
 
-pub use model::{CanonicalModel, Pricing};
+pub use model::{CanonicalModel, Limit, Modalities, Pricing};
 pub use name_builder::{canonical_name, map_to_canonical_model, strip_version_suffix};
 pub use registry::CanonicalModelRegistry;
 
@@ -23,6 +23,14 @@ impl ModelMapping {
 
 pub fn maybe_get_canonical_model(provider: &str, model: &str) -> Option<CanonicalModel> {
     let registry = CanonicalModelRegistry::bundled().ok()?;
+    map_to_canonical_model(provider, model, registry)?;
+
+    // map_to_canonical_model returns the canonical ID (provider/model)
+    // Parse it to get provider and model parts for registry lookup
     let canonical_id = map_to_canonical_model(provider, model, registry)?;
-    registry.get(&canonical_id).cloned()
+    if let Some((canon_provider, canon_model)) = canonical_id.split_once('/') {
+        registry.get(canon_provider, canon_model).cloned()
+    } else {
+        None
+    }
 }

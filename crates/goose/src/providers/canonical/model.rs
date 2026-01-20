@@ -1,53 +1,74 @@
 use serde::{Deserialize, Serialize};
 
-/// Pricing information for a model (all costs in USD per token)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Pricing {
-    /// Cost per prompt token
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub prompt: Option<f64>,
+/// Modalities supported by a model (mirrors models.dev structure)
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct Modalities {
+    /// Input modalities (e.g., ["text", "image", "pdf"])
+    #[serde(default)]
+    pub input: Vec<String>,
 
-    /// Cost per completion token
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub completion: Option<f64>,
-
-    /// Cost per request
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub request: Option<f64>,
-
-    /// Cost per image
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub image: Option<f64>,
+    /// Output modalities (e.g., ["text"])
+    #[serde(default)]
+    pub output: Vec<String>,
 }
 
-/// Canonical representation of a model
+/// Pricing/cost information for a model (all costs in USD per million tokens)
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct Pricing {
+    /// Cost per million input tokens
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input: Option<f64>,
+
+    /// Cost per million output tokens
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output: Option<f64>,
+
+    /// Cost per million cached read tokens
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_read: Option<f64>,
+
+    /// Cost per million cached write tokens
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_write: Option<f64>,
+}
+
+/// Token limits for a model
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct Limit {
+    /// Maximum context window size in tokens
+    pub context: usize,
+
+    /// Maximum output/completion tokens
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output: Option<usize>,
+}
+
+/// Canonical representation of a model (mirrors models.dev API structure)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CanonicalModel {
-    /// Model identifier (e.g., "anthropic/claude-3-5-sonnet" or "openai/gpt-4o:extended")
+    /// Model identifier (e.g., "anthropic/claude-3-5-sonnet")
     pub id: String,
 
-    /// Human-readable name (e.g., "Claude 3.5 Sonnet")
+    /// Human-readable name (e.g., "Claude Sonnet 3.5 v2")
     pub name: String,
 
-    /// Maximum context window size in tokens
-    pub context_length: usize,
-
-    /// Maximum completion tokens
+    /// Model family (e.g., "claude-sonnet", "gpt")
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_completion_tokens: Option<usize>,
-
-    /// Input modalities supported (e.g., ["text", "image"])
-    #[serde(default)]
-    pub input_modalities: Vec<String>,
-
-    /// Output modalities supported (e.g., ["text"])
-    #[serde(default)]
-    pub output_modalities: Vec<String>,
+    pub family: Option<String>,
 
     /// Whether the model supports tool calling
     #[serde(default)]
-    pub supports_tools: bool,
+    pub tool_call: bool,
 
-    /// Pricing for this model
-    pub pricing: Pricing,
+    /// Input and output modalities
+    #[serde(default)]
+    pub modalities: Modalities,
+
+    /// Pricing information
+    #[serde(default)]
+    pub cost: Pricing,
+
+    /// Token limits
+    #[serde(default)]
+    pub limit: Limit,
 }

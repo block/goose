@@ -1,6 +1,6 @@
-/// Build canonical models from OpenRouter API
+/// Build canonical models from models.dev API
 ///
-/// This script fetches models from OpenRouter and converts them to canonical format.
+/// This script fetches models from models.dev and converts them to canonical format.
 /// By default, it also checks which models from top providers are properly mapped.
 ///
 /// Usage:
@@ -9,28 +9,38 @@
 ///
 use anyhow::{Context, Result};
 use clap::Parser;
-use goose::providers::canonical::{
-    canonical_name, CanonicalModel, CanonicalModelRegistry, Pricing,
-};
+use goose::providers::canonical::{canonical_name, CanonicalModel, CanonicalModelRegistry, Limit, Modalities, Pricing};
 use goose::providers::{canonical::ModelMapping, create_with_named_model};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::PathBuf;
 
-const OPENROUTER_API_URL: &str = "https://openrouter.ai/api/v1/models";
+const MODELS_DEV_API_URL: &str = "https://models.dev/api.json";
+
+// Providers to include in canonical models
 const ALLOWED_PROVIDERS: &[&str] = &[
     "anthropic",
     "google",
     "openai",
-    "meta-llama",
-    "mistralai",
-    "x-ai",
+    "openrouter",  // OpenRouter hosts models from many providers
+    "llama",       // Meta Llama models
+    "mistral",
+    "xai",
     "deepseek",
     "cohere",
-    "ai21",
-    "qwen",
 ];
+
+// Normalize provider names from models.dev to our canonical format
+fn normalize_provider_name(provider: &str) -> &str {
+    match provider {
+        "llama" => "meta-llama",
+        "xai" => "x-ai",
+        "mistral" => "mistralai",
+        // Note: openrouter stays as "openrouter" - it's now a first-class provider
+        _ => provider,
+    }
+}
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -307,220 +317,125 @@ impl MappingReport {
     }
 }
 
-#[allow(clippy::too_many_lines)]
 async fn build_canonical_models() -> Result<()> {
-    println!("Fetching models from OpenRouter API...");
+    println!("Fetching models from models.dev API...");
 
     let client = reqwest::Client::new();
     let response = client
-        .get(OPENROUTER_API_URL)
+        .get(MODELS_DEV_API_URL)
         .header("User-Agent", "goose/canonical-builder")
         .send()
         .await
-        .context("Failed to fetch from OpenRouter API")?;
+        .context("Failed to fetch from models.dev API")?;
 
     let json: Value = response
         .json()
         .await
-        .context("Failed to parse OpenRouter response")?;
+        .context("Failed to parse models.dev response")?;
 
-    let models = json["data"]
-        .as_array()
-        .context("Expected 'data' array in OpenRouter response")?
-        .clone();
+    let providers_obj = json
+        .as_object()
+        .context("Expected object in models.dev response")?;
 
-    println!("Processing {} models from OpenRouter...", models.len());
-
-    // First pass: Group models by canonical ID and track the one with shortest name
-    let mut canonical_groups: HashMap<String, &Value> = HashMap::new();
-    let mut shortest_names: HashMap<String, String> = HashMap::new();
-
-    for model in &models {
-        let id = model["id"].as_str().unwrap();
-        let name = model["name"].as_str().context("Model missing id field")?;
-
-        // Skip OpenRouter-specific pricing variants (:free, :nitro)
-        // Keep :extended since it has different context length
-        if id.contains(":free") || id.contains(":nitro") {
-            continue;
-        }
-
-        let canonical_id = canonical_name("openrouter", id);
-
-        let provider = canonical_id.split('/').next().unwrap_or("");
-        if !ALLOWED_PROVIDERS.contains(&provider) {
-            continue;
-        }
-
-        let prompt_cost = model
-            .get("pricing")
-            .and_then(|p| p.get("prompt"))
-            .and_then(|v| v.as_str())
-            .and_then(|s| s.parse::<f64>().ok())
-            .unwrap_or(0.0);
-
-        let completion_cost = model
-            .get("pricing")
-            .and_then(|p| p.get("completion"))
-            .and_then(|v| v.as_str())
-            .and_then(|s| s.parse::<f64>().ok())
-            .unwrap_or(0.0);
-
-        let has_paid_pricing = prompt_cost > 0.0 || completion_cost > 0.0;
-
-        if let Some(existing_model) = canonical_groups.get(&canonical_id) {
-            let existing_name = shortest_names.get(&canonical_id).unwrap();
-
-            let existing_prompt = existing_model
-                .get("pricing")
-                .and_then(|p| p.get("prompt"))
-                .and_then(|v| v.as_str())
-                .and_then(|s| s.parse::<f64>().ok())
-                .unwrap_or(0.0);
-
-            let existing_completion = existing_model
-                .get("pricing")
-                .and_then(|p| p.get("completion"))
-                .and_then(|v| v.as_str())
-                .and_then(|s| s.parse::<f64>().ok())
-                .unwrap_or(0.0);
-
-            let existing_has_paid = existing_prompt > 0.0 || existing_completion > 0.0;
-
-            let should_replace = if has_paid_pricing != existing_has_paid {
-                has_paid_pricing // Prefer the one with paid pricing
-            } else {
-                name.len() < existing_name.len() // Both same pricing tier, prefer shorter name
-            };
-
-            if should_replace {
-                println!(
-                    "  Updating {} from '{}' (paid: {}) to '{}' (paid: {})",
-                    canonical_id,
-                    existing_model["id"].as_str().unwrap(),
-                    existing_has_paid,
-                    id,
-                    has_paid_pricing
-                );
-                shortest_names.insert(canonical_id.clone(), name.to_string());
-                canonical_groups.insert(canonical_id, model);
-            }
-        } else {
-            println!(
-                "  Adding: {} (from {}, paid: {})",
-                canonical_id, id, has_paid_pricing
-            );
-            shortest_names.insert(canonical_id.clone(), name.to_string());
-            canonical_groups.insert(canonical_id, model);
-        }
-    }
-
-    // Filter out beta/preview variants if non-beta version exists
-    let beta_suffixes = ["-beta", "-preview", "-alpha"];
-    let mut to_remove = Vec::new();
-
-    for canonical_id in canonical_groups.keys() {
-        for suffix in &beta_suffixes {
-            if canonical_id.ends_with(suffix) {
-                // Check if non-beta version exists
-                let base_id = canonical_id.strip_suffix(suffix).unwrap();
-                if canonical_groups.contains_key(base_id) {
-                    println!(
-                        "  Filtering out {} (non-beta version {} exists)",
-                        canonical_id, base_id
-                    );
-                    to_remove.push(canonical_id.clone());
-                    break;
-                }
-            }
-        }
-    }
-
-    for id in to_remove {
-        canonical_groups.remove(&id);
-        shortest_names.remove(&id);
-    }
-
-    // Second pass: Build the registry with the selected models
     let mut registry = CanonicalModelRegistry::new();
+    let mut total_models = 0;
 
-    for (canonical_id, model) in canonical_groups.iter() {
-        let name = shortest_names.get(canonical_id).unwrap();
+    for provider_key in ALLOWED_PROVIDERS {
+        if let Some(provider_data) = providers_obj.get(*provider_key) {
+            let models = provider_data["models"]
+                .as_object()
+                .context(format!("Provider {} missing models object", provider_key))?;
 
-        let context_length = model["context_length"].as_u64().unwrap_or(128_000) as usize;
+            let normalized_provider = normalize_provider_name(provider_key);
 
-        let max_completion_tokens = model
-            .get("top_provider")
-            .and_then(|tp| tp.get("max_completion_tokens"))
-            .and_then(|v| v.as_u64())
-            .map(|v| v as usize);
+            println!(
+                "\nProcessing {} ({} models)...",
+                normalized_provider,
+                models.len()
+            );
 
-        let mut input_modalities: Vec<String> = model
-            .get("architecture")
-            .and_then(|arch| arch.get("input_modalities"))
-            .and_then(|v| v.as_array())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str())
-                    .map(|s| s.to_string())
-                    .collect()
-            })
-            .unwrap_or_else(|| vec!["text".to_string()]);
-        input_modalities.sort();
+            for (model_id, model_data) in models {
+                // Skip models without pricing information
+                let cost_data = match model_data.get("cost") {
+                    Some(c) if !c.is_null() => c,
+                    _ => continue,
+                };
 
-        let mut output_modalities: Vec<String> = model
-            .get("architecture")
-            .and_then(|arch| arch.get("output_modalities"))
-            .and_then(|v| v.as_array())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str())
-                    .map(|s| s.to_string())
-                    .collect()
-            })
-            .unwrap_or_else(|| vec!["text".to_string()]);
-        output_modalities.sort();
+                let name = model_data["name"]
+                    .as_str()
+                    .context(format!("Model {} missing name", model_id))?;
 
-        let supports_tools = model
-            .get("supported_parameters")
-            .and_then(|v| v.as_array())
-            .map(|params| params.iter().any(|param| param.as_str() == Some("tools")))
-            .unwrap_or(false);
+                // Use canonical_name to normalize the model ID (strips date stamps, etc.)
+                let canonical_id = canonical_name(normalized_provider, model_id);
 
-        let pricing_obj = model
-            .get("pricing")
-            .context("Model missing pricing field")?;
-        let pricing = Pricing {
-            prompt: pricing_obj
-                .get("prompt")
-                .and_then(|v| v.as_str())
-                .and_then(|s| s.parse().ok()),
-            completion: pricing_obj
-                .get("completion")
-                .and_then(|v| v.as_str())
-                .and_then(|s| s.parse().ok()),
-            request: pricing_obj
-                .get("request")
-                .and_then(|v| v.as_str())
-                .and_then(|s| s.parse().ok()),
-            image: pricing_obj
-                .get("image")
-                .and_then(|v| v.as_str())
-                .and_then(|s| s.parse().ok()),
-        };
+                let family = model_data.get("family").and_then(|v| v.as_str()).map(|s| s.to_string());
 
-        let canonical_model = CanonicalModel {
-            id: canonical_id.clone(),
-            name: name.to_string(),
-            context_length,
-            max_completion_tokens,
-            input_modalities,
-            output_modalities,
-            supports_tools,
-            pricing,
-        };
+                let tool_call = model_data
+                    .get("tool_call")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
 
-        registry.register(canonical_model);
+                let modalities = Modalities {
+                    input: model_data
+                        .get("modalities")
+                        .and_then(|m| m.get("input"))
+                        .and_then(|v| v.as_array())
+                        .map(|arr| {
+                            arr.iter()
+                                .filter_map(|v| v.as_str())
+                                .map(|s| s.to_string())
+                                .collect()
+                        })
+                        .unwrap_or_else(|| vec!["text".to_string()]),
+                    output: model_data
+                        .get("modalities")
+                        .and_then(|m| m.get("output"))
+                        .and_then(|v| v.as_array())
+                        .map(|arr| {
+                            arr.iter()
+                                .filter_map(|v| v.as_str())
+                                .map(|s| s.to_string())
+                                .collect()
+                        })
+                        .unwrap_or_else(|| vec!["text".to_string()]),
+                };
+
+                let cost = Pricing {
+                    input: cost_data.get("input").and_then(|v| v.as_f64()),
+                    output: cost_data.get("output").and_then(|v| v.as_f64()),
+                    cache_read: cost_data.get("cache_read").and_then(|v| v.as_f64()),
+                    cache_write: cost_data.get("cache_write").and_then(|v| v.as_f64()),
+                };
+
+                let limit = Limit {
+                    context: model_data
+                        .get("limit")
+                        .and_then(|l| l.get("context"))
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(128_000) as usize,
+                    output: model_data
+                        .get("limit")
+                        .and_then(|l| l.get("output"))
+                        .and_then(|v| v.as_u64())
+                        .map(|v| v as usize),
+                };
+
+                let canonical_model = CanonicalModel {
+                    id: canonical_id.clone(),
+                    name: name.to_string(),
+                    family,
+                    tool_call,
+                    modalities,
+                    cost,
+                    limit,
+                };
+
+                // Extract the normalized model name (after the provider/)
+                let model_name = canonical_id.split('/').nth(1).unwrap_or(model_id);
+                registry.register(normalized_provider, model_name, canonical_model);
+                total_models += 1;
+            }
+        }
     }
 
     let output_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -528,7 +443,7 @@ async fn build_canonical_models() -> Result<()> {
     registry.to_file(&output_path)?;
     println!(
         "\n✓ Wrote {} models to {}",
-        registry.count(),
+        total_models,
         output_path.display()
     );
 
@@ -596,6 +511,7 @@ async fn check_canonical_mappings() -> Result<()> {
         ("openai", "gpt-4"),
         ("openrouter", "anthropic/claude-3.5-sonnet"),
         ("google", "gemini-1.5-pro-002"),
+        ("databricks", "claude-3-5-sonnet-20241022"),  // Meta-provider - uses string matching magic!
         ("tetrate", "claude-3-5-sonnet-computer-use"),
         ("xai", "grok-code-fast-1"),
     ];
