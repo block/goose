@@ -302,9 +302,8 @@ function BaseChatContent({
     name: session?.name || 'No Session',
   };
 
-  // Update the global chat context when session name changes
   const lastSetNameRef = useRef<string>('');
-  
+
   useEffect(() => {
     const currentSessionName = session?.name;
     if (currentSessionName && currentSessionName !== lastSetNameRef.current) {

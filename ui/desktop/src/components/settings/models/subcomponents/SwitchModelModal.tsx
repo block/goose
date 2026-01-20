@@ -214,20 +214,24 @@ export const SwitchModelModal = ({
 
         results.forEach(({ provider: p, models, error }) => {
           const modelList = error
-            ? (p.metadata.known_models?.map(({ name }) => name) || [])
-            : (models || []);
+            ? p.metadata.known_models?.map(({ name }) => name) || []
+            : models || [];
 
           if (error) {
             errors.push(error);
           }
 
-          const options: { value: string; label: string; provider: string; providerType: ProviderType }[] =
-            modelList.map((m) => ({
-              value: m,
-              label: m,
-              provider: p.name,
-              providerType: p.provider_type,
-            }));
+          const options: {
+            value: string;
+            label: string;
+            provider: string;
+            providerType: ProviderType;
+          }[] = modelList.map((m) => ({
+            value: m,
+            label: m,
+            provider: p.name,
+            providerType: p.provider_type,
+          }));
 
           if (p.metadata.allows_unlisted_models && p.provider_type !== 'Custom') {
             options.push({
