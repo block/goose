@@ -113,7 +113,9 @@ impl ExtensionManagerClient {
                 - list_resources: List resources from extensions
                 - read_resource: Read specific resources from extensions
 
-                Use search_available_extensions when you need to find what extensions are available.
+                When you lack the tools needed to complete a task, use search_available_extensions first
+                to discover what extensions can help.
+
                 Use manage_extensions to enable or disable specific extensions by name.
                 Use list_resources and read_resource to work with extension data and resources.
             "#}.to_string()),
