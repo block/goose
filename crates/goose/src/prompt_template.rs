@@ -104,7 +104,6 @@ pub fn render_template<T: Serialize>(name: &str, context: &T) -> Result<String, 
 }
 
 pub fn get_template(name: &str) -> Option<Template> {
-    // Find description in registry
     let (_, description) = TEMPLATE_REGISTRY.iter().find(|(n, _)| *n == name)?;
 
     let default_content = CORE_PROMPTS_DIR
@@ -218,11 +217,9 @@ mod tests {
         let templates = list_templates();
         assert_eq!(templates.len(), TEMPLATE_REGISTRY.len());
 
-        // Verify system.md is in the list
         let has_system = templates.iter().any(|t| t.name == "system.md");
         assert!(has_system, "system.md should be in the template list");
 
-        // Verify all have descriptions and content
         for template in templates {
             assert!(
                 !template.description.is_empty(),
