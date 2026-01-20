@@ -1278,21 +1278,19 @@ impl Agent {
                                             ToolStreamItem::Result(output) => {
                                                 let output = call_tool_result::validate(output);
 
-                                                // Check for platform notification in tool result meta
+                                                // Platform extensions use meta as a way to publish notifications. Ideally we'd
+                                                // send the notificiations directly, but the current plumbing does support that
+                                                // only badly:
                                                 if let Ok(ref call_result) = output {
                                                     if let Some(ref meta) = call_result.meta {
                                                         if let Some(notification_data) = meta.0.get("platform_notification") {
-                                                            // Extract method and params from the notification data
                                                             if let Some(method) = notification_data.get("method").and_then(|v| v.as_str()) {
                                                                 let params = notification_data.get("params").cloned();
-
-                                                                // Create CustomNotification
                                                                 let custom_notification = rmcp::model::CustomNotification::new(
                                                                     method.to_string(),
                                                                     params,
                                                                 );
 
-                                                                // Emit as ServerNotification
                                                                 let server_notification = rmcp::model::ServerNotification::CustomNotification(custom_notification);
                                                                 yield AgentEvent::McpNotification((request_id.clone(), server_notification));
                                                             }

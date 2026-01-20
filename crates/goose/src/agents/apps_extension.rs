@@ -21,7 +21,6 @@ use tokio_util::sync::CancellationToken;
 
 pub static EXTENSION_NAME: &str = "apps";
 
-/// Parameters for create_app tool
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 struct CreateAppParams {
     /// What the app should do - a description or PRD that will be used to generate the app
@@ -92,9 +91,8 @@ pub struct AppsManagerClient {
 
 impl AppsManagerClient {
     pub fn new(context: PlatformExtensionContext) -> Result<Self, String> {
-        let apps_dir = Paths::in_data_dir("apps");
+        let apps_dir = Paths::in_data_dir(EXTENSION_NAME);
 
-        // Ensure apps directory exists
         fs::create_dir_all(&apps_dir)
             .map_err(|e| format!("Failed to create apps directory: {}", e))?;
 
@@ -111,6 +109,7 @@ impl AppsManagerClient {
                 prompts: None,
                 completions: None,
                 experimental: None,
+                tasks: None,
                 logging: None,
             },
             server_info: Implementation {
@@ -280,7 +279,6 @@ You must call the create_app_content tool to return the app name, description, H
             .await
             .map_err(|e| format!("LLM call failed: {}", e))?;
 
-        // Extract tool call from response
         for content in &response.content {
             if let crate::conversation::message::MessageContent::ToolRequest(tool_req) = content {
                 if let Ok(tool_call) = &tool_req.tool_call {
@@ -303,7 +301,6 @@ You must call the create_app_content tool to return the app name, description, H
         Err("LLM did not call the required tool".to_string())
     }
 
-    /// Generate updated content for an existing app using the LLM with tool calling
     async fn generate_updated_app_content(
         &self,
         existing_html: &str,
@@ -353,7 +350,6 @@ You must call the update_app_content tool to return the updated description, HTM
             .await
             .map_err(|e| format!("LLM call failed: {}", e))?;
 
-        // Extract tool call from response
         for content in &response.content {
             if let crate::conversation::message::MessageContent::ToolRequest(tool_req) = content {
                 if let Ok(tool_call) = &tool_req.tool_call {
@@ -376,7 +372,6 @@ You must call the update_app_content tool to return the updated description, HTM
         Err("LLM did not call the required tool".to_string())
     }
 
-    /// Handle list_apps tool call
     async fn handle_list_apps(
         &self,
         _arguments: Option<JsonObject>,
@@ -428,11 +423,8 @@ You must call the update_app_content tool to return the updated description, HTM
         let args = arguments.ok_or("Missing arguments")?;
         let prd = extract_string(&args, "prd")?;
 
-        // Generate app content using LLM with tool calling
         let content = self.generate_new_app_content(&prd).await?;
-        tracing::info!("LLM generated app name: '{}'", content.name);
 
-        // Check if app already exists
         if self.load_app(&content.name).is_ok() {
             return Err(format!(
                 "App '{}' already exists (generated name conflicts with existing app).",
@@ -450,7 +442,7 @@ You must call the update_app_content tool to return the updated description, HTM
                 blob: None,
                 meta: None,
             },
-            mcp_server: Some("apps".to_string()),
+            mcp_server: Some(EXTENSION_NAME.to_string()),
             window_props: Some(crate::goose_apps::WindowProps {
                 width: content.width.unwrap_or(800),
                 height: content.height.unwrap_or(600),
@@ -460,26 +452,22 @@ You must call the update_app_content tool to return the updated description, HTM
         };
 
         self.save_app(&app)?;
-        tracing::info!("Saved app with name: '{}'", content.name);
 
         let result = CallToolResult::success(vec![Content::text(format!(
             "Created app '{}'! It should have automatically opened in a new window. You can always find it again in the [Apps] tab.",
             content.name
         ))]);
 
-        // Add platform notification
         let mut params = serde_json::Map::new();
         params.insert("app_name".to_string(), json!(content.name));
-        tracing::info!("Sending platform notification for app: '{}'", content.name);
 
         let result =
             self.context
-                .result_with_platform_notification(result, "apps", "app_created", params);
+                .result_with_platform_notification(result, EXTENSION_NAME, "app_created", params);
 
         Ok(result)
     }
 
-    /// Handle iterate_app tool call
     async fn handle_iterate_app(
         &self,
         arguments: Option<JsonObject>,
@@ -492,29 +480,21 @@ You must call the update_app_content tool to return the updated description, HTM
 
         let mut app = self.load_app(&name)?;
 
-        // Get existing HTML
         let existing_html = app
             .resource
             .text
             .as_deref()
             .ok_or("App has no HTML content")?;
 
-        // Get existing PRD
         let existing_prd = app.prd.as_deref().unwrap_or("");
 
-        // Generate updated content using LLM with tool calling
         let content = self
             .generate_updated_app_content(existing_html, existing_prd, &feedback)
             .await?;
 
-        // Update app with new content
         app.resource.text = Some(content.html);
         app.resource.description = Some(content.description);
-
-        // Update PRD from LLM response - keeps HTML and PRD in sync
         app.prd = Some(content.prd);
-
-        // Update window properties if provided
         if content.width.is_some() || content.height.is_some() || content.resizable.is_some() {
             let current_props = app.window_props.as_ref();
             let default_width = current_props.map(|p| p.width).unwrap_or(800);
@@ -535,18 +515,16 @@ You must call the update_app_content tool to return the updated description, HTM
             name
         ))]);
 
-        // Add platform notification
         let mut params = serde_json::Map::new();
         params.insert("app_name".to_string(), json!(name));
 
         let result =
             self.context
-                .result_with_platform_notification(result, "apps", "app_updated", params);
+                .result_with_platform_notification(result, EXTENSION_NAME, "app_updated", params);
 
         Ok(result)
     }
 
-    /// Handle delete_app tool call
     async fn handle_delete_app(
         &self,
         arguments: Option<JsonObject>,
@@ -561,13 +539,12 @@ You must call the update_app_content tool to return the updated description, HTM
         let result =
             CallToolResult::success(vec![Content::text(format!("Deleted app '{}'", name))]);
 
-        // Add platform notification
         let mut params = serde_json::Map::new();
         params.insert("app_name".to_string(), json!(name));
 
         let result =
             self.context
-                .result_with_platform_notification(result, "apps", "app_deleted", params);
+                .result_with_platform_notification(result, EXTENSION_NAME, "app_deleted", params);
 
         Ok(result)
     }
@@ -653,7 +630,6 @@ impl McpClientTrait for AppsManagerClient {
 
         for name in app_names {
             if let Ok(app) = self.load_app(&name) {
-                // Build meta with window properties if available
                 let meta = if let Some(ref window_props) = app.window_props {
                     let mut meta_obj = Meta::new();
                     meta_obj.insert(
@@ -698,7 +674,6 @@ impl McpClientTrait for AppsManagerClient {
         uri: &str,
         _cancel_token: CancellationToken,
     ) -> Result<ReadResourceResult, Error> {
-        // Parse app name from URI (ui://apps/{name})
         let app_name = uri
             .strip_prefix("ui://apps/")
             .ok_or(Error::TransportClosed)?;
@@ -707,8 +682,6 @@ impl McpClientTrait for AppsManagerClient {
             .load_app(app_name)
             .map_err(|_| Error::TransportClosed)?;
 
-        // Return the clean HTML without embedded metadata
-        // The metadata (window props, PRD) is exposed via list_resources meta field
         let html = app
             .resource
             .text
@@ -724,7 +697,6 @@ impl McpClientTrait for AppsManagerClient {
     }
 }
 
-/// Extract a string from JSON arguments
 fn extract_string(args: &JsonObject, key: &str) -> Result<String, String> {
     args.get(key)
         .and_then(|v| v.as_str())

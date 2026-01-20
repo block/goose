@@ -126,12 +126,6 @@ pub struct PlatformExtensionContext {
 impl PlatformExtensionContext {
     /// Helper method to attach a platform notification to a tool result.
     /// The notification will be emitted as a MessageEvent::Notification to update client state.
-    ///
-    /// # Arguments
-    /// * `result` - The CallToolResult to attach the notification to
-    /// * `extension_name` - Name of the extension emitting the event (e.g., "apps")
-    /// * `event_type` - Type of event (e.g., "app_created", "app_updated")
-    /// * `additional_params` - Additional parameters to include in the notification
     pub fn result_with_platform_notification(
         &self,
         mut result: rmcp::model::CallToolResult,
@@ -139,11 +133,9 @@ impl PlatformExtensionContext {
         event_type: impl Into<String>,
         mut additional_params: serde_json::Map<String, serde_json::Value>,
     ) -> rmcp::model::CallToolResult {
-        // Add core fields
         additional_params.insert("extension".to_string(), extension_name.into().into());
         additional_params.insert("event_type".to_string(), event_type.into().into());
 
-        // Store notification in meta for agent loop to process
         let meta_value = serde_json::json!({
             "platform_notification": {
                 "method": "platform_event",
@@ -152,14 +144,12 @@ impl PlatformExtensionContext {
         });
 
         if let Some(ref mut meta) = result.meta {
-            // Merge with existing meta
             if let Some(obj) = meta_value.as_object() {
                 for (k, v) in obj {
                     meta.0.insert(k.clone(), v.clone());
                 }
             }
         } else {
-            // Create new meta
             result.meta = Some(rmcp::model::Meta(meta_value.as_object().unwrap().clone()));
         }
 

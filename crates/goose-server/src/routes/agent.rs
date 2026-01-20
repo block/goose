@@ -32,7 +32,7 @@ use goose::{
 use rmcp::model::{CallToolRequestParam, Content};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
@@ -1001,7 +1001,7 @@ async fn list_apps(
         })?;
 
     if let Some(cache) = cache.as_ref() {
-        let active_extensions: std::collections::HashSet<String> = apps
+        let active_extensions: HashSet<String> = apps
             .iter()
             .filter_map(|app| app.mcp_server.clone())
             .collect();
@@ -1110,12 +1110,11 @@ async fn import_app(
         status: StatusCode::BAD_REQUEST,
     })?;
 
-    // Handle name conflicts by appending counter
     let original_name = app.resource.name.clone();
     let mut counter = 1;
 
     let existing_apps = cache.list_apps().unwrap_or_default();
-    let existing_names: std::collections::HashSet<String> = existing_apps
+    let existing_names: HashSet<String> = existing_apps
         .iter()
         .map(|a| a.resource.name.clone())
         .collect();
