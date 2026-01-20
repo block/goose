@@ -1,8 +1,9 @@
 use anyhow::Result;
 use clap::{Args, CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, Shell as ClapShell};
-use goose::config::{Config, ExtensionConfig};
+use goose::config::Config;
 use goose::posthog::get_telemetry_choice;
+use goose::recipe::Recipe;
 use goose_mcp::mcp_server_runner::{serve, McpCommand};
 use goose_mcp::{
     AutoVisualiserRouter, ComputerControllerServer, DeveloperServer, MemoryServer, TutorialServer,
@@ -25,7 +26,7 @@ use crate::commands::schedule::{
 use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::recipes::extract_from_cli::extract_recipe_info_from_cli;
 use crate::recipes::recipe::{explain_recipe, render_recipe_as_yaml};
-use crate::session::{build_session, SessionBuilderConfig, SessionSettings};
+use crate::session::{build_session, SessionBuilderConfig};
 use goose::agents::Container;
 use goose::session::session_manager::SessionType;
 use goose::session::SessionManager;
@@ -950,16 +951,7 @@ enum CliProviderVariant {
 #[derive(Debug)]
 pub struct InputConfig {
     pub contents: Option<String>,
-    pub extensions_override: Option<Vec<ExtensionConfig>>,
     pub additional_system_prompt: Option<String>,
-}
-
-#[derive(Debug)]
-pub struct RecipeInfo {
-    pub session_settings: Option<SessionSettings>,
-    pub sub_recipes: Option<Vec<goose::recipe::SubRecipe>>,
-    pub final_output_response: Option<goose::recipe::Response>,
-    pub retry_config: Option<goose::agents::types::RetryConfig>,
 }
 
 fn get_command_name(command: &Option<Command>) -> &'static str {
@@ -1102,9 +1094,8 @@ async fn handle_interactive_session(
         extensions: extension_opts.extensions,
         streamable_http_extensions: extension_opts.streamable_http_extensions,
         builtins: extension_opts.builtins,
-        extensions_override: None,
+        recipe: None,
         additional_system_prompt: None,
-        settings: None,
         provider: None,
         model: None,
         debug: session_opts.debug,
@@ -1113,9 +1104,6 @@ async fn handle_interactive_session(
         scheduled_job_id: None,
         interactive: true,
         quiet: false,
-        sub_recipes: None,
-        final_output_response: None,
-        retry_config: None,
         output_format: "text".to_string(),
         container: session_opts.container.map(Container::new),
     })
@@ -1173,7 +1161,7 @@ async fn log_session_completion(
 fn parse_run_input(
     input_opts: &InputOptions,
     quiet: bool,
-) -> Result<Option<(InputConfig, Option<RecipeInfo>)>> {
+) -> Result<Option<(InputConfig, Option<Recipe>)>> {
     match (
         &input_opts.instructions,
         &input_opts.input_text,
@@ -1187,7 +1175,6 @@ fn parse_run_input(
             Ok(Some((
                 InputConfig {
                     contents: Some(contents),
-                    extensions_override: None,
                     additional_system_prompt: input_opts.system.clone(),
                 },
                 None,
@@ -1204,7 +1191,6 @@ fn parse_run_input(
             Ok(Some((
                 InputConfig {
                     contents: Some(contents),
-                    extensions_override: None,
                     additional_system_prompt: None,
                 },
                 None,
@@ -1213,7 +1199,6 @@ fn parse_run_input(
         (_, Some(text), _) => Ok(Some((
             InputConfig {
                 contents: Some(text.clone()),
-                extensions_override: None,
                 additional_system_prompt: input_opts.system.clone(),
             },
             None,
@@ -1257,13 +1242,13 @@ fn parse_run_input(
                 "Recipe execution started"
             );
 
-            let (input_config, recipe_info) = extract_recipe_info_from_cli(
+            let (input_config, recipe) = extract_recipe_info_from_cli(
                 recipe_name.clone(),
                 input_opts.params.clone(),
                 input_opts.additional_sub_recipes.clone(),
                 quiet,
             )?;
-            Ok(Some((input_config, Some(recipe_info))))
+            Ok(Some((input_config, Some(recipe))))
         }
         (None, None, None) => {
             eprintln!("Error: Must provide either --instructions (-i), --text (-t), or --recipe. Use -i - for stdin.");
@@ -1287,7 +1272,7 @@ async fn handle_run_command(
 
     let parsed = parse_run_input(&input_opts, output_opts.quiet)?;
 
-    let Some((input_config, recipe_info)) = parsed else {
+    let Some((input_config, recipe)) = parsed else {
         return Ok(());
     };
 
@@ -1312,11 +1297,8 @@ async fn handle_run_command(
         extensions: extension_opts.extensions,
         streamable_http_extensions: extension_opts.streamable_http_extensions,
         builtins: extension_opts.builtins,
-        extensions_override: input_config.extensions_override,
+        recipe: recipe.clone(),
         additional_system_prompt: input_config.additional_system_prompt,
-        settings: recipe_info
-            .as_ref()
-            .and_then(|r| r.session_settings.clone()),
         provider: model_opts.provider,
         model: model_opts.model,
         debug: session_opts.debug,
@@ -1325,11 +1307,6 @@ async fn handle_run_command(
         scheduled_job_id: run_behavior.scheduled_job_id,
         interactive: run_behavior.interactive,
         quiet: output_opts.quiet,
-        sub_recipes: recipe_info.as_ref().and_then(|r| r.sub_recipes.clone()),
-        final_output_response: recipe_info
-            .as_ref()
-            .and_then(|r| r.final_output_response.clone()),
-        retry_config: recipe_info.as_ref().and_then(|r| r.retry_config.clone()),
         output_format: output_opts.output_format,
         container: session_opts.container.map(Container::new),
     })
@@ -1339,11 +1316,7 @@ async fn handle_run_command(
         session.interactive(input_config.contents).await
     } else if let Some(contents) = input_config.contents {
         let session_start = std::time::Instant::now();
-        let session_type = if recipe_info.is_some() {
-            "recipe"
-        } else {
-            "run"
-        };
+        let session_type = if recipe.is_some() { "recipe" } else { "run" };
 
         tracing::info!(
             counter.goose.session_starts = 1,
@@ -1449,9 +1422,8 @@ async fn handle_default_session() -> Result<()> {
         extensions: Vec::new(),
         streamable_http_extensions: Vec::new(),
         builtins: Vec::new(),
-        extensions_override: None,
+        recipe: None,
         additional_system_prompt: None,
-        settings: None::<SessionSettings>,
         provider: None,
         model: None,
         debug: false,
@@ -1460,9 +1432,6 @@ async fn handle_default_session() -> Result<()> {
         scheduled_job_id: None,
         interactive: true,
         quiet: false,
-        sub_recipes: None,
-        final_output_response: None,
-        retry_config: None,
         output_format: "text".to_string(),
         container: None,
     })

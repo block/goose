@@ -62,59 +62,59 @@ sudo apt install libxcb1-dev      # libxcb1-dev is the development package for t
 
 ### Rust
 
-First let's compile goose and try it out
+First, activate the hermit environment and compile goose:
 
 ```
+source bin/activate-hermit
 cargo build
 ```
 
-when that is done, you should now have debug builds of the binaries like the goose cli:
+When that completes, debug builds of the binaries are available, including the goose CLI:
 
 ```
 ./target/debug/goose --help
 ```
 
-If you haven't used the CLI before, you can use this compiled version to do first time configuration:
+For first-time setup, run the configure command:
 
 ```
 ./target/debug/goose configure
 ```
 
-And then once you have a connection to an LLM provider working, you can run a session!
+Once a connection to an LLM provider is working, start a session:
 
 ```
 ./target/debug/goose session
 ```
 
 These same commands can be recompiled and immediately run using `cargo run -p goose-cli` for iteration.
-As you make changes to the rust code, you can try it out on the CLI, or also run checks, tests, and linter:
+When making changes to the Rust code, test them on the CLI or run checks, tests, and the linter:
 
 ```
-cargo check  # do your changes compile
-cargo test  # do the tests pass with your changes
-cargo fmt   # format your code
+cargo check  # verify changes compile
+cargo test  # run tests with changes
+cargo fmt   # format code
 ./scripts/clippy-lint.sh # run the linter
 ```
 
 ### Node
 
-Now let's make sure you can run the app.
+To run the app:
 
 ```
 just run-ui
 ```
 
-The start gui will both build a release build of rust (as if you had done `cargo build -r`) and start the electron process.
-You should see the app open a window, and drop you into first time setup. When you've gone through the setup,
-you can talk to goose!
+This command builds a release build of Rust (equivalent to `cargo build -r`) and starts the Electron process.
+The app opens a window and displays first-time setup. After completing setup, goose is ready for use.
 
-You can now make changes in the code in ui/desktop to iterate on the GUI half of goose.
+Make GUI changes in `ui/desktop`.
 
 ### Regenerating the OpenAPI schema
 
 The file `ui/desktop/openapi.json` is automatically generated during the build.
 It is written by the `generate_schema` binary in `crates/goose-server`.
-If you need to update the spec without starting the UI, run:
+To update the spec without starting the UI, run:
 
 ```
 just generate-openapi
@@ -123,29 +123,28 @@ just generate-openapi
 This command regenerates `ui/desktop/openapi.json` and then runs the UI's
 `generate-api` script to rebuild the TypeScript client from that spec.
 
-Changes to the API should be made in the Rust source under `crates/goose-server/src/`.
+API changes should be made in the Rust source under `crates/goose-server/src/`.
 
 ### Debugging
 
-To debug the Goose server, you can run it from your preferred IDE. How to configure the command
-to start the server will depend on your IDE. The command to run is:
+To debug the Goose server, run it from an IDE. The configuration will depend on the IDE. The command to run is:
 
 ```
 export GOOSE_SERVER__SECRET_KEY=test
 cargo run --package goose-server --bin goosed -- agent   # or: `just run-server`
 ```
 
-The server will start listening on port `3000` by default, but this can be changed by setting the
+The server listens on port `3000` by default; this can be changed by setting the
 `GOOSE_PORT` environment variable.
 
-Once the server is running, you can start a UI and connect it to the server by running:
+Once the server is running, start a UI and connect it to the server by running:
 
 ```
 just debug-ui
 ```
 
-The UI will now be connected to the server you started in your IDE, allowing you to set breakpoints
-and step through the server code as you interact with the UI.
+The UI connects to the server started in the IDE, allowing breakpoints
+and stepping through the server code while interacting with the UI.
 
 ## Creating a fork
 

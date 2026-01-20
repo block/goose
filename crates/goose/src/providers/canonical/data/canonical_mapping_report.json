@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-01-08T18:28:52.658440+00:00",
+  "timestamp": "2026-01-13T00:27:41.273882436+00:00",
   "unmapped_models": [
     {
       "provider": "google",
@@ -2507,10 +2507,6 @@
     },
     {
       "provider": "openrouter",
-      "model": "kwaipilot/kat-coder-pro:free"
-    },
-    {
-      "provider": "openrouter",
       "model": "meta-llama/llama-3.3-70b-instruct:free"
     },
     {
@@ -2555,7 +2551,7 @@
     },
     {
       "provider": "openrouter",
-      "model": "nex-agi/deepseek-v3.1-nex-n1:free"
+      "model": "nex-agi/deepseek-v3.1-nex-n1"
     },
     {
       "provider": "openrouter",
@@ -3609,6 +3605,10 @@
       {
         "provider_model": "qwen/qwen-2.5-72b-instruct",
         "canonical_model": "qwen/qwen-2.5-72b-instruct"
+      },
+      {
+        "provider_model": "qwen/qwen-2.5-7b-instruct",
+        "canonical_model": "qwen/qwen-2.5-7b-instruct"
       },
       {
         "provider_model": "qwen/qwen-max",
@@ -4891,6 +4891,11 @@
     },
     {
       "provider": "openrouter",
+      "model": "qwen/qwen-2.5-7b-instruct",
+      "canonical": "qwen/qwen-2.5-7b-instruct"
+    },
+    {
+      "provider": "openrouter",
       "model": "qwen/qwen-max",
       "canonical": "qwen/qwen-max"
     },
@@ -5190,6 +5195,7 @@
     "openai/o4-mini-deep-research",
     "openai/o4-mini-high",
     "qwen/qwen-2.5-72b-instruct",
+    "qwen/qwen-2.5-7b-instruct",
     "qwen/qwen-max",
     "qwen/qwen-plus",
     "qwen/qwen-plus-2025-07-28:thinking",
