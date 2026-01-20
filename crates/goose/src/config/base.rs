@@ -968,6 +968,7 @@ config_value!(GOOSE_PROVIDER, String);
 config_value!(GOOSE_MODEL, String);
 config_value!(GOOSE_PROMPT_EDITOR, Option<String>);
 config_value!(GOOSE_MAX_ACTIVE_AGENTS, usize);
+config_value!(GEMINI3_THINKING_LEVEL, String);
 
 /// Load init-config.yaml from workspace root if it exists.
 /// This function is shared between the config recovery and the init_config endpoint.
