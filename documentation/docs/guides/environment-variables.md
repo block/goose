@@ -307,7 +307,7 @@ goose supports standard HTTP proxy environment variables for users behind corpor
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
 | `HTTP_PROXY` | Proxy URL for HTTP connections | URL (e.g., `http://proxy.company.com:8080`) | None |
-| `HTTPS_PROXY` | Proxy URL for HTTPS connections (takes precedence over `HTTP_PROXY` when both are set)| URL (e.g., `http://proxy.company.com:8080`) | None |
+| `HTTPS_PROXY` | Proxy URL for HTTPS connections (takes precedence over `HTTP_PROXY` when both are set) | URL (e.g., `http://proxy.company.com:8080`) | None |
 | `NO_PROXY` | Hosts to bypass the proxy | Comma-separated list (e.g., `localhost,127.0.0.1,.internal.com`) | None |
 
 **Examples**
