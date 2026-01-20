@@ -776,3 +776,228 @@ p > code.bg-inline-code {
 .katex-error {
   color: var(--text-danger);
 }
+
+/* Navigation Component Animations */
+
+/* Enhanced easing curves for more natural motion */
+@keyframes nav-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes nav-scale-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  50% {
+    opacity: 0.8;
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes nav-backdrop-fade {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0px);
+  }
+  to {
+    opacity: 1;
+    backdrop-filter: blur(8px);
+  }
+}
+
+@keyframes nav-slide-in-vertical {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes nav-slide-in-horizontal {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Enhanced tile animation with subtle lift and settle */
+@keyframes nav-tile-in {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* Exit animation for tiles - reverse of entrance */
+@keyframes nav-tile-out {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+}
+
+/* Gentle bounce for menu container */
+@keyframes nav-menu-bounce {
+  0% {
+    opacity: 0;
+    transform: scale(0.9) translateY(10px);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.02) translateY(-4px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Exit animation for overlay - scale down and fade */
+@keyframes nav-scale-out {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+}
+
+/* Exit animation for content - quick fade */
+@keyframes nav-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* Navigation overlay animations with enhanced timing */
+.nav-overlay-enter {
+  animation: nav-scale-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.nav-overlay-exit {
+  animation: nav-scale-out 0.25s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+.nav-overlay-content {
+  animation: nav-fade-in 0.3s ease-out 0.1s forwards;
+  opacity: 0;
+}
+
+.nav-overlay-content-exit {
+  animation: nav-fade-out 0.15s ease-in forwards;
+}
+
+/* Backdrop blur animation for overlay */
+.nav-overlay-backdrop {
+  animation: nav-backdrop-fade 0.35s ease-out forwards;
+}
+
+/* Navigation tile stagger animation with enhanced easing */
+.nav-tile {
+  animation: nav-tile-in 0.3s ease-out forwards;
+  /* Start invisible, animation will make it visible and keep it that way */
+  opacity: 0;
+  will-change: opacity;
+}
+
+.nav-tile-exit {
+  animation: nav-tile-out 0.2s ease-in forwards;
+  /* Start from current visible state */
+  opacity: 1;
+  will-change: opacity, transform;
+}
+
+/* Enhanced stagger delays with better rhythm - faster start, gradual slowdown */
+.nav-tile:nth-child(1) { animation-delay: 0ms; }
+.nav-tile:nth-child(2) { animation-delay: 40ms; }
+.nav-tile:nth-child(3) { animation-delay: 75ms; }
+.nav-tile:nth-child(4) { animation-delay: 105ms; }
+.nav-tile:nth-child(5) { animation-delay: 130ms; }
+.nav-tile:nth-child(6) { animation-delay: 150ms; }
+.nav-tile:nth-child(7) { animation-delay: 165ms; }
+.nav-tile:nth-child(8) { animation-delay: 175ms; }
+.nav-tile:nth-child(9) { animation-delay: 180ms; }
+.nav-tile:nth-child(10) { animation-delay: 185ms; }
+.nav-tile:nth-child(11) { animation-delay: 190ms; }
+.nav-tile:nth-child(12) { animation-delay: 195ms; }
+
+/* Menu container bounce animation */
+.nav-menu-container {
+  animation: nav-menu-bounce 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* Navigation push mode animations */
+.nav-push-enter {
+  animation: nav-slide-in-vertical 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* Enhanced hover and active states for navigation buttons */
+.nav-button {
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), 
+              background-color 0.2s ease,
+              box-shadow 0.25s ease;
+}
+
+.nav-button:hover {
+  transform: scale(1.03) translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.nav-button:active {
+  transform: scale(0.97) translateY(0px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+/* Widget tiles get extra polish */
+.nav-widget-tile {
+  animation: nav-tile-in 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  opacity: 0;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 0.3s ease;
+}
+
+.nav-widget-tile:hover {
+  transform: translateY(-2px) scale(1.01);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .nav-overlay-enter,
+  .nav-overlay-content,
+  .nav-tile,
+  .nav-push-enter,
+  .nav-button {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+}
