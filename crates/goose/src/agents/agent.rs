@@ -413,14 +413,11 @@ impl Agent {
         }
     }
 
-    /// Sets the Docker container for running stdio extensions.
     /// When set, all stdio extensions will be started via `docker exec` in the specified container.
-    /// This also updates the ExtensionManager's container setting.
     pub async fn set_container(&self, container: Option<Container>) {
         *self.container.lock().await = container.clone();
     }
 
-    /// Returns a clone of the current container if set.
     pub async fn container(&self) -> Option<Container> {
         self.container.lock().await.clone()
     }
