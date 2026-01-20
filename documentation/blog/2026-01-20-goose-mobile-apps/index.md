@@ -19,18 +19,18 @@ Really great for long running tasks, checking on things, or just shooting off an
 
 ### ACP 
 
-As ACP evolves and matures, it makes sense to have the mobile clients use that to communicate over the tunnel to the goose server (which implements ACP). This has the side benefit of the clients working with any ACP compatible agent. It is reasonable to imagine many clients, and agent servers being in the mix together due to open standards, just like MCP servers (and now skills) can be used between agent implementations, which is a great outcome for everyone.
+As [ACP](https://agentclientprotocol.com/overview/introduction) evolves and matures, it makes sense to have the mobile clients use that to communicate over the tunnel to the goose server (which implements ACP). This has the side benefit of the clients working with any ACP compatible agent. It is reasonable to imagine many clients, and agent servers being in the mix together due to open standards, just like MCP servers (and now skills) can be used between agent implementations, which is a great outcome for everyone.
 
 ### Tunnel Technology
 
-For mobile client to work for personal (ie desktop/laptop/PC agents, not really servers) there was a need to allow traffic inbound. Many solutions exist, from hole punching (STUN/TURN etc), Tor, ngrok/cloudflared like services, and VPNs. For general usage for people to try, we have this solution: https://github.com/michaelneale/lapstone-tunnel which is what goose uses when you enable a tunnel, using cloudflare with websockets, workers and durable objects to keep things lite and efficient (of course in some enterprise settings you will have access to a VPN so you can adapt the solution to that).
+For mobile client to work for personal (ie desktop/laptop/PC agents, not really servers) there was a need to allow traffic inbound. Many solutions exist, from hole punching (STUN/TURN etc), Tor, ngrok/cloudflared like services, and VPNs. For general usage for people to try, we have [this solution](https://github.com/michaelneale/lapstone-tunnel) which is what goose uses when you enable a tunnel, using cloudflare with websockets, workers and durable objects to keep things lite and efficient (of course in some enterprise settings you will have access to a VPN so you can adapt the solution to that).
 
 <head>
-  <meta property="og:title" content="Goose Mobile Apps" />
+  <meta property="og:title" content="goose mobile apps" />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2026/01/20/goose-mobile-apps" />
-  <meta property="og:description" content="Consolidating agent apps for ios and android and ACP" />
+  <meta property="og:description" content="Consolidating agent apps for iOS and Android and ACP" />
   <meta property="twitter:domain" content="block.github.io/goose" />
-  <meta name="twitter:title" content="Goose Mobile Apps" />
-  <meta name="twitter:description" content="Consolidating agent apps for ios and android and ACP" />
+  <meta name="twitter:title" content="goose mobile apps" />
+  <meta name="twitter:description" content="Consolidating agent apps for iOS and Android and ACP" />
 </head>
