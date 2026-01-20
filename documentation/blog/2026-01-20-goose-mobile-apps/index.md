@@ -11,7 +11,9 @@ Recently we consolidated the apps for goose mobile to this repository: https://g
 
 In 2025 we did a fairly cutting edge take on whole device automation using Android (code name was gosling) which was an on-device agent that would take over your device (mic even used it to do some shopping - which he realized after some things arrived at his door that it had automatically purchased as the result of an email - hence the PoC/experimental label!)
 
-The `goose-ios` client however is more production ready, and in the app store (still early days). We hope to have a port of that to Android, which will be strictly a client (and won't take over your device!) to your remote agent. The aim of the client (vs an on device agent) is for you to take your work on the go with you. 
+Recently we consolidated the [apps for goose mobile](https://github.com/block/goose-mobile).
+
+The [goose-ios client](/blog/2025/12/19/goose-mobile-terminal/) is more production ready, and in the app store (still early days). We hope to have a port of that to Android, which will be strictly a client (and won't take over your device!) to your remote agent. The aim of the client (vs an on device agent) is for you to take your work on the go with you. 
 
 Really great for long running tasks, checking on things, or just shooting off an idea but still keeping things local to your personal agent (where all your stuff is) securely. 
 
