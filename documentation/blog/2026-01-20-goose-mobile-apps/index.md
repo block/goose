@@ -23,7 +23,7 @@ As [ACP](https://agentclientprotocol.com/overview/introduction) evolves and matu
 
 ### Tunnel Technology
 
-For mobile client to work for personal (ie desktop/laptop/PC agents, not really servers) there was a need to allow traffic inbound. Many solutions exist, from hole punching (STUN/TURN etc), Tor, ngrok/cloudflared like services, and VPNs. For general usage for people to try, we have [this solution](https://github.com/michaelneale/lapstone-tunnel) which is what goose uses when you enable a tunnel, using cloudflare with websockets, workers and durable objects to keep things lite and efficient (of course in some enterprise settings you will have access to a VPN so you can adapt the solution to that).
+For mobile client to work for personal (ie desktop/laptop/PC agents, not really servers), there was a need to allow traffic inbound. Many solutions exist, from hole punching (STUN/TURN etc), Tor, ngrok/cloudflared like services, and VPNs. For general usage for people to try, we have [this solution](https://github.com/michaelneale/lapstone-tunnel) which is what goose uses when you enable a tunnel, using cloudflare with websockets, workers and durable objects to keep things lite and efficient (of course in some enterprise settings you will have access to a VPN so you can adapt the solution to that).
 
 <head>
   <meta property="og:title" content="goose mobile apps" />
