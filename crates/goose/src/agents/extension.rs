@@ -47,9 +47,11 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
             todo_extension::EXTENSION_NAME,
             PlatformExtensionDef {
                 name: todo_extension::EXTENSION_NAME,
+                display_name: "Todo",
                 description:
                     "Enable a todo list for goose so it can keep track of what it is doing",
                 default_enabled: true,
+                version: 0,
                 client_factory: |ctx| Box::new(todo_extension::TodoClient::new(ctx).unwrap()),
             },
         );
@@ -58,9 +60,11 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
             chatrecall_extension::EXTENSION_NAME,
             PlatformExtensionDef {
                 name: chatrecall_extension::EXTENSION_NAME,
+                display_name: "Chat Recall",
                 description:
                     "Search past conversations and load session summaries for contextual memory",
                 default_enabled: false,
+                version: 0,
                 client_factory: |ctx| {
                     Box::new(chatrecall_extension::ChatRecallClient::new(ctx).unwrap())
                 },
@@ -71,9 +75,11 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
             "extensionmanager",
             PlatformExtensionDef {
                 name: extension_manager_extension::EXTENSION_NAME,
+                display_name: "Extension Manager",
                 description:
                     "Enable extension management tools for discovering, enabling, and disabling extensions",
                 default_enabled: true,
+                version: 0,
                 client_factory: |ctx| Box::new(extension_manager_extension::ExtensionManagerClient::new(ctx).unwrap()),
             },
         );
@@ -82,8 +88,10 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
             skills_extension::EXTENSION_NAME,
             PlatformExtensionDef {
                 name: skills_extension::EXTENSION_NAME,
+                display_name: "Skills",
                 description: "Load and use skills from relevant directories",
                 default_enabled: true,
+                version: 0,
                 client_factory: |ctx| Box::new(skills_extension::SkillsClient::new(ctx).unwrap()),
             },
         );
@@ -92,8 +100,10 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
             code_execution_extension::EXTENSION_NAME,
             PlatformExtensionDef {
                 name: code_execution_extension::EXTENSION_NAME,
+                display_name: "Code Execution",
                 description: "Execute JavaScript code in a sandboxed environment",
                 default_enabled: false,
+                version: 0,
                 client_factory: |ctx| {
                     Box::new(code_execution_extension::CodeExecutionClient::new(ctx).unwrap())
                 },
@@ -114,8 +124,10 @@ pub struct PlatformExtensionContext {
 #[derive(Debug, Clone)]
 pub struct PlatformExtensionDef {
     pub name: &'static str,
+    pub display_name: &'static str,
     pub description: &'static str,
     pub default_enabled: bool,
+    pub version: u32,
     pub client_factory: fn(PlatformExtensionContext) -> Box<dyn McpClientTrait>,
 }
 
@@ -291,6 +303,9 @@ pub enum ExtensionConfig {
         #[serde(deserialize_with = "deserialize_null_with_default")]
         #[schema(required)]
         description: String,
+        display_name: Option<String>,
+        #[serde(default)]
+        version: u32,
         #[serde(default)]
         bundled: Option<bool>,
         #[serde(default)]

@@ -56,22 +56,47 @@ fn get_extensions_map() -> IndexMap<String, ExtensionEntry> {
 
     // Always inject platform extensions (code_execution, todo, skills, etc.)
     // These are internal agent extensions that should always be available
+    // Also update existing entries if the platform extension version is newer
+    let mut needs_save = false;
     for (name, def) in PLATFORM_EXTENSIONS.iter() {
-        if !extensions_map.contains_key(*name) {
+        let should_update = extensions_map
+            .get(*name)
+            .map(|entry| {
+                if let ExtensionConfig::Platform { version, .. } = &entry.config {
+                    *version < def.version
+                } else {
+                    false
+                }
+            })
+            .unwrap_or(true);
+
+        if should_update {
+            let enabled = extensions_map
+                .get(*name)
+                .map(|e| e.enabled)
+                .unwrap_or(def.default_enabled);
             extensions_map.insert(
                 name.to_string(),
                 ExtensionEntry {
                     config: ExtensionConfig::Platform {
                         name: def.name.to_string(),
                         description: def.description.to_string(),
+                        display_name: Some(def.display_name.to_string()),
+                        version: def.version,
                         bundled: Some(true),
                         available_tools: Vec::new(),
                     },
-                    enabled: def.default_enabled,
+                    enabled,
                 },
             );
+            needs_save = true;
         }
     }
+
+    if needs_save {
+        save_extensions_map(extensions_map.clone());
+    }
+
     extensions_map
 }
 

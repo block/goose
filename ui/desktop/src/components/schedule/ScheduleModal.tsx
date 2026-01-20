@@ -30,7 +30,7 @@ type SourceType = 'file' | 'deeplink';
 
 interface CleanExtension {
   name: string;
-  type: 'stdio' | 'sse' | 'builtin' | 'frontend' | 'streamable_http';
+  type: 'stdio' | 'sse' | 'builtin' | 'frontend' | 'streamable_http' | 'platform';
   cmd?: string;
   args?: string[];
   uri?: string;
@@ -120,7 +120,7 @@ function recipeToYaml(recipe: Recipe): string {
           if (extAny.args) {
             cleanExt.args = extAny.args as string[];
           }
-        } else if (ext.type === 'builtin' && extAny.display_name) {
+        } else if ((ext.type === 'builtin' || ext.type === 'platform') && extAny.display_name) {
           cleanExt.display_name = extAny.display_name as string;
         }
 
