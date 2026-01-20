@@ -1,5 +1,5 @@
 ---
-title: "Goose Mobile Apps and agent clients"
+title: "goose mobile apps and agent clients"
 description: Consolidating agent apps for ios and android and ACP
 authors:
     - mic
