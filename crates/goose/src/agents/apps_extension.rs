@@ -126,15 +126,15 @@ impl AppsManagerClient {
             ),
         };
 
-        let client = Self {
+        let mut client = Self {
             info,
             context,
             apps_dir,
         };
 
-        // if let Err(e) = client.ensure_default_apps() {
-        //     tracing::warn!("Failed to create default apps: {}", e);
-        // }
+        if let Err(e) = client.ensure_default_apps() {
+            tracing::warn!("Failed to create default apps: {}", e);
+        }
 
         Ok(client)
     }
@@ -143,14 +143,14 @@ impl AppsManagerClient {
     fn ensure_default_apps(&mut self) -> Result<(), String> {
         let apps = self.list_stored_apps()?;
 
-        // If no apps exist, create the default clock app
-        if apps.is_empty() {
-            let clock_html = include_str!("../../resources/clock.html");
+        // Always ensure the clock app exists
+        if !apps.contains(&"clock".to_string()) {
+            let clock_html = include_str!("../goose_apps/clock.html");
             let clock_app = GooseApp {
                 resource: McpAppResource {
                     uri: "ui://apps/clock".to_string(),
                     name: "clock".to_string(),
-                    description: Some("A beautiful clock with multiple design themes (Digital, Analog, Swiss Railway)".to_string()),
+                    description: Some("Swiss Railway Clock".to_string()),
                     mime_type: "text/html;profile=mcp-app".to_string(),
                     text: Some(clock_html.to_string()),
                     blob: None,
@@ -158,7 +158,7 @@ impl AppsManagerClient {
                 },
                 mcp_server: Some("apps".to_string()),
                 window_props: None,
-                prd: Some("A clock app with three iconic design themes: Casio digital, Braun analog, and Swiss Railway. Users can switch between themes.".to_string()),
+                prd: Some("An analog clock widget inspired by the iconic Swiss railway clock (Hans Hilfiker design). Features smooth-sweeping hands with the characteristic pause-and-jump behavior at 12 o'clock.".to_string()),
             };
             self.save_app(&clock_app)?;
             tracing::info!("Created default clock app");
