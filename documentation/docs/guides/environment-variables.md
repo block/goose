@@ -139,6 +139,28 @@ export DATABRICKS_BACKOFF_MULTIPLIER=2               # each retry waits 2x longe
 export DATABRICKS_MAX_RETRY_INTERVAL_MS=60000        # cap the maximum retry delay at 1 min
 ```
 
+<!--
+### Model-Specific Configuration
+
+#### Google Gemini 3
+
+| Variable | Purpose | Values | Default |
+|----------|---------|---------|---------|
+| `GEMINI_THINKING_LEVEL` | Controls thinking depth for Gemini 3 models | "low", "high" | "low" |
+
+This setting applies to **Gemini 3 models** (`gemini-3-pro-preview`, `gemini-3-pro-image-preview`) on both Google AI and GCP Vertex AI providers. Google's default is "high", but goose uses "low" for better latency.
+
+Available levels:
+- **low** - Reduced reasoning, good for most tasks (default in goose)
+- **high** - Full reasoning depth (Google's default)
+
+**Examples**
+
+```bash
+# Use high thinking for complex reasoning tasks
+export GEMINI_THINKING_LEVEL=high
+```
+-->
 
 ## Session Management
 

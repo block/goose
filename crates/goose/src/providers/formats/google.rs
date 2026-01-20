@@ -635,6 +635,21 @@ struct GenerationConfig {
     temperature: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     max_output_tokens: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    thinking_config: Option<ThinkingConfig>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "lowercase")]
+enum ThinkingLevel {
+    Low,
+    High,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ThinkingConfig {
+    thinking_level: ThinkingLevel,
 }
 
 #[derive(Serialize)]
@@ -646,6 +661,31 @@ struct GoogleRequest<'a> {
     tools: Option<ToolsWrapper>,
     #[serde(skip_serializing_if = "Option::is_none")]
     generation_config: Option<GenerationConfig>,
+}
+
+fn get_thinking_config(model_name: &str) -> Option<ThinkingConfig> {
+    if !model_name.starts_with("gemini-3") {
+        return None;
+    }
+
+    let thinking_level = match std::env::var("GEMINI_THINKING_LEVEL")
+        .unwrap_or_else(|_| "low".to_string())
+        .to_lowercase()
+        .as_str()
+    {
+        "high" => ThinkingLevel::High,
+        "low" => ThinkingLevel::Low,
+        invalid => {
+            tracing::warn!(
+                "Invalid thinking level '{}' for model '{}'. Valid levels: low, high. Using 'low'.",
+                invalid,
+                model_name,
+            );
+            ThinkingLevel::Low
+        }
+    };
+
+    Some(ThinkingConfig { thinking_level })
 }
 
 pub fn create_request(
@@ -662,15 +702,20 @@ pub fn create_request(
         })
     };
 
-    let generation_config =
-        if model_config.temperature.is_some() || model_config.max_tokens.is_some() {
-            Some(GenerationConfig {
-                temperature: model_config.temperature.map(|t| t as f64),
-                max_output_tokens: model_config.max_tokens,
-            })
-        } else {
-            None
-        };
+    let thinking_config = get_thinking_config(&model_config.model_name);
+
+    let generation_config = if model_config.temperature.is_some()
+        || model_config.max_tokens.is_some()
+        || thinking_config.is_some()
+    {
+        Some(GenerationConfig {
+            temperature: model_config.temperature.map(|t| t as f64),
+            max_output_tokens: model_config.max_tokens,
+            thinking_config,
+        })
+    } else {
+        None
+    };
 
     let request = GoogleRequest {
         system_instruction: SystemInstruction {
