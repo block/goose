@@ -139,31 +139,13 @@ impl AppsManagerClient {
         Ok(client)
     }
 
-    /// Ensure default apps exist (like the clock)
     fn ensure_default_apps(&mut self) -> Result<(), String> {
-        let apps = self.list_stored_apps()?;
-
-        // Always ensure the clock app exists
-        if !apps.contains(&"clock".to_string()) {
+        let clock_path = self.apps_dir.join("clock.html");
+        if !clock_path.exists() {
             let clock_html = include_str!("../goose_apps/clock.html");
-            let clock_app = GooseApp {
-                resource: McpAppResource {
-                    uri: "ui://apps/clock".to_string(),
-                    name: "clock".to_string(),
-                    description: Some("Swiss Railway Clock".to_string()),
-                    mime_type: "text/html;profile=mcp-app".to_string(),
-                    text: Some(clock_html.to_string()),
-                    blob: None,
-                    meta: None,
-                },
-                mcp_server: Some("apps".to_string()),
-                window_props: None,
-                prd: Some("An analog clock widget inspired by the iconic Swiss railway clock (Hans Hilfiker design). Features smooth-sweeping hands with the characteristic pause-and-jump behavior at 12 o'clock.".to_string()),
-            };
-            self.save_app(&clock_app)?;
-            tracing::info!("Created default clock app");
+            fs::write(&clock_path, clock_html)
+                .map_err(|e| format!("Failed to write clock.html: {}", e))?;
         }
-
         Ok(())
     }
 
