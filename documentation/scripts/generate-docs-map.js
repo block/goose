@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const glob = require('globby');
+const { globby } = require('globby');
 const matter = require('gray-matter');
 
 const DOCS_DIR = path.join(__dirname, '..', 'docs');
@@ -54,7 +54,7 @@ async function main() {
 `;
 
   for (const section of sections) {
-    const files = await glob(section.pattern, { cwd: DOCS_DIR });
+    const files = await globby(section.pattern, { cwd: DOCS_DIR });
     output += `## ${section.name}\n\n`;
 
     for (const file of files.sort()) {
