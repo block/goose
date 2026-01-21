@@ -447,7 +447,7 @@ export function useChatStream({
   }, [sessionId, onSessionLoaded]);
 
   const handleSubmit = useCallback(
-    async (userMessage: string, images?: import('../types/message').ImageData[]) => {
+    async (userMessage: string, images: ImageData[]) => {
       const currentState = stateRef.current;
 
       // Guard: Don't submit if session hasn't been loaded yet
@@ -456,7 +456,7 @@ export function useChatStream({
       }
 
       const hasExistingMessages = currentState.messages.length > 0;
-      const hasNewMessage = userMessage.trim().length > 0 || (images && images.length > 0);
+      const hasNewMessage = userMessage.trim().length > 0 || images.length > 0;
 
       // Don't submit if there's no message and no conversation to continue
       if (!hasNewMessage && !hasExistingMessages) {
@@ -694,7 +694,7 @@ export function useChatStream({
           if (sessionResponse.data?.conversation) {
             dispatch({ type: 'SET_MESSAGES', payload: sessionResponse.data.conversation });
           }
-          await handleSubmit(newContent);
+          await handleSubmit(newContent, []);
         }
       } catch (error) {
         const errorMsg = errorMessage(error);

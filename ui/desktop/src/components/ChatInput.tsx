@@ -25,7 +25,7 @@ import { COST_TRACKING_ENABLED, VOICE_DICTATION_ELEVENLABS_ENABLED } from '../up
 import { CostTracker } from './bottom_menu/CostTracker';
 import { DroppedFile, useFileDrop } from '../hooks/useFileDrop';
 import { Recipe } from '../recipe';
-import MessageQueue from './MessageQueue';
+import {MessageQueue, QueuedMessage} from './MessageQueue';
 import { detectInterruption } from '../utils/interruptionDetector';
 import { DiagnosticsModal } from './ui/Diagnostics';
 import { getSession, Message } from '../api';
@@ -42,13 +42,6 @@ import {
 } from '../utils/analytics';
 import { getNavigationShortcutText } from '../utils/keyboardShortcuts';
 import { ImageData } from '../types/message';
-
-interface QueuedMessage {
-  id: string;
-  content: string;
-  timestamp: number;
-  images: ImageData[];
-}
 
 interface PastedImage {
   id: string;
@@ -653,17 +646,14 @@ export default function ChatInput({
     }));
   };
 
-  // Helper function to compress/resize image
-  // Always resize to max 1024px on longest side and compress as JPEG at 0.85 quality
   const compressImageDataUrl = async (dataUrl: string): Promise<string> => {
     return new Promise((resolve, reject) => {
-      const img = new Image();
+      const img = new globalThis.Image();
       img.onload = () => {
         const maxDimension = 1024;
         let width = img.width;
         let height = img.height;
         
-        // Calculate new dimensions maintaining aspect ratio
         if (width > maxDimension || height > maxDimension) {
           if (width > height) {
             height = Math.floor((height * maxDimension) / width);
@@ -913,10 +903,11 @@ export default function ChatInput({
 
       // For interruptions, we need to queue the message to be sent after the stop completes
       // rather than trying to send it immediately while the system is still loading
-      const interruptionMessage = {
+      const interruptionMessage: QueuedMessage = {
         id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
         content: contentToQueue,
         timestamp: Date.now(),
+        images: [],
       };
 
       // Add the interruption message to the front of the queue so it gets sent first
@@ -934,10 +925,11 @@ export default function ChatInput({
       return true;
     }
 
-    const newMessage = {
+    const newMessage: QueuedMessage = {
       id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
       content: contentToQueue,
       timestamp: Date.now(),
+      images: [],
     };
     setQueuedMessages((prev) => {
       const newQueue = [...prev, newMessage];
@@ -1005,14 +997,7 @@ export default function ChatInput({
           LocalMessageStorage.addMessage(droppedFilePaths.join(' '));
         }
 
-        handleSubmit(
-          new CustomEvent('submit', { 
-            detail: { 
-              value: textToSend,
-              images: imageData.length > 0 ? imageData : undefined
-            } 
-          }) as unknown as React.FormEvent
-        );
+        handleSubmit(textToSend, imageData);
 
         // Auto-resume queue after sending a NON-interruption message (if it was paused due to interruption)
         if (
@@ -1313,11 +1298,7 @@ export default function ChatInput({
     // Remove the message from queue and send it immediately
     setQueuedMessages((prev) => prev.filter((msg) => msg.id !== messageId));
     LocalMessageStorage.addMessage(messageToSend.content);
-    handleSubmit(
-      new CustomEvent('submit', {
-        detail: { value: messageToSend.content },
-      }) as unknown as React.FormEvent
-    );
+    handleSubmit(messageToSend.content, messageToSend.images);
 
     // Restore previous pause state after a brief delay to prevent race condition
     setTimeout(() => {
@@ -1331,11 +1312,7 @@ export default function ChatInput({
     if (!isLoading && queuedMessages.length > 0) {
       const nextMessage = queuedMessages[0];
       LocalMessageStorage.addMessage(nextMessage.content);
-      handleSubmit(
-        new CustomEvent('submit', {
-          detail: { value: nextMessage.content },
-        }) as unknown as React.FormEvent
-      );
+      handleSubmit(nextMessage.content, nextMessage.images);
       setQueuedMessages((prev) => {
         const newQueue = prev.slice(1);
         // If queue becomes empty after processing, clear the paused state

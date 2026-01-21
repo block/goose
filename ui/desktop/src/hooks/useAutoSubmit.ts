@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Session } from '../api';
 import { Message } from '../api';
 import { ChatState } from '../types/chatState';
+import { ImageData } from '../types/message';
 
 /**
  * Auto-submit scenarios:
@@ -18,7 +19,7 @@ interface UseAutoSubmitProps {
   messages: Message[];
   chatState: ChatState;
   initialMessage: string | undefined;
-  handleSubmit: (message: string) => void;
+  handleSubmit: (message: string, images: ImageData[]) => void;
 }
 
 interface UseAutoSubmitReturn {
@@ -68,7 +69,7 @@ export function useAutoSubmit({
     // Hub always creates new sessions, so message_count will be 0
     if (initialMessage && session.message_count === 0 && messages.length === 0) {
       hasAutoSubmittedRef.current = true;
-      handleSubmit(initialMessage);
+      handleSubmit(initialMessage, []);
       clearInitialMessage();
       return;
     }
@@ -76,7 +77,7 @@ export function useAutoSubmit({
     // Scenario 2: Forked session with edited message
     if (shouldStartAgent && initialMessage) {
       hasAutoSubmittedRef.current = true;
-      handleSubmit(initialMessage);
+      handleSubmit(initialMessage, []);
       clearInitialMessage();
       return;
     }
@@ -84,7 +85,7 @@ export function useAutoSubmit({
     // Scenario 3: Resume with shouldStartAgent (continue existing conversation)
     if (shouldStartAgent) {
       hasAutoSubmittedRef.current = true;
-      handleSubmit('');
+      handleSubmit('', []);
     }
   }, [
     session,

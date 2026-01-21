@@ -160,11 +160,7 @@ function BaseChatContent({
       .reverse();
   }, [messages]);
 
-  const chatInputSubmit = (e: React.FormEvent) => {
-    const customEvent = e as unknown as CustomEvent;
-    const textValue = customEvent.detail?.value || '';
-    const images = customEvent.detail?.images as ImageData[] | undefined;
-
+  const chatInputSubmit = (textValue: string, images: ImageData[]) => {
     if (recipe && textValue.trim()) {
       setHasStartedUsingRecipe(true);
     }
@@ -408,7 +404,7 @@ function BaseChatContent({
             {recipe && (
               <div className={hasStartedUsingRecipe ? 'mb-6' : ''}>
                 <RecipeActivities
-                  append={(text: string) => handleSubmit(text)}
+                  append={(text: string) => handleSubmit(text, [])}
                   activities={Array.isArray(recipe.activities) ? recipe.activities : null}
                   title={recipe.title}
                   parameterValues={session?.user_recipe_values || {}}
@@ -423,7 +419,7 @@ function BaseChatContent({
                     messages={messages}
                     chat={{ sessionId }}
                     toolCallNotifications={toolCallNotifications}
-                    append={(text: string) => handleSubmit(text)}
+                    append={(text: string) => handleSubmit(text, [])}
                     isUserMessage={(m: Message) => m.role === 'user'}
                     isStreamingMessage={chatState !== ChatState.Idle}
                     onRenderingComplete={handleRenderingComplete}
@@ -435,7 +431,7 @@ function BaseChatContent({
                 <div className="block h-8" />
               </>
             ) : !recipe && showPopularTopics ? (
-              <PopularChatTopics append={(text: string) => handleSubmit(text)} />
+              <PopularChatTopics append={(text: string) => handleSubmit(text, [])} />
             ) : null}
           </ScrollArea>
 

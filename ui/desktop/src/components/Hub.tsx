@@ -29,6 +29,7 @@ import {
 import { getInitialWorkingDir } from '../utils/workingDir';
 import { createSession } from '../sessions';
 import LoadingGoose from './LoadingGoose';
+import { ImageData } from '../types/message';
 
 export default function Hub({
   setView,
@@ -39,11 +40,8 @@ export default function Hub({
   const [workingDir, setWorkingDir] = useState(getInitialWorkingDir());
   const [isCreatingSession, setIsCreatingSession] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    const customEvent = e as unknown as CustomEvent;
-    const combinedTextFromInput = customEvent.detail?.value || '';
-
-    if (combinedTextFromInput.trim() && !isCreatingSession) {
+  const handleSubmit = async (userMessage: string, _images: ImageData[]) => {
+    if (userMessage.trim() && !isCreatingSession) {
       const extensionConfigs = getExtensionConfigsWithOverrides(extensionsList);
       clearExtensionOverrides();
       setIsCreatingSession(true);
@@ -57,21 +55,19 @@ export default function Hub({
         window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
         window.dispatchEvent(
           new CustomEvent(AppEvents.ADD_ACTIVE_SESSION, {
-            detail: { sessionId: session.id, initialMessage: combinedTextFromInput },
+            detail: { sessionId: session.id, initialMessage: userMessage },
           })
         );
 
         setView('pair', {
           disableAnimation: true,
           resumeSessionId: session.id,
-          initialMessage: combinedTextFromInput,
+          initialMessage: userMessage,
         });
       } catch (error) {
         console.error('Failed to create session:', error);
         setIsCreatingSession(false);
       }
-
-      e.preventDefault();
     }
   };
 
