@@ -12,7 +12,7 @@ use std::ffi::OsString;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use thiserror::Error;
 
 const KEYRING_SERVICE: &str = "goose";
@@ -105,6 +105,7 @@ pub struct Config {
     config_path: PathBuf,
     secrets: SecretStorage,
     guard: Mutex<()>,
+    secrets_cache: Arc<Mutex<Option<HashMap<String, Value>>>>,
 }
 
 enum SecretStorage {
@@ -133,6 +134,7 @@ impl Default for Config {
             config_path,
             secrets,
             guard: Mutex::new(()),
+            secrets_cache: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -236,6 +238,7 @@ impl Config {
                 service: service.to_string(),
             },
             guard: Mutex::new(()),
+            secrets_cache: Arc::new(Mutex::new(None)),
         })
     }
 
@@ -253,6 +256,7 @@ impl Config {
                 path: secrets_path.as_ref().to_path_buf(),
             },
             guard: Mutex::new(()),
+            secrets_cache: Arc::new(Mutex::new(None)),
         })
     }
 
@@ -540,7 +544,16 @@ impl Config {
     }
 
     pub fn all_secrets(&self) -> Result<HashMap<String, Value>, ConfigError> {
-        match &self.secrets {
+        if let Ok(cache) = self.secrets_cache.lock() {
+            if let Some(ref cached_secrets) = *cache {
+                tracing::debug!("secrets cache hit");
+                return Ok(cached_secrets.clone());
+            }
+        }
+
+        tracing::debug!("secrets cache miss, fetching from storage");
+
+        let values = match &self.secrets {
             SecretStorage::Keyring { service } => {
                 let result =
                     self.handle_keyring_operation(|entry| entry.get_password(), service, None);
@@ -548,20 +561,27 @@ impl Config {
                 match result {
                     Ok(content) => {
                         let values: HashMap<String, Value> = serde_json::from_str(&content)?;
-                        Ok(values)
+                        values
                     }
-                    Err(ConfigError::FallbackToFileStorage) => self.fallback_to_file_storage(),
+                    Err(ConfigError::FallbackToFileStorage) => self.fallback_to_file_storage()?,
                     Err(ConfigError::KeyringError(msg))
                         if msg.contains("No entry found")
                             || msg.contains("No matching entry found") =>
                     {
-                        Ok(HashMap::new())
+                        HashMap::new()
                     }
-                    Err(e) => Err(e),
+                    Err(e) => return Err(e),
                 }
             }
-            SecretStorage::File { path } => self.read_secrets_from_file(path),
+            SecretStorage::File { path } => self.read_secrets_from_file(path)?,
+        };
+
+        if let Ok(mut cache) = self.secrets_cache.lock() {
+            *cache = Some(values.clone());
+            tracing::debug!("secrets cached");
         }
+
+        Ok(values)
     }
 
     /// Parse an environment variable value into a JSON Value.
@@ -786,6 +806,9 @@ impl Config {
                 std::fs::write(path, yaml_value)?;
             }
         };
+
+        self.invalidate_secrets_cache();
+
         Ok(())
     }
 
@@ -820,6 +843,9 @@ impl Config {
                 std::fs::write(path, yaml_value)?;
             }
         };
+
+        self.invalidate_secrets_cache();
+
         Ok(())
     }
 
@@ -856,6 +882,13 @@ impl Config {
         let yaml_value = serde_yaml::to_string(values)?;
         std::fs::write(path, yaml_value)?;
         Ok(())
+    }
+
+    fn invalidate_secrets_cache(&self) {
+        if let Ok(mut cache) = self.secrets_cache.lock() {
+            *cache = None;
+            tracing::debug!("secrets cache invalidated");
+        }
     }
 
     /// Check if an error string indicates a keyring availability issue that should trigger fallback
