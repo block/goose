@@ -10,7 +10,7 @@ use indoc::indoc;
 use regex::Regex;
 use rmcp::model::{
     CallToolRequestParam, CallToolResult, Content, Implementation, InitializeResult, JsonObject,
-    ListToolsResult, ProtocolVersion, RawContent, ServerCapabilities, Tool as McpTool,
+    ListToolsResult, ProtocolVersion, RawContent, Role, ServerCapabilities, Tool as McpTool,
     ToolAnnotations, ToolsCapability,
 };
 use schemars::{schema_for, JsonSchema};
@@ -18,6 +18,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
@@ -26,7 +27,7 @@ pub static EXTENSION_NAME: &str = "code_execution";
 type ToolCallRequest = (
     String,
     String,
-    tokio::sync::oneshot::Sender<Result<String, String>>,
+    tokio::sync::oneshot::Sender<Result<CallToolResult, String>>,
 );
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -347,6 +348,23 @@ fn create_tool_function(full_tool_name: String) -> NativeFunction {
             rx.blocking_recv()
                 .map_err(|e| e.to_string())
                 .and_then(|r| r)
+                .and_then(|result| {
+                    // Extract text content from CallToolResult for JS return value
+                    let text_result = if let Some(sc) = &result.structured_content {
+                        serde_json::to_string(sc).unwrap_or_default()
+                    } else {
+                        result
+                            .content
+                            .iter()
+                            .filter_map(|c| match &c.raw {
+                                RawContent::Text(t) => Some(t.text.clone()),
+                                _ => None,
+                            })
+                            .collect::<Vec<_>>()
+                            .join("\n")
+                    };
+                    Ok(text_result)
+                })
                 .map(|result| parse_result_to_js(&result, ctx))
                 .map_err(|e| JsNativeError::error().with_message(e).into())
         },
@@ -422,7 +440,6 @@ impl CodeExecutionClient {
         let info = InitializeResult {
             protocol_version: ProtocolVersion::V_2025_03_26,
             capabilities: ServerCapabilities {
-                tasks: None,
                 tools: Some(ToolsCapability {
                     list_changed: Some(false),
                 }),
@@ -490,10 +507,14 @@ impl CodeExecutionClient {
 
         let tools = self.get_tool_infos().await;
         let (call_tx, call_rx) = mpsc::unbounded_channel();
+        let collected_results = Arc::new(Mutex::new(Vec::new()));
+        let collected_results_clone = Arc::clone(&collected_results);
+        
         let tool_handler = tokio::spawn(Self::run_tool_handler(
             session_id.to_string(),
             call_rx,
             self.context.extension_manager.clone(),
+            collected_results_clone,
         ));
 
         let js_result = tokio::task::spawn_blocking(move || run_js_module(&code, &tools, call_tx))
@@ -501,7 +522,24 @@ impl CodeExecutionClient {
             .map_err(|e| format!("JS execution task failed: {e}"))?;
 
         tool_handler.abort();
-        js_result.map(|r| vec![Content::text(format!("Result: {r}"))])
+        
+        js_result.map(|r| {
+            let mut contents = vec![Content::text(format!("Result: {r}"))];
+            
+            if let Ok(results) = collected_results.lock() {
+                for result in results.iter() {
+                    for content in &result.content {
+                        if let RawContent::Resource(resource) = &content.raw {
+                            if content.audience().map_or(true, |aud| aud.contains(&Role::User)) {
+                                contents.push(Content::resource(resource.resource.clone()).with_audience(vec![Role::User]));
+                            }
+                        }
+                    }
+                }
+            }
+            
+            contents
+        })
     }
 
     async fn handle_read_module(
@@ -663,12 +701,12 @@ impl CodeExecutionClient {
         session_id: String,
         mut call_rx: mpsc::UnboundedReceiver<ToolCallRequest>,
         extension_manager: Option<std::sync::Weak<crate::agents::ExtensionManager>>,
+        collected_results: Arc<Mutex<Vec<CallToolResult>>>,
     ) {
         while let Some((tool_name, arguments, response_tx)) = call_rx.recv().await {
             let result = match extension_manager.as_ref().and_then(|w| w.upgrade()) {
                 Some(manager) => {
                     let tool_call = CallToolRequestParam {
-                        task: None,
                         name: tool_name.into(),
                         arguments: serde_json::from_str(&arguments).ok(),
                     };
@@ -677,19 +715,12 @@ impl CodeExecutionClient {
                         .await
                     {
                         Ok(dispatch_result) => match dispatch_result.result.await {
-                            Ok(result) => Ok(if let Some(sc) = &result.structured_content {
-                                serde_json::to_string(sc).unwrap_or_default()
-                            } else {
-                                result
-                                    .content
-                                    .iter()
-                                    .filter_map(|c| match &c.raw {
-                                        RawContent::Text(t) => Some(t.text.clone()),
-                                        _ => None,
-                                    })
-                                    .collect::<Vec<_>>()
-                                    .join("\n")
-                            }),
+                            Ok(result) => {
+                                if let Ok(mut results) = collected_results.lock() {
+                                    results.push(result.clone());
+                                }
+                                Ok(result)
+                            }
                             Err(e) => Err(format!("Tool error: {}", e.message)),
                         },
                         Err(e) => Err(format!("Dispatch error: {e}")),
