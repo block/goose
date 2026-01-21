@@ -42,7 +42,12 @@ jobs:
           INKEEP_ORG_ID: ${{ secrets.INKEEP_ORG_ID }}
         run: |
           npm install
+          npm test
           npm run build
+
+      - name: Verify docs map was generated
+        working-directory: ./documentation
+        run: ./scripts/verify-build.sh
 
       - name: Checkout gh-pages branch
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
