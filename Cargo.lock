@@ -3067,6 +3067,7 @@ dependencies = [
  "fs-err",
  "futures",
  "goose",
+ "goose-mcp",
  "regex",
  "rmcp 0.13.0",
  "sacp",
