@@ -22,8 +22,6 @@ pub struct ScanResult {
     pub explanation: String,
 }
 
-
-
 #[derive(Clone)]
 struct DetailedScanResult {
     confidence: f32,
@@ -162,11 +160,7 @@ impl PromptInjectionScanner {
         Ok(ScanResult {
             is_malicious: final_result.confidence >= threshold,
             confidence: final_result.confidence,
-            explanation: self.build_explanation(
-                &final_result,
-                threshold,
-                &tool_content,
-            ),
+            explanation: self.build_explanation(&final_result, threshold, &tool_content),
         })
     }
 
