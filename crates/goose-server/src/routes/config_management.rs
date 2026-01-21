@@ -852,6 +852,13 @@ pub async fn configure_provider_oauth(
         )
     })?;
 
+    // Mark the provider as configured after successful OAuth
+    let configured_marker = format!("{}_configured", provider_name);
+    let config = goose::config::Config::global();
+    config
+        .set_param(&configured_marker, true)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
     Ok(Json("OAuth configuration completed".to_string()))
 }
 

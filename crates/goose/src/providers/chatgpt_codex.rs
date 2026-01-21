@@ -831,4 +831,13 @@ impl Provider for ChatGptCodexProvider {
             .map_err(|e| ProviderError::Authentication(format!("OAuth flow failed: {}", e)))?;
         Ok(())
     }
+
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+        Ok(Some(
+            CHATGPT_CODEX_KNOWN_MODELS
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
+        ))
+    }
 }
