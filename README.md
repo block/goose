@@ -37,12 +37,6 @@ Designed for maximum flexibility, goose works with any LLM and supports multi-mo
 - [Diagnostics & Reporting](https://block.github.io/goose/docs/troubleshooting/diagnostics-and-reporting)
 - [Known Issues](https://block.github.io/goose/docs/troubleshooting/known-issues)
 
-# a little goose humor 🦢
-
-> Why did the developer choose goose as their AI agent?
-> 
-> Because it always helps them "migrate" their code to production! 🚀
-
 # goose around with us  
 - [Discord](https://discord.gg/goose-oss)
 - [YouTube](https://www.youtube.com/@goose-oss)
