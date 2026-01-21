@@ -194,7 +194,7 @@ impl OracleClient {
                 The Oracle uses a powerful reasoning model to provide
                 thorough analysis from a different perspective than the main agent.
 
-                *critical* always use the the think tool first in a session or new task to think and plan
+                *critical* always use the think tool first in a session or new task to think and plan
             "#}
             .to_string(),
             schema_value.as_object().unwrap().clone(),
