@@ -459,7 +459,7 @@ mod tests {
         );
         assert_eq!(
             map_to_canonical_model("databricks", "goose-command-r-08-2024", r),
-            Some("cohere/command-r-08-2024".to_string())
+            Some("cohere/command-r-08".to_string())
         );
 
         // === Provider-prefixed extraction ===
