@@ -226,7 +226,8 @@ export default function AppsView() {
               </Button>
             </div>
             <p className="text-sm text-text-muted mb-4">
-              Applications from your MCP servers that can run in standalone windows.
+              Applications from your MCP servers that can run in standalone windows. This is a
+              preview feature.
             </p>
           </div>
         </div>

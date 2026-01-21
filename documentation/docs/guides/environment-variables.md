@@ -19,14 +19,21 @@ These are the minimum required variables to get started with goose.
 | `GOOSE_PROVIDER` | Specifies the LLM provider to use | [See available providers](/docs/getting-started/providers#available-providers) | None (must be [configured](/docs/getting-started/providers#configure-provider-and-model)) |
 | `GOOSE_MODEL` | Specifies which model to use from the provider | Model name (e.g., "gpt-4", "claude-sonnet-4-20250514") | None (must be [configured](/docs/getting-started/providers#configure-provider-and-model)) |
 | `GOOSE_TEMPERATURE` | Sets the [temperature](https://medium.com/@kelseyywang/a-comprehensive-guide-to-llm-temperature-%EF%B8%8F-363a40bbc91f) for model responses | Float between 0.0 and 1.0 | Model-specific default |
+| `GOOSE_MAX_TOKENS` | Sets the maximum number of tokens for each model response (truncates longer responses) | Positive integer (e.g., 4096, 8192) | Model-specific default |
 
 **Examples**
 
 ```bash
 # Basic model configuration
 export GOOSE_PROVIDER="anthropic"
-export GOOSE_MODEL="claude-sonnet-4-20250514"
+export GOOSE_MODEL="claude-sonnet-4-5-20250929"
 export GOOSE_TEMPERATURE=0.7
+
+# Set a lower limit for shorter interactions
+export GOOSE_MAX_TOKENS=4096
+
+# Set a higher limit for tasks requiring longer output (e.g. code generation)
+export GOOSE_MAX_TOKENS=16000
 ```
 
 ### Advanced Provider Configuration
