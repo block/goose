@@ -357,8 +357,10 @@ export function AppInner() {
   >([]);
 
   useEffect(() => {
-    const handleAddActiveSession = (event: CustomEvent) => {
-      const { sessionId, initialMessage } = event.detail;
+    const handleAddActiveSession = (event: Event) => {
+      const { sessionId, initialMessage } = (
+        event as CustomEvent<{ sessionId: string; initialMessage?: string }>
+      ).detail;
 
       setActiveSessions((prev) => {
         const existingIndex = prev.findIndex((s) => s.sessionId === sessionId);
@@ -379,8 +381,8 @@ export function AppInner() {
       });
     };
 
-    const handleClearInitialMessage = (event: CustomEvent) => {
-      const { sessionId } = event.detail;
+    const handleClearInitialMessage = (event: Event) => {
+      const { sessionId } = (event as CustomEvent<{ sessionId: string }>).detail;
 
       setActiveSessions((prev) => {
         return prev.map((session) => {
@@ -392,23 +394,11 @@ export function AppInner() {
       });
     };
 
-    window.addEventListener(
-      AppEvents.ADD_ACTIVE_SESSION,
-      handleAddActiveSession as unknown as (event: Event) => void
-    );
-    window.addEventListener(
-      AppEvents.CLEAR_INITIAL_MESSAGE,
-      handleClearInitialMessage as unknown as (event: Event) => void
-    );
+    window.addEventListener(AppEvents.ADD_ACTIVE_SESSION, handleAddActiveSession);
+    window.addEventListener(AppEvents.CLEAR_INITIAL_MESSAGE, handleClearInitialMessage);
     return () => {
-      window.removeEventListener(
-        AppEvents.ADD_ACTIVE_SESSION,
-        handleAddActiveSession as unknown as (event: Event) => void
-      );
-      window.removeEventListener(
-        AppEvents.CLEAR_INITIAL_MESSAGE,
-        handleClearInitialMessage as unknown as (event: Event) => void
-      );
+      window.removeEventListener(AppEvents.ADD_ACTIVE_SESSION, handleAddActiveSession);
+      window.removeEventListener(AppEvents.CLEAR_INITIAL_MESSAGE, handleClearInitialMessage);
     };
   }, []);
 
