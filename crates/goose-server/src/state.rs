@@ -28,7 +28,6 @@ pub struct AppState {
 
 impl AppState {
     pub async fn new() -> anyhow::Result<Arc<AppState>> {
-        // Initialize AgentManager with builtin extensions before getting the instance
         let agent_manager =
             AgentManager::initialize_with_builtin_extensions(&goose_mcp::BUILTIN_EXTENSIONS)
                 .await?;

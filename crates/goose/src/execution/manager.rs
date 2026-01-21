@@ -21,7 +21,8 @@ pub struct AgentManager {
     scheduler: Arc<dyn SchedulerTrait>,
     session_manager: Arc<SessionManager>,
     default_provider: Arc<RwLock<Option<Arc<dyn crate::providers::base::Provider>>>>,
-    builtin_extensions: &'static std::collections::HashMap<&'static str, crate::builtin_extension::BuiltinDef>,
+    builtin_extensions:
+        &'static std::collections::HashMap<&'static str, crate::builtin_extension::BuiltinDef>,
 }
 
 impl AgentManager {
@@ -29,7 +30,10 @@ impl AgentManager {
         session_manager: Arc<SessionManager>,
         schedule_file_path: std::path::PathBuf,
         max_sessions: Option<usize>,
-        builtin_extensions: &'static std::collections::HashMap<&'static str, crate::builtin_extension::BuiltinDef>,
+        builtin_extensions: &'static std::collections::HashMap<
+            &'static str,
+            crate::builtin_extension::BuiltinDef,
+        >,
     ) -> Result<Self> {
         let scheduler = Scheduler::new(schedule_file_path, session_manager.clone()).await?;
 
@@ -47,11 +51,11 @@ impl AgentManager {
         Ok(manager)
     }
 
-    /// Initialize the singleton AgentManager with custom builtin extensions.
-    /// This should be called before `instance()` is used, typically during application startup.
-    /// If not called, `instance()` will use an empty builtin extensions registry.
     pub async fn initialize_with_builtin_extensions(
-        builtin_extensions: &'static std::collections::HashMap<&'static str, crate::builtin_extension::BuiltinDef>,
+        builtin_extensions: &'static std::collections::HashMap<
+            &'static str,
+            crate::builtin_extension::BuiltinDef,
+        >,
     ) -> Result<Arc<Self>> {
         AGENT_MANAGER
             .get_or_try_init(|| async {
@@ -74,8 +78,6 @@ impl AgentManager {
     }
 
     pub async fn instance() -> Result<Arc<Self>> {
-        // Note: If initialize_with_builtin_extensions() was called first, this will return that instance.
-        // Otherwise, it will create a new instance with empty builtin extensions.
         AGENT_MANAGER
             .get_or_try_init(|| async {
                 let max_sessions = Config::global()
