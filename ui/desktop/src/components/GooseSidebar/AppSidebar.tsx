@@ -113,7 +113,6 @@ const SessionList = React.memo<{
   onSessionClick: (session: Session) => void;
 }>(
   ({ sessions, activeSessionId, getSessionStatus, onSessionClick }) => {
-    // Sort sessions so empty new chats always appear at the top
     const sortedSessions = React.useMemo(() => {
       return [...sessions].sort((a, b) => {
         const aIsEmptyNew = shouldShowNewChatTitle(a);
