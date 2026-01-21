@@ -97,6 +97,7 @@ pub struct ExtensionManager {
     provider: SharedProvider,
     tools_cache: Mutex<Option<Arc<Vec<Tool>>>>,
     tools_cache_version: AtomicU64,
+    builtin_extensions: &'static HashMap<&'static str, goose_mcp::BuiltinDef>,
 }
 
 /// A flattened representation of a resource used by the agent to prepare inference
@@ -443,6 +444,7 @@ impl ExtensionManager {
     pub fn new(
         provider: SharedProvider,
         session_manager: Arc<crate::session::SessionManager>,
+        builtin_extensions: &'static HashMap<&'static str, goose_mcp::BuiltinDef>,
     ) -> Self {
         Self {
             extensions: Mutex::new(HashMap::new()),
@@ -453,13 +455,18 @@ impl ExtensionManager {
             provider,
             tools_cache: Mutex::new(None),
             tools_cache_version: AtomicU64::new(0),
+            builtin_extensions,
         }
     }
 
     #[cfg(test)]
     pub fn new_without_provider(data_dir: std::path::PathBuf) -> Self {
         let session_manager = Arc::new(crate::session::SessionManager::new(data_dir));
-        Self::new(Arc::new(Mutex::new(None)), session_manager)
+        Self::new(
+            Arc::new(Mutex::new(None)),
+            session_manager,
+            &goose_mcp::BUILTIN_EXTENSIONS,
+        )
     }
 
     pub fn get_context(&self) -> &PlatformExtensionContext {
@@ -550,7 +557,8 @@ impl ExtensionManager {
             }
             ExtensionConfig::Builtin { name, timeout, .. } => {
                 let timeout_duration = Duration::from_secs(timeout.unwrap_or(300));
-                let def = goose_mcp::BUILTIN_EXTENSIONS
+                let def = self
+                    .builtin_extensions
                     .get(name.as_str())
                     .ok_or_else(|| {
                         ExtensionError::ConfigError(format!("Unknown builtin extension: {}", name))
