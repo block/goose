@@ -162,11 +162,12 @@ function BaseChatContent({
   const handleFormSubmit = (e: React.FormEvent) => {
     const customEvent = e as unknown as CustomEvent;
     const textValue = customEvent.detail?.value || '';
+    const images = customEvent.detail?.images as import('../types/message').ImageData[] | undefined;
 
     if (recipe && textValue.trim()) {
       setHasStartedUsingRecipe(true);
     }
-    handleSubmit(textValue);
+    handleSubmit(textValue, images);
   };
 
   const { sessionCosts } = useCostTracking({

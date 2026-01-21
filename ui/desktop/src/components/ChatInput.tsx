@@ -659,6 +659,55 @@ export default function ChatInput({
     }));
   };
 
+  // Helper function to compress/resize image
+  // Always resize to max 1024px on longest side and compress as JPEG at 0.85 quality
+  const compressImageDataUrl = async (dataUrl: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const maxDimension = 1024;
+        let width = img.width;
+        let height = img.height;
+        
+        // Calculate new dimensions maintaining aspect ratio
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.floor((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.floor((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+        
+        // Create canvas and resize
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        
+        if (!ctx) {
+          reject(new Error('Failed to get canvas context'));
+          return;
+        }
+        
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // Convert to JPEG with 0.85 quality
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        const compressedSizeMB = (compressedDataUrl.length * 3) / 4 / (1024 * 1024);
+        
+        if (compressedSizeMB > MAX_IMAGE_SIZE_MB) {
+          reject(new Error(`Image is ${Math.round(compressedSizeMB)}MB after compression, exceeds ${MAX_IMAGE_SIZE_MB}MB limit`));
+        } else {
+          resolve(compressedDataUrl);
+        }
+      };
+      img.onerror = () => reject(new Error('Failed to load image for compression'));
+      img.src = dataUrl;
+    });
+  };
+
   const handlePaste = async (evt: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const files = Array.from(evt.clipboardData.files || []);
     const imageFiles = files.filter((file) => file.type.startsWith('image/'));
@@ -694,26 +743,6 @@ export default function ChatInput({
     const newImages: PastedImage[] = [];
 
     for (const file of imageFiles) {
-      // Check individual file size before processing
-      if (file.size > MAX_IMAGE_SIZE_MB * 1024 * 1024) {
-        const errorId = `error-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-        newImages.push({
-          id: errorId,
-          dataUrl: '',
-          isLoading: false,
-          error: `Image too large (${Math.round(file.size / (1024 * 1024))}MB). Maximum ${MAX_IMAGE_SIZE_MB}MB allowed.`,
-        });
-
-        // Remove the error message after 5 seconds with cleanup tracking
-        const timeoutId = setTimeout(() => {
-          setPastedImages((prev) => prev.filter((img) => img.id !== errorId));
-          timeoutRefsRef.current.delete(timeoutId);
-        }, 5000);
-        timeoutRefsRef.current.add(timeoutId);
-
-        continue;
-      }
-
       const imageId = `img-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
       // Add the image with loading state
@@ -728,29 +757,56 @@ export default function ChatInput({
       reader.onload = async (e) => {
         const dataUrl = e.target?.result as string;
         if (dataUrl) {
-          // Update the image with the data URL
-          setPastedImages((prev) =>
-            prev.map((img) => (img.id === imageId ? { ...img, dataUrl, isLoading: true } : img))
-          );
-
           try {
-            const result = await window.electron.saveDataUrlToTemp(dataUrl, imageId);
+            // Compress the image
+            const compressedDataUrl = await compressImageDataUrl(dataUrl);
+            
+            // Update the image with the compressed data URL
             setPastedImages((prev) =>
-              prev.map((img) =>
-                img.id === result.id
-                  ? { ...img, filePath: result.filePath, error: result.error, isLoading: false }
-                  : img
-              )
+              prev.map((img) => (img.id === imageId ? { ...img, dataUrl: compressedDataUrl, isLoading: true } : img))
             );
-          } catch (err) {
-            console.error('Error saving pasted image:', err);
+
+            // Also save to temp file for backward compatibility
+            try {
+              const result = await window.electron.saveDataUrlToTemp(compressedDataUrl, imageId);
+              setPastedImages((prev) =>
+                prev.map((img) =>
+                  img.id === result.id
+                    ? { ...img, filePath: result.filePath, error: result.error, isLoading: false }
+                    : img
+                )
+              );
+            } catch (err) {
+              console.error('Error saving pasted image:', err);
+              setPastedImages((prev) =>
+                prev.map((img) =>
+                  img.id === imageId
+                    ? { ...img, error: 'Failed to save image via Electron.', isLoading: false }
+                    : img
+                )
+              );
+            }
+          } catch (compressionError) {
+            console.error('Error compressing image:', compressionError);
             setPastedImages((prev) =>
               prev.map((img) =>
                 img.id === imageId
-                  ? { ...img, error: 'Failed to save image via Electron.', isLoading: false }
+                  ? {
+                      ...img,
+                      dataUrl,
+                      isLoading: false,
+                      error: `Image too large and could not be compressed. Try a smaller image.`,
+                    }
                   : img
               )
             );
+            
+            // Remove the error message after 5 seconds
+            const timeoutId = setTimeout(() => {
+              setPastedImages((prev) => prev.filter((img) => img.id !== imageId));
+              timeoutRefsRef.current.delete(timeoutId);
+            }, 5000);
+            timeoutRefsRef.current.add(timeoutId);
           }
         }
       };
@@ -949,9 +1005,28 @@ export default function ChatInput({
 
   const performSubmit = useCallback(
     (text?: string) => {
+      // Extract base64 image data from pasted images (for direct image content)
+      const imageData: import('../types/message').ImageData[] = pastedImages
+        .filter((img) => img.dataUrl && !img.error && !img.isLoading)
+        .map((img) => {
+          // Extract base64 data and mime type from data URL
+          // Data URL format: data:image/png;base64,iVBORw0KG...
+          const matches = img.dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+          if (matches) {
+            return {
+              data: matches[2], // base64 data
+              mimeType: matches[1], // mime type
+            };
+          }
+          return null;
+        })
+        .filter((img): img is import('../types/message').ImageData => img !== null);
+
+      // Also keep file paths for backward compatibility (will be added to text)
       const validPastedImageFilesPaths = pastedImages
         .filter((img) => img.filePath && !img.error && !img.isLoading)
         .map((img) => img.filePath as string);
+      
       // Get paths from all dropped files (both parent and local)
       const droppedFilePaths = allDroppedFiles
         .filter((file) => !file.error && !file.isLoading)
@@ -959,14 +1034,14 @@ export default function ChatInput({
 
       let textToSend = text ?? displayValue.trim();
 
-      // Combine pasted images and dropped files
+      // Combine pasted image file paths and dropped files (for backward compatibility)
       const allFilePaths = [...validPastedImageFilesPaths, ...droppedFilePaths];
       if (allFilePaths.length > 0) {
         const pathsString = allFilePaths.join(' ');
         textToSend = textToSend ? `${textToSend} ${pathsString}` : pathsString;
       }
 
-      if (textToSend) {
+      if (textToSend || imageData.length > 0) {
         if (displayValue.trim()) {
           LocalMessageStorage.addMessage(displayValue);
         } else if (allFilePaths.length > 0) {
@@ -974,7 +1049,12 @@ export default function ChatInput({
         }
 
         handleSubmit(
-          new CustomEvent('submit', { detail: { value: textToSend } }) as unknown as React.FormEvent
+          new CustomEvent('submit', { 
+            detail: { 
+              value: textToSend,
+              images: imageData.length > 0 ? imageData : undefined
+            } 
+          }) as unknown as React.FormEvent
         );
 
         // Auto-resume queue after sending a NON-interruption message (if it was paused due to interruption)
@@ -1097,22 +1177,112 @@ export default function ChatInput({
     }
   };
 
-  const handleFileSelect = async () => {
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleFileSelect = () => {
     if (isFilePickerOpen) return;
+    fileInputRef.current?.click();
+  };
+
+  const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
     setIsFilePickerOpen(true);
     try {
-      const path = await window.electron.selectFileOrDirectory();
-      if (path) {
-        const isDirectory = !path.includes('.') || path.endsWith('/');
-        trackFileAttached(isDirectory ? 'directory' : 'file');
+      const file = files[0];
+      const isImage = file.type.startsWith('image/');
 
+      if (isImage) {
+        trackFileAttached('file');
+        
+        // Check if we're at the image limit
+        if (pastedImages.length >= MAX_IMAGES_PER_MESSAGE) {
+          console.warn(`Maximum ${MAX_IMAGES_PER_MESSAGE} images per message`);
+          return;
+        }
+
+        // Create a unique ID for this image
+        const uniqueId = `upload-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        
+        // Add a loading placeholder
+        setPastedImages(prev => [...prev, {
+          id: uniqueId,
+          dataUrl: '',
+          isLoading: true,
+          error: undefined
+        }]);
+
+        try {
+          // Read the file using FileReader
+          const reader = new FileReader();
+          reader.onload = async (evt) => {
+            const dataUrl = evt.target?.result as string;
+            if (dataUrl) {
+              try {
+                // Compress the image
+                const compressedDataUrl = await compressImageDataUrl(dataUrl);
+                
+                // Save to temp file
+                const saveResult = await window.electron.saveDataUrlToTemp(compressedDataUrl, uniqueId);
+                
+                if (saveResult.error) {
+                  setPastedImages(prev => prev.map(img => 
+                    img.id === uniqueId 
+                      ? { ...img, isLoading: false, error: `Failed to save: ${saveResult.error}` }
+                      : img
+                  ));
+                } else {
+                  setPastedImages(prev => prev.map(img => 
+                    img.id === uniqueId 
+                      ? { ...img, dataUrl: compressedDataUrl, isLoading: false, error: undefined }
+                      : img
+                  ));
+                }
+              } catch (compressionError) {
+                const errorMessage = compressionError instanceof Error 
+                  ? compressionError.message 
+                  : 'Failed to compress image';
+                setPastedImages(prev => prev.map(img => 
+                  img.id === uniqueId 
+                    ? { ...img, isLoading: false, error: errorMessage }
+                    : img
+                ));
+              }
+            }
+          };
+          reader.onerror = () => {
+            setPastedImages(prev => prev.map(img => 
+              img.id === uniqueId 
+                ? { ...img, isLoading: false, error: 'Failed to read image file' }
+                : img
+            ));
+          };
+          reader.readAsDataURL(file);
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Failed to load image';
+          setPastedImages(prev => prev.map(img => 
+            img.id === uniqueId 
+              ? { ...img, isLoading: false, error: errorMessage }
+              : img
+          ));
+        }
+      } else {
+        // For non-image files, get the path and add to text
+        trackFileAttached('file');
+        const path = window.electron.getPathForFile(file);
         const newValue = displayValue.trim() ? `${displayValue.trim()} ${path}` : path;
         setDisplayValue(newValue);
         setValue(newValue);
-        textAreaRef.current?.focus();
       }
+      
+      textAreaRef.current?.focus();
     } finally {
       setIsFilePickerOpen(false);
+      // Reset the input so the same file can be selected again
+      if (e.target) {
+        e.target.value = '';
+      }
     }
   };
 
@@ -1244,6 +1414,14 @@ export default function ChatInput({
       onDrop={handleLocalDrop}
       onDragOver={handleLocalDragOver}
     >
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        onChange={handleFileInputChange}
+        style={{ display: 'none' }}
+        accept="*/*"
+      />
       {/* Message Queue Display */}
       {queuedMessages.length > 0 && (
         <MessageQueue
@@ -1570,7 +1748,7 @@ export default function ChatInput({
               <Attach className="w-4 h-4" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Attach file or directory</TooltipContent>
+          <TooltipContent>Attach file</TooltipContent>
         </Tooltip>
         <div className="w-px h-4 bg-border-default mx-2" />
         {/* Model selector, mode selector, alerts, summarize button */}

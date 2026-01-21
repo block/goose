@@ -38,7 +38,7 @@ interface UseChatStreamReturn {
   messages: Message[];
   chatState: ChatState;
   setChatState: (state: ChatState) => void;
-  handleSubmit: (userMessage: string) => Promise<void>;
+  handleSubmit: (userMessage: string, images?: import('../types/message').ImageData[]) => Promise<void>;
   submitElicitationResponse: (
     elicitationId: string,
     userData: Record<string, unknown>
@@ -446,7 +446,7 @@ export function useChatStream({
   }, [sessionId, onSessionLoaded]);
 
   const handleSubmit = useCallback(
-    async (userMessage: string) => {
+    async (userMessage: string, images?: import('../types/message').ImageData[]) => {
       const currentState = stateRef.current;
 
       // Guard: Don't submit if session hasn't been loaded yet
@@ -455,7 +455,7 @@ export function useChatStream({
       }
 
       const hasExistingMessages = currentState.messages.length > 0;
-      const hasNewMessage = userMessage.trim().length > 0;
+      const hasNewMessage = userMessage.trim().length > 0 || (images && images.length > 0);
 
       // Don't submit if there's no message and no conversation to continue
       if (!hasNewMessage && !hasExistingMessages) {
@@ -517,7 +517,7 @@ export function useChatStream({
       }
 
       const newMessage = hasNewMessage
-        ? createUserMessage(userMessage)
+        ? createUserMessage(userMessage, images)
         : currentState.messages[currentState.messages.length - 1];
       const currentMessages = hasNewMessage
         ? [...currentState.messages, newMessage]

@@ -7,12 +7,35 @@ export type NotificationEvent = Extract<MessageEvent, { type: 'Notification' }>;
 // Compaction response message - must match backend constant
 const COMPACTION_THINKING_TEXT = 'goose is compacting the conversation...';
 
-export function createUserMessage(text: string): Message {
+export interface ImageData {
+  data: string; // base64 encoded image data
+  mimeType: string;
+}
+
+export function createUserMessage(text: string, images?: ImageData[]): Message {
+  const content: Message['content'] = [];
+  
+  // Add text content if present
+  if (text.trim()) {
+    content.push({ type: 'text', text });
+  }
+  
+  // Add image content if present
+  if (images && images.length > 0) {
+    images.forEach(img => {
+      content.push({
+        type: 'image',
+        data: img.data,
+        mimeType: img.mimeType,
+      });
+    });
+  }
+  
   return {
     id: generateMessageId(),
     role: 'user',
     created: Math.floor(Date.now() / 1000),
-    content: [{ type: 'text', text }],
+    content,
     metadata: { userVisible: true, agentVisible: true },
   };
 }
