@@ -8,6 +8,7 @@ use tracing::debug;
 
 use super::super::agents::Agent;
 use crate::agents::code_execution_extension::EXTENSION_NAME as CODE_EXECUTION_EXTENSION;
+use crate::agents::subagent_tool::SUBAGENT_TOOL_NAME;
 use crate::conversation::message::{Message, MessageContent, ToolRequest};
 use crate::conversation::Conversation;
 use crate::providers::base::{stream_from_single_message, MessageStream, Provider, ProviderUsage};
@@ -125,7 +126,9 @@ impl Agent {
             .await;
         if code_execution_active {
             let code_exec_prefix = format!("{CODE_EXECUTION_EXTENSION}__");
-            tools.retain(|tool| tool.name.starts_with(&code_exec_prefix));
+            tools.retain(|tool| {
+                tool.name.starts_with(&code_exec_prefix) || tool.name == SUBAGENT_TOOL_NAME
+            });
         }
 
         // Stable tool ordering is important for multi session prompt caching.
