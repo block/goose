@@ -272,13 +272,14 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     let pollingTimeouts: ReturnType<typeof setTimeout>[] = [];
     let isPolling = false;
 
-    const handleSessionCreated = (event: CustomEvent<{ session?: Session }>) => {
+    const handleSessionCreated = (event: Event) => {
+      const { session } = (event as CustomEvent<{ session?: Session }>).detail;
       // If session data is provided, add it immediately to the sidebar
       // This is for displaying sessions that won't be returned by the API due to not having messages yet
-      if (event.detail?.session) {
+      if (session) {
         setRecentSessions((prev) => {
-          if (prev.some((s) => s.id === event.detail.session!.id)) return prev;
-          return [event.detail.session!, ...prev].slice(0, 10);
+          if (prev.some((s) => s.id === session.id)) return prev;
+          return [session, ...prev].slice(0, 10);
         });
       }
 
@@ -338,46 +339,29 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
       handleSessionCreated(new CustomEvent(AppEvents.SESSION_CREATED, { detail: {} }));
     };
 
-    const handleSessionDeleted = (event: CustomEvent<{ sessionId: string }>) => {
-      const { sessionId } = event.detail;
+    const handleSessionDeleted = (event: Event) => {
+      const { sessionId } = (event as CustomEvent<{ sessionId: string }>).detail;
       setRecentSessions((prev) => prev.filter((s) => s.id !== sessionId));
     };
 
-    const handleSessionRenamed = (event: CustomEvent<{ sessionId: string; newName: string }>) => {
-      const { sessionId, newName } = event.detail;
+    const handleSessionRenamed = (event: Event) => {
+      const { sessionId, newName } = (event as CustomEvent<{ sessionId: string; newName: string }>)
+        .detail;
       setRecentSessions((prev) =>
         prev.map((s) => (s.id === sessionId ? { ...s, name: newName } : s))
       );
     };
 
-    window.addEventListener(
-      AppEvents.SESSION_CREATED,
-      handleSessionCreated as (event: Event) => void
-    );
+    window.addEventListener(AppEvents.SESSION_CREATED, handleSessionCreated);
     window.addEventListener(AppEvents.SESSION_NEEDS_NAME_UPDATE, handleSessionNeedsNameUpdate);
-    window.addEventListener(
-      AppEvents.SESSION_DELETED,
-      handleSessionDeleted as (event: Event) => void
-    );
-    window.addEventListener(
-      AppEvents.SESSION_RENAMED,
-      handleSessionRenamed as (event: Event) => void
-    );
+    window.addEventListener(AppEvents.SESSION_DELETED, handleSessionDeleted);
+    window.addEventListener(AppEvents.SESSION_RENAMED, handleSessionRenamed);
 
     return () => {
-      window.removeEventListener(
-        AppEvents.SESSION_CREATED,
-        handleSessionCreated as (event: Event) => void
-      );
+      window.removeEventListener(AppEvents.SESSION_CREATED, handleSessionCreated);
       window.removeEventListener(AppEvents.SESSION_NEEDS_NAME_UPDATE, handleSessionNeedsNameUpdate);
-      window.removeEventListener(
-        AppEvents.SESSION_DELETED,
-        handleSessionDeleted as (event: Event) => void
-      );
-      window.removeEventListener(
-        AppEvents.SESSION_RENAMED,
-        handleSessionRenamed as (event: Event) => void
-      );
+      window.removeEventListener(AppEvents.SESSION_DELETED, handleSessionDeleted);
+      window.removeEventListener(AppEvents.SESSION_RENAMED, handleSessionRenamed);
       pollingTimeouts.forEach(clearTimeout);
       isPolling = false;
     };
