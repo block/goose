@@ -364,7 +364,7 @@
     }
   },
   {
-    "id": "cohere/command-a-03-2025",
+    "id": "cohere/command-a-03",
     "name": "Command A",
     "family": "command-a",
     "tool_call": true,
@@ -386,7 +386,7 @@
     }
   },
   {
-    "id": "cohere/command-a-reasoning-08-2025",
+    "id": "cohere/command-a-reasoning-08",
     "name": "Command A Reasoning",
     "family": "command-a",
     "tool_call": true,
@@ -408,7 +408,7 @@
     }
   },
   {
-    "id": "cohere/command-a-translate-08-2025",
+    "id": "cohere/command-a-translate-08",
     "name": "Command A Translate",
     "family": "command-a",
     "tool_call": true,
@@ -430,7 +430,7 @@
     }
   },
   {
-    "id": "cohere/command-a-vision-07-2025",
+    "id": "cohere/command-a-vision-07",
     "name": "Command A Vision",
     "family": "command-a",
     "tool_call": false,
@@ -453,7 +453,7 @@
     }
   },
   {
-    "id": "cohere/command-r-08-2024",
+    "id": "cohere/command-r-08",
     "name": "Command R",
     "family": "command-r",
     "tool_call": true,
@@ -475,7 +475,7 @@
     }
   },
   {
-    "id": "cohere/command-r-plus-08-2024",
+    "id": "cohere/command-r-plus-08",
     "name": "Command R+",
     "family": "command-r",
     "tool_call": true,
@@ -497,7 +497,7 @@
     }
   },
   {
-    "id": "cohere/command-r7b-12-2024",
+    "id": "cohere/command-r7b-12",
     "name": "Command R7B",
     "family": "command-r",
     "tool_call": true,
@@ -827,7 +827,7 @@
     }
   },
   {
-    "id": "google/gemini-2.5-flash-lite-preview-09-2025",
+    "id": "google/gemini-2.5-flash-lite-preview-09",
     "name": "Gemini 2.5 Flash Lite Preview 09-25",
     "family": "gemini-flash-lite",
     "tool_call": true,
@@ -908,7 +908,7 @@
     }
   },
   {
-    "id": "google/gemini-2.5-flash-preview-09-2025",
+    "id": "google/gemini-2.5-flash-preview-09",
     "name": "Gemini 2.5 Flash Preview 09-25",
     "family": "gemini-flash",
     "tool_call": true,
@@ -1419,7 +1419,7 @@
     }
   },
   {
-    "id": "mistralai/devstral-2512",
+    "id": "mistralai/devstral",
     "name": "Devstral 2",
     "family": "devstral",
     "tool_call": true,
@@ -1463,51 +1463,7 @@
     }
   },
   {
-    "id": "mistralai/devstral-medium-2507",
-    "name": "Devstral Medium",
-    "family": "devstral",
-    "tool_call": true,
-    "modalities": {
-      "input": [
-        "text"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "cost": {
-      "input": 0.4,
-      "output": 2.0
-    },
-    "limit": {
-      "context": 128000,
-      "output": 128000
-    }
-  },
-  {
-    "id": "mistralai/devstral-small-2505",
-    "name": "Devstral Small 2505",
-    "family": "devstral",
-    "tool_call": true,
-    "modalities": {
-      "input": [
-        "text"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "cost": {
-      "input": 0.1,
-      "output": 0.3
-    },
-    "limit": {
-      "context": 128000,
-      "output": 128000
-    }
-  },
-  {
-    "id": "mistralai/devstral-small-2507",
+    "id": "mistralai/devstral-small",
     "name": "Devstral Small",
     "family": "devstral",
     "tool_call": true,
@@ -1529,7 +1485,7 @@
     }
   },
   {
-    "id": "mistralai/labs-devstral-small-2512",
+    "id": "mistralai/labs-devstral-small",
     "name": "Devstral Small 2",
     "family": "devstral",
     "tool_call": true,
@@ -1663,29 +1619,6 @@
   },
   {
     "id": "mistralai/mistral-large",
-    "name": "Mistral Large",
-    "family": "mistral-large",
-    "tool_call": true,
-    "modalities": {
-      "input": [
-        "text",
-        "image"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "cost": {
-      "input": 0.5,
-      "output": 1.5
-    },
-    "limit": {
-      "context": 262144,
-      "output": 262144
-    }
-  },
-  {
-    "id": "mistralai/mistral-large-2411",
     "name": "Mistral Large 2.1",
     "family": "mistral-large",
     "tool_call": true,
@@ -1704,29 +1637,6 @@
     "limit": {
       "context": 131072,
       "output": 16384
-    }
-  },
-  {
-    "id": "mistralai/mistral-large-2512",
-    "name": "Mistral Large 3",
-    "family": "mistral-large",
-    "tool_call": true,
-    "modalities": {
-      "input": [
-        "text",
-        "image"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "cost": {
-      "input": 0.5,
-      "output": 1.5
-    },
-    "limit": {
-      "context": 262144,
-      "output": 262144
     }
   },
   {
@@ -1750,52 +1660,6 @@
     "limit": {
       "context": 128000,
       "output": 16384
-    }
-  },
-  {
-    "id": "mistralai/mistral-medium-2505",
-    "name": "Mistral Medium 3",
-    "family": "mistral-medium",
-    "tool_call": true,
-    "modalities": {
-      "input": [
-        "text",
-        "image"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "cost": {
-      "input": 0.4,
-      "output": 2.0
-    },
-    "limit": {
-      "context": 131072,
-      "output": 131072
-    }
-  },
-  {
-    "id": "mistralai/mistral-medium-2508",
-    "name": "Mistral Medium 3.1",
-    "family": "mistral-medium",
-    "tool_call": true,
-    "modalities": {
-      "input": [
-        "text",
-        "image"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "cost": {
-      "input": 0.4,
-      "output": 2.0
-    },
-    "limit": {
-      "context": 262144,
-      "output": 262144
     }
   },
   {
@@ -1823,29 +1687,6 @@
   {
     "id": "mistralai/mistral-small",
     "name": "Mistral Small",
-    "family": "mistral-small",
-    "tool_call": true,
-    "modalities": {
-      "input": [
-        "text",
-        "image"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "cost": {
-      "input": 0.1,
-      "output": 0.3
-    },
-    "limit": {
-      "context": 128000,
-      "output": 16384
-    }
-  },
-  {
-    "id": "mistralai/mistral-small-2506",
-    "name": "Mistral Small 3.2",
     "family": "mistral-small",
     "tool_call": true,
     "modalities": {
@@ -3345,29 +3186,6 @@
   },
   {
     "id": "x-ai/grok-2",
-    "name": "Grok 2 Latest",
-    "family": "grok",
-    "tool_call": true,
-    "modalities": {
-      "input": [
-        "text"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "cost": {
-      "input": 2.0,
-      "output": 10.0,
-      "cache_read": 2.0
-    },
-    "limit": {
-      "context": 131072,
-      "output": 8192
-    }
-  },
-  {
-    "id": "x-ai/grok-2-1212",
     "name": "Grok 2 (1212)",
     "family": "grok",
     "tool_call": true,
@@ -3392,30 +3210,6 @@
   {
     "id": "x-ai/grok-2-vision",
     "name": "Grok 2 Vision Latest",
-    "family": "grok",
-    "tool_call": true,
-    "modalities": {
-      "input": [
-        "text",
-        "image"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "cost": {
-      "input": 2.0,
-      "output": 10.0,
-      "cache_read": 2.0
-    },
-    "limit": {
-      "context": 8192,
-      "output": 4096
-    }
-  },
-  {
-    "id": "x-ai/grok-2-vision-1212",
-    "name": "Grok 2 Vision (1212)",
     "family": "grok",
     "tool_call": true,
     "modalities": {
@@ -3577,7 +3371,7 @@
     }
   },
   {
-    "id": "x-ai/grok-4-fast-non-reasoning",
+    "id": "x-ai/grok-4-fast-non",
     "name": "Grok 4 Fast (Non-Reasoning)",
     "family": "grok",
     "tool_call": true,
@@ -3625,7 +3419,7 @@
     }
   },
   {
-    "id": "x-ai/grok-4.1-fast-non-reasoning",
+    "id": "x-ai/grok-4.1-fast-non",
     "name": "Grok 4.1 Fast (Non-Reasoning)",
     "family": "grok",
     "tool_call": true,

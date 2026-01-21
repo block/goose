@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-01-20T21:03:40.401415+00:00",
+  "timestamp": "2026-01-20T21:32:48.231234+00:00",
   "unmapped_models": [
     {
       "provider": "databricks",
@@ -124,10 +124,6 @@
     {
       "provider": "databricks",
       "model": "goose-gpt-oss"
-    },
-    {
-      "provider": "databricks",
-      "model": "gpt-3-5-turbo-0125"
     },
     {
       "provider": "databricks",
@@ -2575,14 +2571,6 @@
     },
     {
       "provider": "openai",
-      "model": "gpt-3.5-turbo-0125"
-    },
-    {
-      "provider": "openai",
-      "model": "gpt-3.5-turbo-1106"
-    },
-    {
-      "provider": "openai",
       "model": "gpt-3.5-turbo-16k"
     },
     {
@@ -2596,14 +2584,6 @@
     {
       "provider": "openai",
       "model": "gpt-4-0125-preview"
-    },
-    {
-      "provider": "openai",
-      "model": "gpt-4-0314"
-    },
-    {
-      "provider": "openai",
-      "model": "gpt-4-0613"
     },
     {
       "provider": "openai",
@@ -3676,18 +3656,6 @@
     {
       "provider": "xai",
       "model": "grok-2-image-1212"
-    },
-    {
-      "provider": "xai",
-      "model": "grok-4-0709"
-    },
-    {
-      "provider": "xai",
-      "model": "grok-4-1-fast-reasoning"
-    },
-    {
-      "provider": "xai",
-      "model": "grok-4-fast-reasoning"
     }
   ],
   "all_mappings": {
@@ -3915,6 +3883,10 @@
         "canonical_model": "openai/gpt-3.5-turbo"
       },
       {
+        "provider_model": "gpt-3-5-turbo-0125",
+        "canonical_model": "openai/gpt-3.5-turbo"
+      },
+      {
         "provider_model": "gpt-4",
         "canonical_model": "openai/gpt-4"
       },
@@ -4118,11 +4090,11 @@
       },
       {
         "provider_model": "gemini-2.5-flash-lite-preview-09-2025",
-        "canonical_model": "google/gemini-2.5-flash-lite-preview-09-2025"
+        "canonical_model": "google/gemini-2.5-flash-lite-preview-09"
       },
       {
         "provider_model": "gemini-2.5-flash-preview-09-2025",
-        "canonical_model": "google/gemini-2.5-flash-preview-09-2025"
+        "canonical_model": "google/gemini-2.5-flash-preview-09"
       },
       {
         "provider_model": "gemini-2.5-flash-preview-tts",
@@ -4167,7 +4139,23 @@
         "canonical_model": "openai/gpt-3.5-turbo"
       },
       {
+        "provider_model": "gpt-3.5-turbo-0125",
+        "canonical_model": "openai/gpt-3.5-turbo"
+      },
+      {
+        "provider_model": "gpt-3.5-turbo-1106",
+        "canonical_model": "openai/gpt-3.5-turbo"
+      },
+      {
         "provider_model": "gpt-4",
+        "canonical_model": "openai/gpt-4"
+      },
+      {
+        "provider_model": "gpt-4-0314",
+        "canonical_model": "openai/gpt-4"
+      },
+      {
+        "provider_model": "gpt-4-0613",
         "canonical_model": "openai/gpt-4"
       },
       {
@@ -4433,7 +4421,7 @@
     "xai": [
       {
         "provider_model": "grok-2-vision-1212",
-        "canonical_model": "x-ai/grok-2-vision-1212"
+        "canonical_model": "x-ai/grok-2-vision"
       },
       {
         "provider_model": "grok-3",
@@ -4444,12 +4432,24 @@
         "canonical_model": "x-ai/grok-3-mini"
       },
       {
+        "provider_model": "grok-4-0709",
+        "canonical_model": "x-ai/grok-4"
+      },
+      {
         "provider_model": "grok-4-1-fast-non-reasoning",
-        "canonical_model": "x-ai/grok-4.1-fast-non-reasoning"
+        "canonical_model": "x-ai/grok-4.1-fast-non"
+      },
+      {
+        "provider_model": "grok-4-1-fast-reasoning",
+        "canonical_model": "x-ai/grok-4.1-fast"
       },
       {
         "provider_model": "grok-4-fast-non-reasoning",
-        "canonical_model": "x-ai/grok-4-fast-non-reasoning"
+        "canonical_model": "x-ai/grok-4-fast-non"
+      },
+      {
+        "provider_model": "grok-4-fast-reasoning",
+        "canonical_model": "x-ai/grok-4-fast"
       },
       {
         "provider_model": "grok-code-fast-1",
@@ -4735,6 +4735,11 @@
     },
     {
       "provider": "databricks",
+      "model": "gpt-3-5-turbo-0125",
+      "canonical": "openai/gpt-3.5-turbo"
+    },
+    {
+      "provider": "databricks",
       "model": "gpt-4",
       "canonical": "openai/gpt-4"
     },
@@ -4986,12 +4991,12 @@
     {
       "provider": "google",
       "model": "gemini-2.5-flash-lite-preview-09-2025",
-      "canonical": "google/gemini-2.5-flash-lite-preview-09-2025"
+      "canonical": "google/gemini-2.5-flash-lite-preview-09"
     },
     {
       "provider": "google",
       "model": "gemini-2.5-flash-preview-09-2025",
-      "canonical": "google/gemini-2.5-flash-preview-09-2025"
+      "canonical": "google/gemini-2.5-flash-preview-09"
     },
     {
       "provider": "google",
@@ -5045,7 +5050,27 @@
     },
     {
       "provider": "openai",
+      "model": "gpt-3.5-turbo-0125",
+      "canonical": "openai/gpt-3.5-turbo"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-3.5-turbo-1106",
+      "canonical": "openai/gpt-3.5-turbo"
+    },
+    {
+      "provider": "openai",
       "model": "gpt-4",
+      "canonical": "openai/gpt-4"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-4-0314",
+      "canonical": "openai/gpt-4"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-4-0613",
       "canonical": "openai/gpt-4"
     },
     {
@@ -5371,7 +5396,7 @@
     {
       "provider": "xai",
       "model": "grok-2-vision-1212",
-      "canonical": "x-ai/grok-2-vision-1212"
+      "canonical": "x-ai/grok-2-vision"
     },
     {
       "provider": "xai",
@@ -5385,13 +5410,28 @@
     },
     {
       "provider": "xai",
+      "model": "grok-4-0709",
+      "canonical": "x-ai/grok-4"
+    },
+    {
+      "provider": "xai",
       "model": "grok-4-1-fast-non-reasoning",
-      "canonical": "x-ai/grok-4.1-fast-non-reasoning"
+      "canonical": "x-ai/grok-4.1-fast-non"
+    },
+    {
+      "provider": "xai",
+      "model": "grok-4-1-fast-reasoning",
+      "canonical": "x-ai/grok-4.1-fast"
     },
     {
       "provider": "xai",
       "model": "grok-4-fast-non-reasoning",
-      "canonical": "x-ai/grok-4-fast-non-reasoning"
+      "canonical": "x-ai/grok-4-fast-non"
+    },
+    {
+      "provider": "xai",
+      "model": "grok-4-fast-reasoning",
+      "canonical": "x-ai/grok-4-fast"
     },
     {
       "provider": "xai",
@@ -5426,8 +5466,8 @@
     "google/gemini-2.5-flash",
     "google/gemini-2.5-flash-image",
     "google/gemini-2.5-flash-lite",
-    "google/gemini-2.5-flash-lite-preview-09-2025",
-    "google/gemini-2.5-flash-preview-09-2025",
+    "google/gemini-2.5-flash-lite-preview-09",
+    "google/gemini-2.5-flash-preview-09",
     "google/gemini-2.5-flash-preview-tts",
     "google/gemini-2.5-pro",
     "google/gemini-2.5-pro-preview-tts",
@@ -5483,11 +5523,14 @@
     "openrouter/qwen/qwen3-coder:exacto",
     "openrouter/x-ai/grok-4.1-fast",
     "openrouter/z-ai/glm-4.5-air:free",
-    "x-ai/grok-2-vision-1212",
+    "x-ai/grok-2-vision",
     "x-ai/grok-3",
     "x-ai/grok-3-mini",
-    "x-ai/grok-4-fast-non-reasoning",
-    "x-ai/grok-4.1-fast-non-reasoning",
+    "x-ai/grok-4",
+    "x-ai/grok-4-fast",
+    "x-ai/grok-4-fast-non",
+    "x-ai/grok-4.1-fast",
+    "x-ai/grok-4.1-fast-non",
     "x-ai/grok-code-fast-1"
   ]
 }

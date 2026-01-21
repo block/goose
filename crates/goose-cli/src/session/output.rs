@@ -871,8 +871,8 @@ fn estimate_cost_usd(
 ) -> Option<f64> {
     let canonical_model = maybe_get_canonical_model(provider, model)?;
 
-    let input_cost_per_token = canonical_model.pricing.prompt?;
-    let output_cost_per_token = canonical_model.pricing.completion?;
+    let input_cost_per_token = canonical_model.cost.input?;
+    let output_cost_per_token = canonical_model.cost.output?;
 
     let input_cost = input_cost_per_token * input_tokens as f64;
     let output_cost = output_cost_per_token * output_tokens as f64;

@@ -444,20 +444,69 @@ pub trait Provider: Send + Sync {
 
         let provider_name = self.get_name();
 
-        let recommended_models: Vec<String> = all_models
-            .iter()
-            .filter(|model| {
-                map_to_canonical_model(provider_name, model, registry)
-                    .and_then(|canonical_id| {
-                        // canonical_id is "provider/model", split and lookup
-                        canonical_id.split_once('/')
-                            .and_then(|(p, m)| registry.get(p, m))
-                    })
+        // For meta-providers (databricks, azure, bedrock), don't deduplicate
+        // to give users more agency over specific model versions
+        let is_meta_provider = matches!(provider_name, "databricks" | "azure" | "bedrock");
+
+        if is_meta_provider {
+            // Just filter to text-capable models, no deduplication
+            let recommended_models: Vec<String> = all_models
+                .iter()
+                .filter(|model| {
+                    map_to_canonical_model(provider_name, model, registry)
+                        .and_then(|canonical_id| {
+                            canonical_id.split_once('/')
+                                .and_then(|(p, m)| registry.get(p, m))
+                        })
+                        .map(|m| m.modalities.input.contains(&"text".to_string()))
+                        .unwrap_or(false)
+                })
+                .cloned()
+                .collect();
+
+            return if recommended_models.is_empty() {
+                Ok(Some(all_models))
+            } else {
+                Ok(Some(recommended_models))
+            };
+        }
+
+        // For normal providers, deduplicate models that map to the same canonical model
+        // Build a map of canonical_model -> Vec<provider_model>
+        let mut canonical_to_provider: std::collections::HashMap<String, Vec<String>> =
+            std::collections::HashMap::new();
+
+        for model in &all_models {
+            if let Some(canonical_id) = map_to_canonical_model(provider_name, model, registry) {
+                // Check if this is a text-capable model
+                let is_text_capable = canonical_id
+                    .split_once('/')
+                    .and_then(|(p, m)| registry.get(p, m))
                     .map(|m| m.modalities.input.contains(&"text".to_string()))
-                    .unwrap_or(false)
+                    .unwrap_or(false);
+
+                if is_text_capable {
+                    canonical_to_provider
+                        .entry(canonical_id)
+                        .or_insert_with(Vec::new)
+                        .push(model.clone());
+                }
+            }
+        }
+
+        // For each canonical model, pick the shortest provider model name
+        let mut recommended_models: Vec<String> = canonical_to_provider
+            .values()
+            .filter_map(|provider_models| {
+                provider_models
+                    .iter()
+                    .min_by_key(|m| m.len())
+                    .cloned()
             })
-            .cloned()
             .collect();
+
+        // Sort for consistent ordering
+        recommended_models.sort();
 
         if recommended_models.is_empty() {
             Ok(Some(all_models))
