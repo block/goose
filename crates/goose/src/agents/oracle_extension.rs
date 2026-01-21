@@ -81,9 +81,13 @@ impl OracleClient {
     async fn get_or_init_provider(&self) -> Result<&Arc<dyn Provider>, String> {
         self.provider
             .get_or_try_init(|| async {
-                let provider_name = std::env::var("GOOSE_ORACLE_PROVIDER")
+                let config = crate::config::Config::global();
+
+                let provider_name: String = config
+                    .get_param("GOOSE_ORACLE_PROVIDER")
                     .unwrap_or_else(|_| DEFAULT_ORACLE_PROVIDER.to_string());
-                let model_name = std::env::var("GOOSE_ORACLE_MODEL")
+                let model_name: String = config
+                    .get_param("GOOSE_ORACLE_MODEL")
                     .unwrap_or_else(|_| DEFAULT_ORACLE_MODEL.to_string());
 
                 tracing::info!(
