@@ -1,6 +1,7 @@
 use crate::agents::chatrecall_extension;
 use crate::agents::code_execution_extension;
 use crate::agents::extension_manager_extension;
+use crate::agents::oracle_extension;
 use crate::agents::skills_extension;
 use crate::agents::todo_extension;
 use std::collections::HashMap;
@@ -100,6 +101,17 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
             },
         );
 
+        map.insert(
+            oracle_extension::EXTENSION_NAME,
+            PlatformExtensionDef {
+                name: oracle_extension::EXTENSION_NAME,
+                description:
+                    "A powerful reasoning tool that provides a second opinion for complex problems",
+                default_enabled: false,
+                client_factory: |ctx| Box::new(oracle_extension::OracleClient::new(ctx).unwrap()),
+            },
+        );
+
         map
     },
 );
@@ -109,6 +121,7 @@ pub struct PlatformExtensionContext {
     pub extension_manager:
         Option<std::sync::Weak<crate::agents::extension_manager::ExtensionManager>>,
     pub session_manager: std::sync::Arc<crate::session::SessionManager>,
+    pub provider: Option<crate::agents::types::SharedProvider>,
 }
 
 #[derive(Debug, Clone)]

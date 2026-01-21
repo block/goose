@@ -449,6 +449,7 @@ impl ExtensionManager {
             context: PlatformExtensionContext {
                 extension_manager: None,
                 session_manager,
+                provider: None,
             },
             provider,
             tools_cache: Mutex::new(None),
@@ -576,6 +577,7 @@ impl ExtensionManager {
                     })?;
                 let mut context = self.context.clone();
                 context.extension_manager = Some(Arc::downgrade(self));
+                context.provider = Some(self.provider.clone());
                 (def.client_factory)(context)
             }
             ExtensionConfig::InlinePython {
