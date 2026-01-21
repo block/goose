@@ -111,9 +111,8 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   const lastSessionIdRef = useRef<string | null>(null);
   const currentSessionId = currentPath === '/pair' ? searchParams.get('resumeSessionId') : null;
 
-  // Check if apps extension is enabled from config context
-  const appsExtensionEnabled =
-    configContext.extensionsList.find((ext) => ext.name === 'apps')?.enabled ?? false;
+  const appsExtensionEnabled = !!configContext.extensionsList?.find((ext) => ext.name === 'apps')
+    ?.enabled;
 
   useEffect(() => {
     if (currentSessionId) {
