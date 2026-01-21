@@ -1,3 +1,4 @@
+import { AppEvents } from '../../constants/events';
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { Puzzle } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '../ui/dropdown-menu';
@@ -38,12 +39,12 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
       }, 500);
     };
 
-    window.addEventListener('session-created', handleSessionLoaded);
-    window.addEventListener('message-stream-finished', handleSessionLoaded);
+    window.addEventListener(AppEvents.SESSION_CREATED, handleSessionLoaded);
+    window.addEventListener(AppEvents.MESSAGE_STREAM_FINISHED, handleSessionLoaded);
 
     return () => {
-      window.removeEventListener('session-created', handleSessionLoaded);
-      window.removeEventListener('message-stream-finished', handleSessionLoaded);
+      window.removeEventListener(AppEvents.SESSION_CREATED, handleSessionLoaded);
+      window.removeEventListener(AppEvents.MESSAGE_STREAM_FINISHED, handleSessionLoaded);
     };
   }, []);
 
