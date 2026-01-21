@@ -2463,6 +2463,7 @@ async function appMain() {
         width: gooseApp.width ?? 800,
         height: gooseApp.height ?? 600,
         resizable: gooseApp.resizable ?? true,
+        useContentSize: true,
         webPreferences: {
           preload: path.join(__dirname, 'preload.js'),
           nodeIntegration: false,
