@@ -1,6 +1,6 @@
 ---
 name: goose-doc-guide
-description: Reference goose documentation to create, configure, or explain goose-specific features like recipes, extensions, sessions, and providers. You MUST fetch relevant Goose docs before answering. You MUST NOT rely on training data or assumptions for any goose-specific fields, values, names, syntax, or commands.
+description: Reference goose documentation to create, configure, or explain goose-specific features like recipes, extensions, sessions, and providers. You MUST fetch relevant goose docs before answering. You MUST NOT rely on training data or assumptions for any goose-specific fields, values, names, syntax, or commands.
 ---
 
 Use this skill when working with **goose-specific features**:
@@ -36,7 +36,7 @@ Do NOT use this skill for:
    - Only include links that were actually fetched and referenced
 
 ## Strict Requirements
-1. You MUST fetch relevant Goose documentation before providing any goose-specific information.
+1. You MUST fetch relevant goose documentation before providing any goose-specific information.
 
 2. **Verification rule**:
    You may ONLY present goose-specific information that is explicitly stated in the fetched documentation.

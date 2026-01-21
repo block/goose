@@ -65,10 +65,8 @@ impl SkillsClient {
             instructions: Some(String::new()),
         };
 
-        // Load built-in skills first (lowest priority)
         let mut skills = Self::load_builtin_skills();
 
-        // Discover filesystem skills (can override built-in skills)
         let directories = Self::get_default_skill_directories()
             .into_iter()
             .filter(|d| d.exists())
