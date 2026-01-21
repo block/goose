@@ -274,10 +274,20 @@ export function useChatStream({
   // Refs for values needed in callbacks without causing re-renders
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastInteractionTimeRef = useRef<number>(Date.now());
+  const namePollingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Ref to access latest state in callbacks (avoids stale closures)
   const stateRef = useRef(state);
   stateRef.current = state;
+
+  useEffect(() => {
+    return () => {
+      if (namePollingRef.current) {
+        clearTimeout(namePollingRef.current);
+        namePollingRef.current = null;
+      }
+    };
+  }, [sessionId]);
 
   useEffect(() => {
     if (state.session) {
@@ -287,6 +297,11 @@ export function useChatStream({
 
   const onFinish = useCallback(
     async (error?: string): Promise<void> => {
+      if (namePollingRef.current) {
+        clearTimeout(namePollingRef.current);
+        namePollingRef.current = null;
+      }
+
       dispatch({ type: 'STREAM_FINISH', payload: error });
 
       const timeSinceLastInteraction = Date.now() - lastInteractionTimeRef.current;
@@ -452,6 +467,53 @@ export function useChatStream({
       // Emit session-created event for first message in a new session
       if (!hasExistingMessages && hasNewMessage) {
         window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
+
+        // Start polling for session name update during streaming
+        // The backend generates the name in parallel with the response
+        const pollForName = async (attempts = 0) => {
+          if (attempts >= 20) return; // Max 20 attempts (10 seconds)
+
+          try {
+            const response = await getSession({
+              path: { session_id: sessionId },
+              throwOnError: true,
+            });
+            const currentState = stateRef.current;
+            const currentName = currentState.session?.name;
+            const newName = response.data?.name;
+
+            // Check if name has changed from the initial name
+            if (newName && newName !== currentName) {
+              dispatch({
+                type: 'SET_SESSION',
+                payload: currentState.session
+                  ? { ...currentState.session, name: newName }
+                  : undefined,
+              });
+              window.dispatchEvent(
+                new CustomEvent(AppEvents.SESSION_RENAMED, {
+                  detail: { sessionId, newName },
+                })
+              );
+              return; // Stop polling once name is updated
+            }
+          } catch {
+            // Silently continue polling
+          }
+
+          // Continue polling if still streaming
+          const latestState = stateRef.current;
+          if (
+            latestState.chatState === ChatState.Streaming ||
+            latestState.chatState === ChatState.Thinking ||
+            latestState.chatState === ChatState.Compacting
+          ) {
+            namePollingRef.current = setTimeout(() => pollForName(attempts + 1), 500);
+          }
+        };
+
+        // Start polling after a short delay to give backend time to start name generation
+        namePollingRef.current = setTimeout(() => pollForName(0), 1000);
       }
 
       const newMessage = hasNewMessage

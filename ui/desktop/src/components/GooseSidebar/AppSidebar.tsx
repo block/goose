@@ -171,9 +171,10 @@ const SessionList = React.memo<{
     const nextIds = nextProps.sessions.map((s) => s.id).join(',');
     if (prevIds !== nextIds) return false;
 
-    // Check if any session name changed
+    // Check if any session name or message_count changed
     for (let i = 0; i < prevProps.sessions.length; i++) {
       if (prevProps.sessions[i].name !== nextProps.sessions[i].name) return false;
+      if (prevProps.sessions[i].message_count !== nextProps.sessions[i].message_count) return false;
     }
 
     // Check if any session's status has changed
@@ -345,7 +346,11 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
       const { sessionId, newName } = (event as CustomEvent<{ sessionId: string; newName: string }>)
         .detail;
       setRecentSessions((prev) =>
-        prev.map((s) => (s.id === sessionId ? { ...s, name: newName } : s))
+        prev.map((s) =>
+          s.id === sessionId
+            ? { ...s, name: newName, message_count: Math.max(s.message_count, 1) }
+            : s
+        )
       );
     };
 
