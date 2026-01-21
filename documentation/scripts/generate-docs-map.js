@@ -71,8 +71,9 @@ async function main() {
 
         output += `### [${title}](${urlPath})\n\n`;
         if (headings) output += `${headings}\n\n`;
+        
       } catch (err) {
-        console.warn(`[generate-docs-map] Warning: Could not process ${file}, skipping`);
+        console.warn(`[generate-docs-map] Warning: Could not process ${file}, skipping`, err);
       }
     }
   }
