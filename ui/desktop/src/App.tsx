@@ -363,22 +363,18 @@ export function AppInner() {
       setActiveSessions((prev) => {
         const existingIndex = prev.findIndex((s) => s.sessionId === sessionId);
 
-        let updated: Array<{ sessionId: string; initialMessage?: string }>;
-
         if (existingIndex !== -1) {
           // Session exists - move to end of LRU list (most recently used)
           const existing = prev[existingIndex];
-          updated = [...prev.slice(0, existingIndex), ...prev.slice(existingIndex + 1), existing];
-        } else {
-          const newSession = { sessionId, initialMessage };
-          updated = [...prev, newSession];
+          return [...prev.slice(0, existingIndex), ...prev.slice(existingIndex + 1), existing];
         }
 
-        // LRU eviction: keep only the last MAX_ACTIVE_SESSIONS
+        // New session - add to end with LRU eviction if needed
+        const newSession = { sessionId, initialMessage };
+        const updated = [...prev, newSession];
         if (updated.length > MAX_ACTIVE_SESSIONS) {
-          updated = updated.slice(updated.length - MAX_ACTIVE_SESSIONS);
+          return updated.slice(updated.length - MAX_ACTIVE_SESSIONS);
         }
-
         return updated;
       });
     };
