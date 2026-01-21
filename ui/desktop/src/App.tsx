@@ -20,7 +20,11 @@ import { createSession } from './sessions';
 
 import { ChatType } from './types/chat';
 import Hub from './components/Hub';
-import { PairRouteState } from './components/Pair';
+
+interface PairRouteState {
+  resumeSessionId?: string;
+  initialMessage?: string;
+}
 import SettingsView, { SettingsViewOptions } from './components/settings/SettingsView';
 import SessionsView from './components/sessions/SessionsView';
 import SharedSessionView from './components/sessions/SharedSessionView';

@@ -53,7 +53,7 @@ interface BaseChatProps {
   showPopularTopics?: boolean;
   suppressEmptyState: boolean;
   sessionId: string;
-  isActiveSession?: boolean;
+  isActiveSession: boolean;
   initialMessage?: string;
 }
 
@@ -64,7 +64,7 @@ function BaseChatContent({
   customMainLayoutProps = {},
   sessionId,
   initialMessage,
-  isActiveSession = false,
+  isActiveSession,
 }: BaseChatProps) {
   const location = useLocation();
   const navigate = useNavigate();
