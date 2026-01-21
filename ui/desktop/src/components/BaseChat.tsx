@@ -38,6 +38,8 @@ import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal
 import { toastSuccess } from '../toasts';
 import { Recipe } from '../recipe';
 import { useAutoSubmit } from '../hooks/useAutoSubmit';
+import { Goose } from './icons/Goose';
+import EnvironmentBadge from './GooseSidebar/EnvironmentBadge';
 
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
 export const useCurrentModelInfo = () => useContext(CurrentModelContext);
@@ -80,7 +82,10 @@ function BaseChatContent({
   const { state: sidebarState } = useSidebar();
   const setView = useNavigation();
 
-  const contentClassName = cn('pr-1 pb-10', (isMobile || sidebarState === 'collapsed') && 'pt-11');
+  const contentClassName = cn(
+    'pr-1 pb-10 pt-10',
+    (isMobile || sidebarState === 'collapsed') && 'pt-14'
+  );
   const { droppedFiles, setDroppedFiles, handleDrop, handleDragOver } = useFileDrop();
 
   const onStreamFinish = useCallback(() => {}, []);
@@ -376,6 +381,12 @@ function BaseChatContent({
 
         {/* Chat container with sticky recipe header */}
         <div className="flex flex-col flex-1 mb-0.5 min-h-0 relative">
+          <div className="absolute top-3 right-4 z-20 flex flex-row items-center gap-1">
+            <Goose className="size-5 goose-icon-animation" />
+            <span className="text-sm leading-none text-text-muted -translate-y-px">goose</span>
+            <EnvironmentBadge className="translate-y-px" />
+          </div>
+
           <ScrollArea
             ref={scrollRef}
             className={`flex-1 bg-background-default rounded-b-2xl min-h-0 relative ${contentClassName}`}

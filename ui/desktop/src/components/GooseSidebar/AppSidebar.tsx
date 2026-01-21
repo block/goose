@@ -13,7 +13,6 @@ import {
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarMenu,
@@ -22,10 +21,8 @@ import {
   SidebarSeparator,
 } from '../ui/sidebar';
 import { Gear } from '../icons';
-import { Goose } from '../icons/Goose';
 import { View, ViewOptions } from '../../utils/navigationUtils';
 import { DEFAULT_CHAT_TITLE, useChatContext } from '../../contexts/ChatContext';
-import EnvironmentBadge from './EnvironmentBadge';
 import { listSessions, listApps, Session } from '../../api';
 import { resumeSession, startNewSession, shouldShowNewChatTitle } from '../../sessions';
 import { useNavigation } from '../../hooks/useNavigation';
@@ -483,7 +480,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
 
   return (
     <>
-      <SidebarContent className="pt-16">
+      <SidebarContent className="pt-12">
         <SidebarMenu>
           {/* Home and New Chat */}
           <SidebarGroup className="px-2">
@@ -546,14 +543,6 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
           {visibleMenuItems.map((entry, index) => renderMenuItem(entry, index))}
         </SidebarMenu>
       </SidebarContent>
-
-      <SidebarFooter className="pb-6 px-3 flex items-center justify-center">
-        <div className="flex flex-col items-center">
-          <Goose className="size-14 goose-icon-animation" />
-          <span className="text-base font-medium">goose</span>
-        </div>
-        <EnvironmentBadge />
-      </SidebarFooter>
     </>
   );
 };
