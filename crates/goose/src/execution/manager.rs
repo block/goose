@@ -21,6 +21,7 @@ pub struct AgentManager {
     scheduler: Arc<dyn SchedulerTrait>,
     session_manager: Arc<SessionManager>,
     default_provider: Arc<RwLock<Option<Arc<dyn crate::providers::base::Provider>>>>,
+    builtin_extensions: &'static std::collections::HashMap<&'static str, crate::builtin_extension::BuiltinDef>,
 }
 
 impl AgentManager {
@@ -28,6 +29,7 @@ impl AgentManager {
         session_manager: Arc<SessionManager>,
         schedule_file_path: std::path::PathBuf,
         max_sessions: Option<usize>,
+        builtin_extensions: &'static std::collections::HashMap<&'static str, crate::builtin_extension::BuiltinDef>,
     ) -> Result<Self> {
         let scheduler = Scheduler::new(schedule_file_path, session_manager.clone()).await?;
 
@@ -39,12 +41,18 @@ impl AgentManager {
             scheduler,
             session_manager,
             default_provider: Arc::new(RwLock::new(None)),
+            builtin_extensions,
         };
 
         Ok(manager)
     }
 
-    pub async fn instance() -> Result<Arc<Self>> {
+    /// Initialize the singleton AgentManager with custom builtin extensions.
+    /// This should be called before `instance()` is used, typically during application startup.
+    /// If not called, `instance()` will use an empty builtin extensions registry.
+    pub async fn initialize_with_builtin_extensions(
+        builtin_extensions: &'static std::collections::HashMap<&'static str, crate::builtin_extension::BuiltinDef>,
+    ) -> Result<Arc<Self>> {
         AGENT_MANAGER
             .get_or_try_init(|| async {
                 let max_sessions = Config::global()
@@ -52,8 +60,36 @@ impl AgentManager {
                     .unwrap_or(DEFAULT_MAX_SESSION);
                 let schedule_file_path = Paths::data_dir().join("schedule.json");
                 let session_manager = Arc::new(SessionManager::instance());
-                let manager =
-                    Self::new(session_manager, schedule_file_path, Some(max_sessions)).await?;
+                let manager = Self::new(
+                    session_manager,
+                    schedule_file_path,
+                    Some(max_sessions),
+                    builtin_extensions,
+                )
+                .await?;
+                Ok(Arc::new(manager))
+            })
+            .await
+            .cloned()
+    }
+
+    pub async fn instance() -> Result<Arc<Self>> {
+        // Note: If initialize_with_builtin_extensions() was called first, this will return that instance.
+        // Otherwise, it will create a new instance with empty builtin extensions.
+        AGENT_MANAGER
+            .get_or_try_init(|| async {
+                let max_sessions = Config::global()
+                    .get_goose_max_active_agents()
+                    .unwrap_or(DEFAULT_MAX_SESSION);
+                let schedule_file_path = Paths::data_dir().join("schedule.json");
+                let session_manager = Arc::new(SessionManager::instance());
+                let manager = Self::new(
+                    session_manager,
+                    schedule_file_path,
+                    Some(max_sessions),
+                    &crate::builtin_extension::EMPTY_BUILTIN_EXTENSIONS,
+                )
+                .await?;
                 Ok(Arc::new(manager))
             })
             .await
@@ -89,7 +125,7 @@ impl AgentManager {
             permission_manager,
             Some(Arc::clone(&self.scheduler)),
             mode,
-            &goose_mcp::BUILTIN_EXTENSIONS,
+            self.builtin_extensions,
         );
         let agent = Arc::new(Agent::with_config(config));
         if let Some(provider) = &*self.default_provider.read().await {
@@ -138,9 +174,14 @@ mod tests {
     async fn create_test_manager(temp_dir: &TempDir) -> AgentManager {
         let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
         let schedule_path = temp_dir.path().join("schedule.json");
-        AgentManager::new(session_manager, schedule_path, Some(100))
-            .await
-            .unwrap()
+        AgentManager::new(
+            session_manager,
+            schedule_path,
+            Some(100),
+            &crate::builtin_extension::EMPTY_BUILTIN_EXTENSIONS,
+        )
+        .await
+        .unwrap()
     }
 
     #[test]

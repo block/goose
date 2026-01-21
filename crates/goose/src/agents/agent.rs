@@ -93,7 +93,7 @@ pub struct AgentConfig {
     pub permission_manager: Arc<PermissionManager>,
     pub scheduler_service: Option<Arc<dyn SchedulerTrait>>,
     pub goose_mode: GooseMode,
-    pub builtin_extensions: &'static HashMap<&'static str, goose_mcp::BuiltinDef>,
+    pub builtin_extensions: &'static HashMap<&'static str, crate::builtin_extension::BuiltinDef>,
 }
 
 impl AgentConfig {
@@ -102,7 +102,7 @@ impl AgentConfig {
         permission_manager: Arc<PermissionManager>,
         scheduler_service: Option<Arc<dyn SchedulerTrait>>,
         goose_mode: GooseMode,
-        builtin_extensions: &'static HashMap<&'static str, goose_mcp::BuiltinDef>,
+        builtin_extensions: &'static HashMap<&'static str, crate::builtin_extension::BuiltinDef>,
     ) -> Self {
         Self {
             session_manager,
@@ -190,7 +190,7 @@ impl Agent {
             PermissionManager::instance(),
             None,
             Config::global().get_goose_mode().unwrap_or(GooseMode::Auto),
-            &goose_mcp::BUILTIN_EXTENSIONS,
+            &crate::builtin_extension::EMPTY_BUILTIN_EXTENSIONS,
         ))
     }
 

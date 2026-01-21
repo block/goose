@@ -97,7 +97,7 @@ pub struct ExtensionManager {
     provider: SharedProvider,
     tools_cache: Mutex<Option<Arc<Vec<Tool>>>>,
     tools_cache_version: AtomicU64,
-    builtin_extensions: &'static HashMap<&'static str, goose_mcp::BuiltinDef>,
+    builtin_extensions: &'static HashMap<&'static str, crate::builtin_extension::BuiltinDef>,
 }
 
 /// A flattened representation of a resource used by the agent to prepare inference
@@ -444,7 +444,7 @@ impl ExtensionManager {
     pub fn new(
         provider: SharedProvider,
         session_manager: Arc<crate::session::SessionManager>,
-        builtin_extensions: &'static HashMap<&'static str, goose_mcp::BuiltinDef>,
+        builtin_extensions: &'static HashMap<&'static str, crate::builtin_extension::BuiltinDef>,
     ) -> Self {
         Self {
             extensions: Mutex::new(HashMap::new()),
@@ -465,7 +465,7 @@ impl ExtensionManager {
         Self::new(
             Arc::new(Mutex::new(None)),
             session_manager,
-            &goose_mcp::BUILTIN_EXTENSIONS,
+            &crate::builtin_extension::EMPTY_BUILTIN_EXTENSIONS,
         )
     }
 

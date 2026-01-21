@@ -1,5 +1,6 @@
 pub mod action_required_manager;
 pub mod agents;
+pub mod builtin_extension;
 pub mod config;
 pub mod context_mgmt;
 pub mod conversation;
@@ -28,6 +29,3 @@ pub mod tool_inspection;
 pub mod tool_monitor;
 pub mod tracing;
 pub mod utils;
-
-// Re-export builtin extensions registry for external crates
-pub use goose_mcp::BUILTIN_EXTENSIONS;

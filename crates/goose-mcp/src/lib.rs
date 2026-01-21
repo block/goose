@@ -22,12 +22,7 @@ pub use developer::rmcp_developer::DeveloperServer;
 pub use memory::MemoryServer;
 pub use tutorial::TutorialServer;
 
-pub type SpawnServerFn = fn(tokio::io::DuplexStream, tokio::io::DuplexStream);
-
-pub struct BuiltinDef {
-    pub name: &'static str,
-    pub spawn_server: SpawnServerFn,
-}
+pub use goose::builtin_extension::{BuiltinDef, SpawnServerFn};
 
 fn spawn_and_serve<S>(
     name: &'static str,

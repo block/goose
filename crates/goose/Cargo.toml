@@ -98,7 +98,6 @@ dashmap = "6.1"
 ahash = "0.8"
 tokio-util = { version = "0.7.15", features = ["compat"] }
 unicode-normalization = "0.1"
-goose-mcp = { path = "../goose-mcp" }
 zip = "0.6"
 sys-info = "0.9"
 
@@ -117,6 +116,7 @@ unbinder = "0.1.7"
 winapi = { version = "0.3", features = ["wincred"] }
 
 [dev-dependencies]
+goose-mcp = { path = "../goose-mcp" }
 agent-client-protocol-schema = "0.10.5"
 criterion = "0.5"
 serial_test = { workspace = true }
