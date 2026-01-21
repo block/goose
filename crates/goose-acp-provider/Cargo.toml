@@ -1,0 +1,33 @@
+[package]
+name = "goose-acp-provider"
+edition.workspace = true
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+etcetera = "0.11.0"
+flate2 = "1.0"
+futures = { workspace = true }
+reqwest = { version = "0.12.9", default-features = false, features = ["json", "rustls-tls-native-roots"] }
+sacp = { workspace = true }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { workspace = true }
+sha2 = "0.10"
+tar = "0.4"
+tempfile = "3.15.0"
+tokio = { workspace = true }
+tokio-util = { version = "0.7.15", features = ["compat", "rt"] }
+tracing = { workspace = true }
+zip = "0.6"
+
+[dev-dependencies]
+env-lock = "1.0.1"
+test-case = "3.3"
+wiremock = "0.6"
+
+[lints]
+workspace = true

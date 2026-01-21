@@ -5,6 +5,8 @@ use goose::providers::anthropic::ANTHROPIC_DEFAULT_MODEL;
 use goose::providers::azure::AZURE_DEFAULT_MODEL;
 use goose::providers::base::Provider;
 use goose::providers::bedrock::BEDROCK_DEFAULT_MODEL;
+use goose::providers::claude_code_acp::CLAUDE_CODE_ACP_DEFAULT_MODEL;
+use goose::providers::codex_acp::CODEX_ACP_DEFAULT_MODEL;
 use goose::providers::create_with_named_model;
 use goose::providers::databricks::DATABRICKS_DEFAULT_MODEL;
 use goose::providers::errors::ProviderError;
@@ -21,6 +23,8 @@ use rmcp::object;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::Mutex;
+
+const ACP_PROVIDER_TEST_ENV: &str = "GOOSE_ACP_PROVIDER_TESTS";
 
 #[derive(Debug, Clone, Copy)]
 enum TestStatus {
@@ -594,6 +598,28 @@ async fn test_litellm_provider() -> Result<()> {
 #[tokio::test]
 async fn test_xai_provider() -> Result<()> {
     test_provider("Xai", XAI_DEFAULT_MODEL, &["XAI_API_KEY"], None).await
+}
+
+#[tokio::test]
+async fn test_claude_code_acp_provider() -> Result<()> {
+    test_provider(
+        "claude-code-acp",
+        CLAUDE_CODE_ACP_DEFAULT_MODEL,
+        &[ACP_PROVIDER_TEST_ENV],
+        None,
+    )
+    .await
+}
+
+#[tokio::test]
+async fn test_codex_acp_provider() -> Result<()> {
+    test_provider(
+        "codex-acp",
+        CODEX_ACP_DEFAULT_MODEL,
+        &[ACP_PROVIDER_TEST_ENV],
+        None,
+    )
+    .await
 }
 
 #[ctor::dtor]

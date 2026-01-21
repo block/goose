@@ -46,7 +46,7 @@ pub struct GooseAcpAgent {
     provider: Arc<dyn goose::providers::base::Provider>,
 }
 
-pub struct GooseAcpConfig {
+pub struct AcpServerConfig {
     pub provider: Arc<dyn goose::providers::base::Provider>,
     pub builtins: Vec<String>,
     pub data_dir: std::path::PathBuf,
@@ -278,6 +278,10 @@ async fn add_builtins(agent: &Agent, builtins: Vec<String>) {
 }
 
 impl GooseAcpAgent {
+    pub fn permission_manager(&self) -> Arc<PermissionManager> {
+        Arc::clone(&self.agent.config.permission_manager)
+    }
+
     pub async fn new(builtins: Vec<String>) -> Result<Self> {
         let config = Config::global();
 
@@ -304,7 +308,7 @@ impl GooseAcpAgent {
             .get_goose_mode()
             .unwrap_or(goose::config::GooseMode::Auto);
 
-        Self::with_config(GooseAcpConfig {
+        Self::with_config(AcpServerConfig {
             provider,
             builtins,
             data_dir: Paths::data_dir(),
@@ -314,7 +318,7 @@ impl GooseAcpAgent {
         .await
     }
 
-    pub async fn with_config(config: GooseAcpConfig) -> Result<Self> {
+    pub async fn with_config(config: AcpServerConfig) -> Result<Self> {
         let session_manager = Arc::new(SessionManager::new(config.data_dir));
         let permission_manager = Arc::new(PermissionManager::new(config.config_dir));
 

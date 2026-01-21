@@ -923,8 +923,11 @@ impl CliSession {
                         Some(Ok(AgentEvent::Message(message))) => {
                             if let Some((id, security_prompt)) = find_tool_confirmation(&message) {
                                 let permission = prompt_tool_confirmation(&security_prompt)?;
+                                let provider_handles_permissions =
+                                    self.agent.supports_action_required_permissions().await;
 
-                                if permission == Permission::Cancel {
+                                if permission == Permission::Cancel && !provider_handles_permissions
+                                {
                                     output::render_text("Tool call cancelled. Returning to chat...", Some(Color::Yellow), true);
                                     let mut response_message = Message::user();
                                     response_message.content.push(MessageContent::tool_response(

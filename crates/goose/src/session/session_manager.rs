@@ -272,6 +272,18 @@ impl SessionManager {
             .await
     }
 
+    pub async fn create_session_with_id(
+        &self,
+        id: String,
+        working_dir: PathBuf,
+        name: String,
+        session_type: SessionType,
+    ) -> Result<Session> {
+        self.storage
+            .create_session_with_id(id, working_dir, name, session_type)
+            .await
+    }
+
     pub async fn get_session(&self, id: &str, include_messages: bool) -> Result<Session> {
         self.storage.get_session(id, include_messages).await
     }
@@ -882,6 +894,35 @@ impl SessionStorage {
             .bind(working_dir.to_string_lossy().as_ref())
             .fetch_one(&mut *tx)
             .await?;
+
+        tx.commit().await?;
+        crate::posthog::emit_session_started();
+        Ok(session)
+    }
+
+    async fn create_session_with_id(
+        &self,
+        id: String,
+        working_dir: PathBuf,
+        name: String,
+        session_type: SessionType,
+    ) -> Result<Session> {
+        let pool = self.pool().await?;
+        let mut tx = pool.begin().await?;
+
+        let session = sqlx::query_as(
+            r#"
+                INSERT INTO sessions (id, name, user_set_name, session_type, working_dir, extension_data)
+                VALUES (?, ?, FALSE, ?, ?, '{}')
+                RETURNING *
+                "#,
+        )
+        .bind(&id)
+        .bind(&name)
+        .bind(session_type.to_string())
+        .bind(working_dir.to_string_lossy().as_ref())
+        .fetch_one(&mut *tx)
+        .await?;
 
         tx.commit().await?;
         crate::posthog::emit_session_started();
