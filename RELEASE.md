@@ -21,7 +21,7 @@ To trigger the release, find [the corresponding PR](https://github.com/block/goo
 
 ## High level release flow:
 
-* check out and cherry pick (if needed) changes to the branch you are going to release (eg the patch branch)
+* check out and cherry-pick (if needed) changes to the branch you are going to release (eg the patch branch)
 * Test locally if you can (just run-ui)
 * Push changes to that branch, wait for build
 * Download and test the .zip from the release PR
