@@ -419,7 +419,6 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       setSessions((prevSessions) =>
         prevSessions.map((s) => (s.id === sessionId ? { ...s, name: newDescription } : s))
       );
-      // Notify sidebar of the rename
       window.dispatchEvent(
         new CustomEvent(AppEvents.SESSION_RENAMED, {
           detail: { sessionId, newName: newDescription },
