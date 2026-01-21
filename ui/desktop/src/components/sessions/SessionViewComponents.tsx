@@ -160,6 +160,7 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
                                 isCancelledMessage={
                                   toolResponsesMap.get(toolRequest.id) == undefined
                                 }
+                                isPendingApproval={false}
                                 key={toolRequest.id}
                                 toolRequest={toolRequest}
                                 toolResponse={toolResponsesMap.get(toolRequest.id)}
