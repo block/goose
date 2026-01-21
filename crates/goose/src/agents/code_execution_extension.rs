@@ -448,6 +448,7 @@ impl CodeExecutionClient {
                 completions: None,
                 experimental: None,
                 logging: None,
+                tasks: None,
             },
             server_info: Implementation {
                 name: EXTENSION_NAME.to_string(),
@@ -709,6 +710,7 @@ impl CodeExecutionClient {
                     let tool_call = CallToolRequestParam {
                         name: tool_name.into(),
                         arguments: serde_json::from_str(&arguments).ok(),
+                        task: None,
                     };
                     match manager
                         .dispatch_tool_call(&session_id, tool_call, CancellationToken::new())
