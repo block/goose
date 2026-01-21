@@ -242,8 +242,8 @@ export default function AppsView() {
                 <h3 className="text-lg font-medium mb-2">No apps available</h3>
                 <p className="text-sm text-text-muted">
                   Open a chat and ask goose for the app you want to have. It can build one for you
-                  and that will appear here. Or if somebody shared an, app you can import it using
-                  the button above.i
+                  and that will appear here. Or if somebody shared an app, you can import it using
+                  the button above.
                 </p>
               </div>
             </div>
