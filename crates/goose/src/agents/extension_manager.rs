@@ -557,12 +557,9 @@ impl ExtensionManager {
             }
             ExtensionConfig::Builtin { name, timeout, .. } => {
                 let timeout_duration = Duration::from_secs(timeout.unwrap_or(300));
-                let def = self
-                    .builtin_extensions
-                    .get(name.as_str())
-                    .ok_or_else(|| {
-                        ExtensionError::ConfigError(format!("Unknown builtin extension: {}", name))
-                    })?;
+                let def = self.builtin_extensions.get(name.as_str()).ok_or_else(|| {
+                    ExtensionError::ConfigError(format!("Unknown builtin extension: {}", name))
+                })?;
                 let (server_read, client_write) = tokio::io::duplex(65536);
                 let (client_read, server_write) = tokio::io::duplex(65536);
                 (def.spawn_server)(server_read, server_write);
