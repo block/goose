@@ -154,8 +154,10 @@ async function configureProxy() {
 if (started) app.quit();
 
 if (process.env.ENABLE_PLAYWRIGHT) {
-  console.log('[Main] Enabling Playwright remote debugging on port 9222');
-  app.commandLine.appendSwitch('remote-debugging-port', '9222');
+  // Use custom debug port if specified (for parallel test execution), otherwise default to 9222
+  const debugPort = process.env.PLAYWRIGHT_DEBUG_PORT || '9222';
+  console.log(`[Main] Enabling Playwright remote debugging on port ${debugPort}`);
+  app.commandLine.appendSwitch('remote-debugging-port', debugPort);
 }
 
 // In development mode, force registration as the default protocol client
