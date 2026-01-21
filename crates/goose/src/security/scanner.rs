@@ -305,12 +305,10 @@ impl PromptInjectionScanner {
             } else {
                 args.to_string()
             }
+        } else if tool_content.len() > 300 {
+            format!("{}...", &tool_content[..300])
         } else {
-            if tool_content.len() > 300 {
-                format!("{}...", &tool_content[..300])
-            } else {
-                tool_content.to_string()
-            }
+            tool_content.to_string()
         };
 
         if let Some(top_match) = result.pattern_matches.first() {
