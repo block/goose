@@ -3,7 +3,7 @@
 You'll generally create one of two release types: a regular feature release (minor version bump like 1.20) or a bug-fixing patch release (patch version bump like 1.20.1). 
 
 Regular releases start on main, while patch releases start with an existing release tag. goose uses GitHub actions to automate the creation of release branches. The actual releases are triggered by tags.
-With bug fixing releases you will be cherry picking fixes to that branch, testing, and then releasing from that. 
+For bug-fixing releases, you will cherry-pick fixes into that branch, test, and then release from it. 
 
 ## Minor version releases
 
