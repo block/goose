@@ -56,13 +56,41 @@ pub struct CanonicalModel {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub family: Option<String>,
 
+    /// Whether the model supports attachments
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attachment: Option<bool>,
+
+    /// Whether the model supports reasoning/thinking
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning: Option<bool>,
+
     /// Whether the model supports tool calling
     #[serde(default)]
     pub tool_call: bool,
 
+    /// Whether the model supports temperature parameter
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub temperature: Option<bool>,
+
+    /// Knowledge cutoff date (e.g., "2024-04-30")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub knowledge: Option<String>,
+
+    /// Release date (e.g., "2024-10-22")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub release_date: Option<String>,
+
+    /// Last updated date (e.g., "2024-10-22")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_updated: Option<String>,
+
     /// Input and output modalities
     #[serde(default)]
     pub modalities: Modalities,
+
+    /// Whether the model has open weights
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub open_weights: Option<bool>,
 
     /// Pricing information
     #[serde(default)]

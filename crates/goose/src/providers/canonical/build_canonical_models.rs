@@ -23,12 +23,16 @@ const ALLOWED_PROVIDERS: &[&str] = &[
     "anthropic",
     "google",
     "openai",
-    "openrouter",  // OpenRouter hosts models from many providers
-    "llama",       // Meta Llama models
+    "openrouter",
+    "llama",
     "mistral",
     "xai",
     "deepseek",
     "cohere",
+    "azure",
+    "amazon-bedrock",
+    "venice",
+    "google-vertex",
 ];
 
 // Normalize provider names from models.dev to our canonical format
@@ -37,7 +41,6 @@ fn normalize_provider_name(provider: &str) -> &str {
         "llama" => "meta-llama",
         "xai" => "x-ai",
         "mistral" => "mistralai",
-        // Note: openrouter stays as "openrouter" - it's now a first-class provider
         _ => provider,
     }
 }
@@ -366,14 +369,27 @@ async fn build_canonical_models() -> Result<()> {
                     .context(format!("Model {} missing name", model_id))?;
 
                 // Use canonical_name to normalize the model ID (strips date stamps, etc.)
+                // This deduplicates different versions of the same model
                 let canonical_id = canonical_name(normalized_provider, model_id);
 
                 let family = model_data.get("family").and_then(|v| v.as_str()).map(|s| s.to_string());
+
+                let attachment = model_data.get("attachment").and_then(|v| v.as_bool());
+
+                let reasoning = model_data.get("reasoning").and_then(|v| v.as_bool());
 
                 let tool_call = model_data
                     .get("tool_call")
                     .and_then(|v| v.as_bool())
                     .unwrap_or(false);
+
+                let temperature = model_data.get("temperature").and_then(|v| v.as_bool());
+
+                let knowledge = model_data.get("knowledge").and_then(|v| v.as_str()).map(|s| s.to_string());
+
+                let release_date = model_data.get("release_date").and_then(|v| v.as_str()).map(|s| s.to_string());
+
+                let last_updated = model_data.get("last_updated").and_then(|v| v.as_str()).map(|s| s.to_string());
 
                 let modalities = Modalities {
                     input: model_data
@@ -400,6 +416,8 @@ async fn build_canonical_models() -> Result<()> {
                         .unwrap_or_else(|| vec!["text".to_string()]),
                 };
 
+                let open_weights = model_data.get("open_weights").and_then(|v| v.as_bool());
+
                 let cost = Pricing {
                     input: cost_data.get("input").and_then(|v| v.as_f64()),
                     output: cost_data.get("output").and_then(|v| v.as_f64()),
@@ -424,8 +442,15 @@ async fn build_canonical_models() -> Result<()> {
                     id: canonical_id.clone(),
                     name: name.to_string(),
                     family,
+                    attachment,
+                    reasoning,
                     tool_call,
+                    temperature,
+                    knowledge,
+                    release_date,
+                    last_updated,
                     modalities,
+                    open_weights,
                     cost,
                     limit,
                 };
@@ -511,9 +536,13 @@ async fn check_canonical_mappings() -> Result<()> {
         ("openai", "gpt-4"),
         ("openrouter", "anthropic/claude-3.5-sonnet"),
         ("google", "gemini-1.5-pro-002"),
-        ("databricks", "claude-3-5-sonnet-20241022"),  // Meta-provider - uses string matching magic!
+        ("databricks", "claude-3-5-sonnet-20241022"),
         ("tetrate", "claude-3-5-sonnet-computer-use"),
         ("xai", "grok-code-fast-1"),
+        ("azure_openai", "gpt-4o"),
+        ("aws_bedrock", "anthropic.claude-3-5-sonnet-20241022-v2:0"),
+        ("venice", "llama-3.3-70b"),
+        ("gcp_vertex_ai", "gemini-1.5-pro-002"),
     ];
 
     let mut report = MappingReport::new();

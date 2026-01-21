@@ -35,14 +35,22 @@ pub fn canonical_name(provider: &str, model: &str) -> String {
     format!("{}/{}", provider, model_base)
 }
 
-fn is_hosting_provider(provider: &str) -> bool {
-    matches!(provider, "databricks" | "azure" | "bedrock")
+/// Check if a provider is a meta-provider that doesn't have direct model mappings in models.dev
+/// Meta-providers host models from other providers and need string matching to resolve to the underlying provider
+/// Note: This includes generic provider names like "bedrock" and "azure" used in tests and as aliases,
+/// as well as actual meta-providers like databricks and tetrate that don't have their own models in models.dev
+fn is_meta_provider(provider: &str) -> bool {
+    matches!(provider, "databricks" | "tetrate" | "bedrock" | "azure")
 }
 
 /// Map provider name to canonical registry name (for providers that differ)
 fn map_provider_name(provider: &str) -> &str {
     match provider {
-        "xai" => "x-ai",  // XAI provider uses "xai" but models.dev uses "x-ai"
+        // Goose provider names that differ from models.dev names
+        "xai" => "x-ai",
+        "azure_openai" => "azure",
+        "aws_bedrock" => "amazon-bedrock",
+        "gcp_vertex_ai" => "google-vertex",
         _ => provider,
     }
 }
@@ -58,7 +66,7 @@ pub fn map_to_canonical_model(
     let registry_provider = map_provider_name(provider);
 
     // For normal providers (anthropic, openai, google, openrouter, etc.), just do direct lookup
-    if !is_hosting_provider(provider) {
+    if !is_meta_provider(provider) {
         let normalized_model = strip_version_suffix(model);
         if let Some(canonical) = registry.get(registry_provider, &normalized_model) {
             return Some(canonical.id.clone());
@@ -309,10 +317,10 @@ mod tests {
             Some("openai/gpt-4-turbo".to_string())
         );
 
-        // === OpenRouter (already canonical format) ===
+        // === OpenRouter (now has its own models in models.dev) ===
         assert_eq!(
-            map_to_canonical_model("openrouter", "anthropic/claude-3.5-sonnet", r),
-            Some("anthropic/claude-3.5-sonnet".to_string())
+            map_to_canonical_model("openrouter", "anthropic/claude-sonnet-4.5", r),
+            Some("openrouter/anthropic/claude-sonnet-4.5".to_string())
         );
 
         // === Anthropic Claude - basic ===
@@ -444,9 +452,10 @@ mod tests {
         );
 
         // === Cohere Command ===
+        // Note: version suffix "-2024" is stripped by canonical_name
         assert_eq!(
             map_to_canonical_model("databricks", "command-r-plus-08-2024", r),
-            Some("cohere/command-r-plus-08-2024".to_string())
+            Some("cohere/command-r-plus-08".to_string())
         );
         assert_eq!(
             map_to_canonical_model("databricks", "goose-command-r-08-2024", r),

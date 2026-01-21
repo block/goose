@@ -174,7 +174,6 @@ impl Provider for XaiProvider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        // Try to fetch from API first (XAI uses OpenAI-compatible endpoint)
         let response = match self.api_client.response_get("models").await {
             Ok(response) => response,
             Err(e) => {

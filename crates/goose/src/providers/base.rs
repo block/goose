@@ -449,7 +449,6 @@ pub trait Provider: Send + Sync {
         let is_meta_provider = matches!(provider_name, "databricks" | "azure" | "bedrock");
 
         if is_meta_provider {
-            // Just filter to text-capable models, no deduplication
             let recommended_models: Vec<String> = all_models
                 .iter()
                 .filter(|model| {
@@ -471,14 +470,12 @@ pub trait Provider: Send + Sync {
             };
         }
 
-        // For normal providers, deduplicate models that map to the same canonical model
-        // Build a map of canonical_model -> Vec<provider_model>
+        // Deduplicate models that map to the same canonical model
         let mut canonical_to_provider: std::collections::HashMap<String, Vec<String>> =
             std::collections::HashMap::new();
 
         for model in &all_models {
             if let Some(canonical_id) = map_to_canonical_model(provider_name, model, registry) {
-                // Check if this is a text-capable model
                 let is_text_capable = canonical_id
                     .split_once('/')
                     .and_then(|(p, m)| registry.get(p, m))
@@ -495,18 +492,34 @@ pub trait Provider: Send + Sync {
         }
 
         // For each canonical model, pick the shortest provider model name
-        let mut recommended_models: Vec<String> = canonical_to_provider
-            .values()
-            .filter_map(|provider_models| {
-                provider_models
+        let mut models_with_dates: Vec<(String, Option<String>)> = canonical_to_provider
+            .iter()
+            .filter_map(|(canonical_id, provider_models)| {
+                let model_name = provider_models
                     .iter()
                     .min_by_key(|m| m.len())
-                    .cloned()
+                    .cloned()?;
+
+                let release_date = canonical_id
+                    .split_once('/')
+                    .and_then(|(p, m)| registry.get(p, m))
+                    .and_then(|canonical_model| canonical_model.release_date.clone());
+
+                Some((model_name, release_date))
             })
             .collect();
 
-        // Sort for consistent ordering
-        recommended_models.sort();
+        // Sort by release date (most recent first), then alphabetically for models without dates
+        models_with_dates.sort_by(|a, b| {
+            match (&a.1, &b.1) {
+                (Some(date_a), Some(date_b)) => date_b.cmp(date_a),
+                (Some(_), None) => std::cmp::Ordering::Less,
+                (None, Some(_)) => std::cmp::Ordering::Greater,
+                (None, None) => a.0.cmp(&b.0),
+            }
+        });
+
+        let recommended_models: Vec<String> = models_with_dates.into_iter().map(|(name, _)| name).collect();
 
         if recommended_models.is_empty() {
             Ok(Some(all_models))
