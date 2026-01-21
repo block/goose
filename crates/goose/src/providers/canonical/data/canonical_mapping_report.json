@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-01-20T21:32:48.231234+00:00",
+  "timestamp": "2026-01-21T22:04:32.905412+00:00",
   "unmapped_models": [
     {
       "provider": "databricks",
@@ -2935,6 +2935,10 @@
     },
     {
       "provider": "openrouter",
+      "model": "deepseek/deepseek-v3.2"
+    },
+    {
+      "provider": "openrouter",
       "model": "deepseek/deepseek-v3.2-exp"
     },
     {
@@ -2984,6 +2988,10 @@
     {
       "provider": "openrouter",
       "model": "google/gemini-3-pro-preview"
+    },
+    {
+      "provider": "openrouter",
+      "model": "google/gemma-3-27b-it"
     },
     {
       "provider": "openrouter",
@@ -3183,10 +3191,6 @@
     },
     {
       "provider": "openrouter",
-      "model": "nousresearch/hermes-4-70b"
-    },
-    {
-      "provider": "openrouter",
       "model": "nvidia/llama-3.1-nemotron-70b-instruct"
     },
     {
@@ -3335,6 +3339,10 @@
     },
     {
       "provider": "openrouter",
+      "model": "openai/gpt-5.2"
+    },
+    {
+      "provider": "openrouter",
       "model": "openai/gpt-5.2-chat"
     },
     {
@@ -3392,10 +3400,6 @@
     {
       "provider": "openrouter",
       "model": "openai/o3-pro"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openai/o4-mini"
     },
     {
       "provider": "openrouter",
@@ -3496,6 +3500,10 @@
     {
       "provider": "openrouter",
       "model": "qwen/qwen3-coder-plus"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3-coder:exacto"
     },
     {
       "provider": "openrouter",
@@ -3607,7 +3615,7 @@
     },
     {
       "provider": "openrouter",
-      "model": "x-ai/grok-code-fast-1"
+      "model": "x-ai/grok-4.1-fast"
     },
     {
       "provider": "openrouter",
@@ -3631,6 +3639,10 @@
     },
     {
       "provider": "openrouter",
+      "model": "z-ai/glm-4.5-air:free"
+    },
+    {
+      "provider": "openrouter",
       "model": "z-ai/glm-4.5v"
     },
     {
@@ -3644,10 +3656,6 @@
     {
       "provider": "openrouter",
       "model": "z-ai/glm-4.6v"
-    },
-    {
-      "provider": "openrouter",
-      "model": "z-ai/glm-4.7"
     },
     {
       "provider": "openrouter",
@@ -3697,6 +3705,8 @@
         "canonical_model": "anthropic/claude-sonnet-4.5"
       }
     ],
+    "aws_bedrock": [],
+    "azure_openai": [],
     "databricks": [
       {
         "provider_model": "claude-3-5-haiku",
@@ -4067,6 +4077,7 @@
         "canonical_model": "anthropic/claude-sonnet-4.5"
       }
     ],
+    "gcp_vertex_ai": [],
     "google": [
       {
         "provider_model": "gemini-2.0-flash",
@@ -4385,39 +4396,32 @@
         "canonical_model": "openrouter/anthropic/claude-sonnet-4.5"
       },
       {
-        "provider_model": "deepseek/deepseek-v3.2",
-        "canonical_model": "openrouter/deepseek/deepseek-v3.2"
-      },
-      {
-        "provider_model": "google/gemma-3-27b-it",
-        "canonical_model": "openrouter/google/gemma-3-27b-it"
-      },
-      {
         "provider_model": "minimax/minimax-m2.1",
         "canonical_model": "openrouter/minimax/minimax-m2.1"
+      },
+      {
+        "provider_model": "nousresearch/hermes-4-70b",
+        "canonical_model": "openrouter/nousresearch/hermes-4-70b"
       },
       {
         "provider_model": "nvidia/nemotron-nano-9b-v2",
         "canonical_model": "openrouter/nvidia/nemotron-nano-9b-v2"
       },
       {
-        "provider_model": "openai/gpt-5.2",
-        "canonical_model": "openrouter/openai/gpt-5.2"
+        "provider_model": "openai/o4-mini",
+        "canonical_model": "openrouter/openai/o4-mini"
       },
       {
-        "provider_model": "qwen/qwen3-coder:exacto",
-        "canonical_model": "openrouter/qwen/qwen3-coder:exacto"
+        "provider_model": "x-ai/grok-code-fast-1",
+        "canonical_model": "openrouter/x-ai/grok-code-fast-1"
       },
       {
-        "provider_model": "x-ai/grok-4.1-fast",
-        "canonical_model": "openrouter/x-ai/grok-4.1-fast"
-      },
-      {
-        "provider_model": "z-ai/glm-4.5-air:free",
-        "canonical_model": "openrouter/z-ai/glm-4.5-air:free"
+        "provider_model": "z-ai/glm-4.7",
+        "canonical_model": "openrouter/z-ai/glm-4.7"
       }
     ],
     "tetrate": [],
+    "venice": [],
     "xai": [
       {
         "provider_model": "grok-2-vision-1212",
@@ -5355,18 +5359,13 @@
     },
     {
       "provider": "openrouter",
-      "model": "deepseek/deepseek-v3.2",
-      "canonical": "openrouter/deepseek/deepseek-v3.2"
-    },
-    {
-      "provider": "openrouter",
-      "model": "google/gemma-3-27b-it",
-      "canonical": "openrouter/google/gemma-3-27b-it"
-    },
-    {
-      "provider": "openrouter",
       "model": "minimax/minimax-m2.1",
       "canonical": "openrouter/minimax/minimax-m2.1"
+    },
+    {
+      "provider": "openrouter",
+      "model": "nousresearch/hermes-4-70b",
+      "canonical": "openrouter/nousresearch/hermes-4-70b"
     },
     {
       "provider": "openrouter",
@@ -5375,23 +5374,18 @@
     },
     {
       "provider": "openrouter",
-      "model": "openai/gpt-5.2",
-      "canonical": "openrouter/openai/gpt-5.2"
+      "model": "openai/o4-mini",
+      "canonical": "openrouter/openai/o4-mini"
     },
     {
       "provider": "openrouter",
-      "model": "qwen/qwen3-coder:exacto",
-      "canonical": "openrouter/qwen/qwen3-coder:exacto"
+      "model": "x-ai/grok-code-fast-1",
+      "canonical": "openrouter/x-ai/grok-code-fast-1"
     },
     {
       "provider": "openrouter",
-      "model": "x-ai/grok-4.1-fast",
-      "canonical": "openrouter/x-ai/grok-4.1-fast"
-    },
-    {
-      "provider": "openrouter",
-      "model": "z-ai/glm-4.5-air:free",
-      "canonical": "openrouter/z-ai/glm-4.5-air:free"
+      "model": "z-ai/glm-4.7",
+      "canonical": "openrouter/z-ai/glm-4.7"
     },
     {
       "provider": "xai",
@@ -5441,11 +5435,15 @@
   ],
   "model_counts": {
     "anthropic": 9,
+    "aws_bedrock": 0,
+    "azure_openai": 0,
     "databricks": 160,
+    "gcp_vertex_ai": 0,
     "google": 50,
     "openai": 653,
     "openrouter": 228,
     "tetrate": 0,
+    "venice": 0,
     "xai": 10
   },
   "canonical_models_used": [
@@ -5515,14 +5513,12 @@
     "openai/text-embedding-3-small",
     "openai/text-embedding-ada-002",
     "openrouter/anthropic/claude-sonnet-4.5",
-    "openrouter/deepseek/deepseek-v3.2",
-    "openrouter/google/gemma-3-27b-it",
     "openrouter/minimax/minimax-m2.1",
+    "openrouter/nousresearch/hermes-4-70b",
     "openrouter/nvidia/nemotron-nano-9b-v2",
-    "openrouter/openai/gpt-5.2",
-    "openrouter/qwen/qwen3-coder:exacto",
-    "openrouter/x-ai/grok-4.1-fast",
-    "openrouter/z-ai/glm-4.5-air:free",
+    "openrouter/openai/o4-mini",
+    "openrouter/x-ai/grok-code-fast-1",
+    "openrouter/z-ai/glm-4.7",
     "x-ai/grok-2-vision",
     "x-ai/grok-3",
     "x-ai/grok-3-mini",

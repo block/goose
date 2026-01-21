@@ -42,9 +42,13 @@ pub struct ModelInfo {
     pub name: String,
     /// The maximum context length this model supports
     pub context_limit: usize,
-    /// Cost per token for input (optional)
+    /// Cost per token for input in USD (optional)
+    /// Note: This is cost per single token, NOT per million tokens
+    /// Use ModelInfo::from_canonical() to convert from canonical model costs
     pub input_token_cost: Option<f64>,
-    /// Cost per token for output (optional)
+    /// Cost per token for output in USD (optional)
+    /// Note: This is cost per single token, NOT per million tokens
+    /// Use ModelInfo::from_canonical() to convert from canonical model costs
     pub output_token_cost: Option<f64>,
     /// Currency for the costs (default: "$")
     pub currency: Option<String>,
@@ -79,6 +83,20 @@ impl ModelInfo {
             output_token_cost: Some(output_cost),
             currency: Some("$".to_string()),
             supports_cache_control: None,
+        }
+    }
+
+    /// Create ModelInfo from a canonical model
+    /// Converts costs from per-million-tokens (canonical) to per-token (ModelInfo)
+    pub fn from_canonical(canonical: &super::canonical::CanonicalModel) -> Self {
+        Self {
+            name: canonical.id.clone(),
+            context_limit: canonical.limit.context,
+            // Convert from cost per million tokens to cost per token
+            input_token_cost: canonical.cost.input.map(|cost| cost / 1_000_000.0),
+            output_token_cost: canonical.cost.output.map(|cost| cost / 1_000_000.0),
+            currency: Some("$".to_string()),
+            supports_cache_control: canonical.tool_call.then_some(false),
         }
     }
 }

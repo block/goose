@@ -566,7 +566,9 @@ export type ModelInfo = {
      */
     currency?: string | null;
     /**
-     * Cost per token for input (optional)
+     * Cost per token for input in USD (optional)
+     * Note: This is cost per single token, NOT per million tokens
+     * Use ModelInfo::from_canonical() to convert from canonical model costs
      */
     input_token_cost?: number | null;
     /**
@@ -574,7 +576,9 @@ export type ModelInfo = {
      */
     name: string;
     /**
-     * Cost per token for output (optional)
+     * Cost per token for output in USD (optional)
+     * Note: This is cost per single token, NOT per million tokens
+     * Use ModelInfo::from_canonical() to convert from canonical model costs
      */
     output_token_cost?: number | null;
     /**

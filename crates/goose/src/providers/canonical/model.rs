@@ -12,14 +12,18 @@ pub struct Modalities {
     pub output: Vec<String>,
 }
 
-/// Pricing/cost information for a model (all costs in USD per million tokens)
+/// Pricing/cost information for a model
+///
+/// **Important:** All costs are in USD per million tokens
+/// When converting to ModelInfo (for UI display), divide by 1,000,000 to get cost per token
+/// Use ModelInfo::from_canonical() for automatic conversion
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Pricing {
-    /// Cost per million input tokens
+    /// Cost in USD per million input tokens
     #[serde(skip_serializing_if = "Option::is_none")]
     pub input: Option<f64>,
 
-    /// Cost per million output tokens
+    /// Cost in USD per million output tokens
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output: Option<f64>,
 
