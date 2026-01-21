@@ -1,3 +1,4 @@
+import { AppEvents } from '../constants/events';
 import React, {
   createContext,
   useCallback,
@@ -7,7 +8,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { SearchView } from './conversation/SearchView';
 import LoadingGoose from './LoadingGoose';
 import PopularChatTopics from './PopularChatTopics';
@@ -36,11 +37,10 @@ import { substituteParameters } from '../utils/providerUtils';
 import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal';
 import { toastSuccess } from '../toasts';
 import { Recipe } from '../recipe';
-import { createSession } from '../sessions';
-import { getInitialWorkingDir } from '../utils/workingDir';
-import { useConfig } from './ConfigContext';
+import { useAutoSubmit } from '../hooks/useAutoSubmit';
+import { Goose } from './icons/Goose';
+import EnvironmentBadge from './GooseSidebar/EnvironmentBadge';
 
-// Context for sharing current model info
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
 export const useCurrentModelInfo = () => useContext(CurrentModelContext);
 
@@ -55,6 +55,7 @@ interface BaseChatProps {
   showPopularTopics?: boolean;
   suppressEmptyState: boolean;
   sessionId: string;
+  isActiveSession: boolean;
   initialMessage?: string;
 }
 
@@ -65,37 +66,31 @@ function BaseChatContent({
   customMainLayoutProps = {},
   sessionId,
   initialMessage,
+  isActiveSession,
 }: BaseChatProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const scrollRef = useRef<ScrollAreaHandle>(null);
-  const { extensionsList } = useConfig();
+  const chatInputRef = useRef<HTMLTextAreaElement>(null);
 
   const disableAnimation = location.state?.disableAnimation || false;
   const [hasStartedUsingRecipe, setHasStartedUsingRecipe] = React.useState(false);
   const [hasNotAcceptedRecipe, setHasNotAcceptedRecipe] = useState<boolean>();
   const [hasRecipeSecurityWarnings, setHasRecipeSecurityWarnings] = useState(false);
-  const [isCreatingSession, setIsCreatingSession] = useState(false);
 
   const isMobile = useIsMobile();
   const { state: sidebarState } = useSidebar();
   const setView = useNavigation();
 
-  const contentClassName = cn('pr-1 pb-10', (isMobile || sidebarState === 'collapsed') && 'pt-11');
-
-  // Use shared file drop
+  const contentClassName = cn(
+    'pr-1 pb-10 pt-10',
+    (isMobile || sidebarState === 'collapsed') && 'pt-14'
+  );
   const { droppedFiles, setDroppedFiles, handleDrop, handleDragOver } = useFileDrop();
 
   const onStreamFinish = useCallback(() => {}, []);
 
   const [isCreateRecipeModalOpen, setIsCreateRecipeModalOpen] = useState(false);
-  const hasAutoSubmittedRef = useRef(false);
-
-  // Reset auto-submit flag when session changes
-  useEffect(() => {
-    hasAutoSubmittedRef.current = false;
-  }, [sessionId]);
 
   const {
     session,
@@ -115,6 +110,40 @@ function BaseChatContent({
     onStreamFinish,
   });
 
+  useAutoSubmit({
+    sessionId,
+    session,
+    messages,
+    chatState,
+    initialMessage,
+    handleSubmit,
+  });
+
+  useEffect(() => {
+    let streamState: 'idle' | 'loading' | 'streaming' | 'error' = 'idle';
+    if (chatState === ChatState.LoadingConversation) {
+      streamState = 'loading';
+    } else if (
+      chatState === ChatState.Streaming ||
+      chatState === ChatState.Thinking ||
+      chatState === ChatState.Compacting
+    ) {
+      streamState = 'streaming';
+    } else if (sessionLoadError) {
+      streamState = 'error';
+    }
+
+    window.dispatchEvent(
+      new CustomEvent(AppEvents.SESSION_STATUS_UPDATE, {
+        detail: {
+          sessionId,
+          streamState,
+          messageCount: messages.length,
+        },
+      })
+    );
+  }, [sessionId, chatState, messages.length, sessionLoadError]);
+
   // Generate command history from user messages (most recent first)
   const commandHistory = useMemo(() => {
     return messages
@@ -130,47 +159,9 @@ function BaseChatContent({
       .reverse();
   }, [messages]);
 
-  useEffect(() => {
-    if (!session || hasAutoSubmittedRef.current) {
-      return;
-    }
-
-    const shouldStartAgent = searchParams.get('shouldStartAgent') === 'true';
-
-    if (initialMessage) {
-      hasAutoSubmittedRef.current = true;
-      handleSubmit(initialMessage);
-      // Clear initialMessage from navigation state to prevent re-sending on refresh
-      navigate(location.pathname + location.search, {
-        replace: true,
-        state: { ...location.state, initialMessage: undefined },
-      });
-    } else if (shouldStartAgent) {
-      hasAutoSubmittedRef.current = true;
-      handleSubmit('');
-    }
-  }, [session, initialMessage, searchParams, handleSubmit, navigate, location]);
-
-  const handleFormSubmit = async (e: React.FormEvent) => {
+  const handleFormSubmit = (e: React.FormEvent) => {
     const customEvent = e as unknown as CustomEvent;
     const textValue = customEvent.detail?.value || '';
-
-    // If no session exists, create one and navigate with the initial message
-    if (!session && !sessionId && textValue.trim() && !isCreatingSession) {
-      setIsCreatingSession(true);
-      try {
-        const newSession = await createSession(getInitialWorkingDir(), {
-          allExtensions: extensionsList,
-        });
-        navigate(`/pair?resumeSessionId=${newSession.id}`, {
-          replace: true,
-          state: { resumeSessionId: newSession.id, initialMessage: textValue },
-        });
-      } catch {
-        setIsCreatingSession(false);
-      }
-      return;
-    }
 
     if (recipe && textValue.trim()) {
       setHasStartedUsingRecipe(true);
@@ -242,9 +233,25 @@ function BaseChatContent({
       }, 200);
     };
 
-    window.addEventListener('scroll-chat-to-bottom', handleGlobalScrollRequest);
-    return () => window.removeEventListener('scroll-chat-to-bottom', handleGlobalScrollRequest);
+    window.addEventListener(AppEvents.SCROLL_CHAT_TO_BOTTOM, handleGlobalScrollRequest);
+    return () =>
+      window.removeEventListener(AppEvents.SCROLL_CHAT_TO_BOTTOM, handleGlobalScrollRequest);
   }, []);
+
+  useEffect(() => {
+    if (
+      isActiveSession &&
+      sessionId &&
+      chatInputRef.current &&
+      chatState !== ChatState.LoadingConversation
+    ) {
+      const timeoutId = setTimeout(() => {
+        chatInputRef.current?.focus();
+      }, 100);
+      return () => clearTimeout(timeoutId);
+    }
+    return undefined;
+  }, [isActiveSession, sessionId, chatState]);
 
   useEffect(() => {
     const handleMakeAgent = () => {
@@ -262,6 +269,7 @@ function BaseChatContent({
         shouldStartAgent?: boolean;
         editedMessage?: string;
       }>;
+      window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
       const { newSessionId, shouldStartAgent, editedMessage } = customEvent.detail;
 
       const params = new URLSearchParams();
@@ -278,10 +286,10 @@ function BaseChatContent({
       });
     };
 
-    window.addEventListener('session-forked', handleSessionForked);
+    window.addEventListener(AppEvents.SESSION_FORKED, handleSessionForked);
 
     return () => {
-      window.removeEventListener('session-forked', handleSessionForked);
+      window.removeEventListener(AppEvents.SESSION_FORKED, handleSessionForked);
     };
   }, [location.pathname, navigate]);
 
@@ -373,6 +381,12 @@ function BaseChatContent({
 
         {/* Chat container with sticky recipe header */}
         <div className="flex flex-col flex-1 mb-0.5 min-h-0 relative">
+          <div className="absolute top-3 right-4 z-20 flex flex-row items-center gap-1">
+            <Goose className="size-5 goose-icon-animation" />
+            <span className="text-sm leading-none text-text-muted -translate-y-px">goose</span>
+            <EnvironmentBadge className="translate-y-px" />
+          </div>
+
           <ScrollArea
             ref={scrollRef}
             className={`flex-1 bg-background-default rounded-b-2xl min-h-0 relative ${contentClassName}`}
@@ -419,15 +433,7 @@ function BaseChatContent({
                 <div className="block h-8" />
               </>
             ) : !recipe && showPopularTopics ? (
-              <PopularChatTopics
-                append={(text: string) => {
-                  const syntheticEvent = {
-                    detail: { value: text },
-                    preventDefault: () => {},
-                  } as unknown as React.FormEvent;
-                  handleFormSubmit(syntheticEvent);
-                }}
-              />
+              <PopularChatTopics append={(text: string) => handleSubmit(text)} />
             ) : null}
           </ScrollArea>
 
@@ -449,6 +455,7 @@ function BaseChatContent({
           className={`relative z-10 ${disableAnimation ? '' : 'animate-[fadein_400ms_ease-in_forwards]'}`}
         >
           <ChatInput
+            inputRef={chatInputRef}
             sessionId={sessionId}
             handleSubmit={handleFormSubmit}
             chatState={chatState}
