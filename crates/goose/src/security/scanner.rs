@@ -292,17 +292,21 @@ impl PromptInjectionScanner {
             return "No security threats detected".to_string();
         }
 
-        let command_preview = if let Some(args_start) = tool_content.find('\n') {
-            let args = &tool_content[args_start + 1..];
-            if args.chars().count() > 300 {
-                format!("{}...", args.chars().take(300).collect::<String>())
-            } else {
-                args.to_string()
+        let command_preview = match tool_content.split_once('\n') {
+            Some((_tool_name, args)) => {
+                if args.chars().count() > 300 {
+                    format!("{}...", args.chars().take(300).collect::<String>())
+                } else {
+                    args.to_string()
+                }
             }
-        } else if tool_content.chars().count() > 300 {
-            format!("{}...", tool_content.chars().take(300).collect::<String>())
-        } else {
-            tool_content.to_string()
+            None => {
+                if tool_content.chars().count() > 300 {
+                    format!("{}...", tool_content.chars().take(300).collect::<String>())
+                } else {
+                    tool_content.to_string()
+                }
+            }
         };
 
         if let Some(top_match) = result.pattern_matches.first() {
