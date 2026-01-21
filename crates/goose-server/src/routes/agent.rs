@@ -15,9 +15,10 @@ use goose::goose_apps::{fetch_mcp_apps, GooseApp, McpAppCache};
 
 use base64::Engine;
 use goose::agents::ExtensionConfig;
+use goose::config::resolve_extensions_for_new_session;
 use goose::config::{Config, GooseMode};
 use goose::model::ModelConfig;
-use goose::prompt_template::render_global_file;
+use goose::prompt_template::render_template;
 use goose::providers::create;
 use goose::recipe::Recipe;
 use goose::recipe_deeplink;
@@ -33,7 +34,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, warn};
@@ -208,8 +208,7 @@ async fn start_agent(
         }
     }
 
-    let counter = state.session_counter.fetch_add(1, Ordering::SeqCst) + 1;
-    let name = format!("New session {}", counter);
+    let name = "New Chat".to_string();
 
     let manager = state.session_manager();
 
@@ -225,9 +224,11 @@ async fn start_agent(
             }
         })?;
 
-    // Initialize session with extensions (either overrides from hub or global defaults)
+    let recipe_extensions = original_recipe
+        .as_ref()
+        .and_then(|r| r.extensions.as_deref());
     let extensions_to_use =
-        extension_overrides.unwrap_or_else(goose::config::get_enabled_extensions);
+        resolve_extensions_for_new_session(recipe_extensions, extension_overrides);
     let mut extension_data = session.extension_data.clone();
     let extensions_state = EnabledExtensionsState::new(extensions_to_use);
     if let Err(e) = extensions_state.to_extension_data(&mut extension_data) {
@@ -415,7 +416,7 @@ async fn update_from_session(
         })?;
     let context: HashMap<&str, Value> = HashMap::new();
     let desktop_prompt =
-        render_global_file("desktop_prompt.md", &context).expect("Prompt should render");
+        render_template("desktop_prompt.md", &context).expect("Prompt should render");
     let mut update_prompt = desktop_prompt;
     if let Some(recipe) = session.recipe {
         match build_recipe_with_parameter_values(
@@ -688,7 +689,7 @@ async fn restart_agent_internal(
 
     let context: HashMap<&str, Value> = HashMap::new();
     let desktop_prompt =
-        render_global_file("desktop_prompt.md", &context).expect("Prompt should render");
+        render_template("desktop_prompt.md", &context).expect("Prompt should render");
     let mut update_prompt = desktop_prompt;
 
     if let Some(ref recipe) = session.recipe {
