@@ -6,7 +6,7 @@ const matter = require('gray-matter');
 const DOCS_DIR = path.join(__dirname, '..', 'docs');
 const OUTPUT_FILE = path.join(__dirname, '..', 'static', 'goose-docs-map.md');
 
-function getTitle(frontmatter, content, filename) {
+function getTitle(frontmatter, content) {
   if (frontmatter.title) {
     return frontmatter.title;
   }
@@ -18,10 +18,7 @@ function getTitle(frontmatter, content, filename) {
     }
   }
 
-  return filename
-    .replace('.md', '')
-    .replace('.mdx', '')
-    .replace(/-/g, ' ');
+  return null;
 }
 
 // Extract H2-H6 headings as nested bullet list
@@ -64,7 +61,11 @@ async function main() {
       try {
         const raw = fs.readFileSync(path.join(DOCS_DIR, file), 'utf-8');
         const { data, content } = matter(raw);
-        const title = getTitle(data, content, path.basename(file));
+        const title = getTitle(data, content);
+        if (!title) {
+          console.warn(`[generate-docs-map] Warning: No title found for ${file}, skipping`);
+          continue;
+        }
         const headings = getHeadings(content);
         const urlPath = `docs/${file.replace('.mdx', '.md')}`;
 
@@ -82,4 +83,9 @@ async function main() {
   console.log(`[generate-docs-map] Generated: ${OUTPUT_FILE}`);
 }
 
-main();
+// Run main if executed directly
+if (require.main === module) {
+  main();
+}
+
+module.exports = { getTitle, getHeadings };
