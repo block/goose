@@ -25,18 +25,13 @@ const test = base.extend<TestFixtures>({
   provider: [providers[0], { option: true }], // Default to first provider (Databricks)
 });
 
-// Store mainWindow reference (will be set from goosePage in beforeEach)
 let mainWindow: Page;
 
-// Add hooks for test name overlay
 test.beforeEach(async ({ goosePage }, testInfo) => {
-  // Set mainWindow for use in helper functions
   mainWindow = goosePage;
 
-  // Get a clean test name without the full hierarchy
   const testName = testInfo.titlePath[testInfo.titlePath.length - 1];
 
-  // Get provider name if we're in a provider suite
   const providerSuite = testInfo.titlePath.find(t => t.startsWith('Provider:'));
   const providerName = providerSuite ? providerSuite.split(': ')[1] : undefined;
 
