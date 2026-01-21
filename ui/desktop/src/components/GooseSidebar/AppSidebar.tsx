@@ -67,6 +67,13 @@ const menuItems: NavigationEntry[] = [
   { type: 'separator' },
   {
     type: 'item',
+    path: '/apps',
+    label: 'Apps',
+    icon: AppWindow,
+    tooltip: 'Browse and launch MCP apps',
+  },
+  {
+    type: 'item',
     path: '/recipes',
     label: 'Recipes',
     icon: FileText,
@@ -85,13 +92,6 @@ const menuItems: NavigationEntry[] = [
     label: 'Extensions',
     icon: Puzzle,
     tooltip: 'Manage your extensions',
-  },
-  {
-    type: 'item',
-    path: '/apps',
-    label: 'Apps',
-    icon: AppWindow,
-    tooltip: 'Browse and launch MCP apps',
   },
   { type: 'separator' },
   {
