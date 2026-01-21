@@ -28,6 +28,7 @@ import { useNavigation } from '../hooks/useNavigation';
 import { RecipeHeader } from './RecipeHeader';
 import { RecipeWarningModal } from './ui/RecipeWarningModal';
 import { scanRecipe } from '../recipe';
+import { ImageData } from '../types/message';
 import { useCostTracking } from '../hooks/useCostTracking';
 import RecipeActivities from './recipes/RecipeActivities';
 import { useToolCount } from './alerts/useToolCount';
@@ -159,10 +160,10 @@ function BaseChatContent({
       .reverse();
   }, [messages]);
 
-  const handleFormSubmit = (e: React.FormEvent) => {
+  const chatInputSubmit = (e: React.FormEvent) => {
     const customEvent = e as unknown as CustomEvent;
     const textValue = customEvent.detail?.value || '';
-    const images = customEvent.detail?.images as import('../types/message').ImageData[] | undefined;
+    const images = customEvent.detail?.images as ImageData[] | undefined;
 
     if (recipe && textValue.trim()) {
       setHasStartedUsingRecipe(true);
@@ -458,7 +459,7 @@ function BaseChatContent({
           <ChatInput
             inputRef={chatInputRef}
             sessionId={sessionId}
-            handleSubmit={handleFormSubmit}
+            handleSubmit={chatInputSubmit}
             chatState={chatState}
             setChatState={setChatState}
             onStop={stopStreaming}

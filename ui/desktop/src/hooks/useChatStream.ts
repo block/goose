@@ -21,6 +21,7 @@ import {
   getCompactingMessage,
   getThinkingMessage,
   NotificationEvent,
+  ImageData,
 } from '../types/message';
 import { errorMessage } from '../utils/conversionUtils';
 import { showExtensionLoadResults } from '../utils/extensionErrorUtils';
@@ -38,7 +39,7 @@ interface UseChatStreamReturn {
   messages: Message[];
   chatState: ChatState;
   setChatState: (state: ChatState) => void;
-  handleSubmit: (userMessage: string, images?: import('../types/message').ImageData[]) => Promise<void>;
+  handleSubmit: (userMessage: string, images: ImageData[]) => Promise<void>;
   submitElicitationResponse: (
     elicitationId: string,
     userData: Record<string, unknown>

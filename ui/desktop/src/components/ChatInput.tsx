@@ -41,11 +41,13 @@ import {
   trackEditRecipeOpened,
 } from '../utils/analytics';
 import { getNavigationShortcutText } from '../utils/keyboardShortcuts';
+import { ImageData } from '../types/message';
 
 interface QueuedMessage {
   id: string;
   content: string;
   timestamp: number;
+  images: ImageData[];
 }
 
 interface PastedImage {
@@ -58,7 +60,6 @@ interface PastedImage {
 
 // Constants for image handling
 const MAX_IMAGES_PER_MESSAGE = 5;
-const MAX_IMAGE_SIZE_MB = 5;
 
 // Constants for token and tool alerts
 const TOKEN_LIMIT_DEFAULT = 128000; // fallback for custom models that the backend doesn't know about
@@ -74,7 +75,7 @@ interface ModelLimit {
 
 interface ChatInputProps {
   sessionId: string | null;
-  handleSubmit: (e: React.FormEvent) => void;
+  handleSubmit: (userMessage: string, images: ImageData[]) => void;
   chatState: ChatState;
   setChatState?: (state: ChatState) => void;
   onStop?: () => void;
@@ -220,9 +221,7 @@ export default function ChatInput({
         const nextMessage = queuedMessages[0];
         LocalMessageStorage.addMessage(nextMessage.content);
         handleSubmit(
-          new CustomEvent('submit', {
-            detail: { value: nextMessage.content },
-          }) as unknown as React.FormEvent
+          nextMessage.content, nextMessage.images
         );
         setQueuedMessages((prev) => {
           const newQueue = prev.slice(1);
@@ -512,12 +511,7 @@ export default function ChatInput({
         compactButtonDisabled: !totalTokens,
         onCompact: () => {
           window.dispatchEvent(new CustomEvent(AppEvents.HIDE_ALERT_POPOVER));
-
-          const customEvent = new CustomEvent('submit', {
-            detail: { value: MANUAL_COMPACT_TRIGGER },
-          }) as unknown as React.FormEvent;
-
-          handleSubmit(customEvent);
+          handleSubmit(MANUAL_COMPACT_TRIGGER, []);
         },
         compactIcon: <ScrollText size={12} />,
       });
@@ -695,13 +689,7 @@ export default function ChatInput({
         
         // Convert to JPEG with 0.85 quality
         const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
-        const compressedSizeMB = (compressedDataUrl.length * 3) / 4 / (1024 * 1024);
-        
-        if (compressedSizeMB > MAX_IMAGE_SIZE_MB) {
-          reject(new Error(`Image is ${Math.round(compressedSizeMB)}MB after compression, exceeds ${MAX_IMAGE_SIZE_MB}MB limit`));
-        } else {
-          resolve(compressedDataUrl);
-        }
+        resolve(compressedDataUrl);
       };
       img.onerror = () => reject(new Error('Failed to load image for compression'));
       img.src = dataUrl;
@@ -763,29 +751,8 @@ export default function ChatInput({
             
             // Update the image with the compressed data URL
             setPastedImages((prev) =>
-              prev.map((img) => (img.id === imageId ? { ...img, dataUrl: compressedDataUrl, isLoading: true } : img))
+              prev.map((img) => (img.id === imageId ? { ...img, dataUrl: compressedDataUrl, isLoading: false } : img))
             );
-
-            // Also save to temp file for backward compatibility
-            try {
-              const result = await window.electron.saveDataUrlToTemp(compressedDataUrl, imageId);
-              setPastedImages((prev) =>
-                prev.map((img) =>
-                  img.id === result.id
-                    ? { ...img, filePath: result.filePath, error: result.error, isLoading: false }
-                    : img
-                )
-              );
-            } catch (err) {
-              console.error('Error saving pasted image:', err);
-              setPastedImages((prev) =>
-                prev.map((img) =>
-                  img.id === imageId
-                    ? { ...img, error: 'Failed to save image via Electron.', isLoading: false }
-                    : img
-                )
-              );
-            }
           } catch (compressionError) {
             console.error('Error compressing image:', compressionError);
             setPastedImages((prev) =>
@@ -927,17 +894,13 @@ export default function ChatInput({
       return false;
     }
 
-    const validPastedImageFilesPaths = pastedImages
-      .filter((img) => img.filePath && !img.error && !img.isLoading)
-      .map((img) => img.filePath as string);
     const droppedFilePaths = allDroppedFiles
       .filter((file) => !file.error && !file.isLoading)
       .map((file) => file.path);
 
     let contentToQueue = displayValue.trim();
-    const allFilePaths = [...validPastedImageFilesPaths, ...droppedFilePaths];
-    if (allFilePaths.length > 0) {
-      const pathsString = allFilePaths.join(' ');
+    if (droppedFilePaths.length > 0) {
+      const pathsString = droppedFilePaths.join(' ');
       contentToQueue = contentToQueue ? `${contentToQueue} ${pathsString}` : pathsString;
     }
 
@@ -1000,7 +963,7 @@ export default function ChatInput({
   const canSubmit =
     !isLoading &&
     (displayValue.trim() ||
-      pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
+      pastedImages.some((img) => img.dataUrl && !img.error && !img.isLoading) ||
       allDroppedFiles.some((file) => !file.error && !file.isLoading));
 
   const performSubmit = useCallback(
@@ -1022,30 +985,24 @@ export default function ChatInput({
         })
         .filter((img): img is import('../types/message').ImageData => img !== null);
 
-      // Also keep file paths for backward compatibility (will be added to text)
-      const validPastedImageFilesPaths = pastedImages
-        .filter((img) => img.filePath && !img.error && !img.isLoading)
-        .map((img) => img.filePath as string);
-      
-      // Get paths from all dropped files (both parent and local)
+      // Get paths from all dropped files
       const droppedFilePaths = allDroppedFiles
         .filter((file) => !file.error && !file.isLoading)
         .map((file) => file.path);
 
       let textToSend = text ?? displayValue.trim();
 
-      // Combine pasted image file paths and dropped files (for backward compatibility)
-      const allFilePaths = [...validPastedImageFilesPaths, ...droppedFilePaths];
-      if (allFilePaths.length > 0) {
-        const pathsString = allFilePaths.join(' ');
+      // Add dropped file paths to text
+      if (droppedFilePaths.length > 0) {
+        const pathsString = droppedFilePaths.join(' ');
         textToSend = textToSend ? `${textToSend} ${pathsString}` : pathsString;
       }
 
       if (textToSend || imageData.length > 0) {
         if (displayValue.trim()) {
           LocalMessageStorage.addMessage(displayValue);
-        } else if (allFilePaths.length > 0) {
-          LocalMessageStorage.addMessage(allFilePaths.join(' '));
+        } else if (droppedFilePaths.length > 0) {
+          LocalMessageStorage.addMessage(droppedFilePaths.join(' '));
         }
 
         handleSubmit(
@@ -1170,7 +1127,7 @@ export default function ChatInput({
     const canSubmit =
       !isLoading &&
       (displayValue.trim() ||
-        pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
+        pastedImages.some((img) => img.dataUrl && !img.error && !img.isLoading) ||
         allDroppedFiles.some((file) => !file.error && !file.isLoading));
     if (canSubmit) {
       performSubmit();
@@ -1223,22 +1180,12 @@ export default function ChatInput({
                 // Compress the image
                 const compressedDataUrl = await compressImageDataUrl(dataUrl);
                 
-                // Save to temp file
-                const saveResult = await window.electron.saveDataUrlToTemp(compressedDataUrl, uniqueId);
-                
-                if (saveResult.error) {
-                  setPastedImages(prev => prev.map(img => 
-                    img.id === uniqueId 
-                      ? { ...img, isLoading: false, error: `Failed to save: ${saveResult.error}` }
-                      : img
-                  ));
-                } else {
-                  setPastedImages(prev => prev.map(img => 
-                    img.id === uniqueId 
-                      ? { ...img, dataUrl: compressedDataUrl, isLoading: false, error: undefined }
-                      : img
-                  ));
-                }
+                // Update the image with the compressed data URL
+                setPastedImages(prev => prev.map(img => 
+                  img.id === uniqueId 
+                    ? { ...img, dataUrl: compressedDataUrl, isLoading: false, error: undefined }
+                    : img
+                ));
               } catch (compressionError) {
                 const errorMessage = compressionError instanceof Error 
                   ? compressionError.message 
@@ -1310,7 +1257,7 @@ export default function ChatInput({
 
   const hasSubmittableContent =
     displayValue.trim() ||
-    pastedImages.some((img) => img.filePath && !img.error && !img.isLoading) ||
+    pastedImages.some((img) => img.dataUrl && !img.error && !img.isLoading) ||
     allDroppedFiles.some((file) => !file.error && !file.isLoading);
   const isAnyImageLoading = pastedImages.some((img) => img.isLoading);
   const isAnyDroppedFileLoading = allDroppedFiles.some((file) => file.isLoading);
