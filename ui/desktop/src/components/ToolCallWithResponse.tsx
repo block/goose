@@ -56,6 +56,7 @@ interface ToolCallWithResponseProps {
   toolResponse?: ToolResponseMessageContent;
   notifications?: NotificationEvent[];
   isStreamingMessage?: boolean;
+  isPendingApproval: boolean;
   append?: (value: string) => void;
 }
 
@@ -111,10 +112,8 @@ function McpAppWrapper({
       ? requestWithMeta.toolCall.value.arguments
       : undefined;
 
-  // Memoize toolInput to prevent unnecessary re-renders
   const toolInput = useMemo(() => ({ arguments: toolArguments || {} }), [toolArguments]);
 
-  // Memoize toolResult to prevent unnecessary re-renders
   const toolResult = useMemo(() => {
     if (!toolResponse) return undefined;
     const resultWithMeta = toolResponse.toolResult as ToolResultWithMeta;
@@ -154,6 +153,7 @@ export default function ToolCallWithResponse({
   toolResponse,
   notifications,
   isStreamingMessage,
+  isPendingApproval,
   append,
 }: ToolCallWithResponseProps) {
   // Handle both the wrapped ToolResult format and the unwrapped format
@@ -174,6 +174,8 @@ export default function ToolCallWithResponse({
     requestWithMeta._meta?.ui?.resourceUri || resultWithMeta?.value?._meta?.ui?.resourceUri
   );
 
+  const shouldShowMcpContent = !isPendingApproval;
+
   return (
     <>
       <div
@@ -192,7 +194,8 @@ export default function ToolCallWithResponse({
         />
       </div>
       {/* MCP UI — Inline */}
-      {!hasMcpAppResourceURI &&
+      {shouldShowMcpContent &&
+        !hasMcpAppResourceURI &&
         toolResponse?.toolResult &&
         getToolResultContent(toolResponse.toolResult).map((content, index) => {
           const resourceContent = isEmbeddedResource(content)
@@ -215,7 +218,8 @@ export default function ToolCallWithResponse({
           }
         })}
 
-      {hasMcpAppResourceURI && sessionId && (
+      {/* MCP App */}
+      {shouldShowMcpContent && hasMcpAppResourceURI && sessionId && (
         <McpAppWrapper
           toolRequest={toolRequest}
           toolResponse={toolResponse}
