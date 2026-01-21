@@ -1279,8 +1279,8 @@ impl Agent {
                                                 let output = call_tool_result::validate(output);
 
                                                 // Platform extensions use meta as a way to publish notifications. Ideally we'd
-                                                // send the notificiations directly, but the current plumbing does support that
-                                                // only badly:
+                                                // send the notifications directly, but the current plumbing doesn't support that
+                                                // well:
                                                 if let Ok(ref call_result) = output {
                                                     if let Some(ref meta) = call_result.meta {
                                                         if let Some(notification_data) = meta.0.get("platform_notification") {
