@@ -100,10 +100,11 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
             code_execution_extension::EXTENSION_NAME,
             PlatformExtensionDef {
                 name: code_execution_extension::EXTENSION_NAME,
-                display_name: "Code Execution",
-                description: "Execute JavaScript code in a sandboxed environment",
+                display_name: "Code Mode",
+                description:
+                    "Goose will make extension calls through code execution, saving tokens",
                 default_enabled: false,
-                version: 0,
+                version: 1,
                 client_factory: |ctx| {
                     Box::new(code_execution_extension::CodeExecutionClient::new(ctx).unwrap())
                 },
