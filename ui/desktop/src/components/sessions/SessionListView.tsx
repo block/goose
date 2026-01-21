@@ -450,7 +450,6 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           throwOnError: true,
         });
         toast.success('Session deleted successfully');
-        // Notify sidebar of the deletion
         window.dispatchEvent(
           new CustomEvent(AppEvents.SESSION_DELETED, { detail: { sessionId: sessionToDeleteId } })
         );
