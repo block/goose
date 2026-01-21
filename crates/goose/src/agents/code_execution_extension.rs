@@ -898,6 +898,7 @@ mod tests {
         let context = PlatformExtensionContext {
             extension_manager: None,
             session_manager,
+            provider: None,
         };
         let client = CodeExecutionClient::new(context).unwrap();
 
@@ -934,6 +935,7 @@ mod tests {
         let context = PlatformExtensionContext {
             extension_manager: None,
             session_manager,
+            provider: None,
         };
         let client = CodeExecutionClient::new(context).unwrap();
 
@@ -975,6 +977,7 @@ mod tests {
         let context = PlatformExtensionContext {
             extension_manager: None,
             session_manager,
+            provider: None,
         };
         let client = CodeExecutionClient::new(context).unwrap();
 
