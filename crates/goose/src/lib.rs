@@ -28,3 +28,6 @@ pub mod tool_inspection;
 pub mod tool_monitor;
 pub mod tracing;
 pub mod utils;
+
+// Re-export builtin extensions registry for external crates
+pub use goose_mcp::BUILTIN_EXTENSIONS;
