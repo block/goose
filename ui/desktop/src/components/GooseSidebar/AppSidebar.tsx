@@ -327,8 +327,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
           } else {
             isPolling = false;
           }
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        } catch (error) {
+        } catch {
           isPolling = false;
         }
       };
