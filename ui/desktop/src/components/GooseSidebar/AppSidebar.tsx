@@ -94,17 +94,13 @@ const menuItems: NavigationEntry[] = [
   },
 ];
 
-// Get the display name for a session, considering recipe titles
 const getSessionDisplayName = (session: Session): string => {
-  // If user has set a custom name, use it
   if (!shouldShowNewChatTitle(session)) {
     return session.name;
   }
-  // If session has a recipe, show the recipe title
   if (session.recipe?.title) {
     return session.recipe.title;
   }
-  // Otherwise show default "New Chat"
   return DEFAULT_CHAT_TITLE;
 };
 
