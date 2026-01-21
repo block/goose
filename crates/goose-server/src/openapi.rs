@@ -352,6 +352,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::config_management::remove_custom_provider,
         super::routes::config_management::check_provider,
         super::routes::config_management::set_config_provider,
+        super::routes::config_management::configure_provider_oauth,
         super::routes::config_management::get_pricing,
         super::routes::prompts::get_prompts,
         super::routes::prompts::get_prompt,

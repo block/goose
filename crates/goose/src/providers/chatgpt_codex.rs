@@ -756,8 +756,7 @@ impl Provider for ChatGptCodexProvider {
 
         let stream = response.bytes_stream().map_err(io::Error::other);
         let stream_reader = StreamReader::new(stream);
-        let framed =
-            FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
+        let framed = FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
 
         let message_stream = responses_api_to_streaming_message(framed);
         pin!(message_stream);
@@ -766,9 +765,8 @@ impl Provider for ChatGptCodexProvider {
         let mut final_usage: Option<ProviderUsage> = None;
 
         while let Some(result) = message_stream.next().await {
-            let (message, usage) = result.map_err(|e| {
-                ProviderError::RequestFailed(format!("Stream decode error: {}", e))
-            })?;
+            let (message, usage) = result
+                .map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
             if let Some(msg) = message {
                 final_message = Some(msg);
             }

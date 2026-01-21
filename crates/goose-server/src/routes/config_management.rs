@@ -818,6 +818,43 @@ pub async fn set_config_provider(
     Ok(())
 }
 
+#[utoipa::path(
+    post,
+    path = "/config/providers/{name}/oauth",
+    params(
+        ("name" = String, Path, description = "Provider name")
+    ),
+    responses(
+        (status = 200, description = "OAuth configuration completed"),
+        (status = 400, description = "OAuth configuration failed")
+    )
+)]
+pub async fn configure_provider_oauth(
+    Path(provider_name): Path<String>,
+) -> Result<Json<String>, (StatusCode, String)> {
+    use goose::model::ModelConfig;
+    use goose::providers::create;
+
+    let temp_model =
+        ModelConfig::new("temp").map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+
+    let provider = create(&provider_name, temp_model).await.map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            format!("Failed to create provider: {}", e),
+        )
+    })?;
+
+    provider.configure_oauth().await.map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            format!("OAuth configuration failed: {}", e),
+        )
+    })?;
+
+    Ok(Json("OAuth configuration completed".to_string()))
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/config", get(read_all_config))
@@ -846,6 +883,10 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/custom-providers/{id}", get(get_custom_provider))
         .route("/config/check_provider", post(check_provider))
         .route("/config/set_provider", post(set_config_provider))
+        .route(
+            "/config/providers/{name}/oauth",
+            post(configure_provider_oauth),
+        )
         .with_state(state)
 }
 
