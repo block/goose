@@ -1125,6 +1125,8 @@ async fn import_app(
         counter += 1;
     }
 
+    app.mcp_server = Some("apps".to_string());
+
     cache.store_app(&app).map_err(|e| ErrorResponse {
         message: format!("Failed to store app: {}", e),
         status: StatusCode::INTERNAL_SERVER_ERROR,
