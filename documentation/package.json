@@ -5,7 +5,7 @@
   "scripts": {
     "docusaurus": "docusaurus",
     "start": "docusaurus start",
-    "build": "node scripts/generate-docs-map.js && docusaurus build",
+    "build": "docusaurus build",
     "swizzle": "docusaurus swizzle",
     "deploy": "docusaurus deploy",
     "clear": "docusaurus clear",
@@ -13,6 +13,7 @@
     "write-translations": "docusaurus write-translations",
     "write-heading-ids": "docusaurus write-heading-ids",
     "typecheck": "tsc",
+    "generate-detail-pages": "node scripts/generate-detail-pages.js",
     "serve-static": "node scripts/serve-static.js"
   },
   "dependencies": {
@@ -42,7 +43,6 @@
     "@docusaurus/module-type-aliases": "3.7.0",
     "@docusaurus/tsconfig": "3.7.0",
     "@docusaurus/types": "3.7.0",
-    "gray-matter": "^4.0.3",
     "js-yaml": "^4.1.1",
     "typescript": "~5.6.2",
     "yaml-loader": "^0.8.1"

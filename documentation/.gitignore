@@ -7,7 +7,6 @@
 # Generated files
 .docusaurus
 .cache-loader
-static/goose-docs-map.md
 
 # Misc
 .DS_Store
