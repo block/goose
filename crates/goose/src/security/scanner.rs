@@ -125,8 +125,8 @@ impl PromptInjectionScanner {
     ) -> Result<ScanResult> {
         let tool_content = self.extract_tool_content(tool_call);
 
-        tracing::info!(
-            "🔍 Scanning tool call: {} ({} chars)",
+        tracing::debug!(
+            "Scanning tool call: {} ({} chars)",
             tool_call.name,
             tool_content.len()
         );
@@ -141,7 +141,7 @@ impl PromptInjectionScanner {
         let threshold = self.get_threshold_from_config();
 
         tracing::info!(
-            "📊 Classifier Results - Command: {:.3}, Prompt: {:.3}, Threshold: {:.3}",
+            "Classifier Results - Command: {:.3}, Prompt: {:.3}, Threshold: {:.3}",
             tool_result.confidence,
             context_result.confidence,
             threshold
@@ -300,14 +300,14 @@ impl PromptInjectionScanner {
 
         let command_preview = if let Some(args_start) = tool_content.find('\n') {
             let args = &tool_content[args_start + 1..];
-            if args.len() > 150 {
-                format!("{}...", &args[..150])
+            if args.len() > 300 {
+                format!("{}...", &args[..300])
             } else {
                 args.to_string()
             }
         } else {
-            if tool_content.len() > 150 {
-                format!("{}...", &tool_content[..150])
+            if tool_content.len() > 300 {
+                format!("{}...", &tool_content[..300])
             } else {
                 tool_content.to_string()
             }

@@ -69,14 +69,14 @@ impl SecurityManager {
                     Ok(s) => {
                         tracing::info!(
                             counter.goose.prompt_injection_scanner_enabled = 1,
-                            "🔓 Security scanner initialized with ML-based detection"
+                            "Security scanner initialized with ML-based detection"
                         );
                         s
                     }
                     Err(e) => {
                         let error_chain = format!("{:#}", e);
                         tracing::warn!(
-                            "⚠️ ML scanning requested but failed to initialize. Falling back to pattern-only scanning.\n\nError details:\n{}",
+                            "ML scanning requested but failed to initialize. Falling back to pattern-only scanning.\n\nError details:\n{}",
                             error_chain
                         );
                         PromptInjectionScanner::new()
@@ -85,7 +85,7 @@ impl SecurityManager {
             } else {
                 tracing::info!(
                     counter.goose.prompt_injection_scanner_enabled = 1,
-                    "🔓 Security scanner initialized with pattern-based detection only"
+                    "Security scanner initialized with pattern-based detection only"
                 );
                 PromptInjectionScanner::new()
             };
@@ -95,8 +95,8 @@ impl SecurityManager {
 
         let mut results = Vec::new();
 
-        tracing::info!(
-            "🔍 Starting security analysis - {} tool requests, {} messages",
+        tracing::debug!(
+            "Starting security analysis - {} tool requests, {} messages",
             tool_requests.len(),
             messages.len()
         );

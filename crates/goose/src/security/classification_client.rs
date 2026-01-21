@@ -73,7 +73,7 @@ impl ClassificationClient {
             model_name
         ))?;
 
-        tracing::info!(
+        tracing::debug!(
             model_name = %model_name,
             endpoint = %model_info.endpoint,
             extra_params = ?model_info.extra_params,
@@ -95,7 +95,7 @@ impl ClassificationClient {
         )
         .context("Failed to parse SECURITY_ML_MODEL_MAPPING JSON")?;
 
-        let (model_name, model_info) = mapping
+        let (_, model_info) = mapping
             .models
             .iter()
             .find(|(_, info)| info.model_type.as_deref() == Some(model_type))
@@ -125,7 +125,7 @@ impl ClassificationClient {
             .map(|t| t.trim().to_string())
             .filter(|t| !t.is_empty());
 
-        tracing::info!(
+        tracing::debug!(
             endpoint = %endpoint_url,
             has_token = auth_token.is_some(),
             "Creating classification client from endpoint"
