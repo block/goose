@@ -40,8 +40,8 @@ export default function Hub({
   const [workingDir, setWorkingDir] = useState(getInitialWorkingDir());
   const [isCreatingSession, setIsCreatingSession] = useState(false);
 
-  const handleSubmit = async (userMessage: string, _images: ImageData[]) => {
-    if (userMessage.trim() && !isCreatingSession) {
+  const handleSubmit = async (userMessage: string, images: ImageData[]) => {
+    if ((images.length > 0 || userMessage.trim()) && !isCreatingSession) {
       const extensionConfigs = getExtensionConfigsWithOverrides(extensionsList);
       clearExtensionOverrides();
       setIsCreatingSession(true);
@@ -55,14 +55,14 @@ export default function Hub({
         window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
         window.dispatchEvent(
           new CustomEvent(AppEvents.ADD_ACTIVE_SESSION, {
-            detail: { sessionId: session.id, initialMessage: userMessage },
+            detail: { sessionId: session.id, initialMessage: { msg: userMessage, images } },
           })
         );
 
         setView('pair', {
           disableAnimation: true,
           resumeSessionId: session.id,
-          initialMessage: userMessage,
+          initialMessage: { msg: userMessage, images },
         });
       } catch (error) {
         console.error('Failed to create session:', error);

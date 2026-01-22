@@ -18,7 +18,7 @@ interface UseAutoSubmitProps {
   session: Session | undefined;
   messages: Message[];
   chatState: ChatState;
-  initialMessage: string | undefined;
+  initialMessage: { msg: string; images: ImageData[] } | undefined;
   handleSubmit: (message: string, images: ImageData[]) => void;
 }
 
@@ -69,7 +69,7 @@ export function useAutoSubmit({
     // Hub always creates new sessions, so message_count will be 0
     if (initialMessage && session.message_count === 0 && messages.length === 0) {
       hasAutoSubmittedRef.current = true;
-      handleSubmit(initialMessage, []);
+      handleSubmit(initialMessage.msg, initialMessage.images);
       clearInitialMessage();
       return;
     }
@@ -77,7 +77,7 @@ export function useAutoSubmit({
     // Scenario 2: Forked session with edited message
     if (shouldStartAgent && initialMessage) {
       hasAutoSubmittedRef.current = true;
-      handleSubmit(initialMessage, []);
+      handleSubmit(initialMessage.msg, initialMessage.images);
       clearInitialMessage();
       return;
     }

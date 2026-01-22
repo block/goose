@@ -7,12 +7,11 @@ import MarkdownContent from '../MarkdownContent';
 import ToolCallWithResponse from '../ToolCallWithResponse';
 import ImagePreview from '../ImagePreview';
 import {
-  getTextContent,
+  getTextAndImageContent,
   ToolRequestMessageContent,
   ToolResponseMessageContent,
 } from '../../types/message';
 import { formatMessageTimestamp } from '../../utils/timeUtils';
-import { extractImagePaths, removeImagePathsFromText } from '../../utils/imageUtils';
 import { Message } from '../../api';
 
 /**
@@ -82,15 +81,7 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
             ) : messages?.length > 0 ? (
               messages
                 .map((message, index) => {
-                  const textContent = getTextContent(message);
-                  // Extract image paths from the message
-                  const imagePaths = extractImagePaths(textContent);
-
-                  // Remove image paths from text for display
-                  const displayText =
-                    imagePaths.length > 0
-                      ? removeImagePathsFromText(textContent, imagePaths)
-                      : textContent;
+                  const {textContent, imagePaths} = getTextAndImageContent(message);
 
                   // Get tool requests from the message
                   const toolRequests = message.content
@@ -128,12 +119,11 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
                       </div>
 
                       <div className="flex flex-col w-full">
-                        {/* Text content */}
-                        {displayText && (
+                        {textContent && (
                           <div
                             className={`${toolRequests.length > 0 || imagePaths.length > 0 ? 'mb-4' : ''}`}
                           >
-                            <MarkdownContent content={displayText} />
+                            <MarkdownContent content={textContent} />
                           </div>
                         )}
 

@@ -1,5 +1,6 @@
 import { NavigateFunction } from 'react-router-dom';
-import { Recipe } from '../api/types.gen';
+import { Recipe } from '../api';
+import { ImageData } from '../types/message';
 
 export type View =
   | 'welcome'
@@ -29,7 +30,7 @@ export type ViewOptions = {
   parentView?: View;
   parentViewOptions?: ViewOptions;
   disableAnimation?: boolean;
-  initialMessage?: string;
+  initialMessage?: {msg: string, images: ImageData[]};
   shareToken?: string;
   resumeSessionId?: string;
   pendingScheduleDeepLink?: string;

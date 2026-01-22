@@ -1,10 +1,11 @@
 import { useSearchParams } from 'react-router-dom';
 import BaseChat from './BaseChat';
 import { ChatType } from '../types/chat';
+import { ImageData } from '../types/message';
 
 interface ChatSessionsContainerProps {
   setChat: (chat: ChatType) => void;
-  activeSessions: Array<{ sessionId: string; initialMessage?: string }>;
+  activeSessions: Array<{ sessionId: string; initialMessage?: { msg: string; images: ImageData[] } }>;
 }
 
 /**

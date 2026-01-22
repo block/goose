@@ -32,14 +32,14 @@ import { ImageData } from '../types/message';
 import { useCostTracking } from '../hooks/useCostTracking';
 import RecipeActivities from './recipes/RecipeActivities';
 import { useToolCount } from './alerts/useToolCount';
-import { getThinkingMessage, getTextContent } from '../types/message';
+import { getThinkingMessage, getTextAndImageContent } from '../types/message';
 import ParameterInputModal from './ParameterInputModal';
 import { substituteParameters } from '../utils/providerUtils';
 import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal';
 import { toastSuccess } from '../toasts';
 import { Recipe } from '../recipe';
 import { useAutoSubmit } from '../hooks/useAutoSubmit';
-import { Goose } from './icons/Goose';
+import { Goose } from './icons';
 import EnvironmentBadge from './GooseSidebar/EnvironmentBadge';
 
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
@@ -57,10 +57,10 @@ interface BaseChatProps {
   suppressEmptyState: boolean;
   sessionId: string;
   isActiveSession: boolean;
-  initialMessage?: string;
+  initialMessage?: { msg: string; images: ImageData[] };
 }
 
-function BaseChatContent({
+export default function BaseChat({
   setChat,
   renderHeader,
   customChatInputProps = {},
@@ -150,7 +150,7 @@ function BaseChatContent({
     return messages
       .reduce<string[]>((history, message) => {
         if (message.role === 'user') {
-          const text = getTextContent(message).trim();
+          const text = getTextAndImageContent(message).textContent.trim();
           if (text) {
             history.push(text);
           }
@@ -324,7 +324,6 @@ function BaseChatContent({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.name, setChat]);
 
-  // Only use initialMessage for the prompt if it hasn't been submitted yet
   // If we have a recipe prompt and user recipe values, substitute parameters
   let recipePrompt = '';
   if (messages.length === 0 && recipe?.prompt) {
@@ -517,8 +516,4 @@ function BaseChatContent({
       />
     </div>
   );
-}
-
-export default function BaseChat(props: BaseChatProps) {
-  return <BaseChatContent {...props} />;
 }

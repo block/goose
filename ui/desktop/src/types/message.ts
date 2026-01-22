@@ -66,13 +66,22 @@ export function generateMessageId(): string {
   return Math.random().toString(36).substring(2, 10);
 }
 
-export function getTextContent(message: Message): string {
-  return message.content
-    .map((content) => {
-      if (content.type === 'text') return content.text;
-      return '';
-    })
-    .join('');
+export function getTextAndImageContent(message: Message): {
+  textContent: string;
+  imagePaths: string[];
+} {
+  let textContent = '';
+  const imagePaths: string[] = [];
+
+  for (const content of message.content) {
+    if (content.type === 'text') {
+      textContent += content.text;
+    } else if (content.type === 'image') {
+      imagePaths.push(`data:${content.mimeType};base64,${content.data}`);
+    }
+  }
+
+  return { textContent, imagePaths };
 }
 
 export function getToolRequests(message: Message): (ToolRequest & { type: 'toolRequest' })[] {
