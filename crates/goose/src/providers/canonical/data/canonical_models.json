@@ -2093,7 +2093,7 @@
   },
   {
     "id": "anthropic/claude-3.5-haiku",
-    "name": "Claude Haiku 3.5 (latest)",
+    "name": "Claude Haiku 3.5",
     "family": "claude-haiku",
     "attachment": true,
     "reasoning": false,
@@ -2126,15 +2126,15 @@
   },
   {
     "id": "anthropic/claude-3.5-sonnet",
-    "name": "Claude Sonnet 3.5 v2",
+    "name": "Claude Sonnet 3.5",
     "family": "claude-sonnet",
     "attachment": true,
     "reasoning": false,
     "tool_call": true,
     "temperature": true,
     "knowledge": "2024-04-30",
-    "release_date": "2024-10-22",
-    "last_updated": "2024-10-22",
+    "release_date": "2024-06-20",
+    "last_updated": "2024-06-20",
     "modalities": {
       "input": [
         "text",
@@ -2819,15 +2819,15 @@
   },
   {
     "id": "azure/deepseek-r1",
-    "name": "DeepSeek-R1-0528",
+    "name": "DeepSeek-R1",
     "family": "deepseek-thinking",
     "attachment": false,
     "reasoning": true,
-    "tool_call": true,
+    "tool_call": false,
     "temperature": true,
     "knowledge": "2024-07",
-    "release_date": "2025-05-28",
-    "last_updated": "2025-05-28",
+    "release_date": "2025-01-20",
+    "last_updated": "2025-01-20",
     "modalities": {
       "input": [
         "text"
@@ -7338,19 +7338,18 @@
   },
   {
     "id": "mistralai/mistral-large",
-    "name": "Mistral Large",
+    "name": "Mistral Large 2.1",
     "family": "mistral-large",
-    "attachment": true,
+    "attachment": false,
     "reasoning": false,
     "tool_call": true,
     "temperature": true,
     "knowledge": "2024-11",
     "release_date": "2024-11-01",
-    "last_updated": "2025-12-02",
+    "last_updated": "2024-11-04",
     "modalities": {
       "input": [
-        "text",
-        "image"
+        "text"
       ],
       "output": [
         "text"
@@ -7358,12 +7357,12 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 0.5,
-      "output": 1.5
+      "input": 2.0,
+      "output": 6.0
     },
     "limit": {
-      "context": 262144,
-      "output": 262144
+      "context": 131072,
+      "output": 16384
     }
   },
   {
@@ -13639,14 +13638,14 @@
   },
   {
     "id": "x-ai/grok-2",
-    "name": "Grok 2 Latest",
+    "name": "Grok 2 (1212)",
     "family": "grok",
     "attachment": false,
     "reasoning": false,
     "tool_call": true,
     "temperature": true,
     "knowledge": "2024-08",
-    "release_date": "2024-08-20",
+    "release_date": "2024-12-12",
     "last_updated": "2024-12-12",
     "modalities": {
       "input": [
@@ -13790,7 +13789,7 @@
   },
   {
     "id": "x-ai/grok-3-mini-fast",
-    "name": "Grok 3 Mini Fast Latest",
+    "name": "Grok 3 Mini Fast",
     "family": "grok",
     "attachment": false,
     "reasoning": true,

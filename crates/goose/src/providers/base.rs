@@ -444,42 +444,28 @@ pub trait Provider: Send + Sync {
 
         let provider_name = self.get_name();
 
-        // Deduplicate models that map to the same canonical model
-        let mut canonical_to_provider: std::collections::HashMap<String, Vec<String>> =
-            std::collections::HashMap::new();
+        // Get all text-capable models with their release dates
+        let mut models_with_dates: Vec<(String, Option<String>)> = all_models
+            .iter()
+            .filter_map(|model| {
+                let canonical_id = map_to_canonical_model(provider_name, model, registry)?;
 
-        for model in &all_models {
-            if let Some(canonical_id) = map_to_canonical_model(provider_name, model, registry) {
                 let is_text_capable = canonical_id
                     .split_once('/')
                     .and_then(|(p, m)| registry.get(p, m))
                     .map(|m| m.modalities.input.contains(&"text".to_string()))
                     .unwrap_or(false);
 
-                if is_text_capable {
-                    canonical_to_provider
-                        .entry(canonical_id)
-                        .or_insert_with(Vec::new)
-                        .push(model.clone());
+                if !is_text_capable {
+                    return None;
                 }
-            }
-        }
-
-        // For each canonical model, pick the shortest provider model name
-        let mut models_with_dates: Vec<(String, Option<String>)> = canonical_to_provider
-            .iter()
-            .filter_map(|(canonical_id, provider_models)| {
-                let model_name = provider_models
-                    .iter()
-                    .min_by_key(|m| m.len())
-                    .cloned()?;
 
                 let release_date = canonical_id
                     .split_once('/')
                     .and_then(|(p, m)| registry.get(p, m))
                     .and_then(|canonical_model| canonical_model.release_date.clone());
 
-                Some((model_name, release_date))
+                Some((model.clone(), release_date))
             })
             .collect();
 
