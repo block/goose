@@ -187,7 +187,8 @@ export const SwitchModelModal = ({
     // Load providers for manual model selection
     (async () => {
       try {
-        const providersResponse = await getProviders(false);
+        // Force refresh if initialProvider is set (OAuth flow needs fresh data)
+        const providersResponse = await getProviders(!!initialProvider);
         const activeProviders = providersResponse.filter((provider) => provider.is_configured);
         // Create provider options and add "Use other provider" option
         setProviderOptions([
@@ -260,7 +261,7 @@ export const SwitchModelModal = ({
         setLoadingModels(false);
       }
     })();
-  }, [getProviders, getProviderModels, usePredefinedModels, read]);
+  }, [getProviders, getProviderModels, usePredefinedModels, read, initialProvider]);
 
   const filteredModelOptions = provider
     ? modelOptions.filter((group) => group.options[0]?.provider === provider)
