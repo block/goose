@@ -705,16 +705,18 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
               onClick={() => setIsNavExpanded(false)}
             />
             
-            {/* Positioned navigation panel */}
-            <div className={cn(
-              'absolute p-4 pointer-events-none',
-              navigationPosition === 'top' && 'top-0 left-1/2 -translate-x-1/2 pt-16',
-              navigationPosition === 'bottom' && 'bottom-0 left-1/2 -translate-x-1/2 pb-8',
-              navigationPosition === 'left' && 'left-0 top-1/2 -translate-y-1/2 pl-4',
-              navigationPosition === 'right' && 'right-0 top-1/2 -translate-y-1/2 pr-4'
-            )}>
-              <div className="pointer-events-auto">
-                {navContent}
+            {/* Scrollable container for navigation panel */}
+            <div className="absolute inset-0 overflow-y-auto pointer-events-none">
+              <div className={cn(
+                'min-h-full flex p-4',
+                navigationPosition === 'top' && 'items-start justify-center pt-16',
+                navigationPosition === 'bottom' && 'items-end justify-center pb-8',
+                navigationPosition === 'left' && 'items-center justify-start pl-4',
+                navigationPosition === 'right' && 'items-center justify-end pr-4'
+              )}>
+                <div className="pointer-events-auto">
+                  {navContent}
+                </div>
               </div>
             </div>
           </div>

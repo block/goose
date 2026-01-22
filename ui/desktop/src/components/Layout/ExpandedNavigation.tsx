@@ -430,7 +430,7 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
       transition={{ type: "spring", stiffness: 350, damping: 25 }}
       className={cn(
         'bg-app h-full overflow-hidden',
-        isOverlayMode && 'backdrop-blur-md shadow-2xl rounded-lg p-4 max-h-[80vh]',
+        isOverlayMode && 'backdrop-blur-md shadow-2xl rounded-lg p-4',
         // Add 2px padding on the edge facing the content (push mode only)
         !isOverlayMode && navigationPosition === 'top' && 'pb-[2px]',
         !isOverlayMode && navigationPosition === 'bottom' && 'pt-[2px]',
@@ -717,10 +717,12 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
               onClick={() => setIsNavExpanded(false)}
             />
             
-            {/* Centered navigation panel */}
-            <div className="absolute inset-0 flex items-center justify-center p-8 pointer-events-none overflow-y-auto">
-              <div className="pointer-events-auto max-w-3xl w-full my-auto">
-                {navContent}
+            {/* Scrollable container for navigation panel */}
+            <div className="absolute inset-0 overflow-y-auto pointer-events-none">
+              <div className="min-h-full flex items-center justify-center p-8">
+                <div className="pointer-events-auto max-w-3xl w-full">
+                  {navContent}
+                </div>
               </div>
             </div>
           </div>
