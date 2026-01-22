@@ -36,9 +36,12 @@ interface NavigationContextValue {
   // Effective mode: accounts for responsive breakpoints
   effectiveNavigationMode: NavigationMode;
   
-  // Style: expanded tiles or condensed list
+  // Style: expanded tiles or condensed list (user preference)
   navigationStyle: NavigationStyle;
   setNavigationStyle: (style: NavigationStyle) => void;
+  
+  // Effective style: overlay mode forces expanded
+  effectiveNavigationStyle: NavigationStyle;
   
   // Position: where nav appears
   navigationPosition: NavigationPosition;
@@ -183,6 +186,10 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({ children
     navigationStyle === 'expanded' && windowWidth < EXPANDED_OVERLAY_BREAKPOINT
       ? 'overlay'
       : navigationMode;
+  
+  // Force expanded style when overlay mode is selected (overlay is always expanded and centered)
+  const effectiveNavigationStyle: NavigationStyle = 
+    navigationMode === 'overlay' ? 'expanded' : navigationStyle;
 
   const value: NavigationContextValue = {
     isNavExpanded,
@@ -192,6 +199,7 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({ children
     effectiveNavigationMode,
     navigationStyle,
     setNavigationStyle,
+    effectiveNavigationStyle,
     navigationPosition,
     setNavigationPosition,
     preferences,

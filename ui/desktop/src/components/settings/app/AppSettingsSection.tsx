@@ -23,14 +23,15 @@ interface AppSettingsSectionProps {
   scrollToSection?: string;
 }
 
-// Navigation Settings Card - wrapped in its own provider for settings page
-const NavigationSettingsCard: React.FC = () => {
+// Inner component that uses the navigation context
+const NavigationSettingsContent: React.FC = () => {
   const [isExpanded, setIsExpanded] = useState(false);
   const navContext = useNavigationContextSafe();
+  
+  // Check if overlay mode is selected
+  const isOverlayMode = navContext?.navigationMode === 'overlay';
 
-  // If we're inside the NavigationProvider (from AppLayout), use it directly
-  // Otherwise, we need to wrap with our own provider
-  const content = (
+  return (
     <Card className="rounded-lg">
       <CardHeader className="pb-0">
         <button
@@ -56,17 +57,21 @@ const NavigationSettingsCard: React.FC = () => {
             <NavigationModeSelector />
           </div>
 
-          {/* Navigation Style */}
-          <div>
-            <h3 className="text-sm font-medium text-text-default mb-3">Style</h3>
-            <NavigationStyleSelector />
-          </div>
+          {/* Navigation Style - only show for push mode */}
+          {!isOverlayMode && (
+            <div>
+              <h3 className="text-sm font-medium text-text-default mb-3">Style</h3>
+              <NavigationStyleSelector />
+            </div>
+          )}
 
-          {/* Navigation Position */}
-          <div>
-            <h3 className="text-sm font-medium text-text-default mb-3">Position</h3>
-            <NavigationPositionSelector />
-          </div>
+          {/* Navigation Position - only show for push mode */}
+          {!isOverlayMode && (
+            <div>
+              <h3 className="text-sm font-medium text-text-default mb-3">Position</h3>
+              <NavigationPositionSelector />
+            </div>
+          )}
 
           {/* Item Customization */}
           <div>
@@ -77,14 +82,23 @@ const NavigationSettingsCard: React.FC = () => {
       )}
     </Card>
   );
+};
+
+// Navigation Settings Card - wrapped in its own provider for settings page
+const NavigationSettingsCard: React.FC = () => {
+  const navContext = useNavigationContextSafe();
 
   // If already in a NavigationProvider context, render directly
   if (navContext) {
-    return content;
+    return <NavigationSettingsContent />;
   }
 
   // Otherwise wrap with provider
-  return <NavigationProvider>{content}</NavigationProvider>;
+  return (
+    <NavigationProvider>
+      <NavigationSettingsContent />
+    </NavigationProvider>
+  );
 };
 
 export default function AppSettingsSection({ scrollToSection }: AppSettingsSectionProps) {

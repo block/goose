@@ -25,7 +25,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
     isNavExpanded,
     setIsNavExpanded,
     effectiveNavigationMode,
-    navigationStyle,
+    effectiveNavigationStyle,
     navigationPosition,
     isHorizontalNav,
   } = useNavigationContext();
@@ -48,7 +48,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
 
   // Render the appropriate navigation component based on style
   const renderNavigation = () => {
-    if (navigationStyle === 'expanded') {
+    if (effectiveNavigationStyle === 'expanded') {
       return <ExpandedNavigation activeSessions={activeSessions} />;
     }
     return <CondensedNavigation activeSessions={activeSessions} />;
@@ -96,7 +96,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
       <div className={cn(
         'absolute z-[100] flex items-center gap-1',
         // Bottom right for bottom condensed push mode
-        navigationStyle === 'condensed' && navigationPosition === 'bottom' && effectiveNavigationMode === 'push'
+        effectiveNavigationStyle === 'condensed' && navigationPosition === 'bottom' && effectiveNavigationMode === 'push'
           ? 'bottom-4 right-6'
           : cn(
               headerPadding,
@@ -143,7 +143,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
                 opacity: 0 
               }}
               animate={{ 
-                width: isHorizontalNav ? '100%' : (navigationStyle === 'expanded' ? '30%' : 'auto'),
+                width: isHorizontalNav ? '100%' : (effectiveNavigationStyle === 'expanded' ? '30%' : 'auto'),
                 height: isHorizontalNav ? 'auto' : '100%',
                 opacity: 1 
               }}
@@ -160,8 +160,8 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
               }}
               style={{
                 // For expanded left/right, use percentage width that scales with window
-                minWidth: !isHorizontalNav && navigationStyle === 'expanded' ? '200px' : undefined,
-                maxWidth: !isHorizontalNav && navigationStyle === 'expanded' ? '400px' : undefined,
+                minWidth: !isHorizontalNav && effectiveNavigationStyle === 'expanded' ? '200px' : undefined,
+                maxWidth: !isHorizontalNav && effectiveNavigationStyle === 'expanded' ? '400px' : undefined,
                 // Ensure full height for left/right positions
                 height: !isHorizontalNav ? '100%' : undefined,
               }}
