@@ -112,11 +112,13 @@ export default function GooseMessage({
           </details>
         )}
 
-        {displayText && (
+        {(displayText.trim() || imagePaths.length > 0) && (
           <div className="flex flex-col group">
-            <div ref={contentRef} className="w-full">
-              <MarkdownContent content={displayText} />
-            </div>
+            {displayText.trim() && (
+              <div ref={contentRef} className="w-full">
+                <MarkdownContent content={displayText} />
+              </div>
+            )}
 
             {imagePaths.length > 0 && (
               <div className="mt-4">

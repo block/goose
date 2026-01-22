@@ -194,14 +194,16 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
           <div className="message flex justify-end w-full">
             <div className="flex-col max-w-[85%] w-fit">
               <div className="flex flex-col group">
-                <div className="flex bg-background-accent text-text-on-accent rounded-xl py-2.5 px-4">
-                  <div ref={contentRef}>
-                    <MarkdownContent
-                      content={textContent}
-                      className="text-text-on-accent prose-a:text-text-on-accent prose-headings:text-text-on-accent prose-strong:text-text-on-accent prose-em:text-text-on-accent user-message"
-                    />
+                {textContent.trim() && (
+                  <div className="flex bg-background-accent text-text-on-accent rounded-xl py-2.5 px-4">
+                    <div ref={contentRef}>
+                      <MarkdownContent
+                        content={textContent}
+                        className="text-text-on-accent prose-a:text-text-on-accent prose-headings:text-text-on-accent prose-strong:text-text-on-accent prose-em:text-text-on-accent user-message"
+                      />
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {imagePaths.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-2">
