@@ -32,7 +32,7 @@ impl GooseApp {
     const METADATA_SCRIPT_TYPE: &'static str = "application/ld+json";
     const PRD_SCRIPT_TYPE: &'static str = "application/x-goose-prd";
     const GOOSE_APP_TYPE: &'static str = "GooseApp";
-    const GOOSE_SCHEMA_CONTEXT: &'static str = "https://goose.ai/schema";
+    const GOOSE_SCHEMA_CONTEXT: &'static str = "urn:goose.ai:schema";
 
     pub fn from_html(html: &str) -> Result<Self, String> {
         use regex::Regex;
