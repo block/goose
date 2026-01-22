@@ -52,9 +52,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2.5e-7,
-      "completion": 1.25e-6,
-      "request": 0.0,
-      "image": 0.0004
+      "completion": 1.25e-6
     }
   },
   {
@@ -155,9 +153,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1e-6,
-      "completion": 5e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 5e-6
     }
   },
   {
@@ -218,9 +214,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 5e-6,
-      "completion": 0.000025,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 0.000025
     }
   },
   {
@@ -260,9 +254,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 3e-6,
-      "completion": 0.000015,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 0.000015
     }
   },
   {
@@ -380,28 +372,10 @@
     }
   },
   {
-    "id": "deepseek/deepseek-prover",
-    "name": "DeepSeek: DeepSeek Prover V2",
-    "context_length": 163840,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": false,
-    "pricing": {
-      "prompt": 5e-7,
-      "completion": 2.18e-6,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
     "id": "deepseek/deepseek-r1",
     "name": "DeepSeek: R1",
-    "context_length": 163840,
-    "max_completion_tokens": 163840,
+    "context_length": 64000,
+    "max_completion_tokens": 16000,
     "input_modalities": [
       "text"
     ],
@@ -411,26 +385,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 7e-7,
-      "completion": 2.4e-6,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "deepseek/deepseek-r1-0528-qwen3-8b",
-    "name": "DeepSeek: DeepSeek R1 0528 Qwen3 8B",
-    "context_length": 128000,
-    "max_completion_tokens": 32000,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": false,
-    "pricing": {
-      "prompt": 6e-8,
-      "completion": 9e-8,
+      "completion": 2.5e-6,
       "request": 0.0,
       "image": 0.0
     }
@@ -455,28 +410,9 @@
     }
   },
   {
-    "id": "deepseek/deepseek-r1-distill-qwen-14b",
-    "name": "DeepSeek: R1 Distill Qwen 14B",
-    "context_length": 32768,
-    "max_completion_tokens": 16384,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": false,
-    "pricing": {
-      "prompt": 1.5e-7,
-      "completion": 1.5e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
     "id": "deepseek/deepseek-r1-distill-qwen-32b",
     "name": "DeepSeek: R1 Distill Qwen 32B",
-    "context_length": 131072,
+    "context_length": 32768,
     "input_modalities": [
       "text"
     ],
@@ -485,8 +421,8 @@
     ],
     "supports_tools": false,
     "pricing": {
-      "prompt": 2.7e-7,
-      "completion": 2.7e-7,
+      "prompt": 2.9e-7,
+      "completion": 2.9e-7,
       "request": 0.0,
       "image": 0.0
     }
@@ -848,16 +784,15 @@
     "id": "meta-llama/llama-3-70b-instruct",
     "name": "Meta: Llama 3 70B Instruct",
     "context_length": 8192,
-    "max_completion_tokens": 16384,
     "input_modalities": [
       "text"
     ],
     "output_modalities": [
       "text"
     ],
-    "supports_tools": true,
+    "supports_tools": false,
     "pricing": {
-      "prompt": 3e-7,
+      "prompt": 4e-7,
       "completion": 4e-7,
       "request": 0.0,
       "image": 0.0
@@ -1005,32 +940,12 @@
     "output_modalities": [
       "text"
     ],
-    "supports_tools": true,
+    "supports_tools": false,
     "pricing": {
       "prompt": 2e-8,
       "completion": 2e-8,
       "request": 0.0,
       "image": 0.0
-    }
-  },
-  {
-    "id": "meta-llama/llama-3.2-90b-vision-instruct",
-    "name": "Meta: Llama 3.2 90B Vision Instruct",
-    "context_length": 32768,
-    "max_completion_tokens": 16384,
-    "input_modalities": [
-      "image",
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": false,
-    "pricing": {
-      "prompt": 3.5e-7,
-      "completion": 4e-7,
-      "request": 0.0,
-      "image": 0.0005058
     }
   },
   {
@@ -1201,7 +1116,7 @@
   {
     "id": "mistralai/devstral-small",
     "name": "Mistral: Devstral Small 1.1",
-    "context_length": 128000,
+    "context_length": 131072,
     "input_modalities": [
       "text"
     ],
@@ -1210,10 +1125,8 @@
     ],
     "supports_tools": true,
     "pricing": {
-      "prompt": 7e-8,
-      "completion": 2.8e-7,
-      "request": 0.0,
-      "image": 0.0
+      "prompt": 1e-7,
+      "completion": 3e-7
     }
   },
   {
@@ -1269,17 +1182,17 @@
     "id": "mistralai/mistral-7b-instruct",
     "name": "Mistral: Mistral 7B Instruct",
     "context_length": 32768,
-    "max_completion_tokens": 16384,
+    "max_completion_tokens": 4096,
     "input_modalities": [
       "text"
     ],
     "output_modalities": [
       "text"
     ],
-    "supports_tools": true,
+    "supports_tools": false,
     "pricing": {
-      "prompt": 2.8e-8,
-      "completion": 5.4e-8,
+      "prompt": 2e-7,
+      "completion": 2e-7,
       "request": 0.0,
       "image": 0.0
     }
@@ -1563,29 +1476,7 @@
     "supports_tools": false,
     "pricing": {
       "prompt": 5e-6,
-      "completion": 0.000015,
-      "request": 0.0,
-      "image": 0.007225
-    }
-  },
-  {
-    "id": "openai/codex-mini",
-    "name": "OpenAI: Codex Mini",
-    "context_length": 200000,
-    "max_completion_tokens": 100000,
-    "input_modalities": [
-      "image",
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
-    "pricing": {
-      "prompt": 1.5e-6,
-      "completion": 6e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 0.000015
     }
   },
   {
@@ -1602,9 +1493,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 5e-7,
-      "completion": 1.5e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 1.5e-6
     }
   },
   {
@@ -1621,9 +1510,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 3e-6,
-      "completion": 4e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 4e-6
     }
   },
   {
@@ -1640,9 +1527,7 @@
     "supports_tools": false,
     "pricing": {
       "prompt": 1.5e-6,
-      "completion": 2e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 2e-6
     }
   },
   {
@@ -1659,9 +1544,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 0.00003,
-      "completion": 0.00006,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 0.00006
     }
   },
   {
@@ -1679,9 +1562,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 0.00001,
-      "completion": 0.00003,
-      "request": 0.0,
-      "image": 0.01445
+      "completion": 0.00003
     }
   },
   {
@@ -1700,9 +1581,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2e-6,
-      "completion": 8e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 8e-6
     }
   },
   {
@@ -1721,9 +1600,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 4e-7,
-      "completion": 1.6e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 1.6e-6
     }
   },
   {
@@ -1742,9 +1619,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1e-7,
-      "completion": 4e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 4e-7
     }
   },
   {
@@ -1763,9 +1638,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2.5e-6,
-      "completion": 0.00001,
-      "request": 0.0,
-      "image": 0.003613
+      "completion": 0.00001
     }
   },
   {
@@ -1778,14 +1651,13 @@
       "text"
     ],
     "output_modalities": [
+      "audio",
       "text"
     ],
     "supports_tools": true,
     "pricing": {
       "prompt": 2.5e-6,
-      "completion": 0.00001,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 0.00001
     }
   },
   {
@@ -1804,9 +1676,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1.5e-7,
-      "completion": 6e-7,
-      "request": 0.0,
-      "image": 0.000217
+      "completion": 6e-7
     }
   },
   {
@@ -1823,9 +1693,7 @@
     "supports_tools": false,
     "pricing": {
       "prompt": 1.5e-7,
-      "completion": 6e-7,
-      "request": 0.0275,
-      "image": 0.000217
+      "completion": 6e-7
     }
   },
   {
@@ -1842,9 +1710,7 @@
     "supports_tools": false,
     "pricing": {
       "prompt": 2.5e-6,
-      "completion": 0.00001,
-      "request": 0.035,
-      "image": 0.003613
+      "completion": 0.00001
     }
   },
   {
@@ -1863,9 +1729,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 6e-6,
-      "completion": 0.000018,
-      "request": 0.0,
-      "image": 0.007225
+      "completion": 0.000018
     }
   },
   {
@@ -1884,9 +1748,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1.25e-6,
-      "completion": 0.00001,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 0.00001
     }
   },
   {
@@ -1905,9 +1767,7 @@
     "supports_tools": false,
     "pricing": {
       "prompt": 1.25e-6,
-      "completion": 0.00001,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 0.00001
     }
   },
   {
@@ -1925,9 +1785,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1.25e-6,
-      "completion": 0.00001,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 0.00001
     }
   },
   {
@@ -1947,9 +1805,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 0.00001,
-      "completion": 0.00001,
-      "request": 0.0,
-      "image": 0.00001
+      "completion": 0.00001
     }
   },
   {
@@ -1969,9 +1825,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2.5e-6,
-      "completion": 2e-6,
-      "request": 0.0,
-      "image": 2.5e-6
+      "completion": 2e-6
     }
   },
   {
@@ -1990,9 +1844,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2.5e-7,
-      "completion": 2e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 2e-6
     }
   },
   {
@@ -2011,9 +1863,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 5e-8,
-      "completion": 4e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 4e-7
     }
   },
   {
@@ -2032,9 +1882,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 0.000015,
-      "completion": 0.00012,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 0.00012
     }
   },
   {
@@ -2053,9 +1901,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1.25e-6,
-      "completion": 0.00001,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 0.00001
     }
   },
   {
@@ -2074,9 +1920,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1.25e-6,
-      "completion": 0.00001,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 0.00001
     }
   },
   {
@@ -2094,9 +1938,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1.25e-6,
-      "completion": 0.00001,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 0.00001
     }
   },
   {
@@ -2114,9 +1956,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1.25e-6,
-      "completion": 0.00001,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 0.00001
     }
   },
   {
@@ -2134,9 +1974,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2.5e-7,
-      "completion": 2e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 2e-6
     }
   },
   {
@@ -2155,9 +1993,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1.75e-6,
-      "completion": 0.000014,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 0.000014
     }
   },
   {
@@ -2176,9 +2012,25 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1.75e-6,
-      "completion": 0.000014,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 0.000014
+    }
+  },
+  {
+    "id": "openai/gpt-5.2-codex",
+    "name": "OpenAI: GPT-5.2-Codex",
+    "context_length": 400000,
+    "max_completion_tokens": 128000,
+    "input_modalities": [
+      "image",
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 1.75e-6,
+      "completion": 0.000014
     }
   },
   {
@@ -2197,9 +2049,45 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 0.000021,
-      "completion": 0.000168,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 0.000168
+    }
+  },
+  {
+    "id": "openai/gpt-audio",
+    "name": "OpenAI: GPT Audio",
+    "context_length": 128000,
+    "max_completion_tokens": 16384,
+    "input_modalities": [
+      "audio",
+      "text"
+    ],
+    "output_modalities": [
+      "audio",
+      "text"
+    ],
+    "supports_tools": false,
+    "pricing": {
+      "prompt": 2.5e-6,
+      "completion": 0.00001
+    }
+  },
+  {
+    "id": "openai/gpt-audio-mini",
+    "name": "OpenAI: GPT Audio Mini",
+    "context_length": 128000,
+    "max_completion_tokens": 16384,
+    "input_modalities": [
+      "audio",
+      "text"
+    ],
+    "output_modalities": [
+      "audio",
+      "text"
+    ],
+    "supports_tools": false,
+    "pricing": {
+      "prompt": 6e-7,
+      "completion": 2.4e-6
     }
   },
   {
@@ -2274,9 +2162,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 0.000015,
-      "completion": 0.00006,
-      "request": 0.0,
-      "image": 0.021675
+      "completion": 0.00006
     }
   },
   {
@@ -2295,9 +2181,7 @@
     "supports_tools": false,
     "pricing": {
       "prompt": 0.00015,
-      "completion": 0.0006,
-      "request": 0.0,
-      "image": 0.21675
+      "completion": 0.0006
     }
   },
   {
@@ -2316,9 +2200,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2e-6,
-      "completion": 8e-6,
-      "request": 0.0,
-      "image": 0.00153
+      "completion": 8e-6
     }
   },
   {
@@ -2337,9 +2219,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 0.00001,
-      "completion": 0.00004,
-      "request": 0.0,
-      "image": 0.00765
+      "completion": 0.00004
     }
   },
   {
@@ -2357,9 +2237,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1.1e-6,
-      "completion": 4.4e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 4.4e-6
     }
   },
   {
@@ -2377,9 +2255,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1.1e-6,
-      "completion": 4.4e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 4.4e-6
     }
   },
   {
@@ -2398,9 +2274,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 0.00002,
-      "completion": 0.00008,
-      "request": 0.0,
-      "image": 0.0153
+      "completion": 0.00008
     }
   },
   {
@@ -2419,9 +2293,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1.1e-6,
-      "completion": 4.4e-6,
-      "request": 0.0,
-      "image": 0.0008415
+      "completion": 4.4e-6
     }
   },
   {
@@ -2440,9 +2312,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2e-6,
-      "completion": 8e-6,
-      "request": 0.0,
-      "image": 0.00153
+      "completion": 8e-6
     }
   },
   {
@@ -2461,9 +2331,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1.1e-6,
-      "completion": 4.4e-6,
-      "request": 0.0,
-      "image": 0.0008415
+      "completion": 4.4e-6
     }
   },
   {
@@ -2738,7 +2606,6 @@
     "id": "qwen/qwen3-235b-a22b",
     "name": "Qwen: Qwen3 235B A22B",
     "context_length": 40960,
-    "max_completion_tokens": 40960,
     "input_modalities": [
       "text"
     ],
@@ -2747,8 +2614,8 @@
     ],
     "supports_tools": true,
     "pricing": {
-      "prompt": 1.8e-7,
-      "completion": 5.4e-7,
+      "prompt": 2e-7,
+      "completion": 6e-7,
       "request": 0.0,
       "image": 0.0
     }
@@ -2850,8 +2717,8 @@
   {
     "id": "qwen/qwen3-8b",
     "name": "Qwen: Qwen3 8B",
-    "context_length": 128000,
-    "max_completion_tokens": 20000,
+    "context_length": 32000,
+    "max_completion_tokens": 8192,
     "input_modalities": [
       "text"
     ],
@@ -2860,8 +2727,8 @@
     ],
     "supports_tools": true,
     "pricing": {
-      "prompt": 3.5e-8,
-      "completion": 1.38e-7,
+      "prompt": 5e-8,
+      "completion": 2.5e-7,
       "request": 0.0,
       "image": 0.0
     }
@@ -2982,8 +2849,7 @@
   {
     "id": "qwen/qwen3-next-80b-a3b-thinking",
     "name": "Qwen: Qwen3 Next 80B A3B Thinking",
-    "context_length": 262144,
-    "max_completion_tokens": 262144,
+    "context_length": 128000,
     "input_modalities": [
       "text"
     ],
