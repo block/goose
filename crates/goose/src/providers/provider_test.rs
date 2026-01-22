@@ -27,9 +27,10 @@ pub async fn test_provider_configuration(
 
     let _result = provider
         .complete(
+            "test-session-id",
             "You are an AI agent called goose. You use tools of connected extensions to solve problems.",
             &messages,
-            &tools.into_iter().collect::<Vec<_>>()
+            &tools.into_iter().collect::<Vec<_>>(),
         )
         .await?;
 

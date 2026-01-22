@@ -131,14 +131,20 @@ impl McpAppCache {
 
 pub async fn fetch_mcp_apps(
     extension_manager: &ExtensionManager,
+    session_id: &str,
 ) -> Result<Vec<GooseApp>, ErrorData> {
     let mut apps = Vec::new();
 
-    let ui_resources = extension_manager.get_ui_resources().await?;
+    let ui_resources = extension_manager.get_ui_resources(session_id).await?;
 
     for (extension_name, resource) in ui_resources {
         match extension_manager
-            .read_resource(&resource.uri, &extension_name, CancellationToken::default())
+            .read_resource(
+                session_id,
+                &resource.uri,
+                &extension_name,
+                CancellationToken::default(),
+            )
             .await
         {
             Ok(read_result) => {
