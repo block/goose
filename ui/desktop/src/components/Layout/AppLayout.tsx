@@ -77,7 +77,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
   // Main content area
   const mainContent = (
     <div className="flex-1 overflow-hidden">
-      <div className="h-full w-full bg-background-default rounded-2xl overflow-hidden">
+      <div className="h-full w-full bg-background-default rounded-lg overflow-hidden">
         {isOnPairRoute ? (
           <>
             <Outlet />
@@ -140,27 +140,29 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
               initial={{ 
                 width: isHorizontalNav ? '100%' : 0,
                 height: isHorizontalNav ? 0 : '100%',
-                opacity: 0 
+                opacity: 0,
+                minWidth: 0,
               }}
               animate={{ 
                 width: isHorizontalNav ? '100%' : (effectiveNavigationStyle === 'expanded' ? '30%' : 'auto'),
                 height: isHorizontalNav ? 'auto' : '100%',
-                opacity: 1 
+                opacity: 1,
+                minWidth: !isHorizontalNav && effectiveNavigationStyle === 'expanded' ? 200 : 0,
               }}
               exit={{ 
                 width: isHorizontalNav ? '100%' : 0,
                 height: isHorizontalNav ? 0 : '100%',
-                opacity: 0 
+                opacity: 0,
+                minWidth: 0,
               }}
               transition={{ 
                 type: 'spring',
                 stiffness: 300,
                 damping: 30,
-                opacity: { duration: 0.2 }
+                opacity: { duration: 0.15 }
               }}
               style={{
                 // For expanded left/right, use percentage width that scales with window
-                minWidth: !isHorizontalNav && effectiveNavigationStyle === 'expanded' ? '200px' : undefined,
                 maxWidth: !isHorizontalNav && effectiveNavigationStyle === 'expanded' ? '400px' : undefined,
                 // Ensure full height for left/right positions
                 height: !isHorizontalNav ? '100%' : undefined,

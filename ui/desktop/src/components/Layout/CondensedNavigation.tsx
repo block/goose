@@ -338,12 +338,12 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
     >
       {/* Top spacer (vertical only) - small fixed size for top justification */}
       {isVertical && (
-        <div className="bg-background-default rounded-2xl w-full h-[40px] flex-shrink-0" />
+        <div className="bg-background-default rounded-lg w-full h-[40px] flex-shrink-0" />
       )}
 
       {/* Left spacer (horizontal top position only) */}
       {!isVertical && isTopPosition && (
-        <div className="bg-background-default rounded-2xl self-stretch w-[160px] flex-shrink-0" />
+        <div className="bg-background-default rounded-lg self-stretch w-[160px] flex-shrink-0" />
       )}
 
       {/* Navigation items */}
@@ -394,7 +394,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                       whileTap={{ scale: 0.98 }}
                       className={cn(
                         'flex flex-row items-center gap-2',
-                        'relative rounded-2xl transition-colors duration-200 no-drag',
+                        'relative rounded-lg transition-colors duration-200 no-drag',
                         'px-3 py-2.5',
                         active
                           ? 'bg-background-accent text-text-on-accent'
@@ -420,7 +420,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                     </motion.button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent 
-                    className="w-64 p-1 bg-background-default border-border-subtle rounded-2xl shadow-lg"
+                    className="w-64 p-1 bg-background-default border-border-subtle rounded-lg shadow-lg"
                     side={isTopPosition ? 'bottom' : 'top'}
                     align="start"
                     sideOffset={8}
@@ -428,7 +428,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                     {/* New chat button */}
                     <DropdownMenuItem
                       onClick={handleNewChat}
-                      className="flex items-center gap-2 px-3 py-2 text-sm rounded-xl cursor-pointer"
+                      className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer"
                     >
                       <Plus className="w-4 h-4 flex-shrink-0" />
                       <span>New Chat</span>
@@ -443,7 +443,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                       <DropdownMenuItem
                         key={session.id}
                         onClick={() => handleSessionClick(session.id)}
-                        className="flex items-center gap-2 px-3 py-2 text-sm rounded-xl cursor-pointer"
+                        className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer"
                       >
                         <MessageSquare className="w-4 h-4 flex-shrink-0 text-text-muted" />
                         <span className="truncate">
@@ -458,7 +458,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                         <DropdownMenuSeparator className="my-1" />
                         <DropdownMenuItem
                           onClick={() => handleNavClick('/sessions')}
-                          className="flex items-center gap-2 px-3 py-2 text-sm rounded-xl cursor-pointer text-text-muted"
+                          className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer text-text-muted"
                         >
                           <History className="w-4 h-4 flex-shrink-0" />
                           <span>Show All ({totalSessions})</span>
@@ -481,7 +481,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                   whileTap={{ scale: 0.98 }}
                   className={cn(
                     'flex flex-row items-center gap-2',
-                    'relative rounded-2xl transition-colors duration-200 no-drag',
+                    'relative rounded-lg transition-colors duration-200 no-drag',
                     isVertical ? 'w-full pl-2 pr-4 py-2.5' : 'px-3 py-2.5',
                     active
                       ? 'bg-background-accent text-text-on-accent'
@@ -552,7 +552,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                       <button
                         onClick={handleNewChat}
                         className={cn(
-                          'w-full text-left pl-2 pr-4 py-1.5 text-xs rounded-2xl',
+                          'w-full text-left pl-2 pr-4 py-1.5 text-xs rounded-lg',
                           'bg-background-default hover:bg-background-medium transition-colors',
                           'flex items-center gap-2 text-text-default font-medium'
                         )}
@@ -569,7 +569,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                           key={session.id}
                           onClick={() => handleSessionClick(session.id)}
                           className={cn(
-                            'w-full text-left pl-2 pr-4 py-1.5 text-xs rounded-2xl',
+                            'w-full text-left pl-2 pr-4 py-1.5 text-xs rounded-lg',
                             'bg-background-default hover:bg-background-medium transition-colors',
                             'flex items-center gap-2'
                           )}
@@ -588,7 +588,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                         <button
                           onClick={() => handleNavClick('/sessions')}
                           className={cn(
-                            'w-full text-left pl-2 pr-4 py-1.5 text-xs rounded-2xl',
+                            'w-full text-left pl-2 pr-4 py-1.5 text-xs rounded-lg',
                             'bg-background-default hover:bg-background-medium transition-colors',
                             'flex items-center gap-2 text-text-muted'
                           )}
@@ -610,12 +610,12 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
 
       {/* Spacer to extend to bottom (vertical only) */}
       {isVertical && (
-        <div className="bg-background-default rounded-2xl flex-1 w-full min-h-[20px]" />
+        <div className="bg-background-default rounded-lg flex-1 w-full min-h-[20px]" />
       )}
 
       {/* Right spacer (horizontal - both top and bottom positions) - full width to fill remaining space */}
       {!isVertical && (
-        <div className="bg-background-default rounded-2xl self-stretch flex-1 min-w-[40px]" />
+        <div className="bg-background-default rounded-lg self-stretch flex-1 min-w-[40px]" />
       )}
     </motion.div>
   );

@@ -70,6 +70,10 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
   const [chatDropdownOpen, setChatDropdownOpen] = useState(false);
   const [recentSessions, setRecentSessions] = useState<Session[]>([]);
   const [gridColumns, setGridColumns] = useState(2);
+  const [gridMeasured, setGridMeasured] = useState(false);
+  const [tilesReady, setTilesReady] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
+  const prevIsNavExpandedRef = useRef(isNavExpanded);
   const gridRef = useRef<HTMLDivElement>(null);
   
   // Stats for tags
@@ -140,14 +144,49 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
     }
   }, [isNavExpanded]);
 
+  // Detect when nav is closing (transition from expanded to collapsed)
+  useEffect(() => {
+    if (prevIsNavExpandedRef.current && !isNavExpanded) {
+      // Nav is closing - immediately hide tiles to prevent layout thrashing
+      setIsClosing(true);
+      setTilesReady(false);
+    } else if (!prevIsNavExpandedRef.current && isNavExpanded) {
+      // Nav is opening - reset closing state
+      setIsClosing(false);
+    }
+    prevIsNavExpandedRef.current = isNavExpanded;
+  }, [isNavExpanded]);
+
+  // Control when tiles are ready to animate in (after panel opens)
+  useEffect(() => {
+    if (!isNavExpanded) {
+      setTilesReady(false);
+      return;
+    }
+
+    // Delay tile animations until panel has opened (give it ~200ms)
+    const timeoutId = setTimeout(() => {
+      setTilesReady(true);
+    }, 150);
+
+    return () => clearTimeout(timeoutId);
+  }, [isNavExpanded]);
+
   // Track grid columns for spacer tiles
   useEffect(() => {
+    // Reset measured state when nav closes
+    if (!isNavExpanded) {
+      setGridMeasured(false);
+      return;
+    }
+
     const updateGridColumns = () => {
       if (gridRef.current) {
         const gridStyle = window.getComputedStyle(gridRef.current);
         const columns = gridStyle.gridTemplateColumns.split(' ').filter(col => col.trim() !== '').length;
         if (columns > 0) {
           setGridColumns(columns);
+          setGridMeasured(true);
         }
       }
     };
@@ -188,7 +227,7 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
       label: 'Chat',
       icon: MessageSquare,
       getTag: () => activeSessions.length > 0 ? `${activeSessions.length} active` : `${todayChatsCount} today`,
-      tagAlign: 'left',
+      tagAlign: 'right',
       hasSubItems: activeSessions.length > 0,
     },
     {
@@ -197,7 +236,7 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
       label: 'History',
       icon: History,
       getTag: () => `${totalSessions}`,
-      tagAlign: 'left',
+      tagAlign: 'right',
     },
     {
       id: 'recipes',
@@ -386,6 +425,9 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
     return msg.length > maxLen ? msg.substring(0, maxLen) + '...' : msg;
   };
 
+  // Determine if content should be visible (not during close animation for push mode)
+  const showContent = !isClosing || isOverlayMode;
+
   const navContent = (
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
@@ -393,8 +435,8 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ type: "spring", stiffness: 350, damping: 25 }}
       className={cn(
-        'bg-app h-full',
-        isOverlayMode && 'backdrop-blur-md shadow-2xl rounded-2xl p-4 max-h-[80vh]',
+        'bg-app h-full overflow-hidden',
+        isOverlayMode && 'backdrop-blur-md shadow-2xl rounded-lg p-4 max-h-[80vh]',
         // Add 2px padding on the edge facing the content (push mode only)
         !isOverlayMode && navigationPosition === 'top' && 'pb-[2px]',
         !isOverlayMode && navigationPosition === 'bottom' && 'pt-[2px]',
@@ -404,26 +446,28 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
       )}
     >
       {/* Navigation grid - square tiles with scroll */}
-      <div 
-        ref={gridRef}
-        className={cn(
-          'grid gap-[2px] overflow-y-auto overflow-x-hidden h-full',
-          isOverlayMode && 'gap-3'
-        )}
-        style={{
-          // Use CSS grid with auto-fill for responsive tiles based on container width
-          gridTemplateColumns: isOverlayMode
-            // For overlay mode: responsive - single row on larger screens, wraps to 2 rows on smaller
-            ? 'repeat(auto-fit, minmax(120px, 1fr))'
-            : (navigationPosition === 'left' || navigationPosition === 'right')
-              // For left/right: larger min size (140px) to trigger single column sooner
-              ? 'repeat(auto-fill, minmax(140px, 1fr))'
-              // For top/bottom: auto-fit with larger min size to fit all in 1 row on large screens, wrap to 2 rows on smaller
-              : 'repeat(auto-fit, minmax(160px, 1fr))',
-          // Align items to start so they don't stretch vertically
-          alignContent: 'start',
-        }}
-      >
+      {/* Completely hide content during close animation to prevent layout thrashing */}
+      {showContent ? (
+        <div 
+          ref={gridRef}
+          className={cn(
+            'grid gap-[2px] overflow-y-auto overflow-x-hidden h-full',
+            isOverlayMode && 'gap-3'
+          )}
+          style={{
+            // Use CSS grid with auto-fill for responsive tiles based on container width
+            gridTemplateColumns: isOverlayMode
+              // For overlay mode: responsive - single row on larger screens, wraps to 2 rows on smaller
+              ? 'repeat(auto-fit, minmax(120px, 1fr))'
+              : (navigationPosition === 'left' || navigationPosition === 'right')
+                // For left/right: larger min size (140px) to trigger single column sooner
+                ? 'repeat(auto-fill, minmax(140px, 1fr))'
+                // For top/bottom: auto-fit with larger min size to fit all in 1 row on large screens, wrap to 2 rows on smaller
+                : 'repeat(auto-fit, minmax(160px, 1fr))',
+            // Align items to start so they don't stretch vertically
+            alignContent: 'start',
+          }}
+        >
         {visibleItems.map((item, index) => {
           const Icon = item.icon;
           const active = isActive(item.path);
@@ -443,26 +487,26 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
                   onDragEnd={handleDragEnd}
                   initial={{ opacity: 0, y: 20, scale: 0.9 }}
                   animate={{ 
-                    opacity: isDragging ? 0.5 : 1, 
-                    y: 0, 
-                    scale: isDragging ? 0.95 : 1,
+                    opacity: tilesReady ? (isDragging ? 0.5 : 1) : 0, 
+                    y: tilesReady ? 0 : 20, 
+                    scale: tilesReady ? (isDragging ? 0.95 : 1) : 0.9,
                   }}
                   transition={{
                     type: "spring",
                     stiffness: 350,
                     damping: 25,
-                    delay: index * 0.03,
+                    delay: tilesReady ? index * 0.05 : 0,
                   }}
                   className={cn(
                     'relative cursor-move group',
-                    isDragOver && 'ring-2 ring-blue-500 rounded-2xl'
+                    isDragOver && 'ring-2 ring-blue-500 rounded-lg'
                   )}
                 >
                   <DropdownMenuTrigger asChild>
                     <motion.div
                       className={cn(
                         'w-full relative flex flex-col',
-                        'rounded-2xl',
+                        'rounded-lg',
                         'transition-colors duration-200',
                         'aspect-square cursor-pointer',
                         active
@@ -498,7 +542,7 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
                     </motion.div>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent 
-                    className="w-64 p-1 bg-background-default border-border-subtle rounded-2xl shadow-lg z-[10001]"
+                    className="w-64 p-1 bg-background-default border-border-subtle rounded-lg shadow-lg z-[10001]"
                     side="right"
                     align="start"
                     sideOffset={8}
@@ -506,7 +550,7 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
                     {/* New chat button */}
                     <DropdownMenuItem
                       onClick={handleNewChat}
-                      className="flex items-center gap-2 px-3 py-2 text-sm rounded-xl cursor-pointer"
+                      className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer"
                     >
                       <Plus className="w-4 h-4 flex-shrink-0" />
                       <span>New Chat</span>
@@ -521,7 +565,7 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
                       <DropdownMenuItem
                         key={session.id}
                         onClick={() => handleSessionClick(session.id)}
-                        className="flex items-center gap-2 px-3 py-2 text-sm rounded-xl cursor-pointer"
+                        className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer"
                       >
                         <MessageSquare className="w-4 h-4 flex-shrink-0 text-text-muted" />
                         <span className="truncate">
@@ -536,7 +580,7 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
                         <DropdownMenuSeparator className="my-1" />
                         <DropdownMenuItem
                           onClick={() => handleNavClick('/sessions')}
-                          className="flex items-center gap-2 px-3 py-2 text-sm rounded-xl cursor-pointer text-text-muted"
+                          className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer text-text-muted"
                         >
                           <History className="w-4 h-4 flex-shrink-0" />
                           <span>Show All ({totalSessions})</span>
@@ -560,25 +604,25 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
               onDragEnd={handleDragEnd}
               initial={{ opacity: 0, y: 20, scale: 0.9 }}
               animate={{ 
-                opacity: isDragging ? 0.5 : 1, 
-                y: 0, 
-                scale: isDragging ? 0.95 : 1,
+                opacity: tilesReady ? (isDragging ? 0.5 : 1) : 0, 
+                y: tilesReady ? 0 : 20, 
+                scale: tilesReady ? (isDragging ? 0.95 : 1) : 0.9,
               }}
               transition={{
                 type: "spring",
                 stiffness: 350,
                 damping: 25,
-                delay: index * 0.03,
+                delay: tilesReady ? index * 0.05 : 0,
               }}
               className={cn(
                 'relative cursor-move group',
-                isDragOver && 'ring-2 ring-blue-500 rounded-2xl'
+                isDragOver && 'ring-2 ring-blue-500 rounded-lg'
               )}
             >
               <motion.div
                 className={cn(
                   'w-full relative flex flex-col',
-                  'rounded-2xl',
+                  'rounded-lg',
                   'transition-colors duration-200',
                   'aspect-square',
                   active
@@ -620,8 +664,8 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
           );
         })}
         
-        {/* Spacer tiles to fill empty grid spaces */}
-        {!isOverlayMode && gridColumns >= 2 &&
+        {/* Spacer tiles to fill empty grid spaces - only render after grid is measured */}
+        {!isOverlayMode && gridMeasured && gridColumns >= 2 &&
           Array.from({ 
             // For left/right: add extra rows of spacers to fill vertical space
             // For top/bottom: just fill remaining spaces in the last row
@@ -629,23 +673,16 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
               ? ((gridColumns - (visibleItems.length % gridColumns)) % gridColumns) + (gridColumns * 6) // Fill last row + 6 more rows
               : (gridColumns - (visibleItems.length % gridColumns)) % gridColumns
           }).map((_, index) => (
-            <motion.div
+            <div
               key={`spacer-${index}`}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{
-                type: "spring",
-                stiffness: 350,
-                damping: 25,
-                delay: Math.min((visibleItems.length + index) * 0.03, 0.5), // Cap delay at 0.5s
-              }}
               className="relative"
             >
-              <div className="w-full aspect-square rounded-2xl bg-background-default" />
-            </motion.div>
+              <div className="w-full aspect-square rounded-lg bg-background-default" />
+            </div>
           ))
         }
-      </div>
+        </div>
+      ) : null}
     </motion.div>
   );
 
