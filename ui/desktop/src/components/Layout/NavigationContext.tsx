@@ -21,14 +21,20 @@ export const DEFAULT_ITEM_ORDER = [
 
 export const DEFAULT_ENABLED_ITEMS = [...DEFAULT_ITEM_ORDER];
 
+// Breakpoint for forcing overlay mode on expanded navigation
+const EXPANDED_OVERLAY_BREAKPOINT = 700;
+
 interface NavigationContextValue {
   // Navigation state
   isNavExpanded: boolean;
   setIsNavExpanded: (expanded: boolean) => void;
   
-  // Mode: push content or overlay
+  // Mode: push content or overlay (user preference)
   navigationMode: NavigationMode;
   setNavigationMode: (mode: NavigationMode) => void;
+  
+  // Effective mode: accounts for responsive breakpoints
+  effectiveNavigationMode: NavigationMode;
   
   // Style: expanded tiles or condensed list
   navigationStyle: NavigationStyle;
@@ -70,6 +76,9 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({ children
   // Load initial state from localStorage
   const [isNavExpanded, setIsNavExpanded] = useState(false);
   
+  // Track window width for responsive behavior
+  const [windowWidth, setWindowWidth] = useState(() => window.innerWidth);
+  
   const [navigationMode, setNavigationModeState] = useState<NavigationMode>(() => {
     const stored = localStorage.getItem('navigation_mode');
     return (stored as NavigationMode) || 'push';
@@ -99,6 +108,16 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({ children
       enabledItems: DEFAULT_ENABLED_ITEMS,
     };
   });
+
+  // Track window resize for responsive overlay
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth);
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Persist changes to localStorage and dispatch events
   const setNavigationMode = useCallback((mode: NavigationMode) => {
@@ -158,12 +177,19 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({ children
   }, []);
 
   const isHorizontalNav = navigationPosition === 'top' || navigationPosition === 'bottom';
+  
+  // Force overlay mode for expanded navigation when window is narrow
+  const effectiveNavigationMode: NavigationMode = 
+    navigationStyle === 'expanded' && windowWidth < EXPANDED_OVERLAY_BREAKPOINT
+      ? 'overlay'
+      : navigationMode;
 
   const value: NavigationContextValue = {
     isNavExpanded,
     setIsNavExpanded,
     navigationMode,
     setNavigationMode,
+    effectiveNavigationMode,
     navigationStyle,
     setNavigationStyle,
     navigationPosition,

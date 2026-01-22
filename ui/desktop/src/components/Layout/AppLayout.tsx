@@ -24,7 +24,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
   const {
     isNavExpanded,
     setIsNavExpanded,
-    navigationMode,
+    effectiveNavigationMode,
     navigationStyle,
     navigationPosition,
     isHorizontalNav,
@@ -56,7 +56,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
 
   // Determine flex direction based on navigation position (for push mode)
   const getLayoutClass = () => {
-    if (navigationMode === 'overlay') {
+    if (effectiveNavigationMode === 'overlay') {
       return 'flex-row';
     }
     
@@ -96,13 +96,14 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
       <div className={cn(
         'absolute z-[100] flex items-center gap-1',
         // Bottom right for bottom condensed push mode
-        navigationStyle === 'condensed' && navigationPosition === 'bottom' && navigationMode === 'push'
-          ? 'bottom-4 right-4'
+        navigationStyle === 'condensed' && navigationPosition === 'bottom' && effectiveNavigationMode === 'push'
+          ? 'bottom-4 right-6'
           : cn(
               headerPadding,
               'top-3 mt-[2px]',
-              navigationStyle === 'condensed' && navigationPosition === 'right' 
-                ? 'right-4 left-auto' 
+              // Right position (both condensed and expanded) - 24px from right
+              navigationPosition === 'right' 
+                ? 'right-6 left-auto' 
                 : 'ml-1.5'
             )
       )}>
@@ -130,10 +131,10 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
       </div>
 
       {/* Main content with navigation */}
-      <div className={cn('flex flex-1 w-full h-full p-2', getLayoutClass())}>
+      <div className={cn('flex flex-1 w-full h-full p-2 min-h-0', getLayoutClass())}>
         {/* Push mode navigation (inline) with animation */}
         <AnimatePresence mode="wait">
-          {navigationMode === 'push' && isNavExpanded && (
+          {effectiveNavigationMode === 'push' && isNavExpanded && (
             <motion.div
               key="push-nav"
               initial={{ 
@@ -142,7 +143,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
                 opacity: 0 
               }}
               animate={{ 
-                width: isHorizontalNav ? '100%' : 'auto',
+                width: isHorizontalNav ? '100%' : (navigationStyle === 'expanded' ? '30%' : 'auto'),
                 height: isHorizontalNav ? 'auto' : '100%',
                 opacity: 1 
               }}
@@ -156,6 +157,13 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
                 stiffness: 300,
                 damping: 30,
                 opacity: { duration: 0.2 }
+              }}
+              style={{
+                // For expanded left/right, use percentage width that scales with window
+                minWidth: !isHorizontalNav && navigationStyle === 'expanded' ? '200px' : undefined,
+                maxWidth: !isHorizontalNav && navigationStyle === 'expanded' ? '400px' : undefined,
+                // Ensure full height for left/right positions
+                height: !isHorizontalNav ? '100%' : undefined,
               }}
               className={cn(
                 'flex-shrink-0 overflow-hidden',
@@ -172,7 +180,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
       </div>
 
       {/* Overlay mode navigation */}
-      {navigationMode === 'overlay' && renderNavigation()}
+      {effectiveNavigationMode === 'overlay' && renderNavigation()}
     </div>
   );
 };

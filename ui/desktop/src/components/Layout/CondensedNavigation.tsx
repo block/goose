@@ -64,7 +64,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
   const {
     isNavExpanded,
     setIsNavExpanded,
-    navigationMode,
+    effectiveNavigationMode,
     navigationPosition,
     preferences,
     updatePreferences,
@@ -157,12 +157,12 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
 
   // Handle escape key to close overlay
   useEffect(() => {
-    if (!(navigationMode === 'overlay' && isNavExpanded)) {
+    if (!(effectiveNavigationMode === 'overlay' && isNavExpanded)) {
       return;
     }
     
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isNavExpanded && navigationMode === 'overlay') {
+      if (e.key === 'Escape' && isNavExpanded && effectiveNavigationMode === 'overlay') {
         e.preventDefault();
         setIsNavExpanded(false);
       }
@@ -170,7 +170,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
 
     document.addEventListener('keydown', handleKeyDown, { capture: true });
     return () => document.removeEventListener('keydown', handleKeyDown, { capture: true });
-  }, [isNavExpanded, navigationMode, setIsNavExpanded]);
+  }, [isNavExpanded, effectiveNavigationMode, setIsNavExpanded]);
 
   // Track session for /pair navigation
   const [searchParams] = useSearchParams();
@@ -306,7 +306,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
     .map(id => getNavItemById(id))
     .filter((item): item is NavItem => item !== undefined);
 
-  const isOverlayMode = navigationMode === 'overlay';
+  const isOverlayMode = effectiveNavigationMode === 'overlay';
 
   // Truncate session message for display
   const truncateMessage = (msg?: string, maxLen = 20) => {
