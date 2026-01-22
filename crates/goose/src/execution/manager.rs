@@ -52,12 +52,8 @@ impl AgentManager {
                     .unwrap_or(DEFAULT_MAX_SESSION);
                 let schedule_file_path = Paths::data_dir().join("schedule.json");
                 let session_manager = Arc::new(SessionManager::instance());
-                let manager = Self::new(
-                    session_manager,
-                    schedule_file_path,
-                    Some(max_sessions),
-                )
-                .await?;
+                let manager =
+                    Self::new(session_manager, schedule_file_path, Some(max_sessions)).await?;
                 Ok(Arc::new(manager))
             })
             .await
@@ -72,12 +68,8 @@ impl AgentManager {
                     .unwrap_or(DEFAULT_MAX_SESSION);
                 let schedule_file_path = Paths::data_dir().join("schedule.json");
                 let session_manager = Arc::new(SessionManager::instance());
-                let manager = Self::new(
-                    session_manager,
-                    schedule_file_path,
-                    Some(max_sessions),
-                )
-                .await?;
+                let manager =
+                    Self::new(session_manager, schedule_file_path, Some(max_sessions)).await?;
                 Ok(Arc::new(manager))
             })
             .await
