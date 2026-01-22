@@ -1288,10 +1288,6 @@ impl Agent {
                                     let mut combined = stream::select_all(with_id);
                                     let mut all_install_successful = true;
 
-                                    // Process tool results while also checking for elicitation messages
-                                    // This is necessary because tools that call elicitation will block
-                                    // waiting for user input, but we need to yield elicitation messages
-                                    // to the UI so the user can respond
                                     loop {
                                         if is_token_cancelled(&cancel_token) {
                                             break;
