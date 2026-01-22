@@ -634,6 +634,7 @@ impl Agent {
 
     /// Load extensions from session into the agent
     /// Skips extensions that are already loaded
+    /// Uses the session's working_dir for extension initialization
     pub async fn load_extensions_from_session(
         self: &Arc<Self>,
         session: &Session,
@@ -651,11 +652,15 @@ impl Agent {
             }
         };
 
+        // Capture the session's working_dir to pass to extensions
+        let working_dir = session.working_dir.clone();
+
         let extension_futures = enabled_configs
             .into_iter()
             .map(|config| {
                 let config_clone = config.clone();
                 let agent_ref = self.clone();
+                let working_dir_clone = working_dir.clone();
 
                 async move {
                     let name = config_clone.name().to_string();
@@ -674,7 +679,10 @@ impl Agent {
                         };
                     }
 
-                    match agent_ref.add_extension(config_clone).await {
+                    match agent_ref
+                        .add_extension_with_working_dir(config_clone, Some(working_dir_clone))
+                        .await
+                    {
                         Ok(_) => ExtensionLoadResult {
                             name,
                             success: true,
@@ -698,6 +706,14 @@ impl Agent {
     }
 
     pub async fn add_extension(&self, extension: ExtensionConfig) -> ExtensionResult<()> {
+        self.add_extension_with_working_dir(extension, None).await
+    }
+
+    pub async fn add_extension_with_working_dir(
+        &self,
+        extension: ExtensionConfig,
+        working_dir: Option<std::path::PathBuf>,
+    ) -> ExtensionResult<()> {
         match &extension {
             ExtensionConfig::Frontend {
                 tools,
@@ -726,7 +742,7 @@ impl Agent {
             }
             _ => {
                 self.extension_manager
-                    .add_extension(extension.clone())
+                    .add_extension_with_working_dir(extension.clone(), working_dir)
                     .await?;
             }
         }

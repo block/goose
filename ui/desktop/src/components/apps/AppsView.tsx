@@ -227,7 +227,8 @@ export default function AppsView() {
             </div>
             <div className="mb-4">
               <p className="text-sm text-text-muted mb-2">
-                Applications from your MCP servers that can run in standalone windows.
+                Applications from your MCP servers and Apps build by goose itself. You can ask it to
+                create new apps through the chat interface and they will appear here.
               </p>
               <p className="text-xs text-amber-600 dark:text-amber-500">
                 ⚠️ Experimental feature - may change or be removed at any time

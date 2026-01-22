@@ -22,7 +22,7 @@ use test_case::test_case;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 use wiremock::MockServer;
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_acp_basic_completion() {
     let temp_dir = tempfile::tempdir().unwrap();
     let prompt = "what is 1+1";
@@ -62,7 +62,7 @@ async fn test_acp_basic_completion() {
     .await;
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_acp_with_mcp_http_server() {
     let temp_dir = tempfile::tempdir().unwrap();
     let prompt = "Use the get_code tool and output only its result.";
@@ -344,7 +344,7 @@ async fn run_acp_session<F, Fut>(
 #[test_case(Some(PermissionOptionKind::RejectAlways), ToolCallStatus::Failed, "user:\n  always_allow: []\n  ask_before: []\n  never_allow:\n  - lookup__get_code\n"; "reject_always")]
 #[test_case(Some(PermissionOptionKind::RejectOnce), ToolCallStatus::Failed, ""; "reject_once")]
 #[test_case(None, ToolCallStatus::Failed, ""; "cancelled")]
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_permission_persistence(
     kind: Option<PermissionOptionKind>,
     expected_status: ToolCallStatus,
