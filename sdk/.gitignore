@@ -1,0 +1,5 @@
+typescript/node_modules/
+typescript/dist/
+typescript/*.tsbuildinfo
+typescript/*.log
+typescript/.env
