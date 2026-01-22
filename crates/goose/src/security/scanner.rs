@@ -22,7 +22,6 @@ pub struct ScanResult {
     pub explanation: String,
 }
 
-#[derive(Clone)]
 struct DetailedScanResult {
     confidence: f32,
     pattern_matches: Vec<PatternMatch>,
@@ -153,11 +152,8 @@ impl PromptInjectionScanner {
             threshold
         );
 
-        let final_result = self.select_result_with_context_awareness(
-            tool_result.clone(),
-            context_result.clone(),
-            threshold,
-        );
+        let final_result =
+            self.select_result_with_context_awareness(tool_result, context_result, threshold);
 
         tracing::info!(
             "Security analysis complete: final_confidence={:.3}, malicious={}",
