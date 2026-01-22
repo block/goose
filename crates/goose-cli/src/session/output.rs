@@ -871,7 +871,6 @@ fn estimate_cost_usd(
 ) -> Option<f64> {
     let canonical_model = maybe_get_canonical_model(provider, model)?;
 
-    // Canonical model costs are per million tokens, so divide by 1,000,000
     let input_cost_per_token = canonical_model.cost.input? / 1_000_000.0;
     let output_cost_per_token = canonical_model.cost.output? / 1_000_000.0;
 

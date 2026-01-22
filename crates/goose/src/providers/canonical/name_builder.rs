@@ -7,15 +7,14 @@ static NORMALIZE_VERSION_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"-(\d)-(\d)(
 static STRIP_PATTERNS: Lazy<Vec<Regex>> = Lazy::new(|| {
     vec![
         Regex::new(r"-latest$").unwrap(),
-        Regex::new(r"-\d{8}$").unwrap(), // Date stamps like -20241022
-        Regex::new(r"-\d{4}$").unwrap(), // Date stamps like -0709, -1212 (MMDD format)
-        Regex::new(r"-\d{4}-\d{2}-\d{2}$").unwrap(), // Date stamps like -2024-10-22
-        Regex::new(r"-bedrock$").unwrap(), // Platform suffixes
-        Regex::new(r"-reasoning$").unwrap(), // XAI reasoning suffix
+        Regex::new(r"-\d{8}$").unwrap(),
+        Regex::new(r"-\d{4}$").unwrap(),
+        Regex::new(r"-\d{4}-\d{2}-\d{2}$").unwrap(),
+        Regex::new(r"-bedrock$").unwrap(),
+        Regex::new(r"-reasoning$").unwrap(),
     ]
 });
 
-// Claude model patterns for version/size swapping
 static CLAUDE_PATTERNS: Lazy<Vec<(Regex, Regex, &'static str)>> = Lazy::new(|| {
     ["sonnet", "opus", "haiku"]
         .iter()
@@ -29,21 +28,16 @@ static CLAUDE_PATTERNS: Lazy<Vec<(Regex, Regex, &'static str)>> = Lazy::new(|| {
         .collect()
 });
 
-/// Build canonical model name from provider and model identifiers (for normalization)
+/// Build canonical model name from provider and model identifiers
 pub fn canonical_name(provider: &str, model: &str) -> String {
     let model_base = strip_version_suffix(model);
     format!("{}/{}", provider, model_base)
 }
 
-/// Check if a provider is a meta-provider that doesn't have direct model mappings in models.dev
-/// Meta-providers host models from other providers and need string matching to resolve to the underlying provider
-/// Note: This includes generic provider names like "bedrock" and "azure" used in tests and as aliases,
-/// as well as actual meta-providers like databricks and tetrate that don't have their own models in models.dev
 fn is_meta_provider(provider: &str) -> bool {
     matches!(provider, "databricks" | "tetrate" | "bedrock" | "azure")
 }
 
-/// Map provider name to canonical registry name (for providers that differ)
 fn map_provider_name(provider: &str) -> &str {
     match provider {
         // Goose provider names that differ from models.dev names
@@ -56,13 +50,11 @@ fn map_provider_name(provider: &str) -> &str {
 }
 
 /// Try to map a provider/model pair to a canonical model
-/// Returns (provider, model) tuple if found
 pub fn map_to_canonical_model(
     provider: &str,
     model: &str,
     registry: &super::CanonicalModelRegistry,
 ) -> Option<String> {
-    // Map provider name to canonical registry name if needed
     let registry_provider = map_provider_name(provider);
 
     // For normal providers (anthropic, openai, google, openrouter, etc.), just do direct lookup
@@ -78,11 +70,9 @@ pub fn map_to_canonical_model(
         return None;
     }
 
-    // For hosting/meta-providers (databricks, azure, bedrock), do string matching magic
-    // to figure out the real provider and model
+    // For hosting/meta-providers do string matching magic to figure out the real provider and model
     let model_stripped = strip_common_prefixes(model);
 
-    // Try word-order swapping for Claude models first (claude-4-opus ↔ claude-opus-4)
     if let Some(swapped) = swap_claude_word_order(&model_stripped) {
         if let Some(inferred_provider) = infer_provider_from_model(&swapped) {
             let normalized = strip_version_suffix(&swapped);
@@ -92,7 +82,6 @@ pub fn map_to_canonical_model(
         }
     }
 
-    // Try to infer provider from the model name
     if let Some(inferred_provider) = infer_provider_from_model(&model_stripped) {
         let normalized = strip_version_suffix(&model_stripped);
         if let Some(canonical) = registry.get(inferred_provider, &normalized) {
@@ -100,7 +89,6 @@ pub fn map_to_canonical_model(
         }
     }
 
-    // Try with original model name too
     if let Some(inferred_provider) = infer_provider_from_model(model) {
         let normalized = strip_version_suffix(model);
         if let Some(canonical) = registry.get(inferred_provider, &normalized) {
@@ -108,7 +96,6 @@ pub fn map_to_canonical_model(
         }
     }
 
-    // For provider-prefixed models like "databricks-meta-llama-3-3-70b"
     if let Some((extracted_provider, extracted_model)) = extract_provider_prefix(&model_stripped) {
         let normalized = strip_version_suffix(extracted_model);
         if let Some(canonical) = registry.get(extracted_provider, &normalized) {
@@ -317,7 +304,7 @@ mod tests {
             Some("openai/gpt-4-turbo".to_string())
         );
 
-        // === OpenRouter (now has its own models in models.dev) ===
+        // === OpenRouter ===
         assert_eq!(
             map_to_canonical_model("openrouter", "anthropic/claude-sonnet-4.5", r),
             Some("openrouter/anthropic/claude-sonnet-4.5".to_string())

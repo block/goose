@@ -115,7 +115,6 @@ impl MappingReport {
             .map(|m| (m.provider_model.clone(), m.canonical_model.clone()))
             .collect();
 
-        // Create a set of recommended model names for quick lookup
         let recommended_set: std::collections::HashSet<String> =
             recommended_models.into_iter().collect();
 
@@ -531,8 +530,7 @@ async fn check_provider(
         }
     };
 
-    // Also fetch recommended models (after deduplication)
-    let recommended_models = match provider.fetch_recommended_models().await {
+    let recommended_models = match provider.fetch_recommended_models(&session_id).await {
         Ok(Some(models)) => {
             println!("  ✓ Found {} recommended models", models.len());
             models

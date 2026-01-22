@@ -13,10 +13,6 @@ pub struct Modalities {
 }
 
 /// Pricing/cost information for a model
-///
-/// **Important:** All costs are in USD per million tokens
-/// When converting to ModelInfo (for UI display), divide by 1,000,000 to get cost per token
-/// Use ModelInfo::from_canonical() for automatic conversion
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Pricing {
     /// Cost in USD per million input tokens

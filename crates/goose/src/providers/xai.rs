@@ -177,8 +177,8 @@ impl Provider for XaiProvider {
         stream_openai_compat(response, log)
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        let response = match self.api_client.response_get("models").await {
+    async fn fetch_supported_models(&self, session_id: &str) -> Result<Option<Vec<String>>, ProviderError> {
+        let response = match self.api_client.response_get(session_id, "models").await {
             Ok(response) => response,
             Err(e) => {
                 tracing::warn!(
