@@ -886,10 +886,9 @@ impl Config {
     }
 
     fn invalidate_secrets_cache(&self) {
-        if let Ok(mut cache) = self.secrets_cache.lock() {
-            *cache = None;
-            tracing::debug!("secrets cache invalidated");
-        }
+        let mut cache = self.secrets_cache.lock().unwrap();
+        *cache = None;
+        tracing::debug!("secrets cache invalidated");
     }
 
     /// Check if an error string indicates a keyring availability issue that should trigger fallback
