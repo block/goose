@@ -6,10 +6,48 @@ export interface DroppedFile {
   name: string;
   type: string;
   isImage: boolean;
-  dataUrl?: string; // For image previews
+  dataUrl?: string; // For images: compressed base64 data URL for direct inclusion
   isLoading?: boolean;
   error?: string;
 }
+
+// Helper function to compress image data URLs
+const compressImageDataUrl = async (dataUrl: string): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const img = new globalThis.Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Failed to get canvas context'));
+        return;
+      }
+
+      // Resize to max 1024px on longest side
+      const maxSize = 1024;
+      let width = img.width;
+      let height = img.height;
+
+      if (width > height && width > maxSize) {
+        height = (height * maxSize) / width;
+        width = maxSize;
+      } else if (height > maxSize) {
+        width = (width * maxSize) / height;
+        height = maxSize;
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+      ctx.drawImage(img, 0, 0, width, height);
+
+      // Convert to JPEG with 0.85 quality
+      const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      resolve(compressedDataUrl);
+    };
+    img.onerror = () => reject(new Error('Failed to load image'));
+    img.src = dataUrl;
+  });
+};
 
 export const useFileDrop = () => {
   const [droppedFiles, setDroppedFiles] = useState<DroppedFile[]>([]);
@@ -71,25 +109,42 @@ export const useFileDrop = () => {
 
         droppedFileObjects.push(droppedFile);
 
-        // For images, generate a preview (only if successfully processed)
+        // For images, read and compress for direct inclusion
         if (droppedFile.isImage && !droppedFile.error) {
           const reader = new FileReader();
           activeReadersRef.current.add(reader);
 
-          reader.onload = (event) => {
+          reader.onload = async (event) => {
             const dataUrl = event.target?.result as string;
-            setDroppedFiles((prev) =>
-              prev.map((f) => (f.id === droppedFile.id ? { ...f, dataUrl, isLoading: false } : f))
-            );
+            try {
+              // Compress the image
+              const compressedDataUrl = await compressImageDataUrl(dataUrl);
+              setDroppedFiles((prev) =>
+                prev.map((f) =>
+                  f.id === droppedFile.id
+                    ? { ...f, dataUrl: compressedDataUrl, isLoading: false }
+                    : f
+                )
+              );
+            } catch (compressionError) {
+              console.error('Failed to compress image:', file.name, compressionError);
+              setDroppedFiles((prev) =>
+                prev.map((f) =>
+                  f.id === droppedFile.id
+                    ? { ...f, error: 'Failed to compress image', isLoading: false }
+                    : f
+                )
+              );
+            }
             activeReadersRef.current.delete(reader);
           };
 
           reader.onerror = () => {
-            console.error('Failed to generate preview for:', file.name);
+            console.error('Failed to read image:', file.name);
             setDroppedFiles((prev) =>
               prev.map((f) =>
                 f.id === droppedFile.id
-                  ? { ...f, error: 'Failed to load image preview', isLoading: false }
+                  ? { ...f, error: 'Failed to load image', isLoading: false }
                   : f
               )
             );

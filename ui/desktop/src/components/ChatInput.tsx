@@ -25,7 +25,7 @@ import { COST_TRACKING_ENABLED, VOICE_DICTATION_ELEVENLABS_ENABLED } from '../up
 import { CostTracker } from './bottom_menu/CostTracker';
 import { DroppedFile, useFileDrop } from '../hooks/useFileDrop';
 import { Recipe } from '../recipe';
-import {MessageQueue, QueuedMessage} from './MessageQueue';
+import { MessageQueue, QueuedMessage } from './MessageQueue';
 import { detectInterruption } from '../utils/interruptionDetector';
 import { DiagnosticsModal } from './ui/Diagnostics';
 import { getSession, Message } from '../api';
@@ -45,14 +45,12 @@ import { ImageData } from '../types/message';
 
 interface PastedImage {
   id: string;
-  dataUrl: string; // For immediate preview
-  filePath?: string; // Path on filesystem after saving
+  dataUrl: string;
   isLoading: boolean;
   error?: string;
 }
 
-// Constants for image handling
-const MAX_IMAGES_PER_MESSAGE = 5;
+const MAX_IMAGES_PER_MESSAGE = 10;
 
 // Constants for token and tool alerts
 const TOKEN_LIMIT_DEFAULT = 128000; // fallback for custom models that the backend doesn't know about
@@ -213,9 +211,7 @@ export default function ChatInput({
       if (shouldProcessQueue) {
         const nextMessage = queuedMessages[0];
         LocalMessageStorage.addMessage(nextMessage.content);
-        handleSubmit(
-          nextMessage.content, nextMessage.images
-        );
+        handleSubmit(nextMessage.content, nextMessage.images);
         setQueuedMessages((prev) => {
           const newQueue = prev.slice(1);
           // If queue becomes empty after processing, clear the paused state
@@ -301,15 +297,7 @@ export default function ChatInput({
   useEffect(() => {
     setValue(initialValue);
     setDisplayValue(initialValue);
-    setPastedImages((currentPastedImages) => {
-      currentPastedImages.forEach((img) => {
-        if (img.filePath) {
-          window.electron.deleteTempFile(img.filePath);
-        }
-      });
-      return [];
-    });
-
+    setPastedImages([]);
     setHistoryIndex(-1);
     setIsInGlobalHistory(false);
     setHasUserTyped(false);
@@ -358,41 +346,7 @@ export default function ChatInput({
   };
 
   const handleRemovePastedImage = (idToRemove: string) => {
-    const imageToRemove = pastedImages.find((img) => img.id === idToRemove);
-    if (imageToRemove?.filePath) {
-      window.electron.deleteTempFile(imageToRemove.filePath);
-    }
     setPastedImages((currentImages) => currentImages.filter((img) => img.id !== idToRemove));
-  };
-
-  const handleRetryImageSave = async (imageId: string) => {
-    const imageToRetry = pastedImages.find((img) => img.id === imageId);
-    if (!imageToRetry || !imageToRetry.dataUrl) return;
-
-    // Set the image to loading state
-    setPastedImages((prev) =>
-      prev.map((img) => (img.id === imageId ? { ...img, isLoading: true, error: undefined } : img))
-    );
-
-    try {
-      const result = await window.electron.saveDataUrlToTemp(imageToRetry.dataUrl, imageId);
-      setPastedImages((prev) =>
-        prev.map((img) =>
-          img.id === result.id
-            ? { ...img, filePath: result.filePath, error: result.error, isLoading: false }
-            : img
-        )
-      );
-    } catch (err) {
-      console.error('Error retrying image save:', err);
-      setPastedImages((prev) =>
-        prev.map((img) =>
-          img.id === imageId
-            ? { ...img, error: 'Failed to save image via Electron.', isLoading: false }
-            : img
-        )
-      );
-    }
   };
 
   useEffect(() => {
@@ -529,20 +483,6 @@ export default function ChatInput({
   // Cleanup effect for component unmount - prevent memory leaks
   useEffect(() => {
     return () => {
-      // Clear any pending timeouts from image processing
-      setPastedImages((currentImages) => {
-        currentImages.forEach((img) => {
-          if (img.filePath) {
-            try {
-              window.electron.deleteTempFile(img.filePath);
-            } catch (error) {
-              console.error('Error deleting temp file:', error);
-            }
-          }
-        });
-        return [];
-      });
-
       // Clear all tracked timeouts
       // eslint-disable-next-line react-hooks/exhaustive-deps
       const timeouts = timeoutRefsRef.current;
@@ -653,7 +593,7 @@ export default function ChatInput({
         const maxDimension = 1024;
         let width = img.width;
         let height = img.height;
-        
+
         if (width > maxDimension || height > maxDimension) {
           if (width > height) {
             height = Math.floor((height * maxDimension) / width);
@@ -663,20 +603,20 @@ export default function ChatInput({
             height = maxDimension;
           }
         }
-        
+
         // Create canvas and resize
         const canvas = document.createElement('canvas');
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext('2d');
-        
+
         if (!ctx) {
           reject(new Error('Failed to get canvas context'));
           return;
         }
-        
+
         ctx.drawImage(img, 0, 0, width, height);
-        
+
         // Convert to JPEG with 0.85 quality
         const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
         resolve(compressedDataUrl);
@@ -735,36 +675,12 @@ export default function ChatInput({
       reader.onload = async (e) => {
         const dataUrl = e.target?.result as string;
         if (dataUrl) {
-          try {
-            // Compress the image
-            const compressedDataUrl = await compressImageDataUrl(dataUrl);
-            
-            // Update the image with the compressed data URL
-            setPastedImages((prev) =>
-              prev.map((img) => (img.id === imageId ? { ...img, dataUrl: compressedDataUrl, isLoading: false } : img))
-            );
-          } catch (compressionError) {
-            console.error('Error compressing image:', compressionError);
-            setPastedImages((prev) =>
-              prev.map((img) =>
-                img.id === imageId
-                  ? {
-                      ...img,
-                      dataUrl,
-                      isLoading: false,
-                      error: `Image too large and could not be compressed. Try a smaller image.`,
-                    }
-                  : img
-              )
-            );
-            
-            // Remove the error message after 5 seconds
-            const timeoutId = setTimeout(() => {
-              setPastedImages((prev) => prev.filter((img) => img.id !== imageId));
-              timeoutRefsRef.current.delete(timeoutId);
-            }, 5000);
-            timeoutRefsRef.current.add(timeoutId);
-          }
+          const compressedDataUrl = await compressImageDataUrl(dataUrl);
+          setPastedImages((prev) =>
+            prev.map((img) =>
+              img.id === imageId ? { ...img, dataUrl: compressedDataUrl, isLoading: false } : img
+            )
+          );
         }
       };
       reader.onerror = () => {
@@ -884,8 +800,42 @@ export default function ChatInput({
       return false;
     }
 
+    // Extract base64 image data from pasted images
+    const pastedImageData: ImageData[] = pastedImages
+      .filter((img) => img.dataUrl && !img.error && !img.isLoading)
+      .map((img) => {
+        const matches = img.dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+        if (matches) {
+          return {
+            data: matches[2],
+            mimeType: matches[1],
+          };
+        }
+        return null;
+      })
+      .filter((img): img is ImageData => img !== null);
+
+    // Extract base64 image data from dropped images
+    const droppedImageData: ImageData[] = allDroppedFiles
+      .filter((file) => file.isImage && file.dataUrl && !file.error && !file.isLoading)
+      .map((file) => {
+        const matches = file.dataUrl!.match(/^data:([^;]+);base64,(.+)$/);
+        if (matches) {
+          return {
+            data: matches[2],
+            mimeType: matches[1],
+          };
+        }
+        return null;
+      })
+      .filter((img): img is ImageData => img !== null);
+
+    // Combine all image data
+    const imageData = [...pastedImageData, ...droppedImageData];
+
+    // Get paths from non-image dropped files only
     const droppedFilePaths = allDroppedFiles
-      .filter((file) => !file.error && !file.isLoading)
+      .filter((file) => !file.isImage && !file.error && !file.isLoading)
       .map((file) => file.path);
 
     let contentToQueue = displayValue.trim();
@@ -907,7 +857,7 @@ export default function ChatInput({
         id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
         content: contentToQueue,
         timestamp: Date.now(),
-        images: [],
+        images: imageData,
       };
 
       // Add the interruption message to the front of the queue so it gets sent first
@@ -929,7 +879,7 @@ export default function ChatInput({
       id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
       content: contentToQueue,
       timestamp: Date.now(),
-      images: [],
+      images: imageData,
     };
     setQueuedMessages((prev) => {
       const newQueue = [...prev, newMessage];
@@ -961,7 +911,7 @@ export default function ChatInput({
   const performSubmit = useCallback(
     (text?: string) => {
       // Extract base64 image data from pasted images (for direct image content)
-      const imageData: import('../types/message').ImageData[] = pastedImages
+      const pastedImageData: ImageData[] = pastedImages
         .filter((img) => img.dataUrl && !img.error && !img.isLoading)
         .map((img) => {
           // Extract base64 data and mime type from data URL
@@ -975,16 +925,35 @@ export default function ChatInput({
           }
           return null;
         })
-        .filter((img): img is import('../types/message').ImageData => img !== null);
+        .filter((img): img is ImageData => img !== null);
 
-      // Get paths from all dropped files
+      // Extract base64 image data from dropped images (for direct image content)
+      const droppedImageData: ImageData[] = allDroppedFiles
+        .filter((file) => file.isImage && file.dataUrl && !file.error && !file.isLoading)
+        .map((file) => {
+          // Extract base64 data and mime type from data URL
+          const matches = file.dataUrl!.match(/^data:([^;]+);base64,(.+)$/);
+          if (matches) {
+            return {
+              data: matches[2], // base64 data
+              mimeType: matches[1], // mime type
+            };
+          }
+          return null;
+        })
+        .filter((img): img is ImageData => img !== null);
+
+      // Combine all image data
+      const imageData = [...pastedImageData, ...droppedImageData];
+
+      // Get paths from non-image dropped files only
       const droppedFilePaths = allDroppedFiles
-        .filter((file) => !file.error && !file.isLoading)
+        .filter((file) => !file.isImage && !file.error && !file.isLoading)
         .map((file) => file.path);
 
       let textToSend = text ?? displayValue.trim();
 
-      // Add dropped file paths to text
+      // Add non-image dropped file paths to text
       if (droppedFilePaths.length > 0) {
         const pathsString = droppedFilePaths.join(' ');
         textToSend = textToSend ? `${textToSend} ${pathsString}` : pathsString;
@@ -1131,91 +1100,66 @@ export default function ChatInput({
     if (!files || files.length === 0) return;
 
     setIsFilePickerOpen(true);
-    try {
-      const file = files[0];
-      const isImage = file.type.startsWith('image/');
+    const file = files[0];
+    const isImage = file.type.startsWith('image/');
 
-      if (isImage) {
-        trackFileAttached('file');
-        
-        // Check if we're at the image limit
-        if (pastedImages.length >= MAX_IMAGES_PER_MESSAGE) {
-          console.warn(`Maximum ${MAX_IMAGES_PER_MESSAGE} images per message`);
-          toastError(`You can only attach up to ${MAX_IMAGES_PER_MESSAGE} images per message.`);
-          return;
-        }
+    if (isImage) {
+      trackFileAttached('file');
 
-        // Create a unique ID for this image
-        const uniqueId = `upload-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        
-        // Add a loading placeholder
-        setPastedImages(prev => [...prev, {
+      if (pastedImages.length >= MAX_IMAGES_PER_MESSAGE) {
+        console.warn(`Maximum ${MAX_IMAGES_PER_MESSAGE} images per message`);
+        setIsFilePickerOpen(false);
+        return;
+      }
+
+      const uniqueId = `upload-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+      setPastedImages((prev) => [
+        ...prev,
+        {
           id: uniqueId,
           dataUrl: '',
           isLoading: true,
-          error: undefined
-        }]);
+          error: undefined,
+        },
+      ]);
 
-        try {
-          // Read the file using FileReader
-          const reader = new FileReader();
-          reader.onload = async (evt) => {
-            const dataUrl = evt.target?.result as string;
-            if (dataUrl) {
-              try {
-                // Compress the image
-                const compressedDataUrl = await compressImageDataUrl(dataUrl);
-                
-                // Update the image with the compressed data URL
-                setPastedImages(prev => prev.map(img => 
-                  img.id === uniqueId 
-                    ? { ...img, dataUrl: compressedDataUrl, isLoading: false, error: undefined }
-                    : img
-                ));
-              } catch (compressionError) {
-                const errorMessage = compressionError instanceof Error 
-                  ? compressionError.message 
-                  : 'Failed to compress image';
-                setPastedImages(prev => prev.map(img => 
-                  img.id === uniqueId 
-                    ? { ...img, isLoading: false, error: errorMessage }
-                    : img
-                ));
-              }
-            }
-          };
-          reader.onerror = () => {
-            setPastedImages(prev => prev.map(img => 
-              img.id === uniqueId 
-                ? { ...img, isLoading: false, error: 'Failed to read image file' }
+      const reader = new FileReader();
+      reader.onload = async (evt) => {
+        const dataUrl = evt.target?.result as string;
+        if (dataUrl) {
+          const compressedDataUrl = await compressImageDataUrl(dataUrl);
+          setPastedImages((prev) =>
+            prev.map((img) =>
+              img.id === uniqueId
+                ? { ...img, dataUrl: compressedDataUrl, isLoading: false, error: undefined }
                 : img
-            ));
-          };
-          reader.readAsDataURL(file);
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Failed to load image';
-          setPastedImages(prev => prev.map(img => 
-            img.id === uniqueId 
-              ? { ...img, isLoading: false, error: errorMessage }
-              : img
-          ));
+            )
+          );
         }
-      } else {
-        // For non-image files, get the path and add to text
-        trackFileAttached('file');
-        const path = window.electron.getPathForFile(file);
-        const newValue = displayValue.trim() ? `${displayValue.trim()} ${path}` : path;
-        setDisplayValue(newValue);
-        setValue(newValue);
-      }
-      
-      textAreaRef.current?.focus();
-    } finally {
-      setIsFilePickerOpen(false);
-      // Reset the input so the same file can be selected again
-      if (e.target) {
-        e.target.value = '';
-      }
+      };
+      reader.onerror = () => {
+        setPastedImages((prev) =>
+          prev.map((img) =>
+            img.id === uniqueId
+              ? { ...img, isLoading: false, error: 'Failed to read image file' }
+              : img
+          )
+        );
+      };
+      reader.readAsDataURL(file);
+    } else {
+      trackFileAttached('file');
+      const path = window.electron.getPathForFile(file);
+      const newValue = displayValue.trim() ? `${displayValue.trim()} ${path}` : path;
+      setDisplayValue(newValue);
+      setValue(newValue);
+    }
+
+    textAreaRef.current?.focus();
+    setIsFilePickerOpen(false);
+    if (e.target) {
+      e.target.value = '';
     }
   };
 
@@ -1554,20 +1498,9 @@ export default function ChatInput({
               )}
               {img.error && !img.isLoading && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-75 rounded p-1 text-center">
-                  <p className="text-red-400 text-[10px] leading-tight break-all mb-1">
+                  <p className="text-red-400 text-[10px] leading-tight break-all">
                     {img.error.substring(0, 50)}
                   </p>
-                  {img.dataUrl && (
-                    <Button
-                      type="button"
-                      onClick={() => handleRetryImageSave(img.id)}
-                      title="Retry saving image"
-                      variant="outline"
-                      size="xs"
-                    >
-                      Retry
-                    </Button>
-                  )}
                 </div>
               )}
               {!img.isLoading && (

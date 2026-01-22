@@ -30,7 +30,7 @@ export type ViewOptions = {
   parentView?: View;
   parentViewOptions?: ViewOptions;
   disableAnimation?: boolean;
-  initialMessage?: {msg: string, images: ImageData[]};
+  initialMessage?: { msg: string; images: ImageData[] };
   shareToken?: string;
   resumeSessionId?: string;
   pendingScheduleDeepLink?: string;

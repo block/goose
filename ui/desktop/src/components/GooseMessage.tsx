@@ -44,7 +44,7 @@ export default function GooseMessage({
 }: GooseMessageProps) {
   const contentRef = useRef<HTMLDivElement | null>(null);
 
-  let {textContent, imagePaths} = getTextAndImageContent(message);
+  let { textContent, imagePaths } = getTextAndImageContent(message);
 
   const splitChainOfThought = (text: string): { displayText: string; cotText: string | null } => {
     const regex = /<think>([\s\S]*?)<\/think>/i;
@@ -54,10 +54,10 @@ export default function GooseMessage({
     }
 
     const cotRaw = match[1].trim();
-    const visibleText = text.replace(regex, '').trim();
+    const displayText = text.replace(regex, '').trim();
 
     return {
-      displayText: visibleText,
+      displayText,
       cotText: cotRaw || null,
     };
   };

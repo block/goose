@@ -10,7 +10,10 @@ import { useChatContext } from '../../contexts/ChatContext';
 import { ImageData } from '../../types/message';
 
 interface AppLayoutContentProps {
-  activeSessions: Array<{ sessionId: string; initialMessage?: { msg: string; images: ImageData[] } }>;
+  activeSessions: Array<{
+    sessionId: string;
+    initialMessage?: { msg: string; images: ImageData[] };
+  }>;
 }
 
 const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) => {
@@ -127,7 +130,10 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
 };
 
 interface AppLayoutProps {
-  activeSessions: Array<{ sessionId: string; initialMessage?: { msg: string; images: ImageData[] } }>;
+  activeSessions: Array<{
+    sessionId: string;
+    initialMessage?: { msg: string; images: ImageData[] };
+  }>;
 }
 
 export const AppLayout: React.FC<AppLayoutProps> = ({ activeSessions }) => {

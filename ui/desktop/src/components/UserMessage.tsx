@@ -20,7 +20,7 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
   const [editContent, setEditContent] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  const {textContent, imagePaths} = getTextAndImageContent(message);
+  const { textContent, imagePaths } = getTextAndImageContent(message);
   const timestamp = formatMessageTimestamp(message.created);
 
   // Effect to handle message content changes and ensure persistence
@@ -203,11 +203,10 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
                   </div>
                 </div>
 
-                {/* Render images if any */}
                 {imagePaths.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-2">
                     {imagePaths.map((imagePath, index) => (
-                      <ImagePreview key={index} src={imagePath} alt={`Pasted image ${index + 1}`} />
+                      <ImagePreview key={index} src={imagePath} />
                     ))}
                   </div>
                 )}

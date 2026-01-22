@@ -9,7 +9,7 @@ export function identifyConsecutiveToolCalls(messages: Message[]): number[][] {
     const message = messages[i];
     const toolRequests = getToolRequests(message);
     const toolResponses = getToolResponses(message);
-    const {textContent} = getTextAndImageContent(message);
+    const { textContent } = getTextAndImageContent(message);
     const hasText = textContent.trim().length > 0;
 
     if (toolResponses.length > 0 && toolRequests.length === 0) {

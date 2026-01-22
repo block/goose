@@ -4,9 +4,7 @@ interface ImagePreviewProps {
   src: string;
 }
 
-export default function ImagePreview({
-  src,
-}: ImagePreviewProps) {
+export default function ImagePreview({ src }: ImagePreviewProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [error, setError] = useState(false);
 

@@ -5,7 +5,10 @@ import { ImageData } from '../types/message';
 
 interface ChatSessionsContainerProps {
   setChat: (chat: ChatType) => void;
-  activeSessions: Array<{ sessionId: string; initialMessage?: { msg: string; images: ImageData[] } }>;
+  activeSessions: Array<{
+    sessionId: string;
+    initialMessage?: { msg: string; images: ImageData[] };
+  }>;
 }
 
 /**

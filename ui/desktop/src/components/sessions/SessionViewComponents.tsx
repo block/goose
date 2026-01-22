@@ -81,7 +81,7 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
             ) : messages?.length > 0 ? (
               messages
                 .map((message, index) => {
-                  const {textContent, imagePaths} = getTextAndImageContent(message);
+                  const { textContent, imagePaths } = getTextAndImageContent(message);
 
                   // Get tool requests from the message
                   const toolRequests = message.content
@@ -127,15 +127,10 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
                           </div>
                         )}
 
-                        {/* Render images if any */}
                         {imagePaths.length > 0 && (
                           <div className="flex flex-wrap gap-2 mt-2 mb-2">
                             {imagePaths.map((imagePath, imageIndex) => (
-                              <ImagePreview
-                                key={imageIndex}
-                                src={imagePath}
-                                alt={`Image ${imageIndex + 1}`}
-                              />
+                              <ImagePreview key={imageIndex} src={imagePath} />
                             ))}
                           </div>
                         )}

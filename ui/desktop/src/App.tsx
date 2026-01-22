@@ -68,8 +68,13 @@ const HubRouteWrapper = () => {
 const PairRouteWrapper = ({
   activeSessions,
 }: {
-  activeSessions: Array<{ sessionId: string; initialMessage?: { msg: string; images: ImageData[] } }>;
-  setActiveSessions: (sessions: Array<{ sessionId: string; initialMessage?: { msg: string; images: ImageData[] } }>) => void;
+  activeSessions: Array<{
+    sessionId: string;
+    initialMessage?: { msg: string; images: ImageData[] };
+  }>;
+  setActiveSessions: (
+    sessions: Array<{ sessionId: string; initialMessage?: { msg: string; images: ImageData[] } }>
+  ) => void;
 }) => {
   const { extensionsList } = useConfig();
   const location = useLocation();
@@ -360,7 +365,10 @@ export function AppInner() {
   useEffect(() => {
     const handleAddActiveSession = (event: Event) => {
       const { sessionId, initialMessage } = (
-        event as CustomEvent<{ sessionId: string; initialMessage?: { msg: string; images: ImageData[] } }>
+        event as CustomEvent<{
+          sessionId: string;
+          initialMessage?: { msg: string; images: ImageData[] };
+        }>
       ).detail;
 
       setActiveSessions((prev) => {
