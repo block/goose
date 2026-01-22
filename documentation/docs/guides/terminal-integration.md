@@ -156,6 +156,10 @@ Your terminal prompt now shows the context usage and model name (shortened for r
 ```bash
 ●●○○○ sonnet ~/projects $
 ```
+## Shell Completion for goose Commands
+
+`@goose` provides context-aware assistance based on your command history. To enable tab completion of goose CLI commands (like `goose session`, `goose run`, etc.), see the [shell completion documentation](/docs/guides/goose-cli-commands#completion).
+
 ## Troubleshooting
 
 **goose doesn't see recent commands:**

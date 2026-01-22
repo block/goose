@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const globby = require('globby');
+const { globby } = require('globby');
 
 module.exports = function markdownExportPlugin(context, options) {
   const pluginOptions = {

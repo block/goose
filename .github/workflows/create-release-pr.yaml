@@ -53,6 +53,11 @@ jobs:
           exit 1
         fi
 
+    - name: install dependencies
+      run: |
+        sudo apt update -y
+        sudo apt install -y libdbus-1-dev gnome-keyring libxcb1-dev
+
     - name: create release branch
       env:
         ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

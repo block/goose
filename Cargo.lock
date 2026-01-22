@@ -3249,6 +3249,7 @@ dependencies = [
  "tracing-subscriber",
  "url",
  "utoipa",
+ "uuid",
  "winreg 0.55.0",
  "wiremock",
 ]
