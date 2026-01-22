@@ -179,7 +179,7 @@ async fn create_recipe(
         }
     };
 
-    let conversation = match session.conversation {
+    let conversation = match session.conversation.clone() {
         Some(conversation) => conversation,
         None => {
             let error_message = "Session has no conversation".to_string();
@@ -193,7 +193,7 @@ async fn create_recipe(
 
     let agent = state.get_agent_for_route(request.session_id).await?;
 
-    let recipe_result = agent.create_recipe(conversation).await;
+    let recipe_result = agent.create_recipe(&session.id, conversation).await;
 
     match recipe_result {
         Ok(mut recipe) => {

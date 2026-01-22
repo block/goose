@@ -69,10 +69,10 @@ impl OpenRouterProvider {
         })
     }
 
-    async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
+    async fn post(&self, session_id: &str, payload: &Value) -> Result<Value, ProviderError> {
         let response = self
             .api_client
-            .response_post("api/v1/chat/completions", payload)
+            .response_post(session_id, "api/v1/chat/completions", payload)
             .await?;
 
         let response_body = handle_response_openai_compat(response)
@@ -189,6 +189,7 @@ fn is_gemini_model(model_name: &str) -> bool {
 
 async fn create_request_based_on_model(
     provider: &OpenRouterProvider,
+    session_id: &str,
     system: &str,
     messages: &[Message],
     tools: &[Tool],
@@ -202,7 +203,7 @@ async fn create_request_based_on_model(
         false,
     )?;
 
-    if provider.supports_cache_control().await {
+    if provider.supports_cache_control(session_id).await {
         payload = update_request_for_anthropic(&payload);
     }
 
@@ -253,18 +254,20 @@ impl Provider for OpenRouterProvider {
     )]
     async fn complete_with_model(
         &self,
+        session_id: &str,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = create_request_based_on_model(self, system, messages, tools).await?;
+        let payload =
+            create_request_based_on_model(self, session_id, system, messages, tools).await?;
         let mut log = RequestLog::start(model_config, &payload)?;
 
         let response = self
             .with_retry(|| async {
                 let payload_clone = payload.clone();
-                self.post(&payload_clone).await
+                self.post(session_id, &payload_clone).await
             })
             .await?;
 
@@ -284,10 +287,17 @@ impl Provider for OpenRouterProvider {
     }
 
     /// Fetch supported models from OpenRouter API (only models with tool support)
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(
+        &self,
+        session_id: &str,
+    ) -> Result<Option<Vec<String>>, ProviderError> {
         // Handle request failures gracefully
         // If the request fails, fall back to manual entry
-        let response = match self.api_client.response_get("api/v1/models").await {
+        let response = match self
+            .api_client
+            .response_get(session_id, "api/v1/models")
+            .await
+        {
             Ok(response) => response,
             Err(e) => {
                 tracing::warn!("Failed to fetch models from OpenRouter API: {}, falling back to manual model entry", e);
@@ -360,7 +370,7 @@ impl Provider for OpenRouterProvider {
         Ok(Some(models))
     }
 
-    async fn supports_cache_control(&self) -> bool {
+    async fn supports_cache_control(&self, _session_id: &str) -> bool {
         self.model
             .model_name
             .starts_with(OPENROUTER_MODEL_PREFIX_ANTHROPIC)
@@ -372,6 +382,7 @@ impl Provider for OpenRouterProvider {
 
     async fn stream(
         &self,
+        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -385,7 +396,7 @@ impl Provider for OpenRouterProvider {
             true,
         )?;
 
-        if self.supports_cache_control().await {
+        if self.supports_cache_control(session_id).await {
             payload = update_request_for_anthropic(&payload);
         }
 
@@ -403,7 +414,7 @@ impl Provider for OpenRouterProvider {
             .with_retry(|| async {
                 let resp = self
                     .api_client
-                    .response_post("api/v1/chat/completions", &payload)
+                    .response_post(session_id, "api/v1/chat/completions", &payload)
                     .await?;
                 handle_status_openai_compat(resp).await
             })

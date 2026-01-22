@@ -10,6 +10,7 @@ import {
   getToolResponses,
   getToolConfirmationContent,
   getElicitationContent,
+  getPendingToolConfirmationIds,
   NotificationEvent,
 } from '../types/message';
 import { Message } from '../api';
@@ -99,6 +100,8 @@ export default function GooseMessage({
     return responseMap;
   }, [messages, messageIndex, toolRequests]);
 
+  const pendingConfirmationIds = getPendingToolConfirmationIds(messages);
+
   return (
     <div className="goose-message flex w-[90%] justify-start min-w-0">
       <div className="flex flex-col w-full min-w-0">
@@ -157,6 +160,7 @@ export default function GooseMessage({
                       toolResponse={toolResponsesMap.get(toolRequest.id)}
                       notifications={toolCallNotifications.get(toolRequest.id)}
                       isStreamingMessage={isStreaming}
+                      isPendingApproval={pendingConfirmationIds.has(toolRequest.id)}
                       append={append}
                     />
                   </div>

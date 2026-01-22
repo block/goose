@@ -1,5 +1,5 @@
 use crate::agents::extension::PlatformExtensionContext;
-use crate::agents::mcp_client::{Error, McpClientTrait, McpMeta};
+use crate::agents::mcp_client::{Error, McpClientTrait};
 use crate::config::paths::Paths;
 use anyhow::Result;
 use async_trait::async_trait;
@@ -263,6 +263,7 @@ impl SkillsClient {
 impl McpClientTrait for SkillsClient {
     async fn list_tools(
         &self,
+        _session_id: &str,
         _next_cursor: Option<String>,
         _cancellation_token: CancellationToken,
     ) -> Result<ListToolsResult, Error> {
@@ -280,9 +281,9 @@ impl McpClientTrait for SkillsClient {
 
     async fn call_tool(
         &self,
+        _session_id: &str,
         name: &str,
         arguments: Option<JsonObject>,
-        _meta: McpMeta,
         _cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         let content = match name {
@@ -601,7 +602,7 @@ Content from dir3
         };
 
         let result = client
-            .list_tools(None, CancellationToken::new())
+            .list_tools("test-session-id", None, CancellationToken::new())
             .await
             .unwrap();
         assert_eq!(result.tools.len(), 0);
@@ -656,7 +657,7 @@ Content
         };
 
         let result = client
-            .list_tools(None, CancellationToken::new())
+            .list_tools("test-session-id", None, CancellationToken::new())
             .await
             .unwrap();
         assert_eq!(result.tools.len(), 1);
