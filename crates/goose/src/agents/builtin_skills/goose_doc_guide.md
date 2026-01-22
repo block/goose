@@ -37,22 +37,18 @@ Do NOT use this skill for:
          - [ ] Value formats match examples (YAML/JSON syntax, data types, etc.)
       - **If ANY verification fails, revise and repeat this step until ALL verifications pass**
       - **DO NOT present unverified output to the user**
-   - Use only fetched docs for all goose-specific details
 
-3. **MANDATORY VERIFICATION - DO THIS BEFORE STEP 4**
+3. **MANDATORY VERIFICATION - CHECK ALL THESE ITEMS BEFORE STEP 4**
    Before writing your final answer:
-   - [ ] You ONLY present goose-specific information that is explicitly stated in the fetched documentation. If you cannot identify the documentation page that supports a detail, you must NOT include it.
-   - [ ] **NOTHING EXTRA**: Do not add usage instructions, tips, CLI commands, or "how to" sections unless the user explicitly asked AND you verified them in fetched docs.
    - [ ] You MUST NOT rely on training data or assumptions for any goose-specific fields, values, names, syntax, or commands.
-   - [ ] For EVERY goose-specific command in your answer: Search fetched files to verify it exists
-   - [ ] For EVERY goose-specific field in your answer: Search fetched files to verify it exists  
-   - [ ] For EVERY usage instruction in your answer: Search fetched files to verify it exists
-   - [ ] If you cannot verify something: Remove it, unless the user explicitly asked for it (then state "I could not find documentation for [X]")
-   
-4. **Provide your answer and include a "Verification Completed" section showing which checks passed**
+   - [ ] **Did you include "How to Use", CLI commands, or usage instructions?**
+      - If YES and user didn't ask for it → **REMOVE IT NOW**
+      - If YES and user asked for it → verify exact commands from fetched docs before including
+   - [ ] List all goose-specific items in your answer (commands, fields, syntax, values, how to use, explanations, etc.)
+   - [ ] For each item, verify it is correct according to the fetched docs. If not found, either fetch the relevant docs NOW and verify, or remove it (if user asked for it, state "I could not find documentation for [X]").
+
+4. **Provide your answer and include a "Verification Completed" section**
    - For EACH goose-specific item in your response, cite the specific doc file where you verified it
-   - Format: `[item] → verified in [filename]`
-   - **If you cannot cite a source for something, you MUST remove it from your answer**
 
 5. **List documentation links**
    - Only include docs actually used
