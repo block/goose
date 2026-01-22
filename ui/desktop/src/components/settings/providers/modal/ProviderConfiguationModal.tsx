@@ -20,6 +20,20 @@ import { AlertTriangle, LogIn } from 'lucide-react';
 import { ProviderDetails, removeCustomProvider, configureProviderOauth } from '../../../../api';
 import { Button } from '../../../../components/ui/button';
 
+const formatErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === 'string') {
+    return error;
+  }
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+};
+
 interface ProviderConfigurationModalProps {
   provider: ProviderDetails;
   onClose: () => void;
@@ -58,7 +72,7 @@ export default function ProviderConfigurationModal({
       : 'This will permanently delete the current provider configuration.'
     : isOAuthProvider
       ? `Sign in with your ${provider.metadata.display_name} account to use this provider`
-      : `Add your API key(s) for this provider to integrate into Goose`;
+      : `Add your API key(s) for this provider to integrate into goose`;
 
   const handleOAuthLogin = async () => {
     setIsOAuthLoading(true);
@@ -69,15 +83,15 @@ export default function ProviderConfigurationModal({
       });
       if (onConfigured) {
         onConfigured(provider);
-      } else {
-        onClose();
-      }
-    } catch (err) {
-      setError(`OAuth login failed: ${err}`);
-    } finally {
-      setIsOAuthLoading(false);
+    } else {
+      onClose();
     }
-  };
+  } catch (err) {
+    setError(`OAuth login failed: ${formatErrorMessage(err)}`);
+  } finally {
+    setIsOAuthLoading(false);
+  }
+};
 
   const handleSubmitForm = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -116,7 +130,7 @@ export default function ProviderConfigurationModal({
         onClose();
       }
     } catch (error) {
-      setError(`${error}`);
+      setError(formatErrorMessage(error));
     }
   };
 

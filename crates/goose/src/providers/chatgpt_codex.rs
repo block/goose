@@ -1,4 +1,4 @@
-use crate::config::Config;
+use crate::config::paths::Paths;
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::api_client::AuthProvider;
@@ -23,6 +23,7 @@ use sha2::Digest;
 use std::io;
 use std::net::SocketAddr;
 use std::ops::Deref;
+use std::path::PathBuf;
 use std::sync::{Arc, LazyLock};
 use tokio::pin;
 use tokio::sync::{oneshot, Mutex as TokioMutex};
@@ -33,8 +34,12 @@ const CLIENT_ID: &str = "app_EMoamEEZ73f0CkXaXp7hrann";
 const ISSUER: &str = "https://auth.openai.com";
 const CODEX_API_ENDPOINT: &str = "https://chatgpt.com/backend-api/codex";
 const OAUTH_SCOPES: &[&str] = &["openid", "profile", "email", "offline_access"];
+// Canonical localhost callback port for Codex OAuth (default localhost:1455 per OpenAI docs).
+// https://developers.openai.com/codex/auth/
 const OAUTH_PORT: u16 = 1455;
-const CHATGPT_CODEX_TOKEN_KEY: &str = "CHATGPT_CODEX_TOKEN";
+// Allow time for users to complete the browser-based OAuth flow.
+const OAUTH_TIMEOUT_SECS: u64 = 300;
+const HTML_AUTO_CLOSE_TIMEOUT_MS: u64 = 2000;
 
 pub const CHATGPT_CODEX_DEFAULT_MODEL: &str = "gpt-5.1-codex";
 pub const CHATGPT_CODEX_KNOWN_MODELS: &[&str] = &[
@@ -209,19 +214,42 @@ struct TokenData {
 }
 
 #[derive(Debug, Clone)]
-struct TokenCache {}
+struct TokenCache {
+    cache_path: PathBuf,
+}
+
+fn get_cache_path() -> PathBuf {
+    Paths::in_config_dir("chatgpt_codex/tokens.json")
+}
 
 impl TokenCache {
+    fn new() -> Self {
+        let cache_path = get_cache_path();
+        if let Some(parent) = cache_path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        Self { cache_path }
+    }
+
     fn load(&self) -> Option<TokenData> {
-        let config = Config::global();
-        let token = config.get_secret::<TokenData>(CHATGPT_CODEX_TOKEN_KEY);
-        token.ok()
+        if let Ok(contents) = std::fs::read_to_string(&self.cache_path) {
+            serde_json::from_str(&contents).ok()
+        } else {
+            None
+        }
     }
 
     fn save(&self, token_data: &TokenData) -> Result<()> {
-        let config = Config::global();
-        config.set_secret(CHATGPT_CODEX_TOKEN_KEY, token_data)?;
+        if let Some(parent) = self.cache_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let contents = serde_json::to_string(token_data)?;
+        std::fs::write(&self.cache_path, contents)?;
         Ok(())
+    }
+
+    fn clear(&self) {
+        let _ = std::fs::remove_file(&self.cache_path);
     }
 }
 
@@ -454,10 +482,10 @@ async fn refresh_access_token_with_issuer(
     Ok(resp.json().await?)
 }
 
-const HTML_SUCCESS: &str = r#"<!doctype html>
+const HTML_SUCCESS_TEMPLATE: &str = r#"<!doctype html>
 <html>
   <head>
-    <title>Goose - ChatGPT Authorization Successful</title>
+    <title>goose - ChatGPT Authorization Successful</title>
     <style>
       body {
         font-family: system-ui, -apple-system, sans-serif;
@@ -477,18 +505,26 @@ const HTML_SUCCESS: &str = r#"<!doctype html>
   <body>
     <div class="container">
       <h1>Authorization Successful</h1>
-      <p>You can close this window and return to Goose.</p>
+      <p>You can close this window and return to goose.</p>
     </div>
-    <script>setTimeout(() => window.close(), 2000)</script>
+    <script>const AUTO_CLOSE_TIMEOUT_MS = __AUTO_CLOSE_TIMEOUT_MS__; setTimeout(() => window.close(), AUTO_CLOSE_TIMEOUT_MS)</script>
   </body>
 </html>"#;
 
+fn html_success() -> String {
+    HTML_SUCCESS_TEMPLATE.replace(
+        "__AUTO_CLOSE_TIMEOUT_MS__",
+        &HTML_AUTO_CLOSE_TIMEOUT_MS.to_string(),
+    )
+}
+
 fn html_error(error: &str) -> String {
+    let safe_error = v_htmlescape::escape(error).to_string();
     format!(
         r#"<!doctype html>
 <html>
   <head>
-    <title>Goose - ChatGPT Authorization Failed</title>
+    <title>goose - ChatGPT Authorization Failed</title>
     <style>
       body {{
         font-family: system-ui, -apple-system, sans-serif;
@@ -521,7 +557,7 @@ fn html_error(error: &str) -> String {
     </div>
   </body>
 </html>"#,
-        error
+        safe_error
     )
 }
 
@@ -573,7 +609,7 @@ fn oauth_callback_router(
                 if let Some(sender) = tx.lock().await.take() {
                     let _ = sender.send(Ok(code));
                 }
-                Html(HTML_SUCCESS.to_string())
+                Html(html_success())
             }
         }),
     )
@@ -581,39 +617,74 @@ fn oauth_callback_router(
 
 async fn spawn_oauth_server(app: Router) -> Result<tokio::task::JoinHandle<()>> {
     let addr = SocketAddr::from(([127, 0, 0, 1], OAUTH_PORT));
-    let listener = tokio::net::TcpListener::bind(addr).await?;
+    let listener = tokio::net::TcpListener::bind(addr).await.map_err(|e| {
+        if e.kind() == io::ErrorKind::AddrInUse {
+            anyhow!(
+                "OAuth callback server failed to bind to {}: port {} is already in use. \
+                 Please stop the process using this port and try again.",
+                addr,
+                OAUTH_PORT
+            )
+        } else {
+            anyhow!("OAuth callback server failed to bind to {}: {}", addr, e)
+        }
+    })?;
     Ok(tokio::spawn(async move {
         let server = axum::serve(listener, app);
         let _ = server.await;
     }))
 }
 
+struct ServerHandleGuard(Option<tokio::task::JoinHandle<()>>);
+
+impl ServerHandleGuard {
+    fn new(handle: tokio::task::JoinHandle<()>) -> Self {
+        Self(Some(handle))
+    }
+
+    fn abort(&mut self) {
+        if let Some(handle) = self.0.take() {
+            handle.abort();
+        }
+    }
+}
+
+impl Drop for ServerHandleGuard {
+    fn drop(&mut self) {
+        self.abort();
+    }
+}
+
 async fn wait_for_oauth_code(rx: oneshot::Receiver<Result<String>>) -> Result<String> {
-    let code_result = tokio::time::timeout(std::time::Duration::from_secs(300), rx).await;
+    let code_result =
+        tokio::time::timeout(std::time::Duration::from_secs(OAUTH_TIMEOUT_SECS), rx).await;
     code_result
         .map_err(|_| anyhow!("OAuth flow timed out"))??
         .map_err(|e| anyhow!("OAuth callback error: {}", e))
 }
 
 async fn perform_oauth_flow(auth_state: &ChatGptCodexAuthState) -> Result<TokenData> {
-    let _guard = auth_state.oauth_mutex.lock().await;
+    let _guard = auth_state.oauth_mutex.try_lock().map_err(|_| {
+        anyhow!("Another OAuth flow is already in progress; please try again later")
+    })?;
 
     let pkce = generate_pkce();
     let csrf_state = generate_state();
     let redirect_uri = format!("http://localhost:{}/auth/callback", OAUTH_PORT);
+    let auth_url = build_authorize_url(&redirect_uri, &pkce, &csrf_state)?;
 
     let (tx, rx) = oneshot::channel::<Result<String>>();
     let tx = Arc::new(TokioMutex::new(Some(tx)));
     let app = oauth_callback_router(csrf_state.clone(), tx);
     let server_handle = spawn_oauth_server(app).await?;
+    let mut server_guard = ServerHandleGuard::new(server_handle);
 
-    let auth_url = build_authorize_url(&redirect_uri, &pkce, &csrf_state)?;
     if webbrowser::open(&auth_url).is_err() {
-        println!("Please open this URL in your browser:\n{}", auth_url);
+        tracing::info!("Please open this URL in your browser:\n{}", auth_url);
     }
 
     let code_result = wait_for_oauth_code(rx).await;
-    server_handle.abort();
+    server_guard.abort();
     let code = code_result?;
 
     let tokens = exchange_code_for_tokens_with_issuer(ISSUER, &code, &redirect_uri, &pkce).await?;
@@ -642,7 +713,7 @@ struct ChatGptCodexAuthProvider {
 impl ChatGptCodexAuthProvider {
     fn new(state: Arc<ChatGptCodexAuthState>) -> Self {
         Self {
-            cache: TokenCache {},
+            cache: TokenCache::new(),
             state,
         }
     }
@@ -673,7 +744,7 @@ impl ChatGptCodexAuthProvider {
                 }
                 Err(e) => {
                     tracing::warn!("Token refresh failed, will re-authenticate: {}", e);
-                    let _ = Config::global().delete_secret(CHATGPT_CODEX_TOKEN_KEY);
+                    self.cache.clear();
                 }
             }
         }

@@ -210,6 +210,13 @@ fn mask_secret(secret: Value) -> String {
     format!("{}{}", visible, mask)
 }
 
+fn is_valid_provider_name(provider_name: &str) -> bool {
+    !provider_name.is_empty()
+        && provider_name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
 #[utoipa::path(
     post,
     path = "/config/read",
@@ -839,6 +846,10 @@ pub async fn configure_provider_oauth(
 ) -> Result<Json<String>, (StatusCode, String)> {
     use goose::model::ModelConfig;
     use goose::providers::create;
+
+    if !is_valid_provider_name(&provider_name) {
+        return Err((StatusCode::BAD_REQUEST, "Invalid provider name".to_string()));
+    }
 
     let temp_model =
         ModelConfig::new("temp").map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
