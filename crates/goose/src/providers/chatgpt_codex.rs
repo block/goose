@@ -47,14 +47,8 @@ const CHATGPT_CODEX_DOC_URL: &str = "https://openai.com/chatgpt";
 
 static OAUTH_MUTEX: Lazy<TokioMutex<()>> = Lazy::new(|| TokioMutex::new(()));
 
-fn create_codex_request(
-    model_config: &ModelConfig,
-    system: &str,
-    messages: &[Message],
-    tools: &[Tool],
-) -> Result<Value> {
-    let mut input_items = Vec::new();
-
+fn extract_message_content(messages: &[Message]) -> Vec<Value> {
+    let mut items = Vec::new();
     for message in messages.iter().filter(|m| m.is_agent_visible()) {
         let has_only_tool_content = message.content.iter().all(|c| {
             matches!(
@@ -63,11 +57,8 @@ fn create_codex_request(
             )
         });
 
-        if has_only_tool_content {
-            continue;
-        }
-
-        if message.role != Role::User && message.role != Role::Assistant {
+        if has_only_tool_content || (message.role != Role::User && message.role != Role::Assistant)
+        {
             continue;
         }
 
@@ -76,34 +67,37 @@ fn create_codex_request(
             Role::Assistant => "assistant",
         };
 
-        let mut content_items = Vec::new();
-        for content in &message.content {
-            if let MessageContent::Text(text) = content {
-                if !text.text.is_empty() {
-                    let content_type = if message.role == Role::Assistant {
-                        "output_text"
-                    } else {
-                        "input_text"
-                    };
-                    content_items.push(json!({
-                        "type": content_type,
-                        "text": text.text
-                    }));
+        let content_items: Vec<Value> = message
+            .content
+            .iter()
+            .filter_map(|content| {
+                if let MessageContent::Text(text) = content {
+                    if !text.text.is_empty() {
+                        let content_type = if message.role == Role::Assistant {
+                            "output_text"
+                        } else {
+                            "input_text"
+                        };
+                        return Some(json!({ "type": content_type, "text": text.text }));
+                    }
                 }
-            }
-        }
+                None
+            })
+            .collect();
 
         if !content_items.is_empty() {
-            input_items.push(json!({
-                "role": role,
-                "content": content_items
-            }));
+            items.push(json!({ "role": role, "content": content_items }));
         }
     }
+    items
+}
 
-    for message in messages.iter().filter(|m| m.is_agent_visible()) {
-        if message.role == Role::Assistant {
-            for content in &message.content {
+fn extract_function_calls(messages: &[Message]) -> Vec<Value> {
+    messages
+        .iter()
+        .filter(|m| m.is_agent_visible() && m.role == Role::Assistant)
+        .flat_map(|message| {
+            message.content.iter().filter_map(|content| {
                 if let MessageContent::ToolRequest(request) = content {
                     if let Ok(tool_call) = &request.tool_call {
                         let arguments_str = tool_call
@@ -114,7 +108,7 @@ fn create_codex_request(
                             })
                             .unwrap_or_else(|| "{}".to_string());
 
-                        input_items.push(json!({
+                        return Some(json!({
                             "type": "function_call",
                             "call_id": request.id,
                             "name": tool_call.name,
@@ -122,46 +116,65 @@ fn create_codex_request(
                         }));
                     }
                 }
-            }
-        }
-    }
+                None
+            })
+        })
+        .collect()
+}
 
-    for message in messages.iter().filter(|m| m.is_agent_visible()) {
-        for content in &message.content {
-            if let MessageContent::ToolResponse(response) = content {
-                match &response.tool_result {
-                    Ok(contents) => {
-                        let text_content: Vec<String> = contents
-                            .content
-                            .iter()
-                            .filter_map(|c| {
-                                if let RawContent::Text(t) = c.deref() {
-                                    Some(t.text.clone())
-                                } else {
-                                    None
-                                }
-                            })
-                            .collect();
+fn extract_tool_responses(messages: &[Message]) -> Vec<Value> {
+    messages
+        .iter()
+        .filter(|m| m.is_agent_visible())
+        .flat_map(|message| {
+            message.content.iter().filter_map(|content| {
+                if let MessageContent::ToolResponse(response) = content {
+                    match &response.tool_result {
+                        Ok(contents) => {
+                            let text_content: Vec<String> = contents
+                                .content
+                                .iter()
+                                .filter_map(|c| {
+                                    if let RawContent::Text(t) = c.deref() {
+                                        Some(t.text.clone())
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .collect();
 
-                        if !text_content.is_empty() {
-                            input_items.push(json!({
+                            if !text_content.is_empty() {
+                                return Some(json!({
+                                    "type": "function_call_output",
+                                    "call_id": response.id,
+                                    "output": text_content.join("\n")
+                                }));
+                            }
+                        }
+                        Err(error_data) => {
+                            return Some(json!({
                                 "type": "function_call_output",
                                 "call_id": response.id,
-                                "output": text_content.join("\n")
+                                "output": format!("Error: {}", error_data.message)
                             }));
                         }
                     }
-                    Err(error_data) => {
-                        input_items.push(json!({
-                            "type": "function_call_output",
-                            "call_id": response.id,
-                            "output": format!("Error: {}", error_data.message)
-                        }));
-                    }
                 }
-            }
-        }
-    }
+                None
+            })
+        })
+        .collect()
+}
+
+fn create_codex_request(
+    model_config: &ModelConfig,
+    system: &str,
+    messages: &[Message],
+    tools: &[Tool],
+) -> Result<Value> {
+    let mut input_items = extract_message_content(messages);
+    input_items.extend(extract_function_calls(messages));
+    input_items.extend(extract_tool_responses(messages));
 
     let mut payload = json!({
         "model": model_config.model_name,
@@ -195,8 +208,6 @@ fn create_codex_request(
             .unwrap()
             .insert("temperature".to_string(), json!(temp));
     }
-
-    // Note: ChatGPT Codex API does not support max_output_tokens parameter
 
     Ok(payload)
 }
@@ -737,6 +748,7 @@ impl Provider for ChatGptCodexProvider {
     )]
     async fn complete_with_model(
         &self,
+        _session_id: &str,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -794,6 +806,7 @@ impl Provider for ChatGptCodexProvider {
 
     async fn stream(
         &self,
+        _session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -832,7 +845,7 @@ impl Provider for ChatGptCodexProvider {
         Ok(())
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self, _session_id: &str) -> Result<Option<Vec<String>>, ProviderError> {
         Ok(Some(
             CHATGPT_CODEX_KNOWN_MODELS
                 .iter()
