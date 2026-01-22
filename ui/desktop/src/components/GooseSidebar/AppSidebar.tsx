@@ -56,17 +56,17 @@ type NavigationEntry = NavigationItem | NavigationSeparator;
 const menuItems: NavigationEntry[] = [
   {
     type: 'item',
-    path: '/apps',
-    label: 'Apps',
-    icon: AppWindow,
-    tooltip: 'Browse and launch MCP apps',
-  },
-  {
-    type: 'item',
     path: '/recipes',
     label: 'Recipes',
     icon: FileText,
     tooltip: 'Browse your saved recipes',
+  },
+  {
+    type: 'item',
+    path: '/apps',
+    label: 'Apps',
+    icon: AppWindow,
+    tooltip: 'MCP and custom apps',
   },
   {
     type: 'item',
@@ -477,7 +477,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     <>
       <SidebarContent className="pt-12">
         <SidebarMenu>
-          {/* Home, Apps, and New Chat */}
+          {/* Home and New Chat */}
           <SidebarGroup className="px-2">
             <SidebarGroupContent className="space-y-1">
               <div className="sidebar-item">
@@ -534,7 +534,6 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
 
           <SidebarSeparator />
 
-          {/* Other menu items (Apps is filtered based on extension state) */}
           {visibleMenuItems.map((entry, index) => renderMenuItem(entry, index))}
         </SidebarMenu>
       </SidebarContent>

@@ -466,7 +466,6 @@ impl ExtensionManager {
         &self.context
     }
 
-    /// Get the provider
     pub fn get_provider(&self) -> &SharedProvider {
         &self.provider
     }

@@ -124,8 +124,6 @@ pub struct PlatformExtensionContext {
 }
 
 impl PlatformExtensionContext {
-    /// Helper method to attach a platform notification to a tool result.
-    /// The notification will be emitted as a MessageEvent::Notification to update client state.
     pub fn result_with_platform_notification(
         &self,
         mut result: rmcp::model::CallToolResult,

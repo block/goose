@@ -22,14 +22,10 @@ export function errorMessage(err: Error | unknown, default_value?: string) {
   }
 }
 
-/**
- * Format app names for display.
- * Converts names like "countdown-timer" or "my_cool_app" to "Countdown Timer" or "My Cool App"
- */
 export function formatAppName(name: string): string {
   return name
-    .split(/[-_\s]+/) // Split on hyphens, underscores, and spaces
-    .filter((word) => word.length > 0) // Remove empty strings
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()) // Capitalize first letter
-    .join(' '); // Join with spaces
+    .split(/[-_\s]+/)
+    .filter((word) => word.length > 0)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
 }

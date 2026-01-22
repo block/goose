@@ -845,39 +845,33 @@ impl Message {
         .with_metadata(MessageMetadata::user_only())
     }
 
-    /// Set the visibility metadata for the message
     pub fn with_visibility(mut self, user_visible: bool, agent_visible: bool) -> Self {
         self.metadata.user_visible = user_visible;
         self.metadata.agent_visible = agent_visible;
         self
     }
 
-    /// Set the entire metadata for the message
     pub fn with_metadata(mut self, metadata: MessageMetadata) -> Self {
         self.metadata = metadata;
         self
     }
 
-    /// Mark the message as only visible to the user (not the agent)
     pub fn user_only(mut self) -> Self {
         self.metadata.user_visible = true;
         self.metadata.agent_visible = false;
         self
     }
 
-    /// Mark the message as only visible to the agent (not the user)
     pub fn agent_only(mut self) -> Self {
         self.metadata.user_visible = false;
         self.metadata.agent_visible = true;
         self
     }
 
-    /// Check if the message is visible to the user
     pub fn is_user_visible(&self) -> bool {
         self.metadata.user_visible
     }
 
-    /// Check if the message is visible to the agent
     pub fn is_agent_visible(&self) -> bool {
         self.metadata.agent_visible
     }

@@ -24,7 +24,7 @@ import {
 } from '../types/message';
 import { errorMessage } from '../utils/conversionUtils';
 import { showExtensionLoadResults } from '../utils/extensionErrorUtils';
-import { maybe_handle_platform_event } from '../utils/platform_events';
+import { maybeHandlePlatformEvent } from '../utils/platform_events';
 
 const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
 
@@ -251,7 +251,7 @@ async function streamFromResponse(
         }
         case 'Notification': {
           dispatch({ type: 'ADD_NOTIFICATION', payload: event as NotificationEvent });
-          maybe_handle_platform_event(event.message, sessionId);
+          maybeHandlePlatformEvent(event.message, sessionId);
           break;
         }
         case 'Ping':

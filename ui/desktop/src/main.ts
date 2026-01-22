@@ -517,10 +517,8 @@ let appConfig = {
 
 const windowMap = new Map<number, BrowserWindow>();
 const goosedClients = new Map<number, Client>();
-// Track app windows by app name for refresh/close operations
-const appWindows = new Map<string, BrowserWindow>(); // appName -> BrowserWindow
+const appWindows = new Map<string, BrowserWindow>();
 
-// Track power save blockers per window
 const windowPowerSaveBlockers = new Map<number, number>(); // windowId -> blockerId
 // Track pending initial messages per window
 const pendingInitialMessages = new Map<number, string>(); // windowId -> initialMessage

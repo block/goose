@@ -74,8 +74,6 @@ export default function AppsView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
-  // Listen for platform events to refresh the displayed apps list
-  // Note: App window lifecycle (launch/refresh/close) is handled globally in AppInner
   useEffect(() => {
     const handlePlatformEvent = (event: Event) => {
       const customEvent = event as CustomEvent;
@@ -174,7 +172,6 @@ export default function AppsView() {
         body: { html: text },
       });
 
-      // Refresh from cache (import already wrote to cache)
       const response = await listApps({
         throwOnError: true,
       });
@@ -184,8 +181,6 @@ export default function AppsView() {
       console.error('Failed to import app:', err);
       setError(err instanceof Error ? err.message : 'Failed to import app');
     }
-
-    // Reset file input
     event.target.value = '';
   };
 
