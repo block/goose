@@ -125,8 +125,7 @@ impl PromptInjectionScanner {
             return Ok(ScanResult {
                 is_malicious: false,
                 confidence: 0.0,
-                explanation: "This tool call wasn't evaluated as only shell commands are scanned"
-                    .to_string(),
+                explanation: "Tool call skipped: only shell commands are scanned".to_string(),
             });
         }
 

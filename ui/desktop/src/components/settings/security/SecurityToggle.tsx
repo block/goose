@@ -371,7 +371,14 @@ export const SecurityToggle = () => {
               </div>
             </div>
 
-            {!hasCommandModel && (
+            {hasCommandModel ? (
+              enabled &&
+              effectiveCommandClassifierEnabled && (
+                <div className="text-sm text-gray-700 dark:text-gray-300 mt-2">
+                  ✓ Command classifier active (auto-configured from environment)
+                </div>
+              )
+            ) : (
               <div
                 className={`overflow-hidden transition-all duration-300 ease-in-out ${
                   enabled && effectiveCommandClassifierEnabled
