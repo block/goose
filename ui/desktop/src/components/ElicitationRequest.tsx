@@ -3,7 +3,6 @@ import { ActionRequired } from '../api';
 import JsonSchemaForm from './ui/JsonSchemaForm';
 import type { JsonSchema } from './ui/JsonSchemaForm';
 
-// Timeout matches the server-side timeout in mcp_client.rs (300 seconds)
 const ELICITATION_TIMEOUT_SECONDS = 300;
 
 interface ElicitationRequestProps {
