@@ -1288,52 +1288,79 @@ impl Agent {
                                     let mut combined = stream::select_all(with_id);
                                     let mut all_install_successful = true;
 
-                                    while let Some((request_id, item)) = combined.next().await {
+                                    // Process tool results while also checking for elicitation messages
+                                    // This is necessary because tools that call elicitation will block
+                                    // waiting for user input, but we need to yield elicitation messages
+                                    // to the UI so the user can respond
+                                    loop {
                                         if is_token_cancelled(&cancel_token) {
                                             break;
                                         }
 
+                                        // First, drain any pending elicitation messages
+                                        // This must happen before waiting on tool results to avoid deadlock
                                         for msg in self.drain_elicitation_messages(&session_config.id).await {
                                             yield AgentEvent::Message(msg);
                                         }
 
-                                        match item {
-                                            ToolStreamItem::Result(output) => {
-                                                let output = call_tool_result::validate(output);
+                                        // Use select to poll both the tool stream and a small timeout
+                                        // The timeout allows us to periodically check for elicitation messages
+                                        // even when tools are blocked waiting for user input
+                                        tokio::select! {
+                                            biased;
 
-                                                // Platform extensions use meta as a way to publish notifications. Ideally we'd
-                                                // send the notifications directly, but the current plumbing doesn't support that
-                                                // well:
-                                                if let Ok(ref call_result) = output {
-                                                    if let Some(ref meta) = call_result.meta {
-                                                        if let Some(notification_data) = meta.0.get("platform_notification") {
-                                                            if let Some(method) = notification_data.get("method").and_then(|v| v.as_str()) {
-                                                                let params = notification_data.get("params").cloned();
-                                                                let custom_notification = rmcp::model::CustomNotification::new(
-                                                                    method.to_string(),
-                                                                    params,
-                                                                );
+                                            tool_item = combined.next() => {
+                                                match tool_item {
+                                                    Some((request_id, item)) => {
+                                                        match item {
+                                                            ToolStreamItem::Result(output) => {
+                                                                let output = call_tool_result::validate(output);
 
-                                                                let server_notification = rmcp::model::ServerNotification::CustomNotification(custom_notification);
-                                                                yield AgentEvent::McpNotification((request_id.clone(), server_notification));
+                                                                // Platform extensions use meta as a way to publish notifications
+                                                                if let Ok(ref call_result) = output {
+                                                                    if let Some(ref meta) = call_result.meta {
+                                                                        if let Some(notification_data) = meta.0.get("platform_notification") {
+                                                                            if let Some(method) = notification_data.get("method").and_then(|v| v.as_str()) {
+                                                                                let params = notification_data.get("params").cloned();
+                                                                                let custom_notification = rmcp::model::CustomNotification::new(
+                                                                                    method.to_string(),
+                                                                                    params,
+                                                                                );
+
+                                                                                let server_notification = rmcp::model::ServerNotification::CustomNotification(custom_notification);
+                                                                                yield AgentEvent::McpNotification((request_id.clone(), server_notification));
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+
+                                                                if enable_extension_request_ids.contains(&request_id)
+                                                                    && output.is_err()
+                                                                {
+                                                                    all_install_successful = false;
+                                                                }
+                                                                if let Some(response_msg) = request_to_response_map.get(&request_id) {
+                                                                    let metadata = request_metadata.get(&request_id).and_then(|m| m.as_ref());
+                                                                    let mut response = response_msg.lock().await;
+                                                                    *response = response.clone().with_tool_response_with_metadata(request_id, output, metadata);
+                                                                }
+                                                            }
+                                                            ToolStreamItem::Message(msg) => {
+                                                                yield AgentEvent::McpNotification((request_id, msg));
                                                             }
                                                         }
                                                     }
-                                                }
-
-                                                if enable_extension_request_ids.contains(&request_id)
-                                                    && output.is_err()
-                                                {
-                                                    all_install_successful = false;
-                                                }
-                                                if let Some(response_msg) = request_to_response_map.get(&request_id) {
-                                                    let metadata = request_metadata.get(&request_id).and_then(|m| m.as_ref());
-                                                    let mut response = response_msg.lock().await;
-                                                    *response = response.clone().with_tool_response_with_metadata(request_id, output, metadata);
+                                                    None => {
+                                                        // All tool streams completed
+                                                        break;
+                                                    }
                                                 }
                                             }
-                                            ToolStreamItem::Message(msg) => {
-                                                yield AgentEvent::McpNotification((request_id, msg));
+
+                                            // Small timeout to periodically check for elicitation messages
+                                            // when tools are blocked waiting for user input
+                                            _ = tokio::time::sleep(std::time::Duration::from_millis(100)) => {
+                                                // Continue loop to drain elicitation messages
                                             }
                                         }
                                     }
