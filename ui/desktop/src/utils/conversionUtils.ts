@@ -21,3 +21,11 @@ export function errorMessage(err: Error | unknown, default_value?: string) {
     return default_value || String(err);
   }
 }
+
+export function formatAppName(name: string): string {
+  return name
+    .split(/[-_\s]+/)
+    .filter((word) => word.length > 0)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+}

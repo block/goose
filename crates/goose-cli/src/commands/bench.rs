@@ -37,6 +37,7 @@ pub async fn agent_generator(
     let base_session = build_session(SessionBuilderConfig {
         session_id: Some(session_id),
         resume: false,
+        fork: false,
         no_session: false,
         extensions: requirements.external,
         streamable_http_extensions: requirements.streamable_http,

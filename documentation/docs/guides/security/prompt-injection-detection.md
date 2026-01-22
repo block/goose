@@ -1,4 +1,5 @@
 ---
+sidebar_position: 1
 title: Prompt Injection Detection
 sidebar_label: Prompt Injection Detection
 description: Protect your workflow by detecting potentially harmful commands before they run.
@@ -16,15 +17,17 @@ You can help protect your goose workflows by enabling prompt injection detection
 - Attempts to access or exfiltrate sensitive data like SSH keys
 - System modifications that could compromise security
 
+In addition, you can optionally enable [ML-based scanning](#enhanced-detection-with-machine-learning) using a specified model.
+
 :::important
 These checks provide a safeguard, not a guarantee. They detect known patterns but cannot catch all possible threats, especially novel or sophisticated attacks.
 :::
 
 ## How Detection Works
 
-When enabled, goose scans tool calls for risky patterns before they run:
+When enabled, goose uses a multi-layered approach to detect threats before they run:
 
-1. **Tool call is intercepted and analyzed** - When goose prepares to execute a tool, the security system extracts the tool parameter text and checks it against [threat patterns](https://github.com/block/goose/blob/main/crates/goose/src/security/patterns.rs)
+1. **Tool call is intercepted and analyzed** - When goose prepares to execute a tool, the security system extracts the tool parameter text and checks it against [threat patterns](https://github.com/block/goose/blob/main/crates/goose/src/security/patterns.rs). If ML-based detection is enabled, it also uses machine learning to analyze the semantic content of the tool call and recent conversation messages to better understand context and reduce false positives.
 2. **Risk is assessed** - Detected threats are assigned confidence scores
 3. **Execution pauses** - Threats that exceed your configured threshold need your decision
 4. **Security alert appears** - The alert displays the confidence level, a description of the finding, and a unique finding ID. For example:
@@ -60,15 +63,25 @@ When in doubt, deny.
     3. Click the `Chat` tab
     4. Toggle `Enable Prompt Injection Detection` to the on setting
     5. Optionally adjust the `Detection Threshold` to [configure the sensitivity](#configuring-detection-threshold)
+    6. Optionally enable ML-based detection:
+       1. Toggle `Enable ML-based Detection` to the on setting
+       2. Configure your inference endpoint:
+          - `Endpoint URL`: URL to the classification service (e.g., Hugging Face)
+          - `API Token`: Authentication token if required by your service
 
   </TabItem>
   <TabItem value="config" label="goose config file">
 
-    Add these settings to your [`config.yaml`](/docs/guides/config-files):
+    Add security prompt settings to your [`config.yaml`](/docs/guides/config-files):
 
     ```yaml
     SECURITY_PROMPT_ENABLED: true
-    SECURITY_PROMPT_THRESHOLD: 0.7  # Optional, default is 0.7
+    SECURITY_PROMPT_THRESHOLD: 0.8  # Optional, default is 0.8
+
+    # Optional: Enable ML-based detection (Hugging Face example)
+    SECURITY_PROMPT_CLASSIFIER_ENABLED: true
+    SECURITY_PROMPT_CLASSIFIER_ENDPOINT: "https://router.huggingface.co/hf-inference/models/protectai/deberta-v3-base-prompt-injection-v2"
+    SECURITY_PROMPT_CLASSIFIER_TOKEN: "YOUR_HUGGING_FACE_TOKEN"
     ```
 
   </TabItem>
@@ -92,9 +105,26 @@ The threshold (0.01-1.0) controls how strict detection is:
 | **0.70-0.90** | Strict | Working with sensitive data or systems |
 | **0.90-1.00** | Maximum | High-security environments |
 
-When the injection prompt detection feature is enabled, the default threshold is 0.7 (recommended for most users).
+When the injection prompt detection feature is enabled, the default threshold is 0.8 (recommended for most users).
 
 Lower thresholds mean fewer alerts but might miss threats. Higher thresholds catch more potential issues but may flag legitimate operations. You can control this sensitivity/convenience tradeoff based on your needs.
+
+## Enhanced Detection with Machine Learning
+
+By default, prompt injection detection uses pattern matching, but you can optionally enable ML-based detection for improved accuracy and fewer false positives.
+
+ML-based detection:
+- Analyzes the semantic content of tool calls and recent messages
+- Detects sophisticated attacks that patterns might miss
+- Reduces false positives by understanding conversation context
+- Requires providing a classification endpoint URL and API token (if required)
+
+:::warning Privacy Consideration
+When ML-based detection is enabled, tool call content and recent messages are sent to the configured endpoint for analysis.
+:::
+
+#### Self-Hosting ML Detection Endpoints
+If you want to run your own classification endpoint, see the [Classification API Specification](/docs/guides/security/classification-api-spec) for implementation details. The API follows the Hugging Face Inference API format.
 
 ## See Also
 

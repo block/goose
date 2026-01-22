@@ -1301,6 +1301,26 @@ impl Agent {
                                             ToolStreamItem::Result(output) => {
                                                 let output = call_tool_result::validate(output);
 
+                                                // Platform extensions use meta as a way to publish notifications. Ideally we'd
+                                                // send the notifications directly, but the current plumbing doesn't support that
+                                                // well:
+                                                if let Ok(ref call_result) = output {
+                                                    if let Some(ref meta) = call_result.meta {
+                                                        if let Some(notification_data) = meta.0.get("platform_notification") {
+                                                            if let Some(method) = notification_data.get("method").and_then(|v| v.as_str()) {
+                                                                let params = notification_data.get("params").cloned();
+                                                                let custom_notification = rmcp::model::CustomNotification::new(
+                                                                    method.to_string(),
+                                                                    params,
+                                                                );
+
+                                                                let server_notification = rmcp::model::ServerNotification::CustomNotification(custom_notification);
+                                                                yield AgentEvent::McpNotification((request_id.clone(), server_notification));
+                                                            }
+                                                        }
+                                                    }
+                                                }
+
                                                 if enable_extension_request_ids.contains(&request_id)
                                                     && output.is_err()
                                                 {
