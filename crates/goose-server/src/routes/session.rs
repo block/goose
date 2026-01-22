@@ -13,7 +13,7 @@ use goose::agents::ExtensionConfig;
 use goose::recipe::Recipe;
 use goose::session::extension_data::ExtensionState;
 use goose::session::session_manager::SessionInsights;
-use goose::session::{EnabledExtensionsState, Session, SessionManager};
+use goose::session::{EnabledExtensionsState, Session};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -80,8 +80,12 @@ const MAX_NAME_LENGTH: usize = 200;
     ),
     tag = "Session Management"
 )]
-async fn list_sessions() -> Result<Json<SessionListResponse>, StatusCode> {
-    let sessions = SessionManager::list_sessions()
+async fn list_sessions(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<SessionListResponse>, StatusCode> {
+    let sessions = state
+        .session_manager()
+        .list_sessions()
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -105,8 +109,13 @@ async fn list_sessions() -> Result<Json<SessionListResponse>, StatusCode> {
     ),
     tag = "Session Management"
 )]
-async fn get_session(Path(session_id): Path<String>) -> Result<Json<Session>, StatusCode> {
-    let session = SessionManager::get_session(&session_id, true)
+async fn get_session(
+    State(state): State<Arc<AppState>>,
+    Path(session_id): Path<String>,
+) -> Result<Json<Session>, StatusCode> {
+    let session = state
+        .session_manager()
+        .get_session(&session_id, true)
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
 
@@ -125,8 +134,12 @@ async fn get_session(Path(session_id): Path<String>) -> Result<Json<Session>, St
     ),
     tag = "Session Management"
 )]
-async fn get_session_insights() -> Result<Json<SessionInsights>, StatusCode> {
-    let insights = SessionManager::get_insights()
+async fn get_session_insights(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<SessionInsights>, StatusCode> {
+    let insights = state
+        .session_manager()
+        .get_insights()
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(insights))
@@ -152,6 +165,7 @@ async fn get_session_insights() -> Result<Json<SessionInsights>, StatusCode> {
     tag = "Session Management"
 )]
 async fn update_session_name(
+    State(state): State<Arc<AppState>>,
     Path(session_id): Path<String>,
     Json(request): Json<UpdateSessionNameRequest>,
 ) -> Result<StatusCode, StatusCode> {
@@ -163,7 +177,9 @@ async fn update_session_name(
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    SessionManager::update_session(&session_id)
+    state
+        .session_manager()
+        .update(&session_id)
         .user_provided_name(name.to_string())
         .apply()
         .await
@@ -196,7 +212,9 @@ async fn update_session_user_recipe_values(
     Path(session_id): Path<String>,
     Json(request): Json<UpdateSessionUserRecipeValuesRequest>,
 ) -> Result<Json<UpdateSessionUserRecipeValuesResponse>, ErrorResponse> {
-    SessionManager::update_session(&session_id)
+    state
+        .session_manager()
+        .update(&session_id)
         .user_recipe_values(Some(request.user_recipe_values))
         .apply()
         .await
@@ -205,7 +223,9 @@ async fn update_session_user_recipe_values(
             status: StatusCode::INTERNAL_SERVER_ERROR,
         })?;
 
-    let session = SessionManager::get_session(&session_id, false)
+    let session = state
+        .session_manager()
+        .get_session(&session_id, false)
         .await
         .map_err(|err| ErrorResponse {
             message: err.to_string(),
@@ -259,8 +279,13 @@ async fn update_session_user_recipe_values(
     ),
     tag = "Session Management"
 )]
-async fn delete_session(Path(session_id): Path<String>) -> Result<StatusCode, StatusCode> {
-    SessionManager::delete_session(&session_id)
+async fn delete_session(
+    State(state): State<Arc<AppState>>,
+    Path(session_id): Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    state
+        .session_manager()
+        .delete_session(&session_id)
         .await
         .map_err(|e| {
             if e.to_string().contains("not found") {
@@ -290,8 +315,13 @@ async fn delete_session(Path(session_id): Path<String>) -> Result<StatusCode, St
     ),
     tag = "Session Management"
 )]
-async fn export_session(Path(session_id): Path<String>) -> Result<Json<String>, StatusCode> {
-    let exported = SessionManager::export_session(&session_id)
+async fn export_session(
+    State(state): State<Arc<AppState>>,
+    Path(session_id): Path<String>,
+) -> Result<Json<String>, StatusCode> {
+    let exported = state
+        .session_manager()
+        .export_session(&session_id)
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
 
@@ -314,9 +344,12 @@ async fn export_session(Path(session_id): Path<String>) -> Result<Json<String>, 
     tag = "Session Management"
 )]
 async fn import_session(
+    State(state): State<Arc<AppState>>,
     Json(request): Json<ImportSessionRequest>,
 ) -> Result<Json<Session>, StatusCode> {
-    let session = SessionManager::import_session(&request.json)
+    let session = state
+        .session_manager()
+        .import_session(&request.json)
         .await
         .map_err(|_| StatusCode::BAD_REQUEST)?;
 
@@ -343,6 +376,7 @@ async fn import_session(
     tag = "Session Management"
 )]
 async fn fork_session(
+    State(state): State<Arc<AppState>>,
     Path(session_id): Path<String>,
     Json(request): Json<ForkRequest>,
 ) -> Result<Json<ForkResponse>, ErrorResponse> {
@@ -353,8 +387,11 @@ async fn fork_session(
         });
     }
 
+    let session_manager = state.session_manager();
+
     let target_session_id = if request.copy {
-        let original = SessionManager::get_session(&session_id, false)
+        let original = session_manager
+            .get_session(&session_id, false)
             .await
             .map_err(|e| {
                 tracing::error!("Failed to get session: {}", e);
@@ -373,7 +410,8 @@ async fn fork_session(
                 }
             })?;
 
-        let copied = SessionManager::copy_session(&session_id, original.name)
+        let copied = session_manager
+            .copy_session(&session_id, original.name)
             .await
             .map_err(|e| {
                 tracing::error!("Failed to copy session: {}", e);
@@ -390,7 +428,8 @@ async fn fork_session(
     };
 
     if request.truncate {
-        SessionManager::truncate_conversation(&target_session_id, request.timestamp.unwrap())
+        session_manager
+            .truncate_conversation(&target_session_id, request.timestamp.unwrap_or(0))
             .await
             .map_err(|e| {
                 tracing::error!("Failed to truncate conversation: {}", e);
@@ -431,9 +470,12 @@ pub struct SessionExtensionsResponse {
     tag = "Session Management"
 )]
 async fn get_session_extensions(
+    State(state): State<Arc<AppState>>,
     Path(session_id): Path<String>,
 ) -> Result<Json<SessionExtensionsResponse>, StatusCode> {
-    let session = SessionManager::get_session(&session_id, false)
+    let session = state
+        .session_manager()
+        .get_session(&session_id, false)
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
 

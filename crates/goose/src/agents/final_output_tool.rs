@@ -233,6 +233,7 @@ mod tests {
 
         let mut tool = FinalOutputTool::new(response);
         let tool_call = CallToolRequestParam {
+            task: None,
             name: FINAL_OUTPUT_TOOL_NAME.into(),
             arguments: Some(object!({
                 "message": "Hello"  // Missing required "count" field
@@ -255,6 +256,7 @@ mod tests {
 
         let mut tool = FinalOutputTool::new(response);
         let tool_call = CallToolRequestParam {
+            task: None,
             name: FINAL_OUTPUT_TOOL_NAME.into(),
             arguments: Some(object!({
                 "user": {

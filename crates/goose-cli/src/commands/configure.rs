@@ -22,9 +22,10 @@ use goose::model::ModelConfig;
 use goose::posthog::{get_telemetry_choice, TELEMETRY_ENABLED_KEY};
 use goose::providers::provider_test::test_provider_configuration;
 use goose::providers::{create, providers, retry_operation, RetryConfig};
-use goose::session::{SessionManager, SessionType};
+use goose::session::SessionType;
 use serde_json::Value;
 use std::collections::HashMap;
+use uuid::Uuid;
 
 // useful for light themes where there is no dicernible colour contrast between
 // cursor-selected and cursor-unselected items.
@@ -436,12 +437,12 @@ fn select_model_from_list(
     provider_meta: &goose::providers::base::ProviderMetadata,
 ) -> anyhow::Result<String> {
     const MAX_MODELS: usize = 10;
+    const UNLISTED_MODEL_KEY: &str = "__unlisted__";
+
     // Smart model selection:
     // If we have more than MAX_MODELS models, show the recommended models with additional search option.
     // Otherwise, show all models without search.
-
     if models.len() > MAX_MODELS {
-        // Get recommended models from provider metadata
         let recommended_models: Vec<String> = provider_meta
             .known_models
             .iter()
@@ -464,12 +465,22 @@ fn select_model_from_list(
                 ),
             );
 
+            if provider_meta.allows_unlisted_models {
+                model_items.push((
+                    UNLISTED_MODEL_KEY.to_string(),
+                    "Enter a model not listed...".to_string(),
+                    "",
+                ));
+            }
+
             let selection = cliclack::select("Select a model:")
                 .items(&model_items)
                 .interact()?;
 
             if selection == "search_all" {
                 Ok(interactive_model_search(models)?)
+            } else if selection == UNLISTED_MODEL_KEY {
+                prompt_unlisted_model(provider_meta)
             } else {
                 Ok(selection)
             }
@@ -477,22 +488,49 @@ fn select_model_from_list(
             Ok(interactive_model_search(models)?)
         }
     } else {
-        // just a few models, show all without search for better UX
-        Ok(cliclack::select("Select a model:")
-            .items(
-                &models
-                    .iter()
-                    .map(|m| (m, m.as_str(), ""))
-                    .collect::<Vec<_>>(),
-            )
-            .interact()?
-            .to_string())
+        let mut model_items: Vec<(String, String, &str)> =
+            models.iter().map(|m| (m.clone(), m.clone(), "")).collect();
+
+        if provider_meta.allows_unlisted_models {
+            model_items.push((
+                UNLISTED_MODEL_KEY.to_string(),
+                "Enter a model not listed...".to_string(),
+                "",
+            ));
+        }
+
+        let selection = cliclack::select("Select a model:")
+            .items(&model_items)
+            .interact()?;
+
+        if selection == UNLISTED_MODEL_KEY {
+            prompt_unlisted_model(provider_meta)
+        } else {
+            Ok(selection)
+        }
     }
+}
+
+fn prompt_unlisted_model(
+    provider_meta: &goose::providers::base::ProviderMetadata,
+) -> anyhow::Result<String> {
+    let model: String = cliclack::input("Enter the model name:")
+        .placeholder(&provider_meta.default_model)
+        .validate(|input: &String| {
+            if input.trim().is_empty() {
+                Err("Please enter a model name")
+            } else {
+                Ok(())
+            }
+        })
+        .interact()?;
+    Ok(model.trim().to_string())
 }
 
 fn try_store_secret(config: &Config, key_name: &str, value: String) -> anyhow::Result<bool> {
     match config.set_secret(key_name, &value) {
         Ok(_) => Ok(true),
+        Err(ConfigError::FallbackToFileStorage) => Ok(true),
         Err(e) => {
             cliclack::outro(style(format!(
                 "Failed to store {} securely: {}. Please ensure your system's secure storage is accessible. Alternatively you can run with GOOSE_DISABLE_KEYRING=true or set the key in your environment variables",
@@ -563,7 +601,6 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
                 }
             }
             None => {
-                // No env var, check config/secret storage
                 let existing: Result<String, _> = if key.secret {
                     config.get_secret(&key.name)
                 } else {
@@ -628,7 +665,9 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
                             };
 
                             if key.secret {
-                                config.set_secret(&key.name, &value)?;
+                                if !try_store_secret(config, &key.name, value)? {
+                                    return Ok(false);
+                                }
                             } else {
                                 config.set_param(&key.name, &value)?;
                             }
@@ -644,8 +683,10 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
     let models_res = {
         let temp_model_config = ModelConfig::new(&provider_meta.default_model)?;
         let temp_provider = create(provider_name, temp_model_config).await?;
+        // Provider setup runs before any user session exists; use an ephemeral id.
+        let session_id = Uuid::new_v4().to_string();
         retry_operation(&RetryConfig::default(), || async {
-            temp_provider.fetch_recommended_models().await
+            temp_provider.fetch_recommended_models(&session_id).await
         })
         .await
     };
@@ -799,7 +840,7 @@ fn prompt_extension_name(placeholder: &str) -> anyhow::Result<String> {
 }
 
 fn collect_env_vars() -> anyhow::Result<(HashMap<String, String>, Vec<String>)> {
-    let mut envs = HashMap::new();
+    let envs = HashMap::new();
     let mut env_keys = Vec::new();
     let config = Config::global();
 
@@ -816,12 +857,10 @@ fn collect_env_vars() -> anyhow::Result<(HashMap<String, String>, Vec<String>)> 
             .mask('▪')
             .interact()?;
 
-        match config.set_secret(&key, &value) {
-            Ok(_) => env_keys.push(key),
-            Err(_) => {
-                envs.insert(key, value);
-            }
+        if !try_store_secret(config, &key, value)? {
+            return Err(anyhow::anyhow!("Failed to store secret"));
         }
+        env_keys.push(key);
 
         if !cliclack::confirm("Add another environment variable?").interact()? {
             break;
@@ -1081,8 +1120,7 @@ pub fn remove_extension_dialog() -> anyhow::Result<()> {
 
     for name in selected {
         remove_extension(&name_to_key(name));
-        let mut permission_manager = PermissionManager::default();
-        permission_manager.remove_extension(&name_to_key(name));
+        PermissionManager::instance().remove_extension(&name_to_key(name));
         cliclack::outro(format!("Removed {} extension", style(name).green()))?;
     }
 
@@ -1396,15 +1434,19 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
         .expect("No model configured. Please set model first");
     let model_config = ModelConfig::new(&model)?;
 
-    let session = SessionManager::create_session(
-        std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
-        "Tool Permission Configuration".to_string(),
-        SessionType::Hidden,
-    )
-    .await?;
-
     let agent = Agent::new();
     let new_provider = create(&provider_name, model_config).await?;
+
+    let session = agent
+        .config
+        .session_manager
+        .create_session(
+            std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
+            "Tool Permission Configuration".to_string(),
+            SessionType::Hidden,
+        )
+        .await?;
+
     agent.update_provider(new_provider, &session.id).await?;
     if let Some(config) = get_extension_by_name(&selected_extension_name) {
         agent
@@ -1426,9 +1468,9 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let mut permission_manager = PermissionManager::default();
+    let permission_manager = PermissionManager::instance();
     let selected_tools = agent
-        .list_tools(Some(selected_extension_name.clone()))
+        .list_tools(&session.id, Some(selected_extension_name.clone()))
         .await
         .into_iter()
         .map(|tool| {
@@ -1616,9 +1658,11 @@ pub async fn handle_openrouter_auth() -> anyhow::Result<()> {
 
     match create("openrouter", model_config).await {
         Ok(provider) => {
-            // Simple test request
+            // Config verification runs before any user session exists; use an ephemeral id.
+            let session_id = Uuid::new_v4().to_string();
             let test_result = provider
                 .complete(
+                    &session_id,
                     "You are goose, an AI assistant.",
                     &[Message::user().with_text("Say 'Configuration test successful!'")],
                     &[],
@@ -1694,8 +1738,11 @@ pub async fn handle_tetrate_auth() -> anyhow::Result<()> {
 
     match create("tetrate", model_config).await {
         Ok(provider) => {
+            // Config verification runs before any user session exists; use an ephemeral id.
+            let session_id = Uuid::new_v4().to_string();
             let test_result = provider
                 .complete(
+                    &session_id,
                     "You are goose, an AI assistant.",
                     &[Message::user().with_text("Say 'Configuration test successful!'")],
                     &[],

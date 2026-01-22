@@ -1,3 +1,4 @@
+import { AppEvents } from '../constants/events';
 import {
   UIResourceRenderer,
   UIActionResultIntent,
@@ -142,7 +143,7 @@ export default function MCPUIResourceRenderer({
       if (appendPromptToChat) {
         try {
           appendPromptToChat(prompt);
-          window.dispatchEvent(new CustomEvent('scroll-chat-to-bottom'));
+          window.dispatchEvent(new CustomEvent(AppEvents.SCROLL_CHAT_TO_BOTTOM));
           return {
             status: 'success' as const,
             message: 'Prompt sent to chat successfully',

@@ -1,24 +1,76 @@
 use super::output;
 use super::CliSession;
 use console::style;
-use goose::agents::types::{RetryConfig, SessionConfig};
 use goose::agents::Agent;
+use goose::config::get_enabled_extensions;
+use goose::config::resolve_extensions_for_new_session;
 use goose::config::{
-    extensions::get_extension_by_name, get_all_extensions, get_enabled_extensions, Config,
-    ExtensionConfig,
+    extensions::get_extension_by_name, get_all_extensions, Config, ExtensionConfig,
 };
 use goose::providers::create;
-use goose::recipe::{Response, SubRecipe};
-
-use goose::agents::extension::PlatformExtensionContext;
+use goose::recipe::Recipe;
 use goose::session::session_manager::SessionType;
-use goose::session::SessionManager;
 use goose::session::{EnabledExtensionsState, ExtensionState};
 use rustyline::EditMode;
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 use std::process;
 use std::sync::Arc;
 use tokio::task::JoinSet;
+
+const EXTENSION_HINT_MAX_LEN: usize = 5;
+
+fn truncate_with_ellipsis(s: &str, max_len: usize) -> String {
+    let truncated: String = s.chars().take(max_len).collect();
+    if s.chars().count() > max_len {
+        format!("{}…", truncated)
+    } else {
+        truncated
+    }
+}
+
+fn parse_cli_flag_extensions(
+    extensions: &[String],
+    streamable_http_extensions: &[String],
+    builtins: &[String],
+) -> Vec<(String, ExtensionConfig)> {
+    let mut extensions_to_load = Vec::new();
+
+    for (idx, ext_str) in extensions.iter().enumerate() {
+        match CliSession::parse_stdio_extension(ext_str) {
+            Ok(config) => {
+                let hint = truncate_with_ellipsis(ext_str, EXTENSION_HINT_MAX_LEN);
+                let label = format!("stdio #{}({})", idx + 1, hint);
+                extensions_to_load.push((label, config));
+            }
+            Err(e) => {
+                eprintln!(
+                    "{}",
+                    style(format!(
+                        "Warning: Invalid --extension value '{}' ({}); ignoring",
+                        ext_str, e
+                    ))
+                    .yellow()
+                );
+            }
+        }
+    }
+
+    for (idx, ext_str) in streamable_http_extensions.iter().enumerate() {
+        let config = CliSession::parse_streamable_http_extension(ext_str);
+        let hint = truncate_with_ellipsis(ext_str, EXTENSION_HINT_MAX_LEN);
+        let label = format!("http #{}({})", idx + 1, hint);
+        extensions_to_load.push((label, config));
+    }
+
+    for builtin_str in builtins {
+        let configs = CliSession::parse_builtin_extensions(builtin_str);
+        for config in configs {
+            extensions_to_load.push((config.name(), config));
+        }
+    }
+
+    extensions_to_load
+}
 
 /// Configuration for building a new Goose session
 ///
@@ -40,12 +92,10 @@ pub struct SessionBuilderConfig {
     pub streamable_http_extensions: Vec<String>,
     /// List of builtin extension commands to add
     pub builtins: Vec<String>,
-    /// List of extensions to enable, enable only this set and ignore configured ones
-    pub extensions_override: Option<Vec<ExtensionConfig>>,
+    /// Recipe for the session
+    pub recipe: Option<Recipe>,
     /// Any additional system prompt to append to the default
     pub additional_system_prompt: Option<String>,
-    /// Settings to override the global Goose settings
-    pub settings: Option<SessionSettings>,
     /// Provider override from CLI arguments
     pub provider: Option<String>,
     /// Model override from CLI arguments
@@ -62,12 +112,6 @@ pub struct SessionBuilderConfig {
     pub interactive: bool,
     /// Quiet mode - suppress non-response output
     pub quiet: bool,
-    /// Sub-recipes to add to the session
-    pub sub_recipes: Option<Vec<SubRecipe>>,
-    /// Final output expected response
-    pub final_output_response: Option<Response>,
-    /// Retry configuration for automated validation and recovery
-    pub retry_config: Option<RetryConfig>,
     /// Output format (text, json)
     pub output_format: String,
 }
@@ -84,9 +128,8 @@ impl Default for SessionBuilderConfig {
             extensions: Vec::new(),
             streamable_http_extensions: Vec::new(),
             builtins: Vec::new(),
-            extensions_override: None,
+            recipe: None,
             additional_system_prompt: None,
-            settings: None,
             provider: None,
             model: None,
             debug: false,
@@ -95,9 +138,6 @@ impl Default for SessionBuilderConfig {
             scheduled_job_id: None,
             interactive: false,
             quiet: false,
-            sub_recipes: None,
-            final_output_response: None,
-            retry_config: None,
             output_format: "text".to_string(),
         }
     }
@@ -150,12 +190,15 @@ async fn offer_extension_debugging_help(
     // Create a minimal agent for debugging
     let debug_agent = Agent::new();
 
-    let session = SessionManager::create_session(
-        std::env::current_dir()?,
-        "CLI Session".to_string(),
-        SessionType::Hidden,
-    )
-    .await?;
+    let session = debug_agent
+        .config
+        .session_manager
+        .create_session(
+            std::env::current_dir()?,
+            "CLI Session".to_string(),
+            SessionType::Hidden,
+        )
+        .await?;
 
     debug_agent.update_provider(provider, &session.id).await?;
 
@@ -205,6 +248,85 @@ async fn offer_extension_debugging_help(
     Ok(())
 }
 
+async fn load_extensions(
+    agent: Agent,
+    extensions_to_load: Vec<(String, ExtensionConfig)>,
+    provider_for_debug: Arc<dyn goose::providers::base::Provider>,
+    interactive: bool,
+) -> Arc<Agent> {
+    let mut set = JoinSet::new();
+    let agent_ptr = Arc::new(agent);
+
+    let mut waiting_ids: BTreeSet<usize> = (0..extensions_to_load.len()).collect();
+    for (id, (_label, extension)) in extensions_to_load.iter().enumerate() {
+        let agent_ptr = agent_ptr.clone();
+        let cfg = extension.clone();
+        set.spawn(async move { (id, agent_ptr.add_extension(cfg).await) });
+    }
+
+    let get_message = |waiting_ids: &BTreeSet<usize>| {
+        let labels: Vec<String> = waiting_ids
+            .iter()
+            .map(|id| {
+                extensions_to_load
+                    .get(*id)
+                    .map(|e| e.0.clone())
+                    .unwrap_or_default()
+            })
+            .collect();
+        format!(
+            "starting {} extensions: {}",
+            waiting_ids.len(),
+            labels.join(", ")
+        )
+    };
+
+    let spinner = cliclack::spinner();
+    spinner.start(get_message(&waiting_ids));
+
+    let mut offer_debug: Vec<(usize, anyhow::Error)> = Vec::new();
+    while let Some(result) = set.join_next().await {
+        match result {
+            Ok((id, Ok(_))) => {
+                waiting_ids.remove(&id);
+                spinner.set_message(get_message(&waiting_ids));
+            }
+            Ok((id, Err(e))) => offer_debug.push((id, e.into())),
+            Err(e) => tracing::error!("failed to add extension: {}", e),
+        }
+    }
+
+    spinner.clear();
+
+    for (id, err) in offer_debug {
+        let label = extensions_to_load
+            .get(id)
+            .map(|e| e.0.clone())
+            .unwrap_or_default();
+        eprintln!(
+            "{}",
+            style(format!(
+                "Warning: Failed to start extension '{}' ({}), continuing without it",
+                label, err
+            ))
+            .yellow()
+        );
+
+        if let Err(debug_err) = offer_extension_debugging_help(
+            &label,
+            &err.to_string(),
+            Arc::clone(&provider_for_debug),
+            interactive,
+        )
+        .await
+        {
+            eprintln!("Note: Could not start debugging session: {}", debug_err);
+        }
+    }
+
+    agent_ptr
+}
+
 fn check_missing_extensions_or_exit(saved_extensions: &[ExtensionConfig], interactive: bool) {
     let missing: Vec<_> = saved_extensions
         .iter()
@@ -244,21 +366,16 @@ fn check_missing_extensions_or_exit(saved_extensions: &[ExtensionConfig], intera
     }
 }
 
-#[derive(Clone, Debug, Default)]
-pub struct SessionSettings {
-    pub goose_model: Option<String>,
-    pub goose_provider: Option<String>,
-    pub temperature: Option<f32>,
-}
-
 pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     goose::posthog::set_session_context("cli", session_config.resume);
 
     let config = Config::global();
+    let agent: Agent = Agent::new();
+    let session_manager = agent.config.session_manager.clone();
 
     let (saved_provider, saved_model_config) = if session_config.resume {
         if let Some(ref session_id) = session_config.session_id {
-            match SessionManager::get_session(session_id, false).await {
+            match session_manager.get_session(session_id, false).await {
                 Ok(session_data) => (session_data.provider_name, session_data.model_config),
                 Err(_) => (None, None),
             }
@@ -269,27 +386,20 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         (None, None)
     };
 
+    let recipe = session_config.recipe.as_ref();
+    let recipe_settings = recipe.and_then(|r| r.settings.as_ref());
+
     let provider_name = session_config
         .provider
         .or(saved_provider)
-        .or_else(|| {
-            session_config
-                .settings
-                .as_ref()
-                .and_then(|s| s.goose_provider.clone())
-        })
+        .or_else(|| recipe_settings.and_then(|s| s.goose_provider.clone()))
         .or_else(|| config.get_goose_provider().ok())
         .expect("No provider configured. Run 'goose configure' first");
 
     let model_name = session_config
         .model
         .or_else(|| saved_model_config.as_ref().map(|mc| mc.model_name.clone()))
-        .or_else(|| {
-            session_config
-                .settings
-                .as_ref()
-                .and_then(|s| s.goose_model.clone())
-        })
+        .or_else(|| recipe_settings.and_then(|s| s.goose_model.clone()))
         .or_else(|| config.get_goose_model().ok())
         .expect("No model configured. Run 'goose configure' first");
 
@@ -299,12 +409,12 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             .is_some_and(|mc| mc.model_name == model_name)
     {
         let mut config = saved_model_config.unwrap();
-        if let Some(temp) = session_config.settings.as_ref().and_then(|s| s.temperature) {
+        if let Some(temp) = recipe_settings.and_then(|s| s.temperature) {
             config = config.with_temperature(Some(temp));
         }
         config
     } else {
-        let temperature = session_config.settings.as_ref().and_then(|s| s.temperature);
+        let temperature = recipe_settings.and_then(|s| s.temperature);
         goose::model::ModelConfig::new(&model_name)
             .unwrap_or_else(|e| {
                 output::render_error(&format!("Failed to create model configuration: {}", e));
@@ -313,12 +423,10 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             .with_temperature(temperature)
     };
 
-    let agent: Agent = Agent::new();
-
     agent
         .apply_recipe_components(
-            session_config.sub_recipes,
-            session_config.final_output_response,
+            recipe.and_then(|r| r.sub_recipes.clone()),
+            recipe.and_then(|r| r.response.clone()),
             true,
         )
         .await;
@@ -351,17 +459,14 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
 
     let session_id: String = if session_config.no_session {
         let working_dir = std::env::current_dir().expect("Could not get working directory");
-        let session = SessionManager::create_session(
-            working_dir,
-            "CLI Session".to_string(),
-            SessionType::Hidden,
-        )
-        .await
-        .expect("Could not create session");
+        let session = session_manager
+            .create_session(working_dir, "CLI Session".to_string(), SessionType::Hidden)
+            .await
+            .expect("Could not create session");
         session.id
     } else if session_config.resume {
         if let Some(session_id) = session_config.session_id {
-            match SessionManager::get_session(&session_id, false).await {
+            match session_manager.get_session(&session_id, false).await {
                 Ok(_) => session_id,
                 Err(_) => {
                     output::render_error(&format!(
@@ -372,7 +477,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
                 }
             }
         } else {
-            match SessionManager::list_sessions().await {
+            match session_manager.list_sessions().await {
                 Ok(sessions) if !sessions.is_empty() => sessions[0].id.clone(),
                 _ => {
                     output::render_error("Cannot resume - no previous sessions found");
@@ -392,16 +497,11 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             process::exit(1);
         });
 
-    agent
-        .extension_manager
-        .set_context(PlatformExtensionContext {
-            session_id: Some(session_id.clone()),
-            extension_manager: Some(Arc::downgrade(&agent.extension_manager)),
-        })
-        .await;
-
     if session_config.resume {
-        let session = SessionManager::get_session(&session_id, false)
+        let session = agent
+            .config
+            .session_manager
+            .get_session(&session_id, false)
             .await
             .unwrap_or_else(|e| {
                 output::render_error(&format!("Failed to read session metadata: {}", e));
@@ -450,89 +550,42 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         eprintln!("{}", style(format!("Warning: {}", warning)).yellow());
     }
 
-    // If we get extensions_override, only run those extensions and none other
-    let extensions_to_run: Vec<_> = if let Some(extensions) = session_config.extensions_override {
-        extensions.into_iter().collect()
-    } else if session_config.resume {
-        match SessionManager::get_session(&session_id, false).await {
-            Ok(session_data) => {
-                if let Some(saved_state) =
-                    EnabledExtensionsState::from_extension_data(&session_data.extension_data)
-                {
-                    check_missing_extensions_or_exit(
-                        &saved_state.extensions,
-                        session_config.interactive,
-                    );
-                    saved_state.extensions
-                } else {
-                    get_enabled_extensions()
-                }
-            }
-            _ => get_enabled_extensions(),
-        }
+    let configured_extensions: Vec<ExtensionConfig> = if session_config.resume {
+        agent
+            .config
+            .session_manager
+            .get_session(&session_id, false)
+            .await
+            .ok()
+            .and_then(|s| EnabledExtensionsState::from_extension_data(&s.extension_data))
+            .map(|state| {
+                check_missing_extensions_or_exit(&state.extensions, session_config.interactive);
+                state.extensions
+            })
+            .unwrap_or_else(get_enabled_extensions)
     } else {
-        get_enabled_extensions()
+        resolve_extensions_for_new_session(recipe.and_then(|r| r.extensions.as_deref()), None)
     };
 
-    let mut set = JoinSet::new();
-    let agent_ptr = Arc::new(agent);
+    let cli_flag_extensions_to_load = parse_cli_flag_extensions(
+        &session_config.extensions,
+        &session_config.streamable_http_extensions,
+        &session_config.builtins,
+    );
 
-    let mut waiting_on = HashSet::new();
-    for extension in extensions_to_run {
-        waiting_on.insert(extension.name());
-        let agent_ptr = agent_ptr.clone();
-        set.spawn(async move {
-            (
-                extension.name(),
-                agent_ptr.add_extension(extension.clone()).await,
-            )
-        });
-    }
+    let mut extensions_to_load: Vec<(String, ExtensionConfig)> = configured_extensions
+        .iter()
+        .map(|cfg| (cfg.name(), cfg.clone()))
+        .collect();
+    extensions_to_load.extend(cli_flag_extensions_to_load);
 
-    let get_message = |waiting_on: &HashSet<String>| {
-        let mut names: Vec<_> = waiting_on.iter().cloned().collect();
-        names.sort();
-        format!("starting {} extensions: {}", names.len(), names.join(", "))
-    };
-
-    let spinner = cliclack::spinner();
-    spinner.start(get_message(&waiting_on));
-
-    let mut offer_debug = Vec::new();
-    while let Some(result) = set.join_next().await {
-        match result {
-            Ok((name, Ok(_))) => {
-                waiting_on.remove(&name);
-                spinner.set_message(get_message(&waiting_on));
-            }
-            Ok((name, Err(e))) => offer_debug.push((name, e)),
-            Err(e) => tracing::error!("failed to add extension: {}", e),
-        }
-    }
-
-    spinner.clear();
-
-    for (name, err) in offer_debug {
-        eprintln!(
-            "{}",
-            style(format!(
-                "Warning: Failed to start extension '{}' ({}), continuing without it",
-                name, err
-            ))
-            .yellow()
-        );
-
-        if let Err(debug_err) = offer_extension_debugging_help(
-            &name,
-            &err.to_string(),
-            Arc::clone(&provider_for_display),
-            session_config.interactive,
-        )
-        .await
-        {
-            eprintln!("Note: Could not start debugging session: {}", debug_err);
-        }
-    }
+    let agent_ptr = load_extensions(
+        agent,
+        extensions_to_load,
+        Arc::clone(&provider_for_display),
+        session_config.interactive,
+    )
+    .await;
 
     // Determine editor mode
     let edit_mode = config
@@ -549,113 +602,24 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
 
     let debug_mode = session_config.debug || config.get_param("GOOSE_DEBUG").unwrap_or(false);
 
-    // Create new session
-    let mut session = CliSession::new(
+    let session = CliSession::new(
         Arc::try_unwrap(agent_ptr).unwrap_or_else(|_| panic!("There should be no more references")),
         session_id.clone(),
         debug_mode,
         session_config.scheduled_job_id.clone(),
         session_config.max_turns,
         edit_mode,
-        session_config.retry_config.clone(),
+        recipe.and_then(|r| r.retry.clone()),
         session_config.output_format.clone(),
     )
     .await;
 
-    // Add stdio extensions if provided
-    for extension_str in session_config.extensions {
-        if let Err(e) = session.add_extension(extension_str.clone()).await {
-            eprintln!(
-                "{}",
-                style(format!(
-                    "Warning: Failed to start stdio extension '{}' ({}), continuing without it",
-                    extension_str, e
-                ))
-                .yellow()
-            );
-
-            // Offer debugging help
-            if let Err(debug_err) = offer_extension_debugging_help(
-                &extension_str,
-                &e.to_string(),
-                Arc::clone(&provider_for_display),
-                session_config.interactive,
-            )
-            .await
-            {
-                eprintln!("Note: Could not start debugging session: {}", debug_err);
-            }
-        }
-    }
-
-    // Add streamable HTTP extensions if provided
-    for extension_str in session_config.streamable_http_extensions {
-        if let Err(e) = session
-            .add_streamable_http_extension(extension_str.clone())
-            .await
-        {
-            eprintln!(
-                "{}",
-                style(format!(
-                    "Warning: Failed to start streamable HTTP extension '{}' ({}), continuing without it",
-                    extension_str, e
-                ))
-                .yellow()
-            );
-
-            // Offer debugging help
-            if let Err(debug_err) = offer_extension_debugging_help(
-                &extension_str,
-                &e.to_string(),
-                Arc::clone(&provider_for_display),
-                session_config.interactive,
-            )
-            .await
-            {
-                eprintln!("Note: Could not start debugging session: {}", debug_err);
-            }
-        }
-    }
-
-    // Add builtin extensions
-    for builtin in session_config.builtins {
-        if let Err(e) = session.add_builtin(builtin.clone()).await {
-            eprintln!(
-                "{}",
-                style(format!(
-                    "Warning: Failed to start builtin extension '{}' ({}), continuing without it",
-                    builtin, e
-                ))
-                .yellow()
-            );
-
-            // Offer debugging help
-            if let Err(debug_err) = offer_extension_debugging_help(
-                &builtin,
-                &e.to_string(),
-                Arc::clone(&provider_for_display),
-                session_config.interactive,
-            )
-            .await
-            {
-                eprintln!("Note: Could not start debugging session: {}", debug_err);
-            }
-        }
-    }
-
-    let session_config_for_save = SessionConfig {
-        id: session_id.clone(),
-        schedule_id: None,
-        max_turns: None,
-        retry_config: None,
-    };
-
     if let Err(e) = session
         .agent
-        .save_extension_state(&session_config_for_save)
+        .persist_extension_state(&session_id.clone())
         .await
     {
-        tracing::warn!("Failed to save initial extension state: {}", e);
+        tracing::warn!("Failed to save extension state: {}", e);
     }
 
     // Add CLI-specific system prompt extension
@@ -703,9 +667,8 @@ mod tests {
             extensions: vec!["echo test".to_string()],
             streamable_http_extensions: vec!["http://localhost:8080/mcp".to_string()],
             builtins: vec!["developer".to_string()],
-            extensions_override: None,
+            recipe: None,
             additional_system_prompt: Some("Test prompt".to_string()),
-            settings: None,
             provider: None,
             model: None,
             debug: true,
@@ -714,9 +677,6 @@ mod tests {
             scheduled_job_id: None,
             interactive: true,
             quiet: false,
-            sub_recipes: None,
-            final_output_response: None,
-            retry_config: None,
             output_format: "text".to_string(),
         };
 
@@ -741,7 +701,7 @@ mod tests {
         assert!(config.extensions.is_empty());
         assert!(config.streamable_http_extensions.is_empty());
         assert!(config.builtins.is_empty());
-        assert!(config.extensions_override.is_none());
+        assert!(config.recipe.is_none());
         assert!(config.additional_system_prompt.is_none());
         assert!(!config.debug);
         assert!(config.max_tool_repetitions.is_none());
@@ -749,7 +709,6 @@ mod tests {
         assert!(config.scheduled_job_id.is_none());
         assert!(!config.interactive);
         assert!(!config.quiet);
-        assert!(config.final_output_response.is_none());
         assert!(!config.fork);
     }
 
@@ -766,5 +725,17 @@ mod tests {
         // This test mainly serves as a compilation check
         assert_eq!(extension_name, "test-extension");
         assert_eq!(error_message, "test error");
+    }
+
+    #[test]
+    fn test_truncate_with_ellipsis() {
+        assert_eq!(truncate_with_ellipsis("abc", 5), "abc");
+
+        assert_eq!(truncate_with_ellipsis("abcde", 5), "abcde");
+
+        assert_eq!(truncate_with_ellipsis("abcdef", 5), "abcde…");
+        assert_eq!(truncate_with_ellipsis("hello world", 5), "hello…");
+
+        assert_eq!(truncate_with_ellipsis("", 5), "");
     }
 }
