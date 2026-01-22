@@ -496,67 +496,69 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
                     isDragOver && 'ring-2 ring-blue-500 rounded-lg'
                   )}
                 >
-                  <DropdownMenuTrigger asChild>
-                    <motion.div
-                      className={cn(
-                        'w-full relative flex flex-col',
-                        'rounded-lg',
-                        'transition-colors duration-200',
-                        'aspect-square cursor-pointer',
-                        active
-                          ? 'bg-background-accent text-text-on-accent'
-                          : 'bg-background-default hover:bg-background-medium'
-                      )}
-                    >
-                      <div className="flex-1 flex flex-col items-start justify-between p-5 no-drag text-left">
-                        {/* Drag handle */}
-                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                          <GripVertical className="w-4 h-4 text-text-muted" />
-                        </div>
-
-                        {/* Tag/Badge */}
-                        {item.getTag && (
-                          <div className={cn(
-                            'absolute top-3 px-2 py-1 rounded-full',
-                            item.tagAlign === 'left' ? 'left-8' : 'right-8',
-                            'bg-background-muted'
-                          )}>
-                            <span className="text-xs font-mono text-text-muted">
-                              {item.getTag()}
-                            </span>
-                          </div>
+                  <div className="relative">
+                    <DropdownMenuTrigger asChild>
+                      <motion.div
+                        className={cn(
+                          'w-full relative flex flex-col',
+                          'rounded-lg',
+                          'transition-colors duration-200',
+                          'aspect-square cursor-pointer',
+                          active
+                            ? 'bg-background-accent text-text-on-accent'
+                            : 'bg-background-default hover:bg-background-medium'
                         )}
-                        
-                        {/* Icon and Label at bottom */}
-                        <div className="mt-auto w-full">
-                          <Icon className="w-6 h-6 mb-2" />
-                          <h2 className="font-light text-left text-xl">{item.label}</h2>
-                        </div>
+                      >
+                        <div className="flex-1 flex flex-col items-start justify-between p-5 no-drag text-left">
+                          {/* Drag handle */}
+                          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                            <GripVertical className="w-4 h-4 text-text-muted" />
+                          </div>
 
-                        {/* New Chat button - bottom right corner */}
-                        <motion.button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            e.preventDefault();
-                            handleNewChat();
-                          }}
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.95 }}
-                          className={cn(
-                            'absolute bottom-3 right-3 p-2 rounded-md z-10',
-                            'opacity-0 group-hover:opacity-100 transition-opacity',
-                            active
-                              ? 'bg-background-default/20 hover:bg-background-default/30 text-text-on-accent'
-                              : 'bg-background-medium hover:bg-background-accent hover:text-text-on-accent',
-                            'flex items-center justify-center'
+                          {/* Tag/Badge */}
+                          {item.getTag && (
+                            <div className={cn(
+                              'absolute top-3 px-2 py-1 rounded-full',
+                              item.tagAlign === 'left' ? 'left-8' : 'right-8',
+                              'bg-background-muted'
+                            )}>
+                              <span className="text-xs font-mono text-text-muted">
+                                {item.getTag()}
+                              </span>
+                            </div>
                           )}
-                          title="New Chat"
-                        >
-                          <Plus className="w-4 h-4" />
-                        </motion.button>
-                      </div>
-                    </motion.div>
-                  </DropdownMenuTrigger>
+                          
+                          {/* Icon and Label at bottom */}
+                          <div className="mt-auto w-full">
+                            <Icon className="w-6 h-6 mb-2" />
+                            <h2 className="font-light text-left text-xl">{item.label}</h2>
+                          </div>
+                        </div>
+                      </motion.div>
+                    </DropdownMenuTrigger>
+
+                    {/* New Chat button - bottom right corner, outside DropdownMenuTrigger */}
+                    <motion.button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        handleNewChat();
+                      }}
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.95 }}
+                      className={cn(
+                        'absolute bottom-3 right-3 p-2 rounded-md z-10',
+                        'opacity-0 group-hover:opacity-100 transition-opacity',
+                        active
+                          ? 'bg-background-default/20 hover:bg-background-default/30 text-text-on-accent'
+                          : 'bg-background-medium hover:bg-background-accent hover:text-text-on-accent',
+                        'flex items-center justify-center'
+                      )}
+                      title="New Chat"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </motion.button>
+                  </div>
                   <DropdownMenuContent 
                     className="w-64 p-1 bg-background-default border-border-subtle rounded-lg shadow-lg z-[10001]"
                     side="right"
