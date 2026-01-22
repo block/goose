@@ -544,42 +544,43 @@ impl Config {
     }
 
     pub fn all_secrets(&self) -> Result<HashMap<String, Value>, ConfigError> {
-        if let Ok(cache) = self.secrets_cache.lock() {
-            if let Some(ref cached_secrets) = *cache {
-                tracing::debug!("secrets cache hit");
-                return Ok(cached_secrets.clone());
-            }
-        }
+        let mut cache = self.secrets_cache.lock().unwrap();
 
-        tracing::debug!("secrets cache miss, fetching from storage");
+        let values = if let Some(ref cached_secrets) = *cache {
+            tracing::debug!("secrets cache hit");
+            cached_secrets.clone()
+        } else {
+            tracing::debug!("secrets cache miss, fetching from storage");
 
-        let values = match &self.secrets {
-            SecretStorage::Keyring { service } => {
-                let result =
-                    self.handle_keyring_operation(|entry| entry.get_password(), service, None);
+            let loaded = match &self.secrets {
+                SecretStorage::Keyring { service } => {
+                    let result =
+                        self.handle_keyring_operation(|entry| entry.get_password(), service, None);
 
-                match result {
-                    Ok(content) => {
-                        let values: HashMap<String, Value> = serde_json::from_str(&content)?;
-                        values
+                    match result {
+                        Ok(content) => {
+                            let values: HashMap<String, Value> = serde_json::from_str(&content)?;
+                            values
+                        }
+                        Err(ConfigError::FallbackToFileStorage) => {
+                            self.fallback_to_file_storage()?
+                        }
+                        Err(ConfigError::KeyringError(msg))
+                            if msg.contains("No entry found")
+                                || msg.contains("No matching entry found") =>
+                        {
+                            HashMap::new()
+                        }
+                        Err(e) => return Err(e),
                     }
-                    Err(ConfigError::FallbackToFileStorage) => self.fallback_to_file_storage()?,
-                    Err(ConfigError::KeyringError(msg))
-                        if msg.contains("No entry found")
-                            || msg.contains("No matching entry found") =>
-                    {
-                        HashMap::new()
-                    }
-                    Err(e) => return Err(e),
                 }
-            }
-            SecretStorage::File { path } => self.read_secrets_from_file(path)?,
-        };
+                SecretStorage::File { path } => self.read_secrets_from_file(path)?,
+            };
 
-        if let Ok(mut cache) = self.secrets_cache.lock() {
-            *cache = Some(values.clone());
+            *cache = Some(loaded.clone());
             tracing::debug!("secrets cached");
-        }
+            loaded
+        };
 
         Ok(values)
     }
