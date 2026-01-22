@@ -31,7 +31,7 @@ Do NOT use this skill for:
       - **Search the fetched docs to extract the complete schema for each element you plan to use**
       - Extract example snippets to understand usage patterns
       - Create your configuration based on reference specs, following example patterns
-      - **⚠️ STOP: Before showing the user, verify output content MUST match the schema and reference in goose the official documentation:**
+      - **⚠️ STOP: Before showing the user, verify output content MUST match the schema and reference in the goose official documentation:**
          - [ ] Field names match exactly as shown in docs
          - [ ] Required fields/properties are present
          - [ ] Value formats match examples (YAML/JSON syntax, data types, etc.)
