@@ -92,7 +92,7 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
             code_execution_extension::EXTENSION_NAME,
             PlatformExtensionDef {
                 name: code_execution_extension::EXTENSION_NAME,
-                description: "Execute JavaScript code in a sandboxed environment",
+                description: "Execute TypescriptScript code in a sandboxed environment",
                 default_enabled: false,
                 client_factory: |ctx| {
                     Box::new(code_execution_extension::CodeExecutionClient::new(ctx).unwrap())
