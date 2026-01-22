@@ -462,8 +462,10 @@ async fn build_canonical_models() -> Result<()> {
                     limit,
                 };
 
-                // Extract the normalized model name (after the provider/)
-                let model_name = canonical_id.split('/').nth(1).unwrap_or(model_id);
+                // Extract the normalized model name (everything after "provider/")
+                let model_name = canonical_id
+                    .strip_prefix(&format!("{}/", normalized_provider))
+                    .unwrap_or(model_id);
                 registry.register(normalized_provider, model_name, canonical_model);
                 total_models += 1;
             }
