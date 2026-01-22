@@ -220,8 +220,8 @@ impl AppsManagerClient {
 
     fn schema<T: JsonSchema>() -> JsonObject {
         serde_json::to_value(schema_for!(T))
-            .map(|v| v.as_object().unwrap().clone())
-            .expect("valid schema")
+            .map(|v| v.as_object().expect("schema_for!(T) must serialize to a JSON object").clone())
+            .expect("Schema serialization must succeed")
     }
 
     fn create_app_content_tool() -> rmcp::model::Tool {
@@ -370,7 +370,7 @@ impl AppsManagerClient {
                 blob: None,
                 meta: None,
             },
-            mcp_server: Some(EXTENSION_NAME.to_string()),
+            mcp_servers: vec![EXTENSION_NAME.to_string()],
             window_props: Some(WindowProps {
                 width: content.width.unwrap_or(DEFAULT_WINDOW_PROPS.width),
                 height: content.height.unwrap_or(DEFAULT_WINDOW_PROPS.height),

@@ -365,7 +365,7 @@ export type GetToolsQuery = {
 };
 
 export type GooseApp = McpAppResource & (WindowProps | null) & {
-    mcpServer?: string | null;
+    mcpServers?: Array<string>;
     prd?: string | null;
 };
 

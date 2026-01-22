@@ -36,7 +36,7 @@ export default function StandaloneAppView() {
 
         const apps = response.data?.apps || [];
         const cachedApp = apps.find(
-          (app) => app.uri === resourceUri && app.mcpServer === extensionName
+          (app) => app.uri === resourceUri && app.mcpServers?.includes(extensionName)
         );
 
         if (cachedApp?.text) {

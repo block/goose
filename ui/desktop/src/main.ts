@@ -2482,7 +2482,7 @@ async function appMain() {
       });
 
       const workingDir = app.getPath('home');
-      const extensionName = gooseApp.mcpServer ?? '';
+      const extensionName = gooseApp.mcpServers?.[0] ?? '';
       const standaloneUrl =
         `${baseUrl}/#/standalone-app?` +
         `resourceUri=${encodeURIComponent(gooseApp.uri)}` +

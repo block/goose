@@ -7,9 +7,9 @@ REQUIREMENTS:
 - Use semantic HTML5
 - Add appropriate error handling
 - Make the app interactive and functional
-- Use vanilla JavaScript (no external dependencies unless absolutely necessary)
-- If you need external resources (fonts, icons), use CDN links
-- The app will be sandboxed with strict CSP, so all scripts must be inline or from trusted CDNs
+- Use vanilla JavaScript; do not load external JavaScript libraries (no JS dependencies from CDNs or packages)
+- If you need external resources (fonts, icons, or CSS only), use CDN links from well-known, trusted providers
+- The app will be sandboxed with strict CSP, so all JavaScript must be inline; only non-script assets (fonts, icons, CSS) may be loaded from trusted CDNs
 
 WINDOW SIZING:
 - Optionally update width/height if the changes warrant a different window size

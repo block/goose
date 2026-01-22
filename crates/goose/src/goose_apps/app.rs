@@ -20,8 +20,8 @@ pub struct WindowProps {
 pub struct GooseApp {
     #[serde(flatten)]
     pub resource: McpAppResource,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub mcp_server: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub mcp_servers: Vec<String>,
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
     pub window_props: Option<WindowProps>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -89,10 +89,15 @@ impl GooseApp {
             None
         };
 
-        let mcp_server = metadata
-            .get("mcpServer")
-            .and_then(|v| v.as_str())
-            .map(String::from);
+        let mcp_servers = metadata
+            .get("mcpServers")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect()
+            })
+            .unwrap_or_default();
 
         let prd = prd_re
             .captures(html)
@@ -112,7 +117,7 @@ impl GooseApp {
                 blob: None,
                 meta: None,
             },
-            mcp_server,
+            mcp_servers,
             window_props,
             prd,
         })
@@ -141,8 +146,8 @@ impl GooseApp {
             metadata["resizable"] = serde_json::json!(props.resizable);
         }
 
-        if let Some(ref server) = self.mcp_server {
-            metadata["mcpServer"] = serde_json::json!(server);
+        if !self.mcp_servers.is_empty() {
+            metadata["mcpServers"] = serde_json::json!(self.mcp_servers);
         }
 
         let metadata_json = serde_json::to_string_pretty(&metadata)
@@ -277,7 +282,7 @@ pub async fn fetch_mcp_apps(
 
                     let app = GooseApp {
                         resource: mcp_resource,
-                        mcp_server: Some(extension_name),
+                        mcp_servers: vec![extension_name],
                         window_props,
                         prd: None,
                     };

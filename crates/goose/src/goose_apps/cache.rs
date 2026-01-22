@@ -29,7 +29,7 @@ impl McpAppCache {
         // Check if clock app is already cached
         if self.get_app(APPS_EXTENSION_NAME, "apps://clock").is_none() {
             if let Ok(mut clock_app) = GooseApp::from_html(CLOCK_HTML) {
-                clock_app.mcp_server = Some(APPS_EXTENSION_NAME.to_string());
+                clock_app.mcp_servers = vec![APPS_EXTENSION_NAME.to_string()];
                 let _ = self.store_app(&clock_app);
             }
         }
@@ -69,7 +69,8 @@ impl McpAppCache {
     pub fn store_app(&self, app: &GooseApp) -> Result<(), std::io::Error> {
         fs::create_dir_all(&self.cache_dir)?;
 
-        if let Some(ref extension_name) = app.mcp_server {
+        // Store the app once for each MCP server it's associated with
+        for extension_name in &app.mcp_servers {
             let cache_key = Self::cache_key(extension_name, &app.resource.uri);
             let app_path = self.cache_dir.join(format!("{}.json", cache_key));
             let json = serde_json::to_string_pretty(app).map_err(std::io::Error::other)?;
@@ -106,7 +107,7 @@ impl McpAppCache {
             if path.extension().and_then(|s| s.to_str()) == Some("json") {
                 if let Ok(content) = fs::read_to_string(&path) {
                     if let Ok(app) = serde_json::from_str::<GooseApp>(&content) {
-                        if app.mcp_server.as_deref() == Some(extension_name)
+                        if app.mcp_servers.contains(&extension_name.to_string())
                             && fs::remove_file(&path).is_ok()
                         {
                             deleted_count += 1;

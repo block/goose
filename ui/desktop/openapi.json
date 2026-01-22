@@ -4118,9 +4118,11 @@
           {
             "type": "object",
             "properties": {
-              "mcpServer": {
-                "type": "string",
-                "nullable": true
+              "mcpServers": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
               },
               "prd": {
                 "type": "string",

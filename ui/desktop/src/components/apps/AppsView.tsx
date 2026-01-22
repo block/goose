@@ -249,45 +249,50 @@ export default function AppsView() {
             </div>
           ) : (
             <GridLayout>
-              {apps.map((app) => (
-                <div
-                  key={`${app.uri}-${app.mcpServer}`}
-                  className="flex flex-col p-4 border border-border-muted rounded-lg bg-background-panel hover:border-border-default transition-colors"
-                >
-                  <div className="flex-1 mb-4">
-                    <h3 className="font-medium text-text-default mb-2">
-                      {formatAppName(app.name)}
-                    </h3>
-                    {app.description && (
-                      <p className="text-sm text-text-muted mb-2">{app.description}</p>
-                    )}
-                    {app.mcpServer && (
-                      <span className="inline-block px-2 py-1 text-xs bg-background-subtle text-text-muted rounded">
-                        {app.mcpServer}
-                      </span>
-                    )}
+              {apps.map((app) => {
+                const isCustomApp = app.mcpServers?.includes('apps') ?? false;
+                return (
+                  <div
+                    key={`${app.uri}-${app.mcpServers?.join(',')}`}
+                    className="flex flex-col p-4 border border-border-muted rounded-lg bg-background-panel hover:border-border-default transition-colors"
+                  >
+                    <div className="flex-1 mb-4">
+                      <h3 className="font-medium text-text-default mb-2">
+                        {formatAppName(app.name)}
+                      </h3>
+                      {app.description && (
+                        <p className="text-sm text-text-muted mb-2">{app.description}</p>
+                      )}
+                      {app.mcpServers && app.mcpServers.length > 0 && (
+                        <span className="inline-block px-2 py-1 text-xs bg-background-subtle text-text-muted rounded">
+                          {isCustomApp ? 'Custom app' : app.mcpServers.join(', ')}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => handleLaunchApp(app)}
+                        className="flex items-center gap-2 flex-1"
+                      >
+                        <Play className="h-4 w-4" />
+                        Launch
+                      </Button>
+                      {isCustomApp && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDownloadApp(app)}
+                          className="flex items-center gap-2"
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={() => handleLaunchApp(app)}
-                      className="flex items-center gap-2 flex-1"
-                    >
-                      <Play className="h-4 w-4" />
-                      Launch
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDownloadApp(app)}
-                      className="flex items-center gap-2"
-                    >
-                      <Download className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </GridLayout>
           )}
         </div>

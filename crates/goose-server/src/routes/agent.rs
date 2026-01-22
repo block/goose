@@ -1003,7 +1003,7 @@ async fn list_apps(
     if let Some(cache) = cache.as_ref() {
         let active_extensions: HashSet<String> = apps
             .iter()
-            .filter_map(|app| app.mcp_server.clone())
+            .flat_map(|app| app.mcp_servers.iter().cloned())
             .collect();
 
         for extension_name in active_extensions {
@@ -1125,7 +1125,7 @@ async fn import_app(
         counter += 1;
     }
 
-    app.mcp_server = Some("apps".to_string());
+    app.mcp_servers = vec!["apps".to_string()];
 
     cache.store_app(&app).map_err(|e| ErrorResponse {
         message: format!("Failed to store app: {}", e),
