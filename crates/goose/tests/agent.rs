@@ -355,6 +355,7 @@ mod tests {
         impl Provider for MockToolProvider {
             async fn complete(
                 &self,
+                _session_id: &str,
                 _system_prompt: &str,
                 _messages: &[Message],
                 _tools: &[Tool],
@@ -376,12 +377,14 @@ mod tests {
 
             async fn complete_with_model(
                 &self,
+                session_id: &str,
                 _model_config: &ModelConfig,
                 system_prompt: &str,
                 messages: &[Message],
                 tools: &[Tool],
             ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {
-                self.complete(system_prompt, messages, tools).await
+                self.complete(session_id, system_prompt, messages, tools)
+                    .await
             }
 
             fn get_model_config(&self) -> ModelConfig {
@@ -496,7 +499,7 @@ mod tests {
         use goose::config::GooseMode;
         use goose::session::SessionManager;
 
-        async fn setup_agent_with_extension_manager() -> Agent {
+        async fn setup_agent_with_extension_manager() -> (Agent, String) {
             // Add the TODO extension to the config so it can be discovered by search_available_extensions
             // Set it as disabled initially so tests can enable it
             let todo_extension_entry = ExtensionEntry {
@@ -515,6 +518,7 @@ mod tests {
             // Create agent with session_id from the start
             let temp_dir = tempfile::tempdir().unwrap();
             let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+            let session_id = "test-session-id".to_string();
             let config = AgentConfig::new(
                 session_manager,
                 PermissionManager::instance(),
@@ -536,13 +540,13 @@ mod tests {
                 .add_extension(ext_config)
                 .await
                 .expect("Failed to add extension manager");
-            agent
+            (agent, session_id)
         }
 
         #[tokio::test]
         async fn test_extension_manager_tools_available() {
-            let agent = setup_agent_with_extension_manager().await;
-            let tools = agent.list_tools("test-session-id", None).await;
+            let (agent, session_id) = setup_agent_with_extension_manager().await;
+            let tools = agent.list_tools(&session_id, None).await;
 
             // Note: Tool names are prefixed with the normalized extension name "extensionmanager"
             // not the display name "Extension Manager"

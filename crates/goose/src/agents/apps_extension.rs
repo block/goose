@@ -1,5 +1,5 @@
 use crate::agents::extension::PlatformExtensionContext;
-use crate::agents::mcp_client::{Error, McpClientTrait, McpMeta};
+use crate::agents::mcp_client::{Error, McpClientTrait};
 use crate::config::paths::Paths;
 use crate::conversation::message::Message;
 use crate::goose_apps::McpAppResource;
@@ -104,7 +104,19 @@ impl AppsManagerClient {
         fs::create_dir_all(&apps_dir)
             .map_err(|e| format!("Failed to create apps directory: {}", e))?;
 
-        let info = InitializeResult {
+        let client = Self {
+            info: Self::create_info(),
+            context,
+            apps_dir,
+        };
+
+        client.ensure_default_apps()?;
+
+        Ok(client)
+    }
+
+    fn create_info() -> InitializeResult {
+        InitializeResult {
             protocol_version: ProtocolVersion::V_2025_03_26,
             capabilities: ServerCapabilities {
                 tools: Some(ToolsCapability {
@@ -131,13 +143,22 @@ impl AppsManagerClient {
                 "Use this extension to create, manage, and iterate on custom HTML/CSS/JavaScript apps."
                     .to_string(),
             ),
-        };
+        }
+    }
 
-        Ok(Self {
-            info,
-            context,
-            apps_dir,
-        })
+    fn ensure_default_apps(&self) -> Result<(), String> {
+        // TODO(Douwe): we have the same check in cache, consider unfiying that
+        const CLOCK_HTML: &str = include_str!("../goose_apps/clock.html");
+
+        // Check if clock app exists
+        let clock_path = self.apps_dir.join("clock.html");
+        if !clock_path.exists() {
+            // Parse and save the default clock app
+            let clock_app = GooseApp::from_html(CLOCK_HTML)?;
+            self.save_app(&clock_app)?;
+        }
+
+        Ok(())
     }
 
     fn list_stored_apps(&self) -> Result<Vec<String>, String> {
@@ -242,6 +263,7 @@ impl AppsManagerClient {
 
     async fn generate_new_app_content(
         &self,
+        session_id: &str,
         prd: &str,
     ) -> Result<CreateAppContentResponse, String> {
         let provider = self.get_provider().await?;
@@ -263,7 +285,7 @@ impl AppsManagerClient {
         let tools = vec![Self::create_app_content_tool()];
 
         let (response, _usage) = provider
-            .complete(&system_prompt, &messages, &tools)
+            .complete(session_id, &system_prompt, &messages, &tools)
             .await
             .map_err(|e| format!("LLM call failed: {}", e))?;
 
@@ -272,6 +294,7 @@ impl AppsManagerClient {
 
     async fn generate_updated_app_content(
         &self,
+        session_id: &str,
         existing_html: &str,
         existing_prd: &str,
         feedback: &str,
@@ -293,7 +316,7 @@ impl AppsManagerClient {
         let tools = vec![Self::update_app_content_tool()];
 
         let (response, _usage) = provider
-            .complete(&system_prompt, &messages, &tools)
+            .complete(session_id, &system_prompt, &messages, &tools)
             .await
             .map_err(|e| format!("LLM call failed: {}", e))?;
 
@@ -303,7 +326,6 @@ impl AppsManagerClient {
     async fn handle_list_apps(
         &self,
         _arguments: Option<JsonObject>,
-        _meta: McpMeta,
     ) -> Result<CallToolResult, String> {
         let app_names = self.list_stored_apps()?;
 
@@ -345,13 +367,13 @@ impl AppsManagerClient {
 
     async fn handle_create_app(
         &self,
+        session_id: &str,
         arguments: Option<JsonObject>,
-        _meta: McpMeta,
     ) -> Result<CallToolResult, String> {
         let args = arguments.ok_or("Missing arguments")?;
         let prd = extract_string(&args, "prd")?;
 
-        let content = self.generate_new_app_content(&prd).await?;
+        let content = self.generate_new_app_content(session_id, &prd).await?;
 
         if self.load_app(&content.name).is_ok() {
             return Err(format!(
@@ -391,8 +413,8 @@ impl AppsManagerClient {
 
     async fn handle_iterate_app(
         &self,
+        session_id: &str,
         arguments: Option<JsonObject>,
-        _meta: McpMeta,
     ) -> Result<CallToolResult, String> {
         let args = arguments.ok_or("Missing arguments")?;
 
@@ -410,7 +432,7 @@ impl AppsManagerClient {
         let existing_prd = app.prd.as_deref().unwrap_or("");
 
         let content = self
-            .generate_updated_app_content(existing_html, existing_prd, &feedback)
+            .generate_updated_app_content(session_id, existing_html, existing_prd, &feedback)
             .await?;
 
         app.resource.text = Some(content.html);
@@ -448,7 +470,6 @@ impl AppsManagerClient {
     async fn handle_delete_app(
         &self,
         arguments: Option<JsonObject>,
-        _meta: McpMeta,
     ) -> Result<CallToolResult, String> {
         let args = arguments.ok_or("Missing arguments")?;
 
@@ -467,6 +488,7 @@ impl AppsManagerClient {
 impl McpClientTrait for AppsManagerClient {
     async fn list_tools(
         &self,
+        _session_id: &str,
         _next_cursor: Option<String>,
         _cancel_token: CancellationToken,
     ) -> Result<ListToolsResult, Error> {
@@ -502,16 +524,16 @@ impl McpClientTrait for AppsManagerClient {
 
     async fn call_tool(
         &self,
+        session_id: &str,
         name: &str,
         arguments: Option<JsonObject>,
-        meta: McpMeta,
         _cancel_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         let result = match name {
-            "list_apps" => self.handle_list_apps(arguments, meta).await,
-            "create_app" => self.handle_create_app(arguments, meta).await,
-            "iterate_app" => self.handle_iterate_app(arguments, meta).await,
-            "delete_app" => self.handle_delete_app(arguments, meta).await,
+            "list_apps" => self.handle_list_apps(arguments).await,
+            "create_app" => self.handle_create_app(session_id, arguments).await,
+            "iterate_app" => self.handle_iterate_app(session_id, arguments).await,
+            "delete_app" => self.handle_delete_app(arguments).await,
             _ => Err(format!("Unknown tool: {}", name)),
         };
 
@@ -526,6 +548,7 @@ impl McpClientTrait for AppsManagerClient {
 
     async fn list_resources(
         &self,
+        _session_id: &str,
         _next_cursor: Option<String>,
         _cancel_token: CancellationToken,
     ) -> Result<ListResourcesResult, Error> {
@@ -578,6 +601,7 @@ impl McpClientTrait for AppsManagerClient {
 
     async fn read_resource(
         &self,
+        _session_id: &str,
         uri: &str,
         _cancel_token: CancellationToken,
     ) -> Result<ReadResourceResult, Error> {

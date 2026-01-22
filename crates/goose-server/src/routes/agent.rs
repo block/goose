@@ -846,6 +846,7 @@ async fn read_resource(
     let read_result = agent
         .extension_manager
         .read_resource(
+            &payload.session_id,
             &payload.uri,
             &payload.extension_name,
             CancellationToken::default(),
@@ -984,14 +985,14 @@ async fn list_apps(
     };
 
     let agent = state
-        .get_agent_for_route(session_id)
+        .get_agent_for_route(session_id.clone())
         .await
         .map_err(|status| ErrorResponse {
             message: "Failed to get agent".to_string(),
             status,
         })?;
 
-    let apps = fetch_mcp_apps(&agent.extension_manager)
+    let apps = fetch_mcp_apps(&agent.extension_manager, &session_id)
         .await
         .map_err(|e| ErrorResponse {
             message: format!("Failed to list apps: {}", e.message),

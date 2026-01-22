@@ -44,6 +44,7 @@ hex = "0.4.3"
 socket2 = "0.6.1"
 fs2 = "0.4.3"
 rustls = { version = "0.23", features = ["ring"] }
+uuid = { version = "1.19.0", features = ["v4"] }
 
 [target.'cfg(windows)'.dependencies]
 winreg = { version = "0.55.0" }
