@@ -23,19 +23,27 @@ export function errorMessage(err: Error | unknown, default_value?: string) {
 }
 
 export async function compressImageDataUrl(dataUrl: string): Promise<string> {
-  const res = await fetch(dataUrl);
-  const blob = await res.blob();
-  const bitmap = await globalThis.createImageBitmap(blob);
+  return new Promise((resolve, reject) => {
+    const img = new globalThis.Image();
+    img.onload = () => {
+      const maxDim = 1024;
+      const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+      const width = Math.floor(img.width * scale);
+      const height = Math.floor(img.height * scale);
 
-  const maxDim = 1024;
-  const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
-  const width = Math.floor(bitmap.width * scale);
-  const height = Math.floor(bitmap.height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Failed to get canvas context'));
+        return;
+      }
+      ctx.drawImage(img, 0, 0, width, height);
 
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  canvas.getContext('2d')!.drawImage(bitmap, 0, 0, width, height);
-
-  return canvas.toDataURL('image/jpeg', 0.85);
+      resolve(canvas.toDataURL('image/jpeg', 0.85));
+    };
+    img.onerror = () => reject(new Error('Failed to load image'));
+    img.src = dataUrl;
+  });
 }
