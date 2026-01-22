@@ -34,6 +34,9 @@ use super::types::SharedProvider;
 use crate::agents::extension::{Envs, ProcessExit};
 use crate::agents::extension_malware_check;
 use crate::agents::mcp_client::{McpClient, McpClientTrait, McpMeta};
+use crate::builtin_extension::BuiltinDef;
+#[cfg(test)]
+use crate::builtin_extension::EMPTY_BUILTIN_EXTENSIONS;
 use crate::config::search_path::SearchPaths;
 use crate::config::{get_all_extensions, Config};
 use crate::oauth::oauth_flow;
@@ -97,7 +100,7 @@ pub struct ExtensionManager {
     provider: SharedProvider,
     tools_cache: Mutex<Option<Arc<Vec<Tool>>>>,
     tools_cache_version: AtomicU64,
-    builtin_extensions: HashMap<&'static str, crate::builtin_extension::BuiltinDef>,
+    builtin_extensions: HashMap<&'static str, BuiltinDef>,
 }
 
 /// A flattened representation of a resource used by the agent to prepare inference
@@ -444,7 +447,7 @@ impl ExtensionManager {
     pub fn new(
         provider: SharedProvider,
         session_manager: Arc<crate::session::SessionManager>,
-        builtin_extensions: impl Into<HashMap<&'static str, crate::builtin_extension::BuiltinDef>>,
+        builtin_extensions: impl Into<HashMap<&'static str, BuiltinDef>>,
     ) -> Self {
         Self {
             extensions: Mutex::new(HashMap::new()),
@@ -465,7 +468,7 @@ impl ExtensionManager {
         Self::new(
             Arc::new(Mutex::new(None)),
             session_manager,
-            crate::builtin_extension::EMPTY_BUILTIN_EXTENSIONS.clone(),
+            EMPTY_BUILTIN_EXTENSIONS.clone(),
         )
     }
 

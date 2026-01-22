@@ -25,6 +25,7 @@ use crate::agents::subagent_tool::{
 };
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, SharedProvider, ToolResultReceiver};
+use crate::builtin_extension::{BuiltinDef, EMPTY_BUILTIN_EXTENSIONS};
 use crate::config::permission::PermissionManager;
 use crate::config::{get_enabled_extensions, Config, GooseMode};
 use crate::context_mgmt::{
@@ -93,7 +94,7 @@ pub struct AgentConfig {
     pub permission_manager: Arc<PermissionManager>,
     pub scheduler_service: Option<Arc<dyn SchedulerTrait>>,
     pub goose_mode: GooseMode,
-    pub builtin_extensions: HashMap<&'static str, crate::builtin_extension::BuiltinDef>,
+    pub builtin_extensions: HashMap<&'static str, BuiltinDef>,
 }
 
 impl AgentConfig {
@@ -102,7 +103,7 @@ impl AgentConfig {
         permission_manager: Arc<PermissionManager>,
         scheduler_service: Option<Arc<dyn SchedulerTrait>>,
         goose_mode: GooseMode,
-        builtin_extensions: impl Into<HashMap<&'static str, crate::builtin_extension::BuiltinDef>>,
+        builtin_extensions: impl Into<HashMap<&'static str, BuiltinDef>>,
     ) -> Self {
         Self {
             session_manager,
@@ -190,7 +191,7 @@ impl Agent {
             PermissionManager::instance(),
             None,
             Config::global().get_goose_mode().unwrap_or(GooseMode::Auto),
-            crate::builtin_extension::EMPTY_BUILTIN_EXTENSIONS.clone(),
+            EMPTY_BUILTIN_EXTENSIONS.clone(),
         ))
     }
 

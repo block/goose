@@ -1,4 +1,5 @@
 use crate::agents::{Agent, AgentConfig};
+use crate::builtin_extension::{BuiltinDef, EMPTY_BUILTIN_EXTENSIONS};
 use crate::config::paths::Paths;
 use crate::config::permission::PermissionManager;
 use crate::config::{Config, GooseMode};
@@ -7,6 +8,7 @@ use crate::scheduler_trait::SchedulerTrait;
 use crate::session::SessionManager;
 use anyhow::Result;
 use lru::LruCache;
+use std::collections::HashMap;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 use tokio::sync::{OnceCell, RwLock};
@@ -21,8 +23,7 @@ pub struct AgentManager {
     scheduler: Arc<dyn SchedulerTrait>,
     session_manager: Arc<SessionManager>,
     default_provider: Arc<RwLock<Option<Arc<dyn crate::providers::base::Provider>>>>,
-    builtin_extensions:
-        std::collections::HashMap<&'static str, crate::builtin_extension::BuiltinDef>,
+    builtin_extensions: HashMap<&'static str, BuiltinDef>,
 }
 
 impl AgentManager {
@@ -30,9 +31,7 @@ impl AgentManager {
         session_manager: Arc<SessionManager>,
         schedule_file_path: std::path::PathBuf,
         max_sessions: Option<usize>,
-        builtin_extensions: impl Into<
-            std::collections::HashMap<&'static str, crate::builtin_extension::BuiltinDef>,
-        >,
+        builtin_extensions: impl Into<HashMap<&'static str, BuiltinDef>>,
     ) -> Result<Self> {
         let scheduler = Scheduler::new(schedule_file_path, session_manager.clone()).await?;
 
@@ -51,9 +50,7 @@ impl AgentManager {
     }
 
     pub async fn initialize_with_builtin_extensions(
-        builtin_extensions: impl Into<
-            std::collections::HashMap<&'static str, crate::builtin_extension::BuiltinDef>,
-        >,
+        builtin_extensions: impl Into<HashMap<&'static str, BuiltinDef>>,
     ) -> Result<Arc<Self>> {
         AGENT_MANAGER
             .get_or_try_init(|| async {
@@ -87,7 +84,7 @@ impl AgentManager {
                     session_manager,
                     schedule_file_path,
                     Some(max_sessions),
-                    crate::builtin_extension::EMPTY_BUILTIN_EXTENSIONS.clone(),
+                    EMPTY_BUILTIN_EXTENSIONS.clone(),
                 )
                 .await?;
                 Ok(Arc::new(manager))
@@ -166,6 +163,7 @@ mod tests {
     use std::sync::Arc;
     use tempfile::TempDir;
 
+    use crate::builtin_extension::EMPTY_BUILTIN_EXTENSIONS;
     use crate::execution::SessionExecutionMode;
     use crate::session::SessionManager;
 
@@ -178,7 +176,7 @@ mod tests {
             session_manager,
             schedule_path,
             Some(100),
-            crate::builtin_extension::EMPTY_BUILTIN_EXTENSIONS.clone(),
+            EMPTY_BUILTIN_EXTENSIONS.clone(),
         )
         .await
         .unwrap()
