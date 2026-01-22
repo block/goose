@@ -211,7 +211,7 @@ impl ExtensionManagerClient {
         };
 
         extension_manager
-            .add_extension_with_working_dir(config, None)
+            .add_extension(config)
             .await
             .map(|_| {
                 vec![Content::text(format!(

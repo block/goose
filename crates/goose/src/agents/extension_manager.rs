@@ -466,6 +466,13 @@ impl ExtensionManager {
         &self.context
     }
 
+    /// Resolve the working directory for an extension.
+    /// Falls back to current_dir when working_dir is not available.
+    async fn resolve_working_dir(&self) -> PathBuf {
+        // Fall back to current_dir - working_dir is passed through the call chain from session
+        std::env::current_dir().unwrap_or_default()
+    }
+
     pub async fn supports_resources(&self) -> bool {
         self.extensions
             .lock()
@@ -474,14 +481,7 @@ impl ExtensionManager {
             .any(|ext| ext.supports_resources())
     }
 
-    /// Add an extension with an optional working directory.
-    /// If working_dir is None, falls back to current_dir.
-    #[allow(clippy::too_many_lines)]
-    pub async fn add_extension_with_working_dir(
-        self: &Arc<Self>,
-        config: ExtensionConfig,
-        working_dir: Option<PathBuf>,
-    ) -> ExtensionResult<()> {
+    pub async fn add_extension(self: &Arc<Self>, config: ExtensionConfig) -> ExtensionResult<()> {
         let config_name = config.key().to_string();
         let sanitized_name = normalize(&config_name);
 
@@ -489,9 +489,8 @@ impl ExtensionManager {
             return Ok(());
         }
 
-        // Resolve working_dir: explicit > current_dir
-        let effective_working_dir =
-            working_dir.unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+        // Resolve working_dir: session > current_dir
+        let effective_working_dir = self.resolve_working_dir().await;
 
         let mut temp_dir = None;
 
@@ -556,17 +555,6 @@ impl ExtensionManager {
                     .ok_or_else(|| {
                         ExtensionError::ConfigError(format!("Unknown builtin extension: {}", name))
                     })?;
-
-                // Set GOOSE_WORKING_DIR in the current process for builtin extensions
-                // since they run in-process and read from std::env::var
-                if effective_working_dir.exists() && effective_working_dir.is_dir() {
-                    std::env::set_var("GOOSE_WORKING_DIR", &effective_working_dir);
-                    tracing::info!(
-                        "Set GOOSE_WORKING_DIR for builtin extension: {:?}",
-                        effective_working_dir
-                    );
-                }
-
                 let (server_read, client_write) = tokio::io::duplex(65536);
                 let (client_read, server_write) = tokio::io::duplex(65536);
                 (def.spawn_server)(server_read, server_write);
