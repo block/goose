@@ -194,6 +194,18 @@ impl Agent {
         ))
     }
 
+    pub fn with_builtin_extensions(
+        builtin_extensions: impl Into<HashMap<&'static str, BuiltinDef>>,
+    ) -> Self {
+        Self::with_config(AgentConfig::new(
+            Arc::new(SessionManager::instance()),
+            PermissionManager::instance(),
+            None,
+            Config::global().get_goose_mode().unwrap_or(GooseMode::Auto),
+            builtin_extensions,
+        ))
+    }
+
     pub fn with_config(config: AgentConfig) -> Self {
         // Create channels with buffer size 32 (adjust if needed)
         let (confirm_tx, confirm_rx) = mpsc::channel(32);

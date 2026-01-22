@@ -23,6 +23,7 @@ use goose::posthog::{get_telemetry_choice, TELEMETRY_ENABLED_KEY};
 use goose::providers::provider_test::test_provider_configuration;
 use goose::providers::{create, providers, retry_operation, RetryConfig};
 use goose::session::SessionType;
+use goose_mcp::BUILTIN_EXTENSIONS;
 use serde_json::Value;
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -1434,7 +1435,7 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
         .expect("No model configured. Please set model first");
     let model_config = ModelConfig::new(&model)?;
 
-    let agent = Agent::new();
+    let agent = Agent::with_builtin_extensions(BUILTIN_EXTENSIONS.clone());
     let new_provider = create(&provider_name, model_config).await?;
 
     let session = agent
