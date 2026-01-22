@@ -2,6 +2,7 @@ mod common;
 
 use common::{ExpectedSessionId, McpFixture, OpenAiFixture, FAKE_CODE};
 use fs_err as fs;
+use goose::builtin_extension::register_builtin_extensions;
 use goose::config::GooseMode;
 use goose::model::ModelConfig;
 use goose::providers::api_client::{ApiClient, AuthMethod};
@@ -249,6 +250,8 @@ async fn spawn_server_in_process(
     tokio::io::DuplexStream,
     tokio::task::JoinHandle<()>,
 ) {
+    register_builtin_extensions(goose_mcp::BUILTIN_EXTENSIONS.clone());
+
     let api_client = ApiClient::new(
         mock_server.uri(),
         AuthMethod::BearerToken("test-key".to_string()),

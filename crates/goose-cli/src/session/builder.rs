@@ -11,7 +11,6 @@ use goose::providers::create;
 use goose::recipe::Recipe;
 use goose::session::session_manager::SessionType;
 use goose::session::{EnabledExtensionsState, ExtensionState};
-use goose_mcp::BUILTIN_EXTENSIONS;
 use rustyline::EditMode;
 use std::collections::BTreeSet;
 use std::process;
@@ -186,7 +185,7 @@ async fn offer_extension_debugging_help(
     );
 
     // Create a minimal agent for debugging
-    let debug_agent = Agent::with_builtin_extensions(BUILTIN_EXTENSIONS.clone());
+    let debug_agent = Agent::new();
 
     let session = debug_agent
         .config
@@ -368,7 +367,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     goose::posthog::set_session_context("cli", session_config.resume);
 
     let config = Config::global();
-    let agent: Agent = Agent::with_builtin_extensions(BUILTIN_EXTENSIONS.clone());
+    let agent: Agent = Agent::new();
     let session_manager = agent.config.session_manager.clone();
 
     let (saved_provider, saved_model_config) = if session_config.resume {

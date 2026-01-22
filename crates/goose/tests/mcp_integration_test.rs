@@ -264,7 +264,6 @@ async fn test_replayed_session(
     let extension_manager = Arc::new(ExtensionManager::new(
         provider,
         session_manager,
-        HashMap::new(),
     ));
 
     #[allow(clippy::redundant_closure_call)]

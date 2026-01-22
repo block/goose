@@ -209,7 +209,6 @@ where
         permission_manager,
         None,
         GooseMode::Auto,
-        goose_mcp::BUILTIN_EXTENSIONS.clone(),
     );
     let agent = Agent::with_config(agent_config);
     agent

@@ -34,7 +34,7 @@ use super::types::SharedProvider;
 use crate::agents::extension::{Envs, ProcessExit};
 use crate::agents::extension_malware_check;
 use crate::agents::mcp_client::{McpClient, McpClientTrait};
-use crate::builtin_extension::BuiltinDef;
+use crate::builtin_extension::get_builtin_extensions;
 use crate::config::search_path::SearchPaths;
 use crate::config::{get_all_extensions, Config};
 use crate::oauth::oauth_flow;
@@ -98,7 +98,6 @@ pub struct ExtensionManager {
     provider: SharedProvider,
     tools_cache: Mutex<Option<Arc<Vec<Tool>>>>,
     tools_cache_version: AtomicU64,
-    builtin_extensions: HashMap<&'static str, BuiltinDef>,
 }
 
 /// A flattened representation of a resource used by the agent to prepare inference
@@ -445,7 +444,6 @@ impl ExtensionManager {
     pub fn new(
         provider: SharedProvider,
         session_manager: Arc<crate::session::SessionManager>,
-        builtin_extensions: impl Into<HashMap<&'static str, BuiltinDef>>,
     ) -> Self {
         Self {
             extensions: Mutex::new(HashMap::new()),
@@ -456,14 +454,13 @@ impl ExtensionManager {
             provider,
             tools_cache: Mutex::new(None),
             tools_cache_version: AtomicU64::new(0),
-            builtin_extensions: builtin_extensions.into(),
         }
     }
 
     #[cfg(test)]
     pub fn new_without_provider(data_dir: std::path::PathBuf) -> Self {
         let session_manager = Arc::new(crate::session::SessionManager::new(data_dir));
-        Self::new(Arc::new(Mutex::new(None)), session_manager, HashMap::new())
+        Self::new(Arc::new(Mutex::new(None)), session_manager)
     }
 
     pub fn get_context(&self) -> &PlatformExtensionContext {
@@ -555,7 +552,8 @@ impl ExtensionManager {
             }
             ExtensionConfig::Builtin { name, timeout, .. } => {
                 let timeout_duration = Duration::from_secs(timeout.unwrap_or(300));
-                let def = self.builtin_extensions.get(name.as_str()).ok_or_else(|| {
+                let builtin_extensions = get_builtin_extensions();
+                let def = builtin_extensions.get(name.as_str()).ok_or_else(|| {
                     ExtensionError::ConfigError(format!("Unknown builtin extension: {}", name))
                 })?;
 

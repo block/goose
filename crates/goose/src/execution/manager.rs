@@ -1,5 +1,4 @@
 use crate::agents::{Agent, AgentConfig};
-use crate::builtin_extension::BuiltinDef;
 use crate::config::paths::Paths;
 use crate::config::permission::PermissionManager;
 use crate::config::{Config, GooseMode};
@@ -8,7 +7,6 @@ use crate::scheduler_trait::SchedulerTrait;
 use crate::session::SessionManager;
 use anyhow::Result;
 use lru::LruCache;
-use std::collections::HashMap;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 use tokio::sync::{OnceCell, RwLock};
@@ -23,7 +21,6 @@ pub struct AgentManager {
     scheduler: Arc<dyn SchedulerTrait>,
     session_manager: Arc<SessionManager>,
     default_provider: Arc<RwLock<Option<Arc<dyn crate::providers::base::Provider>>>>,
-    builtin_extensions: HashMap<&'static str, BuiltinDef>,
 }
 
 impl AgentManager {
@@ -31,7 +28,6 @@ impl AgentManager {
         session_manager: Arc<SessionManager>,
         schedule_file_path: std::path::PathBuf,
         max_sessions: Option<usize>,
-        builtin_extensions: impl Into<HashMap<&'static str, BuiltinDef>>,
     ) -> Result<Self> {
         let scheduler = Scheduler::new(schedule_file_path, session_manager.clone()).await?;
 
@@ -43,15 +39,12 @@ impl AgentManager {
             scheduler,
             session_manager,
             default_provider: Arc::new(RwLock::new(None)),
-            builtin_extensions: builtin_extensions.into(),
         };
 
         Ok(manager)
     }
 
-    pub async fn initialize_with_builtin_extensions(
-        builtin_extensions: impl Into<HashMap<&'static str, BuiltinDef>>,
-    ) -> Result<Arc<Self>> {
+    pub async fn initialize() -> Result<Arc<Self>> {
         AGENT_MANAGER
             .get_or_try_init(|| async {
                 let max_sessions = Config::global()
@@ -63,7 +56,6 @@ impl AgentManager {
                     session_manager,
                     schedule_file_path,
                     Some(max_sessions),
-                    builtin_extensions,
                 )
                 .await?;
                 Ok(Arc::new(manager))
@@ -84,7 +76,6 @@ impl AgentManager {
                     session_manager,
                     schedule_file_path,
                     Some(max_sessions),
-                    HashMap::new(),
                 )
                 .await?;
                 Ok(Arc::new(manager))
@@ -122,7 +113,6 @@ impl AgentManager {
             permission_manager,
             Some(Arc::clone(&self.scheduler)),
             mode,
-            self.builtin_extensions.clone(),
         );
         let agent = Arc::new(Agent::with_config(config));
         if let Some(provider) = &*self.default_provider.read().await {
@@ -160,7 +150,6 @@ impl AgentManager {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
     use std::sync::Arc;
     use tempfile::TempDir;
 
@@ -172,7 +161,7 @@ mod tests {
     async fn create_test_manager(temp_dir: &TempDir) -> AgentManager {
         let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
         let schedule_path = temp_dir.path().join("schedule.json");
-        AgentManager::new(session_manager, schedule_path, Some(100), HashMap::new())
+        AgentManager::new(session_manager, schedule_path, Some(100))
             .await
             .unwrap()
     }

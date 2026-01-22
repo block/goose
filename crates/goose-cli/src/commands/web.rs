@@ -16,7 +16,6 @@ use futures::{sink::SinkExt, stream::StreamExt};
 use goose::agents::{Agent, AgentEvent};
 use goose::conversation::message::Message as GooseMessage;
 use goose::session::session_manager::SessionType;
-use goose_mcp::BUILTIN_EXTENSIONS;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{net::ToSocketAddrs, sync::Arc};
@@ -171,7 +170,7 @@ fn get_provider_and_model() -> (String, String) {
 async fn create_agent(provider_name: &str, model: &str) -> Result<Agent> {
     let model_config = goose::model::ModelConfig::new(model)?;
 
-    let agent = Agent::with_builtin_extensions(BUILTIN_EXTENSIONS.clone());
+    let agent = Agent::new();
 
     let session_manager = agent.config.session_manager.clone();
     let init_session = session_manager

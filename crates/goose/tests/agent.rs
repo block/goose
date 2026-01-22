@@ -21,7 +21,6 @@ mod tests {
         use goose::scheduler::{ScheduledJob, SchedulerError};
         use goose::scheduler_trait::SchedulerTrait;
         use goose::session::{Session, SessionManager};
-        use std::collections::HashMap;
         use std::path::PathBuf;
         use std::sync::Arc;
         use tempfile::TempDir;
@@ -129,7 +128,6 @@ mod tests {
                 permission_manager,
                 Some(mock_scheduler),
                 GooseMode::Auto,
-                HashMap::new(),
             );
             let agent = Agent::with_config(config);
 
@@ -170,7 +168,6 @@ mod tests {
                 permission_manager,
                 Some(mock_scheduler),
                 GooseMode::Auto,
-                HashMap::new(),
             );
             let agent = Agent::with_config(config);
 
@@ -224,7 +221,6 @@ mod tests {
                 permission_manager,
                 Some(mock_scheduler),
                 GooseMode::Auto,
-                HashMap::new(),
             );
             let agent = Agent::with_config(config);
 
@@ -502,7 +498,6 @@ mod tests {
         use goose::config::permission::PermissionManager;
         use goose::config::GooseMode;
         use goose::session::SessionManager;
-        use std::collections::HashMap;
 
         async fn setup_agent_with_extension_manager() -> (Agent, String) {
             // Add the TODO extension to the config so it can be discovered by search_available_extensions
@@ -529,7 +524,6 @@ mod tests {
                 PermissionManager::instance(),
                 None,
                 GooseMode::Auto,
-                HashMap::new(),
             );
 
             let agent = Agent::with_config(config);

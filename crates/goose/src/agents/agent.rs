@@ -24,7 +24,6 @@ use crate::agents::subagent_tool::{
     create_subagent_tool, handle_subagent_tool, SUBAGENT_TOOL_NAME,
 };
 use crate::agents::types::{FrontendTool, SessionConfig, SharedProvider, ToolResultReceiver};
-use crate::builtin_extension::BuiltinDef;
 use crate::config::permission::PermissionManager;
 use crate::config::{get_enabled_extensions, Config, GooseMode};
 use crate::context_mgmt::{
@@ -93,7 +92,6 @@ pub struct AgentConfig {
     pub permission_manager: Arc<PermissionManager>,
     pub scheduler_service: Option<Arc<dyn SchedulerTrait>>,
     pub goose_mode: GooseMode,
-    pub builtin_extensions: HashMap<&'static str, BuiltinDef>,
 }
 
 impl AgentConfig {
@@ -102,14 +100,12 @@ impl AgentConfig {
         permission_manager: Arc<PermissionManager>,
         scheduler_service: Option<Arc<dyn SchedulerTrait>>,
         goose_mode: GooseMode,
-        builtin_extensions: impl Into<HashMap<&'static str, BuiltinDef>>,
     ) -> Self {
         Self {
             session_manager,
             permission_manager,
             scheduler_service,
             goose_mode,
-            builtin_extensions: builtin_extensions.into(),
         }
     }
 }
@@ -190,19 +186,6 @@ impl Agent {
             PermissionManager::instance(),
             None,
             Config::global().get_goose_mode().unwrap_or(GooseMode::Auto),
-            HashMap::new(),
-        ))
-    }
-
-    pub fn with_builtin_extensions(
-        builtin_extensions: impl Into<HashMap<&'static str, BuiltinDef>>,
-    ) -> Self {
-        Self::with_config(AgentConfig::new(
-            Arc::new(SessionManager::instance()),
-            PermissionManager::instance(),
-            None,
-            Config::global().get_goose_mode().unwrap_or(GooseMode::Auto),
-            builtin_extensions,
         ))
     }
 
@@ -214,14 +197,12 @@ impl Agent {
 
         let session_manager = Arc::clone(&config.session_manager);
         let permission_manager = Arc::clone(&config.permission_manager);
-        let builtin_extensions = config.builtin_extensions.clone();
         Self {
             provider: provider.clone(),
             config,
             extension_manager: Arc::new(ExtensionManager::new(
                 provider.clone(),
                 session_manager,
-                builtin_extensions,
             )),
             sub_recipes: Mutex::new(HashMap::new()),
             final_output_tool: Arc::new(Mutex::new(None)),
