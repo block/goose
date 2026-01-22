@@ -13,39 +13,47 @@ Do NOT use this skill for:
 - General coding tasks unrelated to goose
 - Running existing recipes (just run them directly)
 
-## Steps
-
-1. Fetch the doc map from `http://localhost:3000/goose/goose-docs-map.md`
-2. Search the doc map for pages relevant to the user's topic
-3. Use the EXACT paths from the doc map. For example:
+## Steps (COMPLETE ALL BEFORE RESPONDING)
+1. **Fetch official docs**
+   - Fetch the doc map from `https://block.github.io/goose/goose-docs-map.md`
+   - Search the doc map for pages relevant to the user's topic and get the paths for these pages
+   - Use the EXACT paths from the doc map. For example:
    - If doc map shows: `docs/guides/sessions/session-management.md`
-   - Fetch: `http://localhost:3000/goose/docs/guides/sessions/session-management.md`
-   Do NOT modify or guess paths. You can make multiple fetch calls in parallel
-4. **When creating or modifying goose configuration files (recipes, extension configs, etc.):**
-   - First, fetch the schema/reference documentation to understand all available fields and requirements
-   - Then, fetch at least one complete working example from the docs to see the correct structure and format in practice
-   - **BEFORE writing the file, explicitly extract and show the relevant code snippet from the example that you will use as a template**
-   - Use BOTH together: the schema for completeness and validation, the example for correct syntax and structure
-   - If there is a conflict between the schema and the example, follow the example for structure and syntax, but do not introduce fields or values that are not documented in the schema
-   - **AFTER creating or editing the file, verify ALL goose-specific sections by comparing them against the fetched examples and explicitly state which documentation example you used for each section**
-5. Use the fetched documentation to help the user with their task
-6. At the end of the response, list the documentation page links that were used to perform the task. 
-   - **Format links by removing the `.md` suffix from the fetched URL**
-   - Example: If you fetched `http://localhost:3000/goose/docs/guides/sessions/session-management.md`, 
-     list it as `http://localhost:3000/goose/docs/guides/sessions/session-management`
-   - Only include links that were actually fetched and referenced
+   - Fetch: `https://block.github.io/goose/docs/guides/sessions/session-management.md`
+   - Do NOT modify or guess paths. 
+   - **ONLY fetch paths that are explicitly listed in the doc map - do not guess or infer URLs**
+   - Make multiple fetch calls in parallel and save to temp files
+   - Use the temp files for subsequent searches instead of re-fetching
 
-## Strict Requirements
-1. You MUST fetch relevant goose documentation before providing any goose-specific information.
+2. **Create/modify content**
+   - For goose configuration files:
+      - Consult schema/field reference documentation first
+      - **Search the fetched docs to extract the complete schema for each element you plan to use**
+      - Extract example snippets to understand usage patterns
+      - Create your configuration based on reference specs, following example patterns
+      - **⚠️ STOP: Before showing the user, verify output content MUST match the schema and reference in goose the official documentation:**
+         - [ ] Field names match exactly as shown in docs
+         - [ ] Required fields/properties are present
+         - [ ] Value formats match examples (YAML/JSON syntax, data types, etc.)
+      - **If ANY verification fails, revise and repeat this step until ALL verifications pass**
+      - **DO NOT present unverified output to the user**
+   - Use only fetched docs for all goose-specific details
 
-2. **Verification rule**:
-   You may ONLY present goose-specific information that is explicitly stated in the fetched documentation.
-   If you cannot identify the documentation page that supports a detail, you must not include it.
+3. **MANDATORY VERIFICATION - DO THIS BEFORE STEP 4**
+   Before writing your final answer:
+   - [ ] You ONLY present goose-specific information that is explicitly stated in the fetched documentation. If you cannot identify the documentation page that supports a detail, you must NOT include it.
+   - [ ] add instructions/commands if: (a) user explicitly asked for them, AND (b) they appear in the fetched docs
+   - You MUST NOT rely on training data or assumptions for any goose-specific fields, values, names, syntax, or commands.
+   - [ ] For EVERY goose-specific command in your answer: Search feteched files to verify it exists
+   - [ ] For EVERY goose-specific field in your answer: Search feteched files to verify it exists  
+   - [ ] For EVERY usage instruction in your answer: Search feteched files to verify it exists
+   - [ ] If you cannot verify something: Remove it, unless the user explicitly asked for it (then state "I could not find documentation for [X]")
    
-   When creating or modifying goose configuration files (recipes, extension configs, etc.), you must also:
-   - Quote the relevant documentation snippet BEFORE writing each goose-specific section
-   - After completing the file, review each goose-specific field and confirm it matches the fetched documentation
+4. **Provide your answer and include a "Verification Completed" section showing which checks passed**
+   - Which checks passed
+   - How you verified each field exists in the documentation
 
-3. Do not add usage instructions, CLI examples, commands, or extra guidance unless:
-   - the user explicitly asked for them, AND
-   - the content appears exactly in the fetched documentation.
+5. **List documentation links**
+   - Only include docs actually used
+   - Remove `.md` suffix from URLs
+   - Example: If you fetched `https://block.github.io/goose/docs/guides/sessions/session-management.md`, list it as `https://block.github.io/goose/docs/guides/sessions/session-management`
