@@ -29,7 +29,7 @@ import {
 import { getInitialWorkingDir } from '../utils/workingDir';
 import { createSession } from '../sessions';
 import LoadingGoose from './LoadingGoose';
-import { ImageData } from '../types/message';
+import { UserInput } from '../types/message';
 
 export default function Hub({
   setView,
@@ -40,7 +40,8 @@ export default function Hub({
   const [workingDir, setWorkingDir] = useState(getInitialWorkingDir());
   const [isCreatingSession, setIsCreatingSession] = useState(false);
 
-  const handleSubmit = async (userMessage: string, images: ImageData[]) => {
+  const handleSubmit = async (input: UserInput) => {
+    const { msg: userMessage, images } = input;
     if ((images.length > 0 || userMessage.trim()) && !isCreatingSession) {
       const extensionConfigs = getExtensionConfigsWithOverrides(extensionsList);
       clearExtensionOverrides();

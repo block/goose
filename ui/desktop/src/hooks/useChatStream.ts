@@ -21,7 +21,7 @@ import {
   getCompactingMessage,
   getThinkingMessage,
   NotificationEvent,
-  ImageData,
+  UserInput,
 } from '../types/message';
 import { errorMessage } from '../utils/conversionUtils';
 import { showExtensionLoadResults } from '../utils/extensionErrorUtils';
@@ -39,7 +39,7 @@ interface UseChatStreamReturn {
   messages: Message[];
   chatState: ChatState;
   setChatState: (state: ChatState) => void;
-  handleSubmit: (userMessage: string, images: ImageData[]) => Promise<void>;
+  handleSubmit: (input: UserInput) => Promise<void>;
   submitElicitationResponse: (
     elicitationId: string,
     userData: Record<string, unknown>
@@ -447,7 +447,8 @@ export function useChatStream({
   }, [sessionId, onSessionLoaded]);
 
   const handleSubmit = useCallback(
-    async (userMessage: string, images: ImageData[]) => {
+    async (input: UserInput) => {
+      const { msg: userMessage, images } = input;
       const currentState = stateRef.current;
 
       // Guard: Don't submit if session hasn't been loaded yet
@@ -694,7 +695,7 @@ export function useChatStream({
           if (sessionResponse.data?.conversation) {
             dispatch({ type: 'SET_MESSAGES', payload: sessionResponse.data.conversation });
           }
-          await handleSubmit(newContent, []);
+          await handleSubmit({ msg: newContent, images: [] });
         }
       } catch (error) {
         const errorMsg = errorMessage(error);

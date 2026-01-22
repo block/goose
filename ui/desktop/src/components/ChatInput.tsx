@@ -41,7 +41,7 @@ import {
   trackEditRecipeOpened,
 } from '../utils/analytics';
 import { getNavigationShortcutText } from '../utils/keyboardShortcuts';
-import { ImageData } from '../types/message';
+import { UserInput, ImageData } from '../types/message';
 import { compressImageDataUrl } from '../utils/conversionUtils';
 
 interface PastedImage {
@@ -67,7 +67,7 @@ interface ModelLimit {
 
 interface ChatInputProps {
   sessionId: string | null;
-  handleSubmit: (userMessage: string, images: ImageData[]) => void;
+  handleSubmit: (input: UserInput) => void;
   chatState: ChatState;
   setChatState?: (state: ChatState) => void;
   onStop?: () => void;
@@ -212,7 +212,7 @@ export default function ChatInput({
       if (shouldProcessQueue) {
         const nextMessage = queuedMessages[0];
         LocalMessageStorage.addMessage(nextMessage.content);
-        handleSubmit(nextMessage.content, nextMessage.images);
+        handleSubmit({ msg: nextMessage.content, images: nextMessage.images });
         setQueuedMessages((prev) => {
           const newQueue = prev.slice(1);
           // If queue becomes empty after processing, clear the paused state
@@ -370,7 +370,6 @@ export default function ChatInput({
     return [];
   };
 
-  // Helper function to find model limit using pattern matching
   const findModelLimit = (modelName: string, modelLimits: ModelLimit[]): number | null => {
     if (!modelName) return null;
     const matchingLimit = modelLimits.find((limit) =>
@@ -459,7 +458,7 @@ export default function ChatInput({
         compactButtonDisabled: !totalTokens,
         onCompact: () => {
           window.dispatchEvent(new CustomEvent(AppEvents.HIDE_ALERT_POPOVER));
-          handleSubmit(MANUAL_COMPACT_TRIGGER, []);
+          handleSubmit({ msg: MANUAL_COMPACT_TRIGGER, images: [] });
         },
         compactIcon: <ScrollText size={12} />,
       });
@@ -587,7 +586,6 @@ export default function ChatInput({
     }));
   };
 
-  // Helper to convert images to ImageData format
   const convertImagesToImageData = useCallback((): ImageData[] => {
     const pastedImageData: ImageData[] = pastedImages
       .filter((img) => img.dataUrl && !img.error && !img.isLoading)
@@ -620,7 +618,6 @@ export default function ChatInput({
     return [...pastedImageData, ...droppedImageData];
   }, [pastedImages, allDroppedFiles]);
 
-  // Helper to process dropped file paths and append to text
   const appendDroppedFilePaths = useCallback((text: string): string => {
     const droppedFilePaths = allDroppedFiles
       .filter((file) => !file.isImage && !file.error && !file.isLoading)
@@ -633,7 +630,6 @@ export default function ChatInput({
     return text;
   }, [allDroppedFiles]);
 
-  // Helper to clear input state after submission
   const clearInputState = useCallback(() => {
     setDisplayValue('');
     setValue('');
@@ -814,7 +810,6 @@ export default function ChatInput({
     }
   };
 
-  // Helper function to handle interruption and queue logic when loading
   const handleInterruptionAndQueue = () => {
     if (!isLoading || !hasSubmittableContent) {
       return false;
@@ -889,7 +884,7 @@ export default function ChatInput({
           }
         }
 
-        handleSubmit(textToSend, imageData);
+        handleSubmit({ msg: textToSend, images: imageData });
 
         // Auto-resume queue after sending a NON-interruption message (if it was paused due to interruption)
         if (
@@ -1154,7 +1149,7 @@ export default function ChatInput({
     // Remove the message from queue and send it immediately
     setQueuedMessages((prev) => prev.filter((msg) => msg.id !== messageId));
     LocalMessageStorage.addMessage(messageToSend.content);
-    handleSubmit(messageToSend.content, messageToSend.images);
+    handleSubmit({ msg: messageToSend.content, images: messageToSend.images });
 
     // Restore previous pause state after a brief delay to prevent race condition
     setTimeout(() => {
@@ -1168,7 +1163,7 @@ export default function ChatInput({
     if (!isLoading && queuedMessages.length > 0) {
       const nextMessage = queuedMessages[0];
       LocalMessageStorage.addMessage(nextMessage.content);
-      handleSubmit(nextMessage.content, nextMessage.images);
+      handleSubmit({ msg: nextMessage.content, images: nextMessage.images });
       setQueuedMessages((prev) => {
         const newQueue = prev.slice(1);
         // If queue becomes empty after processing, clear the paused state

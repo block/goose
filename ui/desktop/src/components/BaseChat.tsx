@@ -160,11 +160,11 @@ export default function BaseChat({
       .reverse();
   }, [messages]);
 
-  const chatInputSubmit = (textValue: string, images: ImageData[]) => {
-    if (recipe && textValue.trim()) {
+  const chatInputSubmit = (input: UserInput) => {
+    if (recipe && input.msg.trim()) {
       setHasStartedUsingRecipe(true);
     }
-    handleSubmit(textValue, images);
+    handleSubmit(input);
   };
 
   const { sessionCosts } = useCostTracking({
@@ -403,7 +403,7 @@ export default function BaseChat({
             {recipe && (
               <div className={hasStartedUsingRecipe ? 'mb-6' : ''}>
                 <RecipeActivities
-                  append={(text: string) => handleSubmit(text, [])}
+                  append={(text: string) => handleSubmit({ msg: text, images: [] })}
                   activities={Array.isArray(recipe.activities) ? recipe.activities : null}
                   title={recipe.title}
                   parameterValues={session?.user_recipe_values || {}}
@@ -418,7 +418,7 @@ export default function BaseChat({
                     messages={messages}
                     chat={{ sessionId }}
                     toolCallNotifications={toolCallNotifications}
-                    append={(text: string) => handleSubmit(text, [])}
+                    append={(text: string) => handleSubmit({ msg: text, images: [] })}
                     isUserMessage={(m: Message) => m.role === 'user'}
                     isStreamingMessage={chatState !== ChatState.Idle}
                     onRenderingComplete={handleRenderingComplete}
@@ -430,7 +430,7 @@ export default function BaseChat({
                 <div className="block h-8" />
               </>
             ) : !recipe && showPopularTopics ? (
-              <PopularChatTopics append={(text: string) => handleSubmit(text, [])} />
+              <PopularChatTopics append={(text: string) => handleSubmit({ msg: text, images: [] })} />
             ) : null}
           </ScrollArea>
 
