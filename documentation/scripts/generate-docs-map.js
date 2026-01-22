@@ -1,6 +1,5 @@
 const fs = require('fs');
 const path = require('path');
-const { globby } = require('globby');
 const matter = require('gray-matter');
 
 const DOCS_DIR = path.join(__dirname, '..', 'docs');
@@ -42,6 +41,8 @@ function getHeadings(content) {
 }
 
 async function main() {
+  const globby = (await import('globby')).default;
+  
   const sections = [
     { name: 'Getting Started', pattern: 'getting-started/*.{md,mdx}' },
     { name: 'Guides', pattern: 'guides/**/*.{md,mdx}' },
