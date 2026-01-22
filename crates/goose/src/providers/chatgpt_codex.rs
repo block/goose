@@ -845,7 +845,10 @@ impl Provider for ChatGptCodexProvider {
         Ok(())
     }
 
-    async fn fetch_supported_models(&self, _session_id: &str) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(
+        &self,
+        _session_id: &str,
+    ) -> Result<Option<Vec<String>>, ProviderError> {
         Ok(Some(
             CHATGPT_CODEX_KNOWN_MODELS
                 .iter()
