@@ -1293,8 +1293,6 @@ impl Agent {
                                             break;
                                         }
 
-                                        // First, drain any pending elicitation messages
-                                        // This must happen before waiting on tool results to avoid deadlock
                                         for msg in self.drain_elicitation_messages(&session_config.id).await {
                                             yield AgentEvent::Message(msg);
                                         }
