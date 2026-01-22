@@ -2,6 +2,7 @@ use crate::config::Config;
 use crate::conversation::message::Message;
 use crate::security::classification_client::ClassificationClient;
 use crate::security::patterns::{PatternMatch, PatternMatcher};
+use crate::utils::safe_truncate;
 use anyhow::Result;
 use futures::stream::{self, StreamExt};
 use rmcp::model::CallToolRequestParam;
@@ -9,7 +10,7 @@ use rmcp::model::CallToolRequestParam;
 const USER_SCAN_LIMIT: usize = 10;
 const ML_SCAN_CONCURRENCY: usize = 3;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 enum ClassifierType {
     Command,
     Prompt,
@@ -296,25 +297,13 @@ impl PromptInjectionScanner {
             return "No security threats detected".to_string();
         }
 
-        let command_preview = match tool_content.split_once('\n') {
-            Some((_tool_name, args)) => {
-                if args.chars().count() > 300 {
-                    format!("{}...", args.chars().take(300).collect::<String>())
-                } else {
-                    args.to_string()
-                }
-            }
-            None => {
-                if tool_content.chars().count() > 300 {
-                    format!("{}...", tool_content.chars().take(300).collect::<String>())
-                } else {
-                    tool_content.to_string()
-                }
-            }
-        };
+        let text_to_preview = tool_content
+            .split_once('\n')
+            .map_or(tool_content, |(_, args)| args);
+        let command_preview = safe_truncate(text_to_preview, 300);
 
         if let Some(top_match) = result.pattern_matches.first() {
-            let preview = top_match.matched_text.chars().take(50).collect::<String>();
+            let preview = safe_truncate(&top_match.matched_text, 50);
             return format!(
                 "Pattern-based detection: {} (Risk: {:?})\nFound: '{}'\n\nCommand:\n{}",
                 top_match.threat.description, top_match.threat.risk_level, preview, command_preview
@@ -382,7 +371,7 @@ mod tests {
         let scanner = PromptInjectionScanner::new();
         let result = scanner.analyze_text("rm -rf /").await.unwrap();
 
-        assert!(result.confidence >= 0.75); // High risk level = 0.75 confidence
+        assert!(result.confidence >= 0.75);
         assert!(!result.pattern_matches.is_empty());
     }
 
