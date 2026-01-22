@@ -1,0 +1,181 @@
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+
+export type NavigationMode = 'push' | 'overlay';
+export type NavigationStyle = 'expanded' | 'condensed';
+export type NavigationPosition = 'top' | 'bottom' | 'left' | 'right';
+
+export interface NavigationPreferences {
+  itemOrder: string[];
+  enabledItems: string[];
+}
+
+export const DEFAULT_ITEM_ORDER = [
+  'home',
+  'chat',
+  'history',
+  'recipes',
+  'scheduler',
+  'extensions',
+  'settings',
+];
+
+export const DEFAULT_ENABLED_ITEMS = [...DEFAULT_ITEM_ORDER];
+
+interface NavigationContextValue {
+  // Navigation state
+  isNavExpanded: boolean;
+  setIsNavExpanded: (expanded: boolean) => void;
+  
+  // Mode: push content or overlay
+  navigationMode: NavigationMode;
+  setNavigationMode: (mode: NavigationMode) => void;
+  
+  // Style: expanded tiles or condensed list
+  navigationStyle: NavigationStyle;
+  setNavigationStyle: (style: NavigationStyle) => void;
+  
+  // Position: where nav appears
+  navigationPosition: NavigationPosition;
+  setNavigationPosition: (position: NavigationPosition) => void;
+  
+  // Item customization
+  preferences: NavigationPreferences;
+  updatePreferences: (prefs: NavigationPreferences) => void;
+  
+  // Helpers
+  isHorizontalNav: boolean;
+}
+
+const NavigationContext = createContext<NavigationContextValue | null>(null);
+
+export const useNavigationContext = () => {
+  const context = useContext(NavigationContext);
+  if (!context) {
+    throw new Error('useNavigationContext must be used within NavigationProvider');
+  }
+  return context;
+};
+
+// Safe hook that returns defaults if outside provider
+export const useNavigationContextSafe = () => {
+  const context = useContext(NavigationContext);
+  return context;
+};
+
+interface NavigationProviderProps {
+  children: ReactNode;
+}
+
+export const NavigationProvider: React.FC<NavigationProviderProps> = ({ children }) => {
+  // Load initial state from localStorage
+  const [isNavExpanded, setIsNavExpanded] = useState(false);
+  
+  const [navigationMode, setNavigationModeState] = useState<NavigationMode>(() => {
+    const stored = localStorage.getItem('navigation_mode');
+    return (stored as NavigationMode) || 'push';
+  });
+  
+  const [navigationStyle, setNavigationStyleState] = useState<NavigationStyle>(() => {
+    const stored = localStorage.getItem('navigation_style');
+    return (stored as NavigationStyle) || 'condensed';
+  });
+  
+  const [navigationPosition, setNavigationPositionState] = useState<NavigationPosition>(() => {
+    const stored = localStorage.getItem('navigation_position');
+    return (stored as NavigationPosition) || 'left';
+  });
+  
+  const [preferences, setPreferences] = useState<NavigationPreferences>(() => {
+    const stored = localStorage.getItem('navigation_preferences');
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch {
+        console.error('Failed to parse navigation preferences');
+      }
+    }
+    return {
+      itemOrder: DEFAULT_ITEM_ORDER,
+      enabledItems: DEFAULT_ENABLED_ITEMS,
+    };
+  });
+
+  // Persist changes to localStorage and dispatch events
+  const setNavigationMode = useCallback((mode: NavigationMode) => {
+    setNavigationModeState(mode);
+    localStorage.setItem('navigation_mode', mode);
+    window.dispatchEvent(new CustomEvent('navigation-mode-changed', { detail: { mode } }));
+  }, []);
+
+  const setNavigationStyle = useCallback((style: NavigationStyle) => {
+    setNavigationStyleState(style);
+    localStorage.setItem('navigation_style', style);
+    window.dispatchEvent(new CustomEvent('navigation-style-changed', { detail: { style } }));
+  }, []);
+
+  const setNavigationPosition = useCallback((position: NavigationPosition) => {
+    setNavigationPositionState(position);
+    localStorage.setItem('navigation_position', position);
+    window.dispatchEvent(new CustomEvent('navigation-position-changed', { detail: { position } }));
+  }, []);
+
+  const updatePreferences = useCallback((newPrefs: NavigationPreferences) => {
+    setPreferences(newPrefs);
+    localStorage.setItem('navigation_preferences', JSON.stringify(newPrefs));
+    window.dispatchEvent(new CustomEvent('navigation-preferences-updated', { detail: newPrefs }));
+  }, []);
+
+  // Listen for external changes (e.g., from settings in another window)
+  useEffect(() => {
+    const handleModeChange = (e: Event) => {
+      const { mode } = (e as CustomEvent).detail;
+      setNavigationModeState(mode);
+    };
+    const handleStyleChange = (e: Event) => {
+      const { style } = (e as CustomEvent).detail;
+      setNavigationStyleState(style);
+    };
+    const handlePositionChange = (e: Event) => {
+      const { position } = (e as CustomEvent).detail;
+      setNavigationPositionState(position);
+    };
+    const handlePrefsChange = (e: Event) => {
+      const prefs = (e as CustomEvent).detail;
+      setPreferences(prefs);
+    };
+
+    window.addEventListener('navigation-mode-changed', handleModeChange);
+    window.addEventListener('navigation-style-changed', handleStyleChange);
+    window.addEventListener('navigation-position-changed', handlePositionChange);
+    window.addEventListener('navigation-preferences-updated', handlePrefsChange);
+
+    return () => {
+      window.removeEventListener('navigation-mode-changed', handleModeChange);
+      window.removeEventListener('navigation-style-changed', handleStyleChange);
+      window.removeEventListener('navigation-position-changed', handlePositionChange);
+      window.removeEventListener('navigation-preferences-updated', handlePrefsChange);
+    };
+  }, []);
+
+  const isHorizontalNav = navigationPosition === 'top' || navigationPosition === 'bottom';
+
+  const value: NavigationContextValue = {
+    isNavExpanded,
+    setIsNavExpanded,
+    navigationMode,
+    setNavigationMode,
+    navigationStyle,
+    setNavigationStyle,
+    navigationPosition,
+    setNavigationPosition,
+    preferences,
+    updatePreferences,
+    isHorizontalNav,
+  };
+
+  return (
+    <NavigationContext.Provider value={value}>
+      {children}
+    </NavigationContext.Provider>
+  );
+};

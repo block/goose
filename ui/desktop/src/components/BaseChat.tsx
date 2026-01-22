@@ -21,7 +21,7 @@ import { Message } from '../api';
 import { ChatState } from '../types/chatState';
 import { ChatType } from '../types/chat';
 import { useIsMobile } from '../hooks/use-mobile';
-import { useSidebar } from './ui/sidebar';
+import { useNavigationContextSafe } from './Layout/NavigationContext';
 import { cn } from '../utils';
 import { useChatStream } from '../hooks/useChatStream';
 import { useNavigation } from '../hooks/useNavigation';
@@ -38,7 +38,6 @@ import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal
 import { toastSuccess } from '../toasts';
 import { Recipe } from '../recipe';
 import { useAutoSubmit } from '../hooks/useAutoSubmit';
-import { Goose } from './icons/Goose';
 import EnvironmentBadge from './GooseSidebar/EnvironmentBadge';
 
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
@@ -79,12 +78,14 @@ function BaseChatContent({
   const [hasRecipeSecurityWarnings, setHasRecipeSecurityWarnings] = useState(false);
 
   const isMobile = useIsMobile();
-  const { state: sidebarState } = useSidebar();
+  const navContext = useNavigationContextSafe();
   const setView = useNavigation();
 
+  // Determine if we need extra top padding (when nav is collapsed or on mobile)
+  const isNavCollapsed = !navContext?.isNavExpanded;
   const contentClassName = cn(
     'pr-1 pb-10 pt-10',
-    (isMobile || sidebarState === 'collapsed') && 'pt-14'
+    (isMobile || isNavCollapsed) && 'pt-14'
   );
   const { droppedFiles, setDroppedFiles, handleDrop, handleDragOver } = useFileDrop();
 
@@ -381,18 +382,7 @@ function BaseChatContent({
 
         {/* Chat container with sticky recipe header */}
         <div className="flex flex-col flex-1 mb-0.5 min-h-0 relative">
-          <div className="absolute top-3 right-4 z-[60] flex flex-row items-center gap-1">
-            <a
-              href="https://block.github.io/goose"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="no-drag flex flex-row items-center gap-1 hover:opacity-80 transition-opacity"
-            >
-              <Goose className="size-5 goose-icon-animation" />
-              <span className="text-sm leading-none text-text-muted -translate-y-px">goose</span>
-            </a>
-            <EnvironmentBadge className="translate-y-px" />
-          </div>
+          <EnvironmentBadge className="absolute bottom-3 right-4 z-[60]" />
 
           <ScrollArea
             ref={scrollRef}

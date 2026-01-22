@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Switch } from '../../ui/switch';
 import { Button } from '../../ui/button';
-import { Settings } from 'lucide-react';
+import { Settings, ChevronDown, ChevronUp } from 'lucide-react';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog';
 import UpdateSection from './UpdateSection';
 import TunnelSection from '../tunnel/TunnelSection';
@@ -13,10 +13,79 @@ import BlockLogoBlack from './icons/block-lockup_black.png';
 import BlockLogoWhite from './icons/block-lockup_white.png';
 import TelemetrySettings from './TelemetrySettings';
 import { trackSettingToggled } from '../../../utils/analytics';
+import { NavigationModeSelector } from './NavigationModeSelector';
+import { NavigationStyleSelector } from './NavigationStyleSelector';
+import { NavigationPositionSelector } from './NavigationPositionSelector';
+import { NavigationCustomizationSettings } from './NavigationCustomizationSettings';
+import { NavigationProvider, useNavigationContextSafe } from '../../Layout/NavigationContext';
 
 interface AppSettingsSectionProps {
   scrollToSection?: string;
 }
+
+// Navigation Settings Card - wrapped in its own provider for settings page
+const NavigationSettingsCard: React.FC = () => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const navContext = useNavigationContextSafe();
+
+  // If we're inside the NavigationProvider (from AppLayout), use it directly
+  // Otherwise, we need to wrap with our own provider
+  const content = (
+    <Card className="rounded-lg">
+      <CardHeader className="pb-0">
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="w-full flex items-center justify-between text-left"
+        >
+          <div>
+            <CardTitle className="mb-1">Navigation</CardTitle>
+            <CardDescription>Customize navigation layout and behavior</CardDescription>
+          </div>
+          {isExpanded ? (
+            <ChevronUp className="w-5 h-5 text-text-muted" />
+          ) : (
+            <ChevronDown className="w-5 h-5 text-text-muted" />
+          )}
+        </button>
+      </CardHeader>
+      {isExpanded && (
+        <CardContent className="pt-4 px-4 space-y-6">
+          {/* Navigation Mode */}
+          <div>
+            <h3 className="text-sm font-medium text-text-default mb-3">Mode</h3>
+            <NavigationModeSelector />
+          </div>
+
+          {/* Navigation Style */}
+          <div>
+            <h3 className="text-sm font-medium text-text-default mb-3">Style</h3>
+            <NavigationStyleSelector />
+          </div>
+
+          {/* Navigation Position */}
+          <div>
+            <h3 className="text-sm font-medium text-text-default mb-3">Position</h3>
+            <NavigationPositionSelector />
+          </div>
+
+          {/* Item Customization */}
+          <div>
+            <h3 className="text-sm font-medium text-text-default mb-3">Customize Items</h3>
+            <NavigationCustomizationSettings />
+          </div>
+        </CardContent>
+      )}
+    </Card>
+  );
+
+  // If already in a NavigationProvider context, render directly
+  if (navContext) {
+    return content;
+  }
+
+  // Otherwise wrap with provider
+  return <NavigationProvider>{content}</NavigationProvider>;
+};
 
 export default function AppSettingsSection({ scrollToSection }: AppSettingsSectionProps) {
   const [menuBarIconEnabled, setMenuBarIconEnabled] = useState(true);
@@ -268,6 +337,9 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
           <ThemeSelector className="w-auto" hideTitle horizontal />
         </CardContent>
       </Card>
+
+      {/* Navigation Settings */}
+      <NavigationSettingsCard />
 
       <TunnelSection />
 
