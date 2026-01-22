@@ -263,7 +263,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     let isPolling = false;
 
     const handleSessionCreated = (event: Event) => {
-      const { session } = (event as CustomEvent<{ session?: Session }>).detail;
+      const { session } = (event as CustomEvent<{ session?: Session }>).detail || {};
       // If session data is provided, add it immediately to the sidebar
       // This is for displaying sessions that won't be returned by the API due to not having messages yet
       if (session) {
