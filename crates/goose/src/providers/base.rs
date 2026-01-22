@@ -462,7 +462,11 @@ pub trait Provider: Send + Sync {
                 let (provider, model_name) = canonical_id.split_once('/')?;
                 let canonical_model = registry.get(provider, model_name)?;
 
-                if !canonical_model.modalities.input.contains(&"text".to_string()) {
+                if !canonical_model
+                    .modalities
+                    .input
+                    .contains(&"text".to_string())
+                {
                     return None;
                 }
 
