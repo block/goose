@@ -587,43 +587,21 @@ export default function ChatInput({
   };
 
   const compressImageDataUrl = async (dataUrl: string): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const img = new globalThis.Image();
-      img.onload = () => {
-        const maxDimension = 1024;
-        let width = img.width;
-        let height = img.height;
+    const res = await fetch(dataUrl);
+    const blob = await res.blob();
+    const bitmap = await globalThis.createImageBitmap(blob);
 
-        if (width > maxDimension || height > maxDimension) {
-          if (width > height) {
-            height = Math.floor((height * maxDimension) / width);
-            width = maxDimension;
-          } else {
-            width = Math.floor((width * maxDimension) / height);
-            height = maxDimension;
-          }
-        }
+    const maxDim = 1024;
+    const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
+    const width = Math.floor(bitmap.width * scale);
+    const height = Math.floor(bitmap.height * scale);
 
-        // Create canvas and resize
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    canvas.getContext('2d')!.drawImage(bitmap, 0, 0, width, height);
 
-        if (!ctx) {
-          reject(new Error('Failed to get canvas context'));
-          return;
-        }
-
-        ctx.drawImage(img, 0, 0, width, height);
-
-        // Convert to JPEG with 0.85 quality
-        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
-        resolve(compressedDataUrl);
-      };
-      img.onerror = () => reject(new Error('Failed to load image for compression'));
-      img.src = dataUrl;
-    });
+    return canvas.toDataURL('image/jpeg', 0.85);
   };
 
   const handlePaste = async (evt: React.ClipboardEvent<HTMLTextAreaElement>) => {
@@ -800,7 +778,6 @@ export default function ChatInput({
       return false;
     }
 
-    // Extract base64 image data from pasted images
     const pastedImageData: ImageData[] = pastedImages
       .filter((img) => img.dataUrl && !img.error && !img.isLoading)
       .map((img) => {
@@ -815,7 +792,6 @@ export default function ChatInput({
       })
       .filter((img): img is ImageData => img !== null);
 
-    // Extract base64 image data from dropped images
     const droppedImageData: ImageData[] = allDroppedFiles
       .filter((file) => file.isImage && file.dataUrl && !file.error && !file.isLoading)
       .map((file) => {
@@ -830,10 +806,8 @@ export default function ChatInput({
       })
       .filter((img): img is ImageData => img !== null);
 
-    // Combine all image data
     const imageData = [...pastedImageData, ...droppedImageData];
 
-    // Get paths from non-image dropped files only
     const droppedFilePaths = allDroppedFiles
       .filter((file) => !file.isImage && !file.error && !file.isLoading)
       .map((file) => file.path);
@@ -910,12 +884,9 @@ export default function ChatInput({
 
   const performSubmit = useCallback(
     (text?: string) => {
-      // Extract base64 image data from pasted images (for direct image content)
       const pastedImageData: ImageData[] = pastedImages
         .filter((img) => img.dataUrl && !img.error && !img.isLoading)
         .map((img) => {
-          // Extract base64 data and mime type from data URL
-          // Data URL format: data:image/png;base64,iVBORw0KG...
           const matches = img.dataUrl.match(/^data:([^;]+);base64,(.+)$/);
           if (matches) {
             return {
@@ -927,11 +898,9 @@ export default function ChatInput({
         })
         .filter((img): img is ImageData => img !== null);
 
-      // Extract base64 image data from dropped images (for direct image content)
       const droppedImageData: ImageData[] = allDroppedFiles
         .filter((file) => file.isImage && file.dataUrl && !file.error && !file.isLoading)
         .map((file) => {
-          // Extract base64 data and mime type from data URL
           const matches = file.dataUrl!.match(/^data:([^;]+);base64,(.+)$/);
           if (matches) {
             return {
@@ -943,10 +912,8 @@ export default function ChatInput({
         })
         .filter((img): img is ImageData => img !== null);
 
-      // Combine all image data
       const imageData = [...pastedImageData, ...droppedImageData];
 
-      // Get paths from non-image dropped files only
       const droppedFilePaths = allDroppedFiles
         .filter((file) => !file.isImage && !file.error && !file.isLoading)
         .map((file) => file.path);
