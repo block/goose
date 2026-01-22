@@ -1340,10 +1340,7 @@ impl Agent {
                                                             }
                                                         }
                                                     }
-                                                    None => {
-                                                        // All tool streams completed
-                                                        break;
-                                                    }
+                                                    None => break,
                                                 }
                                             }
 
