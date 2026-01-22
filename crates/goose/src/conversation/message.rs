@@ -245,6 +245,64 @@ impl MessageContent {
         )
     }
 
+    pub fn filter_for_audience(&self, audience: Role) -> Option<MessageContent> {
+        match self {
+            MessageContent::Text(text) => {
+                if text
+                    .audience()
+                    .map(|roles| roles.contains(&audience))
+                    .unwrap_or(true)
+                {
+                    Some(self.clone())
+                } else {
+                    None
+                }
+            }
+            MessageContent::Image(img) => {
+                if img
+                    .audience()
+                    .map(|roles| roles.contains(&audience))
+                    .unwrap_or(true)
+                {
+                    Some(self.clone())
+                } else {
+                    None
+                }
+            }
+            MessageContent::ToolResponse(res) => {
+                let Ok(result) = &res.tool_result else {
+                    return Some(self.clone());
+                };
+
+                let filtered_content: Vec<Content> = result
+                    .content
+                    .iter()
+                    .filter(|c| {
+                        c.audience()
+                            .map(|roles| roles.contains(&audience))
+                            .unwrap_or(true)
+                    })
+                    .cloned()
+                    .collect();
+
+                if filtered_content.is_empty() {
+                    return None;
+                }
+
+                Some(MessageContent::ToolResponse(ToolResponse {
+                    id: res.id.clone(),
+                    tool_result: Ok(CallToolResult {
+                        content: filtered_content,
+                        ..result.clone()
+                    }),
+                    metadata: res.metadata.clone(),
+                }))
+            }
+            MessageContent::Thinking(_) | MessageContent::RedactedThinking(_) => None,
+            _ => Some(self.clone()),
+        }
+    }
+
     pub fn image<S: Into<String>, T: Into<String>>(data: S, mime_type: T) -> Self {
         MessageContent::Image(
             RawImageContent {
@@ -619,6 +677,19 @@ impl Message {
     }
     pub fn debug(&self) -> String {
         format!("{:?}", self)
+    }
+
+    pub fn agent_visible_content(&self) -> Message {
+        let filtered_content = self
+            .content
+            .iter()
+            .filter_map(|c| c.filter_for_audience(Role::Assistant))
+            .collect();
+
+        Message {
+            content: filtered_content,
+            ..self.clone()
+        }
     }
 
     /// Create a new user message with the current timestamp

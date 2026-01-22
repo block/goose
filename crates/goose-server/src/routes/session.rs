@@ -1,7 +1,7 @@
 use crate::routes::errors::ErrorResponse;
 use crate::routes::recipe_utils::{apply_recipe_to_agent, build_recipe_with_parameter_values};
 use crate::state::AppState;
-use axum::extract::State;
+use axum::extract::{DefaultBodyLimit, State};
 use axum::routing::post;
 use axum::{
     extract::Path,
@@ -493,7 +493,10 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/sessions/{session_id}", get(get_session))
         .route("/sessions/{session_id}", delete(delete_session))
         .route("/sessions/{session_id}/export", get(export_session))
-        .route("/sessions/import", post(import_session))
+        .route(
+            "/sessions/import",
+            post(import_session).layer(DefaultBodyLimit::max(25 * 1024 * 1024)),
+        )
         .route("/sessions/insights", get(get_session_insights))
         .route("/sessions/{session_id}/name", put(update_session_name))
         .route(
