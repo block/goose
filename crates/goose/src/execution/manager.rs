@@ -1,5 +1,5 @@
 use crate::agents::{Agent, AgentConfig};
-use crate::builtin_extension::{BuiltinDef, EMPTY_BUILTIN_EXTENSIONS};
+use crate::builtin_extension::BuiltinDef;
 use crate::config::paths::Paths;
 use crate::config::permission::PermissionManager;
 use crate::config::{Config, GooseMode};
@@ -84,7 +84,7 @@ impl AgentManager {
                     session_manager,
                     schedule_file_path,
                     Some(max_sessions),
-                    EMPTY_BUILTIN_EXTENSIONS.clone(),
+                    HashMap::new(),
                 )
                 .await?;
                 Ok(Arc::new(manager))
@@ -160,10 +160,10 @@ impl AgentManager {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::sync::Arc;
     use tempfile::TempDir;
 
-    use crate::builtin_extension::EMPTY_BUILTIN_EXTENSIONS;
     use crate::execution::SessionExecutionMode;
     use crate::session::SessionManager;
 
@@ -176,7 +176,7 @@ mod tests {
             session_manager,
             schedule_path,
             Some(100),
-            EMPTY_BUILTIN_EXTENSIONS.clone(),
+            HashMap::new(),
         )
         .await
         .unwrap()

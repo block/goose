@@ -35,8 +35,6 @@ use crate::agents::extension::{Envs, ProcessExit};
 use crate::agents::extension_malware_check;
 use crate::agents::mcp_client::{McpClient, McpClientTrait, McpMeta};
 use crate::builtin_extension::BuiltinDef;
-#[cfg(test)]
-use crate::builtin_extension::EMPTY_BUILTIN_EXTENSIONS;
 use crate::config::search_path::SearchPaths;
 use crate::config::{get_all_extensions, Config};
 use crate::oauth::oauth_flow;
@@ -468,7 +466,7 @@ impl ExtensionManager {
         Self::new(
             Arc::new(Mutex::new(None)),
             session_manager,
-            EMPTY_BUILTIN_EXTENSIONS.clone(),
+            HashMap::new(),
         )
     }
 

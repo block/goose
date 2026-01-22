@@ -116,7 +116,6 @@ unbinder = "0.1.7"
 winapi = { version = "0.3", features = ["wincred"] }
 
 [dev-dependencies]
-goose-mcp = { path = "../goose-mcp" }
 agent-client-protocol-schema = "0.10.5"
 criterion = "0.5"
 serial_test = { workspace = true }

@@ -18,6 +18,7 @@ mod tests {
         use goose::agents::AgentConfig;
         use goose::config::permission::PermissionManager;
         use goose::config::GooseMode;
+        use std::collections::HashMap;
         use goose::scheduler::{ScheduledJob, SchedulerError};
         use goose::scheduler_trait::SchedulerTrait;
         use goose::session::{Session, SessionManager};
@@ -128,7 +129,7 @@ mod tests {
                 permission_manager,
                 Some(mock_scheduler),
                 GooseMode::Auto,
-                goose_mcp::BUILTIN_EXTENSIONS.clone(),
+                HashMap::new(),
             );
             let agent = Agent::with_config(config);
 
@@ -169,7 +170,7 @@ mod tests {
                 permission_manager,
                 Some(mock_scheduler),
                 GooseMode::Auto,
-                goose_mcp::BUILTIN_EXTENSIONS.clone(),
+                HashMap::new(),
             );
             let agent = Agent::with_config(config);
 
@@ -223,7 +224,7 @@ mod tests {
                 permission_manager,
                 Some(mock_scheduler),
                 GooseMode::Auto,
-                goose_mcp::BUILTIN_EXTENSIONS.clone(),
+                HashMap::new(),
             );
             let agent = Agent::with_config(config);
 
@@ -523,7 +524,7 @@ mod tests {
                 PermissionManager::instance(),
                 None,
                 GooseMode::Auto,
-                goose_mcp::BUILTIN_EXTENSIONS.clone(),
+                HashMap::new(),
             );
 
             let agent = Agent::with_config(config);

@@ -25,7 +25,7 @@ use crate::agents::subagent_tool::{
 };
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{FrontendTool, SharedProvider, ToolResultReceiver};
-use crate::builtin_extension::{BuiltinDef, EMPTY_BUILTIN_EXTENSIONS};
+use crate::builtin_extension::BuiltinDef;
 use crate::config::permission::PermissionManager;
 use crate::config::{get_enabled_extensions, Config, GooseMode};
 use crate::context_mgmt::{
@@ -191,7 +191,7 @@ impl Agent {
             PermissionManager::instance(),
             None,
             Config::global().get_goose_mode().unwrap_or(GooseMode::Auto),
-            EMPTY_BUILTIN_EXTENSIONS.clone(),
+            HashMap::new(),
         ))
     }
 

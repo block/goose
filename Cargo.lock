@@ -2997,7 +2997,6 @@ dependencies = [
  "etcetera 0.11.0",
  "fs2",
  "futures",
- "goose-mcp",
  "ignore",
  "include_dir",
  "indexmap 2.12.1",
