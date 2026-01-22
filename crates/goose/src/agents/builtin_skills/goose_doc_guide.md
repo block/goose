@@ -42,16 +42,17 @@ Do NOT use this skill for:
 3. **MANDATORY VERIFICATION - DO THIS BEFORE STEP 4**
    Before writing your final answer:
    - [ ] You ONLY present goose-specific information that is explicitly stated in the fetched documentation. If you cannot identify the documentation page that supports a detail, you must NOT include it.
-   - [ ] add instructions/commands if: (a) user explicitly asked for them, AND (b) they appear in the fetched docs
-   - You MUST NOT rely on training data or assumptions for any goose-specific fields, values, names, syntax, or commands.
-   - [ ] For EVERY goose-specific command in your answer: Search feteched files to verify it exists
-   - [ ] For EVERY goose-specific field in your answer: Search feteched files to verify it exists  
-   - [ ] For EVERY usage instruction in your answer: Search feteched files to verify it exists
+   - [ ] **NOTHING EXTRA**: Do not add usage instructions, tips, CLI commands, or "how to" sections unless the user explicitly asked AND you verified them in fetched docs.
+   - [ ] You MUST NOT rely on training data or assumptions for any goose-specific fields, values, names, syntax, or commands.
+   - [ ] For EVERY goose-specific command in your answer: Search fetched files to verify it exists
+   - [ ] For EVERY goose-specific field in your answer: Search fetched files to verify it exists  
+   - [ ] For EVERY usage instruction in your answer: Search fetched files to verify it exists
    - [ ] If you cannot verify something: Remove it, unless the user explicitly asked for it (then state "I could not find documentation for [X]")
    
 4. **Provide your answer and include a "Verification Completed" section showing which checks passed**
-   - Which checks passed
-   - How you verified each field exists in the documentation
+   - For EACH goose-specific item in your response, cite the specific doc file where you verified it
+   - Format: `[item] → verified in [filename]`
+   - **If you cannot cite a source for something, you MUST remove it from your answer**
 
 5. **List documentation links**
    - Only include docs actually used
