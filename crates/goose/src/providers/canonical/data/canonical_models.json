@@ -483,8 +483,7 @@
     "pricing": {
       "prompt": 1e-7,
       "completion": 4e-7,
-      "request": 0.0,
-      "image": 0.0000258
+      "image": 1e-7
     }
   },
   {
@@ -506,8 +505,7 @@
     "pricing": {
       "prompt": 7.5e-8,
       "completion": 3e-7,
-      "request": 0.0,
-      "image": 0.0
+      "image": 7.5e-8
     }
   },
   {
@@ -529,8 +527,7 @@
     "pricing": {
       "prompt": 3e-7,
       "completion": 2.5e-6,
-      "request": 0.0,
-      "image": 0.001238
+      "image": 3e-7
     }
   },
   {
@@ -550,8 +547,7 @@
     "pricing": {
       "prompt": 3e-7,
       "completion": 2.5e-6,
-      "request": 0.0,
-      "image": 0.001238
+      "image": 3e-7
     }
   },
   {
@@ -573,8 +569,7 @@
     "pricing": {
       "prompt": 1e-7,
       "completion": 4e-7,
-      "request": 0.0,
-      "image": 0.0
+      "image": 1e-7
     }
   },
   {
@@ -596,8 +591,7 @@
     "pricing": {
       "prompt": 1.25e-6,
       "completion": 0.00001,
-      "request": 0.0,
-      "image": 0.00516
+      "image": 1.25e-6
     }
   },
   {
@@ -619,8 +613,7 @@
     "pricing": {
       "prompt": 5e-7,
       "completion": 3e-6,
-      "request": 0.0,
-      "image": 0.0
+      "image": 5e-7
     }
   },
   {
@@ -642,8 +635,7 @@
     "pricing": {
       "prompt": 2e-6,
       "completion": 0.000012,
-      "request": 0.0,
-      "image": 0.008256
+      "image": 2e-6
     }
   },
   {
@@ -663,8 +655,7 @@
     "pricing": {
       "prompt": 2e-6,
       "completion": 0.000012,
-      "request": 0.0,
-      "image": 0.067
+      "image": 2e-6
     }
   },
   {
