@@ -4699,7 +4699,7 @@
           "input_token_cost": {
             "type": "number",
             "format": "double",
-            "description": "Cost per token for input in USD (optional)\nNote: This is cost per single token, NOT per million tokens\nUse ModelInfo::from_canonical() to convert from canonical model costs",
+            "description": "Cost per token for input in USD (optional)",
             "nullable": true
           },
           "name": {
@@ -4709,7 +4709,7 @@
           "output_token_cost": {
             "type": "number",
             "format": "double",
-            "description": "Cost per token for output in USD (optional)\nNote: This is cost per single token, NOT per million tokens\nUse ModelInfo::from_canonical() to convert from canonical model costs",
+            "description": "Cost per token for output in USD (optional)",
             "nullable": true
           },
           "supports_cache_control": {
