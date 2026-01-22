@@ -459,20 +459,14 @@ pub trait Provider: Send + Sync {
             .filter_map(|model| {
                 let canonical_id = map_to_canonical_model(provider_name, model, registry)?;
 
-                let is_text_capable = canonical_id
-                    .split_once('/')
-                    .and_then(|(p, m)| registry.get(p, m))
-                    .map(|m| m.modalities.input.contains(&"text".to_string()))
-                    .unwrap_or(false);
+                let (provider, model_name) = canonical_id.split_once('/')?;
+                let canonical_model = registry.get(provider, model_name)?;
 
-                if !is_text_capable {
+                if !canonical_model.modalities.input.contains(&"text".to_string()) {
                     return None;
                 }
 
-                let release_date = canonical_id
-                    .split_once('/')
-                    .and_then(|(p, m)| registry.get(p, m))
-                    .and_then(|canonical_model| canonical_model.release_date.clone());
+                let release_date = canonical_model.release_date.clone();
 
                 Some((model.clone(), release_date))
             })

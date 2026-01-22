@@ -23,7 +23,6 @@ impl ModelMapping {
 
 pub fn maybe_get_canonical_model(provider: &str, model: &str) -> Option<CanonicalModel> {
     let registry = CanonicalModelRegistry::bundled().ok()?;
-    map_to_canonical_model(provider, model, registry)?;
 
     // map_to_canonical_model returns the canonical ID (provider/model)
     // Parse it to get provider and model parts for registry lookup
