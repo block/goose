@@ -11,7 +11,6 @@ description.workspace = true
 workspace = true
 
 [dependencies]
-goose = { path = "../goose" }
 rmcp = { workspace = true, features = ["server", "client", "transport-io", "macros"] }
 anyhow = { workspace = true }
 tokio = { workspace = true }

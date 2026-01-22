@@ -3165,7 +3165,6 @@ dependencies = [
  "devgen-tree-sitter-swift",
  "docx-rs",
  "etcetera 0.11.0",
- "goose",
  "ignore",
  "image 0.24.9",
  "include_dir",

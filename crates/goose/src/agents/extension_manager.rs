@@ -553,7 +553,7 @@ impl ExtensionManager {
             ExtensionConfig::Builtin { name, timeout, .. } => {
                 let timeout_duration = Duration::from_secs(timeout.unwrap_or(300));
                 let builtin_extensions = get_builtin_extensions();
-                let def = builtin_extensions.get(name.as_str()).ok_or_else(|| {
+                let spawn_fn = builtin_extensions.get(name.as_str()).ok_or_else(|| {
                     ExtensionError::ConfigError(format!("Unknown builtin extension: {}", name))
                 })?;
 
@@ -569,7 +569,7 @@ impl ExtensionManager {
 
                 let (server_read, client_write) = tokio::io::duplex(65536);
                 let (client_read, server_write) = tokio::io::duplex(65536);
-                (def.spawn_server)(server_read, server_write);
+                spawn_fn(server_read, server_write);
                 Box::new(
                     McpClient::connect(
                         (client_read, client_write),
