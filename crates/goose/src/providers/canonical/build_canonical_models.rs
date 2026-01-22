@@ -64,6 +64,7 @@ struct MappingEntry {
     provider: String,
     model: String,
     canonical: String,
+    recommended: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -105,11 +106,16 @@ impl MappingReport {
         provider_name: &str,
         fetched_models: Vec<String>,
         mappings: Vec<ModelMapping>,
+        recommended_models: Vec<String>,
     ) {
         let mapping_map: HashMap<String, String> = mappings
             .iter()
             .map(|m| (m.provider_model.clone(), m.canonical_model.clone()))
             .collect();
+
+        // Create a set of recommended model names for quick lookup
+        let recommended_set: std::collections::HashSet<String> =
+            recommended_models.into_iter().collect();
 
         for model in &fetched_models {
             if !mapping_map.contains_key(model) {
@@ -126,6 +132,7 @@ impl MappingReport {
                 provider: provider_name.to_string(),
                 model: model.clone(),
                 canonical: canonical.clone(),
+                recommended: recommended_set.contains(model),
             });
         }
 
@@ -478,7 +485,7 @@ async fn build_canonical_models() -> Result<()> {
 async fn check_provider(
     provider_name: &str,
     model_for_init: &str,
-) -> Result<(Vec<String>, Vec<ModelMapping>)> {
+) -> Result<(Vec<String>, Vec<ModelMapping>, Vec<String>)> {
     println!("Checking provider: {}", provider_name);
 
     let provider = match create_with_named_model(provider_name, model_for_init).await {
@@ -486,7 +493,7 @@ async fn check_provider(
         Err(e) => {
             println!("  ⚠ Failed to create provider: {}", e);
             println!("  This is expected if credentials are not configured.");
-            return Ok((Vec::new(), Vec::new()));
+            return Ok((Vec::new(), Vec::new(), Vec::new()));
         }
     };
 
@@ -502,6 +509,19 @@ async fn check_provider(
         Err(e) => {
             println!("  ⚠ Failed to fetch models: {}", e);
             println!("  This is expected if credentials are not configured.");
+            Vec::new()
+        }
+    };
+
+    // Also fetch recommended models (after deduplication)
+    let recommended_models = match provider.fetch_recommended_models().await {
+        Ok(Some(models)) => {
+            println!("  ✓ Found {} recommended models", models.len());
+            models
+        }
+        Ok(None) => Vec::new(),
+        Err(e) => {
+            println!("  ⚠ Failed to fetch recommended models: {}", e);
             Vec::new()
         }
     };
@@ -522,7 +542,7 @@ async fn check_provider(
     }
     println!("  ✓ Found {} mappings", mappings.len());
 
-    Ok((fetched_models, mappings))
+    Ok((fetched_models, mappings, recommended_models))
 }
 
 async fn check_canonical_mappings() -> Result<()> {
@@ -548,8 +568,8 @@ async fn check_canonical_mappings() -> Result<()> {
     let mut report = MappingReport::new();
 
     for (provider_name, default_model) in providers {
-        let (fetched, mappings) = check_provider(provider_name, default_model).await?;
-        report.add_provider_results(provider_name, fetched, mappings);
+        let (fetched, mappings, recommended) = check_provider(provider_name, default_model).await?;
+        report.add_provider_results(provider_name, fetched, mappings, recommended);
         println!();
     }
 
