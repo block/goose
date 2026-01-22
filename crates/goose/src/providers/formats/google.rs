@@ -422,6 +422,7 @@ fn process_response_part_impl(
             Some(MessageContent::tool_request_with_metadata(
                 id,
                 Ok(CallToolRequestParam {
+                    task: None,
                     name: name.to_string().into(),
                     arguments,
                 }),
@@ -770,6 +771,7 @@ mod tests {
             set_up_tool_request_message(
                 "id",
                 CallToolRequestParam {
+                    task: None,
                     name: "tool_name".into(),
                     arguments: Some(object(arguments.clone())),
                 },
@@ -777,6 +779,7 @@ mod tests {
             set_up_action_required_message(
                 "id2",
                 CallToolRequestParam {
+                    task: None,
                     name: "tool_name_2".into(),
                     arguments: Some(object(arguments.clone())),
                 },
