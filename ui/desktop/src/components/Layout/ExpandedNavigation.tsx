@@ -9,8 +9,6 @@ import {
   Puzzle,
   Settings,
   GripVertical,
-  ChevronDown,
-  ChevronRight,
   Plus,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -66,7 +64,6 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
 
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
   const [dragOverItem, setDragOverItem] = useState<string | null>(null);
-  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set(['chat']));
   const [chatDropdownOpen, setChatDropdownOpen] = useState(false);
   const [recentSessions, setRecentSessions] = useState<Session[]>([]);
   const [gridColumns, setGridColumns] = useState(2);
@@ -356,18 +353,6 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
     navigate(`/pair?resumeSessionId=${sessionId}`);
     // Don't close nav on selection - only close via toggle button
   }, [navigate]);
-
-  const toggleExpanded = (itemId: string) => {
-    setExpandedItems(prev => {
-      const next = new Set(prev);
-      if (next.has(itemId)) {
-        next.delete(itemId);
-      } else {
-        next.add(itemId);
-      }
-      return next;
-    });
-  };
 
   const isActive = (path: string) => location.pathname === path;
 

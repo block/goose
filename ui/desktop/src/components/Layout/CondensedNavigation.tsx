@@ -68,6 +68,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
     navigationPosition,
     preferences,
     updatePreferences,
+    isCondensedIconOnly,
   } = useNavigationContext();
 
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
@@ -336,8 +337,8 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
         className
       )}
     >
-      {/* Top spacer (vertical only) - small fixed size for top justification */}
-      {isVertical && (
+      {/* Top spacer (vertical only, not icon-only) - small fixed size for top justification */}
+      {isVertical && !isCondensedIconOnly && (
         <div className="bg-background-default rounded-lg w-full h-[40px] flex-shrink-0" />
       )}
 
@@ -385,43 +386,47 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
               'flex flex-col',
               isVertical ? 'w-full' : ''
             )}>
-              {/* Chat item with dropdown in horizontal mode */}
-              {isChatItem && !isVertical ? (
+              {/* Chat item with dropdown in horizontal mode OR icon-only mode */}
+              {isChatItem && (!isVertical || isCondensedIconOnly) ? (
                 <DropdownMenu open={chatPopoverOpen} onOpenChange={setChatPopoverOpen}>
                   <DropdownMenuTrigger asChild>
                     <motion.button
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       className={cn(
-                        'flex flex-row items-center gap-2',
+                        'flex flex-row items-center justify-center gap-2',
                         'relative rounded-lg transition-colors duration-200 no-drag',
-                        'px-3 py-2.5',
+                        isCondensedIconOnly ? 'p-2.5' : 'px-3 py-2.5',
                         active
                           ? 'bg-background-accent text-text-on-accent'
                           : 'bg-background-default hover:bg-background-medium'
                       )}
                     >
                       <Icon className="w-5 h-5 flex-shrink-0" />
-                      <span className="text-sm font-medium text-left hidden min-[1200px]:block">
-                        {item.label}
-                      </span>
-                      {item.getTag && (
-                        <div className="flex items-center gap-1 flex-shrink-0 hidden min-[1200px]:flex">
-                          <span className={cn(
-                            'text-xs font-mono px-2 py-0.5 rounded-full',
-                            active
-                              ? 'bg-background-default/20 text-text-on-accent/80'
-                              : 'bg-background-muted text-text-muted'
-                          )}>
-                            {item.getTag()}
+                      {!isCondensedIconOnly && (
+                        <>
+                          <span className="text-sm font-medium text-left hidden min-[1200px]:block">
+                            {item.label}
                           </span>
-                        </div>
+                          {item.getTag && (
+                            <div className="flex items-center gap-1 flex-shrink-0 hidden min-[1200px]:flex">
+                              <span className={cn(
+                                'text-xs font-mono px-2 py-0.5 rounded-full',
+                                active
+                                  ? 'bg-background-default/20 text-text-on-accent/80'
+                                  : 'bg-background-muted text-text-muted'
+                              )}>
+                                {item.getTag()}
+                              </span>
+                            </div>
+                          )}
+                        </>
                       )}
                     </motion.button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent 
                     className="w-64 p-1 bg-background-default border-border-subtle rounded-lg shadow-lg"
-                    side={isTopPosition ? 'bottom' : 'top'}
+                    side={isCondensedIconOnly ? (navigationPosition === 'left' ? 'right' : 'left') : (isTopPosition ? 'bottom' : 'top')}
                     align="start"
                     sideOffset={8}
                   >
@@ -468,10 +473,10 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                   </DropdownMenuContent>
                 </DropdownMenu>
               ) : (
-                /* Regular button for non-chat items or vertical mode */
+                /* Regular button for non-chat items or vertical mode (not icon-only) */
                 <motion.button
                   onClick={() => {
-                    if (isChatItem && isVertical) {
+                    if (isChatItem && isVertical && !isCondensedIconOnly) {
                       toggleExpanded(item.id);
                     } else {
                       handleNavClick(item.path);
@@ -482,33 +487,41 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                   className={cn(
                     'flex flex-row items-center gap-2',
                     'relative rounded-lg transition-colors duration-200 no-drag',
-                    isVertical ? 'w-full pl-2 pr-4 py-2.5' : 'px-3 py-2.5',
+                    isCondensedIconOnly 
+                      ? 'justify-center p-2.5' 
+                      : isVertical 
+                        ? 'w-full pl-2 pr-4 py-2.5' 
+                        : 'px-3 py-2.5',
                     active
                       ? 'bg-background-accent text-text-on-accent'
                       : 'bg-background-default hover:bg-background-medium'
                   )}
                 >
-                  {/* Drag handle - visible on hover */}
-                  <div className={cn(
-                    'opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0',
-                    !isVertical && 'hidden'
-                  )}>
-                    <GripVertical className="w-4 h-4 text-text-muted" />
-                  </div>
+                  {/* Drag handle - visible on hover (not in icon-only mode) */}
+                  {!isCondensedIconOnly && (
+                    <div className={cn(
+                      'opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0',
+                      !isVertical && 'hidden'
+                    )}>
+                      <GripVertical className="w-4 h-4 text-text-muted" />
+                    </div>
+                  )}
 
                   {/* Icon */}
                   <Icon className="w-5 h-5 flex-shrink-0" />
                   
-                  {/* Label - hidden on horizontal unless wide screen */}
-                  <span className={cn(
-                    'text-sm font-medium text-left',
-                    isVertical ? 'flex-1' : 'hidden min-[1200px]:block'
-                  )}>
-                    {item.label}
-                  </span>
+                  {/* Label - hidden in icon-only mode and on horizontal unless wide screen */}
+                  {!isCondensedIconOnly && (
+                    <span className={cn(
+                      'text-sm font-medium text-left',
+                      isVertical ? 'flex-1' : 'hidden min-[1200px]:block'
+                    )}>
+                      {item.label}
+                    </span>
+                  )}
 
-                  {/* Tag/Badge */}
-                  {item.getTag && (
+                  {/* Tag/Badge - hidden in icon-only mode */}
+                  {!isCondensedIconOnly && item.getTag && (
                     <div className={cn(
                       'flex items-center gap-1 flex-shrink-0',
                       !isVertical && 'hidden min-[1200px]:flex'
@@ -524,8 +537,8 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                     </div>
                   )}
 
-                  {/* Expand indicator for chat item (vertical only) - after count */}
-                  {isChatItem && isVertical && (
+                  {/* Expand indicator for chat item (vertical only, not icon-only) - after count */}
+                  {!isCondensedIconOnly && isChatItem && isVertical && (
                     <div className="flex-shrink-0">
                       {isItemExpanded ? (
                         <ChevronDown className="w-3 h-3 text-text-muted" />
@@ -537,9 +550,9 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                 </motion.button>
               )}
 
-              {/* Recent sessions dropdown (vertical only) */}
+              {/* Recent sessions dropdown (vertical only, not icon-only mode) */}
               <AnimatePresence>
-                {isChatItem && isItemExpanded && isVertical && (
+                {isChatItem && isItemExpanded && isVertical && !isCondensedIconOnly && (
                   <motion.div
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: 'auto', opacity: 1 }}
@@ -609,7 +622,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
       })}
 
       {/* Spacer to extend to bottom (vertical only) */}
-      {isVertical && (
+      {isVertical && !isCondensedIconOnly && (
         <div className="bg-background-default rounded-lg flex-1 w-full min-h-[20px]" />
       )}
 

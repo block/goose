@@ -24,6 +24,9 @@ export const DEFAULT_ENABLED_ITEMS = [...DEFAULT_ITEM_ORDER];
 // Breakpoint for forcing overlay mode on expanded navigation
 const EXPANDED_OVERLAY_BREAKPOINT = 700;
 
+// Breakpoint for condensed nav to switch to icon-only on left/right
+const CONDENSED_ICON_ONLY_BREAKPOINT = 700;
+
 interface NavigationContextValue {
   // Navigation state
   isNavExpanded: boolean;
@@ -53,6 +56,9 @@ interface NavigationContextValue {
   
   // Helpers
   isHorizontalNav: boolean;
+  
+  // Whether condensed nav should show icon-only (small screens + left/right position)
+  isCondensedIconOnly: boolean;
 }
 
 const NavigationContext = createContext<NavigationContextValue | null>(null);
@@ -190,6 +196,10 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({ children
   // Force expanded style when overlay mode is selected (overlay is always expanded and centered)
   const effectiveNavigationStyle: NavigationStyle = 
     navigationMode === 'overlay' ? 'expanded' : navigationStyle;
+  
+  // Condensed nav should show icon-only on small screens when positioned left/right
+  const isCondensedIconOnly = 
+    !isHorizontalNav && windowWidth < CONDENSED_ICON_ONLY_BREAKPOINT;
 
   const value: NavigationContextValue = {
     isNavExpanded,
@@ -205,6 +215,7 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({ children
     preferences,
     updatePreferences,
     isHorizontalNav,
+    isCondensedIconOnly,
   };
 
   return (
