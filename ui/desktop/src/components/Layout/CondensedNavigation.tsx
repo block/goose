@@ -350,7 +350,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
       {isVertical && (
         <div className={cn(
           "bg-background-default rounded-lg w-full flex-shrink-0",
-          isCondensedIconOnly ? "h-[80px]" : "h-[40px]"
+          isCondensedIconOnly ? "h-[80px]" : "h-[48px]"
         )} />
       )}
 

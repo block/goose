@@ -132,7 +132,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
       </div>
 
       {/* Main content with navigation */}
-      <div className={cn('flex flex-1 w-full h-full p-2 min-h-0', getLayoutClass())}>
+      <div className={cn('flex flex-1 w-full h-full min-h-0 p-[2px]', getLayoutClass())}>
         {/* Push mode navigation (inline) with animation */}
         <AnimatePresence mode="wait">
           {effectiveNavigationMode === 'push' && isNavExpanded && (
