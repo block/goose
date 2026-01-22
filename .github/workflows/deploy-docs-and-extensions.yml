@@ -53,24 +53,26 @@ jobs:
         working-directory: ./documentation
         run: ./scripts/verify-build.sh
 
-      - name: Checkout gh-pages branch
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        continue-on-error: true      # Branch may not exist on first deploy or in forks
-        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # pin@v3
-        with:
-          ref: gh-pages
-          path: gh-pages-current
+      # TODO: Re-enable after cleaning up gh-pages branch (currently ~7.4GB causing disk space issues)
+      # See: https://github.com/block/goose/issues/XXXX
+      # - name: Checkout gh-pages branch
+      #   if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      #   continue-on-error: true      # Branch may not exist on first deploy or in forks
+      #   uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # pin@v3
+      #   with:
+      #     ref: gh-pages
+      #     path: gh-pages-current
 
-      - name: Preserve pr-preview directory
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: |
-          # Copy pr-preview from current gh-pages to the new build (if it exists)
-          if [ -d "gh-pages-current/pr-preview" ]; then
-            cp -r gh-pages-current/pr-preview documentation/build/pr-preview
-            echo "Preserved pr-preview directory with $(ls gh-pages-current/pr-preview | wc -l) PR previews"
-          else
-            echo "No pr-preview directory to preserve"
-          fi
+      # - name: Preserve pr-preview directory
+      #   if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      #   run: |
+      #     # Copy pr-preview from current gh-pages to the new build (if it exists)
+      #     if [ -d "gh-pages-current/pr-preview" ]; then
+      #       cp -r gh-pages-current/pr-preview documentation/build/pr-preview
+      #       echo "Preserved pr-preview directory with $(ls gh-pages-current/pr-preview | wc -l) PR previews"
+      #     else
+      #       echo "No pr-preview directory to preserve"
+      #     fi
 
       - name: Deploy to /gh-pages
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
