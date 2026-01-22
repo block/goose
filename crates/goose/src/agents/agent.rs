@@ -1307,7 +1307,6 @@ impl Agent {
                                                             ToolStreamItem::Result(output) => {
                                                                 let output = call_tool_result::validate(output);
 
-                                                                // Platform extensions use meta as a way to publish notifications
                                                                 if let Ok(ref call_result) = output {
                                                                     if let Some(ref meta) = call_result.meta {
                                                                         if let Some(notification_data) = meta.0.get("platform_notification") {
