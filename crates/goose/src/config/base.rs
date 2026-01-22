@@ -547,7 +547,6 @@ impl Config {
         let mut cache = self.secrets_cache.lock().unwrap();
 
         let values = if let Some(ref cached_secrets) = *cache {
-            tracing::debug!("secrets cache hit");
             cached_secrets.clone()
         } else {
             tracing::debug!("secrets cache miss, fetching from storage");
@@ -578,7 +577,6 @@ impl Config {
             };
 
             *cache = Some(loaded.clone());
-            tracing::debug!("secrets cached");
             loaded
         };
 
@@ -888,7 +886,6 @@ impl Config {
     fn invalidate_secrets_cache(&self) {
         let mut cache = self.secrets_cache.lock().unwrap();
         *cache = None;
-        tracing::debug!("secrets cache invalidated");
     }
 
     /// Check if an error string indicates a keyring availability issue that should trigger fallback
