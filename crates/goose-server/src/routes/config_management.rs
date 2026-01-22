@@ -505,8 +505,9 @@ pub async fn get_pricing(
         pricing_data.push(PricingData {
             provider: query.provider.clone(),
             model: query.model.clone(),
-            input_token_cost: input_cost,
-            output_token_cost: output_cost,
+            // Canonical model costs are per million tokens, convert to per-token
+            input_token_cost: input_cost / 1_000_000.0,
+            output_token_cost: output_cost / 1_000_000.0,
             currency: "$".to_string(),
             context_length: Some(canonical_model.limit.context as u32),
         });
