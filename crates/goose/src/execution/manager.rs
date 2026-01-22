@@ -22,7 +22,7 @@ pub struct AgentManager {
     session_manager: Arc<SessionManager>,
     default_provider: Arc<RwLock<Option<Arc<dyn crate::providers::base::Provider>>>>,
     builtin_extensions:
-        &'static std::collections::HashMap<&'static str, crate::builtin_extension::BuiltinDef>,
+        std::collections::HashMap<&'static str, crate::builtin_extension::BuiltinDef>,
 }
 
 impl AgentManager {
@@ -30,9 +30,8 @@ impl AgentManager {
         session_manager: Arc<SessionManager>,
         schedule_file_path: std::path::PathBuf,
         max_sessions: Option<usize>,
-        builtin_extensions: &'static std::collections::HashMap<
-            &'static str,
-            crate::builtin_extension::BuiltinDef,
+        builtin_extensions: impl Into<
+            std::collections::HashMap<&'static str, crate::builtin_extension::BuiltinDef>,
         >,
     ) -> Result<Self> {
         let scheduler = Scheduler::new(schedule_file_path, session_manager.clone()).await?;
@@ -45,16 +44,15 @@ impl AgentManager {
             scheduler,
             session_manager,
             default_provider: Arc::new(RwLock::new(None)),
-            builtin_extensions,
+            builtin_extensions: builtin_extensions.into(),
         };
 
         Ok(manager)
     }
 
     pub async fn initialize_with_builtin_extensions(
-        builtin_extensions: &'static std::collections::HashMap<
-            &'static str,
-            crate::builtin_extension::BuiltinDef,
+        builtin_extensions: impl Into<
+            std::collections::HashMap<&'static str, crate::builtin_extension::BuiltinDef>,
         >,
     ) -> Result<Arc<Self>> {
         AGENT_MANAGER
@@ -89,7 +87,7 @@ impl AgentManager {
                     session_manager,
                     schedule_file_path,
                     Some(max_sessions),
-                    &crate::builtin_extension::EMPTY_BUILTIN_EXTENSIONS,
+                    crate::builtin_extension::EMPTY_BUILTIN_EXTENSIONS.clone(),
                 )
                 .await?;
                 Ok(Arc::new(manager))
@@ -127,7 +125,7 @@ impl AgentManager {
             permission_manager,
             Some(Arc::clone(&self.scheduler)),
             mode,
-            self.builtin_extensions,
+            self.builtin_extensions.clone(),
         );
         let agent = Arc::new(Agent::with_config(config));
         if let Some(provider) = &*self.default_provider.read().await {
@@ -180,7 +178,7 @@ mod tests {
             session_manager,
             schedule_path,
             Some(100),
-            &crate::builtin_extension::EMPTY_BUILTIN_EXTENSIONS,
+            crate::builtin_extension::EMPTY_BUILTIN_EXTENSIONS.clone(),
         )
         .await
         .unwrap()

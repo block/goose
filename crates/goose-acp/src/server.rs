@@ -325,7 +325,7 @@ impl GooseAcpAgent {
             permission_manager,
             None,
             config.goose_mode,
-            &goose_mcp::BUILTIN_EXTENSIONS,
+            goose_mcp::BUILTIN_EXTENSIONS.clone(),
         ));
 
         let agent_ptr = Arc::new(agent);

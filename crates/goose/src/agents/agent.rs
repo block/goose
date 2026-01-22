@@ -93,7 +93,7 @@ pub struct AgentConfig {
     pub permission_manager: Arc<PermissionManager>,
     pub scheduler_service: Option<Arc<dyn SchedulerTrait>>,
     pub goose_mode: GooseMode,
-    pub builtin_extensions: &'static HashMap<&'static str, crate::builtin_extension::BuiltinDef>,
+    pub builtin_extensions: HashMap<&'static str, crate::builtin_extension::BuiltinDef>,
 }
 
 impl AgentConfig {
@@ -102,14 +102,14 @@ impl AgentConfig {
         permission_manager: Arc<PermissionManager>,
         scheduler_service: Option<Arc<dyn SchedulerTrait>>,
         goose_mode: GooseMode,
-        builtin_extensions: &'static HashMap<&'static str, crate::builtin_extension::BuiltinDef>,
+        builtin_extensions: impl Into<HashMap<&'static str, crate::builtin_extension::BuiltinDef>>,
     ) -> Self {
         Self {
             session_manager,
             permission_manager,
             scheduler_service,
             goose_mode,
-            builtin_extensions,
+            builtin_extensions: builtin_extensions.into(),
         }
     }
 }
@@ -190,7 +190,7 @@ impl Agent {
             PermissionManager::instance(),
             None,
             Config::global().get_goose_mode().unwrap_or(GooseMode::Auto),
-            &crate::builtin_extension::EMPTY_BUILTIN_EXTENSIONS,
+            crate::builtin_extension::EMPTY_BUILTIN_EXTENSIONS.clone(),
         ))
     }
 
@@ -202,7 +202,7 @@ impl Agent {
 
         let session_manager = Arc::clone(&config.session_manager);
         let permission_manager = Arc::clone(&config.permission_manager);
-        let builtin_extensions = config.builtin_extensions;
+        let builtin_extensions = config.builtin_extensions.clone();
         Self {
             provider: provider.clone(),
             config,

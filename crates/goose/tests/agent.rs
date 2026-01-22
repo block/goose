@@ -128,7 +128,7 @@ mod tests {
                 permission_manager,
                 Some(mock_scheduler),
                 GooseMode::Auto,
-                &goose_mcp::BUILTIN_EXTENSIONS,
+                goose_mcp::BUILTIN_EXTENSIONS.clone(),
             );
             let agent = Agent::with_config(config);
 
@@ -169,7 +169,7 @@ mod tests {
                 permission_manager,
                 Some(mock_scheduler),
                 GooseMode::Auto,
-                &goose_mcp::BUILTIN_EXTENSIONS,
+                goose_mcp::BUILTIN_EXTENSIONS.clone(),
             );
             let agent = Agent::with_config(config);
 
@@ -223,7 +223,7 @@ mod tests {
                 permission_manager,
                 Some(mock_scheduler),
                 GooseMode::Auto,
-                &goose_mcp::BUILTIN_EXTENSIONS,
+                goose_mcp::BUILTIN_EXTENSIONS.clone(),
             );
             let agent = Agent::with_config(config);
 
@@ -523,7 +523,7 @@ mod tests {
                 PermissionManager::instance(),
                 None,
                 GooseMode::Auto,
-                &goose_mcp::BUILTIN_EXTENSIONS,
+                goose_mcp::BUILTIN_EXTENSIONS.clone(),
             );
 
             let agent = Agent::with_config(config);
