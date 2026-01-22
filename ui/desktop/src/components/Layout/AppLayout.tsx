@@ -110,12 +110,13 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
         {/* Navigation trigger */}
         <Button
           onClick={() => setIsNavExpanded(!isNavExpanded)}
-          className="no-drag hover:!bg-background-medium"
+          className="no-drag hover:!bg-background-medium gap-1.5"
           variant="ghost"
           size="xs"
           title={isNavExpanded ? 'Close navigation' : 'Open navigation'}
         >
           <Goose className="w-6 h-6" />
+          <span className="text-xs font-mono text-text-muted">menu</span>
         </Button>
         
         {/* New window button */}
