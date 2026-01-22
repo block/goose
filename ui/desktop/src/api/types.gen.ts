@@ -623,6 +623,17 @@ export type PricingResponse = {
 
 export type PrincipalType = 'Extension' | 'Tool';
 
+export type PromptContentResponse = {
+    content: string;
+    default_content: string;
+    is_customized: boolean;
+    name: string;
+};
+
+export type PromptsListResponse = {
+    prompts: Array<Template>;
+};
+
 export type ProviderDetails = {
     is_configured: boolean;
     metadata: ProviderMetadata;
@@ -636,6 +647,10 @@ export type ProviderEngine = 'openai' | 'ollama' | 'anthropic';
  * Metadata about a provider's configuration requirements and capabilities
  */
 export type ProviderMetadata = {
+    /**
+     * Whether this provider allows entering model names not in the fetched list
+     */
+    allows_unlisted_models?: boolean;
     /**
      * Required configuration keys
      */
@@ -859,6 +874,10 @@ export type RunNowResponse = {
     session_id: string;
 };
 
+export type SavePromptRequest = {
+    content: string;
+};
+
 export type SaveRecipeRequest = {
     id?: string | null;
     recipe: Recipe;
@@ -1041,6 +1060,17 @@ export type TelemetryEventRequest = {
     properties?: {
         [key: string]: unknown;
     };
+};
+
+/**
+ * Information about a template including its content and customization status
+ */
+export type Template = {
+    default_content: string;
+    description: string;
+    is_customized: boolean;
+    name: string;
+    user_content?: string | null;
 };
 
 export type TextContent = {
@@ -2006,6 +2036,114 @@ export type GetPricingResponses = {
 };
 
 export type GetPricingResponse = GetPricingResponses[keyof GetPricingResponses];
+
+export type GetPromptsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/config/prompts';
+};
+
+export type GetPromptsResponses = {
+    /**
+     * List of all available prompts
+     */
+    200: PromptsListResponse;
+};
+
+export type GetPromptsResponse = GetPromptsResponses[keyof GetPromptsResponses];
+
+export type ResetPromptData = {
+    body?: never;
+    path: {
+        /**
+         * Prompt template name (e.g., system.md)
+         */
+        name: string;
+    };
+    query?: never;
+    url: '/config/prompts/{name}';
+};
+
+export type ResetPromptErrors = {
+    /**
+     * Prompt not found
+     */
+    404: unknown;
+    /**
+     * Failed to reset prompt
+     */
+    500: unknown;
+};
+
+export type ResetPromptResponses = {
+    /**
+     * Prompt reset to default successfully
+     */
+    200: string;
+};
+
+export type ResetPromptResponse = ResetPromptResponses[keyof ResetPromptResponses];
+
+export type GetPromptData = {
+    body?: never;
+    path: {
+        /**
+         * Prompt template name (e.g., system.md)
+         */
+        name: string;
+    };
+    query?: never;
+    url: '/config/prompts/{name}';
+};
+
+export type GetPromptErrors = {
+    /**
+     * Prompt not found
+     */
+    404: unknown;
+};
+
+export type GetPromptResponses = {
+    /**
+     * Prompt content retrieved successfully
+     */
+    200: PromptContentResponse;
+};
+
+export type GetPromptResponse = GetPromptResponses[keyof GetPromptResponses];
+
+export type SavePromptData = {
+    body: SavePromptRequest;
+    path: {
+        /**
+         * Prompt template name (e.g., system.md)
+         */
+        name: string;
+    };
+    query?: never;
+    url: '/config/prompts/{name}';
+};
+
+export type SavePromptErrors = {
+    /**
+     * Prompt not found
+     */
+    404: unknown;
+    /**
+     * Failed to save prompt
+     */
+    500: unknown;
+};
+
+export type SavePromptResponses = {
+    /**
+     * Prompt saved successfully
+     */
+    200: string;
+};
+
+export type SavePromptResponse = SavePromptResponses[keyof SavePromptResponses];
 
 export type ProvidersData = {
     body?: never;

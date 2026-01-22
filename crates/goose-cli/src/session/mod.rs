@@ -199,15 +199,16 @@ pub enum PlannerResponseType {
 /// to the user's message. The response is either a plan or a clarifying
 /// question.
 pub async fn classify_planner_response(
+    session_id: &str,
     message_text: String,
     provider: Arc<dyn Provider>,
 ) -> Result<PlannerResponseType> {
     let prompt = format!("The text below is the output from an AI model which can either provide a plan or list of clarifying questions. Based on the text below, decide if the output is a \"plan\" or \"clarifying questions\".\n---\n{message_text}");
 
-    // Generate the description
     let message = Message::user().with_text(&prompt);
     let (result, _usage) = provider
         .complete(
+            session_id,
             "Reply only with the classification label: \"plan\" or \"clarifying questions\"",
             &[message],
             &[],
@@ -373,7 +374,7 @@ impl CliSession {
         &mut self,
         extension: Option<String>,
     ) -> Result<HashMap<String, Vec<String>>> {
-        let prompts = self.agent.list_extension_prompts().await;
+        let prompts = self.agent.list_extension_prompts(&self.session_id).await;
 
         // Early validation if filtering by extension
         if let Some(filter) = &extension {
@@ -394,7 +395,7 @@ impl CliSession {
     }
 
     pub async fn get_prompt_info(&mut self, name: &str) -> Result<Option<output::PromptInfo>> {
-        let prompts = self.agent.list_extension_prompts().await;
+        let prompts = self.agent.list_extension_prompts(&self.session_id).await;
 
         // Find which extension has this prompt
         for (extension, prompt_list) in prompts {
@@ -412,7 +413,11 @@ impl CliSession {
     }
 
     pub async fn get_prompt(&mut self, name: &str, arguments: Value) -> Result<Vec<PromptMessage>> {
-        Ok(self.agent.get_prompt(name, arguments).await?.messages)
+        Ok(self
+            .agent
+            .get_prompt(&self.session_id, name, arguments)
+            .await?
+            .messages)
     }
 
     /// Process a single message and get the response
@@ -734,7 +739,10 @@ impl CliSession {
         println!("{}", console::style("Generating Recipe").green());
 
         output::show_thinking();
-        let recipe = self.agent.create_recipe(self.messages.clone()).await;
+        let recipe = self
+            .agent
+            .create_recipe(&self.session_id, self.messages.clone())
+            .await;
         output::hide_thinking();
 
         match recipe {
@@ -788,16 +796,24 @@ impl CliSession {
         plan_messages: Conversation,
         reasoner: Arc<dyn Provider>,
     ) -> Result<(), anyhow::Error> {
-        let plan_prompt = self.agent.get_plan_prompt().await?;
+        let plan_prompt = self.agent.get_plan_prompt(&self.session_id).await?;
         output::show_thinking();
         let (plan_response, _usage) = reasoner
-            .complete(&plan_prompt, plan_messages.messages(), &[])
+            .complete(
+                &self.session_id,
+                &plan_prompt,
+                plan_messages.messages(),
+                &[],
+            )
             .await?;
         output::render_message(&plan_response, self.debug);
         output::hide_thinking();
-        let planner_response_type =
-            classify_planner_response(plan_response.as_concat_text(), self.agent.provider().await?)
-                .await?;
+        let planner_response_type = classify_planner_response(
+            &self.session_id,
+            plan_response.as_concat_text(),
+            self.agent.provider().await?,
+        )
+        .await?;
 
         match planner_response_type {
             PlannerResponseType::Plan => {
@@ -1170,7 +1186,7 @@ impl CliSession {
     /// This should be called before the interactive session starts
     pub async fn update_completion_cache(&mut self) -> Result<()> {
         // Get fresh data
-        let prompts = self.agent.list_extension_prompts().await;
+        let prompts = self.agent.list_extension_prompts(&self.session_id).await;
 
         // Update the cache with write lock
         let mut cache = self.completion_cache.write().unwrap();
