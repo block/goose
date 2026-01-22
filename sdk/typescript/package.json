@@ -1,0 +1,34 @@
+{
+    "name": "@goosed/sdk",
+    "version": "0.1.0",
+    "description": "TypeScript SDK for goosed API",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "type": "module",
+    "scripts": {
+        "build": "tsc",
+        "test": "node --test --import tsx tests/*.test.ts",
+        "test:integration": "npm run build && node integration-test.ts",
+        "clean": "rm -rf dist"
+    },
+    "files": [
+        "dist",
+        "src"
+    ],
+    "keywords": [
+        "goose",
+        "goosed",
+        "sdk",
+        "ai",
+        "agent"
+    ],
+    "license": "Apache-2.0",
+    "devDependencies": {
+        "typescript": "^5.0.0",
+        "@types/node": "^20.0.0",
+        "tsx": "^4.0.0"
+    },
+    "engines": {
+        "node": ">=18.0.0"
+    }
+}
