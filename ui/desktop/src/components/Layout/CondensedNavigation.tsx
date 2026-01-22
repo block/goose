@@ -211,8 +211,11 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
     } else {
       navigate(path);
     }
-    // Don't close nav on selection - only close via toggle button
-  }, [navigate, currentSessionId, chatContext?.chat?.sessionId]);
+    // Close nav on selection only for overlay mode
+    if (effectiveNavigationMode === 'overlay') {
+      setIsNavExpanded(false);
+    }
+  }, [navigate, currentSessionId, chatContext?.chat?.sessionId, effectiveNavigationMode, setIsNavExpanded]);
 
   // New chat handler - matches original AppSidebar implementation
   // If there's already an empty session, resume it; otherwise create a new one
@@ -238,13 +241,19 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
         }, 1000);
       }
     }
-    // Don't close nav on selection - only close via toggle button
-  }, [setView]);
+    // Close nav on selection only for overlay mode
+    if (effectiveNavigationMode === 'overlay') {
+      setIsNavExpanded(false);
+    }
+  }, [setView, effectiveNavigationMode, setIsNavExpanded]);
 
   const handleSessionClick = useCallback((sessionId: string) => {
     navigate(`/pair?resumeSessionId=${sessionId}`);
-    // Don't close nav on selection - only close via toggle button
-  }, [navigate]);
+    // Close nav on selection only for overlay mode
+    if (effectiveNavigationMode === 'overlay') {
+      setIsNavExpanded(false);
+    }
+  }, [navigate, effectiveNavigationMode, setIsNavExpanded]);
 
   const toggleExpanded = (itemId: string) => {
     setExpandedItems(prev => {
