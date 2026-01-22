@@ -59,6 +59,7 @@ impl CodeExecutionClient {
                     1. Use the list_functions and get_function_details tools to discover tools and signatures
                     2. Write ONE script that imports and calls ALL tools needed for the task
                     3. Chain results: use output from one tool as input to the next
+                    4. Only return and console.log data you need, tools could have very large responses.
             "#}.to_string()),
         };
 
@@ -288,10 +289,11 @@ impl McpClientTrait for CodeExecutionClient {
                     "list_functions".to_string(),
                     indoc! {r#"
                         List all available functions across all namespaces.
-
-                        Returns TypeScript interface definitions showing all available functions
-                        with their signatures. Use this to discover what functions are available
-                        before calling get_function_details or execute.
+                        
+                        This will not return function input and output types.
+                        After determining which functions are needed use
+                        get_function_details to get input and output type 
+                        information about specific functions.
                     "#}
                     .to_string(),
                     empty_schema,
@@ -343,7 +345,18 @@ impl McpClientTrait for CodeExecutionClient {
                         - Code MUST define an async function named `run()`
                         - All function calls are async - use `await`
                         - Access functions as Namespace.functionName() (e.g., Developer.shell, Github.create_issue)
-                        - Return value from run() is the result
+                        - Return value from `run()` is the result, all `console.log()` output will be returned as well.
+                        - Only functions from `list_functions()` are available - no `fetch()`, fs, or other Node/Deno APIs
+                        - Variables don't persist between `execute()` calls - return or log anything you need later
+                        - Add console.log() statements between API calls to track progress if errors occur
+                        - Code runs in an isolated Deno sandbox with restricted network access
+
+                        TOKEN USAGE WARNING: This tool could return LARGE responses if your code returns big objects.
+                        To minimize tokens:
+                        - Filter/map/reduce data IN YOUR CODE before returning
+                        - Only return specific fields you need (e.g., return {id: result.id, count: items.length})
+                        - Use console.log() for intermediate results instead of returning everything
+                        - Avoid returning full API responses - extract just what you need
 
                         BEFORE CALLING: Use list_functions or get_function_details to check available functions and their parameters.
                     "#}
@@ -400,7 +413,7 @@ impl McpClientTrait for CodeExecutionClient {
 
         Some(format!(
             indoc::indoc! {r#"
-                ALWAYS batch multiple tool operations into ONE execute_code call.
+                ALWAYS batch multiple tool operations into ONE execute call.
                 - WRONG: Separate execute calls for read file, then write file
                 - RIGHT: One execute with an async run() function that reads AND writes
 
