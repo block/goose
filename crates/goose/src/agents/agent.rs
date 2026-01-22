@@ -1344,8 +1344,6 @@ impl Agent {
                                                 }
                                             }
 
-                                            // Small timeout to periodically check for elicitation messages
-                                            // when tools are blocked waiting for user input
                                             _ = tokio::time::sleep(std::time::Duration::from_millis(100)) => {
                                                 // Continue loop to drain elicitation messages
                                             }
