@@ -413,8 +413,8 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
         style={{
           // Use CSS grid with auto-fill for responsive tiles based on container width
           gridTemplateColumns: isOverlayMode
-            // For overlay mode (including responsive small screen): fixed 2 columns
-            ? 'repeat(2, 1fr)'
+            // For overlay mode: responsive - single row on larger screens, wraps to 2 rows on smaller
+            ? 'repeat(auto-fit, minmax(120px, 1fr))'
             : (navigationPosition === 'left' || navigationPosition === 'right')
               // For left/right: larger min size (140px) to trigger single column sooner
               ? 'repeat(auto-fill, minmax(140px, 1fr))'
