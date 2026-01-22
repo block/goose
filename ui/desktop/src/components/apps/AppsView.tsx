@@ -225,9 +225,14 @@ export default function AppsView() {
                 Import App
               </Button>
             </div>
-            <p className="text-sm text-text-muted mb-4">
-              Applications from your MCP servers that can run in standalone windows.
-            </p>
+            <div className="mb-4">
+              <p className="text-sm text-text-muted mb-2">
+                Applications from your MCP servers that can run in standalone windows.
+              </p>
+              <p className="text-xs text-amber-600 dark:text-amber-500">
+                ⚠️ Experimental feature - may change or be removed at any time
+              </p>
+            </div>
           </div>
         </div>
 
