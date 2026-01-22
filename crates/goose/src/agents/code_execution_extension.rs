@@ -390,31 +390,25 @@ impl McpClientTrait for CodeExecutionClient {
     }
 
     async fn get_moim(&self, _session_id: &str) -> Option<String> {
-        // TODO
-        None
-        // let tools = self.get_tool_infos().await;
-        // if tools.is_empty() {
-        //     return None;
-        // }
+        let code_mode = self.build_code_mode().await.ok()?;
+        let available: Vec<_> = code_mode
+            .list_functions()
+            .functions
+            .iter()
+            .map(|f| format!("{}.{}", &f.namespace, &f.name))
+            .collect();
 
-        // let mut servers: BTreeSet<&str> = BTreeSet::new();
-        // for tool in &tools {
-        //     servers.insert(&tool.server_name);
-        // }
+        Some(format!(
+            indoc::indoc! {r#"
+                ALWAYS batch multiple tool operations into ONE execute_code call.
+                - WRONG: Separate execute calls for read file, then write file
+                - RIGHT: One execute with an async run() function that reads AND writes
 
-        // let server_list: Vec<_> = servers.into_iter().map(capitalize).collect();
+                Available namespaces: {}
 
-        // Some(format!(
-        //     indoc::indoc! {r#"
-        //         ALWAYS batch multiple tool operations into ONE execute_code call.
-        //         - WRONG: Separate execute_code calls for read file, then write file
-        //         - RIGHT: One execute_code with an async run() function that reads AND writes
-
-        //         Available namespaces: {}
-
-        //         Use the read_module tool to see tool signatures before calling unfamiliar tools.
-        //     "#},
-        //     server_list.join(", ")
-        // ))
+                Use the list_functions & get_function_details tools to see tool signatures and input/output types before calling unfamiliar tools.
+            "#},
+            available.join(", ")
+        ))
     }
 }
