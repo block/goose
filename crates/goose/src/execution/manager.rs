@@ -172,14 +172,9 @@ mod tests {
     async fn create_test_manager(temp_dir: &TempDir) -> AgentManager {
         let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
         let schedule_path = temp_dir.path().join("schedule.json");
-        AgentManager::new(
-            session_manager,
-            schedule_path,
-            Some(100),
-            HashMap::new(),
-        )
-        .await
-        .unwrap()
+        AgentManager::new(session_manager, schedule_path, Some(100), HashMap::new())
+            .await
+            .unwrap()
     }
 
     #[test]

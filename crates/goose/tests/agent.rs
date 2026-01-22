@@ -18,10 +18,10 @@ mod tests {
         use goose::agents::AgentConfig;
         use goose::config::permission::PermissionManager;
         use goose::config::GooseMode;
-        use std::collections::HashMap;
         use goose::scheduler::{ScheduledJob, SchedulerError};
         use goose::scheduler_trait::SchedulerTrait;
         use goose::session::{Session, SessionManager};
+        use std::collections::HashMap;
         use std::path::PathBuf;
         use std::sync::Arc;
         use tempfile::TempDir;
@@ -499,6 +499,7 @@ mod tests {
         use goose::config::permission::PermissionManager;
         use goose::config::GooseMode;
         use goose::session::SessionManager;
+        use std::collections::HashMap;
 
         async fn setup_agent_with_extension_manager() -> Agent {
             // Add the TODO extension to the config so it can be discovered by search_available_extensions

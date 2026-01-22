@@ -463,11 +463,7 @@ impl ExtensionManager {
     #[cfg(test)]
     pub fn new_without_provider(data_dir: std::path::PathBuf) -> Self {
         let session_manager = Arc::new(crate::session::SessionManager::new(data_dir));
-        Self::new(
-            Arc::new(Mutex::new(None)),
-            session_manager,
-            HashMap::new(),
-        )
+        Self::new(Arc::new(Mutex::new(None)), session_manager, HashMap::new())
     }
 
     pub fn get_context(&self) -> &PlatformExtensionContext {
