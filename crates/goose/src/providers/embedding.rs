@@ -20,5 +20,9 @@ pub struct EmbeddingData {
 
 #[async_trait]
 pub trait EmbeddingCapable {
-    async fn create_embeddings(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>>;
+    async fn create_embeddings(
+        &self,
+        session_id: &str,
+        texts: Vec<String>,
+    ) -> Result<Vec<Vec<f32>>>;
 }

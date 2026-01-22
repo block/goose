@@ -119,11 +119,16 @@ export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps)
                 });
               });
             }
+            // Add custom model option for all non-Custom providers
+            if (p.provider_type !== 'Custom') {
+              options.push({
+                value: `__custom__:${p.name}`,
+                label: 'Enter a model not listed...',
+                provider: p.name,
+              });
+            }
           });
         }
-
-        // Append a simple "custom" option to enable free-text entry
-        options.push({ value: '__custom__', label: 'Use custom model…', provider: '' });
 
         setModelOptions(options);
       } catch (error) {
@@ -241,9 +246,10 @@ export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps)
                   onChange={(newValue: unknown) => {
                     const option = newValue as { value: string; provider: string } | null;
                     if (option) {
-                      if (option.value === '__custom__') {
+                      if (option.value.startsWith('__custom__')) {
                         setIsLeadCustomModel(true);
                         setLeadModel('');
+                        setLeadProvider(option.provider);
                         return;
                       }
                       setLeadModel(option.value);
@@ -294,9 +300,10 @@ export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps)
                   onChange={(newValue: unknown) => {
                     const option = newValue as { value: string; provider: string } | null;
                     if (option) {
-                      if (option.value === '__custom__') {
+                      if (option.value.startsWith('__custom__')) {
                         setIsWorkerCustomModel(true);
                         setWorkerModel('');
+                        setWorkerProvider(option.provider);
                         return;
                       }
                       setWorkerModel(option.value);

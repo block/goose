@@ -29,6 +29,7 @@ mod tetrate_streaming_tests {
 
         let mut stream = provider
             .stream(
+                "test-session-id",
                 "You are a helpful assistant that counts numbers.",
                 &messages,
                 &[],
@@ -100,6 +101,7 @@ mod tetrate_streaming_tests {
 
         let mut stream = provider
             .stream(
+                "test-session-id",
                 "You are a helpful assistant with access to weather information.",
                 &messages,
                 &[weather_tool],
@@ -146,7 +148,12 @@ mod tetrate_streaming_tests {
         let messages = vec![Message::user().with_text("")];
 
         let mut stream = provider
-            .stream("You are a helpful assistant.", &messages, &[])
+            .stream(
+                "test-session-id",
+                "You are a helpful assistant.",
+                &messages,
+                &[],
+            )
             .await?;
 
         let mut chunk_count = 0;
@@ -177,6 +184,7 @@ mod tetrate_streaming_tests {
 
         let mut stream = provider
             .stream(
+                "test-session-id",
                 "You are a helpful assistant that writes detailed essays.",
                 &messages,
                 &[],
@@ -235,7 +243,12 @@ mod tetrate_streaming_tests {
         let messages = vec![Message::user().with_text("Hello")];
 
         let result = provider
-            .stream("You are a helpful assistant.", &messages, &[])
+            .stream(
+                "test-session-id",
+                "You are a helpful assistant.",
+                &messages,
+                &[],
+            )
             .await;
 
         // We expect this to fail with an authentication error
@@ -258,11 +271,21 @@ mod tetrate_streaming_tests {
         let messages2 = vec![Message::user().with_text("Say 'Stream 2'")];
 
         let stream1 = provider
-            .stream("You are a helpful assistant.", &messages1, &[])
+            .stream(
+                "test-session-id",
+                "You are a helpful assistant.",
+                &messages1,
+                &[],
+            )
             .await?;
 
         let stream2 = provider
-            .stream("You are a helpful assistant.", &messages2, &[])
+            .stream(
+                "test-session-id",
+                "You are a helpful assistant.",
+                &messages2,
+                &[],
+            )
             .await?;
 
         // Process both streams concurrently

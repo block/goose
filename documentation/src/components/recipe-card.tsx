@@ -81,9 +81,9 @@ export function RecipeCard({ recipe }: { recipe: Recipe }) {
               );
             })}
 
-            {recipe.activities?.length > 0 && (
+            {recipe.activities?.filter(a => !a.startsWith('message:')).length > 0 && (
               <div className="border-t border-zinc-200 dark:border-zinc-700 pt-2 mt-2 flex flex-wrap gap-2">
-                {recipe.activities.map((activity, index) => (
+                {recipe.activities.filter(a => !a.startsWith('message:')).map((activity, index) => (
                   <span
                     key={index}
                     className="inline-flex items-center h-7 px-3 rounded-full border border-zinc-300 bg-zinc-100 text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 text-xs font-medium"

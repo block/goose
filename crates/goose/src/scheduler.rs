@@ -794,13 +794,9 @@ async fn execute_job(
         retry_config: None,
     };
 
-    let session_id = session_config.id.clone();
-    let stream = crate::session_context::with_session_id(Some(session_id.clone()), async {
-        agent
-            .reply(user_message, session_config, Some(cancel_token))
-            .await
-    })
-    .await?;
+    let stream = agent
+        .reply(user_message, session_config, Some(cancel_token))
+        .await?;
 
     use futures::StreamExt;
     let mut stream = std::pin::pin!(stream);

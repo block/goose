@@ -4,6 +4,7 @@ use goose::conversation::message::Message;
 use goose::providers::databricks::DATABRICKS_DEFAULT_MODEL;
 use goose::providers::{base::Usage, create_with_named_model};
 use tokio_stream::StreamExt;
+use uuid::Uuid;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -19,8 +20,9 @@ async fn main() -> Result<()> {
     let message = Message::user().with_text("Tell me a short joke about programming.");
 
     // Get a response
+    let session_id = Uuid::new_v4().to_string();
     let mut stream = provider
-        .stream("You are a helpful assistant.", &[message], &[])
+        .stream(&session_id, "You are a helpful assistant.", &[message], &[])
         .await?;
 
     println!("\nResponse from AI:");

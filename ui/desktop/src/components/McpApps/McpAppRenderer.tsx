@@ -1,3 +1,4 @@
+import { AppEvents } from '../../constants/events';
 /**
  * MCP Apps Renderer
  *
@@ -142,7 +143,7 @@ export default function McpAppRenderer({
           // MCP Apps can send other content block types, but we only append text blocks for now
 
           append(textContent.text);
-          window.dispatchEvent(new CustomEvent('scroll-chat-to-bottom'));
+          window.dispatchEvent(new CustomEvent(AppEvents.SCROLL_CHAT_TO_BOTTOM));
           return {} satisfies McpMethodResponse['ui/message'];
         }
 

@@ -264,6 +264,7 @@ impl Provider for GeminiCliProvider {
     )]
     async fn complete_with_model(
         &self,
+        session_id: &str,
         _model_config: &ModelConfig,
         system: &str,
         messages: &[Message],

@@ -18,7 +18,7 @@ use goose::agents::ExtensionConfig;
 use goose::config::resolve_extensions_for_new_session;
 use goose::config::{Config, GooseMode};
 use goose::model::ModelConfig;
-use goose::prompt_template::render_global_file;
+use goose::prompt_template::render_template;
 use goose::providers::create;
 use goose::recipe::Recipe;
 use goose::recipe_deeplink;
@@ -34,7 +34,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, warn};
@@ -209,8 +208,7 @@ async fn start_agent(
         }
     }
 
-    let counter = state.session_counter.fetch_add(1, Ordering::SeqCst) + 1;
-    let name = format!("New session {}", counter);
+    let name = "New Chat".to_string();
 
     let manager = state.session_manager();
 
@@ -418,7 +416,7 @@ async fn update_from_session(
         })?;
     let context: HashMap<&str, Value> = HashMap::new();
     let desktop_prompt =
-        render_global_file("desktop_prompt.md", &context).expect("Prompt should render");
+        render_template("desktop_prompt.md", &context).expect("Prompt should render");
     let mut update_prompt = desktop_prompt;
     if let Some(recipe) = session.recipe {
         match build_recipe_with_parameter_values(
@@ -691,7 +689,7 @@ async fn restart_agent_internal(
 
     let context: HashMap<&str, Value> = HashMap::new();
     let desktop_prompt =
-        render_global_file("desktop_prompt.md", &context).expect("Prompt should render");
+        render_template("desktop_prompt.md", &context).expect("Prompt should render");
     let mut update_prompt = desktop_prompt;
 
     if let Some(ref recipe) = session.recipe {
@@ -848,6 +846,7 @@ async fn read_resource(
     let read_result = agent
         .extension_manager
         .read_resource(
+            &payload.session_id,
             &payload.uri,
             &payload.extension_name,
             CancellationToken::default(),
@@ -986,14 +985,14 @@ async fn list_apps(
     };
 
     let agent = state
-        .get_agent_for_route(session_id)
+        .get_agent_for_route(session_id.clone())
         .await
         .map_err(|status| ErrorResponse {
             message: "Failed to get agent".to_string(),
             status,
         })?;
 
-    let apps = fetch_mcp_apps(&agent.extension_manager)
+    let apps = fetch_mcp_apps(&agent.extension_manager, &session_id)
         .await
         .map_err(|e| ErrorResponse {
             message: format!("Failed to list apps: {}", e.message),

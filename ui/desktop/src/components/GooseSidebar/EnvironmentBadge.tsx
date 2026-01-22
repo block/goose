@@ -1,7 +1,11 @@
 import React from 'react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/Tooltip';
 
-const EnvironmentBadge: React.FC = () => {
+interface EnvironmentBadgeProps {
+  className?: string;
+}
+
+const EnvironmentBadge: React.FC<EnvironmentBadgeProps> = ({ className = '' }) => {
   const isAlpha = process.env.ALPHA;
   const isDevelopment = import.meta.env.DEV;
 
@@ -17,7 +21,7 @@ const EnvironmentBadge: React.FC = () => {
     <Tooltip>
       <TooltipTrigger asChild>
         <div
-          className={`${bgColor} w-3 h-3 rounded-full cursor-default`}
+          className={`${bgColor} w-2 h-2 rounded-full cursor-default ${className}`}
           data-testid="environment-badge"
           aria-label={tooltipText}
         />

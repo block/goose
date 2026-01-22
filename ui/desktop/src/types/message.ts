@@ -73,6 +73,39 @@ export function getToolConfirmationContent(
   );
 }
 
+export function getToolConfirmationId(
+  content: ActionRequired & { type: 'actionRequired' }
+): string | undefined {
+  if (content.data.actionType === 'toolConfirmation') {
+    return content.data.id;
+  }
+  return undefined;
+}
+
+export function getPendingToolConfirmationIds(messages: Message[]): Set<string> {
+  const pendingIds = new Set<string>();
+  const respondedIds = new Set<string>();
+
+  for (const message of messages) {
+    const responses = getToolResponses(message);
+    for (const response of responses) {
+      respondedIds.add(response.id);
+    }
+  }
+
+  for (const message of messages) {
+    const confirmation = getToolConfirmationContent(message);
+    if (confirmation) {
+      const confirmationId = getToolConfirmationId(confirmation);
+      if (confirmationId && !respondedIds.has(confirmationId)) {
+        pendingIds.add(confirmationId);
+      }
+    }
+  }
+
+  return pendingIds;
+}
+
 export function getElicitationContent(
   message: Message
 ): (ActionRequired & { type: 'actionRequired' }) | undefined {

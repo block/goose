@@ -1,5 +1,5 @@
 use crate::agents::extension::PlatformExtensionContext;
-use crate::agents::mcp_client::{Error, McpClientTrait, McpMeta};
+use crate::agents::mcp_client::{Error, McpClientTrait};
 use crate::session::extension_data;
 use crate::session::extension_data::ExtensionState;
 use anyhow::Result;
@@ -158,6 +158,7 @@ impl TodoClient {
 impl McpClientTrait for TodoClient {
     async fn list_tools(
         &self,
+        _session_id: &str,
         _next_cursor: Option<String>,
         _cancellation_token: CancellationToken,
     ) -> Result<ListToolsResult, Error> {
@@ -170,12 +171,11 @@ impl McpClientTrait for TodoClient {
 
     async fn call_tool(
         &self,
+        session_id: &str,
         name: &str,
         arguments: Option<JsonObject>,
-        meta: McpMeta,
         _cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
-        let session_id = &meta.session_id;
         let content = match name {
             "todo_write" => self.handle_write_todo(session_id, arguments).await,
             _ => Err(format!("Unknown tool: {}", name)),

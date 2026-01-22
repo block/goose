@@ -121,6 +121,7 @@ impl Provider for TestProvider {
 
     async fn complete_with_model(
         &self,
+        session_id: &str,
         _model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -129,7 +130,7 @@ impl Provider for TestProvider {
         let hash = Self::hash_input(messages);
 
         if let Some(inner) = &self.inner {
-            let (message, usage) = inner.complete(system, messages, tools).await?;
+            let (message, usage) = inner.complete(session_id, system, messages, tools).await?;
 
             let record = TestRecord {
                 input: TestInput {
@@ -202,6 +203,7 @@ mod tests {
 
         async fn complete_with_model(
             &self,
+            _session_id: &str,
             _model_config: &ModelConfig,
             _system: &str,
             _messages: &[Message],
@@ -244,7 +246,9 @@ mod tests {
         {
             let test_provider = TestProvider::new_recording(mock, &temp_file);
 
-            let result = test_provider.complete("You are helpful", &[], &[]).await;
+            let result = test_provider
+                .complete("test-session-id", "You are helpful", &[], &[])
+                .await;
 
             assert!(result.is_ok());
             let (message, _) = result.unwrap();
@@ -260,7 +264,9 @@ mod tests {
         {
             let replay_provider = TestProvider::new_replaying(&temp_file).unwrap();
 
-            let result = replay_provider.complete("You are helpful", &[], &[]).await;
+            let result = replay_provider
+                .complete("test-session-id", "You are helpful", &[], &[])
+                .await;
 
             assert!(result.is_ok());
             let (message, _) = result.unwrap();
@@ -284,7 +290,7 @@ mod tests {
         let replay_provider = TestProvider::new_replaying(&temp_file).unwrap();
 
         let result = replay_provider
-            .complete("Different system prompt", &[], &[])
+            .complete("test-session-id", "Different system prompt", &[], &[])
             .await;
 
         assert!(result.is_err());

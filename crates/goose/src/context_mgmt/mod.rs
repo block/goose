@@ -1,7 +1,7 @@
 use crate::conversation::message::{ActionRequiredData, MessageMetadata};
 use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::{merge_consecutive_messages, Conversation};
-use crate::prompt_template::render_global_file;
+use crate::prompt_template::render_template;
 use crate::providers::base::{Provider, ProviderUsage};
 use crate::providers::errors::ProviderError;
 use crate::{config::Config, token_counter::create_token_counter};
@@ -40,6 +40,7 @@ struct SummarizeContext {
 ///
 /// # Arguments
 /// * `provider` - The provider to use for summarization
+/// * `session_id` - The session to use for summarization
 /// * `conversation` - The current conversation history
 /// * `manual_compact` - If true, this is a manual compaction (don't preserve user message)
 ///
@@ -49,6 +50,7 @@ struct SummarizeContext {
 ///   - `ProviderUsage`: Provider usage from summarization
 pub async fn compact_messages(
     provider: &dyn Provider,
+    session_id: &str,
     conversation: &Conversation,
     manual_compact: bool,
 ) -> Result<(Conversation, ProviderUsage)> {
@@ -110,7 +112,8 @@ pub async fn compact_messages(
 
     let messages_to_compact = messages.as_slice();
 
-    let (summary_message, summarization_usage) = do_compact(provider, messages_to_compact).await?;
+    let (summary_message, summarization_usage) =
+        do_compact(provider, session_id, messages_to_compact).await?;
 
     // Create the final message list with updated visibility metadata:
     // 1. Original messages become user_visible but not agent_visible
@@ -271,6 +274,7 @@ fn filter_tool_responses<'a>(messages: &[&'a Message], remove_percent: u32) -> V
 
 async fn do_compact(
     provider: &dyn Provider,
+    session_id: &str,
     messages: &[Message],
 ) -> Result<(Message, ProviderUsage), anyhow::Error> {
     let agent_visible_messages: Vec<&Message> = messages
@@ -294,14 +298,14 @@ async fn do_compact(
             messages: messages_text,
         };
 
-        let system_prompt = render_global_file("summarize_oneshot.md", &context)?;
+        let system_prompt = render_template("compaction.md", &context)?;
 
         let user_message = Message::user()
             .with_text("Please summarize the conversation history provided in the system prompt.");
         let summarization_request = vec![user_message];
 
         match provider
-            .complete_fast(&system_prompt, &summarization_request, &[])
+            .complete_fast(session_id, &system_prompt, &summarization_request, &[])
             .await
         {
             Ok((mut response, mut provider_usage)) => {
@@ -468,6 +472,7 @@ mod tests {
 
         async fn complete_with_model(
             &self,
+            _session_id: &str,
             _model_config: &ModelConfig,
             _system: &str,
             messages: &[Message],
@@ -529,9 +534,10 @@ mod tests {
         ];
 
         let conversation = Conversation::new_unvalidated(basic_conversation);
-        let (compacted_conversation, _usage) = compact_messages(&provider, &conversation, false)
-            .await
-            .unwrap();
+        let (compacted_conversation, _usage) =
+            compact_messages(&provider, "test-session-id", &conversation, false)
+                .await
+                .unwrap();
 
         let agent_conversation = compacted_conversation.agent_visible_messages();
 
@@ -568,7 +574,7 @@ mod tests {
         }
 
         let conversation = Conversation::new_unvalidated(messages);
-        let result = compact_messages(&provider, &conversation, false).await;
+        let result = compact_messages(&provider, "test-session-id", &conversation, false).await;
 
         // Should succeed after progressive removal
         assert!(

@@ -3,7 +3,6 @@ use goose::model::ModelConfig;
 use goose::providers::api_client::{ApiClient, AuthMethod};
 use goose::providers::base::Provider;
 use goose::providers::openai::OpenAiProvider;
-use goose::session_context;
 use goose::session_context::SESSION_ID_HEADER;
 use serde_json::json;
 use std::sync::Arc;
@@ -81,30 +80,19 @@ async fn setup_mock_server() -> (MockServer, HeaderCapture, Box<dyn Provider>) {
     (mock_server, capture, provider)
 }
 
-async fn make_request(provider: &dyn Provider, session_id: Option<&str>) {
+async fn make_request(provider: &dyn Provider, session_id: &str) {
     let message = Message::user().with_text("test message");
-    let request_fn = async {
-        provider
-            .complete("You are a helpful assistant.", &[message], &[])
-            .await
-            .unwrap()
-    };
-
-    match session_id {
-        Some(id) => {
-            session_context::with_session_id(Some(id.to_string()), request_fn).await;
-        }
-        None => {
-            request_fn.await;
-        }
-    }
+    let _ = provider
+        .complete(session_id, "You are a helpful assistant.", &[message], &[])
+        .await
+        .unwrap();
 }
 
 #[tokio::test]
 async fn test_session_id_propagation_to_llm() {
     let (_, capture, provider) = setup_mock_server().await;
 
-    make_request(provider.as_ref(), Some("integration-test-session-123")).await;
+    make_request(provider.as_ref(), "integration-test-session-123").await;
 
     assert_eq!(
         capture.get_captured(),
@@ -113,26 +101,29 @@ async fn test_session_id_propagation_to_llm() {
 }
 
 #[tokio::test]
-async fn test_no_session_id_when_absent() {
+async fn test_session_id_always_present() {
     let (_, capture, provider) = setup_mock_server().await;
 
-    make_request(provider.as_ref(), None).await;
+    make_request(provider.as_ref(), "test-session-id").await;
 
-    assert_eq!(capture.get_captured(), vec![None]);
+    assert_eq!(
+        capture.get_captured(),
+        vec![Some("test-session-id".to_string())]
+    );
 }
 
 #[tokio::test]
 async fn test_session_id_matches_across_calls() {
     let (_, capture, provider) = setup_mock_server().await;
 
-    let test_session_id = "consistent-session-456";
-    make_request(provider.as_ref(), Some(test_session_id)).await;
-    make_request(provider.as_ref(), Some(test_session_id)).await;
-    make_request(provider.as_ref(), Some(test_session_id)).await;
+    let session_id = "consistent-session-456";
+    make_request(provider.as_ref(), session_id).await;
+    make_request(provider.as_ref(), session_id).await;
+    make_request(provider.as_ref(), session_id).await;
 
     assert_eq!(
         capture.get_captured(),
-        vec![Some(test_session_id.to_string()); 3]
+        vec![Some(session_id.to_string()); 3]
     );
 }
 
@@ -142,8 +133,8 @@ async fn test_different_sessions_have_different_ids() {
 
     let session_id_1 = "session-one";
     let session_id_2 = "session-two";
-    make_request(provider.as_ref(), Some(session_id_1)).await;
-    make_request(provider.as_ref(), Some(session_id_2)).await;
+    make_request(provider.as_ref(), session_id_1).await;
+    make_request(provider.as_ref(), session_id_2).await;
 
     assert_eq!(
         capture.get_captured(),
