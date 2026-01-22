@@ -1141,6 +1141,7 @@ export default function ChatInput({
         // Check if we're at the image limit
         if (pastedImages.length >= MAX_IMAGES_PER_MESSAGE) {
           console.warn(`Maximum ${MAX_IMAGES_PER_MESSAGE} images per message`);
+          toastError(`You can only attach up to ${MAX_IMAGES_PER_MESSAGE} images per message.`);
           return;
         }
 
