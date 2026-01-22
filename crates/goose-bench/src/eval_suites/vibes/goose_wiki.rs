@@ -128,7 +128,7 @@ impl Evaluation for GooseWiki {
         ExtensionRequirements {
             builtin: vec!["developer".to_string()],
             external: Vec::new(),
-            remote: Vec::new(),
+            streamable_http: Vec::new(),
         }
     }
 }

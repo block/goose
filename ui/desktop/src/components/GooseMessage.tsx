@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import ImagePreview from './ImagePreview';
 import { extractImagePaths, removeImagePathsFromText } from '../utils/imageUtils';
 import { formatMessageTimestamp } from '../utils/timeUtils';
@@ -10,9 +10,10 @@ import {
   getToolResponses,
   getToolConfirmationContent,
   getElicitationContent,
+  getPendingToolConfirmationIds,
   NotificationEvent,
 } from '../types/message';
-import { Message, confirmToolAction } from '../api';
+import { Message } from '../api';
 import ToolCallConfirmation from './ToolCallConfirmation';
 import ElicitationRequest from './ElicitationRequest';
 import MessageCopyLink from './MessageCopyLink';
@@ -20,10 +21,7 @@ import { cn } from '../utils';
 import { identifyConsecutiveToolCalls, shouldHideTimestamp } from '../utils/toolCallChaining';
 
 interface GooseMessageProps {
-  // messages up to this index are presumed to be "history" from a resumed session, this is used to track older tool confirmation requests
-  // anything before this index should not render any buttons, but anything after should
   sessionId: string;
-  messageHistoryIndex: number;
   message: Message;
   messages: Message[];
   metadata?: string[];
@@ -38,7 +36,6 @@ interface GooseMessageProps {
 
 export default function GooseMessage({
   sessionId,
-  messageHistoryIndex,
   message,
   messages,
   toolCallNotifications,
@@ -47,7 +44,6 @@ export default function GooseMessage({
   submitElicitationResponse,
 }: GooseMessageProps) {
   const contentRef = useRef<HTMLDivElement | null>(null);
-  const handledToolConfirmations = useRef<Set<string>>(new Set());
 
   let textContent = getTextContent(message);
 
@@ -104,49 +100,7 @@ export default function GooseMessage({
     return responseMap;
   }, [messages, messageIndex, toolRequests]);
 
-  useEffect(() => {
-    if (
-      messageIndex === messageHistoryIndex - 1 &&
-      hasToolConfirmation &&
-      toolConfirmationContent &&
-      !handledToolConfirmations.current.has(toolConfirmationContent.data.id)
-    ) {
-      const hasExistingResponse = messages.some((msg) =>
-        getToolResponses(msg).some((response) => response.id === toolConfirmationContent.data.id)
-      );
-
-      if (!hasExistingResponse) {
-        handledToolConfirmations.current.add(toolConfirmationContent.data.id);
-
-        void (async () => {
-          try {
-            await confirmToolAction({
-              body: {
-                sessionId,
-                action: 'deny',
-                id: toolConfirmationContent.data.id,
-              },
-              throwOnError: true,
-            });
-          } catch (error) {
-            console.error('Failed to send tool cancellation to backend:', error);
-            const { toastError } = await import('../toasts');
-            toastError({
-              title: 'Failed to cancel tool',
-              msg: 'The agent may be waiting for a response. Please try restarting the session.',
-            });
-          }
-        })();
-      }
-    }
-  }, [
-    messageIndex,
-    messageHistoryIndex,
-    hasToolConfirmation,
-    toolConfirmationContent,
-    messages,
-    sessionId,
-  ]);
+  const pendingConfirmationIds = getPendingToolConfirmationIds(messages);
 
   return (
     <div className="goose-message flex w-[90%] justify-start min-w-0">
@@ -200,14 +154,13 @@ export default function GooseMessage({
                 {toolRequests.map((toolRequest) => (
                   <div className="goose-message-tool" key={toolRequest.id}>
                     <ToolCallWithResponse
-                      isCancelledMessage={
-                        messageIndex < messageHistoryIndex &&
-                        toolResponsesMap.get(toolRequest.id) == undefined
-                      }
+                      sessionId={sessionId}
+                      isCancelledMessage={false}
                       toolRequest={toolRequest}
                       toolResponse={toolResponsesMap.get(toolRequest.id)}
                       notifications={toolCallNotifications.get(toolRequest.id)}
                       isStreamingMessage={isStreaming}
+                      isPendingApproval={pendingConfirmationIds.has(toolRequest.id)}
                       append={append}
                     />
                   </div>
@@ -223,16 +176,16 @@ export default function GooseMessage({
         {hasToolConfirmation && (
           <ToolCallConfirmation
             sessionId={sessionId}
-            isCancelledMessage={messageIndex == messageHistoryIndex - 1}
-            isClicked={messageIndex < messageHistoryIndex}
+            isCancelledMessage={false}
+            isClicked={false}
             actionRequiredContent={toolConfirmationContent}
           />
         )}
 
         {hasElicitation && submitElicitationResponse && (
           <ElicitationRequest
-            isCancelledMessage={messageIndex == messageHistoryIndex - 1}
-            isClicked={messageIndex < messageHistoryIndex}
+            isCancelledMessage={false}
+            isClicked={false}
             actionRequiredContent={elicitationContent}
             onSubmit={submitElicitationResponse}
           />

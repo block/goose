@@ -272,6 +272,7 @@ impl Client {
                 recipe,
                 recipe_id: None,
                 recipe_deeplink: None,
+                extension_overrides: None,
             })
             .send()
             .await
@@ -300,6 +301,8 @@ impl Client {
                 provider,
                 model,
                 session_id: session_id.to_string(),
+                context_limit: None,
+                request_params: None,
             })
             .send_empty()
             .await

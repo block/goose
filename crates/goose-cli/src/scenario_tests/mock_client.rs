@@ -44,12 +44,14 @@ impl MockClient {
 impl McpClientTrait for MockClient {
     async fn list_resources(
         &self,
+        _session_id: &str,
         _next_cursor: Option<String>,
         _cancel_token: CancellationToken,
     ) -> Result<ListResourcesResult, Error> {
         Ok(ListResourcesResult {
             resources: vec![],
             next_cursor: None,
+            meta: None,
         })
     }
 
@@ -59,6 +61,7 @@ impl McpClientTrait for MockClient {
 
     async fn read_resource(
         &self,
+        _session_id: &str,
         _uri: &str,
         _cancel_token: CancellationToken,
     ) -> Result<ReadResourceResult, Error> {
@@ -67,6 +70,7 @@ impl McpClientTrait for MockClient {
 
     async fn list_tools(
         &self,
+        _session_id: &str,
         _: Option<String>,
         _cancel_token: CancellationToken,
     ) -> Result<ListToolsResult, Error> {
@@ -85,11 +89,13 @@ impl McpClientTrait for MockClient {
         Ok(ListToolsResult {
             tools: rmcp_tools,
             next_cursor: None,
+            meta: None,
         })
     }
 
     async fn call_tool(
         &self,
+        _session_id: &str,
         name: &str,
         arguments: Option<serde_json::Map<String, Value>>,
         _cancel_token: CancellationToken,
@@ -111,17 +117,20 @@ impl McpClientTrait for MockClient {
 
     async fn list_prompts(
         &self,
+        _session_id: &str,
         _next_cursor: Option<String>,
         _cancel_token: CancellationToken,
     ) -> Result<ListPromptsResult, Error> {
         Ok(ListPromptsResult {
             prompts: vec![],
             next_cursor: None,
+            meta: None,
         })
     }
 
     async fn get_prompt(
         &self,
+        _session_id: &str,
         _name: &str,
         _arguments: Value,
         _cancel_token: CancellationToken,

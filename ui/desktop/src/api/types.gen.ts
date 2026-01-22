@@ -53,6 +53,7 @@ export type CallToolRequest = {
 };
 
 export type CallToolResponse = {
+    _meta?: unknown;
     content: Array<Content>;
     is_error: boolean;
     structured_content?: unknown;
@@ -137,6 +138,21 @@ export type CreateScheduleRequest = {
     recipe_source: string;
 };
 
+/**
+ * Content Security Policy metadata for MCP Apps
+ * Specifies allowed domains for network connections and resource loading
+ */
+export type CspMetadata = {
+    /**
+     * Domains allowed for connect-src (fetch, XHR, WebSocket)
+     */
+    connectDomains?: Array<string> | null;
+    /**
+     * Domains allowed for resource loading (scripts, styles, images, fonts, media)
+     */
+    resourceDomains?: Array<string> | null;
+};
+
 export type DeclarativeProviderConfig = {
     api_key_env: string;
     base_url: string;
@@ -214,18 +230,10 @@ export type ErrorResponse = {
  * Represents the different types of MCP extensions that can be added to the manager
  */
 export type ExtensionConfig = {
-    available_tools?: Array<string>;
-    bundled?: boolean | null;
     description: string;
-    env_keys?: Array<string>;
-    envs?: Envs;
-    /**
-     * The name used to identify this extension
-     */
     name: string;
-    timeout?: number | null;
     type: 'sse';
-    uri: string;
+    uri?: string | null;
 } | {
     args: Array<string>;
     available_tools?: Array<string>;
@@ -327,6 +335,12 @@ export type ExtensionEntry = ExtensionConfig & {
     enabled: boolean;
 };
 
+export type ExtensionLoadResult = {
+    error?: string | null;
+    name: string;
+    success: boolean;
+};
+
 export type ExtensionQuery = {
     config: ExtensionConfig;
     enabled: boolean;
@@ -335,6 +349,7 @@ export type ExtensionQuery = {
 
 export type ExtensionResponse = {
     extensions: Array<ExtensionEntry>;
+    warnings?: Array<string>;
 };
 
 export type FrontendToolRequest = {
@@ -347,6 +362,13 @@ export type FrontendToolRequest = {
 export type GetToolsQuery = {
     extension_name?: string | null;
     session_id: string;
+};
+
+/**
+ * A Goose App combining MCP resource data with Goose-specific metadata
+ */
+export type GooseApp = McpAppResource & (WindowProps | null) & {
+    mcpServer?: string | null;
 };
 
 export type Icon = {
@@ -384,6 +406,14 @@ export type KillJobResponse = {
     message: string;
 };
 
+export type ListAppsRequest = {
+    session_id?: string | null;
+};
+
+export type ListAppsResponse = {
+    apps: Array<GooseApp>;
+};
+
 export type ListRecipeResponse = {
     manifests: Array<RecipeManifest>;
 };
@@ -395,6 +425,38 @@ export type ListSchedulesResponse = {
 export type LoadedProvider = {
     config: DeclarativeProviderConfig;
     is_editable: boolean;
+};
+
+/**
+ * MCP App Resource
+ * Represents a UI resource that can be rendered in an MCP App
+ */
+export type McpAppResource = {
+    _meta?: ResourceMetadata | null;
+    /**
+     * Base64-encoded binary content (alternative to text)
+     */
+    blob?: string | null;
+    /**
+     * Optional description of what this resource does
+     */
+    description?: string | null;
+    /**
+     * MIME type (should be "text/html;profile=mcp-app" for MCP Apps)
+     */
+    mimeType: string;
+    /**
+     * Human-readable name of the resource
+     */
+    name: string;
+    /**
+     * Text content of the resource (HTML for MCP Apps)
+     */
+    text?: string | null;
+    /**
+     * URI of the resource (must use ui:// scheme)
+     */
+    uri: string;
 };
 
 /**
@@ -480,6 +542,12 @@ export type ModelConfig = {
     fast_model?: string | null;
     max_tokens?: number | null;
     model_name: string;
+    /**
+     * Provider-specific request parameters (e.g., anthropic_beta headers)
+     */
+    request_params?: {
+        [key: string]: unknown;
+    } | null;
     temperature?: number | null;
     toolshim: boolean;
     toolshim_model?: string | null;
@@ -549,6 +617,17 @@ export type PricingResponse = {
 
 export type PrincipalType = 'Extension' | 'Tool';
 
+export type PromptContentResponse = {
+    content: string;
+    default_content: string;
+    is_customized: boolean;
+    name: string;
+};
+
+export type PromptsListResponse = {
+    prompts: Array<Template>;
+};
+
 export type ProviderDetails = {
     is_configured: boolean;
     metadata: ProviderMetadata;
@@ -562,6 +641,10 @@ export type ProviderEngine = 'openai' | 'ollama' | 'anthropic';
  * Metadata about a provider's configuration requirements and capabilities
  */
 export type ProviderMetadata = {
+    /**
+     * Whether this provider allows entering model names not in the fetched list
+     */
+    allows_unlisted_models?: boolean;
     /**
      * Required configuration keys
      */
@@ -619,6 +702,9 @@ export type RawImageContent = {
 };
 
 export type RawResource = {
+    _meta?: {
+        [key: string]: unknown;
+    };
     description?: string;
     icons?: Array<Icon>;
     mimeType?: string;
@@ -642,7 +728,12 @@ export type ReadResourceRequest = {
 };
 
 export type ReadResourceResponse = {
-    html: string;
+    _meta?: {
+        [key: string]: unknown;
+    } | null;
+    mimeType?: string | null;
+    text: string;
+    uri: string;
 };
 
 export type Recipe = {
@@ -683,6 +774,14 @@ export type RecipeParameterInputType = 'string' | 'number' | 'boolean' | 'date' 
 
 export type RecipeParameterRequirement = 'required' | 'optional' | 'user_prompt';
 
+export type RecipeToYamlRequest = {
+    recipe: Recipe;
+};
+
+export type RecipeToYamlResponse = {
+    yaml: string;
+};
+
 export type RedactedThinkingContent = {
     data: string;
 };
@@ -708,13 +807,33 @@ export type ResourceContents = {
     uri: string;
 };
 
+/**
+ * Resource metadata containing UI configuration
+ */
+export type ResourceMetadata = {
+    ui?: UiMetadata | null;
+};
+
 export type Response = {
     json_schema?: unknown;
+};
+
+export type RestartAgentRequest = {
+    session_id: string;
+};
+
+export type RestartAgentResponse = {
+    extension_results: Array<ExtensionLoadResult>;
 };
 
 export type ResumeAgentRequest = {
     load_model_and_extensions: boolean;
     session_id: string;
+};
+
+export type ResumeAgentResponse = {
+    extension_results?: Array<ExtensionLoadResult> | null;
+    session: Session;
 };
 
 /**
@@ -747,6 +866,10 @@ export type Role = string;
 
 export type RunNowResponse = {
     session_id: string;
+};
+
+export type SavePromptRequest = {
+    content: string;
 };
 
 export type SaveRecipeRequest = {
@@ -823,6 +946,10 @@ export type SessionDisplayInfo = {
     workingDir: string;
 };
 
+export type SessionExtensionsResponse = {
+    extensions: Array<ExtensionConfig>;
+};
+
 export type SessionInsights = {
     totalSessions: number;
     totalTokens: number;
@@ -873,10 +1000,15 @@ export type SlashCommandsResponse = {
 };
 
 export type StartAgentRequest = {
+    extension_overrides?: Array<ExtensionConfig> | null;
     recipe?: Recipe | null;
     recipe_deeplink?: string | null;
     recipe_id?: string | null;
     working_dir: string;
+};
+
+export type StopAgentRequest = {
+    session_id: string;
 };
 
 export type SubRecipe = {
@@ -900,6 +1032,16 @@ export type SuccessCheck = {
     type: 'Shell';
 };
 
+export type SystemInfo = {
+    app_version: string;
+    architecture: string;
+    enabled_extensions: Array<string>;
+    model?: string | null;
+    os: string;
+    os_version: string;
+    provider?: string | null;
+};
+
 export type SystemNotificationContent = {
     msg: string;
     notificationType: SystemNotificationType;
@@ -912,6 +1054,17 @@ export type TelemetryEventRequest = {
     properties?: {
         [key: string]: unknown;
     };
+};
+
+/**
+ * Information about a template including its content and customization status
+ */
+export type Template = {
+    default_content: string;
+    description: string;
+    is_customized: boolean;
+    name: string;
+    user_content?: string | null;
 };
 
 export type TextContent = {
@@ -988,6 +1141,9 @@ export type ToolPermission = {
 };
 
 export type ToolRequest = {
+    _meta?: {
+        [key: string]: unknown;
+    };
     id: string;
     metadata?: {
         [key: string]: unknown;
@@ -1016,6 +1172,21 @@ export type TunnelInfo = {
 
 export type TunnelState = 'idle' | 'starting' | 'running' | 'error' | 'disabled';
 
+/**
+ * UI-specific metadata for MCP resources
+ */
+export type UiMetadata = {
+    csp?: CspMetadata | null;
+    /**
+     * Preferred domain for the app (used for CORS)
+     */
+    domain?: string | null;
+    /**
+     * Whether the app prefers to have a border around it
+     */
+    prefersBorder?: boolean | null;
+};
+
 export type UpdateCustomProviderRequest = {
     api_key: string;
     api_url: string;
@@ -1033,12 +1204,12 @@ export type UpdateFromSessionRequest = {
 };
 
 export type UpdateProviderRequest = {
+    context_limit?: number | null;
     model?: string | null;
     provider: string;
-    session_id: string;
-};
-
-export type UpdateRouterToolSelectorRequest = {
+    request_params?: {
+        [key: string]: unknown;
+    } | null;
     session_id: string;
 };
 
@@ -1066,6 +1237,11 @@ export type UpdateSessionUserRecipeValuesResponse = {
     recipe: Recipe;
 };
 
+export type UpdateWorkingDirRequest = {
+    session_id: string;
+    working_dir: string;
+};
+
 export type UpsertConfigQuery = {
     is_secret: boolean;
     key: string;
@@ -1074,6 +1250,12 @@ export type UpsertConfigQuery = {
 
 export type UpsertPermissionsQuery = {
     tool_permissions: Array<ToolPermission>;
+};
+
+export type WindowProps = {
+    height: number;
+    resizable: boolean;
+    width: number;
 };
 
 export type ConfirmToolActionData = {
@@ -1163,6 +1345,37 @@ export type CallToolResponses = {
 
 export type CallToolResponse2 = CallToolResponses[keyof CallToolResponses];
 
+export type ListAppsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        session_id?: string | null;
+    };
+    url: '/agent/list_apps';
+};
+
+export type ListAppsErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type ListAppsError = ListAppsErrors[keyof ListAppsErrors];
+
+export type ListAppsResponses = {
+    /**
+     * List of apps retrieved successfully
+     */
+    200: ListAppsResponse;
+};
+
+export type ListAppsResponse2 = ListAppsResponses[keyof ListAppsResponses];
+
 export type ReadResourceData = {
     body: ReadResourceRequest;
     path?: never;
@@ -1229,6 +1442,37 @@ export type AgentRemoveExtensionResponses = {
 
 export type AgentRemoveExtensionResponse = AgentRemoveExtensionResponses[keyof AgentRemoveExtensionResponses];
 
+export type RestartAgentData = {
+    body: RestartAgentRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/restart';
+};
+
+export type RestartAgentErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type RestartAgentResponses = {
+    /**
+     * Agent restarted successfully
+     */
+    200: RestartAgentResponse;
+};
+
+export type RestartAgentResponse2 = RestartAgentResponses[keyof RestartAgentResponses];
+
 export type ResumeAgentData = {
     body: ResumeAgentRequest;
     path?: never;
@@ -1255,10 +1499,10 @@ export type ResumeAgentResponses = {
     /**
      * Agent started successfully
      */
-    200: Session;
+    200: ResumeAgentResponse;
 };
 
-export type ResumeAgentResponse = ResumeAgentResponses[keyof ResumeAgentResponses];
+export type ResumeAgentResponse2 = ResumeAgentResponses[keyof ResumeAgentResponses];
 
 export type StartAgentData = {
     body: StartAgentRequest;
@@ -1292,6 +1536,37 @@ export type StartAgentResponses = {
 };
 
 export type StartAgentResponse = StartAgentResponses[keyof StartAgentResponses];
+
+export type StopAgentData = {
+    body: StopAgentRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/stop';
+};
+
+export type StopAgentErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type StopAgentResponses = {
+    /**
+     * Agent stopped successfully
+     */
+    200: string;
+};
+
+export type StopAgentResponse = StopAgentResponses[keyof StopAgentResponses];
 
 export type GetToolsData = {
     body?: never;
@@ -1391,36 +1666,38 @@ export type UpdateAgentProviderResponses = {
     200: unknown;
 };
 
-export type UpdateRouterToolSelectorData = {
-    body: UpdateRouterToolSelectorRequest;
+export type UpdateWorkingDirData = {
+    body: UpdateWorkingDirRequest;
     path?: never;
     query?: never;
-    url: '/agent/update_router_tool_selector';
+    url: '/agent/update_working_dir';
 };
 
-export type UpdateRouterToolSelectorErrors = {
+export type UpdateWorkingDirErrors = {
+    /**
+     * Bad request - invalid directory path
+     */
+    400: unknown;
     /**
      * Unauthorized - invalid secret key
      */
     401: unknown;
     /**
-     * Agent not initialized
+     * Session not found
      */
-    424: unknown;
+    404: unknown;
     /**
      * Internal server error
      */
     500: unknown;
 };
 
-export type UpdateRouterToolSelectorResponses = {
+export type UpdateWorkingDirResponses = {
     /**
-     * Tool selection strategy updated successfully
+     * Working directory updated and agent restarted successfully
      */
-    200: string;
+    200: unknown;
 };
-
-export type UpdateRouterToolSelectorResponse = UpdateRouterToolSelectorResponses[keyof UpdateRouterToolSelectorResponses];
 
 export type ReadAllConfigData = {
     body?: never;
@@ -1749,6 +2026,114 @@ export type GetPricingResponses = {
 };
 
 export type GetPricingResponse = GetPricingResponses[keyof GetPricingResponses];
+
+export type GetPromptsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/config/prompts';
+};
+
+export type GetPromptsResponses = {
+    /**
+     * List of all available prompts
+     */
+    200: PromptsListResponse;
+};
+
+export type GetPromptsResponse = GetPromptsResponses[keyof GetPromptsResponses];
+
+export type ResetPromptData = {
+    body?: never;
+    path: {
+        /**
+         * Prompt template name (e.g., system.md)
+         */
+        name: string;
+    };
+    query?: never;
+    url: '/config/prompts/{name}';
+};
+
+export type ResetPromptErrors = {
+    /**
+     * Prompt not found
+     */
+    404: unknown;
+    /**
+     * Failed to reset prompt
+     */
+    500: unknown;
+};
+
+export type ResetPromptResponses = {
+    /**
+     * Prompt reset to default successfully
+     */
+    200: string;
+};
+
+export type ResetPromptResponse = ResetPromptResponses[keyof ResetPromptResponses];
+
+export type GetPromptData = {
+    body?: never;
+    path: {
+        /**
+         * Prompt template name (e.g., system.md)
+         */
+        name: string;
+    };
+    query?: never;
+    url: '/config/prompts/{name}';
+};
+
+export type GetPromptErrors = {
+    /**
+     * Prompt not found
+     */
+    404: unknown;
+};
+
+export type GetPromptResponses = {
+    /**
+     * Prompt content retrieved successfully
+     */
+    200: PromptContentResponse;
+};
+
+export type GetPromptResponse = GetPromptResponses[keyof GetPromptResponses];
+
+export type SavePromptData = {
+    body: SavePromptRequest;
+    path: {
+        /**
+         * Prompt template name (e.g., system.md)
+         */
+        name: string;
+    };
+    query?: never;
+    url: '/config/prompts/{name}';
+};
+
+export type SavePromptErrors = {
+    /**
+     * Prompt not found
+     */
+    404: unknown;
+    /**
+     * Failed to save prompt
+     */
+    500: unknown;
+};
+
+export type SavePromptResponses = {
+    /**
+     * Prompt saved successfully
+     */
+    200: string;
+};
+
+export type SavePromptResponse = SavePromptResponses[keyof SavePromptResponses];
 
 export type ProvidersData = {
     body?: never;
@@ -2281,6 +2666,31 @@ export type SetRecipeSlashCommandResponses = {
      */
     200: unknown;
 };
+
+export type RecipeToYamlData = {
+    body: RecipeToYamlRequest;
+    path?: never;
+    query?: never;
+    url: '/recipes/to-yaml';
+};
+
+export type RecipeToYamlErrors = {
+    /**
+     * Bad request - Failed to convert recipe to YAML
+     */
+    400: ErrorResponse;
+};
+
+export type RecipeToYamlError = RecipeToYamlErrors[keyof RecipeToYamlErrors];
+
+export type RecipeToYamlResponses = {
+    /**
+     * Recipe converted to YAML successfully
+     */
+    200: RecipeToYamlResponse;
+};
+
+export type RecipeToYamlResponse2 = RecipeToYamlResponses[keyof RecipeToYamlResponses];
 
 export type ReplyData = {
     body: ChatRequest;
@@ -2840,6 +3250,42 @@ export type ExportSessionResponses = {
 
 export type ExportSessionResponse = ExportSessionResponses[keyof ExportSessionResponses];
 
+export type GetSessionExtensionsData = {
+    body?: never;
+    path: {
+        /**
+         * Unique identifier for the session
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/sessions/{session_id}/extensions';
+};
+
+export type GetSessionExtensionsErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type GetSessionExtensionsResponses = {
+    /**
+     * Session extensions retrieved successfully
+     */
+    200: SessionExtensionsResponse;
+};
+
+export type GetSessionExtensionsResponse = GetSessionExtensionsResponses[keyof GetSessionExtensionsResponses];
+
 export type UpdateSessionNameData = {
     body: UpdateSessionNameRequest;
     path: {
@@ -2931,6 +3377,22 @@ export type StatusResponses = {
 };
 
 export type StatusResponse = StatusResponses[keyof StatusResponses];
+
+export type SystemInfoData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/system_info';
+};
+
+export type SystemInfoResponses = {
+    /**
+     * System information
+     */
+    200: SystemInfo;
+};
+
+export type SystemInfoResponse = SystemInfoResponses[keyof SystemInfoResponses];
 
 export type SendTelemetryEventData = {
     body: TelemetryEventRequest;

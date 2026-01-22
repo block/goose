@@ -10,7 +10,7 @@ import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';
 
 The Skills extension loads *skills* &mdash; reusable sets of instructions that teach goose how to perform specific tasks or follow particular workflows.
 
-goose automatically discovers skills at startup and uses them when relevant to your request. goose skills are compatible with Claude Desktop's skill format, so skills you create for one tool work with both. To learn about creating skills and how goose uses them, see [Using Skills](/docs/guides/context-engineering/using-skills).
+goose automatically discovers skills at startup and uses them when relevant to your request. goose loads skills from `.agents/skills/` in your project directory and `~/.config/agents/skills/` globally, making skills portable across different AI coding agents. To learn about creating skills and how goose uses them, see [Using Skills](/docs/guides/context-engineering/using-skills).
 
 ## Configuration
 
@@ -20,7 +20,7 @@ goose automatically discovers skills at startup and uses them when relevant to y
   <TabItem value="ui" label="goose Desktop" default>
   <GooseBuiltinInstaller
     extensionName="Skills"
-    description="Load and use skills from the .claude/skills or .goose/skills directories"
+    description="Load and use skills from the .agents/skills directory"
   />
   </TabItem>
   <TabItem value="cli" label="goose CLI">
@@ -48,7 +48,7 @@ goose automatically discovers skills at startup and uses them when relevant to y
 
 ## Example Usage
 
-Let's say you have a skill that goose discovers on startup in `~/.config/goose/skills/deploy/SKILL.md`:
+Let's say you have a skill that goose discovers on startup in `~/.config/agents/skills/deploy/SKILL.md`:
 
 ```markdown
 ---

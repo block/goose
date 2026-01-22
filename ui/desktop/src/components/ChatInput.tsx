@@ -1,3 +1,4 @@
+import { AppEvents } from '../constants/events';
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import { Bug, ScrollText, ChefHat } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/Tooltip';
@@ -26,10 +27,12 @@ import { DroppedFile, useFileDrop } from '../hooks/useFileDrop';
 import { Recipe } from '../recipe';
 import MessageQueue from './MessageQueue';
 import { detectInterruption } from '../utils/interruptionDetector';
-import { DiagnosticsModal } from './ui/DownloadDiagnostics';
-import { Message } from '../api';
+import { DiagnosticsModal } from './ui/Diagnostics';
+import { getSession, Message } from '../api';
 import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal';
 import CreateEditRecipeModal from './recipes/CreateEditRecipeModal';
+import { getInitialWorkingDir } from '../utils/workingDir';
+import { getPredefinedModelsFromEnv } from './settings/models/predefinedModelsUtils';
 import {
   trackFileAttached,
   trackVoiceDictation,
@@ -37,6 +40,7 @@ import {
   trackCreateRecipeOpened,
   trackEditRecipeOpened,
 } from '../utils/analytics';
+import { getNavigationShortcutText } from '../utils/keyboardShortcuts';
 
 interface QueuedMessage {
   id: string;
@@ -72,6 +76,7 @@ interface ChatInputProps {
   sessionId: string | null;
   handleSubmit: (e: React.FormEvent) => void;
   chatState: ChatState;
+  setChatState?: (state: ChatState) => void;
   onStop?: () => void;
   commandHistory?: string[];
   initialValue?: string;
@@ -96,13 +101,15 @@ interface ChatInputProps {
   initialPrompt?: string;
   toolCount: number;
   append?: (message: Message) => void;
-  isExtensionsLoading?: boolean;
+  onWorkingDirChange?: (newDir: string) => void;
+  inputRef?: React.RefObject<HTMLTextAreaElement | null>;
 }
 
 export default function ChatInput({
   sessionId,
   handleSubmit,
   chatState = ChatState.Idle,
+  setChatState,
   onStop,
   commandHistory = [],
   initialValue = '',
@@ -121,7 +128,8 @@ export default function ChatInput({
   initialPrompt,
   toolCount,
   append: _append,
-  isExtensionsLoading = false,
+  onWorkingDirChange,
+  inputRef,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
@@ -150,6 +158,26 @@ export default function ChatInput({
   const [showCreateRecipeModal, setShowCreateRecipeModal] = useState(false);
   const [showEditRecipeModal, setShowEditRecipeModal] = useState(false);
   const [isFilePickerOpen, setIsFilePickerOpen] = useState(false);
+  const [sessionWorkingDir, setSessionWorkingDir] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!sessionId) {
+      return;
+    }
+
+    const fetchSessionWorkingDir = async () => {
+      try {
+        const response = await getSession({ path: { session_id: sessionId } });
+        if (response.data?.working_dir) {
+          setSessionWorkingDir(response.data.working_dir);
+        }
+      } catch (error) {
+        console.error('[ChatInput] Failed to fetch session working dir:', error);
+      }
+    };
+
+    fetchSessionWorkingDir();
+  }, [sessionId]);
 
   // Save queue state (paused/interrupted) to storage
   useEffect(() => {
@@ -273,30 +301,27 @@ export default function ChatInput({
     },
   });
 
-  // Get dictation settings to check configuration status
   const { settings: dictationSettings } = useDictationSettings();
+  const internalTextAreaRef = useRef<HTMLTextAreaElement>(null);
+  const textAreaRef = inputRef || internalTextAreaRef;
+  const timeoutRefsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
 
-  // Update internal value when initialValue changes
   useEffect(() => {
     setValue(initialValue);
     setDisplayValue(initialValue);
-
-    // Use a functional update to get the current pastedImages
-    // and perform cleanup. This avoids needing pastedImages in the deps.
     setPastedImages((currentPastedImages) => {
       currentPastedImages.forEach((img) => {
         if (img.filePath) {
           window.electron.deleteTempFile(img.filePath);
         }
       });
-      return []; // Return a new empty array
+      return [];
     });
 
-    // Reset history index when input is cleared
     setHistoryIndex(-1);
     setIsInGlobalHistory(false);
     setHasUserTyped(false);
-  }, [initialValue]); // Keep only initialValue as a dependency
+  }, [initialValue]);
 
   // Handle recipe prompt updates
   useEffect(() => {
@@ -308,16 +333,13 @@ export default function ChatInput({
         textAreaRef.current?.focus();
       }, 0);
     }
-  }, [recipeAccepted, initialPrompt, messages.length]);
+  }, [recipeAccepted, initialPrompt, messages.length, textAreaRef]);
 
-  // State to track if the IME is composing (i.e., in the middle of Japanese IME input)
   const [isComposing, setIsComposing] = useState(false);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [savedInput, setSavedInput] = useState('');
   const [isInGlobalHistory, setIsInGlobalHistory] = useState(false);
   const [hasUserTyped, setHasUserTyped] = useState(false);
-  const textAreaRef = useRef<HTMLTextAreaElement>(null);
-  const timeoutRefsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
 
   // Use shared file drop hook for ChatInput
   const {
@@ -385,7 +407,7 @@ export default function ChatInput({
     if (textAreaRef.current) {
       textAreaRef.current.focus();
     }
-  }, []);
+  }, [textAreaRef]);
 
   // Load model limits from the API
   const getModelLimits = async () => {
@@ -420,6 +442,15 @@ export default function ChatInput({
       const { model, provider } = await getCurrentModelAndProvider();
       if (!model || !provider) {
         console.log('No model or provider found');
+        setIsTokenLimitLoaded(true);
+        return;
+      }
+
+      // First, check predefined models from environment (highest priority)
+      const predefinedModels = getPredefinedModelsFromEnv();
+      const predefinedModel = predefinedModels.find((m) => m.name === model);
+      if (predefinedModel?.context_limit) {
+        setTokenLimit(predefinedModel.context_limit);
         setIsTokenLimitLoaded(true);
         return;
       }
@@ -480,7 +511,7 @@ export default function ChatInput({
         showCompactButton: true,
         compactButtonDisabled: !totalTokens,
         onCompact: () => {
-          window.dispatchEvent(new CustomEvent('hide-alert-popover'));
+          window.dispatchEvent(new CustomEvent(AppEvents.HIDE_ALERT_POPOVER));
 
           const customEvent = new CustomEvent('submit', {
             detail: { value: MANUAL_COMPACT_TRIGGER },
@@ -545,28 +576,38 @@ export default function ChatInput({
     setValue(value);
   }, []);
 
+  const minTextareaHeight = 38;
+
   const debouncedAutosize = useMemo(
     () =>
       debounce((element: HTMLTextAreaElement) => {
-        element.style.height = '0px'; // Reset height
+        // Store current scroll position to prevent jump
+        const scrollTop = element.scrollTop;
+
+        // Temporarily set to auto to measure natural height, but use minHeight to prevent collapse
+        element.style.height = `${minTextareaHeight}px`;
         const scrollHeight = element.scrollHeight;
-        element.style.height = Math.min(scrollHeight, maxHeight) + 'px';
+        const newHeight = Math.max(minTextareaHeight, Math.min(scrollHeight, maxHeight));
+        element.style.height = `${newHeight}px`;
+
+        // Restore scroll position
+        element.scrollTop = scrollTop;
       }, 50),
-    [maxHeight]
+    [maxHeight, minTextareaHeight]
   );
 
   useEffect(() => {
     if (textAreaRef.current) {
       debouncedAutosize(textAreaRef.current);
     }
-  }, [debouncedAutosize, displayValue]);
+  }, [debouncedAutosize, displayValue, textAreaRef]);
 
-  // Reset textarea height when displayValue is empty
+  // Set consistent minimum height when displayValue is empty
   useEffect(() => {
     if (textAreaRef.current && displayValue === '') {
-      textAreaRef.current.style.height = 'auto';
+      textAreaRef.current.style.height = `${minTextareaHeight}px`;
     }
-  }, [displayValue]);
+  }, [displayValue, textAreaRef, minTextareaHeight]);
 
   const handleChange = (evt: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = evt.target.value;
@@ -1110,7 +1151,17 @@ export default function ChatInput({
     isAnyDroppedFileLoading ||
     isRecording ||
     isTranscribing ||
-    isExtensionsLoading;
+    chatState === ChatState.RestartingAgent;
+
+  const getSubmitButtonTooltip = (): string => {
+    if (isAnyImageLoading) return 'Waiting for images to save...';
+    if (isAnyDroppedFileLoading) return 'Processing dropped files...';
+    if (isRecording) return 'Recording...';
+    if (isTranscribing) return 'Transcribing...';
+    if (chatState === ChatState.RestartingAgent) return 'Restarting session...';
+    if (!hasSubmittableContent) return 'Type a message to send';
+    return 'Send';
+  };
 
   // Queue management functions - no storage persistence, only in-memory
   const handleRemoveQueuedMessage = (messageId: string) => {
@@ -1209,13 +1260,13 @@ export default function ChatInput({
         />
       )}
       {/* Input row with inline action buttons wrapped in form */}
-      <form onSubmit={onFormSubmit} className="relative flex items-end">
-        <div className="relative flex-1">
+      <form onSubmit={onFormSubmit} className="relative">
+        <div className="relative">
           <textarea
             data-testid="chat-input"
             autoFocus
             id="dynamic-textarea"
-            placeholder={isRecording ? '' : '⌘↑/⌘↓ to navigate messages'}
+            placeholder={isRecording ? '' : getNavigationShortcutText()}
             value={displayValue}
             onChange={handleChange}
             onCompositionStart={handleCompositionStart}
@@ -1227,14 +1278,15 @@ export default function ChatInput({
             ref={textAreaRef}
             rows={1}
             style={{
+              minHeight: `${minTextareaHeight}px`,
               maxHeight: `${maxHeight}px`,
               overflowY: 'auto',
               opacity: isRecording ? 0 : 1,
             }}
-            className="w-full outline-none border-none focus:ring-0 bg-transparent px-3 pt-3 pb-1.5 pr-20 text-sm resize-none text-textStandard placeholder:text-textPlaceholder"
+            className="w-full outline-none border-none focus:ring-0 bg-transparent px-3 pt-3 pb-1.5 pr-32 text-sm resize-none text-textStandard placeholder:text-textPlaceholder"
           />
           {isRecording && (
-            <div className="absolute inset-0 flex items-center pl-4 pr-20 pt-3 pb-1.5">
+            <div className="absolute inset-0 flex items-center pl-4 pr-32 pt-3 pb-1.5">
               <WaveformVisualizer
                 audioContext={audioContext}
                 analyser={analyser}
@@ -1242,152 +1294,140 @@ export default function ChatInput({
               />
             </div>
           )}
-        </div>
 
-        {/* Inline action buttons on the right */}
-        <div className="flex items-center gap-1 px-2 relative self-center">
-          {/* Microphone button - show only if dictation is enabled */}
-          {dictationSettings?.enabled && (
-            <>
-              {!canUseDictation ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="inline-flex">
-                      <Button
-                        type="button"
-                        size="sm"
-                        shape="round"
-                        variant="outline"
-                        onClick={() => {}}
-                        disabled={true}
-                        className="bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600 rounded-full px-6 py-2"
-                      >
-                        <Microphone />
-                      </Button>
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    {dictationSettings.provider === 'openai' ? (
-                      <p>
-                        OpenAI API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
-                        <b>Models.</b>
-                      </p>
-                    ) : VOICE_DICTATION_ELEVENLABS_ENABLED &&
-                      dictationSettings.provider === 'elevenlabs' ? (
-                      <p>
-                        ElevenLabs API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
-                        <b>Chat</b> {'>'} <b>Voice Dictation.</b>
-                      </p>
-                    ) : dictationSettings.provider === null ? (
-                      <p>
-                        Dictation is not configured. Configure it in <b>Settings</b> {'>'}{' '}
-                        <b>Chat</b> {'>'} <b>Voice Dictation.</b>
-                      </p>
-                    ) : (
-                      <p>Dictation provider is not properly configured.</p>
-                    )}
-                  </TooltipContent>
-                </Tooltip>
-              ) : (
-                <Button
-                  type="button"
-                  size="sm"
-                  shape="round"
-                  variant="outline"
-                  onClick={() => {
-                    if (isRecording) {
-                      trackVoiceDictation('stop', Math.floor(recordingDuration));
-                      stopRecording();
-                    } else {
-                      trackVoiceDictation('start');
-                      startRecording();
-                    }
-                  }}
-                  disabled={isTranscribing}
-                  className={`rounded-full px-6 py-2 ${
-                    isRecording
-                      ? 'bg-red-500 text-white hover:bg-red-600 border-red-500'
-                      : isTranscribing
-                        ? 'bg-slate-600 text-white cursor-not-allowed animate-pulse border-slate-600'
-                        : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600'
-                  }`}
-                >
-                  <Microphone />
-                </Button>
-              )}
-            </>
-          )}
-
-          {/* Send/Stop button */}
-          {isLoading && !hasSubmittableContent ? (
-            <Button
-              type="button"
-              onClick={onStop}
-              size="sm"
-              shape="round"
-              variant="outline"
-              className="bg-slate-600 text-white hover:bg-slate-700 border-slate-600 rounded-full px-6 py-2"
-            >
-              <Stop />
-            </Button>
-          ) : (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span>
+          {/* Inline action buttons - absolutely positioned on the right */}
+          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+            {/* Microphone button - show only if dictation is enabled */}
+            {dictationSettings?.enabled && (
+              <>
+                {!canUseDictation ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-flex">
+                        <Button
+                          type="button"
+                          size="sm"
+                          shape="round"
+                          variant="outline"
+                          onClick={() => {}}
+                          disabled={true}
+                          className="bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600 rounded-full px-6 py-2"
+                        >
+                          <Microphone />
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {dictationSettings.provider === 'openai' ? (
+                        <p>
+                          OpenAI API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
+                          <b>Models.</b>
+                        </p>
+                      ) : VOICE_DICTATION_ELEVENLABS_ENABLED &&
+                        dictationSettings.provider === 'elevenlabs' ? (
+                        <p>
+                          ElevenLabs API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
+                          <b>Chat</b> {'>'} <b>Voice Dictation.</b>
+                        </p>
+                      ) : dictationSettings.provider === null ? (
+                        <p>
+                          Dictation is not configured. Configure it in <b>Settings</b> {'>'}{' '}
+                          <b>Chat</b> {'>'} <b>Voice Dictation.</b>
+                        </p>
+                      ) : (
+                        <p>Dictation provider is not properly configured.</p>
+                      )}
+                    </TooltipContent>
+                  </Tooltip>
+                ) : (
                   <Button
-                    type="submit"
+                    type="button"
                     size="sm"
                     shape="round"
                     variant="outline"
-                    disabled={isSubmitButtonDisabled}
-                    className={`rounded-full px-10 py-2 flex items-center gap-2 ${
-                      isSubmitButtonDisabled
-                        ? 'bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600'
-                        : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600 hover:cursor-pointer'
+                    onClick={() => {
+                      if (isRecording) {
+                        trackVoiceDictation('stop', Math.floor(recordingDuration));
+                        stopRecording();
+                      } else {
+                        trackVoiceDictation('start');
+                        startRecording();
+                      }
+                    }}
+                    disabled={isTranscribing}
+                    className={`rounded-full px-6 py-2 ${
+                      isRecording
+                        ? 'bg-red-500 text-white hover:bg-red-600 border-red-500'
+                        : isTranscribing
+                          ? 'bg-slate-600 text-white cursor-not-allowed animate-pulse border-slate-600'
+                          : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600'
                     }`}
                   >
-                    <Send className="w-4 h-4" />
-                    <span className="text-sm">Send</span>
+                    <Microphone />
                   </Button>
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>
-                  {isExtensionsLoading
-                    ? 'Loading extensions...'
-                    : isAnyImageLoading
-                      ? 'Waiting for images to save...'
-                      : isAnyDroppedFileLoading
-                        ? 'Processing dropped files...'
-                        : isRecording
-                          ? 'Recording...'
-                          : isTranscribing
-                            ? 'Transcribing...'
-                            : 'Send'}
-                </p>
-              </TooltipContent>
-            </Tooltip>
-          )}
+                )}
+              </>
+            )}
 
-          {/* Recording/transcribing status indicator - positioned above the button row */}
-          {(isRecording || isTranscribing) && (
-            <div className="absolute right-0 -top-8 bg-background-default px-2 py-1 rounded text-xs whitespace-nowrap shadow-md border border-borderSubtle">
-              {isTranscribing ? (
-                <span className="text-blue-500 flex items-center gap-1">
-                  <span className="inline-block w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                  Transcribing...
-                </span>
-              ) : (
-                <span
-                  className={`flex items-center gap-2 ${estimatedSize > 20 ? 'text-orange-500' : 'text-textSubtle'}`}
-                >
-                  <span className="inline-block w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                  {Math.floor(recordingDuration)}s • ~{estimatedSize.toFixed(1)}MB
-                  {estimatedSize > 20 && <span className="text-xs">(near 25MB limit)</span>}
-                </span>
-              )}
-            </div>
-          )}
+            {/* Send/Stop button */}
+            {isLoading && !hasSubmittableContent ? (
+              <Button
+                type="button"
+                onClick={onStop}
+                size="sm"
+                shape="round"
+                variant="outline"
+                className="bg-slate-600 text-white hover:bg-slate-700 border-slate-600 rounded-full px-6 py-2"
+              >
+                <Stop />
+              </Button>
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    <Button
+                      type="submit"
+                      size="sm"
+                      shape="round"
+                      variant="outline"
+                      disabled={isSubmitButtonDisabled}
+                      className={`rounded-full px-10 py-2 flex items-center gap-2 ${
+                        isSubmitButtonDisabled
+                          ? 'bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600'
+                          : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600 hover:cursor-pointer'
+                      }`}
+                    >
+                      <Send className="w-4 h-4" />
+                      <span className="text-sm">Send</span>
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{getSubmitButtonTooltip()}</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+
+            {/* Recording/transcribing status indicator - positioned above the button row */}
+            {(isRecording || isTranscribing) && (
+              <div className="absolute right-0 -top-8 bg-background-default px-2 py-1 rounded text-xs whitespace-nowrap shadow-md border border-borderSubtle">
+                {isTranscribing ? (
+                  <span className="text-blue-500 flex items-center gap-1">
+                    <span className="inline-block w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                    Transcribing...
+                  </span>
+                ) : (
+                  <span
+                    className={`flex items-center gap-2 ${estimatedSize > 20 ? 'text-orange-500' : 'text-textSubtle'}`}
+                  >
+                    <span className="inline-block w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                    {Math.floor(recordingDuration)}s • ~{estimatedSize.toFixed(1)}MB
+                    {estimatedSize > 20 && <span className="text-xs">(near 25MB limit)</span>}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </form>
 
@@ -1503,8 +1543,19 @@ export default function ChatInput({
 
       {/* Secondary actions and controls row below input */}
       <div className="flex flex-row items-center gap-1 p-2 relative">
-        {/* Directory path */}
-        <DirSwitcher className="mr-0" />
+        <DirSwitcher
+          className="mr-0"
+          sessionId={sessionId ?? undefined}
+          workingDir={sessionWorkingDir ?? getInitialWorkingDir()}
+          onWorkingDirChange={(newDir) => {
+            setSessionWorkingDir(newDir);
+            if (onWorkingDirChange) {
+              onWorkingDirChange(newDir);
+            }
+          }}
+          onRestartStart={() => setChatState?.(ChatState.RestartingAgent)}
+          onRestartEnd={() => setChatState?.(ChatState.Idle)}
+        />
         <div className="w-px h-4 bg-border-default mx-2" />
         <Tooltip>
           <TooltipTrigger asChild>
@@ -1548,12 +1599,8 @@ export default function ChatInput({
           </Tooltip>
           <div className="w-px h-4 bg-border-default mx-2" />
           <BottomMenuModeSelection />
-          {sessionId && process.env.ALPHA && (
-            <>
-              <div className="w-px h-4 bg-border-default mx-2" />
-              <BottomMenuExtensionSelection sessionId={sessionId} />
-            </>
-          )}
+          <div className="w-px h-4 bg-border-default mx-2" />
+          <BottomMenuExtensionSelection sessionId={sessionId} />
           {sessionId && messages.length > 0 && (
             <>
               <div className="w-px h-4 bg-border-default mx-2" />
@@ -1623,6 +1670,7 @@ export default function ChatInput({
           onSelectedIndexChange={(index) =>
             setMentionPopover((prev) => ({ ...prev, selectedIndex: index }))
           }
+          workingDir={sessionWorkingDir ?? getInitialWorkingDir()}
         />
 
         {sessionId && showCreateRecipeModal && (

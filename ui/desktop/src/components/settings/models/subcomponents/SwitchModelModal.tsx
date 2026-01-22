@@ -76,12 +76,14 @@ export const SwitchModelModal = ({
   titleOverride,
 }: SwitchModelModalProps) => {
   const { getProviders, getProviderModels, read } = useConfig();
-  const { changeModel } = useModelAndProvider();
+  const { changeModel, currentModel, currentProvider } = useModelAndProvider();
   const [providerOptions, setProviderOptions] = useState<{ value: string; label: string }[]>([]);
   type ModelOption = { value: string; label: string; provider: string; isDisabled?: boolean };
   const [modelOptions, setModelOptions] = useState<{ options: ModelOption[] }[]>([]);
-  const [provider, setProvider] = useState<string | null>(initialProvider || null);
-  const [model, setModel] = useState<string>('');
+  const [provider, setProvider] = useState<string | null>(
+    initialProvider || currentProvider || null
+  );
+  const [model, setModel] = useState<string>(currentModel || '');
   const [isCustomModel, setIsCustomModel] = useState(false);
   const [validationErrors, setValidationErrors] = useState({
     provider: '',
@@ -211,28 +213,37 @@ export const SwitchModelModal = ({
         const errors: string[] = [];
 
         results.forEach(({ provider: p, models, error }) => {
+          const modelList = error
+            ? p.metadata.known_models?.map(({ name }) => name) || []
+            : models || [];
+
           if (error) {
             errors.push(error);
-            // Fallback to metadata known_models on error
-            if (p.metadata.known_models && p.metadata.known_models.length > 0) {
-              groupedOptions.push({
-                options: p.metadata.known_models.map(({ name }) => ({
-                  value: name,
-                  label: name,
-                  providerType: p.provider_type,
-                  provider: p.name,
-                })),
-              });
-            }
-          } else if (models && models.length > 0) {
-            groupedOptions.push({
-              options: models.map((m) => ({
-                value: m,
-                label: m,
-                provider: p.name,
-                providerType: p.provider_type,
-              })),
+          }
+
+          const options: {
+            value: string;
+            label: string;
+            provider: string;
+            providerType: ProviderType;
+          }[] = modelList.map((m) => ({
+            value: m,
+            label: m,
+            provider: p.name,
+            providerType: p.provider_type,
+          }));
+
+          if (p.metadata.allows_unlisted_models && p.provider_type !== 'Custom') {
+            options.push({
+              value: 'custom',
+              label: 'Enter a model not listed...',
+              provider: p.name,
+              providerType: p.provider_type,
             });
+          }
+
+          if (options.length > 0) {
+            groupedOptions.push({ options });
           }
         });
 
@@ -240,20 +251,6 @@ export const SwitchModelModal = ({
         if (errors.length > 0) {
           console.error('Provider model fetch errors:', errors);
         }
-
-        // Add the "Custom model" option to each provider group
-        groupedOptions.forEach((group) => {
-          const option = group.options[0];
-          const providerName = option?.provider;
-          if (providerName && option?.providerType !== 'Custom') {
-            group.options.push({
-              value: 'custom',
-              label: 'Use custom model',
-              provider: providerName,
-              providerType: option?.providerType,
-            });
-          }
-        });
 
         setModelOptions(groupedOptions);
         setOriginalModelOptions(groupedOptions);
@@ -291,6 +288,7 @@ export const SwitchModelModal = ({
     if (selectedOption?.value === 'custom') {
       setIsCustomModel(true);
       setModel('');
+      setProvider(selectedOption.provider);
       setUserClearedModel(false);
     } else if (selectedOption === null) {
       // User cleared the selection
@@ -300,6 +298,7 @@ export const SwitchModelModal = ({
     } else {
       setIsCustomModel(false);
       setModel(selectedOption?.value || '');
+      setProvider(selectedOption?.provider || '');
       setUserClearedModel(false);
     }
   };

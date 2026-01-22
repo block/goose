@@ -44,7 +44,7 @@ pub enum SaveAsFormat {
 pub struct WebScrapeParams {
     /// The URL to fetch content from
     pub url: String,
-    /// How to interpret and save the content
+    /// Format of the response.
     #[serde(default)]
     pub save_as: SaveAsFormat,
 }
@@ -479,8 +479,7 @@ impl ComputerControllerServer {
             - text (for HTML pages)
             - json (for API responses)
             - binary (for images and other files)
-            The content is cached locally and can be accessed later using the cache_path
-            returned in the response.
+            Returns 'Content saved to: <path>'. Use cache to read the content.
         "
     )]
     pub async fn web_scrape(
@@ -1331,6 +1330,7 @@ impl ServerHandler for ComputerControllerServer {
         Ok(ListResourcesResult {
             resources,
             next_cursor: None,
+            meta: None,
         })
     }
 

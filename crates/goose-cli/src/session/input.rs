@@ -1,5 +1,6 @@
 use super::completion::GooseCompleter;
 use anyhow::Result;
+use goose::config::Config;
 use rustyline::Editor;
 use shlex;
 use std::collections::HashMap;
@@ -21,6 +22,7 @@ pub enum InputResult {
     Clear,
     Recipe(Option<String>),
     Compact,
+    ToggleFullToolOutput,
 }
 
 #[derive(Debug)]
@@ -54,12 +56,24 @@ impl rustyline::ConditionalEventHandler for CtrlCHandler {
     }
 }
 
+pub fn get_newline_key() -> char {
+    Config::global()
+        .get_param::<String>("GOOSE_CLI_NEWLINE_KEY")
+        .ok()
+        .and_then(|s| s.chars().next())
+        .map(|c| c.to_ascii_lowercase())
+        .unwrap_or('j')
+}
+
 pub fn get_input(
     editor: &mut Editor<GooseCompleter, rustyline::history::DefaultHistory>,
 ) -> Result<InputResult> {
-    // Ensure Ctrl-J binding is set for newlines
+    let newline_key = get_newline_key();
     editor.bind_sequence(
-        rustyline::KeyEvent(rustyline::KeyCode::Char('j'), rustyline::Modifiers::CTRL),
+        rustyline::KeyEvent(
+            rustyline::KeyCode::Char(newline_key),
+            rustyline::Modifiers::CTRL,
+        ),
         rustyline::EventHandler::Simple(rustyline::Cmd::Newline),
     );
 
@@ -189,6 +203,7 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
             println!("{}", console::style("⚠️  Note: /summarize has been renamed to /compact and will be removed in a future release.").yellow());
             Some(InputResult::Compact)
         }
+        "/r" => Some(InputResult::ToggleFullToolOutput),
         _ => None,
     }
 }
@@ -295,11 +310,13 @@ fn get_input_prompt_string() -> String {
 }
 
 fn print_help() {
+    let newline_key = get_newline_key().to_ascii_uppercase();
     println!(
         "Available commands:
 /exit or /quit - Exit the session
 /t - Toggle Light/Dark/Ansi theme
 /t <name> - Set theme directly (light, dark, ansi)
+/r - Toggle full tool output display (show complete tool parameters without truncation)
 /extension <command> - Add a stdio extension (format: ENV1=val1 command args...)
 /builtin <names> - Add builtin extensions by name (comma-separated)
 /prompts [--extension <name>] - List all available prompts, optionally filtered by extension
@@ -319,7 +336,7 @@ fn print_help() {
 
 Navigation:
 Ctrl+C - Clear current line if text is entered, otherwise exit the session
-Ctrl+J - Add a newline
+Ctrl+{newline_key} - Add a newline (configurable via GOOSE_CLI_NEWLINE_KEY)
 Up/Down arrows - Navigate through command history"
     );
 }
@@ -354,6 +371,12 @@ mod tests {
         assert!(matches!(
             handle_slash_command("/t"),
             Some(InputResult::ToggleTheme)
+        ));
+
+        // Test full tool output toggle
+        assert!(matches!(
+            handle_slash_command("/r"),
+            Some(InputResult::ToggleFullToolOutput)
         ));
 
         // Test extension command

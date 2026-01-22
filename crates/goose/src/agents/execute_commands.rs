@@ -5,7 +5,6 @@ use anyhow::{anyhow, Result};
 use crate::context_mgmt::compact_messages;
 use crate::conversation::message::{Message, SystemNotificationType};
 use crate::recipe::build_recipe::build_recipe_from_template_with_positional_params;
-use crate::session::SessionManager;
 
 use super::Agent;
 
@@ -41,7 +40,11 @@ pub fn list_commands() -> &'static [CommandDef] {
 }
 
 impl Agent {
-    pub async fn execute_command(&self, message_text: &str, session_id: &str) -> Option<Message> {
+    pub async fn execute_command(
+        &self,
+        message_text: &str,
+        session_id: &str,
+    ) -> Result<Option<Message>> {
         let mut trimmed = message_text.trim().to_string();
 
         if COMPACT_TRIGGERS.contains(&trimmed.as_str()) {
@@ -49,54 +52,51 @@ impl Agent {
         }
 
         if !trimmed.starts_with('/') {
-            return None;
+            return Ok(None);
         }
 
         let command_str = trimmed.strip_prefix('/').unwrap_or(&trimmed);
-        let (command, params) = command_str
+        let (command, params_str) = command_str
             .split_once(' ')
             .map(|(cmd, p)| (cmd, p.trim()))
             .unwrap_or((command_str, ""));
 
-        let params: Vec<&str> = if params.is_empty() {
+        let params: Vec<&str> = if params_str.is_empty() {
             vec![]
         } else {
-            params.split_whitespace().collect()
+            params_str.split_whitespace().collect()
         };
 
-        let result = match command {
+        match command {
             "prompts" => self.handle_prompts_command(&params, session_id).await,
             "prompt" => self.handle_prompt_command(&params, session_id).await,
             "compact" => self.handle_compact_command(session_id).await,
             "clear" => self.handle_clear_command(session_id).await,
             _ => {
-                self.handle_recipe_command(command, &params, session_id)
+                self.handle_recipe_command(command, params_str, session_id)
                     .await
-            }
-        };
-
-        match result {
-            Ok(msg) => msg,
-            Err(e) => {
-                Some(Message::assistant().with_text(format!("Error executing /{}: {}", command, e)))
             }
         }
     }
 
     async fn handle_compact_command(&self, session_id: &str) -> Result<Option<Message>> {
-        let session = SessionManager::get_session(session_id, true).await?;
+        let manager = self.config.session_manager.clone();
+        let session = manager.get_session(session_id, true).await?;
         let conversation = session
             .conversation
             .ok_or_else(|| anyhow!("Session has no conversation"))?;
 
         let (compacted_conversation, _usage) = compact_messages(
             self.provider().await?.as_ref(),
+            session_id,
             &conversation,
             true, // is_manual_compact
         )
         .await?;
 
-        SessionManager::replace_conversation(session_id, &compacted_conversation).await?;
+        manager
+            .replace_conversation(session_id, &compacted_conversation)
+            .await?;
 
         Ok(Some(Message::assistant().with_system_notification(
             SystemNotificationType::InlineMessage,
@@ -107,9 +107,13 @@ impl Agent {
     async fn handle_clear_command(&self, session_id: &str) -> Result<Option<Message>> {
         use crate::conversation::Conversation;
 
-        SessionManager::replace_conversation(session_id, &Conversation::default()).await?;
+        let manager = self.config.session_manager.clone();
+        manager
+            .replace_conversation(session_id, &Conversation::default())
+            .await?;
 
-        SessionManager::update_session(session_id)
+        manager
+            .update(session_id)
             .total_tokens(Some(0))
             .input_tokens(Some(0))
             .output_tokens(Some(0))
@@ -125,11 +129,11 @@ impl Agent {
     async fn handle_prompts_command(
         &self,
         params: &[&str],
-        _session_id: &str,
+        session_id: &str,
     ) -> Result<Option<Message>> {
         let extension_filter = params.first().map(|s| s.to_string());
 
-        let prompts = self.list_extension_prompts().await;
+        let prompts = self.list_extension_prompts(session_id).await;
 
         if let Some(filter) = &extension_filter {
             if !prompts.contains_key(filter) {
@@ -179,7 +183,7 @@ impl Agent {
         let is_info = params.get(1).map(|s| *s == "--info").unwrap_or(false);
 
         if is_info {
-            let prompts = self.list_extension_prompts().await;
+            let prompts = self.list_extension_prompts(session_id).await;
             let mut prompt_info = None;
 
             for (extension, prompt_list) in prompts {
@@ -222,7 +226,10 @@ impl Agent {
         let arguments_value = serde_json::to_value(arguments)
             .map_err(|e| anyhow!("Failed to serialize arguments: {}", e))?;
 
-        match self.get_prompt(&prompt_name, arguments_value).await {
+        match self
+            .get_prompt(session_id, &prompt_name, arguments_value)
+            .await
+        {
             Ok(prompt_result) => {
                 for (i, prompt_message) in prompt_result.messages.into_iter().enumerate() {
                     let msg = Message::from(prompt_message);
@@ -241,10 +248,17 @@ impl Agent {
                         return Ok(Some(Message::assistant().with_text(error_msg)));
                     }
 
-                    SessionManager::add_message(session_id, &msg).await?;
+                    self.config
+                        .session_manager
+                        .clone()
+                        .add_message(session_id, &msg)
+                        .await?;
                 }
 
-                let last_message = SessionManager::get_session(session_id, true)
+                let last_message = self
+                    .config
+                    .session_manager
+                    .get_session(session_id, true)
                     .await?
                     .conversation
                     .ok_or_else(|| anyhow!("No conversation found"))?
@@ -264,7 +278,7 @@ impl Agent {
     async fn handle_recipe_command(
         &self,
         command: &str,
-        params: &[&str],
+        params_str: &str,
         _session_id: &str,
     ) -> Result<Option<Message>> {
         let full_command = format!("/{}", command);
@@ -284,7 +298,64 @@ impl Agent {
             .parent()
             .ok_or_else(|| anyhow!("Recipe path has no parent directory"))?;
 
-        let param_values: Vec<String> = params.iter().map(|s| s.to_string()).collect();
+        let recipe_dir_str = recipe_dir.display().to_string();
+        let validation_result =
+            crate::recipe::validate_recipe::validate_recipe_template_from_content(
+                &recipe_content,
+                Some(recipe_dir_str),
+            )
+            .map_err(|e| anyhow!("Failed to parse recipe: {}", e))?;
+
+        let param_values: Vec<String> = if params_str.is_empty() {
+            vec![]
+        } else {
+            let params_without_default = validation_result
+                .parameters
+                .as_ref()
+                .map(|params| params.iter().filter(|p| p.default.is_none()).count())
+                .unwrap_or(0);
+
+            if params_without_default <= 1 {
+                vec![params_str.to_string()]
+            } else {
+                let param_names: Vec<String> = validation_result
+                    .parameters
+                    .as_ref()
+                    .map(|params| {
+                        params
+                            .iter()
+                            .filter(|p| p.default.is_none())
+                            .map(|p| p.key.clone())
+                            .collect()
+                    })
+                    .unwrap_or_default();
+
+                let error_message = format!(
+                    "The /{} recipe requires {} parameters: {}.\n\n\
+                    Slash command recipes only support 1 parameter.\n\n\
+                    **To use this recipe:**\n\
+                    • **CLI:** `goose run --recipe {} {}`\n\
+                    • **Desktop:** Launch from the recipes sidebar to fill in parameters",
+                    command,
+                    params_without_default,
+                    param_names
+                        .iter()
+                        .map(|name| format!("**{}**", name))
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                    command,
+                    param_names
+                        .iter()
+                        .map(|name| format!("--params {}=\"...\"", name))
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                );
+
+                return Err(anyhow!(error_message));
+            }
+        };
+
+        let param_values_len = param_values.len();
 
         let recipe = match build_recipe_from_template_with_positional_params(
             recipe_content,
@@ -298,11 +369,14 @@ impl Agent {
                     "Recipe requires {} parameter(s): {}. Provided: {}",
                     parameters.len(),
                     parameters.join(", "),
-                    params.len()
+                    param_values_len
                 ))));
             }
             Err(e) => return Err(anyhow!("Failed to build recipe: {}", e)),
         };
+
+        self.apply_recipe_components(recipe.sub_recipes.clone(), recipe.response.clone(), true)
+            .await;
 
         let prompt = [recipe.instructions.as_deref(), recipe.prompt.as_deref()]
             .into_iter()

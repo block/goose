@@ -10,6 +10,7 @@ import {
   providers,
   getProviderModels as apiGetProviderModels,
 } from '../api';
+import { syncBundledExtensions } from './settings/extensions';
 import type {
   ConfigResponse,
   UpsertConfigQuery,
@@ -31,6 +32,7 @@ interface ConfigContextType {
   config: ConfigResponse['config'];
   providersList: ProviderDetails[];
   extensionsList: FixedExtensionEntry[];
+  extensionWarnings: string[];
   upsert: (key: string, value: unknown, is_secret: boolean) => Promise<void>;
   read: (key: string, is_secret: boolean) => Promise<unknown>;
   remove: (key: string, is_secret: boolean) => Promise<void>;
@@ -62,6 +64,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
   const [config, setConfig] = useState<ConfigResponse['config']>({});
   const [providersList, setProvidersList] = useState<ProviderDetails[]>([]);
   const [extensionsList, setExtensionsList] = useState<FixedExtensionEntry[]>([]);
+  const [extensionWarnings, setExtensionWarnings] = useState<string[]>([]);
 
   const reloadConfig = useCallback(async () => {
     const response = await readAllConfig();
@@ -116,6 +119,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
 
     const extensionResponse: ExtensionResponse = result.data!;
     setExtensionsList(extensionResponse.extensions);
+    setExtensionWarnings(extensionResponse.warnings || []);
     return extensionResponse.extensions;
   }, [extensionsList]);
 
@@ -215,7 +219,33 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
       // Load extensions
       try {
         const extensionsResponse = await apiGetExtensions();
-        setExtensionsList(extensionsResponse.data?.extensions || []);
+        let extensions = extensionsResponse.data?.extensions || [];
+
+        // If no bundled MCP extensions exist, seed config from bundled-extensions.json
+        // This ensures fresh installs get the default extensions (developer, computercontroller, etc.)
+        // Platform extensions (code_execution, todo, etc.) are handled by the backend
+        const hasBundledExtensions = extensions.some(
+          (ext) => ext.type === 'builtin' && 'bundled' in ext && ext.bundled
+        );
+
+        if (!hasBundledExtensions) {
+          console.log('No bundled extensions found, syncing from bundled-extensions.json');
+          const addExtensionForSync = async (
+            name: string,
+            config: ExtensionConfig,
+            enabled: boolean
+          ) => {
+            const query: ExtensionQuery = { name, config, enabled };
+            await apiAddExtension({ body: query });
+          };
+          await syncBundledExtensions(extensions, addExtensionForSync);
+          // Reload extensions after sync
+          const refreshedResponse = await apiGetExtensions();
+          extensions = refreshedResponse.data?.extensions || [];
+        }
+
+        setExtensionsList(extensions);
+        setExtensionWarnings(extensionsResponse.data?.warnings || []);
       } catch (error) {
         console.error('Failed to load extensions:', error);
       }
@@ -244,6 +274,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
       config,
       providersList,
       extensionsList,
+      extensionWarnings,
       upsert,
       read,
       remove,
@@ -260,6 +291,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     config,
     providersList,
     extensionsList,
+    extensionWarnings,
     upsert,
     read,
     remove,

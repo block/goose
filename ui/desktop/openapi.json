@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.17.0"
+    "version": "1.20.0"
   },
   "paths": {
     "/action-required/tool-confirmation": {
@@ -125,6 +125,62 @@
         }
       }
     },
+    "/agent/list_apps": {
+      "get": {
+        "tags": [
+          "Agent"
+        ],
+        "operationId": "list_apps",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of apps retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListAppsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/agent/read_resource": {
       "post": {
         "tags": [
@@ -206,6 +262,45 @@
         }
       }
     },
+    "/agent/restart": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "restart_agent",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestartAgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Agent restarted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestartAgentResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/agent/resume": {
       "post": {
         "tags": [
@@ -228,7 +323,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Session"
+                  "$ref": "#/components/schemas/ResumeAgentResponse"
                 }
               }
             }
@@ -294,6 +389,45 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/agent/stop": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "stop_agent",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StopAgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Agent stopped successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "500": {
+            "description": "Internal server error"
           }
         }
       }
@@ -415,17 +549,17 @@
         }
       }
     },
-    "/agent/update_router_tool_selector": {
+    "/agent/update_working_dir": {
       "post": {
         "tags": [
           "super::routes::agent"
         ],
-        "operationId": "update_router_tool_selector",
+        "operationId": "update_working_dir",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UpdateRouterToolSelectorRequest"
+                "$ref": "#/components/schemas/UpdateWorkingDirRequest"
               }
             }
           },
@@ -433,20 +567,16 @@
         },
         "responses": {
           "200": {
-            "description": "Tool selection strategy updated successfully",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
+            "description": "Working directory updated and agent restarted successfully"
+          },
+          "400": {
+            "description": "Bad request - invalid directory path"
           },
           "401": {
             "description": "Unauthorized - invalid secret key"
           },
-          "424": {
-            "description": "Agent not initialized"
+          "404": {
+            "description": "Session not found"
           },
           "500": {
             "description": "Internal server error"
@@ -877,6 +1007,140 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/config/prompts": {
+      "get": {
+        "tags": [
+          "super::routes::prompts"
+        ],
+        "operationId": "get_prompts",
+        "responses": {
+          "200": {
+            "description": "List of all available prompts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptsListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/config/prompts/{name}": {
+      "get": {
+        "tags": [
+          "super::routes::prompts"
+        ],
+        "operationId": "get_prompt",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Prompt template name (e.g., system.md)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Prompt content retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptContentResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Prompt not found"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "super::routes::prompts"
+        ],
+        "operationId": "save_prompt",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Prompt template name (e.g., system.md)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavePromptRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Prompt saved successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Prompt not found"
+          },
+          "500": {
+            "description": "Failed to save prompt"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "super::routes::prompts"
+        ],
+        "operationId": "reset_prompt",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Prompt template name (e.g., system.md)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Prompt reset to default successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Prompt not found"
+          },
+          "500": {
+            "description": "Failed to reset prompt"
           }
         }
       }
@@ -1594,6 +1858,46 @@
         }
       }
     },
+    "/recipes/to-yaml": {
+      "post": {
+        "tags": [
+          "Recipe Management"
+        ],
+        "operationId": "recipe_to_yaml",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecipeToYamlRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Recipe converted to YAML successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecipeToYamlResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - Failed to convert recipe to YAML",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/reply": {
       "post": {
         "tags": [
@@ -2268,6 +2572,51 @@
         ]
       }
     },
+    "/sessions/{session_id}/extensions": {
+      "get": {
+        "tags": [
+          "Session Management"
+        ],
+        "operationId": "get_session_extensions",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Unique identifier for the session",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session extensions retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionExtensionsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/sessions/{session_id}/name": {
       "put": {
         "tags": [
@@ -2401,6 +2750,26 @@
               "text/plain": {
                 "schema": {
                   "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/system_info": {
+      "get": {
+        "tags": [
+          "super::routes::status"
+        ],
+        "operationId": "system_info",
+        "responses": {
+          "200": {
+            "description": "System information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemInfo"
                 }
               }
             }
@@ -2695,6 +3064,9 @@
           "is_error"
         ],
         "properties": {
+          "_meta": {
+            "nullable": true
+          },
           "content": {
             "type": "array",
             "items": {
@@ -2939,6 +3311,28 @@
           }
         }
       },
+      "CspMetadata": {
+        "type": "object",
+        "description": "Content Security Policy metadata for MCP Apps\nSpecifies allowed domains for network connections and resource loading",
+        "properties": {
+          "connectDomains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Domains allowed for connect-src (fetch, XHR, WebSocket)",
+            "nullable": true
+          },
+          "resourceDomains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Domains allowed for resource loading (scripts, styles, images, fonts, media)",
+            "nullable": true
+          }
+        }
+      },
       "DeclarativeProviderConfig": {
         "type": "object",
         "required": [
@@ -3158,45 +3552,18 @@
         "oneOf": [
           {
             "type": "object",
-            "description": "Server-sent events client with a URI endpoint",
+            "description": "SSE transport is no longer supported - kept only for config file compatibility",
             "required": [
               "name",
               "description",
-              "uri",
               "type"
             ],
             "properties": {
-              "available_tools": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "bundled": {
-                "type": "boolean",
-                "nullable": true
-              },
               "description": {
                 "type": "string"
               },
-              "env_keys": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "envs": {
-                "$ref": "#/components/schemas/Envs"
-              },
               "name": {
-                "type": "string",
-                "description": "The name used to identify this extension"
-              },
-              "timeout": {
-                "type": "integer",
-                "format": "int64",
-                "nullable": true,
-                "minimum": 0
+                "type": "string"
               },
               "type": {
                 "type": "string",
@@ -3205,7 +3572,8 @@
                 ]
               },
               "uri": {
-                "type": "string"
+                "type": "string",
+                "nullable": true
               }
             }
           },
@@ -3532,6 +3900,25 @@
           }
         ]
       },
+      "ExtensionLoadResult": {
+        "type": "object",
+        "required": [
+          "name",
+          "success"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          }
+        }
+      },
       "ExtensionQuery": {
         "type": "object",
         "required": [
@@ -3561,6 +3948,12 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ExtensionEntry"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
             }
           }
         }
@@ -3594,6 +3987,31 @@
             "type": "string"
           }
         }
+      },
+      "GooseApp": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/McpAppResource"
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/WindowProps"
+              }
+            ],
+            "nullable": true
+          },
+          {
+            "type": "object",
+            "properties": {
+              "mcpServer": {
+                "type": "string",
+                "nullable": true
+              }
+            }
+          }
+        ],
+        "description": "A Goose App combining MCP resource data with Goose-specific metadata"
       },
       "Icon": {
         "type": "object",
@@ -3688,6 +4106,29 @@
           }
         }
       },
+      "ListAppsRequest": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ListAppsResponse": {
+        "type": "object",
+        "required": [
+          "apps"
+        ],
+        "properties": {
+          "apps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GooseApp"
+            }
+          }
+        }
+      },
       "ListRecipeResponse": {
         "type": "object",
         "required": [
@@ -3728,6 +4169,52 @@
           },
           "is_editable": {
             "type": "boolean"
+          }
+        }
+      },
+      "McpAppResource": {
+        "type": "object",
+        "description": "MCP App Resource\nRepresents a UI resource that can be rendered in an MCP App",
+        "required": [
+          "uri",
+          "name",
+          "mimeType"
+        ],
+        "properties": {
+          "_meta": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ResourceMetadata"
+              }
+            ],
+            "nullable": true
+          },
+          "blob": {
+            "type": "string",
+            "description": "Base64-encoded binary content (alternative to text)",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "description": "Optional description of what this resource does",
+            "nullable": true
+          },
+          "mimeType": {
+            "type": "string",
+            "description": "MIME type (should be \"text/html;profile=mcp-app\" for MCP Apps)"
+          },
+          "name": {
+            "type": "string",
+            "description": "Human-readable name of the resource"
+          },
+          "text": {
+            "type": "string",
+            "description": "Text content of the resource (HTML for MCP Apps)",
+            "nullable": true
+          },
+          "uri": {
+            "type": "string",
+            "description": "URI of the resource (must use ui:// scheme)"
           }
         }
       },
@@ -4168,6 +4655,12 @@
           "model_name": {
             "type": "string"
           },
+          "request_params": {
+            "type": "object",
+            "description": "Provider-specific request parameters (e.g., anthropic_beta headers)",
+            "additionalProperties": {},
+            "nullable": true
+          },
           "temperature": {
             "type": "number",
             "format": "float",
@@ -4329,6 +4822,43 @@
           "Tool"
         ]
       },
+      "PromptContentResponse": {
+        "type": "object",
+        "required": [
+          "name",
+          "content",
+          "default_content",
+          "is_customized"
+        ],
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "default_content": {
+            "type": "string"
+          },
+          "is_customized": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "PromptsListResponse": {
+        "type": "object",
+        "required": [
+          "prompts"
+        ],
+        "properties": {
+          "prompts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Template"
+            }
+          }
+        }
+      },
       "ProviderDetails": {
         "type": "object",
         "required": [
@@ -4373,6 +4903,10 @@
           "config_keys"
         ],
         "properties": {
+          "allows_unlisted_models": {
+            "type": "boolean",
+            "description": "Whether this provider allows entering model names not in the fetched list"
+          },
           "config_keys": {
             "type": "array",
             "items": {
@@ -4488,6 +5022,10 @@
           "name"
         ],
         "properties": {
+          "_meta": {
+            "type": "object",
+            "additionalProperties": true
+          },
           "description": {
             "type": "string"
           },
@@ -4552,10 +5090,23 @@
       "ReadResourceResponse": {
         "type": "object",
         "required": [
-          "html"
+          "uri",
+          "text"
         ],
         "properties": {
-          "html": {
+          "_meta": {
+            "type": "object",
+            "additionalProperties": {},
+            "nullable": true
+          },
+          "mimeType": {
+            "type": "string",
+            "nullable": true
+          },
+          "text": {
+            "type": "string"
+          },
+          "uri": {
             "type": "string"
           }
         }
@@ -4730,6 +5281,28 @@
           "user_prompt"
         ]
       },
+      "RecipeToYamlRequest": {
+        "type": "object",
+        "required": [
+          "recipe"
+        ],
+        "properties": {
+          "recipe": {
+            "$ref": "#/components/schemas/Recipe"
+          }
+        }
+      },
+      "RecipeToYamlResponse": {
+        "type": "object",
+        "required": [
+          "yaml"
+        ],
+        "properties": {
+          "yaml": {
+            "type": "string"
+          }
+        }
+      },
       "RedactedThinkingContent": {
         "type": "object",
         "required": [
@@ -4804,11 +5377,50 @@
           }
         ]
       },
+      "ResourceMetadata": {
+        "type": "object",
+        "description": "Resource metadata containing UI configuration",
+        "properties": {
+          "ui": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UiMetadata"
+              }
+            ],
+            "nullable": true
+          }
+        }
+      },
       "Response": {
         "type": "object",
         "properties": {
           "json_schema": {
             "nullable": true
+          }
+        }
+      },
+      "RestartAgentRequest": {
+        "type": "object",
+        "required": [
+          "session_id"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
+          }
+        }
+      },
+      "RestartAgentResponse": {
+        "type": "object",
+        "required": [
+          "extension_results"
+        ],
+        "properties": {
+          "extension_results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExtensionLoadResult"
+            }
           }
         }
       },
@@ -4824,6 +5436,24 @@
           },
           "session_id": {
             "type": "string"
+          }
+        }
+      },
+      "ResumeAgentResponse": {
+        "type": "object",
+        "required": [
+          "session"
+        ],
+        "properties": {
+          "extension_results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExtensionLoadResult"
+            },
+            "nullable": true
+          },
+          "session": {
+            "$ref": "#/components/schemas/Session"
           }
         }
       },
@@ -4886,6 +5516,17 @@
         ],
         "properties": {
           "session_id": {
+            "type": "string"
+          }
+        }
+      },
+      "SavePromptRequest": {
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "properties": {
+          "content": {
             "type": "string"
           }
         }
@@ -5167,6 +5808,20 @@
           }
         }
       },
+      "SessionExtensionsResponse": {
+        "type": "object",
+        "required": [
+          "extensions"
+        ],
+        "properties": {
+          "extensions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExtensionConfig"
+            }
+          }
+        }
+      },
       "SessionInsights": {
         "type": "object",
         "required": [
@@ -5323,6 +5978,13 @@
           "working_dir"
         ],
         "properties": {
+          "extension_overrides": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExtensionConfig"
+            },
+            "nullable": true
+          },
           "recipe": {
             "allOf": [
               {
@@ -5340,6 +6002,17 @@
             "nullable": true
           },
           "working_dir": {
+            "type": "string"
+          }
+        }
+      },
+      "StopAgentRequest": {
+        "type": "object",
+        "required": [
+          "session_id"
+        ],
+        "properties": {
+          "session_id": {
             "type": "string"
           }
         }
@@ -5401,6 +6074,44 @@
           "propertyName": "type"
         }
       },
+      "SystemInfo": {
+        "type": "object",
+        "required": [
+          "app_version",
+          "os",
+          "os_version",
+          "architecture",
+          "enabled_extensions"
+        ],
+        "properties": {
+          "app_version": {
+            "type": "string"
+          },
+          "architecture": {
+            "type": "string"
+          },
+          "enabled_extensions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "model": {
+            "type": "string",
+            "nullable": true
+          },
+          "os": {
+            "type": "string"
+          },
+          "os_version": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
       "SystemNotificationContent": {
         "type": "object",
         "required": [
@@ -5435,6 +6146,34 @@
           "properties": {
             "type": "object",
             "additionalProperties": {}
+          }
+        }
+      },
+      "Template": {
+        "type": "object",
+        "description": "Information about a template including its content and customization status",
+        "required": [
+          "name",
+          "description",
+          "default_content",
+          "is_customized"
+        ],
+        "properties": {
+          "default_content": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "is_customized": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "user_content": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -5657,6 +6396,9 @@
           "toolCall"
         ],
         "properties": {
+          "_meta": {
+            "type": "object"
+          },
           "id": {
             "type": "string"
           },
@@ -5719,6 +6461,30 @@
           "disabled"
         ]
       },
+      "UiMetadata": {
+        "type": "object",
+        "description": "UI-specific metadata for MCP resources",
+        "properties": {
+          "csp": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CspMetadata"
+              }
+            ],
+            "nullable": true
+          },
+          "domain": {
+            "type": "string",
+            "description": "Preferred domain for the app (used for CORS)",
+            "nullable": true
+          },
+          "prefersBorder": {
+            "type": "boolean",
+            "description": "Whether the app prefers to have a border around it",
+            "nullable": true
+          }
+        }
+      },
       "UpdateCustomProviderRequest": {
         "type": "object",
         "required": [
@@ -5778,6 +6544,11 @@
           "session_id"
         ],
         "properties": {
+          "context_limit": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0
+          },
           "model": {
             "type": "string",
             "nullable": true
@@ -5785,17 +6556,11 @@
           "provider": {
             "type": "string"
           },
-          "session_id": {
-            "type": "string"
-          }
-        }
-      },
-      "UpdateRouterToolSelectorRequest": {
-        "type": "object",
-        "required": [
-          "session_id"
-        ],
-        "properties": {
+          "request_params": {
+            "type": "object",
+            "additionalProperties": {},
+            "nullable": true
+          },
           "session_id": {
             "type": "string"
           }
@@ -5850,6 +6615,21 @@
           }
         }
       },
+      "UpdateWorkingDirRequest": {
+        "type": "object",
+        "required": [
+          "session_id",
+          "working_dir"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
+          },
+          "working_dir": {
+            "type": "string"
+          }
+        }
+      },
       "UpsertConfigQuery": {
         "type": "object",
         "required": [
@@ -5878,6 +6658,29 @@
             "items": {
               "$ref": "#/components/schemas/ToolPermission"
             }
+          }
+        }
+      },
+      "WindowProps": {
+        "type": "object",
+        "required": [
+          "width",
+          "height",
+          "resizable"
+        ],
+        "properties": {
+          "height": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "resizable": {
+            "type": "boolean"
+          },
+          "width": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
           }
         }
       }

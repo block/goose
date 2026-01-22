@@ -3,7 +3,6 @@ sidebar_position: 55
 title: MCP Elicitation
 sidebar_label: MCP Elicitation
 description: How extensions can request structured information from you during a task
-unlisted: true
 ---
 
 import Tabs from '@theme/Tabs';

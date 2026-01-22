@@ -1,3 +1,4 @@
+import { AppEvents } from '../../constants/events';
 import React, { useEffect, useState, useRef, useCallback, useMemo, startTransition } from 'react';
 import {
   MessageSquareText,
@@ -10,6 +11,7 @@ import {
   Download,
   Upload,
   ExternalLink,
+  Puzzle,
 } from 'lucide-react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
@@ -22,6 +24,7 @@ import { groupSessionsByDate, type DateGroup } from '../../utils/dateUtils';
 import { Skeleton } from '../ui/skeleton';
 import { toast } from 'react-toastify';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/Tooltip';
 import {
   deleteSession,
   exportSession,
@@ -29,7 +32,26 @@ import {
   listSessions,
   Session,
   updateSessionName,
+  ExtensionConfig,
+  ExtensionData,
 } from '../../api';
+import { formatExtensionName } from '../settings/extensions/subcomponents/ExtensionList';
+import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
+import { shouldShowNewChatTitle } from '../../sessions';
+import { DEFAULT_CHAT_TITLE } from '../../contexts/ChatContext';
+
+function getSessionExtensionNames(extensionData: ExtensionData): string[] {
+  try {
+    const enabledExtensionData = extensionData?.['enabled_extensions.v0'] as
+      | { extensions?: ExtensionConfig[] }
+      | undefined;
+    if (!enabledExtensionData?.extensions) return [];
+
+    return enabledExtensionData.extensions.map((ext) => formatExtensionName(ext.name));
+  } catch {
+    return [];
+  }
+}
 
 interface EditSessionModalProps {
   session: Session | null;
@@ -48,7 +70,6 @@ const EditSessionModal = React.memo<EditSessionModalProps>(
       if (session && isOpen) {
         setDescription(session.name);
       } else if (!isOpen) {
-        // Reset state when modal closes
         setDescription('');
         setIsUpdating(false);
       }
@@ -71,8 +92,6 @@ const EditSessionModal = React.memo<EditSessionModalProps>(
           throwOnError: true,
         });
         await onSave(session.id, trimmedDescription);
-
-        // Close modal, then show success toast on a timeout to let the UI update complete.
         onClose();
         setTimeout(() => {
           toast.success('Session description updated successfully');
@@ -400,6 +419,11 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       setSessions((prevSessions) =>
         prevSessions.map((s) => (s.id === sessionId ? { ...s, name: newDescription } : s))
       );
+      window.dispatchEvent(
+        new CustomEvent(AppEvents.SESSION_RENAMED, {
+          detail: { sessionId, newName: newDescription },
+        })
+      );
     }, []);
 
     const handleEditSession = useCallback((session: Session) => {
@@ -426,6 +450,9 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           throwOnError: true,
         });
         toast.success('Session deleted successfully');
+        window.dispatchEvent(
+          new CustomEvent(AppEvents.SESSION_DELETED, { detail: { sessionId: sessionToDeleteId } })
+        );
       } catch (error) {
         console.error('Error deleting session:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -547,6 +574,14 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         [onOpenInNewWindow, session]
       );
 
+      const displayName = shouldShowNewChatTitle(session) ? DEFAULT_CHAT_TITLE : session.name;
+
+      // Get extension names for this session
+      const extensionNames = useMemo(
+        () => getSessionExtensionNames(session.extension_data),
+        [session.extension_data]
+      );
+
       return (
         <Card
           onClick={handleCardClick}
@@ -554,7 +589,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           ref={(el) => setSessionRefs(session.id, el)}
         >
           <div className="flex items-start justify-between gap-2 mb-1">
-            <h3 className="text-base break-words line-clamp-2 flex-1 min-w-0">{session.name}</h3>
+            <h3 className="text-base break-words line-clamp-2 flex-1 min-w-0">{displayName}</h3>
             <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
               <button
                 onClick={handleOpenInNewWindowClick}
@@ -609,6 +644,28 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                   <Target className="w-3 h-3 mr-1" />
                   <span className="font-mono">{(session.total_tokens || 0).toLocaleString()}</span>
                 </div>
+              )}
+              {extensionNames.length > 0 && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
+                        <Puzzle className="w-3 h-3 mr-1" />
+                        <span className="font-mono">{extensionNames.length}</span>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs">
+                      <div className="text-xs">
+                        <div className="font-medium mb-1">Extensions:</div>
+                        <ul className="list-disc list-inside">
+                          {extensionNames.map((name) => (
+                            <li key={name}>{name}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               )}
             </div>
           </div>
@@ -740,7 +797,8 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                   </Button>
                 </div>
                 <p className="text-sm text-text-muted mb-4">
-                  View and search your past conversations with Goose. ⌘F/Ctrl+F to search.
+                  View and search your past conversations with Goose. {getSearchShortcutText()} to
+                  search.
                 </p>
               </div>
             </div>

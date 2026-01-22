@@ -24,22 +24,30 @@ static TELEMETRY_DISABLED_BY_ENV: Lazy<AtomicBool> = Lazy::new(|| {
         .into()
 });
 
+/// Check if the user has made a telemetry choice.
+///
+/// Returns Some(true) if telemetry is enabled, Some(false) if disabled,
+/// or None if the user hasn't made a choice yet.
+pub fn get_telemetry_choice() -> Option<bool> {
+    // If disabled by env var, treat as explicit choice to disable
+    if TELEMETRY_DISABLED_BY_ENV.load(Ordering::Relaxed) {
+        return Some(false);
+    }
+
+    let config = Config::global();
+    config.get_param::<bool>(TELEMETRY_ENABLED_KEY).ok()
+}
+
 /// Check if telemetry is enabled.
 ///
 /// Returns false if:
 /// - GOOSE_TELEMETRY_OFF environment variable is set to "1" or "true"
 /// - GOOSE_TELEMETRY_ENABLED config value is set to false
+/// - User has not made a telemetry choice yet (opt-in required)
 ///
-/// Returns true otherwise (telemetry is opt-out, enabled by default)
+/// Returns true only if the user has explicitly opted in.
 pub fn is_telemetry_enabled() -> bool {
-    if TELEMETRY_DISABLED_BY_ENV.load(Ordering::Relaxed) {
-        return false;
-    }
-
-    let config = Config::global();
-    config
-        .get_param::<bool>(TELEMETRY_ENABLED_KEY)
-        .unwrap_or(true)
+    get_telemetry_choice().unwrap_or(false)
 }
 
 // ============================================================================
@@ -218,10 +226,17 @@ pub fn emit_session_started() {
 pub struct ErrorContext {
     pub component: Option<String>,
     pub action: Option<String>,
+    pub error_message: Option<String>,
 }
 
-pub fn emit_error(error_type: &str) {
-    emit_error_with_context(error_type, ErrorContext::default());
+pub fn emit_error(error_type: &str, error_message: &str) {
+    emit_error_with_context(
+        error_type,
+        ErrorContext {
+            error_message: Some(error_message.to_string()),
+            ..Default::default()
+        },
+    );
 }
 
 pub fn emit_error_with_context(error_type: &str, context: ErrorContext) {
@@ -272,6 +287,10 @@ async fn send_error_event(
     }
     if let Some(action) = &context.action {
         event.insert_prop("action", action.as_str()).ok();
+    }
+    if let Some(error_message) = &context.error_message {
+        let sanitized = sanitize_string(error_message);
+        event.insert_prop("error_message", sanitized).ok();
     }
 
     if let Some(platform_version) = get_platform_version() {
@@ -352,11 +371,6 @@ async fn send_session_event(installation: &InstallationData) -> Result<(), Strin
     if let Ok(max_turns) = config.get_param::<i64>("GOOSE_MAX_TURNS") {
         event.insert_prop("setting_max_turns", max_turns).ok();
     }
-    if let Ok(router_enabled) = config.get_param::<bool>("GOOSE_ENABLE_ROUTER") {
-        event
-            .insert_prop("setting_router_enabled", router_enabled)
-            .ok();
-    }
 
     if let Ok(lead_model) = config.get_param::<String>("GOOSE_LEAD_MODEL") {
         event.insert_prop("setting_lead_model", lead_model).ok();
@@ -389,7 +403,8 @@ async fn send_session_event(installation: &InstallationData) -> Result<(), Strin
         .insert_prop("db_schema_version", CURRENT_SCHEMA_VERSION)
         .ok();
 
-    if let Ok(insights) = SessionManager::get_insights().await {
+    let session_manager = SessionManager::instance();
+    if let Ok(insights) = session_manager.get_insights().await {
         event
             .insert_prop("total_sessions", insights.total_sessions)
             .ok();

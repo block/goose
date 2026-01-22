@@ -5,16 +5,13 @@ use anyhow::Result;
 use async_trait::async_trait;
 use indoc::indoc;
 use rmcp::model::{
-    CallToolResult, Content, GetPromptResult, Implementation, InitializeResult, JsonObject,
-    ListPromptsResult, ListResourcesResult, ListToolsResult, ProtocolVersion, ReadResourceResult,
-    ServerCapabilities, ServerNotification, Tool, ToolAnnotations, ToolsCapability,
+    CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
+    ProtocolVersion, ServerCapabilities, Tool, ToolAnnotations, ToolsCapability,
 };
 use schemars::{schema_for, JsonSchema};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 pub static EXTENSION_NAME: &str = "skills";
@@ -48,6 +45,7 @@ impl SkillsClient {
         let info = InitializeResult {
             protocol_version: ProtocolVersion::V_2025_03_26,
             capabilities: ServerCapabilities {
+                tasks: None,
                 tools: Some(ToolsCapability {
                     list_changed: Some(false),
                 }),
@@ -83,7 +81,7 @@ impl SkillsClient {
 
         if let Some(home) = dirs::home_dir() {
             dirs.push(home.join(".claude/skills"));
-            dirs.push(home.join(".config/agent/skills"));
+            dirs.push(home.join(".config/agents/skills"));
         }
 
         dirs.push(Paths::config_dir().join("skills"));
@@ -263,24 +261,9 @@ impl SkillsClient {
 
 #[async_trait]
 impl McpClientTrait for SkillsClient {
-    async fn list_resources(
-        &self,
-        _next_cursor: Option<String>,
-        _cancellation_token: CancellationToken,
-    ) -> Result<ListResourcesResult, Error> {
-        Err(Error::TransportClosed)
-    }
-
-    async fn read_resource(
-        &self,
-        _uri: &str,
-        _cancellation_token: CancellationToken,
-    ) -> Result<ReadResourceResult, Error> {
-        Err(Error::TransportClosed)
-    }
-
     async fn list_tools(
         &self,
+        _session_id: &str,
         _next_cursor: Option<String>,
         _cancellation_token: CancellationToken,
     ) -> Result<ListToolsResult, Error> {
@@ -292,11 +275,13 @@ impl McpClientTrait for SkillsClient {
         Ok(ListToolsResult {
             tools,
             next_cursor: None,
+            meta: None,
         })
     }
 
     async fn call_tool(
         &self,
+        _session_id: &str,
         name: &str,
         arguments: Option<JsonObject>,
         _cancellation_token: CancellationToken,
@@ -313,27 +298,6 @@ impl McpClientTrait for SkillsClient {
                 error
             ))])),
         }
-    }
-
-    async fn list_prompts(
-        &self,
-        _next_cursor: Option<String>,
-        _cancellation_token: CancellationToken,
-    ) -> Result<ListPromptsResult, Error> {
-        Err(Error::TransportClosed)
-    }
-
-    async fn get_prompt(
-        &self,
-        _name: &str,
-        _arguments: Value,
-        _cancellation_token: CancellationToken,
-    ) -> Result<GetPromptResult, Error> {
-        Err(Error::TransportClosed)
-    }
-
-    async fn subscribe(&self) -> mpsc::Receiver<ServerNotification> {
-        mpsc::channel(1).1
     }
 
     fn get_info(&self) -> Option<&InitializeResult> {
@@ -572,6 +536,7 @@ Content from dir3
             info: InitializeResult {
                 protocol_version: ProtocolVersion::V_2025_03_26,
                 capabilities: ServerCapabilities {
+                    tasks: None,
                     tools: Some(ToolsCapability {
                         list_changed: Some(false),
                     }),
@@ -614,6 +579,7 @@ Content from dir3
             info: InitializeResult {
                 protocol_version: ProtocolVersion::V_2025_03_26,
                 capabilities: ServerCapabilities {
+                    tasks: None,
                     tools: Some(ToolsCapability {
                         list_changed: Some(false),
                     }),
@@ -636,7 +602,7 @@ Content from dir3
         };
 
         let result = client
-            .list_tools(None, CancellationToken::new())
+            .list_tools("test-session-id", None, CancellationToken::new())
             .await
             .unwrap();
         assert_eq!(result.tools.len(), 0);
@@ -668,6 +634,7 @@ Content
             info: InitializeResult {
                 protocol_version: ProtocolVersion::V_2025_03_26,
                 capabilities: ServerCapabilities {
+                    tasks: None,
                     tools: Some(ToolsCapability {
                         list_changed: Some(false),
                     }),
@@ -690,7 +657,7 @@ Content
         };
 
         let result = client
-            .list_tools(None, CancellationToken::new())
+            .list_tools("test-session-id", None, CancellationToken::new())
             .await
             .unwrap();
         assert_eq!(result.tools.len(), 1);
@@ -736,6 +703,7 @@ Content
             info: InitializeResult {
                 protocol_version: ProtocolVersion::V_2025_03_26,
                 capabilities: ServerCapabilities {
+                    tasks: None,
                     tools: Some(ToolsCapability {
                         list_changed: Some(false),
                     }),

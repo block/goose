@@ -328,7 +328,17 @@ if [[ ":$PATH:" != *":$GOOSE_BIN_DIR:"* ]]; then
       echo "1) Add it for me"
       echo "2) I'll add it myself, show instructions"
 
-      read -p "Enter choice [1/2]: " choice
+      # Check whether stdin is a terminal. If it is not (for example, if
+      # this script has been piped into bash), we need to explicitly read user's
+      # choice from /dev/tty.
+      if [ -t 0 ]; then # terminal
+        read -p "Enter choice [1/2]: " choice
+      elif [ -r /dev/tty ]; then # not a terminal, but /dev/tty is available
+        read -p "Enter choice [1/2]: " choice < /dev/tty
+      else # non-interactive environment without /dev/tty
+        echo "Non-interactive environment detected without /dev/tty; defaulting to option 2 (show instructions)."
+        choice=2
+      fi
 
       case "$choice" in
       1)

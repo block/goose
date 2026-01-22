@@ -1,3 +1,4 @@
+import { AppEvents } from '../constants/events';
 import React, {
   createContext,
   useCallback,
@@ -7,7 +8,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { SearchView } from './conversation/SearchView';
 import LoadingGoose from './LoadingGoose';
 import PopularChatTopics from './PopularChatTopics';
@@ -36,8 +37,10 @@ import { substituteParameters } from '../utils/providerUtils';
 import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal';
 import { toastSuccess } from '../toasts';
 import { Recipe } from '../recipe';
+import { useAutoSubmit } from '../hooks/useAutoSubmit';
+import { Goose } from './icons/Goose';
+import EnvironmentBadge from './GooseSidebar/EnvironmentBadge';
 
-// Context for sharing current model info
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
 export const useCurrentModelInfo = () => useContext(CurrentModelContext);
 
@@ -52,20 +55,23 @@ interface BaseChatProps {
   showPopularTopics?: boolean;
   suppressEmptyState: boolean;
   sessionId: string;
+  isActiveSession: boolean;
   initialMessage?: string;
 }
 
 function BaseChatContent({
+  setChat,
   renderHeader,
   customChatInputProps = {},
   customMainLayoutProps = {},
   sessionId,
   initialMessage,
+  isActiveSession,
 }: BaseChatProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const scrollRef = useRef<ScrollAreaHandle>(null);
+  const chatInputRef = useRef<HTMLTextAreaElement>(null);
 
   const disableAnimation = location.state?.disableAnimation || false;
   const [hasStartedUsingRecipe, setHasStartedUsingRecipe] = React.useState(false);
@@ -76,25 +82,21 @@ function BaseChatContent({
   const { state: sidebarState } = useSidebar();
   const setView = useNavigation();
 
-  const contentClassName = cn('pr-1 pb-10', (isMobile || sidebarState === 'collapsed') && 'pt-11');
-
-  // Use shared file drop
+  const contentClassName = cn(
+    'pr-1 pb-10 pt-10',
+    (isMobile || sidebarState === 'collapsed') && 'pt-14'
+  );
   const { droppedFiles, setDroppedFiles, handleDrop, handleDragOver } = useFileDrop();
 
   const onStreamFinish = useCallback(() => {}, []);
 
   const [isCreateRecipeModalOpen, setIsCreateRecipeModalOpen] = useState(false);
-  const hasAutoSubmittedRef = useRef(false);
-
-  // Reset auto-submit flag when session changes
-  useEffect(() => {
-    hasAutoSubmittedRef.current = false;
-  }, [sessionId]);
 
   const {
     session,
     messages,
     chatState,
+    setChatState,
     handleSubmit,
     submitElicitationResponse,
     stopStreaming,
@@ -107,6 +109,40 @@ function BaseChatContent({
     sessionId,
     onStreamFinish,
   });
+
+  useAutoSubmit({
+    sessionId,
+    session,
+    messages,
+    chatState,
+    initialMessage,
+    handleSubmit,
+  });
+
+  useEffect(() => {
+    let streamState: 'idle' | 'loading' | 'streaming' | 'error' = 'idle';
+    if (chatState === ChatState.LoadingConversation) {
+      streamState = 'loading';
+    } else if (
+      chatState === ChatState.Streaming ||
+      chatState === ChatState.Thinking ||
+      chatState === ChatState.Compacting
+    ) {
+      streamState = 'streaming';
+    } else if (sessionLoadError) {
+      streamState = 'error';
+    }
+
+    window.dispatchEvent(
+      new CustomEvent(AppEvents.SESSION_STATUS_UPDATE, {
+        detail: {
+          sessionId,
+          streamState,
+          messageCount: messages.length,
+        },
+      })
+    );
+  }, [sessionId, chatState, messages.length, sessionLoadError]);
 
   // Generate command history from user messages (most recent first)
   const commandHistory = useMemo(() => {
@@ -122,24 +158,6 @@ function BaseChatContent({
       }, [])
       .reverse();
   }, [messages]);
-
-  useEffect(() => {
-    if (!session || hasAutoSubmittedRef.current) {
-      return;
-    }
-
-    const shouldStartAgent = searchParams.get('shouldStartAgent') === 'true';
-
-    if (initialMessage) {
-      // Submit the initial message (e.g., from fork)
-      hasAutoSubmittedRef.current = true;
-      handleSubmit(initialMessage);
-    } else if (shouldStartAgent) {
-      // Trigger agent to continue with existing conversation
-      hasAutoSubmittedRef.current = true;
-      handleSubmit('');
-    }
-  }, [session, initialMessage, searchParams, handleSubmit]);
 
   const handleFormSubmit = (e: React.FormEvent) => {
     const customEvent = e as unknown as CustomEvent;
@@ -215,9 +233,25 @@ function BaseChatContent({
       }, 200);
     };
 
-    window.addEventListener('scroll-chat-to-bottom', handleGlobalScrollRequest);
-    return () => window.removeEventListener('scroll-chat-to-bottom', handleGlobalScrollRequest);
+    window.addEventListener(AppEvents.SCROLL_CHAT_TO_BOTTOM, handleGlobalScrollRequest);
+    return () =>
+      window.removeEventListener(AppEvents.SCROLL_CHAT_TO_BOTTOM, handleGlobalScrollRequest);
   }, []);
+
+  useEffect(() => {
+    if (
+      isActiveSession &&
+      sessionId &&
+      chatInputRef.current &&
+      chatState !== ChatState.LoadingConversation
+    ) {
+      const timeoutId = setTimeout(() => {
+        chatInputRef.current?.focus();
+      }, 100);
+      return () => clearTimeout(timeoutId);
+    }
+    return undefined;
+  }, [isActiveSession, sessionId, chatState]);
 
   useEffect(() => {
     const handleMakeAgent = () => {
@@ -235,6 +269,7 @@ function BaseChatContent({
         shouldStartAgent?: boolean;
         editedMessage?: string;
       }>;
+      window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
       const { newSessionId, shouldStartAgent, editedMessage } = customEvent.detail;
 
       const params = new URLSearchParams();
@@ -251,10 +286,10 @@ function BaseChatContent({
       });
     };
 
-    window.addEventListener('session-forked', handleSessionForked);
+    window.addEventListener(AppEvents.SESSION_FORKED, handleSessionForked);
 
     return () => {
-      window.removeEventListener('session-forked', handleSessionForked);
+      window.removeEventListener(AppEvents.SESSION_FORKED, handleSessionForked);
     };
   }, [location.pathname, navigate]);
 
@@ -265,31 +300,31 @@ function BaseChatContent({
     });
   };
 
-  const renderProgressiveMessageList = (chat: ChatType) => (
-    <>
-      <ProgressiveMessageList
-        messages={messages}
-        chat={chat}
-        toolCallNotifications={toolCallNotifications}
-        isUserMessage={(m: Message) => m.role === 'user'}
-        isStreamingMessage={chatState !== ChatState.Idle}
-        onRenderingComplete={handleRenderingComplete}
-        onMessageUpdate={onMessageUpdate}
-        submitElicitationResponse={submitElicitationResponse}
-      />
-    </>
-  );
-
   const showPopularTopics =
     messages.length === 0 && !initialMessage && chatState === ChatState.Idle;
 
   const chat: ChatType = {
-    messageHistoryIndex: 0,
     messages,
     recipe,
     sessionId,
     name: session?.name || 'No Session',
   };
+
+  const lastSetNameRef = useRef<string>('');
+
+  useEffect(() => {
+    const currentSessionName = session?.name;
+    if (currentSessionName && currentSessionName !== lastSetNameRef.current) {
+      lastSetNameRef.current = currentSessionName;
+      setChat({
+        messages,
+        recipe,
+        sessionId,
+        name: currentSessionName,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.name, setChat]);
 
   // Only use initialMessage for the prompt if it hasn't been submitted yet
   // If we have a recipe prompt and user recipe values, substitute parameters
@@ -300,8 +335,7 @@ function BaseChatContent({
       : recipe.prompt;
   }
 
-  const initialPrompt =
-    (initialMessage && !hasAutoSubmittedRef.current ? initialMessage : '') || recipePrompt;
+  const initialPrompt = recipePrompt;
 
   if (sessionLoadError) {
     return (
@@ -347,6 +381,19 @@ function BaseChatContent({
 
         {/* Chat container with sticky recipe header */}
         <div className="flex flex-col flex-1 mb-0.5 min-h-0 relative">
+          <div className="absolute top-3 right-4 z-[60] flex flex-row items-center gap-1">
+            <a
+              href="https://block.github.io/goose"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="no-drag flex flex-row items-center gap-1 hover:opacity-80 transition-opacity"
+            >
+              <Goose className="size-5 goose-icon-animation" />
+              <span className="text-sm leading-none text-text-muted -translate-y-px">goose</span>
+            </a>
+            <EnvironmentBadge className="translate-y-px" />
+          </div>
+
           <ScrollArea
             ref={scrollRef}
             className={`flex-1 bg-background-default rounded-b-2xl min-h-0 relative ${contentClassName}`}
@@ -374,10 +421,21 @@ function BaseChatContent({
               </div>
             )}
 
-            {/* Messages or Popular Topics */}
             {messages.length > 0 || recipe ? (
               <>
-                <SearchView>{renderProgressiveMessageList(chat)}</SearchView>
+                <SearchView>
+                  <ProgressiveMessageList
+                    messages={messages}
+                    chat={{ sessionId }}
+                    toolCallNotifications={toolCallNotifications}
+                    append={(text: string) => handleSubmit(text)}
+                    isUserMessage={(m: Message) => m.role === 'user'}
+                    isStreamingMessage={chatState !== ChatState.Idle}
+                    onRenderingComplete={handleRenderingComplete}
+                    onMessageUpdate={onMessageUpdate}
+                    submitElicitationResponse={submitElicitationResponse}
+                  />
+                </SearchView>
 
                 <div className="block h-8" />
               </>
@@ -404,9 +462,11 @@ function BaseChatContent({
           className={`relative z-10 ${disableAnimation ? '' : 'animate-[fadein_400ms_ease-in_forwards]'}`}
         >
           <ChatInput
+            inputRef={chatInputRef}
             sessionId={sessionId}
             handleSubmit={handleFormSubmit}
             chatState={chatState}
+            setChatState={setChatState}
             onStop={stopStreaming}
             commandHistory={commandHistory}
             initialValue={initialPrompt}

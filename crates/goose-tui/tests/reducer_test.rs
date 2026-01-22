@@ -21,6 +21,7 @@ fn make_todo_tool_request(content: &str) -> Message {
     Message::assistant().with_tool_request(
         "tool_123",
         Ok(CallToolRequestParam {
+            task: None,
             name: "todo__todo_write".into(),
             arguments: Some(json!({"content": content}).as_object().unwrap().clone()),
         }),
@@ -31,6 +32,7 @@ fn make_shell_tool_request(command: &str) -> Message {
     Message::assistant().with_tool_request(
         "tool_456",
         Ok(CallToolRequestParam {
+            task: None,
             name: "developer__shell".into(),
             arguments: Some(json!({"command": command}).as_object().unwrap().clone()),
         }),
@@ -404,6 +406,7 @@ fn server_message_mixed_content_appends_correctly() {
     let tool_msg = Message::assistant().with_id("msg_1").with_tool_request(
         "req_1",
         Ok(CallToolRequestParam {
+            task: None,
             name: "shell".into(),
             arguments: Some(json!({"command": "ls"}).as_object().unwrap().clone()),
         }),

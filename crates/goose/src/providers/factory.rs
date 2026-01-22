@@ -6,6 +6,7 @@ use super::{
     base::{Provider, ProviderMetadata},
     bedrock::BedrockProvider,
     claude_code::ClaudeCodeProvider,
+    codex::CodexProvider,
     cursor_agent::CursorAgentProvider,
     databricks::DatabricksProvider,
     gcpvertexai::GcpVertexAIProvider,
@@ -47,6 +48,7 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         registry.register::<BedrockProvider, _>(|m| Box::pin(BedrockProvider::from_env(m)), false);
         registry
             .register::<ClaudeCodeProvider, _>(|m| Box::pin(ClaudeCodeProvider::from_env(m)), true);
+        registry.register::<CodexProvider, _>(|m| Box::pin(CodexProvider::from_env(m)), true);
         registry.register::<CursorAgentProvider, _>(
             |m| Box::pin(CursorAgentProvider::from_env(m)),
             false,
@@ -222,14 +224,10 @@ fn create_worker_model_config(default_model: &ModelConfig) -> Result<ModelConfig
 
     let global_config = crate::config::Config::global();
 
-    if let Ok(limit_str) = global_config.get_param::<String>("GOOSE_WORKER_CONTEXT_LIMIT") {
-        if let Ok(limit) = limit_str.parse::<usize>() {
-            worker_config = worker_config.with_context_limit(Some(limit));
-        }
-    } else if let Ok(limit_str) = global_config.get_param::<String>("GOOSE_CONTEXT_LIMIT") {
-        if let Ok(limit) = limit_str.parse::<usize>() {
-            worker_config = worker_config.with_context_limit(Some(limit));
-        }
+    if let Ok(limit) = global_config.get_param::<usize>("GOOSE_WORKER_CONTEXT_LIMIT") {
+        worker_config = worker_config.with_context_limit(Some(limit));
+    } else if let Ok(limit) = global_config.get_param::<usize>("GOOSE_CONTEXT_LIMIT") {
+        worker_config = worker_config.with_context_limit(Some(limit));
     }
 
     Ok(worker_config)
@@ -238,139 +236,76 @@ fn create_worker_model_config(default_model: &ModelConfig) -> Result<ModelConfig
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::env;
 
-    struct EnvVarGuard {
-        vars: Vec<(String, Option<String>)>,
-    }
-
-    impl EnvVarGuard {
-        fn new(vars: &[&str]) -> Self {
-            let saved_vars = vars
-                .iter()
-                .map(|&var| (var.to_string(), env::var(var).ok()))
-                .collect();
-
-            for &var in vars {
-                env::remove_var(var);
-            }
-
-            Self { vars: saved_vars }
-        }
-
-        fn set(&self, key: &str, value: &str) {
-            env::set_var(key, value);
-        }
-    }
-
-    impl Drop for EnvVarGuard {
-        fn drop(&mut self) {
-            for (key, value) in &self.vars {
-                match value {
-                    Some(val) => env::set_var(key, val),
-                    None => env::remove_var(key),
-                }
-            }
-        }
-    }
-
+    #[test_case::test_case(None, None, None, DEFAULT_LEAD_TURNS, DEFAULT_FAILURE_THRESHOLD, DEFAULT_FALLBACK_TURNS ; "defaults")]
+    #[test_case::test_case(Some("7"), Some("4"), Some("3"), 7, 4, 3 ; "custom")]
     #[tokio::test]
-    async fn test_create_lead_worker_provider() {
-        let _guard = EnvVarGuard::new(&[
-            "GOOSE_LEAD_MODEL",
-            "GOOSE_LEAD_PROVIDER",
-            "GOOSE_LEAD_TURNS",
+    async fn test_create_lead_worker_provider(
+        lead_turns: Option<&str>,
+        failure_threshold: Option<&str>,
+        fallback_turns: Option<&str>,
+        expected_turns: usize,
+        expected_failure: usize,
+        expected_fallback: usize,
+    ) {
+        let _guard = env_lock::lock_env([
+            ("GOOSE_LEAD_MODEL", Some("gpt-4o")),
+            ("GOOSE_LEAD_PROVIDER", None),
+            ("GOOSE_LEAD_TURNS", lead_turns),
+            ("GOOSE_LEAD_FAILURE_THRESHOLD", failure_threshold),
+            ("GOOSE_LEAD_FALLBACK_TURNS", fallback_turns),
+            ("OPENAI_API_KEY", Some("fake-openai-no-keyring")),
         ]);
 
-        _guard.set("GOOSE_LEAD_MODEL", "gpt-4o");
-
-        let gpt4mini_config = ModelConfig::new_or_fail("gpt-4o-mini");
-        let result = create("openai", gpt4mini_config.clone()).await;
-
-        match result {
-            Ok(_) => {}
-            Err(error) => {
-                let error_msg = error.to_string();
-                assert!(error_msg.contains("OPENAI_API_KEY") || error_msg.contains("secret"));
-            }
-        }
-
-        _guard.set("GOOSE_LEAD_PROVIDER", "anthropic");
-        _guard.set("GOOSE_LEAD_TURNS", "5");
-
-        let _result = create("openai", gpt4mini_config).await;
-    }
-
-    #[tokio::test]
-    async fn test_lead_model_env_vars_with_defaults() {
-        let _guard = EnvVarGuard::new(&[
-            "GOOSE_LEAD_MODEL",
-            "GOOSE_LEAD_PROVIDER",
-            "GOOSE_LEAD_TURNS",
-            "GOOSE_LEAD_FAILURE_THRESHOLD",
-            "GOOSE_LEAD_FALLBACK_TURNS",
-        ]);
-
-        _guard.set("GOOSE_LEAD_MODEL", "grok-3");
-
-        let result = create("openai", ModelConfig::new_or_fail("gpt-4o-mini")).await;
-
-        match result {
-            Ok(_) => {}
-            Err(error) => {
-                let error_msg = error.to_string();
-                assert!(error_msg.contains("OPENAI_API_KEY") || error_msg.contains("secret"));
-            }
-        }
-
-        _guard.set("GOOSE_LEAD_TURNS", "7");
-        _guard.set("GOOSE_LEAD_FAILURE_THRESHOLD", "4");
-        _guard.set("GOOSE_LEAD_FALLBACK_TURNS", "3");
-
-        let _result = create("openai", ModelConfig::new_or_fail("gpt-4o-mini"));
+        let provider = create("openai", ModelConfig::new_or_fail("gpt-4o-mini"))
+            .await
+            .unwrap();
+        let lw = provider.as_lead_worker().unwrap();
+        let (lead, worker) = lw.get_model_info();
+        assert_eq!(lead, "gpt-4o");
+        assert_eq!(worker, "gpt-4o-mini");
+        assert_eq!(
+            lw.get_settings(),
+            (expected_turns, expected_failure, expected_fallback)
+        );
     }
 
     #[tokio::test]
     async fn test_create_regular_provider_without_lead_config() {
-        let _guard = EnvVarGuard::new(&[
-            "GOOSE_LEAD_MODEL",
-            "GOOSE_LEAD_PROVIDER",
-            "GOOSE_LEAD_TURNS",
-            "GOOSE_LEAD_FAILURE_THRESHOLD",
-            "GOOSE_LEAD_FALLBACK_TURNS",
+        let _guard = env_lock::lock_env([
+            ("GOOSE_LEAD_MODEL", None),
+            ("GOOSE_LEAD_PROVIDER", None),
+            ("GOOSE_LEAD_TURNS", None),
+            ("GOOSE_LEAD_FAILURE_THRESHOLD", None),
+            ("GOOSE_LEAD_FALLBACK_TURNS", None),
+            ("OPENAI_API_KEY", Some("fake-openai-no-keyring")),
         ]);
 
-        let result = create("openai", ModelConfig::new_or_fail("gpt-4o-mini")).await;
-
-        match result {
-            Ok(_) => {}
-            Err(error) => {
-                let error_msg = error.to_string();
-                assert!(error_msg.contains("OPENAI_API_KEY") || error_msg.contains("secret"));
-            }
-        }
+        let provider = create("openai", ModelConfig::new_or_fail("gpt-4o-mini"))
+            .await
+            .unwrap();
+        assert!(provider.as_lead_worker().is_none());
+        assert_eq!(provider.get_model_config().model_name, "gpt-4o-mini");
     }
 
-    #[test]
-    fn test_worker_model_preserves_original_context_limit() {
-        let _guard = EnvVarGuard::new(&[
-            "GOOSE_LEAD_MODEL",
-            "GOOSE_WORKER_CONTEXT_LIMIT",
-            "GOOSE_CONTEXT_LIMIT",
+    #[test_case::test_case(None, None, 16_000 ; "no overrides uses default")]
+    #[test_case::test_case(Some("32000"), None, 32_000 ; "worker limit overrides default")]
+    #[test_case::test_case(Some("32000"), Some("64000"), 32_000 ; "worker limit takes priority over global")]
+    fn test_worker_model_context_limit(
+        worker_limit: Option<&str>,
+        global_limit: Option<&str>,
+        expected_limit: usize,
+    ) {
+        let _guard = env_lock::lock_env([
+            ("GOOSE_WORKER_CONTEXT_LIMIT", worker_limit),
+            ("GOOSE_CONTEXT_LIMIT", global_limit),
         ]);
-
-        _guard.set("GOOSE_LEAD_MODEL", "gpt-4o");
 
         let default_model =
             ModelConfig::new_or_fail("gpt-3.5-turbo").with_context_limit(Some(16_000));
 
-        let _result = create_lead_worker_from_env("openai", &default_model, "gpt-4o");
-
-        _guard.set("GOOSE_WORKER_CONTEXT_LIMIT", "32000");
-        let _result = create_lead_worker_from_env("openai", &default_model, "gpt-4o");
-
-        _guard.set("GOOSE_CONTEXT_LIMIT", "64000");
-        let _result = create_lead_worker_from_env("openai", &default_model, "gpt-4o");
+        let result = create_worker_model_config(&default_model).unwrap();
+        assert_eq!(result.context_limit, Some(expected_limit));
     }
 
     #[tokio::test]

@@ -37,10 +37,6 @@ const ANTHROPIC_KNOWN_MODELS: &[&str] = &[
     "claude-sonnet-4-20250514",
     "claude-opus-4-0",
     "claude-opus-4-20250514",
-    // Legacy Claude 3.x models
-    "claude-3-7-sonnet-latest",
-    "claude-3-7-sonnet-20250219",
-    "claude-3-opus-latest",
 ];
 
 const ANTHROPIC_DOC_URL: &str = "https://docs.anthropic.com/en/docs/about-claude/models";
@@ -120,8 +116,8 @@ impl AnthropicProvider {
         headers
     }
 
-    async fn post(&self, payload: &Value) -> Result<ApiResponse, ProviderError> {
-        let mut request = self.api_client.request("v1/messages");
+    async fn post(&self, session_id: &str, payload: &Value) -> Result<ApiResponse, ProviderError> {
+        let mut request = self.api_client.request(session_id, "v1/messages");
 
         for (key, value) in self.get_conditional_headers() {
             request = request.header(key, value)?;
@@ -202,6 +198,7 @@ impl Provider for AnthropicProvider {
     )]
     async fn complete_with_model(
         &self,
+        session_id: &str,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -210,7 +207,7 @@ impl Provider for AnthropicProvider {
         let payload = create_request(model_config, system, messages, tools)?;
 
         let response = self
-            .with_retry(|| async { self.post(&payload).await })
+            .with_retry(|| async { self.post(session_id, &payload).await })
             .await?;
 
         let json_response = Self::anthropic_api_call_result(response)?;
@@ -231,8 +228,11 @@ impl Provider for AnthropicProvider {
         Ok((message, provider_usage))
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        let response = self.api_client.api_get("v1/models").await?;
+    async fn fetch_supported_models(
+        &self,
+        session_id: &str,
+    ) -> Result<Option<Vec<String>>, ProviderError> {
+        let response = self.api_client.api_get(session_id, "v1/models").await?;
 
         if response.status != StatusCode::OK {
             return Err(map_http_error_to_provider_error(
@@ -257,6 +257,7 @@ impl Provider for AnthropicProvider {
 
     async fn stream(
         &self,
+        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -267,7 +268,7 @@ impl Provider for AnthropicProvider {
             .unwrap()
             .insert("stream".to_string(), Value::Bool(true));
 
-        let mut request = self.api_client.request("v1/messages");
+        let mut request = self.api_client.request(session_id, "v1/messages");
         let mut log = RequestLog::start(&self.model, &payload)?;
 
         for (key, value) in self.get_conditional_headers() {
