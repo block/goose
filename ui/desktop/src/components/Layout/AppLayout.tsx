@@ -168,7 +168,10 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
                 height: !isHorizontalNav ? '100%' : undefined,
               }}
               className={cn(
-                'flex-shrink-0 overflow-hidden',
+                'flex-shrink-0',
+                // Only hide overflow for expanded style (needs it for animations)
+                // Condensed style needs overflow-visible for floating new chat button
+                effectiveNavigationStyle === 'expanded' ? 'overflow-hidden' : 'overflow-visible',
                 isHorizontalNav ? 'w-full' : 'h-full'
               )}
             >

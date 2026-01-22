@@ -523,6 +523,28 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
                           <Icon className="w-6 h-6 mb-2" />
                           <h2 className="font-light text-left text-xl">{item.label}</h2>
                         </div>
+
+                        {/* New Chat button - bottom right corner */}
+                        <motion.button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            handleNewChat();
+                          }}
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.95 }}
+                          className={cn(
+                            'absolute bottom-3 right-3 p-2 rounded-md z-10',
+                            'opacity-0 group-hover:opacity-100 transition-opacity',
+                            active
+                              ? 'bg-background-default/20 hover:bg-background-default/30 text-text-on-accent'
+                              : 'bg-background-medium hover:bg-background-accent hover:text-text-on-accent',
+                            'flex items-center justify-center'
+                          )}
+                          title="New Chat"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </motion.button>
                       </div>
                     </motion.div>
                   </DropdownMenuTrigger>
