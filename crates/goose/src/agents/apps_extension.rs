@@ -241,7 +241,11 @@ impl AppsManagerClient {
 
     fn schema<T: JsonSchema>() -> JsonObject {
         serde_json::to_value(schema_for!(T))
-            .map(|v| v.as_object().expect("schema_for!(T) must serialize to a JSON object").clone())
+            .map(|v| {
+                v.as_object()
+                    .expect("schema_for!(T) must serialize to a JSON object")
+                    .clone()
+            })
             .expect("Schema serialization must succeed")
     }
 

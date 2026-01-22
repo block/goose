@@ -216,7 +216,12 @@ pub async fn fetch_mcp_apps(
 
     for (extension_name, resource) in ui_resources {
         match extension_manager
-            .read_resource(session_id, &resource.uri, &extension_name, CancellationToken::default())
+            .read_resource(
+                session_id,
+                &resource.uri,
+                &extension_name,
+                CancellationToken::default(),
+            )
             .await
         {
             Ok(read_result) => {
