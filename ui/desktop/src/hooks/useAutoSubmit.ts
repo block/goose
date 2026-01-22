@@ -4,7 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Session } from '../api';
 import { Message } from '../api';
 import { ChatState } from '../types/chatState';
-import { ImageData } from '../types/message';
+import { UserInput, ImageData } from '../types/message';
 
 /**
  * Auto-submit scenarios:
@@ -18,7 +18,7 @@ interface UseAutoSubmitProps {
   session: Session | undefined;
   messages: Message[];
   chatState: ChatState;
-  initialMessage: { msg: string; images: ImageData[] } | undefined;
+  initialMessage: UserInput | undefined;
   handleSubmit: (message: string, images: ImageData[]) => void;
 }
 

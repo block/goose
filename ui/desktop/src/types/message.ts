@@ -12,6 +12,11 @@ export interface ImageData {
   mimeType: string;
 }
 
+export interface UserInput {
+  msg: string;
+  images: ImageData[];
+}
+
 export function createUserMessage(text: string, images?: ImageData[]): Message {
   const content: Message['content'] = [];
 

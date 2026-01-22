@@ -6,7 +6,7 @@ export interface DroppedFile {
   name: string;
   type: string;
   isImage: boolean;
-  dataUrl?: string; // For images: compressed base64 data URL for direct inclusion
+  dataUrl?: string;
   isLoading?: boolean;
   error?: string;
 }
@@ -109,7 +109,6 @@ export const useFileDrop = () => {
 
         droppedFileObjects.push(droppedFile);
 
-        // For images, read and compress for direct inclusion
         if (droppedFile.isImage && !droppedFile.error) {
           const reader = new FileReader();
           activeReadersRef.current.add(reader);

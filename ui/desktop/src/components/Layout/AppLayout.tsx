@@ -7,12 +7,12 @@ import { Button } from '../ui/button';
 import { Sidebar, SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from '../ui/sidebar';
 import ChatSessionsContainer from '../ChatSessionsContainer';
 import { useChatContext } from '../../contexts/ChatContext';
-import { ImageData } from '../../types/message';
+import { UserInput } from '../../types/message';
 
 interface AppLayoutContentProps {
   activeSessions: Array<{
     sessionId: string;
-    initialMessage?: { msg: string; images: ImageData[] };
+    initialMessage?: UserInput;
   }>;
 }
 
@@ -132,7 +132,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
 interface AppLayoutProps {
   activeSessions: Array<{
     sessionId: string;
-    initialMessage?: { msg: string; images: ImageData[] };
+    initialMessage?: UserInput;
   }>;
 }
 

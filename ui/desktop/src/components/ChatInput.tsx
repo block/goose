@@ -586,6 +586,65 @@ export default function ChatInput({
     }));
   };
 
+  // Helper to convert images to ImageData format
+  const convertImagesToImageData = useCallback((): ImageData[] => {
+    const pastedImageData: ImageData[] = pastedImages
+      .filter((img) => img.dataUrl && !img.error && !img.isLoading)
+      .map((img) => {
+        const matches = img.dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+        if (matches) {
+          return {
+            data: matches[2],
+            mimeType: matches[1],
+          };
+        }
+        return null;
+      })
+      .filter((img): img is ImageData => img !== null);
+
+    const droppedImageData: ImageData[] = allDroppedFiles
+      .filter((file) => file.isImage && file.dataUrl && !file.error && !file.isLoading)
+      .map((file) => {
+        const matches = file.dataUrl!.match(/^data:([^;]+);base64,(.+)$/);
+        if (matches) {
+          return {
+            data: matches[2],
+            mimeType: matches[1],
+          };
+        }
+        return null;
+      })
+      .filter((img): img is ImageData => img !== null);
+
+    return [...pastedImageData, ...droppedImageData];
+  }, [pastedImages, allDroppedFiles]);
+
+  // Helper to process dropped file paths and append to text
+  const appendDroppedFilePaths = useCallback((text: string): string => {
+    const droppedFilePaths = allDroppedFiles
+      .filter((file) => !file.isImage && !file.error && !file.isLoading)
+      .map((file) => file.path);
+
+    if (droppedFilePaths.length > 0) {
+      const pathsString = droppedFilePaths.join(' ');
+      return text ? `${text} ${pathsString}` : pathsString;
+    }
+    return text;
+  }, [allDroppedFiles]);
+
+  // Helper to clear input state after submission
+  const clearInputState = useCallback(() => {
+    setDisplayValue('');
+    setValue('');
+    setPastedImages([]);
+    if (onFilesProcessed && droppedFiles.length > 0) {
+      onFilesProcessed();
+    }
+    if (localDroppedFiles.length > 0) {
+      setLocalDroppedFiles([]);
+    }
+  }, [droppedFiles.length, localDroppedFiles.length, onFilesProcessed, setLocalDroppedFiles]);
+
   const compressImageDataUrl = async (dataUrl: string): Promise<string> => {
     const res = await fetch(dataUrl);
     const blob = await res.blob();
@@ -778,45 +837,8 @@ export default function ChatInput({
       return false;
     }
 
-    const pastedImageData: ImageData[] = pastedImages
-      .filter((img) => img.dataUrl && !img.error && !img.isLoading)
-      .map((img) => {
-        const matches = img.dataUrl.match(/^data:([^;]+);base64,(.+)$/);
-        if (matches) {
-          return {
-            data: matches[2],
-            mimeType: matches[1],
-          };
-        }
-        return null;
-      })
-      .filter((img): img is ImageData => img !== null);
-
-    const droppedImageData: ImageData[] = allDroppedFiles
-      .filter((file) => file.isImage && file.dataUrl && !file.error && !file.isLoading)
-      .map((file) => {
-        const matches = file.dataUrl!.match(/^data:([^;]+);base64,(.+)$/);
-        if (matches) {
-          return {
-            data: matches[2],
-            mimeType: matches[1],
-          };
-        }
-        return null;
-      })
-      .filter((img): img is ImageData => img !== null);
-
-    const imageData = [...pastedImageData, ...droppedImageData];
-
-    const droppedFilePaths = allDroppedFiles
-      .filter((file) => !file.isImage && !file.error && !file.isLoading)
-      .map((file) => file.path);
-
-    let contentToQueue = displayValue.trim();
-    if (droppedFilePaths.length > 0) {
-      const pathsString = droppedFilePaths.join(' ');
-      contentToQueue = contentToQueue ? `${contentToQueue} ${pathsString}` : pathsString;
-    }
+    const imageData = convertImagesToImageData();
+    const contentToQueue = appendDroppedFilePaths(displayValue.trim());
 
     const interruptionMatch = detectInterruption(displayValue.trim());
 
@@ -837,15 +859,7 @@ export default function ChatInput({
       // Add the interruption message to the front of the queue so it gets sent first
       setQueuedMessages((prev) => [interruptionMessage, ...prev]);
 
-      setDisplayValue('');
-      setValue('');
-      setPastedImages([]);
-      if (onFilesProcessed && droppedFiles.length > 0) {
-        onFilesProcessed();
-      }
-      if (localDroppedFiles.length > 0) {
-        setLocalDroppedFiles([]);
-      }
+      clearInputState();
       return true;
     }
 
@@ -864,15 +878,7 @@ export default function ChatInput({
       }
       return newQueue;
     });
-    setDisplayValue('');
-    setValue('');
-    setPastedImages([]);
-    if (onFilesProcessed && droppedFiles.length > 0) {
-      onFilesProcessed();
-    }
-    if (localDroppedFiles.length > 0) {
-      setLocalDroppedFiles([]);
-    }
+    clearInputState();
     return true;
   };
 
@@ -884,53 +890,20 @@ export default function ChatInput({
 
   const performSubmit = useCallback(
     (text?: string) => {
-      const pastedImageData: ImageData[] = pastedImages
-        .filter((img) => img.dataUrl && !img.error && !img.isLoading)
-        .map((img) => {
-          const matches = img.dataUrl.match(/^data:([^;]+);base64,(.+)$/);
-          if (matches) {
-            return {
-              data: matches[2], // base64 data
-              mimeType: matches[1], // mime type
-            };
-          }
-          return null;
-        })
-        .filter((img): img is ImageData => img !== null);
-
-      const droppedImageData: ImageData[] = allDroppedFiles
-        .filter((file) => file.isImage && file.dataUrl && !file.error && !file.isLoading)
-        .map((file) => {
-          const matches = file.dataUrl!.match(/^data:([^;]+);base64,(.+)$/);
-          if (matches) {
-            return {
-              data: matches[2], // base64 data
-              mimeType: matches[1], // mime type
-            };
-          }
-          return null;
-        })
-        .filter((img): img is ImageData => img !== null);
-
-      const imageData = [...pastedImageData, ...droppedImageData];
-
-      const droppedFilePaths = allDroppedFiles
-        .filter((file) => !file.isImage && !file.error && !file.isLoading)
-        .map((file) => file.path);
-
-      let textToSend = text ?? displayValue.trim();
-
-      // Add non-image dropped file paths to text
-      if (droppedFilePaths.length > 0) {
-        const pathsString = droppedFilePaths.join(' ');
-        textToSend = textToSend ? `${textToSend} ${pathsString}` : pathsString;
-      }
+      const imageData = convertImagesToImageData();
+      const textToSend = appendDroppedFilePaths(text ?? displayValue.trim());
 
       if (textToSend || imageData.length > 0) {
+        // Store original message in history
         if (displayValue.trim()) {
           LocalMessageStorage.addMessage(displayValue);
-        } else if (droppedFilePaths.length > 0) {
-          LocalMessageStorage.addMessage(droppedFilePaths.join(' '));
+        } else {
+          const droppedFilePaths = allDroppedFiles
+            .filter((file) => !file.isImage && !file.error && !file.isLoading)
+            .map((file) => file.path);
+          if (droppedFilePaths.length > 0) {
+            LocalMessageStorage.addMessage(droppedFilePaths.join(' '));
+          }
         }
 
         handleSubmit(textToSend, imageData);
@@ -946,33 +919,21 @@ export default function ChatInput({
           setLastInterruption(null);
         }
 
-        setDisplayValue('');
-        setValue('');
-        setPastedImages([]);
+        clearInputState();
         setHistoryIndex(-1);
         setSavedInput('');
         setIsInGlobalHistory(false);
         setHasUserTyped(false);
-
-        // Clear both parent and local dropped files after processing
-        if (onFilesProcessed && droppedFiles.length > 0) {
-          onFilesProcessed();
-        }
-        if (localDroppedFiles.length > 0) {
-          setLocalDroppedFiles([]);
-        }
       }
     },
     [
-      allDroppedFiles,
+      convertImagesToImageData,
+      appendDroppedFilePaths,
       displayValue,
-      droppedFiles.length,
+      allDroppedFiles,
       handleSubmit,
       lastInterruption,
-      localDroppedFiles.length,
-      onFilesProcessed,
-      pastedImages,
-      setLocalDroppedFiles,
+      clearInputState,
     ]
   );
 
@@ -1250,14 +1211,7 @@ export default function ChatInput({
       onDrop={handleLocalDrop}
       onDragOver={handleLocalDragOver}
     >
-      {/* Hidden file input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        onChange={handleFileInputChange}
-        style={{ display: 'none' }}
-        accept="*/*"
-      />
+      <input ref={fileInputRef} type="file" onChange={handleFileInputChange} style={{ display: 'none' }} accept="*/*" />
       {/* Message Queue Display */}
       {queuedMessages.length > 0 && (
         <MessageQueue

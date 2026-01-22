@@ -28,7 +28,7 @@ import { useNavigation } from '../hooks/useNavigation';
 import { RecipeHeader } from './RecipeHeader';
 import { RecipeWarningModal } from './ui/RecipeWarningModal';
 import { scanRecipe } from '../recipe';
-import { ImageData } from '../types/message';
+import { UserInput } from '../types/message';
 import { useCostTracking } from '../hooks/useCostTracking';
 import RecipeActivities from './recipes/RecipeActivities';
 import { useToolCount } from './alerts/useToolCount';
@@ -57,7 +57,7 @@ interface BaseChatProps {
   suppressEmptyState: boolean;
   sessionId: string;
   isActiveSession: boolean;
-  initialMessage?: { msg: string; images: ImageData[] };
+  initialMessage?: UserInput;
 }
 
 export default function BaseChat({

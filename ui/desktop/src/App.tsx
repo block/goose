@@ -20,11 +20,11 @@ import { createSession } from './sessions';
 
 import { ChatType } from './types/chat';
 import Hub from './components/Hub';
-import { ImageData } from './types/message';
+import { UserInput } from './types/message';
 
 interface PairRouteState {
   resumeSessionId?: string;
-  initialMessage?: { msg: string; images: ImageData[] };
+  initialMessage?: UserInput;
 }
 import SettingsView, { SettingsViewOptions } from './components/settings/SettingsView';
 import SessionsView from './components/sessions/SessionsView';
@@ -70,10 +70,10 @@ const PairRouteWrapper = ({
 }: {
   activeSessions: Array<{
     sessionId: string;
-    initialMessage?: { msg: string; images: ImageData[] };
+    initialMessage?: UserInput;
   }>;
   setActiveSessions: (
-    sessions: Array<{ sessionId: string; initialMessage?: { msg: string; images: ImageData[] } }>
+    sessions: Array<{ sessionId: string; initialMessage?: UserInput }>
   ) => void;
 }) => {
   const { extensionsList } = useConfig();
@@ -359,7 +359,7 @@ export function AppInner() {
   const MAX_ACTIVE_SESSIONS = 10;
 
   const [activeSessions, setActiveSessions] = useState<
-    Array<{ sessionId: string; initialMessage?: { msg: string; images: ImageData[] } }>
+    Array<{ sessionId: string; initialMessage?: UserInput }>
   >([]);
 
   useEffect(() => {
@@ -367,7 +367,7 @@ export function AppInner() {
       const { sessionId, initialMessage } = (
         event as CustomEvent<{
           sessionId: string;
-          initialMessage?: { msg: string; images: ImageData[] };
+          initialMessage?: UserInput;
         }>
       ).detail;
 
