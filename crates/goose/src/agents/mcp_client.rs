@@ -859,8 +859,8 @@ mod tests {
         let mut extensions = Extensions::new();
         extensions.insert(
             from_value::<Meta>(json!({
-                "GOOSE-SESSION-ID": "old-session-1",
-                "Goose-Session-Id": "old-session-2",
+                SESSION_ID_HEADER: "old-session-1",
+                "Agent-Session-Id": "old-session-2",
                 "other-key": "preserve-me"
             }))
             .unwrap(),
