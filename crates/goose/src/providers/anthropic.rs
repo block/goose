@@ -112,9 +112,24 @@ impl AnthropicProvider {
             base_path
         };
 
-        let auth = AuthMethod::ApiKey {
-            header_name: "x-api-key".to_string(),
-            key: api_key,
+        // Use auth config if provided, otherwise default to x-api-key header
+        let auth = if let Some(auth_config) = &config.auth {
+            if auth_config.auth_type == "header" {
+                AuthMethod::ApiKey {
+                    header_name: auth_config.name.clone(),
+                    key: api_key,
+                }
+            } else {
+                AuthMethod::ApiKey {
+                    header_name: "x-api-key".to_string(),
+                    key: api_key,
+                }
+            }
+        } else {
+            AuthMethod::ApiKey {
+                header_name: "x-api-key".to_string(),
+                key: api_key,
+            }
         };
 
         let api_client =

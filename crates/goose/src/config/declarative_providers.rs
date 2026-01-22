@@ -97,6 +97,9 @@ pub struct DeclarativeProviderConfig {
     /// Explicit default model (instead of first in models list).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_model: Option<String>,
+    /// Optional authentication configuration (used by routed providers).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auth: Option<AuthConfig>,
 }
 
 impl DeclarativeProviderConfig {
@@ -224,6 +227,7 @@ pub fn create_custom_provider(
         routes: None,
         config_keys: None,
         default_model: None,
+        auth: None,
     };
 
     let custom_providers_dir = custom_providers_dir();
@@ -279,6 +283,7 @@ pub fn update_custom_provider(
             routes: existing_config.routes,
             config_keys: existing_config.config_keys,
             default_model: existing_config.default_model,
+            auth: existing_config.auth,
         };
 
         let file_path = custom_providers_dir().join(format!("{}.json", id));
@@ -536,6 +541,7 @@ fn build_route_config(
         routes: None, // Single-engine config for the route
         config_keys: base.config_keys.clone(),
         default_model: base.default_model.clone(),
+        auth: route.auth.clone(),
     })
 }
 
