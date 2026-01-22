@@ -337,9 +337,12 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
         className
       )}
     >
-      {/* Top spacer (vertical only, not icon-only) - small fixed size for top justification */}
-      {isVertical && !isCondensedIconOnly && (
-        <div className="bg-background-default rounded-lg w-full h-[40px] flex-shrink-0" />
+      {/* Top spacer (vertical only) */}
+      {isVertical && (
+        <div className={cn(
+          "bg-background-default rounded-lg w-full flex-shrink-0",
+          isCondensedIconOnly ? "h-[80px]" : "h-[40px]"
+        )} />
       )}
 
       {/* Left spacer (horizontal top position only) */}
@@ -621,8 +624,8 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
         );
       })}
 
-      {/* Spacer to extend to bottom (vertical only) */}
-      {isVertical && !isCondensedIconOnly && (
+      {/* Spacer to extend to bottom (vertical only - both regular and icon-only modes) */}
+      {isVertical && (
         <div className="bg-background-default rounded-lg flex-1 w-full min-h-[20px]" />
       )}
 

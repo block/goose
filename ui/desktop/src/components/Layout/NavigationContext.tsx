@@ -21,11 +21,8 @@ export const DEFAULT_ITEM_ORDER = [
 
 export const DEFAULT_ENABLED_ITEMS = [...DEFAULT_ITEM_ORDER];
 
-// Breakpoint for forcing overlay mode on expanded navigation
-const EXPANDED_OVERLAY_BREAKPOINT = 700;
-
-// Breakpoint for condensed nav to switch to icon-only on left/right
-const CONDENSED_ICON_ONLY_BREAKPOINT = 700;
+// Breakpoint for responsive behavior (overlay mode for expanded, icon-only for condensed left/right)
+const RESPONSIVE_BREAKPOINT = 700;
 
 interface NavigationContextValue {
   // Navigation state
@@ -85,8 +82,10 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({ children
   // Load initial state from localStorage
   const [isNavExpanded, setIsNavExpanded] = useState(false);
   
-  // Track window width for responsive behavior
-  const [windowWidth, setWindowWidth] = useState(() => window.innerWidth);
+  // Track if window is below breakpoint for responsive behavior (using matchMedia like use-mobile.ts)
+  const [isBelowBreakpoint, setIsBelowBreakpoint] = useState<boolean>(() => 
+    window.innerWidth < RESPONSIVE_BREAKPOINT
+  );
   
   const [navigationMode, setNavigationModeState] = useState<NavigationMode>(() => {
     const stored = localStorage.getItem('navigation_mode');
@@ -118,14 +117,17 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({ children
     };
   });
 
-  // Track window resize for responsive overlay
+  // Track window resize using matchMedia (more reliable than resize event)
   useEffect(() => {
-    const handleResize = () => {
-      setWindowWidth(window.innerWidth);
+    const mql = window.matchMedia(`(max-width: ${RESPONSIVE_BREAKPOINT - 1}px)`);
+    const onChange = () => {
+      const below = window.innerWidth < RESPONSIVE_BREAKPOINT;
+      setIsBelowBreakpoint(below);
     };
-    
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    mql.addEventListener('change', onChange);
+    // Set initial value
+    setIsBelowBreakpoint(window.innerWidth < RESPONSIVE_BREAKPOINT);
+    return () => mql.removeEventListener('change', onChange);
   }, []);
 
   // Persist changes to localStorage and dispatch events
@@ -189,7 +191,7 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({ children
   
   // Force overlay mode for expanded navigation when window is narrow
   const effectiveNavigationMode: NavigationMode = 
-    navigationStyle === 'expanded' && windowWidth < EXPANDED_OVERLAY_BREAKPOINT
+    navigationStyle === 'expanded' && isBelowBreakpoint
       ? 'overlay'
       : navigationMode;
   
@@ -198,8 +200,8 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({ children
     navigationMode === 'overlay' ? 'expanded' : navigationStyle;
   
   // Condensed nav should show icon-only on small screens when positioned left/right
-  const isCondensedIconOnly = 
-    !isHorizontalNav && windowWidth < CONDENSED_ICON_ONLY_BREAKPOINT;
+  // Uses the same breakpoint as expanded overlay
+  const isCondensedIconOnly = !isHorizontalNav && isBelowBreakpoint;
 
   const value: NavigationContextValue = {
     isNavExpanded,
