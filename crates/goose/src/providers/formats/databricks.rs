@@ -1022,6 +1022,7 @@ mod tests {
             toolshim: false,
             toolshim_model: None,
             fast_model: None,
+
             request_params: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
@@ -1054,6 +1055,7 @@ mod tests {
             toolshim: false,
             toolshim_model: None,
             fast_model: None,
+
             request_params: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
@@ -1371,6 +1373,7 @@ mod tests {
             toolshim: false,
             toolshim_model: None,
             fast_model: None,
+
             request_params: None,
         };
 
@@ -1423,6 +1426,7 @@ mod tests {
             toolshim: false,
             toolshim_model: None,
             fast_model: None,
+
             request_params: None,
         };
 

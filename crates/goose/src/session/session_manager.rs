@@ -1,4 +1,6 @@
+use crate::config::base::GOOSE_SESSION_NAME_GENERATION;
 use crate::config::paths::Paths;
+use crate::config::Config;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use crate::model::ModelConfig;
@@ -329,7 +331,14 @@ impl SessionManager {
     pub async fn maybe_update_name(&self, id: &str, provider: Arc<dyn Provider>) -> Result<()> {
         let session = self.get_session(id, true).await?;
 
-        if session.user_set_name {
+        // Skip if disabled via config, user set name, or subagent session
+        let name_generation_enabled = Config::global()
+            .get_param::<bool>(GOOSE_SESSION_NAME_GENERATION)
+            .unwrap_or(true);
+        if !name_generation_enabled
+            || session.user_set_name
+            || session.session_type == SessionType::SubAgent
+        {
             return Ok(());
         }
 

@@ -4,7 +4,7 @@ use goose::conversation::message::{Message, MessageContent, MessageMetadata};
 use goose::session::{SessionManager, SessionType};
 use rmcp::model::Role;
 
-use crate::session::{build_session, SessionBuilderConfig};
+use crate::session::{build_session, get_term_prompt, SessionBuilderConfig};
 
 use clap::ValueEnum;
 
@@ -253,6 +253,7 @@ pub async fn handle_term_run(prompt: Vec<String>) -> Result<()> {
         resume: true,
         interactive: false,
         quiet: true,
+        additional_system_prompt: Some(get_term_prompt()),
         ..Default::default()
     };
 

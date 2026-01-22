@@ -1,6 +1,7 @@
 mod agent;
 pub(crate) mod chatrecall_extension;
 pub(crate) mod code_execution_extension;
+pub mod code_summary_tool;
 pub mod execute_commands;
 pub mod extension;
 pub mod extension_malware_check;

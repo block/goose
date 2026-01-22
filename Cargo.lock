@@ -3161,6 +3161,7 @@ dependencies = [
  "anyhow",
  "base64 0.21.7",
  "chrono",
+ "clap",
  "colored",
  "devgen-tree-sitter-swift",
  "docx-rs",
@@ -3203,6 +3204,7 @@ dependencies = [
  "umya-spreadsheet",
  "url",
  "utoipa",
+ "uuid",
  "which 8.0.0",
  "xcap",
 ]
