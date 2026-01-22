@@ -49,6 +49,8 @@ pub struct AnthropicProvider {
     model: ModelConfig,
     supports_streaming: bool,
     name: String,
+    /// Base path for API requests (default: "v1/messages")
+    base_path: String,
 }
 
 impl AnthropicProvider {
@@ -74,6 +76,7 @@ impl AnthropicProvider {
             model,
             supports_streaming: true,
             name: Self::metadata().name,
+            base_path: "v1/messages".to_string(),
         })
     }
 
@@ -86,19 +89,43 @@ impl AnthropicProvider {
             .get_secret(&config.api_key_env)
             .map_err(|_| anyhow::anyhow!("Missing API key: {}", config.api_key_env))?;
 
+        // Parse the URL to extract host and path (consistent with OpenAI provider)
+        let url = url::Url::parse(&config.base_url)
+            .map_err(|e| anyhow::anyhow!("Invalid base URL '{}': {}", config.base_url, e))?;
+
+        let host = if let Some(port) = url.port() {
+            format!(
+                "{}://{}:{}",
+                url.scheme(),
+                url.host_str().unwrap_or(""),
+                port
+            )
+        } else {
+            format!("{}://{}", url.scheme(), url.host_str().unwrap_or(""))
+        };
+
+        // Extract path from URL, default to "v1/messages" if empty
+        let base_path = url.path().trim_start_matches('/').to_string();
+        let base_path = if base_path.is_empty() {
+            "v1/messages".to_string()
+        } else {
+            base_path
+        };
+
         let auth = AuthMethod::ApiKey {
             header_name: "x-api-key".to_string(),
             key: api_key,
         };
 
-        let api_client = ApiClient::new(config.base_url, auth)?
-            .with_header("anthropic-version", ANTHROPIC_API_VERSION)?;
+        let api_client =
+            ApiClient::new(host, auth)?.with_header("anthropic-version", ANTHROPIC_API_VERSION)?;
 
         Ok(Self {
             api_client,
             model,
             supports_streaming: config.supports_streaming.unwrap_or(true),
             name: config.name.clone(),
+            base_path,
         })
     }
 
@@ -117,7 +144,7 @@ impl AnthropicProvider {
     }
 
     async fn post(&self, session_id: &str, payload: &Value) -> Result<ApiResponse, ProviderError> {
-        let mut request = self.api_client.request(session_id, "v1/messages");
+        let mut request = self.api_client.request(session_id, &self.base_path);
 
         for (key, value) in self.get_conditional_headers() {
             request = request.header(key, value)?;
@@ -268,7 +295,7 @@ impl Provider for AnthropicProvider {
             .unwrap()
             .insert("stream".to_string(), Value::Bool(true));
 
-        let mut request = self.api_client.request(session_id, "v1/messages");
+        let mut request = self.api_client.request(session_id, &self.base_path);
         let mut log = RequestLog::start(&self.model, &payload)?;
 
         for (key, value) in self.get_conditional_headers() {
