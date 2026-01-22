@@ -113,6 +113,9 @@
               }
             }
           },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
           "404": {
             "description": "Session not found"
           },

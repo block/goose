@@ -898,11 +898,11 @@ async fn read_resource(
     path = "/agent/call_tool",
     request_body = CallToolRequest,
     responses(
-        (status = 200, description = "Resource read successfully", body = CallToolResponse),
+        (status = 200, description = "Tool executed successfully", body = CallToolResponse),
         (status = 401, description = "Unauthorized - invalid secret key"),
-        (status = 424, description = "Agent not initialized"),
-        (status = 404, description = "Resource not found"),
-        (status = 500, description = "Internal server error")
+        (status = 424, description = "Agent not initialized for session"),
+        (status = 404, description = "Session not found"),
+        (status = 500, description = "Tool execution failed")
     )
 )]
 async fn call_tool(

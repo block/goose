@@ -61,7 +61,7 @@ impl Component for InfoComponent {
     fn handle_event(&mut self, event: &Event, _state: &AppState) -> Result<Option<Action>> {
         if let Event::Tick = event {
             self.frame_count = self.frame_count.wrapping_add(1);
-            if self.frame_count % 90 == 0 {
+            if self.frame_count.is_multiple_of(90) {
                 self.pun_index = self.pun_index.wrapping_add(1);
             }
         }

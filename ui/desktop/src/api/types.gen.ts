@@ -1323,6 +1323,10 @@ export type CallToolData = {
 
 export type CallToolErrors = {
     /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
      * Session not found
      */
     404: unknown;
