@@ -283,7 +283,6 @@ async fn do_compact(
         .map(|msg| msg.agent_visible_content())
         .collect();
 
-
     // Try progressively removing more tool response messages from the middle to reduce context length
     let removal_percentages = [0, 10, 20, 50, 100];
 

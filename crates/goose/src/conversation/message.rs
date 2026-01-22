@@ -248,14 +248,22 @@ impl MessageContent {
     pub fn filter_for_audience(&self, audience: Role) -> Option<MessageContent> {
         match self {
             MessageContent::Text(text) => {
-                if text.audience().map(|roles| roles.contains(&audience)).unwrap_or(true) {
+                if text
+                    .audience()
+                    .map(|roles| roles.contains(&audience))
+                    .unwrap_or(true)
+                {
                     Some(self.clone())
                 } else {
                     None
                 }
             }
             MessageContent::Image(img) => {
-                if img.audience().map(|roles| roles.contains(&audience)).unwrap_or(true) {
+                if img
+                    .audience()
+                    .map(|roles| roles.contains(&audience))
+                    .unwrap_or(true)
+                {
                     Some(self.clone())
                 } else {
                     None
@@ -672,7 +680,9 @@ impl Message {
     }
 
     pub fn agent_visible_content(&self) -> Message {
-        let filtered_content = self.content.iter()
+        let filtered_content = self
+            .content
+            .iter()
             .filter_map(|c| c.filter_for_audience(Role::Assistant))
             .collect();
 
