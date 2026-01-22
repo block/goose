@@ -106,7 +106,7 @@ pub fn check_provider_configured(metadata: &ProviderMetadata, provider_type: Pro
     let has_oauth_key = metadata.config_keys.iter().any(|key| key.oauth_flow);
     if has_oauth_key {
         let configured_marker = format!("{}_configured", metadata.name);
-        if config.get_param::<bool>(&configured_marker).is_ok() {
+        if matches!(config.get_param::<bool>(&configured_marker), Ok(true)) {
             return true;
         }
     }

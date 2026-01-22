@@ -1,4 +1,4 @@
-use crate::config::paths::Paths;
+use crate::config::Config;
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::api_client::AuthProvider;
@@ -14,7 +14,8 @@ use axum::{extract::Query, response::Html, routing::get, Router};
 use base64::Engine;
 use chrono::{DateTime, Utc};
 use futures::{StreamExt, TryStreamExt};
-use once_cell::sync::Lazy;
+use jsonwebtoken::jwk::JwkSet;
+use jsonwebtoken::{decode, decode_header, DecodingKey, Validation};
 use rmcp::model::{RawContent, Role, Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -22,8 +23,7 @@ use sha2::Digest;
 use std::io;
 use std::net::SocketAddr;
 use std::ops::Deref;
-use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use tokio::pin;
 use tokio::sync::{oneshot, Mutex as TokioMutex};
 use tokio_util::codec::{FramedRead, LinesCodec};
@@ -34,6 +34,7 @@ const ISSUER: &str = "https://auth.openai.com";
 const CODEX_API_ENDPOINT: &str = "https://chatgpt.com/backend-api/codex";
 const OAUTH_SCOPES: &[&str] = &["openid", "profile", "email", "offline_access"];
 const OAUTH_PORT: u16 = 1455;
+const CHATGPT_CODEX_TOKEN_KEY: &str = "CHATGPT_CODEX_TOKEN";
 
 pub const CHATGPT_CODEX_DEFAULT_MODEL: &str = "gpt-5.1-codex";
 pub const CHATGPT_CODEX_KNOWN_MODELS: &[&str] = &[
@@ -45,70 +46,68 @@ pub const CHATGPT_CODEX_KNOWN_MODELS: &[&str] = &[
 
 const CHATGPT_CODEX_DOC_URL: &str = "https://openai.com/chatgpt";
 
-static OAUTH_MUTEX: Lazy<TokioMutex<()>> = Lazy::new(|| TokioMutex::new(()));
+#[derive(Debug)]
+struct ChatGptCodexAuthState {
+    oauth_mutex: TokioMutex<()>,
+    jwks_cache: TokioMutex<Option<JwkSet>>,
+}
 
-fn extract_message_content(messages: &[Message]) -> Vec<Value> {
-    let mut items = Vec::new();
-    for message in messages.iter().filter(|m| m.is_agent_visible()) {
-        let has_only_tool_content = message.content.iter().all(|c| {
-            matches!(
-                c,
-                MessageContent::ToolRequest(_) | MessageContent::ToolResponse(_)
-            )
-        });
-
-        if has_only_tool_content || (message.role != Role::User && message.role != Role::Assistant)
-        {
-            continue;
+impl ChatGptCodexAuthState {
+    fn new() -> Self {
+        Self {
+            oauth_mutex: TokioMutex::new(()),
+            jwks_cache: TokioMutex::new(None),
         }
+    }
 
+    fn instance() -> Arc<Self> {
+        Arc::clone(&CHATGPT_CODEX_AUTH_STATE)
+    }
+}
+
+static CHATGPT_CODEX_AUTH_STATE: LazyLock<Arc<ChatGptCodexAuthState>> =
+    LazyLock::new(|| Arc::new(ChatGptCodexAuthState::new()));
+
+fn build_input_items(messages: &[Message]) -> Result<Vec<Value>> {
+    let mut items = Vec::new();
+
+    for message in messages.iter().filter(|m| m.is_agent_visible()) {
         let role = match message.role {
-            Role::User => "user",
-            Role::Assistant => "assistant",
+            Role::User => Some("user"),
+            Role::Assistant => Some("assistant"),
+        };
+        let mut content_items: Vec<Value> = Vec::new();
+
+        let flush_text = |items: &mut Vec<Value>, role: Option<&str>, content: &mut Vec<Value>| {
+            if let Some(role) = role {
+                if !content.is_empty() {
+                    items.push(json!({ "role": role, "content": std::mem::take(content) }));
+                }
+            } else {
+                content.clear();
+            }
         };
 
-        let content_items: Vec<Value> = message
-            .content
-            .iter()
-            .filter_map(|content| {
-                if let MessageContent::Text(text) = content {
+        for content in &message.content {
+            match content {
+                MessageContent::Text(text) => {
                     if !text.text.is_empty() {
                         let content_type = if message.role == Role::Assistant {
                             "output_text"
                         } else {
                             "input_text"
                         };
-                        return Some(json!({ "type": content_type, "text": text.text }));
+                        content_items.push(json!({ "type": content_type, "text": text.text }));
                     }
                 }
-                None
-            })
-            .collect();
-
-        if !content_items.is_empty() {
-            items.push(json!({ "role": role, "content": content_items }));
-        }
-    }
-    items
-}
-
-fn extract_function_calls(messages: &[Message]) -> Vec<Value> {
-    messages
-        .iter()
-        .filter(|m| m.is_agent_visible() && m.role == Role::Assistant)
-        .flat_map(|message| {
-            message.content.iter().filter_map(|content| {
-                if let MessageContent::ToolRequest(request) = content {
+                MessageContent::ToolRequest(request) => {
+                    flush_text(&mut items, role, &mut content_items);
                     if let Ok(tool_call) = &request.tool_call {
-                        let arguments_str = tool_call
-                            .arguments
-                            .as_ref()
-                            .map(|args| {
-                                serde_json::to_string(args).unwrap_or_else(|_| "{}".to_string())
-                            })
-                            .unwrap_or_else(|| "{}".to_string());
-
-                        return Some(json!({
+                        let arguments_str = match tool_call.arguments.as_ref() {
+                            Some(args) => serde_json::to_string(args)?,
+                            None => "{}".to_string(),
+                        };
+                        items.push(json!({
                             "type": "function_call",
                             "call_id": request.id,
                             "name": tool_call.name,
@@ -116,19 +115,8 @@ fn extract_function_calls(messages: &[Message]) -> Vec<Value> {
                         }));
                     }
                 }
-                None
-            })
-        })
-        .collect()
-}
-
-fn extract_tool_responses(messages: &[Message]) -> Vec<Value> {
-    messages
-        .iter()
-        .filter(|m| m.is_agent_visible())
-        .flat_map(|message| {
-            message.content.iter().filter_map(|content| {
-                if let MessageContent::ToolResponse(response) = content {
+                MessageContent::ToolResponse(response) => {
+                    flush_text(&mut items, role, &mut content_items);
                     match &response.tool_result {
                         Ok(contents) => {
                             let text_content: Vec<String> = contents
@@ -142,9 +130,8 @@ fn extract_tool_responses(messages: &[Message]) -> Vec<Value> {
                                     }
                                 })
                                 .collect();
-
                             if !text_content.is_empty() {
-                                return Some(json!({
+                                items.push(json!({
                                     "type": "function_call_output",
                                     "call_id": response.id,
                                     "output": text_content.join("\n")
@@ -152,7 +139,7 @@ fn extract_tool_responses(messages: &[Message]) -> Vec<Value> {
                             }
                         }
                         Err(error_data) => {
-                            return Some(json!({
+                            items.push(json!({
                                 "type": "function_call_output",
                                 "call_id": response.id,
                                 "output": format!("Error: {}", error_data.message)
@@ -160,10 +147,14 @@ fn extract_tool_responses(messages: &[Message]) -> Vec<Value> {
                         }
                     }
                 }
-                None
-            })
-        })
-        .collect()
+                _ => {}
+            }
+        }
+
+        flush_text(&mut items, role, &mut content_items);
+    }
+
+    Ok(items)
 }
 
 fn create_codex_request(
@@ -172,9 +163,7 @@ fn create_codex_request(
     messages: &[Message],
     tools: &[Tool],
 ) -> Result<Value> {
-    let mut input_items = extract_message_content(messages);
-    input_items.extend(extract_function_calls(messages));
-    input_items.extend(extract_tool_responses(messages));
+    let input_items = build_input_items(messages)?;
 
     let mut payload = json!({
         "model": model_config.model_name,
@@ -182,6 +171,10 @@ fn create_codex_request(
         "store": false,
         "instructions": system,
     });
+
+    let payload_obj = payload
+        .as_object_mut()
+        .ok_or_else(|| anyhow!("Codex payload must be a JSON object"))?;
 
     if !tools.is_empty() {
         let tools_spec: Vec<Value> = tools
@@ -196,17 +189,11 @@ fn create_codex_request(
             })
             .collect();
 
-        payload
-            .as_object_mut()
-            .unwrap()
-            .insert("tools".to_string(), json!(tools_spec));
+        payload_obj.insert("tools".to_string(), json!(tools_spec));
     }
 
     if let Some(temp) = model_config.temperature {
-        payload
-            .as_object_mut()
-            .unwrap()
-            .insert("temperature".to_string(), json!(temp));
+        payload_obj.insert("temperature".to_string(), json!(temp));
     }
 
     Ok(payload)
@@ -222,42 +209,19 @@ struct TokenData {
 }
 
 #[derive(Debug, Clone)]
-struct TokenCache {
-    cache_path: PathBuf,
-}
-
-fn get_cache_path() -> PathBuf {
-    Paths::in_config_dir("chatgpt_codex/tokens.json")
-}
+struct TokenCache {}
 
 impl TokenCache {
-    fn new() -> Self {
-        let cache_path = get_cache_path();
-        if let Some(parent) = cache_path.parent() {
-            let _ = std::fs::create_dir_all(parent);
-        }
-        Self { cache_path }
-    }
-
     fn load(&self) -> Option<TokenData> {
-        if let Ok(contents) = std::fs::read_to_string(&self.cache_path) {
-            serde_json::from_str(&contents).ok()
-        } else {
-            None
-        }
+        let config = Config::global();
+        let token = config.get_secret::<TokenData>(CHATGPT_CODEX_TOKEN_KEY);
+        token.ok()
     }
 
     fn save(&self, token_data: &TokenData) -> Result<()> {
-        if let Some(parent) = self.cache_path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-        let contents = serde_json::to_string(token_data)?;
-        std::fs::write(&self.cache_path, contents)?;
+        let config = Config::global();
+        config.set_secret(CHATGPT_CODEX_TOKEN_KEY, token_data)?;
         Ok(())
-    }
-
-    fn clear(&self) {
-        let _ = std::fs::remove_file(&self.cache_path);
     }
 }
 
@@ -279,7 +243,61 @@ struct OrgInfo {
     id: String,
 }
 
-fn parse_jwt_claims(token: &str) -> Option<JwtClaims> {
+#[derive(Debug, Deserialize)]
+struct OidcConfiguration {
+    jwks_uri: String,
+}
+
+async fn fetch_jwks_for(issuer: &str) -> Result<JwkSet> {
+    let client = reqwest::Client::new();
+    let config_url = format!("{}/.well-known/openid-configuration", issuer);
+    let config = client
+        .get(config_url)
+        .send()
+        .await?
+        .error_for_status()?
+        .json::<OidcConfiguration>()
+        .await?;
+
+    let jwks = client
+        .get(config.jwks_uri)
+        .send()
+        .await?
+        .error_for_status()?
+        .json::<JwkSet>()
+        .await?;
+
+    Ok(jwks)
+}
+
+async fn get_jwks(state: &ChatGptCodexAuthState) -> Result<JwkSet> {
+    let mut cache = state.jwks_cache.lock().await;
+    if let Some(jwks) = cache.clone() {
+        return Ok(jwks);
+    }
+    let jwks = fetch_jwks_for(ISSUER).await?;
+    *cache = Some(jwks.clone());
+    Ok(jwks)
+}
+
+fn parse_jwt_claims_with_jwks(token: &str, jwks: &JwkSet) -> Result<JwtClaims> {
+    let header = decode_header(token)?;
+    let kid = header
+        .kid
+        .ok_or_else(|| anyhow!("JWT header missing kid"))?;
+    let jwk = jwks
+        .find(&kid)
+        .ok_or_else(|| anyhow!("JWT signing key not found"))?;
+    let decoding_key = DecodingKey::from_jwk(jwk)?;
+
+    let mut validation = Validation::new(header.alg);
+    validation.validate_aud = false;
+
+    let token_data = decode::<JwtClaims>(token, &decoding_key, &validation)?;
+    Ok(token_data.claims)
+}
+
+fn parse_jwt_claims_unverified(token: &str) -> Option<JwtClaims> {
     let parts: Vec<&str> = token.split('.').collect();
     if parts.len() != 3 {
         return None;
@@ -290,40 +308,47 @@ fn parse_jwt_claims(token: &str) -> Option<JwtClaims> {
     serde_json::from_slice(&payload).ok()
 }
 
-fn extract_account_id(token_data: &TokenData) -> Option<String> {
-    if let Some(ref id_token) = token_data.id_token {
-        if let Some(claims) = parse_jwt_claims(id_token) {
-            if let Some(id) = claims.chatgpt_account_id {
-                return Some(id);
-            }
-            if let Some(auth) = claims.auth_claims {
-                if let Some(id) = auth.chatgpt_account_id {
-                    return Some(id);
-                }
-            }
-            if let Some(orgs) = claims.organizations {
-                if let Some(org) = orgs.first() {
-                    return Some(org.id.clone());
-                }
-            }
+async fn parse_jwt_claims(token: &str, state: &ChatGptCodexAuthState) -> Option<JwtClaims> {
+    if let Ok(jwks) = get_jwks(state).await {
+        if let Ok(claims) = parse_jwt_claims_with_jwks(token, &jwks) {
+            return Some(claims);
         }
     }
-    if let Some(claims) = parse_jwt_claims(&token_data.access_token) {
-        if let Some(id) = claims.chatgpt_account_id {
-            return Some(id);
+    parse_jwt_claims_unverified(token)
+}
+
+fn account_id_from_claims(claims: &JwtClaims) -> Option<String> {
+    if let Some(id) = claims.chatgpt_account_id.as_ref() {
+        return Some(id.clone());
+    }
+    if let Some(auth) = claims.auth_claims.as_ref() {
+        if let Some(id) = auth.chatgpt_account_id.as_ref() {
+            return Some(id.clone());
         }
-        if let Some(auth) = claims.auth_claims {
-            if let Some(id) = auth.chatgpt_account_id {
-                return Some(id);
-            }
-        }
-        if let Some(orgs) = claims.organizations {
-            if let Some(org) = orgs.first() {
-                return Some(org.id.clone());
-            }
+    }
+    if let Some(orgs) = claims.organizations.as_ref() {
+        if let Some(org) = orgs.first() {
+            return Some(org.id.clone());
         }
     }
     None
+}
+
+async fn extract_account_id(
+    token_data: &TokenData,
+    state: &ChatGptCodexAuthState,
+) -> Option<String> {
+    if let Some(id_token) = token_data.id_token.as_deref() {
+        if let Some(claims) = parse_jwt_claims(id_token, state).await {
+            if let Some(account_id) = account_id_from_claims(&claims) {
+                return Some(account_id);
+            }
+        }
+    }
+
+    parse_jwt_claims(&token_data.access_token, state)
+        .await
+        .and_then(|claims| account_id_from_claims(&claims))
 }
 
 struct PkceChallenge {
@@ -345,7 +370,7 @@ fn generate_state() -> String {
     nanoid::nanoid!(32)
 }
 
-fn build_authorize_url(redirect_uri: &str, pkce: &PkceChallenge, state: &str) -> String {
+fn build_authorize_url(redirect_uri: &str, pkce: &PkceChallenge, state: &str) -> Result<String> {
     let scopes = OAUTH_SCOPES.join(" ");
     let params = [
         ("response_type", "code"),
@@ -359,11 +384,8 @@ fn build_authorize_url(redirect_uri: &str, pkce: &PkceChallenge, state: &str) ->
         ("state", state),
         ("originator", "goose"),
     ];
-    format!(
-        "{}/oauth/authorize?{}",
-        ISSUER,
-        serde_urlencoded::to_string(params).unwrap()
-    )
+    let query = serde_urlencoded::to_string(params)?;
+    Ok(format!("{}/oauth/authorize?{}", ISSUER, query))
 }
 
 #[derive(Debug, Deserialize)]
@@ -374,7 +396,8 @@ struct TokenResponse {
     expires_in: Option<i64>,
 }
 
-async fn exchange_code_for_tokens(
+async fn exchange_code_for_tokens_with_issuer(
+    issuer: &str,
     code: &str,
     redirect_uri: &str,
     pkce: &PkceChallenge,
@@ -389,7 +412,7 @@ async fn exchange_code_for_tokens(
     ];
 
     let resp = client
-        .post(format!("{}/oauth/token", ISSUER))
+        .post(format!("{}/oauth/token", issuer))
         .header("Content-Type", "application/x-www-form-urlencoded")
         .form(&params)
         .send()
@@ -404,7 +427,10 @@ async fn exchange_code_for_tokens(
     Ok(resp.json().await?)
 }
 
-async fn refresh_access_token(refresh_token: &str) -> Result<TokenResponse> {
+async fn refresh_access_token_with_issuer(
+    issuer: &str,
+    refresh_token: &str,
+) -> Result<TokenResponse> {
     let client = reqwest::Client::new();
     let params = [
         ("grant_type", "refresh_token"),
@@ -413,7 +439,7 @@ async fn refresh_access_token(refresh_token: &str) -> Result<TokenResponse> {
     ];
 
     let resp = client
-        .post(format!("{}/oauth/token", ISSUER))
+        .post(format!("{}/oauth/token", issuer))
         .header("Content-Type", "application/x-www-form-urlencoded")
         .form(&params)
         .send()
@@ -499,31 +525,22 @@ fn html_error(error: &str) -> String {
     )
 }
 
-async fn perform_oauth_flow() -> Result<TokenData> {
-    let _guard = OAUTH_MUTEX.lock().await;
+#[derive(Deserialize)]
+struct CallbackParams {
+    code: Option<String>,
+    state: Option<String>,
+    error: Option<String>,
+    error_description: Option<String>,
+}
 
-    let pkce = generate_pkce();
-    let state = generate_state();
-    let redirect_uri = format!("http://localhost:{}/auth/callback", OAUTH_PORT);
-
-    let (tx, rx) = oneshot::channel::<Result<String>>();
-    let tx = Arc::new(TokioMutex::new(Some(tx)));
-    let expected_state = state.clone();
-    let pkce_for_handler = Arc::new(pkce.verifier.clone());
-
-    #[derive(Deserialize)]
-    struct CallbackParams {
-        code: Option<String>,
-        state: Option<String>,
-        error: Option<String>,
-        error_description: Option<String>,
-    }
-
-    let tx_clone = tx.clone();
-    let app = Router::new().route(
+fn oauth_callback_router(
+    expected_state: String,
+    tx: Arc<TokioMutex<Option<oneshot::Sender<Result<String>>>>>,
+) -> Router {
+    Router::new().route(
         "/auth/callback",
         get(move |Query(params): Query<CallbackParams>| {
-            let tx = tx_clone.clone();
+            let tx = tx.clone();
             let expected = expected_state.clone();
             async move {
                 if let Some(error) = params.error {
@@ -559,32 +576,47 @@ async fn perform_oauth_flow() -> Result<TokenData> {
                 Html(HTML_SUCCESS.to_string())
             }
         }),
-    );
+    )
+}
 
+async fn spawn_oauth_server(app: Router) -> Result<tokio::task::JoinHandle<()>> {
     let addr = SocketAddr::from(([127, 0, 0, 1], OAUTH_PORT));
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    let server_handle = tokio::spawn(async move {
+    Ok(tokio::spawn(async move {
         let server = axum::serve(listener, app);
         let _ = server.await;
-    });
+    }))
+}
 
-    let auth_url = build_authorize_url(&redirect_uri, &pkce, &state);
+async fn wait_for_oauth_code(rx: oneshot::Receiver<Result<String>>) -> Result<String> {
+    let code_result = tokio::time::timeout(std::time::Duration::from_secs(300), rx).await;
+    code_result
+        .map_err(|_| anyhow!("OAuth flow timed out"))??
+        .map_err(|e| anyhow!("OAuth callback error: {}", e))
+}
+
+async fn perform_oauth_flow(auth_state: &ChatGptCodexAuthState) -> Result<TokenData> {
+    let _guard = auth_state.oauth_mutex.lock().await;
+
+    let pkce = generate_pkce();
+    let csrf_state = generate_state();
+    let redirect_uri = format!("http://localhost:{}/auth/callback", OAUTH_PORT);
+
+    let (tx, rx) = oneshot::channel::<Result<String>>();
+    let tx = Arc::new(TokioMutex::new(Some(tx)));
+    let app = oauth_callback_router(csrf_state.clone(), tx);
+    let server_handle = spawn_oauth_server(app).await?;
+
+    let auth_url = build_authorize_url(&redirect_uri, &pkce, &csrf_state)?;
     if webbrowser::open(&auth_url).is_err() {
         println!("Please open this URL in your browser:\n{}", auth_url);
     }
 
-    let code = tokio::time::timeout(std::time::Duration::from_secs(300), rx)
-        .await
-        .map_err(|_| anyhow!("OAuth flow timed out"))??
-        .map_err(|e| anyhow!("OAuth callback error: {}", e))?;
-
+    let code_result = wait_for_oauth_code(rx).await;
     server_handle.abort();
+    let code = code_result?;
 
-    let pkce_challenge = PkceChallenge {
-        verifier: (*pkce_for_handler).clone(),
-        challenge: pkce.challenge,
-    };
-    let tokens = exchange_code_for_tokens(&code, &redirect_uri, &pkce_challenge).await?;
+    let tokens = exchange_code_for_tokens_with_issuer(ISSUER, &code, &redirect_uri, &pkce).await?;
 
     let expires_at = Utc::now() + chrono::Duration::seconds(tokens.expires_in.unwrap_or(3600));
 
@@ -596,7 +628,7 @@ async fn perform_oauth_flow() -> Result<TokenData> {
         account_id: None,
     };
 
-    token_data.account_id = extract_account_id(&token_data);
+    token_data.account_id = extract_account_id(&token_data, auth_state).await;
 
     Ok(token_data)
 }
@@ -604,12 +636,14 @@ async fn perform_oauth_flow() -> Result<TokenData> {
 #[derive(Debug)]
 struct ChatGptCodexAuthProvider {
     cache: TokenCache,
+    state: Arc<ChatGptCodexAuthState>,
 }
 
 impl ChatGptCodexAuthProvider {
-    fn new() -> Self {
+    fn new(state: Arc<ChatGptCodexAuthState>) -> Self {
         Self {
-            cache: TokenCache::new(),
+            cache: TokenCache {},
+            state,
         }
     }
 
@@ -620,7 +654,7 @@ impl ChatGptCodexAuthProvider {
             }
 
             tracing::debug!("Token expired, attempting refresh");
-            match refresh_access_token(&token_data.refresh_token).await {
+            match refresh_access_token_with_issuer(ISSUER, &token_data.refresh_token).await {
                 Ok(new_tokens) => {
                     token_data.access_token = new_tokens.access_token;
                     token_data.refresh_token = new_tokens.refresh_token;
@@ -630,7 +664,8 @@ impl ChatGptCodexAuthProvider {
                     token_data.expires_at = Utc::now()
                         + chrono::Duration::seconds(new_tokens.expires_in.unwrap_or(3600));
                     if token_data.account_id.is_none() {
-                        token_data.account_id = extract_account_id(&token_data);
+                        token_data.account_id =
+                            extract_account_id(&token_data, self.state.as_ref()).await;
                     }
                     self.cache.save(&token_data)?;
                     tracing::info!("Token refreshed successfully");
@@ -638,13 +673,13 @@ impl ChatGptCodexAuthProvider {
                 }
                 Err(e) => {
                     tracing::warn!("Token refresh failed, will re-authenticate: {}", e);
-                    self.cache.clear();
+                    let _ = Config::global().delete_secret(CHATGPT_CODEX_TOKEN_KEY);
                 }
             }
         }
 
         tracing::info!("Starting OAuth flow for ChatGPT Codex");
-        let token_data = perform_oauth_flow().await?;
+        let token_data = perform_oauth_flow(self.state.as_ref()).await?;
         self.cache.save(&token_data)?;
         Ok(token_data)
     }
@@ -672,7 +707,9 @@ pub struct ChatGptCodexProvider {
 
 impl ChatGptCodexProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let auth_provider = Arc::new(ChatGptCodexAuthProvider::new());
+        let auth_provider = Arc::new(ChatGptCodexAuthProvider::new(
+            ChatGptCodexAuthState::instance(),
+        ));
 
         Ok(Self {
             auth_provider,
@@ -855,5 +892,272 @@ impl Provider for ChatGptCodexProvider {
                 .map(|s| s.to_string())
                 .collect(),
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::conversation::message::Message;
+    use jsonwebtoken::{Algorithm, EncodingKey, Header};
+    use rmcp::model::{CallToolRequestParam, CallToolResult, Content, ErrorCode, ErrorData};
+    use rmcp::object;
+    use test_case::test_case;
+    use wiremock::matchers::{body_string_contains, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    fn input_kinds(payload: &Value) -> Vec<String> {
+        payload["input"]
+            .as_array()
+            .map(|items| {
+                items
+                    .iter()
+                    .map(|item| {
+                        if let Some(role) = item.get("role").and_then(|r| r.as_str()) {
+                            format!("message:{role}")
+                        } else {
+                            item.get("type")
+                                .and_then(|t| t.as_str())
+                                .unwrap_or("unknown")
+                                .to_string()
+                        }
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    #[test_case(
+        vec![
+            Message::user().with_text("user text"),
+            Message::assistant().with_text("assistant prelude").with_tool_request(
+                "call-1",
+                Ok(CallToolRequestParam {
+                    task: None,
+                    name: "tool_name".into(),
+                    arguments: Some(object!({"param": "value"})),
+                }),
+            ),
+            Message::user().with_tool_response(
+                "call-1",
+                Ok(CallToolResult::success(vec![Content::text("tool output")])),
+            ),
+            Message::assistant().with_text("assistant follow-up"),
+        ],
+        vec![
+            "message:user".to_string(),
+            "message:assistant".to_string(),
+            "function_call".to_string(),
+            "function_call_output".to_string(),
+            "message:assistant".to_string(),
+        ];
+        "preserves order when assistant includes text"
+    )]
+    #[test_case(
+        vec![
+            Message::user().with_text("user text"),
+            Message::assistant().with_tool_request(
+                "call-1",
+                Ok(CallToolRequestParam {
+                    task: None,
+                    name: "tool_name".into(),
+                    arguments: Some(object!({"param": "value"})),
+                }),
+            ),
+            Message::user().with_tool_response(
+                "call-1",
+                Ok(CallToolResult::success(vec![Content::text("tool output")])),
+            ),
+            Message::assistant().with_text("assistant follow-up"),
+        ],
+        vec![
+            "message:user".to_string(),
+            "function_call".to_string(),
+            "function_call_output".to_string(),
+            "message:assistant".to_string(),
+        ];
+        "skips empty assistant message and preserves tool order"
+    )]
+    #[test_case(
+        vec![
+            Message::user().with_text("user text"),
+            Message::assistant().with_tool_request(
+                "call-1",
+                Ok(CallToolRequestParam {
+                    task: None,
+                    name: "tool_name".into(),
+                    arguments: Some(object!({"param": "value"})),
+                }),
+            ),
+            Message::user().with_tool_response(
+                "call-1",
+                Err(ErrorData::new(ErrorCode::INTERNAL_ERROR, "boom", None)),
+            ),
+        ],
+        vec![
+            "message:user".to_string(),
+            "function_call".to_string(),
+            "function_call_output".to_string(),
+        ];
+        "includes tool error output"
+    )]
+    fn test_codex_input_order(messages: Vec<Message>, expected: Vec<String>) {
+        let items = build_input_items(&messages).unwrap();
+        let payload = json!({ "input": items });
+        let kinds = input_kinds(&payload);
+        assert_eq!(kinds, expected);
+    }
+
+    #[test_case(
+        JwtClaims {
+            chatgpt_account_id: Some("account-1".to_string()),
+            auth_claims: None,
+            organizations: None,
+        },
+        Some("account-1".to_string());
+        "uses top-level account id"
+    )]
+    #[test_case(
+        JwtClaims {
+            chatgpt_account_id: None,
+            auth_claims: Some(AuthClaims {
+                chatgpt_account_id: Some("account-2".to_string()),
+            }),
+            organizations: None,
+        },
+        Some("account-2".to_string());
+        "uses auth claims account id"
+    )]
+    #[test_case(
+        JwtClaims {
+            chatgpt_account_id: None,
+            auth_claims: None,
+            organizations: Some(vec![OrgInfo {
+                id: "org-1".to_string(),
+            }]),
+        },
+        Some("org-1".to_string());
+        "falls back to first organization"
+    )]
+    fn test_account_id_from_claims(claims: JwtClaims, expected: Option<String>) {
+        assert_eq!(account_id_from_claims(&claims), expected);
+    }
+
+    #[tokio::test]
+    async fn test_exchange_code_for_tokens() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/oauth/token"))
+            .and(body_string_contains("grant_type=authorization_code"))
+            .and(body_string_contains("code=code-123"))
+            .and(body_string_contains(
+                "redirect_uri=http%3A%2F%2Flocalhost%2Fcallback",
+            ))
+            .and(body_string_contains("code_verifier=verifier-123"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "access_token": "access-1",
+                "refresh_token": "refresh-1",
+                "id_token": "id-1",
+                "expires_in": 3600
+            })))
+            .mount(&server)
+            .await;
+
+        let pkce = PkceChallenge {
+            verifier: "verifier-123".to_string(),
+            challenge: "challenge-123".to_string(),
+        };
+        let tokens = exchange_code_for_tokens_with_issuer(
+            &server.uri(),
+            "code-123",
+            "http://localhost/callback",
+            &pkce,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(tokens.access_token, "access-1");
+        assert_eq!(tokens.refresh_token, "refresh-1");
+        assert_eq!(tokens.id_token.as_deref(), Some("id-1"));
+        assert_eq!(tokens.expires_in, Some(3600));
+    }
+
+    #[tokio::test]
+    async fn test_refresh_access_token() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/oauth/token"))
+            .and(body_string_contains("grant_type=refresh_token"))
+            .and(body_string_contains("refresh_token=refresh-123"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "access_token": "access-2",
+                "refresh_token": "refresh-2",
+                "id_token": "id-2",
+                "expires_in": 1800
+            })))
+            .mount(&server)
+            .await;
+
+        let tokens = refresh_access_token_with_issuer(&server.uri(), "refresh-123")
+            .await
+            .unwrap();
+
+        assert_eq!(tokens.access_token, "access-2");
+        assert_eq!(tokens.refresh_token, "refresh-2");
+        assert_eq!(tokens.id_token.as_deref(), Some("id-2"));
+        assert_eq!(tokens.expires_in, Some(1800));
+    }
+
+    #[derive(Serialize)]
+    struct TestClaims {
+        exp: usize,
+        chatgpt_account_id: Option<String>,
+    }
+
+    #[tokio::test]
+    async fn test_parse_jwt_claims_verified_with_issuer() {
+        let server = MockServer::start().await;
+        let jwks_uri = format!("{}/jwks", server.uri());
+        Mock::given(method("GET"))
+            .and(path("/.well-known/openid-configuration"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "jwks_uri": jwks_uri
+            })))
+            .mount(&server)
+            .await;
+
+        let secret = "test-secret";
+        let key = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(secret);
+        Mock::given(method("GET"))
+            .and(path("/jwks"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "keys": [{
+                    "kty": "oct",
+                    "alg": "HS256",
+                    "kid": "test-kid",
+                    "k": key
+                }]
+            })))
+            .mount(&server)
+            .await;
+
+        let mut header = Header::new(Algorithm::HS256);
+        header.kid = Some("test-kid".to_string());
+
+        let claims = TestClaims {
+            exp: (Utc::now() + chrono::Duration::seconds(60)).timestamp() as usize,
+            chatgpt_account_id: Some("account-1".to_string()),
+        };
+        let token = jsonwebtoken::encode(
+            &header,
+            &claims,
+            &EncodingKey::from_secret(secret.as_bytes()),
+        )
+        .unwrap();
+
+        let jwks = fetch_jwks_for(&server.uri()).await.unwrap();
+        let claims = parse_jwt_claims_with_jwks(&token, &jwks).unwrap();
+
+        assert_eq!(claims.chatgpt_account_id.as_deref(), Some("account-1"));
     }
 }
