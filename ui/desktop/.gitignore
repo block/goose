@@ -9,5 +9,7 @@ src/bin/goose-npm/
 /test-results/
 /src/bin/temporal-service
 src/bin/temporal.db
+# Native addon build artifacts
+src/native/auth_session/build/
 # Signing credentials
 .env.signing
