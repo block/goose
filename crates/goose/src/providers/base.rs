@@ -470,16 +470,17 @@ pub trait Provider: Send + Sync {
             .collect();
 
         // Sort by release date (most recent first), then alphabetically for models without dates
-        models_with_dates.sort_by(|a, b| {
-            match (&a.1, &b.1) {
-                (Some(date_a), Some(date_b)) => date_b.cmp(date_a),
-                (Some(_), None) => std::cmp::Ordering::Less,
-                (None, Some(_)) => std::cmp::Ordering::Greater,
-                (None, None) => a.0.cmp(&b.0),
-            }
+        models_with_dates.sort_by(|a, b| match (&a.1, &b.1) {
+            (Some(date_a), Some(date_b)) => date_b.cmp(date_a),
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (None, None) => a.0.cmp(&b.0),
         });
 
-        let recommended_models: Vec<String> = models_with_dates.into_iter().map(|(name, _)| name).collect();
+        let recommended_models: Vec<String> = models_with_dates
+            .into_iter()
+            .map(|(name, _)| name)
+            .collect();
 
         if recommended_models.is_empty() {
             Ok(Some(all_models))

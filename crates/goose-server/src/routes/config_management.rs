@@ -498,10 +498,9 @@ pub async fn get_pricing(
 
     let mut pricing_data = Vec::new();
 
-    if let (Some(input_cost), Some(output_cost)) = (
-        canonical_model.cost.input,
-        canonical_model.cost.output,
-    ) {
+    if let (Some(input_cost), Some(output_cost)) =
+        (canonical_model.cost.input, canonical_model.cost.output)
+    {
         pricing_data.push(PricingData {
             provider: query.provider.clone(),
             model: query.model.clone(),

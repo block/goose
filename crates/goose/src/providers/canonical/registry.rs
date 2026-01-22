@@ -75,7 +75,8 @@ impl CanonicalModelRegistry {
     }
 
     pub fn register(&mut self, provider: &str, model: &str, canonical_model: CanonicalModel) {
-        self.models.insert((provider.to_string(), model.to_string()), canonical_model);
+        self.models
+            .insert((provider.to_string(), model.to_string()), canonical_model);
     }
 
     pub fn get(&self, provider: &str, model: &str) -> Option<&CanonicalModel> {

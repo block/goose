@@ -7,11 +7,11 @@ static NORMALIZE_VERSION_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"-(\d)-(\d)(
 static STRIP_PATTERNS: Lazy<Vec<Regex>> = Lazy::new(|| {
     vec![
         Regex::new(r"-latest$").unwrap(),
-        Regex::new(r"-\d{8}$").unwrap(),           // Date stamps like -20241022
-        Regex::new(r"-\d{4}$").unwrap(),           // Date stamps like -0709, -1212 (MMDD format)
+        Regex::new(r"-\d{8}$").unwrap(), // Date stamps like -20241022
+        Regex::new(r"-\d{4}$").unwrap(), // Date stamps like -0709, -1212 (MMDD format)
         Regex::new(r"-\d{4}-\d{2}-\d{2}$").unwrap(), // Date stamps like -2024-10-22
-        Regex::new(r"-bedrock$").unwrap(),          // Platform suffixes
-        Regex::new(r"-reasoning$").unwrap(),        // XAI reasoning suffix
+        Regex::new(r"-bedrock$").unwrap(), // Platform suffixes
+        Regex::new(r"-reasoning$").unwrap(), // XAI reasoning suffix
     ]
 });
 

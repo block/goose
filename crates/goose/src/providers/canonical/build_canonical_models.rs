@@ -9,7 +9,9 @@
 ///
 use anyhow::{Context, Result};
 use clap::Parser;
-use goose::providers::canonical::{canonical_name, CanonicalModel, CanonicalModelRegistry, Limit, Modalities, Pricing};
+use goose::providers::canonical::{
+    canonical_name, CanonicalModel, CanonicalModelRegistry, Limit, Modalities, Pricing,
+};
 use goose::providers::{canonical::ModelMapping, create_with_named_model};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -379,7 +381,10 @@ async fn build_canonical_models() -> Result<()> {
                 // This deduplicates different versions of the same model
                 let canonical_id = canonical_name(normalized_provider, model_id);
 
-                let family = model_data.get("family").and_then(|v| v.as_str()).map(|s| s.to_string());
+                let family = model_data
+                    .get("family")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
 
                 let attachment = model_data.get("attachment").and_then(|v| v.as_bool());
 
@@ -392,11 +397,20 @@ async fn build_canonical_models() -> Result<()> {
 
                 let temperature = model_data.get("temperature").and_then(|v| v.as_bool());
 
-                let knowledge = model_data.get("knowledge").and_then(|v| v.as_str()).map(|s| s.to_string());
+                let knowledge = model_data
+                    .get("knowledge")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
 
-                let release_date = model_data.get("release_date").and_then(|v| v.as_str()).map(|s| s.to_string());
+                let release_date = model_data
+                    .get("release_date")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
 
-                let last_updated = model_data.get("last_updated").and_then(|v| v.as_str()).map(|s| s.to_string());
+                let last_updated = model_data
+                    .get("last_updated")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
 
                 let modalities = Modalities {
                     input: model_data
