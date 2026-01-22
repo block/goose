@@ -119,10 +119,10 @@ impl OllamaProvider {
         })
     }
 
-    async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
+    async fn post(&self, session_id: &str, payload: &Value) -> Result<Value, ProviderError> {
         let response = self
             .api_client
-            .response_post("v1/chat/completions", payload)
+            .response_post(session_id, "v1/chat/completions", payload)
             .await?;
         handle_response_openai_compat(response).await
     }
@@ -173,6 +173,7 @@ impl Provider for OllamaProvider {
     )]
     async fn complete_with_model(
         &self,
+        session_id: &str,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -199,7 +200,7 @@ impl Provider for OllamaProvider {
         let response = self
             .with_retry(|| async {
                 let payload_clone = payload.clone();
-                self.post(&payload_clone).await
+                self.post(session_id, &payload_clone).await
             })
             .await
             .inspect_err(|e| {
@@ -219,12 +220,14 @@ impl Provider for OllamaProvider {
 
     async fn generate_session_name(
         &self,
+        session_id: &str,
         messages: &Conversation,
     ) -> Result<String, ProviderError> {
         let context = self.get_initial_user_messages(messages);
         let message = Message::user().with_text(self.create_session_name_prompt(&context));
         let result = self
             .complete(
+                session_id,
                 "You are a title generator. Output only the requested title of 4 words or less, with no additional text, reasoning, or explanations.",
                 &[message],
                 &[],
@@ -243,6 +246,7 @@ impl Provider for OllamaProvider {
 
     async fn stream(
         &self,
+        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -269,7 +273,7 @@ impl Provider for OllamaProvider {
             .with_retry(|| async {
                 let resp = self
                     .api_client
-                    .response_post("v1/chat/completions", &payload)
+                    .response_post(session_id, "v1/chat/completions", &payload)
                     .await?;
                 handle_status_openai_compat(resp).await
             })
@@ -280,10 +284,13 @@ impl Provider for OllamaProvider {
         stream_openai_compat(response, log)
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(
+        &self,
+        session_id: &str,
+    ) -> Result<Option<Vec<String>>, ProviderError> {
         let response = self
             .api_client
-            .response_get("api/tags")
+            .response_get(session_id, "api/tags")
             .await
             .map_err(|e| ProviderError::RequestFailed(format!("Failed to fetch models: {}", e)))?;
 

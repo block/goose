@@ -344,7 +344,7 @@ impl SessionManager {
             .count();
 
         if user_message_count <= MSG_COUNT_FOR_SESSION_NAME_GENERATION {
-            let name = provider.generate_session_name(&conversation).await?;
+            let name = provider.generate_session_name(id, &conversation).await?;
             self.update(id).system_generated_name(name).apply().await
         } else {
             Ok(())
@@ -1285,14 +1285,23 @@ impl SessionStorage {
             )
             .await?;
 
-        session_manager
+        let mut builder = session_manager
             .update(&new_session.id)
             .extension_data(original_session.extension_data)
             .schedule_id(original_session.schedule_id)
             .recipe(original_session.recipe)
-            .user_recipe_values(original_session.user_recipe_values)
-            .apply()
-            .await?;
+            .user_recipe_values(original_session.user_recipe_values);
+
+        // Preserve provider and model config from original session
+        if let Some(provider_name) = original_session.provider_name {
+            builder = builder.provider_name(provider_name);
+        }
+
+        if let Some(model_config) = original_session.model_config {
+            builder = builder.model_config(model_config);
+        }
+
+        builder.apply().await?;
 
         if let Some(conversation) = original_session.conversation {
             self.replace_conversation(&new_session.id, &conversation)

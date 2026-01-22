@@ -29,6 +29,7 @@ import { expandTilde } from './utils/pathUtils';
 import log from './utils/logger';
 import { ensureWinShims } from './utils/winShims';
 import { addRecentDir, loadRecentDirs } from './utils/recentDirs';
+import { formatAppName } from './utils/conversionUtils';
 import {
   EnvToggles,
   loadSettings,
@@ -516,8 +517,8 @@ let appConfig = {
 
 const windowMap = new Map<number, BrowserWindow>();
 const goosedClients = new Map<number, Client>();
+const appWindows = new Map<string, BrowserWindow>();
 
-// Track power save blockers per window
 const windowPowerSaveBlockers = new Map<number, number>(); // windowId -> blockerId
 // Track pending initial messages per window
 const pendingInitialMessages = new Map<number, string>(); // windowId -> initialMessage
@@ -2411,10 +2412,11 @@ async function appMain() {
       const baseUrl = new URL(currentUrl).origin;
 
       const appWindow = new BrowserWindow({
-        title: gooseApp.name,
+        title: formatAppName(gooseApp.name),
         width: gooseApp.width ?? 800,
         height: gooseApp.height ?? 600,
         resizable: gooseApp.resizable ?? true,
+        useContentSize: true,
         webPreferences: {
           preload: path.join(__dirname, 'preload.js'),
           nodeIntegration: false,
@@ -2425,13 +2427,15 @@ async function appMain() {
       });
 
       goosedClients.set(appWindow.id, launchingClient);
+      appWindows.set(gooseApp.name, appWindow);
 
       appWindow.on('close', () => {
         goosedClients.delete(appWindow.id);
+        appWindows.delete(gooseApp.name);
       });
 
       const workingDir = app.getPath('home');
-      const extensionName = gooseApp.mcpServer ?? '';
+      const extensionName = gooseApp.mcpServers?.[0] ?? '';
       const standaloneUrl =
         `${baseUrl}/#/standalone-app?` +
         `resourceUri=${encodeURIComponent(gooseApp.uri)}` +
@@ -2443,6 +2447,44 @@ async function appMain() {
       appWindow.show();
     } catch (error) {
       console.error('Failed to launch app:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('refresh-app', async (_event, gooseApp: GooseApp) => {
+    try {
+      const appWindow = appWindows.get(gooseApp.name);
+      if (!appWindow || appWindow.isDestroyed()) {
+        console.log(`App window for '${gooseApp.name}' not found or destroyed, skipping refresh`);
+        return;
+      }
+
+      // Bring to front first
+      if (appWindow.isMinimized()) {
+        appWindow.restore();
+      }
+      appWindow.show();
+      appWindow.focus();
+
+      // Then reload
+      await appWindow.webContents.reload();
+    } catch (error) {
+      console.error('Failed to refresh app:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('close-app', async (_event, appName: string) => {
+    try {
+      const appWindow = appWindows.get(appName);
+      if (!appWindow || appWindow.isDestroyed()) {
+        console.log(`App window for '${appName}' not found or destroyed, skipping close`);
+        return;
+      }
+
+      appWindow.close();
+    } catch (error) {
+      console.error('Failed to close app:', error);
       throw error;
     }
   });
