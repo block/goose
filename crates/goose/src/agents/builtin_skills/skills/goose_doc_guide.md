@@ -20,7 +20,7 @@ Do NOT use this skill for:
    - Use the EXACT paths from the doc map. For example:
    - If doc map shows: `docs/guides/sessions/session-management.md`
    - Fetch: `https://block.github.io/goose/docs/guides/sessions/session-management.md`
-   - Do NOT modify or guess paths. 
+   - Do NOT modify or guess paths.
    - **ONLY fetch paths that are explicitly listed in the doc map - do not guess or infer URLs**
    - Make multiple fetch calls in parallel and save to temp files
    - Use the temp files for subsequent searches instead of re-fetching
