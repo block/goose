@@ -1297,9 +1297,6 @@ impl Agent {
                                             yield AgentEvent::Message(msg);
                                         }
 
-                                        // Use select to poll both the tool stream and a small timeout
-                                        // The timeout allows us to periodically check for elicitation messages
-                                        // even when tools are blocked waiting for user input
                                         tokio::select! {
                                             biased;
 
