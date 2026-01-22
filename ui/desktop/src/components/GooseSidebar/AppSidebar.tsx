@@ -23,12 +23,13 @@ import {
 import { Gear } from '../icons';
 import { View, ViewOptions } from '../../utils/navigationUtils';
 import { DEFAULT_CHAT_TITLE, useChatContext } from '../../contexts/ChatContext';
-import { listSessions, listApps, Session } from '../../api';
+import { listSessions, Session } from '../../api';
 import { resumeSession, startNewSession, shouldShowNewChatTitle } from '../../sessions';
 import { useNavigation } from '../../hooks/useNavigation';
 import { SessionIndicators } from '../SessionIndicators';
 import { useSidebarSessionStatus } from '../../hooks/useSidebarSessionStatus';
 import { getInitialWorkingDir } from '../../utils/workingDir';
+import { useConfig } from '../ConfigContext';
 
 interface SidebarProps {
   onSelectSession: (sessionId: string) => void;
@@ -62,6 +63,13 @@ const menuItems: NavigationEntry[] = [
   },
   {
     type: 'item',
+    path: '/apps',
+    label: 'Apps',
+    icon: AppWindow,
+    tooltip: 'MCP and custom apps',
+  },
+  {
+    type: 'item',
     path: '/schedules',
     label: 'Scheduler',
     icon: Clock,
@@ -73,13 +81,6 @@ const menuItems: NavigationEntry[] = [
     label: 'Extensions',
     icon: Puzzle,
     tooltip: 'Manage your extensions',
-  },
-  {
-    type: 'item',
-    path: '/apps',
-    label: 'Apps',
-    icon: AppWindow,
-    tooltip: 'Browse and launch MCP apps',
   },
   { type: 'separator' },
   {
@@ -195,10 +196,13 @@ SessionList.displayName = 'SessionList';
 const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   const navigate = useNavigate();
   const chatContext = useChatContext();
+  const configContext = useConfig();
   const setView = useNavigation();
+
+  const appsExtensionEnabled = !!configContext.extensionsList?.find((ext) => ext.name === 'apps')
+    ?.enabled;
   const [searchParams] = useSearchParams();
   const [recentSessions, setRecentSessions] = useState<Session[]>([]);
-  const [hasApps, setHasApps] = useState(false);
   const activeSessionId = searchParams.get('resumeSessionId') ?? undefined;
   const { getSessionStatus, clearUnread } = useSidebarSessionStatus(activeSessionId);
 
@@ -250,21 +254,6 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
 
     loadRecentSessions();
   }, []);
-
-  useEffect(() => {
-    const checkApps = async () => {
-      try {
-        const response = await listApps({
-          throwOnError: true,
-        });
-        setHasApps((response.data?.apps || []).length > 0);
-      } catch (err) {
-        console.warn('Failed to check for apps:', err);
-      }
-    };
-
-    checkApps();
-  }, [currentPath]);
 
   useEffect(() => {
     let pollingTimeouts: ReturnType<typeof setTimeout>[] = [];
@@ -477,8 +466,9 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   };
 
   const visibleMenuItems = menuItems.filter((entry) => {
+    // Filter out Apps if extension is not enabled
     if (entry.type === 'item' && entry.path === '/apps') {
-      return hasApps;
+      return appsExtensionEnabled;
     }
     return true;
   });
@@ -544,7 +534,6 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
 
           <SidebarSeparator />
 
-          {/* Other menu items - filter out Apps if no apps available */}
           {visibleMenuItems.map((entry, index) => renderMenuItem(entry, index))}
         </SidebarMenu>
       </SidebarContent>

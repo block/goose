@@ -24,6 +24,7 @@ import {
 } from '../types/message';
 import { errorMessage } from '../utils/conversionUtils';
 import { showExtensionLoadResults } from '../utils/extensionErrorUtils';
+import { maybeHandlePlatformEvent } from '../utils/platform_events';
 
 const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
 
@@ -197,7 +198,8 @@ async function streamFromResponse(
   stream: AsyncIterable<MessageEvent>,
   initialMessages: Message[],
   dispatch: React.Dispatch<StreamAction>,
-  onFinish: (error?: string) => void
+  onFinish: (error?: string) => void,
+  sessionId: string
 ): Promise<void> {
   let currentMessages = initialMessages;
 
@@ -249,6 +251,7 @@ async function streamFromResponse(
         }
         case 'Notification': {
           dispatch({ type: 'ADD_NOTIFICATION', payload: event as NotificationEvent });
+          maybeHandlePlatformEvent(event.message, sessionId);
           break;
         }
         case 'Ping':
@@ -540,7 +543,7 @@ export function useChatStream({
           signal: abortControllerRef.current.signal,
         });
 
-        await streamFromResponse(stream, currentMessages, dispatch, onFinish);
+        await streamFromResponse(stream, currentMessages, dispatch, onFinish, sessionId);
       } catch (error) {
         // AbortError is expected when user stops streaming
         if (error instanceof Error && error.name === 'AbortError') {
@@ -581,7 +584,7 @@ export function useChatStream({
           signal: abortControllerRef.current.signal,
         });
 
-        await streamFromResponse(stream, currentMessages, dispatch, onFinish);
+        await streamFromResponse(stream, currentMessages, dispatch, onFinish, sessionId);
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') {
           // Silently handle abort
