@@ -1,4 +1,5 @@
 import { useCallback, useState, useRef, useEffect } from 'react';
+import { compressImageDataUrl } from '../utils/conversionUtils';
 
 export interface DroppedFile {
   id: string;
@@ -10,44 +11,6 @@ export interface DroppedFile {
   isLoading?: boolean;
   error?: string;
 }
-
-// Helper function to compress image data URLs
-const compressImageDataUrl = async (dataUrl: string): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const img = new globalThis.Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        reject(new Error('Failed to get canvas context'));
-        return;
-      }
-
-      // Resize to max 1024px on longest side
-      const maxSize = 1024;
-      let width = img.width;
-      let height = img.height;
-
-      if (width > height && width > maxSize) {
-        height = (height * maxSize) / width;
-        width = maxSize;
-      } else if (height > maxSize) {
-        width = (width * maxSize) / height;
-        height = maxSize;
-      }
-
-      canvas.width = width;
-      canvas.height = height;
-      ctx.drawImage(img, 0, 0, width, height);
-
-      // Convert to JPEG with 0.85 quality
-      const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
-      resolve(compressedDataUrl);
-    };
-    img.onerror = () => reject(new Error('Failed to load image'));
-    img.src = dataUrl;
-  });
-};
 
 export const useFileDrop = () => {
   const [droppedFiles, setDroppedFiles] = useState<DroppedFile[]>([]);

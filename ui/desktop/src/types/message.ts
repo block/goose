@@ -20,12 +20,10 @@ export interface UserInput {
 export function createUserMessage(text: string, images?: ImageData[]): Message {
   const content: Message['content'] = [];
 
-  // Add text content if present
   if (text.trim()) {
     content.push({ type: 'text', text });
   }
 
-  // Add image content if present
   if (images && images.length > 0) {
     images.forEach((img) => {
       content.push({
