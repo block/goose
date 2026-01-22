@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import {
   AppWindow,
   ChefHat,
+  ChevronRight,
   Clock,
   FileText,
   History,
@@ -20,6 +21,7 @@ import {
   SidebarMenuItem,
   SidebarSeparator,
 } from '../ui/sidebar';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 import { Gear } from '../icons';
 import { View, ViewOptions } from '../../utils/navigationUtils';
 import { DEFAULT_CHAT_TITLE, useChatContext } from '../../contexts/ChatContext';
@@ -203,6 +205,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     ?.enabled;
   const [searchParams] = useSearchParams();
   const [recentSessions, setRecentSessions] = useState<Session[]>([]);
+  const [isChatExpanded, setIsChatExpanded] = useState(true);
   const activeSessionId = searchParams.get('resumeSessionId') ?? undefined;
   const { getSessionStatus, clearUnread } = useSidebarSessionStatus(activeSessionId);
 
@@ -477,7 +480,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     <>
       <SidebarContent className="pt-12">
         <SidebarMenu>
-          {/* Home and New Chat */}
+          {/* Home */}
           <SidebarGroup className="px-2">
             <SidebarGroupContent className="space-y-1">
               <div className="sidebar-item">
@@ -494,43 +497,67 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </div>
-              <div className="sidebar-item">
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    data-testid="sidebar-new-chat-button"
-                    onClick={handleNewChat}
-                    tooltip="Start a new chat"
-                    className="w-full justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200"
-                  >
-                    <MessageSquarePlus className="w-4 h-4" />
-                    <span>Chat</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </div>
             </SidebarGroupContent>
           </SidebarGroup>
 
-          {/* Recent Sessions */}
-          {recentSessions.length > 0 && (
-            <SidebarGroup className="px-2">
-              <SidebarGroupContent className="space-y-1">
-                <SessionList
-                  sessions={recentSessions}
-                  activeSessionId={activeSessionId}
-                  getSessionStatus={getSessionStatus}
-                  onSessionClick={handleSessionClick}
-                />
-                {/* View All Link */}
-                <button
-                  onClick={handleViewAllClick}
-                  className="w-full text-left px-3 py-1.5 rounded-md text-sm text-text-muted hover:bg-background-medium/50 hover:text-text-default transition-colors flex items-center gap-2"
-                >
-                  <History className="w-4 h-4" />
-                  <span>View All</span>
-                </button>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          )}
+          {/* Chat with Collapsible Sessions */}
+          <SidebarGroup className="px-2">
+            <SidebarGroupContent className="space-y-1">
+              <Collapsible open={isChatExpanded} onOpenChange={setIsChatExpanded}>
+                <div className="sidebar-item">
+                  <SidebarMenuItem>
+                    <div className="flex items-center w-full">
+                      <SidebarMenuButton
+                        data-testid="sidebar-new-chat-button"
+                        onClick={handleNewChat}
+                        tooltip="Start a new chat"
+                        className="flex-1 justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200"
+                      >
+                        <MessageSquarePlus className="w-4 h-4" />
+                        <span>Chat</span>
+                      </SidebarMenuButton>
+                      {recentSessions.length > 0 && (
+                        <CollapsibleTrigger asChild>
+                          <button
+                            className="flex items-center justify-center w-6 h-8 hover:bg-background-medium/50 rounded-md transition-colors"
+                            aria-label={
+                              isChatExpanded ? 'Collapse chat sessions' : 'Expand chat sessions'
+                            }
+                          >
+                            <ChevronRight
+                              className={`w-4 h-4 text-text-muted transition-transform duration-200 ${
+                                isChatExpanded ? 'rotate-90' : ''
+                              }`}
+                            />
+                          </button>
+                        </CollapsibleTrigger>
+                      )}
+                    </div>
+                  </SidebarMenuItem>
+                </div>
+                {recentSessions.length > 0 && (
+                  <CollapsibleContent className="overflow-hidden transition-all data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0">
+                    <div className="mt-1 space-y-1">
+                      <SessionList
+                        sessions={recentSessions}
+                        activeSessionId={activeSessionId}
+                        getSessionStatus={getSessionStatus}
+                        onSessionClick={handleSessionClick}
+                      />
+                      {/* View All Link */}
+                      <button
+                        onClick={handleViewAllClick}
+                        className="w-full text-left px-3 py-1.5 rounded-md text-sm text-text-muted hover:bg-background-medium/50 hover:text-text-default transition-colors flex items-center gap-2"
+                      >
+                        <History className="w-4 h-4" />
+                        <span>View All</span>
+                      </button>
+                    </div>
+                  </CollapsibleContent>
+                )}
+              </Collapsible>
+            </SidebarGroupContent>
+          </SidebarGroup>
 
           <SidebarSeparator />
 
