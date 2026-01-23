@@ -373,5 +373,6 @@ export const useWhisper = ({ onTranscription, onError, onSizeWarning }: UseWhisp
     stopRecording,
     recordingDuration,
     estimatedSize,
+    dictationSettings,
   };
 };

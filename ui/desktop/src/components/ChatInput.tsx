@@ -20,7 +20,6 @@ import { useWhisper } from '../hooks/useWhisper';
 import { WaveformVisualizer } from './WaveformVisualizer';
 import { toastError } from '../toasts';
 import MentionPopover, { DisplayItemWithMatch } from './MentionPopover';
-import { useDictationSettings } from '../hooks/useDictationSettings';
 import { COST_TRACKING_ENABLED, VOICE_DICTATION_ELEVENLABS_ENABLED } from '../updates';
 import { CostTracker } from './bottom_menu/CostTracker';
 import { DroppedFile, useFileDrop } from '../hooks/useFileDrop';
@@ -265,6 +264,7 @@ export default function ChatInput({
     stopRecording,
     recordingDuration,
     estimatedSize,
+    dictationSettings,
   } = useWhisper({
     onTranscription: (text) => {
       trackVoiceDictation('transcribed');
@@ -289,8 +289,6 @@ export default function ChatInput({
       });
     },
   });
-
-  const { settings: dictationSettings } = useDictationSettings();
   const internalTextAreaRef = useRef<HTMLTextAreaElement>(null);
   const textAreaRef = inputRef || internalTextAreaRef;
   const timeoutRefsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
@@ -618,17 +616,20 @@ export default function ChatInput({
     return [...pastedImageData, ...droppedImageData];
   }, [pastedImages, allDroppedFiles]);
 
-  const appendDroppedFilePaths = useCallback((text: string): string => {
-    const droppedFilePaths = allDroppedFiles
-      .filter((file) => !file.isImage && !file.error && !file.isLoading)
-      .map((file) => file.path);
+  const appendDroppedFilePaths = useCallback(
+    (text: string): string => {
+      const droppedFilePaths = allDroppedFiles
+        .filter((file) => !file.isImage && !file.error && !file.isLoading)
+        .map((file) => file.path);
 
-    if (droppedFilePaths.length > 0) {
-      const pathsString = droppedFilePaths.join(' ');
-      return text ? `${text} ${pathsString}` : pathsString;
-    }
-    return text;
-  }, [allDroppedFiles]);
+      if (droppedFilePaths.length > 0) {
+        const pathsString = droppedFilePaths.join(' ');
+        return text ? `${text} ${pathsString}` : pathsString;
+      }
+      return text;
+    },
+    [allDroppedFiles]
+  );
 
   const clearInputState = useCallback(() => {
     setDisplayValue('');
@@ -1189,7 +1190,13 @@ export default function ChatInput({
       onDrop={handleLocalDrop}
       onDragOver={handleLocalDragOver}
     >
-      <input ref={fileInputRef} type="file" onChange={handleFileInputChange} style={{ display: 'none' }} accept="*/*" />
+      <input
+        ref={fileInputRef}
+        type="file"
+        onChange={handleFileInputChange}
+        style={{ display: 'none' }}
+        accept="*/*"
+      />
       {/* Message Queue Display */}
       {queuedMessages.length > 0 && (
         <MessageQueue

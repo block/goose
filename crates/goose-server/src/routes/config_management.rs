@@ -222,6 +222,11 @@ fn mask_secret(secret: Value) -> String {
 pub async fn read_config(
     Json(query): Json<ConfigKeyQuery>,
 ) -> Result<Json<ConfigValueResponse>, StatusCode> {
+    // TODO: Remove this - simulating slow keychain access for debugging
+    if query.is_secret {
+        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+    }
+
     if query.key == "model-limits" {
         let limits = ModelConfig::get_all_model_limits();
         return Ok(Json(ConfigValueResponse::Value(
