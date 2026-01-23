@@ -2,21 +2,22 @@ use crate::action_required_manager::ActionRequiredManager;
 use crate::agents::types::SharedProvider;
 use crate::session_context::SESSION_ID_HEADER;
 use rmcp::model::{
-    Content, CreateElicitationRequestParam, CreateElicitationResult, ElicitationAction, ErrorCode,
+    Content, CreateElicitationRequestParams, CreateElicitationResult, ElicitationAction, ErrorCode,
     Extensions, JsonObject, Meta,
 };
 /// MCP client implementation for Goose
 use rmcp::{
     model::{
-        CallToolRequest, CallToolRequestParam, CallToolResult, CancelledNotification,
+        CallToolRequest, CallToolRequestParams, CallToolResult, CancelledNotification,
         CancelledNotificationMethod, CancelledNotificationParam, ClientCapabilities, ClientInfo,
-        ClientRequest, CreateMessageRequestParam, CreateMessageResult, GetPromptRequest,
-        GetPromptRequestParam, GetPromptResult, Implementation, InitializeResult,
+        ClientRequest, CreateMessageRequestParams, CreateMessageResult, GetPromptRequest,
+        GetPromptRequestParams, GetPromptResult, Implementation, InitializeResult,
         ListPromptsRequest, ListPromptsResult, ListResourcesRequest, ListResourcesResult,
         ListToolsRequest, ListToolsResult, LoggingMessageNotification,
-        LoggingMessageNotificationMethod, PaginatedRequestParam, ProgressNotification,
-        ProgressNotificationMethod, ProtocolVersion, ReadResourceRequest, ReadResourceRequestParam,
-        ReadResourceResult, RequestId, Role, SamplingMessage, ServerNotification, ServerResult,
+        LoggingMessageNotificationMethod, PaginatedRequestParams, ProgressNotification,
+        ProgressNotificationMethod, ProtocolVersion, ReadResourceRequest,
+        ReadResourceRequestParams, ReadResourceResult, RequestId, Role, SamplingMessage,
+        ServerNotification, ServerResult,
     },
     service::{
         ClientInitializeError, PeerRequestOptions, RequestContext, RequestHandle, RunningService,
@@ -214,7 +215,7 @@ impl ClientHandler for GooseClient {
 
     async fn create_message(
         &self,
-        params: CreateMessageRequestParam,
+        params: CreateMessageRequestParams,
         context: RequestContext<RoleClient>,
     ) -> Result<CreateMessageResult, ErrorData> {
         let provider = self
@@ -295,7 +296,7 @@ impl ClientHandler for GooseClient {
 
     async fn create_elicitation(
         &self,
-        request: CreateElicitationRequestParam,
+        request: CreateElicitationRequestParams,
         _context: RequestContext<RoleClient>,
     ) -> Result<CreateElicitationResult, ErrorData> {
         let schema_value = serde_json::to_value(&request.requested_schema).map_err(|e| {
@@ -328,6 +329,7 @@ impl ClientHandler for GooseClient {
 
     fn get_info(&self) -> ClientInfo {
         ClientInfo {
+            meta: None,
             protocol_version: ProtocolVersion::V_2025_03_26,
             capabilities: ClientCapabilities::builder()
                 .enable_sampling()
@@ -469,7 +471,7 @@ impl McpClientTrait for McpClient {
             .send_request_with_session(
                 session_id,
                 ClientRequest::ListResourcesRequest(ListResourcesRequest {
-                    params: Some(PaginatedRequestParam { cursor }),
+                    params: Some(PaginatedRequestParams { meta: None, cursor }),
                     method: Default::default(),
                     extensions: Default::default(),
                 }),
@@ -493,7 +495,8 @@ impl McpClientTrait for McpClient {
             .send_request_with_session(
                 session_id,
                 ClientRequest::ReadResourceRequest(ReadResourceRequest {
-                    params: ReadResourceRequestParam {
+                    params: ReadResourceRequestParams {
+                        meta: None,
                         uri: uri.to_string(),
                     },
                     method: Default::default(),
@@ -519,7 +522,7 @@ impl McpClientTrait for McpClient {
             .send_request_with_session(
                 session_id,
                 ClientRequest::ListToolsRequest(ListToolsRequest {
-                    params: Some(PaginatedRequestParam { cursor }),
+                    params: Some(PaginatedRequestParams { meta: None, cursor }),
                     method: Default::default(),
                     extensions: Default::default(),
                 }),
@@ -541,7 +544,8 @@ impl McpClientTrait for McpClient {
         cancel_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         let request = ClientRequest::CallToolRequest(CallToolRequest {
-            params: CallToolRequestParam {
+            params: CallToolRequestParams {
+                meta: None,
                 task: None,
                 name: name.to_string().into(),
                 arguments,
@@ -570,7 +574,7 @@ impl McpClientTrait for McpClient {
             .send_request_with_session(
                 session_id,
                 ClientRequest::ListPromptsRequest(ListPromptsRequest {
-                    params: Some(PaginatedRequestParam { cursor }),
+                    params: Some(PaginatedRequestParams { meta: None, cursor }),
                     method: Default::default(),
                     extensions: Default::default(),
                 }),
@@ -599,7 +603,8 @@ impl McpClientTrait for McpClient {
             .send_request_with_session(
                 session_id,
                 ClientRequest::GetPromptRequest(GetPromptRequest {
-                    params: GetPromptRequestParam {
+                    params: GetPromptRequestParams {
+                        meta: None,
                         name: name.to_string(),
                         arguments,
                     },
@@ -695,7 +700,10 @@ mod tests {
 
     fn list_resources_request(extensions: Extensions) -> ClientRequest {
         ClientRequest::ListResourcesRequest(ListResourcesRequest {
-            params: Some(PaginatedRequestParam { cursor: None }),
+            params: Some(PaginatedRequestParams {
+                meta: None,
+                cursor: None,
+            }),
             method: Default::default(),
             extensions,
         })
@@ -703,7 +711,8 @@ mod tests {
 
     fn read_resource_request(extensions: Extensions) -> ClientRequest {
         ClientRequest::ReadResourceRequest(ReadResourceRequest {
-            params: ReadResourceRequestParam {
+            params: ReadResourceRequestParams {
+                meta: None,
                 uri: "test://resource".to_string(),
             },
             method: Default::default(),
@@ -713,7 +722,10 @@ mod tests {
 
     fn list_tools_request(extensions: Extensions) -> ClientRequest {
         ClientRequest::ListToolsRequest(ListToolsRequest {
-            params: Some(PaginatedRequestParam { cursor: None }),
+            params: Some(PaginatedRequestParams {
+                meta: None,
+                cursor: None,
+            }),
             method: Default::default(),
             extensions,
         })
@@ -721,7 +733,8 @@ mod tests {
 
     fn call_tool_request(extensions: Extensions) -> ClientRequest {
         ClientRequest::CallToolRequest(CallToolRequest {
-            params: CallToolRequestParam {
+            params: CallToolRequestParams {
+                meta: None,
                 task: None,
                 name: "tool".to_string().into(),
                 arguments: None,
@@ -733,7 +746,10 @@ mod tests {
 
     fn list_prompts_request(extensions: Extensions) -> ClientRequest {
         ClientRequest::ListPromptsRequest(ListPromptsRequest {
-            params: Some(PaginatedRequestParam { cursor: None }),
+            params: Some(PaginatedRequestParams {
+                meta: None,
+                cursor: None,
+            }),
             method: Default::default(),
             extensions,
         })
@@ -741,7 +757,8 @@ mod tests {
 
     fn get_prompt_request(extensions: Extensions) -> ClientRequest {
         ClientRequest::GetPromptRequest(GetPromptRequest {
-            params: GetPromptRequestParam {
+            params: GetPromptRequestParams {
+                meta: None,
                 name: "prompt".to_string(),
                 arguments: None,
             },

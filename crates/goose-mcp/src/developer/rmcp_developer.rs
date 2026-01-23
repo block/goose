@@ -8,8 +8,8 @@ use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
         CallToolResult, CancelledNotificationParam, Content, ErrorCode, ErrorData,
-        GetPromptRequestParam, GetPromptResult, Implementation, ListPromptsResult, LoggingLevel,
-        LoggingMessageNotificationParam, PaginatedRequestParam, Prompt, PromptArgument,
+        GetPromptRequestParams, GetPromptResult, Implementation, ListPromptsResult, LoggingLevel,
+        LoggingMessageNotificationParam, PaginatedRequestParams, Prompt, PromptArgument,
         PromptMessage, PromptMessageRole, Role, ServerCapabilities, ServerInfo,
     },
     schemars::JsonSchema,
@@ -394,7 +394,7 @@ impl ServerHandler for DeveloperServer {
     // implementation with the macro-based approach for better maintainability.
     fn list_prompts(
         &self,
-        _request: Option<PaginatedRequestParam>,
+        _request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> impl Future<Output = Result<ListPromptsResult, ErrorData>> + Send + '_ {
         let prompts: Vec<Prompt> = self.prompts.values().cloned().collect();
@@ -407,7 +407,7 @@ impl ServerHandler for DeveloperServer {
 
     fn get_prompt(
         &self,
-        request: GetPromptRequestParam,
+        request: GetPromptRequestParams,
         _context: RequestContext<RoleServer>,
     ) -> impl Future<Output = Result<GetPromptResult, ErrorData>> + Send + '_ {
         let prompt_name = request.name;
