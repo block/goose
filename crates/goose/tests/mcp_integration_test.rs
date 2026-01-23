@@ -151,30 +151,12 @@ enum TestMode {
     vec![]
 )]
 #[test_case(
-    vec!["cargo", "run", "--quiet", "-p", "goose-server", "--bin", "goosed", "--", "mcp", "developer"],
+    vec!["uv", "run", "--with", "fastmcp==2.14.4", "fastmcp", "run", "tests/fastmcp_test_server.py"],
     vec![
-        CallToolRequestParam { name: "text_editor".into(), arguments: Some(object!({
-            "command": "view",
-            "path": "/tmp/goose_test/goose.txt"
-        }))},
-        CallToolRequestParam { name: "text_editor".into(), arguments: Some(object!({
-            "command": "str_replace",
-            "path": "/tmp/goose_test/goose.txt",
-            "old_str": "# goose",
-            "new_str": "# goose (modified by test)"
-        }))},
-        // Test shell command to verify file was modified
-        CallToolRequestParam { name: "shell".into(), arguments: Some(object!({
-            "command": "cat /tmp/goose_test/goose.txt"
-        })) },
-        // Test text_editor tool to restore original content
-        CallToolRequestParam { name: "text_editor".into(), arguments: Some(object!({
-            "command": "str_replace",
-            "path": "/tmp/goose_test/goose.txt",
-            "old_str": "# goose (modified by test)",
-            "new_str": "# goose"
-        }))},
-        CallToolRequestParam { name: "list_windows".into(), arguments: Some(object!({})) },
+        CallToolRequestParam { name: "divide".into(), arguments: Some(object!({
+            "dividend": 10,
+            "divisor": 2
+        })) }
     ],
     vec![]
 )]
