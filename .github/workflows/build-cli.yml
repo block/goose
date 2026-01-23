@@ -70,8 +70,10 @@ jobs:
 
       - name: Update version in Cargo.toml
         if: ${{ inputs.version != '' }}
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
-          sed -i.bak 's/^version = ".*"/version = "'${{ inputs.version }}'"/' Cargo.toml
+          sed -i.bak 's/^version = ".*"/version = "'"$VERSION"'"/' Cargo.toml
           rm -f Cargo.toml.bak
 
       - name: Install cross
