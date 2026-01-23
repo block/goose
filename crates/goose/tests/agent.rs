@@ -962,35 +962,34 @@ mod tests {
             // - accumulated_total = initial (1000) + compaction cost
             let expected_summary_output = 200; // compact summary
 
-            // Verify the key invariants:
-            // 1. Current context is the summary output
+            // Verify the key invariants after manual compaction:
+            // After compaction, the current context is ONLY the summary (200 tokens)
+            // This is the new agent-visible input context
             assert_eq!(
                 updated_session.input_tokens,
                 Some(expected_summary_output),
-                "Input tokens should be summary output (new context)"
+                "Input tokens should be exactly the summary output (200 tokens)"
             );
             assert_eq!(
                 updated_session.output_tokens,
                 None,
-                "Output tokens should be None after compaction"
+                "Output tokens should be None after compaction (no new assistant output)"
             );
             assert_eq!(
                 updated_session.total_tokens,
                 Some(expected_summary_output),
-                "Total should equal input after compaction"
+                "Total should equal input (200 tokens) after compaction"
             );
 
-            // 2. Accumulated tokens increased by the compaction cost
+            // Accumulated tokens increased by the compaction cost
+            // Initial: 1000
+            // Compaction input: ~6400 (system 6000 + 4 messages ~400)
+            // Compaction output: 200
+            // Expected accumulated: 1000 + 6400 + 200 = 7600
             let accumulated = updated_session.accumulated_total_tokens.unwrap();
             assert!(
-                accumulated > 1000,
-                "Accumulated should include compaction cost. Got: {}",
-                accumulated
-            );
-            // The compaction cost varies based on template rendering, but should be substantial
-            assert!(
-                accumulated >= 1000 + 6000,
-                "Accumulated should include at least initial (1000) + compaction cost (>6000). Got: {}",
+                accumulated >= 7300 && accumulated <= 7900,
+                "Accumulated should be ~7600 (1000 initial + 6400 input + 200 output). Got: {}",
                 accumulated
             );
 
@@ -1081,9 +1080,8 @@ mod tests {
                 // Verify that current input context decreased after compaction
                 let tokens_after = input_tokens_after_compaction.expect("Should have captured tokens after compaction");
 
-                // After compaction, the input context should be much smaller
-                // Before: system (6000) + 40 messages (4000) = 10000
-                // After: system (6000) + summary (200) = 6200
+                // Before compaction: system (6000) + 40 messages (4000) = 10,000 tokens
+                // After compaction: only the summary (200 tokens) - this becomes the new input
                 assert!(
                     tokens_after < initial_input_tokens,
                     "Input tokens should decrease after compaction. Before: {}, After: {}",
@@ -1091,35 +1089,75 @@ mod tests {
                     tokens_after
                 );
 
-                // Specifically, should be roughly: system (6000) + summary (200) = 6200
-                assert!(
-                    tokens_after < 7000,
-                    "Input tokens after compaction should be ~6200 (system + summary). Got: {}",
+                // After compaction, input should be exactly the summary: 200 tokens
+                assert_eq!(
+                    tokens_after,
+                    200,
+                    "Input tokens after compaction should be exactly 200 (summary). Got: {}",
                     tokens_after
                 );
 
-                // After auto-compaction + reply, accumulated should include:
-                // - Initial: 1000
-                // - Compaction input: system (6000) + messages (~4000) = ~10000
-                // - Compaction output: 200
-                // - Reply after compaction: varies
-                let min_accumulated = 1000 + 10000 + 200;
+                // After the subsequent reply, the current window includes:
+                // - system (6000) + summary (200) + new user message (100) + reply (100) = 6400
+                let final_input = updated_session.input_tokens.unwrap();
+                let final_output = updated_session.output_tokens.unwrap();
+                let final_total = updated_session.total_tokens.unwrap();
+
                 assert!(
-                    updated_session.accumulated_total_tokens.unwrap_or(0) >= min_accumulated,
-                    "Accumulated tokens should include compaction cost. Expected >= {}, got {:?}",
-                    min_accumulated,
-                    updated_session.accumulated_total_tokens
+                    final_input >= 6000,
+                    "Final input should include at least system prompt (6000). Got: {}",
+                    final_input
+                );
+                assert_eq!(
+                    final_output,
+                    100,
+                    "Final output should be 100 tokens (default response). Got: {}",
+                    final_output
+                );
+                assert_eq!(
+                    final_total,
+                    final_input + final_output,
+                    "Final total should equal input + output"
+                );
+
+                // Accumulated tokens should include:
+                // - Initial: 1000
+                // - Compaction: ~10,400 input + 200 output = 10,600
+                // - Reply: ~6,300 input + 100 output = 6,400
+                // Total: 1000 + 10,600 + 6,400 = 18,000
+                let accumulated = updated_session.accumulated_total_tokens.unwrap();
+                assert!(
+                    accumulated >= 17000 && accumulated <= 19000,
+                    "Accumulated should be ~18,000 (initial + compaction + reply). Got: {}",
+                    accumulated
                 );
             } else {
                 // If no compaction, accumulated should include reply cost
                 // - Initial: 1000
-                // - Reply: ~10100 input + 100 output = 10200
-                let min_accumulated = 1000 + 10100 + 100;
+                // - Reply: system (6000) + 40 messages (4000) + new message (100) = 10,100 input
+                // - Reply output: 100
+                // Total: 1000 + 10,100 + 100 = 11,200
+                let accumulated = updated_session.accumulated_total_tokens.unwrap();
                 assert!(
-                    updated_session.accumulated_total_tokens.unwrap_or(0) >= min_accumulated,
-                    "Accumulated tokens should include reply cost. Expected >= {}, got {:?}",
-                    min_accumulated,
-                    updated_session.accumulated_total_tokens
+                    accumulated >= 11000 && accumulated <= 11500,
+                    "Accumulated should be ~11,200 (initial + reply). Got: {}",
+                    accumulated
+                );
+
+                // Current window should be: 10,100 input + 100 output = 10,200
+                let final_input = updated_session.input_tokens.unwrap();
+                let final_output = updated_session.output_tokens.unwrap();
+
+                assert!(
+                    final_input >= 10000 && final_input <= 10500,
+                    "Input should be ~10,100. Got: {}",
+                    final_input
+                );
+                assert_eq!(
+                    final_output,
+                    100,
+                    "Output should be 100. Got: {}",
+                    final_output
                 );
             }
 
@@ -1235,35 +1273,66 @@ mod tests {
             //    - Input: system prompt + summary (200) + new message
             //    - Output: 100 tokens (response)
 
-            // Verify that current input context is small after compaction
+            // Verify that current input context is dramatically reduced after compaction
             let tokens_after = input_tokens_after_compaction
                 .expect("Should have captured tokens after compaction");
 
-            // After compaction, the input context should be:
-            // system (6000) + summary (200) = 6200
-            // This is much smaller than the original >21k that triggered the limit
+            // After compaction, the input context should be ONLY the summary: 200 tokens
+            // Before: system (6000) + long_tool_call messages (~15,400) = 21,400 (exceeded limit!)
+            // After: only summary (200 tokens)
+            assert_eq!(
+                tokens_after,
+                200,
+                "Input tokens after compaction should be exactly 200 (summary only). Got: {}",
+                tokens_after
+            );
 
-            // The compacted context should now be under the 20k limit
+            // The compacted context is now well under the 20k limit
             assert!(
                 tokens_after < 20000,
-                "Input tokens after compaction should be under 20k limit. Got: {}",
+                "Compacted context should be under 20k limit. Got: {}",
                 tokens_after
             );
 
-            // Specifically, should be roughly: system (6000) + summary (200) = 6200
+            // Check the final token state after recovery
+            // Note: The current session state reflects the compaction operation,
+            // as the agent records compaction metrics before retrying
+            let final_input = updated_session.input_tokens.unwrap();
+            let final_output = updated_session.output_tokens;
+            let final_total = updated_session.total_tokens.unwrap();
+
+            // After compaction during recovery, the session shows the compaction tokens
+            // Input: system (6000) + long_tool_call messages (~15,400) + new message (100) = ~21,500
+            // Output: 200 (compaction summary)
+            // Total: ~21,700
             assert!(
-                tokens_after < 10000,
-                "Input tokens after compaction should be ~6200 (system + summary). Got: {}",
-                tokens_after
+                final_input >= 21000 && final_input <= 22000,
+                "Final input should reflect compaction input (~21,500). Got: {}",
+                final_input
             );
 
-            // Verify context limit was exceeded and recovered
-            // Accumulated should include: initial (1000) + compaction cost + reply cost
-            // The actual values vary based on template rendering, but should be substantial
+            assert_eq!(
+                final_output,
+                Some(200),
+                "Final output should be compaction output (200). Got: {:?}",
+                final_output
+            );
+
+            assert_eq!(
+                final_total,
+                final_input + final_output.unwrap(),
+                "Final total should equal input + output"
+            );
+
+            // Accumulated tokens should include all operations:
+            // - Initial: 1000
+            // - Compaction: ~21,600 input (system + long messages) + 200 output = 21,800
+            // - Reply: ~6,300 input + 100 output = 6,400
+            // Total: 1000 + 21,800 + 6,400 = 29,200
             let accumulated = updated_session.accumulated_total_tokens.unwrap();
             assert!(
-                accumulated > 20000,
-                "Accumulated should include compaction and reply costs (exceeded context limit). Got: {}",
+                accumulated >= 28000 && accumulated <= 30000,
+                "Accumulated should be ~29,200 (initial + compaction + reply). Got: {}",
                 accumulated
             );
 
