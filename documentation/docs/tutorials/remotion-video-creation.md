@@ -12,7 +12,7 @@ goose can create programmatic videos using [Remotion](https://www.remotion.dev/)
 ### Prerequisites
 
 - [Node.js](https://nodejs.org/) 18 or later
-- Install [Remotion Agent Skills](/docs/mcp/skills-mcp) by running `npx skills add remotion-dev/skills` in your terminal
+- Install [Remotion Agent Skills](https://www.remotion.dev/docs/ai/skills) by running `npx skills add remotion-dev/skills` in your terminal
 
 :::note Remotion License
 Remotion is free for individuals and small teams, but requires a [commercial license](https://www.remotion.dev/license) for companies with 3+ employees.
