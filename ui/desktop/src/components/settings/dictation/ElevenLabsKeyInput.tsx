@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Input } from '../../ui/input';
 import { useConfig } from '../../ConfigContext';
-import { ELEVENLABS_API_KEY } from '../../../hooks/dictationConstants';
+import { ELEVENLABS_API_KEY, isSecretKeyConfigured } from '../../../hooks/dictationConstants';
 import { setElevenLabsKeyCache } from '../../../hooks/useDictationSettings';
 
 export const ElevenLabsKeyInput = () => {
@@ -15,8 +15,8 @@ export const ElevenLabsKeyInput = () => {
     const loadKey = async () => {
       setIsLoadingKey(true);
       try {
-        const keyExists = await read(ELEVENLABS_API_KEY, true);
-        if (keyExists === true) {
+        const response = await read(ELEVENLABS_API_KEY, true);
+        if (isSecretKeyConfigured(response)) {
           setHasElevenLabsKey(true);
           setElevenLabsKeyCache(true);
         } else {
@@ -60,17 +60,13 @@ export const ElevenLabsKeyInput = () => {
   const saveElevenLabsKey = async () => {
     try {
       if (elevenLabsApiKey.trim()) {
-        console.log('Saving ElevenLabs API key to secure storage...');
         await upsert(ELEVENLABS_API_KEY, elevenLabsApiKey, true);
         setHasElevenLabsKey(true);
         setElevenLabsKeyCache(true);
-        console.log('ElevenLabs API key saved successfully');
       } else {
-        console.log('Removing ElevenLabs API key from secure storage...');
         await upsert(ELEVENLABS_API_KEY, null, true);
         setHasElevenLabsKey(false);
         setElevenLabsKeyCache(false);
-        console.log('ElevenLabs API key removed successfully');
       }
     } catch (error) {
       console.error('Error saving ElevenLabs API key:', error);

@@ -5,6 +5,7 @@ import {
   ELEVENLABS_API_KEY,
   DICTATION_PROVIDER_ELEVENLABS,
   getDefaultDictationSettings,
+  isSecretKeyConfigured,
 } from './dictationConstants';
 
 export type DictationProvider = 'openai' | typeof DICTATION_PROVIDER_ELEVENLABS | null;
@@ -37,20 +38,19 @@ export const useDictationSettings = () => {
         currentSettings = await getDefaultDictationSettings(getProviders);
       }
       setSettings(currentSettings);
-
       if (
         currentSettings.provider === DICTATION_PROVIDER_ELEVENLABS &&
         elevenLabsKeyCache === null
       ) {
         try {
-          const keyExists = await read(ELEVENLABS_API_KEY, true);
-          const hasKey = keyExists === true;
+          const response = await read(ELEVENLABS_API_KEY, true);
+          const hasKey = isSecretKeyConfigured(response);
           elevenLabsKeyCache = hasKey;
           setHasElevenLabsKey(hasKey);
         } catch (error) {
           elevenLabsKeyCache = false;
           setHasElevenLabsKey(false);
-          console.error('[useDictationSettings] Error loading ElevenLabs API key:', error);
+          console.error('[useDictationSettings] Error checking ElevenLabs API key:', error);
         }
       }
     };
