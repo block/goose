@@ -510,7 +510,6 @@ pub async fn summarize_tool_call(
     Ok(response.with_generated_id())
 }
 
-/// if needed, summarize the first applicable tool request reply pair in a task
 pub fn maybe_summarize_tool_pair(
     provider: Arc<dyn Provider>,
     session_id: String,
