@@ -690,13 +690,12 @@ mod tests {
 
                 // Simulate context limit: if input > 20k tokens and we haven't compacted yet, fail
                 const CONTEXT_LIMIT: i32 = 20000;
-                if !is_compaction && input_tokens > CONTEXT_LIMIT {
-                    if !self.has_compacted.load(Ordering::SeqCst) {
-                        return Err(ProviderError::ContextLengthExceeded(format!(
-                            "Context limit exceeded: {} > {}",
-                            input_tokens, CONTEXT_LIMIT
-                        )));
-                    }
+                if !is_compaction && input_tokens > CONTEXT_LIMIT
+                    && !self.has_compacted.load(Ordering::SeqCst) {
+                    return Err(ProviderError::ContextLengthExceeded(format!(
+                        "Context limit exceeded: {} > {}",
+                        input_tokens, CONTEXT_LIMIT
+                    )));
                 }
 
                 // If this is a compaction call, mark that we've compacted
@@ -982,7 +981,7 @@ mod tests {
             // Expected accumulated: 1000 + 6400 + 200 = 7600
             let accumulated = updated_session.accumulated_total_tokens.unwrap();
             assert!(
-                accumulated >= 7300 && accumulated <= 7900,
+                (7300..=7900).contains(&accumulated),
                 "Accumulated should be ~7600 (1000 initial + 6400 input + 200 output). Got: {}",
                 accumulated
             );
@@ -1120,7 +1119,7 @@ mod tests {
                 // Total: 1000 + 10,600 + 6,400 = 18,000
                 let accumulated = updated_session.accumulated_total_tokens.unwrap();
                 assert!(
-                    accumulated >= 17000 && accumulated <= 19000,
+                    (17000..=19000).contains(&accumulated),
                     "Accumulated should be ~18,000 (initial + compaction + reply). Got: {}",
                     accumulated
                 );
@@ -1132,7 +1131,7 @@ mod tests {
                 // Total: 1000 + 10,100 + 100 = 11,200
                 let accumulated = updated_session.accumulated_total_tokens.unwrap();
                 assert!(
-                    accumulated >= 11000 && accumulated <= 11500,
+                    (11000..=11500).contains(&accumulated),
                     "Accumulated should be ~11,200 (initial + reply). Got: {}",
                     accumulated
                 );
@@ -1142,7 +1141,7 @@ mod tests {
                 let final_output = updated_session.output_tokens.unwrap();
 
                 assert!(
-                    final_input >= 10000 && final_input <= 10500,
+                    (10000..=10500).contains(&final_input),
                     "Input should be ~10,100. Got: {}",
                     final_input
                 );
@@ -1292,7 +1291,7 @@ mod tests {
             // Output: 200 (compaction summary)
             // Total: ~21,700
             assert!(
-                final_input >= 21000 && final_input <= 22000,
+                (21000..=22000).contains(&final_input),
                 "Final input should reflect compaction input (~21,500). Got: {}",
                 final_input
             );
@@ -1317,7 +1316,7 @@ mod tests {
             // Total: 1000 + 21,800 + 6,400 = 29,200
             let accumulated = updated_session.accumulated_total_tokens.unwrap();
             assert!(
-                accumulated >= 28000 && accumulated <= 30000,
+                (28000..=30000).contains(&accumulated),
                 "Accumulated should be ~29,200 (initial + compaction + reply). Got: {}",
                 accumulated
             );
