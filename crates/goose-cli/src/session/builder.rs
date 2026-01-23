@@ -489,6 +489,10 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         session_config.session_id.unwrap()
     };
 
+    // Expose session ID as environment variable for CLI sessions
+    // Precedent: GOOSE_TERMINAL=1 (set in update.rs)
+    std::env::set_var("AGENT_SESSION_ID", &session_id);
+
     agent
         .update_provider(new_provider, &session_id)
         .await

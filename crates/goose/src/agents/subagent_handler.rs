@@ -182,6 +182,14 @@ fn get_agent_messages(
             retry_config: recipe.retry,
         };
 
+        // Save original AGENT_SESSION_ID to restore after subrecipe completes
+        // This prevents env var leaking from subrecipe to parent recipe
+        let original_session_id = std::env::var("AGENT_SESSION_ID").ok();
+
+        // Expose session ID as environment variable for subagent processes
+        // This enables session-isolated paths (e.g., .goose/$AGENT_SESSION_ID/handoff/)
+        std::env::set_var("AGENT_SESSION_ID", &session_id);
+
         let mut stream = agent
             .reply(user_message, session_config, cancellation_token)
             .await
@@ -198,6 +206,12 @@ fn get_agent_messages(
                     break;
                 }
             }
+        }
+
+        // Restore original AGENT_SESSION_ID (or remove if it wasn't set)
+        match original_session_id {
+            Some(id) => std::env::set_var("AGENT_SESSION_ID", id),
+            None => std::env::remove_var("AGENT_SESSION_ID"),
         }
 
         let final_output = if has_response_schema {
