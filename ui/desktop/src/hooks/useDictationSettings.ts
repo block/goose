@@ -13,9 +13,17 @@ export interface DictationSettings {
   provider: DictationProvider;
 }
 
+// Module-level cache for ElevenLabs key check (avoids repeated slow keychain calls)
+let elevenLabsKeyCache: boolean | null = null;
+
+// Export setter for ElevenLabsKeyInput to update cache when saving
+export const setElevenLabsKeyCache = (value: boolean) => {
+  elevenLabsKeyCache = value;
+};
+
 export const useDictationSettings = () => {
   const [settings, setSettings] = useState<DictationSettings | null>(null);
-  const [hasElevenLabsKey, setHasElevenLabsKey] = useState<boolean>(false);
+  const [hasElevenLabsKey, setHasElevenLabsKey] = useState<boolean>(elevenLabsKeyCache ?? false);
   const { read, getProviders } = useConfig();
 
   useEffect(() => {
@@ -31,14 +39,17 @@ export const useDictationSettings = () => {
         setSettings(defaultSettings);
       }
 
-      // Load ElevenLabs API key from storage (non-secret for frontend access)
-      try {
-        const keyExists = await read(ELEVENLABS_API_KEY, true);
-        if (keyExists === true) {
-          setHasElevenLabsKey(true);
+      if (elevenLabsKeyCache === null) {
+        try {
+          const keyExists = await read(ELEVENLABS_API_KEY, true);
+          const hasKey = keyExists === true;
+          elevenLabsKeyCache = hasKey;
+          setHasElevenLabsKey(hasKey);
+        } catch (error) {
+          elevenLabsKeyCache = false;
+          setHasElevenLabsKey(false);
+          console.error('[useDictationSettings] Error loading ElevenLabs API key:', error);
         }
-      } catch (error) {
-        console.error('[useDictationSettings] Error loading ElevenLabs API key:', error);
       }
     };
 
