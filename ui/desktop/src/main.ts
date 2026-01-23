@@ -29,6 +29,7 @@ import { expandTilde } from './utils/pathUtils';
 import log from './utils/logger';
 import { ensureWinShims } from './utils/winShims';
 import { addRecentDir, loadRecentDirs } from './utils/recentDirs';
+import { formatAppName } from './utils/conversionUtils';
 import {
   EnvToggles,
   loadSettings,
@@ -516,8 +517,8 @@ let appConfig = {
 
 const windowMap = new Map<number, BrowserWindow>();
 const goosedClients = new Map<number, Client>();
+const appWindows = new Map<string, BrowserWindow>();
 
-// Track power save blockers per window
 const windowPowerSaveBlockers = new Map<number, number>(); // windowId -> blockerId
 // Track pending initial messages per window
 const pendingInitialMessages = new Map<number, string>(); // windowId -> initialMessage
@@ -1575,79 +1576,6 @@ ipcMain.handle('save-data-url-to-temp', async (_event, dataUrl: string, uniqueId
   }
 });
 
-// IPC handler to serve temporary image files
-ipcMain.handle('get-temp-image', async (_event, filePath: string) => {
-  console.log(`[Main] Received get-temp-image for path: ${filePath}`);
-
-  // Input validation
-  if (!filePath || typeof filePath !== 'string') {
-    console.warn('[Main] Invalid file path provided for image serving');
-    return null;
-  }
-
-  // Ensure the path is within the designated temp directory
-  const resolvedPath = path.resolve(filePath);
-  const resolvedTempDir = path.resolve(gooseTempDir);
-
-  if (!resolvedPath.startsWith(resolvedTempDir + path.sep)) {
-    console.warn(`[Main] Attempted to access file outside designated temp directory: ${filePath}`);
-    return null;
-  }
-
-  try {
-    // Check if it's a regular file first, before trying realpath
-    const stats = await fs.lstat(filePath);
-    if (!stats.isFile()) {
-      console.warn(`[Main] Not a regular file, refusing to serve: ${filePath}`);
-      return null;
-    }
-
-    // Get the real paths for both the temp directory and the file to handle symlinks properly
-    let realTempDir: string;
-    let actualPath = filePath;
-
-    try {
-      realTempDir = await fs.realpath(gooseTempDir);
-      const realPath = await fs.realpath(filePath);
-
-      // Double-check that the real path is still within our real temp directory
-      if (!realPath.startsWith(realTempDir + path.sep)) {
-        console.warn(
-          `[Main] Real path is outside designated temp directory: ${realPath} not in ${realTempDir}`
-        );
-        return null;
-      }
-      actualPath = realPath;
-    } catch (realpathError) {
-      // If realpath fails, use the original path validation
-      console.log(
-        `[Main] realpath failed for ${filePath}, using original path validation:`,
-        realpathError instanceof Error ? realpathError.message : String(realpathError)
-      );
-    }
-
-    // Read the file and return as base64 data URL
-    const fileBuffer = await fs.readFile(actualPath);
-    const fileExtension = path.extname(actualPath).toLowerCase().substring(1);
-
-    // Validate file extension
-    const allowedExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
-    if (!allowedExtensions.includes(fileExtension)) {
-      console.warn(`[Main] Unsupported file extension: ${fileExtension}`);
-      return null;
-    }
-
-    const mimeType = fileExtension === 'jpg' ? 'image/jpeg' : `image/${fileExtension}`;
-    const base64Data = fileBuffer.toString('base64');
-    const dataUrl = `data:${mimeType};base64,${base64Data}`;
-
-    console.log(`[Main] Served temp image: ${filePath}`);
-    return dataUrl;
-  } catch (error) {
-    console.error(`[Main] Failed to serve temp image: ${filePath}`, error);
-    return null;
-  }
-});
 ipcMain.on('delete-temp-file', async (_event, filePath: string) => {
   console.log(`[Main] Received delete-temp-file for path: ${filePath}`);
 
@@ -2484,10 +2412,11 @@ async function appMain() {
       const baseUrl = new URL(currentUrl).origin;
 
       const appWindow = new BrowserWindow({
-        title: gooseApp.name,
+        title: formatAppName(gooseApp.name),
         width: gooseApp.width ?? 800,
         height: gooseApp.height ?? 600,
         resizable: gooseApp.resizable ?? true,
+        useContentSize: true,
         webPreferences: {
           preload: path.join(__dirname, 'preload.js'),
           nodeIntegration: false,
@@ -2498,13 +2427,15 @@ async function appMain() {
       });
 
       goosedClients.set(appWindow.id, launchingClient);
+      appWindows.set(gooseApp.name, appWindow);
 
       appWindow.on('close', () => {
         goosedClients.delete(appWindow.id);
+        appWindows.delete(gooseApp.name);
       });
 
       const workingDir = app.getPath('home');
-      const extensionName = gooseApp.mcpServer ?? '';
+      const extensionName = gooseApp.mcpServers?.[0] ?? '';
       const standaloneUrl =
         `${baseUrl}/#/standalone-app?` +
         `resourceUri=${encodeURIComponent(gooseApp.uri)}` +
@@ -2516,6 +2447,44 @@ async function appMain() {
       appWindow.show();
     } catch (error) {
       console.error('Failed to launch app:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('refresh-app', async (_event, gooseApp: GooseApp) => {
+    try {
+      const appWindow = appWindows.get(gooseApp.name);
+      if (!appWindow || appWindow.isDestroyed()) {
+        console.log(`App window for '${gooseApp.name}' not found or destroyed, skipping refresh`);
+        return;
+      }
+
+      // Bring to front first
+      if (appWindow.isMinimized()) {
+        appWindow.restore();
+      }
+      appWindow.show();
+      appWindow.focus();
+
+      // Then reload
+      await appWindow.webContents.reload();
+    } catch (error) {
+      console.error('Failed to refresh app:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('close-app', async (_event, appName: string) => {
+    try {
+      const appWindow = appWindows.get(appName);
+      if (!appWindow || appWindow.isDestroyed()) {
+        console.log(`App window for '${appName}' not found or destroyed, skipping close`);
+        return;
+      }
+
+      appWindow.close();
+    } catch (error) {
+      console.error('Failed to close app:', error);
       throw error;
     }
   });

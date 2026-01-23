@@ -101,6 +101,16 @@ pub fn check_provider_configured(metadata: &ProviderMetadata, provider_type: Pro
                 .is_ok();
         }
     }
+
+    // Special case: OAuth providers - check for configured marker
+    let has_oauth_key = metadata.config_keys.iter().any(|key| key.oauth_flow);
+    if has_oauth_key {
+        let configured_marker = format!("{}_configured", metadata.name);
+        if matches!(config.get_param::<bool>(&configured_marker), Ok(true)) {
+            return true;
+        }
+    }
+
     // Special case: Zero-config providers (no config keys)
     if metadata.config_keys.is_empty() {
         // Check if the provider has been explicitly configured via the UI

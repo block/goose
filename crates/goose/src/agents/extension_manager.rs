@@ -466,6 +466,10 @@ impl ExtensionManager {
         &self.context
     }
 
+    pub fn get_provider(&self) -> &SharedProvider {
+        &self.provider
+    }
+
     pub async fn supports_resources(&self) -> bool {
         self.extensions
             .lock()
