@@ -441,6 +441,7 @@ pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Resu
                             content.push(MessageContent::tool_request(
                                 id.clone(),
                                 Ok(CallToolRequestParam {
+                                    task: None,
                                     name: name.clone().into(),
                                     arguments: Some(object(input.clone())),
                                 }),
@@ -465,6 +466,7 @@ pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Resu
                 content.push(MessageContent::tool_request(
                     id.clone(),
                     Ok(CallToolRequestParam {
+                        task: None,
                         name: name.clone().into(),
                         arguments: Some(object(parsed_args)),
                     }),
@@ -523,6 +525,7 @@ fn process_streaming_output_items(
                             content.push(MessageContent::tool_request(
                                 id,
                                 Ok(CallToolRequestParam {
+                                    task: None,
                                     name: name.into(),
                                     arguments: Some(object(parsed_args)),
                                 }),
@@ -546,6 +549,7 @@ fn process_streaming_output_items(
                 content.push(MessageContent::tool_request(
                     call_id,
                     Ok(CallToolRequestParam {
+                        task: None,
                         name: name.into(),
                         arguments: Some(object(parsed_args)),
                     }),

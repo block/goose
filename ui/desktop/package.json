@@ -1,7 +1,7 @@
 {
   "name": "goose-app",
   "productName": "Goose",
-  "version": "1.19.0",
+  "version": "1.21.0",
   "description": "Goose App",
   "engines": {
     "node": "^24.0.0"
@@ -66,7 +66,7 @@
     "electron-window-state": "^5.0.3",
     "express": "^5.2.1",
     "katex": "^0.16.27",
-    "lodash": "^4.17.21",
+    "lodash": "^4.17.23",
     "lucide-react": "^0.562.0",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.3",
@@ -94,6 +94,7 @@
   "devDependencies": {
     "@electron-forge/cli": "^7.10.2",
     "@electron-forge/maker-deb": "^7.10.2",
+    "@electron-forge/maker-flatpak": "^7.10.2",
     "@electron-forge/maker-rpm": "^7.10.2",
     "@electron-forge/maker-squirrel": "^7.10.2",
     "@electron-forge/maker-zip": "^7.10.2",

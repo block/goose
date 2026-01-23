@@ -1,8 +1,7 @@
 use anyhow::{anyhow, Result};
 use chrono;
 use goose::conversation::message::{Message, MessageContent, MessageMetadata};
-use goose::session::SessionManager;
-use goose::session::SessionType;
+use goose::session::{SessionManager, SessionType};
 use rmcp::model::Role;
 
 use crate::session::{build_session, SessionBuilderConfig};
@@ -35,7 +34,7 @@ impl Shell {
 }
 
 static BASH_CONFIG: ShellConfig = ShellConfig {
-    script_template: r#"export GOOSE_SESSION_ID="{session_id}"
+    script_template: r#"export AGENT_SESSION_ID="{session_id}"
 alias @goose='{goose_bin} term run'
 alias @g='{goose_bin} term run'
 
@@ -61,7 +60,7 @@ command_not_found_handle() {
 };
 
 static ZSH_CONFIG: ShellConfig = ShellConfig {
-    script_template: r#"export GOOSE_SESSION_ID="{session_id}"
+    script_template: r#"export AGENT_SESSION_ID="{session_id}"
 alias @goose='{goose_bin} term run'
 alias @g='{goose_bin} term run'
 
@@ -85,7 +84,7 @@ command_not_found_handler() {
 };
 
 static FISH_CONFIG: ShellConfig = ShellConfig {
-    script_template: r#"set -gx GOOSE_SESSION_ID "{session_id}"
+    script_template: r#"set -gx AGENT_SESSION_ID "{session_id}"
 function @goose; {goose_bin} term run $argv; end
 function @g; {goose_bin} term run $argv; end
 
@@ -98,7 +97,7 @@ end"#,
 };
 
 static POWERSHELL_CONFIG: ShellConfig = ShellConfig {
-    script_template: r#"$env:GOOSE_SESSION_ID = "{session_id}"
+    script_template: r#"$env:AGENT_SESSION_ID = "{session_id}"
 function @goose {{ & '{goose_bin}' term run @args }}
 function @g {{ & '{goose_bin}' term run @args }}
 
@@ -119,10 +118,13 @@ pub async fn handle_term_init(
     with_command_not_found: bool,
 ) -> Result<()> {
     let config = shell.config();
+    let session_manager = SessionManager::instance();
 
     let working_dir = std::env::current_dir()?;
     let named_session = if let Some(ref name) = name {
-        let sessions = SessionManager::list_sessions_by_types(&[SessionType::Terminal]).await?;
+        let sessions = session_manager
+            .list_sessions_by_types(&[SessionType::Terminal])
+            .await?;
         sessions.into_iter().find(|s| s.name == *name)
     } else {
         None
@@ -131,15 +133,17 @@ pub async fn handle_term_init(
     let session = match named_session {
         Some(s) => s,
         None => {
-            let session = SessionManager::create_session(
-                working_dir,
-                "Goose Term Session".to_string(),
-                SessionType::Terminal,
-            )
-            .await?;
+            let session = session_manager
+                .create_session(
+                    working_dir,
+                    "Goose Term Session".to_string(),
+                    SessionType::Terminal,
+                )
+                .await?;
 
             if let Some(name) = name {
-                SessionManager::update_session(&session.id)
+                session_manager
+                    .update(&session.id)
                     .user_provided_name(name)
                     .apply()
                     .await?;
@@ -173,8 +177,8 @@ pub async fn handle_term_init(
 }
 
 pub async fn handle_term_log(command: String) -> Result<()> {
-    let session_id = std::env::var("GOOSE_SESSION_ID").map_err(|_| {
-        anyhow!("GOOSE_SESSION_ID not set. Run 'eval \"$(goose term init <shell>)\"' first.")
+    let session_id = std::env::var("AGENT_SESSION_ID").map_err(|_| {
+        anyhow!("AGENT_SESSION_ID not set. Run 'eval \"$(goose term init <shell>)\"' first.")
     })?;
 
     let message = Message::new(
@@ -185,16 +189,17 @@ pub async fn handle_term_log(command: String) -> Result<()> {
     .with_metadata(MessageMetadata::user_only())
     .with_generated_id();
 
-    SessionManager::add_message(&session_id, &message).await?;
+    let session_manager = SessionManager::instance();
+    session_manager.add_message(&session_id, &message).await?;
 
     Ok(())
 }
 
 pub async fn handle_term_run(prompt: Vec<String>) -> Result<()> {
     let prompt = prompt.join(" ");
-    let session_id = std::env::var("GOOSE_SESSION_ID").map_err(|_| {
+    let session_id = std::env::var("AGENT_SESSION_ID").map_err(|_| {
         anyhow!(
-            "GOOSE_SESSION_ID not set.\n\n\
+            "AGENT_SESSION_ID not set.\n\n\
              Add to your shell config (~/.zshrc or ~/.bashrc):\n    \
              eval \"$(goose term init zsh)\"\n\n\
              Then restart your terminal or run: source ~/.zshrc"
@@ -202,13 +207,15 @@ pub async fn handle_term_run(prompt: Vec<String>) -> Result<()> {
     })?;
 
     let working_dir = std::env::current_dir()?;
+    let session_manager = SessionManager::instance();
 
-    SessionManager::update_session(&session_id)
+    session_manager
+        .update(&session_id)
         .working_dir(working_dir)
         .apply()
         .await?;
 
-    let session = SessionManager::get_session(&session_id, true).await?;
+    let session = session_manager.get_session(&session_id, true).await?;
     let user_messages_after_last_assistant: Vec<&Message> =
         if let Some(conv) = &session.conversation {
             conv.messages()
@@ -221,7 +228,9 @@ pub async fn handle_term_run(prompt: Vec<String>) -> Result<()> {
         };
 
     if let Some(oldest_user) = user_messages_after_last_assistant.last() {
-        SessionManager::truncate_conversation(&session_id, oldest_user.created).await?;
+        session_manager
+            .truncate_conversation(&session_id, oldest_user.created)
+            .await?;
     }
 
     let prompt_with_context = if user_messages_after_last_assistant.is_empty() {
@@ -256,12 +265,13 @@ pub async fn handle_term_run(prompt: Vec<String>) -> Result<()> {
 
 /// Handle `goose term info` - print compact session info for prompt integration
 pub async fn handle_term_info() -> Result<()> {
-    let session_id = match std::env::var("GOOSE_SESSION_ID") {
+    let session_id = match std::env::var("AGENT_SESSION_ID") {
         Ok(id) => id,
         Err(_) => return Ok(()),
     };
 
-    let session = SessionManager::get_session(&session_id, false).await.ok();
+    let session_manager = SessionManager::instance();
+    let session = session_manager.get_session(&session_id, false).await.ok();
     let total_tokens = session.as_ref().and_then(|s| s.total_tokens).unwrap_or(0) as usize;
 
     let config = goose::config::Config::global();

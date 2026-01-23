@@ -8,8 +8,12 @@ on:
       - 'documentation/**'
 
 # Use same concurrency group as PR preview workflow to prevent race conditions
-# when both workflows try to modify gh-pages branch simultaneously
-concurrency: pr-preview
+# when both workflows try to modify gh-pages branch simultaneously.
+# cancel-in-progress: false ensures production deploys queue and wait rather than
+# being cancelled by PR preview workflows.
+concurrency:
+  group: pr-preview
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -42,7 +46,12 @@ jobs:
           INKEEP_ORG_ID: ${{ secrets.INKEEP_ORG_ID }}
         run: |
           npm install
+          npm test
           npm run build
+
+      - name: Verify docs map was generated
+        working-directory: ./documentation
+        run: ./scripts/verify-build.sh
 
       - name: Checkout gh-pages branch
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'

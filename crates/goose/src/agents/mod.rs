@@ -1,4 +1,6 @@
 mod agent;
+pub(crate) mod apps_extension;
+mod builtin_skills;
 pub(crate) mod chatrecall_extension;
 pub(crate) mod code_execution_extension;
 pub mod execute_commands;
@@ -24,7 +26,7 @@ pub(crate) mod todo_extension;
 mod tool_execution;
 pub mod types;
 
-pub use agent::{Agent, AgentEvent, ExtensionLoadResult};
+pub use agent::{Agent, AgentConfig, AgentEvent, ExtensionLoadResult};
 pub use execute_commands::COMPACT_TRIGGERS;
 pub use extension::ExtensionConfig;
 pub use extension_manager::{normalize, ExtensionManager};

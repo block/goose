@@ -16,9 +16,23 @@ import { SecureStorageNotice } from './subcomponents/SecureStorageNotice';
 import { providerConfigSubmitHandler } from './subcomponents/handlers/DefaultSubmitHandler';
 import { useConfig } from '../../../ConfigContext';
 import { useModelAndProvider } from '../../../ModelAndProviderContext';
-import { AlertTriangle } from 'lucide-react';
-import { ProviderDetails, removeCustomProvider } from '../../../../api';
+import { AlertTriangle, LogIn } from 'lucide-react';
+import { ProviderDetails, removeCustomProvider, configureProviderOauth } from '../../../../api';
 import { Button } from '../../../../components/ui/button';
+
+const formatErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === 'string') {
+    return error;
+  }
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+};
 
 interface ProviderConfigurationModalProps {
   provider: ProviderDetails;
@@ -38,10 +52,14 @@ export default function ProviderConfigurationModal({
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [isActiveProvider, setIsActiveProvider] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isOAuthLoading, setIsOAuthLoading] = useState(false);
 
   const requiredParameters = provider.metadata.config_keys.filter(
     (param) => param.required === true
   );
+
+  // Check if this provider uses OAuth for configuration
+  const isOAuthProvider = provider.metadata.config_keys.some((key) => key.oauth_flow);
 
   const isConfigured = provider.is_configured;
   const headerText = showDeleteConfirmation
@@ -52,7 +70,28 @@ export default function ProviderConfigurationModal({
     ? isActiveProvider
       ? `You cannot delete this provider while it's currently in use. Please switch to a different model first.`
       : 'This will permanently delete the current provider configuration.'
-    : `Add your API key(s) for this provider to integrate into Goose`;
+    : isOAuthProvider
+      ? `Sign in with your ${provider.metadata.display_name} account to use this provider`
+      : `Add your API key(s) for this provider to integrate into goose`;
+
+  const handleOAuthLogin = async () => {
+    setIsOAuthLoading(true);
+    setError(null);
+    try {
+      await configureProviderOauth({
+        path: { name: provider.name },
+      });
+      if (onConfigured) {
+        onConfigured(provider);
+      } else {
+        onClose();
+      }
+    } catch (err) {
+      setError(`OAuth login failed: ${formatErrorMessage(err)}`);
+    } finally {
+      setIsOAuthLoading(false);
+    }
+  };
 
   const handleSubmitForm = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,7 +130,7 @@ export default function ProviderConfigurationModal({
         onClose();
       }
     } catch (error) {
-      setError(`${error}`);
+      setError(formatErrorMessage(error));
     }
   };
 
@@ -179,38 +218,70 @@ export default function ProviderConfigurationModal({
             {/* Contains information used to set up each provider */}
             {/* Only show the form when NOT in delete confirmation mode */}
             {!showDeleteConfirmation ? (
-              <>
-                {/* Contains information used to set up each provider */}
-                <DefaultProviderSetupForm
-                  configValues={configValues}
-                  setConfigValues={setConfigValues}
-                  provider={provider}
-                  validationErrors={validationErrors}
-                />
+              isOAuthProvider ? (
+                <div className="flex flex-col items-center gap-4 py-6">
+                  <Button
+                    onClick={handleOAuthLogin}
+                    disabled={isOAuthLoading}
+                    className="flex items-center gap-2 px-6 py-3"
+                    size="lg"
+                  >
+                    <LogIn size={20} />
+                    {isOAuthLoading
+                      ? 'Signing in...'
+                      : `Sign in with ${provider.metadata.display_name}`}
+                  </Button>
+                  <p className="text-sm text-textSubtle text-center">
+                    A browser window will open for you to complete the login.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {/* Contains information used to set up each provider */}
+                  <DefaultProviderSetupForm
+                    configValues={configValues}
+                    setConfigValues={setConfigValues}
+                    provider={provider}
+                    validationErrors={validationErrors}
+                  />
 
-                {requiredParameters.length > 0 &&
-                  provider.metadata.config_keys &&
-                  provider.metadata.config_keys.length > 0 && <SecureStorageNotice />}
-              </>
+                  {requiredParameters.length > 0 &&
+                    provider.metadata.config_keys &&
+                    provider.metadata.config_keys.length > 0 && <SecureStorageNotice />}
+                </>
+              )
             ) : null}
           </div>
 
           <DialogFooter>
-            <ProviderSetupActions
-              requiredParameters={requiredParameters}
-              onCancel={handleCancel}
-              onSubmit={handleSubmitForm}
-              onDelete={handleDelete}
-              showDeleteConfirmation={showDeleteConfirmation}
-              onConfirmDelete={handleConfirmDelete}
-              onCancelDelete={() => {
-                setIsActiveProvider(false);
-                setShowDeleteConfirmation(false);
-              }}
-              canDelete={isConfigured && !isActiveProvider}
-              providerName={provider.metadata.display_name}
-              isActiveProvider={isActiveProvider}
-            />
+            {isOAuthProvider && !showDeleteConfirmation ? (
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={handleCancel}>
+                  Cancel
+                </Button>
+                {isConfigured && (
+                  <Button variant="destructive" onClick={handleDelete}>
+                    Remove Configuration
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <ProviderSetupActions
+                requiredParameters={requiredParameters}
+                onCancel={handleCancel}
+                onSubmit={handleSubmitForm}
+                onDelete={handleDelete}
+                showDeleteConfirmation={showDeleteConfirmation}
+                onConfirmDelete={handleConfirmDelete}
+                onCancelDelete={() => {
+                  setIsActiveProvider(false);
+                  setShowDeleteConfirmation(false);
+                }}
+                canDelete={isConfigured && !isActiveProvider}
+                providerName={provider.metadata.display_name}
+                isActiveProvider={isActiveProvider}
+              />
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

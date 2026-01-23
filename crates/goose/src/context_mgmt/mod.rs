@@ -1,7 +1,7 @@
 use crate::conversation::message::{ActionRequiredData, MessageMetadata};
 use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::{merge_consecutive_messages, Conversation};
-use crate::prompt_template::render_global_file;
+use crate::prompt_template::render_template;
 use crate::providers::base::{Provider, ProviderUsage};
 use crate::providers::errors::ProviderError;
 use crate::{config::Config, token_counter::create_token_counter};
@@ -44,6 +44,7 @@ struct SummarizeContext {
 ///
 /// # Arguments
 /// * `provider` - The provider to use for summarization
+/// * `session_id` - The session to use for summarization
 /// * `conversation` - The current conversation history
 /// * `manual_compact` - If true, this is a manual compaction (don't preserve user message)
 ///
@@ -53,6 +54,7 @@ struct SummarizeContext {
 ///   - `ProviderUsage`: Provider usage from summarization
 pub async fn compact_messages(
     provider: &dyn Provider,
+    session_id: &str,
     conversation: &Conversation,
     manual_compact: bool,
 ) -> Result<(Conversation, ProviderUsage)> {
@@ -114,7 +116,8 @@ pub async fn compact_messages(
 
     let messages_to_compact = messages.as_slice();
 
-    let (summary_message, summarization_usage) = do_compact(provider, messages_to_compact).await?;
+    let (summary_message, summarization_usage) =
+        do_compact(provider, session_id, messages_to_compact).await?;
 
     // Create the final message list with updated visibility metadata:
     // 1. Original messages become user_visible but not agent_visible
@@ -223,7 +226,7 @@ pub async fn check_if_compaction_needed(
     Ok(needs_compaction)
 }
 
-fn filter_tool_responses<'a>(messages: &[&'a Message], remove_percent: u32) -> Vec<&'a Message> {
+fn filter_tool_responses(messages: &[Message], remove_percent: u32) -> Vec<&Message> {
     fn has_tool_response(msg: &Message) -> bool {
         msg.content
             .iter()
@@ -231,7 +234,7 @@ fn filter_tool_responses<'a>(messages: &[&'a Message], remove_percent: u32) -> V
     }
 
     if remove_percent == 0 {
-        return messages.to_vec();
+        return messages.iter().collect();
     }
 
     let tool_indices: Vec<usize> = messages
@@ -242,7 +245,7 @@ fn filter_tool_responses<'a>(messages: &[&'a Message], remove_percent: u32) -> V
         .collect();
 
     if tool_indices.is_empty() {
-        return messages.to_vec();
+        return messages.iter().collect();
     }
 
     let num_to_remove = ((tool_indices.len() * remove_percent as usize) / 100).max(1);
@@ -269,17 +272,19 @@ fn filter_tool_responses<'a>(messages: &[&'a Message], remove_percent: u32) -> V
         .iter()
         .enumerate()
         .filter(|(i, _)| !indices_to_remove.contains(i))
-        .map(|(_, msg)| *msg)
+        .map(|(_, msg)| msg)
         .collect()
 }
 
 async fn do_compact(
     provider: &dyn Provider,
+    session_id: &str,
     messages: &[Message],
 ) -> Result<(Message, ProviderUsage), anyhow::Error> {
-    let agent_visible_messages: Vec<&Message> = messages
+    let agent_visible_messages: Vec<Message> = messages
         .iter()
         .filter(|msg| msg.is_agent_visible())
+        .map(|msg| msg.agent_visible_content())
         .collect();
 
     // Try progressively removing more tool response messages from the middle to reduce context length
@@ -298,14 +303,14 @@ async fn do_compact(
             messages: messages_text,
         };
 
-        let system_prompt = render_global_file("summarize_oneshot.md", &context)?;
+        let system_prompt = render_template("compaction.md", &context)?;
 
         let user_message = Message::user()
             .with_text("Please summarize the conversation history provided in the system prompt.");
         let summarization_request = vec![user_message];
 
         match provider
-            .complete_fast(&system_prompt, &summarization_request, &[])
+            .complete_fast(session_id, &system_prompt, &summarization_request, &[])
             .await
         {
             Ok((mut response, mut provider_usage)) => {
@@ -350,7 +355,7 @@ fn format_message_for_compacting(msg: &Message) -> String {
                     format!(
                         "tool_request({}): {}",
                         call.name,
-                        serde_json::to_string_pretty(&call.arguments)
+                        serde_json::to_string(&call.arguments)
                             .unwrap_or_else(|_| "<<invalid json>>".to_string())
                     )
                 } else {
@@ -397,7 +402,7 @@ fn format_message_for_compacting(msg: &Message) -> String {
                     "frontend_tool_request: [error]".to_string()
                 }
             }
-            MessageContent::Thinking(thinking) => format!("thinking: {}", thinking.thinking),
+            MessageContent::Thinking(_) => "thinking".to_string(),
             MessageContent::RedactedThinking(_) => "redacted_thinking".to_string(),
             MessageContent::SystemNotification(notification) => {
                 format!("system_notification: {}", notification.msg)
@@ -447,6 +452,7 @@ pub fn tool_id_to_summarize(conversation: &Conversation, cutoff: usize) -> Optio
 
 pub async fn summarize_tool_call(
     provider: &dyn Provider,
+    session_id: &str,
     conversation: &Conversation,
     tool_id: &str,
 ) -> Result<Message> {
@@ -494,7 +500,7 @@ pub async fn summarize_tool_call(
             "#};
 
     let (mut response, _) = provider
-        .complete_fast(system_prompt, &summarization_request, &[])
+        .complete_fast(session_id, system_prompt, &summarization_request, &[])
         .await?;
 
     response.role = Role::User;
@@ -507,12 +513,13 @@ pub async fn summarize_tool_call(
 /// if needed, summarize the first applicable tool request reply pair in a task
 pub fn maybe_summarize_tool_pair(
     provider: Arc<dyn Provider>,
+    session_id: String,
     conversation: Conversation,
     cutoff: usize,
 ) -> JoinHandle<Option<(Message, String)>> {
     tokio::spawn(async move {
         if let Some(tool_id) = tool_id_to_summarize(&conversation, cutoff) {
-            match summarize_tool_call(provider.as_ref(), &conversation, &tool_id).await {
+            match summarize_tool_call(provider.as_ref(), &session_id, &conversation, &tool_id).await {
                 Ok(summary) => Some((summary, tool_id)),
                 Err(e) => {
                     warn!("Failed to summarize tool pair: {}", e);
@@ -556,6 +563,7 @@ mod tests {
                     toolshim: false,
                     toolshim_model: None,
                     fast_model: None,
+                    request_params: None,
                 },
                 max_tool_responses: None,
             }
@@ -579,6 +587,7 @@ mod tests {
 
         async fn complete_with_model(
             &self,
+            _session_id: &str,
             _model_config: &ModelConfig,
             _system: &str,
             messages: &[Message],
@@ -623,6 +632,7 @@ mod tests {
             Message::assistant().with_tool_request(
                 "tool_0",
                 Ok(CallToolRequestParam {
+                    task: None,
                     name: "read_file".into(),
                     arguments: None,
                 }),
@@ -639,9 +649,10 @@ mod tests {
         ];
 
         let conversation = Conversation::new_unvalidated(basic_conversation);
-        let (compacted_conversation, _usage) = compact_messages(&provider, &conversation, false)
-            .await
-            .unwrap();
+        let (compacted_conversation, _usage) =
+            compact_messages(&provider, "test-session-id", &conversation, false)
+                .await
+                .unwrap();
 
         let agent_conversation = compacted_conversation.agent_visible_messages();
 
@@ -661,6 +672,7 @@ mod tests {
             messages.push(Message::assistant().with_tool_request(
                 format!("tool_{}", i),
                 Ok(CallToolRequestParam {
+                    task: None,
                     name: "read_file".into(),
                     arguments: None,
                 }),
@@ -677,7 +689,7 @@ mod tests {
         }
 
         let conversation = Conversation::new_unvalidated(messages);
-        let result = compact_messages(&provider, &conversation, false).await;
+        let result = compact_messages(&provider, "test-session-id", &conversation, false).await;
 
         assert!(
             result.is_ok(),
@@ -699,6 +711,7 @@ mod tests {
                     .with_tool_request(
                         call_id,
                         Ok(CallToolRequestParam {
+                            task: None,
                             name: tool_name.to_string().into(),
                             arguments: None,
                         }),
@@ -753,7 +766,7 @@ mod tests {
         let tool_call_id = result.unwrap();
         assert_eq!(tool_call_id, "call1");
 
-        let summary = summarize_tool_call(&provider, &conversation, &tool_call_id)
+        let summary = summarize_tool_call(&provider, "test-session", &conversation, &tool_call_id)
             .await
             .unwrap();
 
