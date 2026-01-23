@@ -1325,6 +1325,33 @@
         }
       }
     },
+    "/config/providers/{name}/oauth": {
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "configure_provider_oauth",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Provider name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OAuth configuration completed"
+          },
+          "400": {
+            "description": "OAuth configuration failed"
+          }
+        }
+      }
+    },
     "/config/read": {
       "post": {
         "tags": [

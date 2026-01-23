@@ -2261,6 +2261,32 @@ export type GetProviderModelsResponses = {
 
 export type GetProviderModelsResponse = GetProviderModelsResponses[keyof GetProviderModelsResponses];
 
+export type ConfigureProviderOauthData = {
+    body?: never;
+    path: {
+        /**
+         * Provider name
+         */
+        name: string;
+    };
+    query?: never;
+    url: '/config/providers/{name}/oauth';
+};
+
+export type ConfigureProviderOauthErrors = {
+    /**
+     * OAuth configuration failed
+     */
+    400: unknown;
+};
+
+export type ConfigureProviderOauthResponses = {
+    /**
+     * OAuth configuration completed
+     */
+    200: unknown;
+};
+
 export type ReadConfigData = {
     body: ConfigKeyQuery;
     path?: never;

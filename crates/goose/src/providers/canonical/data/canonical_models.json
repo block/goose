@@ -2034,6 +2034,27 @@
     }
   },
   {
+    "id": "openai/gpt-5.2-codex",
+    "name": "OpenAI: GPT-5.2-Codex",
+    "context_length": 400000,
+    "max_completion_tokens": 128000,
+    "input_modalities": [
+      "file",
+      "image",
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 1.75e-6,
+      "completion": 0.000014,
+      "request": 0.0,
+      "image": 0.0
+    }
+  },
+  {
     "id": "openai/gpt-5.2-pro",
     "name": "OpenAI: GPT-5.2 Pro",
     "context_length": 400000,

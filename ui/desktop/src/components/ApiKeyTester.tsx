@@ -73,19 +73,18 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
         </span>
       </div>
 
-      <div className="w-full p-4 sm:p-6 bg-background-muted border border-background-hover rounded-xl">
-        <div className="flex items-start justify-between mb-3">
-          <div className="flex-1">
-            <Key className="w-4 h-4 mb-3 text-text-standard" />
+      <div className="w-full p-3 sm:p-4 bg-background-muted border border-background-hover rounded-xl">
+        <div className="flex items-center gap-3 mb-3">
+          <Key className="w-4 h-4 text-text-standard flex-shrink-0" />
+          <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2">
             <h3 className="font-medium text-text-standard text-sm sm:text-base">
               Quick Setup with API Key
             </h3>
+            <span className="text-text-muted text-xs sm:text-sm">
+              Auto-detect your provider
+            </span>
           </div>
         </div>
-
-        <p className="text-text-muted text-sm sm:text-base mb-4">
-          Enter your API key and we'll automatically detect which provider it works with.
-        </p>
 
         <div className="space-y-4">
           <div className="flex gap-2 items-stretch">
