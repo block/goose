@@ -304,6 +304,7 @@ pub fn from_bedrock_message(message: &bedrock::Message) -> Result<Message> {
     let content = message
         .content()
         .iter()
+        .filter(|block| !matches!(block, bedrock::ContentBlock::CachePoint(_)))
         .map(from_bedrock_content_block)
         .collect::<Result<Vec<_>>>()?;
     let created = Utc::now().timestamp();
@@ -344,11 +345,11 @@ pub fn from_bedrock_content_block(block: &bedrock::ContentBlock) -> Result<Messa
             },
         ),
         bedrock::ContentBlock::CachePoint(_) => {
-            // CachePoint is metadata used by AWS for prompt caching optimization.
-            // It doesn't represent actual content, so we skip it when converting back.
-            // This is safe because cache points are only used for request optimization,
-            // not for conveying information to the user.
-            bail!("CachePoint blocks should be filtered out during message processing")
+            // CachePoint blocks are filtered out in from_bedrock_message before reaching here.
+            // This case should not occur, but we handle it defensively.
+            // CachePoint is metadata used by AWS for prompt caching optimization and doesn't
+            // represent actual content that should be conveyed to the user.
+            bail!("CachePoint blocks should have been filtered out during message processing")
         }
         _ => bail!("Unsupported content block type from Bedrock"),
     })
@@ -621,6 +622,46 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("CachePoint blocks should be filtered out"));
+    }
+
+    #[test]
+    fn test_from_bedrock_message_filters_cache_points() -> Result<()> {
+        use rmcp::model::Role;
+
+        // Create a Bedrock message with mixed content including CachePoint
+        let cache_point = bedrock::CachePointBlock::builder()
+            .r#type(bedrock::CachePointType::Default)
+            .build()
+            .unwrap();
+
+        let bedrock_message = bedrock::Message::builder()
+            .role(bedrock::ConversationRole::Assistant)
+            .content(bedrock::ContentBlock::Text("First text".to_string()))
+            .content(bedrock::ContentBlock::CachePoint(cache_point))
+            .content(bedrock::ContentBlock::Text("Second text".to_string()))
+            .build()
+            .unwrap();
+
+        // Convert from Bedrock format
+        let message = from_bedrock_message(&bedrock_message)?;
+
+        // Verify that CachePoint was filtered out and only text content remains
+        assert_eq!(message.content.len(), 2);
+        assert_eq!(message.role, Role::Assistant);
+
+        if let MessageContent::Text(text) = &message.content[0] {
+            assert_eq!(text.text, "First text");
+        } else {
+            panic!("Expected first text content");
+        }
+
+        if let MessageContent::Text(text) = &message.content[1] {
+            assert_eq!(text.text, "Second text");
+        } else {
+            panic!("Expected second text content");
+        }
+
+        Ok(())
     }
 
     #[test]
