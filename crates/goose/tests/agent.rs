@@ -825,26 +825,90 @@ mod tests {
             Ok(session)
         }
 
-        /// Helper: Assert conversation has been compacted (contains summary message)
+        /// Helper: Assert conversation has been compacted with proper message visibility
         fn assert_conversation_compacted(conversation: &Conversation) {
             let messages = conversation.messages();
             assert!(!messages.is_empty(), "Conversation should not be empty");
 
-            // Check that at least one message contains the summary text
-            let has_summary = messages.iter().any(|msg| {
-                msg.content.iter().any(|content| {
+            // Find the summary message (contains "mock summary")
+            let summary_index = messages
+                .iter()
+                .position(|msg| {
+                    msg.content.iter().any(|content| {
+                        if let MessageContent::Text(text) = content {
+                            text.text.contains("mock summary")
+                        } else {
+                            false
+                        }
+                    })
+                })
+                .expect("Conversation should contain the summary message");
+
+            let summary_msg = &messages[summary_index];
+
+            // Assert summary message visibility:
+            // - Agent visible: true (agent needs to see the summary)
+            // - User visible: false (user doesn't see internal summary)
+            assert!(
+                summary_msg.is_agent_visible(),
+                "Summary message should be agent visible"
+            );
+            assert!(
+                !summary_msg.is_user_visible(),
+                "Summary message should NOT be user visible"
+            );
+
+            // Check messages BEFORE the summary (the compacted original messages)
+            // These should be made agent-invisible
+            for (idx, msg) in messages.iter().enumerate() {
+                if idx < summary_index {
+                    // Old messages before summary: agent can't see them
+                    assert!(
+                        !msg.is_agent_visible(),
+                        "Message before summary at index {} should be agent-invisible",
+                        idx
+                    );
+                }
+            }
+
+            // Check for continuation message after summary
+            // (Should exist and be agent-only)
+            if summary_index + 1 < messages.len() {
+                let continuation_msg = &messages[summary_index + 1];
+                // Continuation message should contain instructions about not mentioning summary
+                let has_continuation_text = continuation_msg.content.iter().any(|content| {
                     if let MessageContent::Text(text) = content {
-                        text.text.contains("mock summary")
+                        text.text.contains("previous message contains a summary")
+                            || text.text.contains("summarization occurred")
                     } else {
                         false
                     }
-                })
-            });
+                });
 
-            assert!(
-                has_summary,
-                "Conversation should contain the summary message"
-            );
+                if has_continuation_text {
+                    assert!(
+                        continuation_msg.is_agent_visible(),
+                        "Continuation message should be agent visible"
+                    );
+                    assert!(
+                        !continuation_msg.is_user_visible(),
+                        "Continuation message should NOT be user visible"
+                    );
+                }
+            }
+
+            // Any messages AFTER the continuation (e.g., preserved recent user message)
+            // should be fully visible to both agent and user
+            let continuation_end = summary_index + 2;
+            for (idx, msg) in messages.iter().enumerate() {
+                if idx >= continuation_end {
+                    assert!(
+                        msg.is_agent_visible() && msg.is_user_visible(),
+                        "Message after compaction at index {} should be fully visible",
+                        idx
+                    );
+                }
+            }
         }
 
         #[tokio::test]
@@ -956,6 +1020,15 @@ mod tests {
             let session = setup_test_session(&agent, &temp_dir, "auto-compact-test", messages)
                 .await?;
 
+            // Capture initial context size before triggering reply
+            // Should be: system (6000) + 40 messages (4000) = ~10000 tokens
+            let initial_session = agent
+                .config
+                .session_manager
+                .get_session(&session.id, true)
+                .await?;
+            let initial_input_tokens = initial_session.input_tokens.unwrap_or(0);
+
             // Setup mock provider (no context limit enforcement)
             let provider = Arc::new(MockCompactionProvider::new());
             agent.update_provider(provider, &session.id).await?;
@@ -976,12 +1049,22 @@ mod tests {
             let reply_stream = agent.reply(user_message, session_config, None).await?;
             tokio::pin!(reply_stream);
 
-            // Consume the stream to completion
+            // Track compaction and context size changes
             let mut compaction_occurred = false;
+            let mut input_tokens_after_compaction: Option<i32> = None;
+
             while let Some(event_result) = reply_stream.next().await {
                 match event_result {
                     Ok(AgentEvent::HistoryReplaced(_)) => {
                         compaction_occurred = true;
+
+                        // Capture the input tokens immediately after compaction
+                        let session_after_compact = agent
+                            .config
+                            .session_manager
+                            .get_session(&session.id, true)
+                            .await?;
+                        input_tokens_after_compaction = session_after_compact.input_tokens;
                     }
                     Ok(_) => {}
                     Err(e) => return Err(e),
@@ -995,6 +1078,26 @@ mod tests {
                 .await?;
 
             if compaction_occurred {
+                // Verify that current input context decreased after compaction
+                let tokens_after = input_tokens_after_compaction.expect("Should have captured tokens after compaction");
+
+                // After compaction, the input context should be much smaller
+                // Before: system (6000) + 40 messages (4000) = 10000
+                // After: system (6000) + summary (200) = 6200
+                assert!(
+                    tokens_after < initial_input_tokens,
+                    "Input tokens should decrease after compaction. Before: {}, After: {}",
+                    initial_input_tokens,
+                    tokens_after
+                );
+
+                // Specifically, should be roughly: system (6000) + summary (200) = 6200
+                assert!(
+                    tokens_after < 7000,
+                    "Input tokens after compaction should be ~6200 (system + summary). Got: {}",
+                    tokens_after
+                );
+
                 // After auto-compaction + reply, accumulated should include:
                 // - Initial: 1000
                 // - Compaction input: system (6000) + messages (~4000) = ~10000
@@ -1045,6 +1148,11 @@ mod tests {
             let session = setup_test_session(&agent, &temp_dir, "context-limit-test", messages)
                 .await?;
 
+            // Note: The initial session input_tokens is set to 600 by setup_test_session,
+            // but the actual context during the provider call will be calculated dynamically:
+            // system (6000) + messages with long_tool_call (~15400) = ~21400 tokens
+            // This will exceed the 20000 token limit when the call is made.
+
             // Setup mock provider with context limit of 20000 tokens
             // Initial context (6000 system + 15400 messages = 21400) exceeds this limit
             let provider = Arc::new(MockCompactionProvider::new());
@@ -1067,14 +1175,23 @@ mod tests {
                 .await?;
             tokio::pin!(reply_stream);
 
-            // Consume stream and track events
+            // Track compaction and context size changes
             let mut compaction_occurred = false;
             let mut got_response = false;
+            let mut input_tokens_after_compaction: Option<i32> = None;
 
             while let Some(event_result) = reply_stream.next().await {
                 match event_result {
                     Ok(AgentEvent::HistoryReplaced(_)) => {
                         compaction_occurred = true;
+
+                        // Capture the input tokens immediately after compaction
+                        let session_after_compact = agent
+                            .config
+                            .session_manager
+                            .get_session(&session.id, true)
+                            .await?;
+                        input_tokens_after_compaction = session_after_compact.input_tokens;
                     }
                     Ok(AgentEvent::Message(msg)) => {
                         // Check if we got a real response (not just a notification)
@@ -1094,7 +1211,7 @@ mod tests {
             // Verify recovery occurred
             assert!(
                 compaction_occurred,
-                "Compaction should have occurred due to context limit (21400 > 20000)"
+                "Compaction should have occurred due to context limit (>20000 tokens)"
             );
             assert!(
                 got_response,
@@ -1117,12 +1234,28 @@ mod tests {
             // 3. Retry with compacted context:
             //    - Input: system prompt + summary (200) + new message
             //    - Output: 100 tokens (response)
-            //
-            // Accumulated total should include all operations:
-            // - Initial: 1000
-            // - Compaction cost (input + output)
-            // - Successful reply cost (input + output)
 
+            // Verify that current input context is small after compaction
+            let tokens_after = input_tokens_after_compaction
+                .expect("Should have captured tokens after compaction");
+
+            // After compaction, the input context should be:
+            // system (6000) + summary (200) = 6200
+            // This is much smaller than the original >21k that triggered the limit
+
+            // The compacted context should now be under the 20k limit
+            assert!(
+                tokens_after < 20000,
+                "Input tokens after compaction should be under 20k limit. Got: {}",
+                tokens_after
+            );
+
+            // Specifically, should be roughly: system (6000) + summary (200) = 6200
+            assert!(
+                tokens_after < 10000,
+                "Input tokens after compaction should be ~6200 (system + summary). Got: {}",
+                tokens_after
+            );
 
             // Verify context limit was exceeded and recovered
             // Accumulated should include: initial (1000) + compaction cost + reply cost
@@ -1132,14 +1265,6 @@ mod tests {
                 accumulated > 20000,
                 "Accumulated should include compaction and reply costs (exceeded context limit). Got: {}",
                 accumulated
-            );
-
-            // After compaction + reply, check that we successfully recovered
-            // The exact token count depends on what remains in the conversation,
-            // but the key is that we got a response (verified above)
-            assert!(
-                updated_session.total_tokens.is_some(),
-                "Should have token counts after successful recovery"
             );
 
             // Verify that the conversation was compacted
