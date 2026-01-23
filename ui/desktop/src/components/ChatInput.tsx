@@ -128,6 +128,7 @@ export default function ChatInput({
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
   const [isFocused, setIsFocused] = useState(false);
   const [pastedImages, setPastedImages] = useState<PastedImage[]>([]);
+  const [isFilePickerOpen, setIsFilePickerOpen] = useState(false);
 
   // Derived state - chatState != Idle means we're in some form of loading state
   const isLoading = chatState !== ChatState.Idle;
@@ -150,7 +151,6 @@ export default function ChatInput({
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [showCreateRecipeModal, setShowCreateRecipeModal] = useState(false);
   const [showEditRecipeModal, setShowEditRecipeModal] = useState(false);
-  const [isFilePickerOpen, setIsFilePickerOpen] = useState(false);
   const [sessionWorkingDir, setSessionWorkingDir] = useState<string | null>(null);
 
   useEffect(() => {
@@ -1180,13 +1180,11 @@ export default function ChatInput({
 
   return (
     <div
-      className={`flex flex-col relative h-auto p-4 transition-colors ${
-        disableAnimation ? '' : 'page-transition'
-      } ${
-        isFocused
+      className={`flex flex-col relative h-auto p-4 transition-colors ${disableAnimation ? '' : 'page-transition'
+        } ${isFocused
           ? 'border-borderProminent hover:border-borderProminent'
           : 'border-borderSubtle hover:border-borderStandard'
-      } bg-background-default z-10 rounded-t-2xl`}
+        } bg-background-default z-10 rounded-t-2xl`}
       data-drop-zone="true"
       onDrop={handleLocalDrop}
       onDragOver={handleLocalDragOver}
@@ -1238,7 +1236,7 @@ export default function ChatInput({
               opacity: isRecording ? 0 : 1,
               paddingRight: dictationSettings?.enabled ? '180px' : '120px',
             }}
-            className="w-full outline-none border-none focus:ring-0 bg-transparent px-3 pt-3 pb-1.5 text-sm resize-none text-textStandard placeholder:text-textPlaceholder"
+            className="w-full outline-none border-none focus:ring-0 bg-transparent px-3 pt-3 pb-1.5 pr-32 text-sm resize-none text-textStandard placeholder:text-textPlaceholder"
           />
           {isRecording && (
             <div className="absolute inset-0 flex items-center pl-4 pr-32 pt-3 pb-1.5">
@@ -1264,7 +1262,7 @@ export default function ChatInput({
                           size="sm"
                           shape="round"
                           variant="outline"
-                          onClick={() => {}}
+                          onClick={() => { }}
                           disabled={true}
                           className="bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600 rounded-full px-6 py-2"
                         >
@@ -1310,13 +1308,12 @@ export default function ChatInput({
                       }
                     }}
                     disabled={isTranscribing}
-                    className={`rounded-full px-6 py-2 ${
-                      isRecording
-                        ? 'bg-red-500 text-white hover:bg-red-600 border-red-500'
-                        : isTranscribing
-                          ? 'bg-slate-600 text-white cursor-not-allowed animate-pulse border-slate-600'
-                          : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600'
-                    }`}
+                    className={`rounded-full px-6 py-2 ${isRecording
+                      ? 'bg-red-500 text-white hover:bg-red-600 border-red-500'
+                      : isTranscribing
+                        ? 'bg-slate-600 text-white cursor-not-allowed animate-pulse border-slate-600'
+                        : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600'
+                      }`}
                   >
                     <Microphone />
                   </Button>
@@ -1346,11 +1343,10 @@ export default function ChatInput({
                       shape="round"
                       variant="outline"
                       disabled={isSubmitButtonDisabled}
-                      className={`rounded-full px-10 py-2 flex items-center gap-2 ${
-                        isSubmitButtonDisabled
-                          ? 'bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600'
-                          : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600 hover:cursor-pointer'
-                      }`}
+                      className={`rounded-full px-10 py-2 flex items-center gap-2 ${isSubmitButtonDisabled
+                        ? 'bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600'
+                        : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600 hover:cursor-pointer'
+                        }`}
                     >
                       <Send className="w-4 h-4" />
                       <span className="text-sm">Send</span>
