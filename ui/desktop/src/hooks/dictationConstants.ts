@@ -10,25 +10,6 @@ export const isSecretKeyConfigured = (response: unknown): boolean =>
   'maskedValue' in response &&
   !!(response as { maskedValue: string }).maskedValue;
 
-export type SecretKeyResponse =
-  | string
-  | boolean
-  | null
-  | { masked_value?: string; maskedValue?: string };
-
-export const isSecretKeyConfigured = (response: SecretKeyResponse): boolean => {
-  if (response === null || response === '' || response === false) {
-    return false;
-  }
-
-  if (typeof response === 'object') {
-    const maskedValue = 'maskedValue' in response ? response.maskedValue : response.masked_value;
-    return !!maskedValue;
-  }
-
-  return typeof response === 'string' && response.length > 0;
-};
-
 export const getDefaultDictationSettings = async (
   getProviders: (refresh: boolean) => Promise<Array<{ name: string; is_configured: boolean }>>
 ): Promise<DictationSettings> => {

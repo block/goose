@@ -5,7 +5,6 @@ import {
   ELEVENLABS_API_KEY,
   getDefaultDictationSettings,
   isSecretKeyConfigured,
-  SecretKeyResponse,
 } from './dictationConstants';
 
 export type DictationProvider = 'openai' | 'elevenlabs' | null;
@@ -34,7 +33,7 @@ export const useDictationSettings = () => {
 
       try {
         const response = await read(ELEVENLABS_API_KEY, true);
-        const hasKey = isSecretKeyConfigured(response as SecretKeyResponse);
+        const hasKey = isSecretKeyConfigured(response);
         setHasElevenLabsKey(hasKey);
       } catch (error) {
         console.error('[useDictationSettings] Error loading ElevenLabs API key:', error);

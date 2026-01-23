@@ -2,11 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Input } from '../../ui/input';
 import { Button } from '../../ui/button';
 import { useConfig } from '../../ConfigContext';
-import {
-  ELEVENLABS_API_KEY,
-  isSecretKeyConfigured,
-  SecretKeyResponse,
-} from '../../../hooks/dictationConstants';
+import { ELEVENLABS_API_KEY, isSecretKeyConfigured } from '../../../hooks/dictationConstants';
 
 export const ElevenLabsKeyInput = () => {
   const [elevenLabsApiKey, setElevenLabsApiKey] = useState('');
@@ -20,7 +16,7 @@ export const ElevenLabsKeyInput = () => {
     setIsLoadingKey(true);
     try {
       const response = await read(ELEVENLABS_API_KEY, true);
-      const hasKey = isSecretKeyConfigured(response as SecretKeyResponse);
+      const hasKey = isSecretKeyConfigured(response);
 
       setHasElevenLabsKey(hasKey);
     } catch (error) {
