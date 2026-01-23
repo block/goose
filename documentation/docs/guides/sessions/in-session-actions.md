@@ -313,7 +313,7 @@ You can change some settings during a session and they will take effect immediat
   | Setting | Slash Command | Persistence* |
   |---------|--------------|-------------|
   | [**Enabled Extensions**](/docs/getting-started/using-extensions#change-extensions-mid-session) | `/extension` or `/builtin` | Current session only |
-  | [**goose Mode**](/docs/guides/goose-permissions#configuring-goose-mode) | `mode [options]` | New sessions |
+  | [**goose Mode**](/docs/guides/goose-permissions#configuring-goose-mode) | `/mode [options]` | New sessions |
 
   :::info
   The CLI supports [additional slash commands](/docs/guides/goose-cli-commands#slash-commands) but doesn't support mid-session changes to the working directory or model.
