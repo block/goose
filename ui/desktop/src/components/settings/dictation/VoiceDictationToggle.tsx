@@ -3,6 +3,7 @@ import { Switch } from '../../ui/switch';
 import { DictationProvider, DictationSettings } from '../../../hooks/useDictationSettings';
 import {
   DICTATION_SETTINGS_KEY,
+  DICTATION_PROVIDER_ELEVENLABS,
   getDefaultDictationSettings,
 } from '../../../hooks/dictationConstants';
 import { useConfig } from '../../ConfigContext';
@@ -28,7 +29,10 @@ export const VoiceDictationToggle = () => {
         loadedSettings = parsed;
 
         // If ElevenLabs is disabled and user has it selected, reset to OpenAI
-        if (!VOICE_DICTATION_ELEVENLABS_ENABLED && loadedSettings.provider === 'elevenlabs') {
+        if (
+          !VOICE_DICTATION_ELEVENLABS_ENABLED &&
+          loadedSettings.provider === DICTATION_PROVIDER_ELEVENLABS
+        ) {
           loadedSettings = {
             ...loadedSettings,
             provider: 'openai',
