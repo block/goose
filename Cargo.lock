@@ -3092,6 +3092,7 @@ dependencies = [
  "lru",
  "mpatch",
  "once_cell",
+ "percent-encoding",
  "rayon",
  "regex",
  "reqwest 0.12.28",
