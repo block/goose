@@ -83,15 +83,15 @@ export default function ProviderConfigurationModal({
       });
       if (onConfigured) {
         onConfigured(provider);
-    } else {
-      onClose();
+      } else {
+        onClose();
+      }
+    } catch (err) {
+      setError(`OAuth login failed: ${formatErrorMessage(err)}`);
+    } finally {
+      setIsOAuthLoading(false);
     }
-  } catch (err) {
-    setError(`OAuth login failed: ${formatErrorMessage(err)}`);
-  } finally {
-    setIsOAuthLoading(false);
-  }
-};
+  };
 
   const handleSubmitForm = async (e: React.FormEvent) => {
     e.preventDefault();

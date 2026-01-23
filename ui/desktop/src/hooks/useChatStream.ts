@@ -21,9 +21,11 @@ import {
   getCompactingMessage,
   getThinkingMessage,
   NotificationEvent,
+  UserInput,
 } from '../types/message';
 import { errorMessage } from '../utils/conversionUtils';
 import { showExtensionLoadResults } from '../utils/extensionErrorUtils';
+import { maybeHandlePlatformEvent } from '../utils/platform_events';
 
 const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
 
@@ -38,7 +40,7 @@ interface UseChatStreamReturn {
   messages: Message[];
   chatState: ChatState;
   setChatState: (state: ChatState) => void;
-  handleSubmit: (userMessage: string) => Promise<void>;
+  handleSubmit: (input: UserInput) => Promise<void>;
   submitElicitationResponse: (
     elicitationId: string,
     userData: Record<string, unknown>
@@ -197,7 +199,8 @@ async function streamFromResponse(
   stream: AsyncIterable<MessageEvent>,
   initialMessages: Message[],
   dispatch: React.Dispatch<StreamAction>,
-  onFinish: (error?: string) => void
+  onFinish: (error?: string) => void,
+  sessionId: string
 ): Promise<void> {
   let currentMessages = initialMessages;
 
@@ -249,6 +252,7 @@ async function streamFromResponse(
         }
         case 'Notification': {
           dispatch({ type: 'ADD_NOTIFICATION', payload: event as NotificationEvent });
+          maybeHandlePlatformEvent(event.message, sessionId);
           break;
         }
         case 'Ping':
@@ -446,7 +450,8 @@ export function useChatStream({
   }, [sessionId, onSessionLoaded]);
 
   const handleSubmit = useCallback(
-    async (userMessage: string) => {
+    async (input: UserInput) => {
+      const { msg: userMessage, images } = input;
       const currentState = stateRef.current;
 
       // Guard: Don't submit if session hasn't been loaded yet
@@ -455,7 +460,7 @@ export function useChatStream({
       }
 
       const hasExistingMessages = currentState.messages.length > 0;
-      const hasNewMessage = userMessage.trim().length > 0;
+      const hasNewMessage = userMessage.trim().length > 0 || images.length > 0;
 
       // Don't submit if there's no message and no conversation to continue
       if (!hasNewMessage && !hasExistingMessages) {
@@ -517,7 +522,7 @@ export function useChatStream({
       }
 
       const newMessage = hasNewMessage
-        ? createUserMessage(userMessage)
+        ? createUserMessage(userMessage, images)
         : currentState.messages[currentState.messages.length - 1];
       const currentMessages = hasNewMessage
         ? [...currentState.messages, newMessage]
@@ -540,7 +545,7 @@ export function useChatStream({
           signal: abortControllerRef.current.signal,
         });
 
-        await streamFromResponse(stream, currentMessages, dispatch, onFinish);
+        await streamFromResponse(stream, currentMessages, dispatch, onFinish, sessionId);
       } catch (error) {
         // AbortError is expected when user stops streaming
         if (error instanceof Error && error.name === 'AbortError') {
@@ -581,7 +586,7 @@ export function useChatStream({
           signal: abortControllerRef.current.signal,
         });
 
-        await streamFromResponse(stream, currentMessages, dispatch, onFinish);
+        await streamFromResponse(stream, currentMessages, dispatch, onFinish, sessionId);
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') {
           // Silently handle abort
@@ -650,27 +655,28 @@ export function useChatStream({
       const currentState = stateRef.current;
 
       try {
-        const { editMessage } = await import('../api');
+        const { forkSession } = await import('../api');
         const message = currentState.messages.find((m) => m.id === messageId);
 
         if (!message) {
           throw new Error(`Message with id ${messageId} not found in current messages`);
         }
 
-        const response = await editMessage({
+        const response = await forkSession({
           path: {
             session_id: sessionId,
           },
           body: {
             timestamp: message.created,
-            editType,
+            truncate: true,
+            copy: editType === 'fork',
           },
           throwOnError: true,
         });
 
         const targetSessionId = response.data?.sessionId;
         if (!targetSessionId) {
-          throw new Error('No session ID returned from edit_message');
+          throw new Error('No session ID returned from fork');
         }
 
         if (editType === 'fork') {
@@ -693,7 +699,7 @@ export function useChatStream({
           if (sessionResponse.data?.conversation) {
             dispatch({ type: 'SET_MESSAGES', payload: sessionResponse.data.conversation });
           }
-          await handleSubmit(newContent);
+          await handleSubmit({ msg: newContent, images: [] });
         }
       } catch (error) {
         const errorMsg = errorMessage(error);
