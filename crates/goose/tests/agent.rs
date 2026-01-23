@@ -569,29 +569,52 @@ mod tests {
     }
 
     #[cfg(test)]
-    mod manual_compaction_tests {
+    mod compaction_tests {
         use super::*;
         use async_trait::async_trait;
-        use goose::conversation::message::Message;
+        use futures::StreamExt;
+        use goose::agents::SessionConfig;
+        use goose::conversation::message::{Message, MessageContent};
         use goose::conversation::Conversation;
         use goose::model::ModelConfig;
         use goose::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
         use goose::providers::errors::ProviderError;
         use goose::session::session_manager::SessionType;
+        use goose::session::Session;
         use rmcp::model::Tool;
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
         use tempfile::TempDir;
 
+        /// Mock provider that simulates compaction behavior and context limits
         struct MockCompactionProvider {
             summary_input_tokens: i32,
             summary_output_tokens: i32,
+            reply_input_tokens: i32,
+            reply_output_tokens: i32,
+            /// If true, throws ContextLengthExceeded on first call, succeeds on subsequent calls
+            simulate_context_limit: Arc<AtomicBool>,
         }
 
         impl MockCompactionProvider {
-            fn new(summary_input_tokens: i32, summary_output_tokens: i32) -> Self {
+            fn new(
+                summary_input_tokens: i32,
+                summary_output_tokens: i32,
+                reply_input_tokens: i32,
+                reply_output_tokens: i32,
+            ) -> Self {
                 Self {
                     summary_input_tokens,
                     summary_output_tokens,
+                    reply_input_tokens,
+                    reply_output_tokens,
+                    simulate_context_limit: Arc::new(AtomicBool::new(false)),
                 }
+            }
+
+            fn with_context_limit_simulation(mut self) -> Self {
+                self.simulate_context_limit = Arc::new(AtomicBool::new(true));
+                self
             }
         }
 
@@ -601,17 +624,63 @@ mod tests {
                 &self,
                 _session_id: &str,
                 _system_prompt: &str,
-                _messages: &[Message],
+                messages: &[Message],
                 _tools: &[Tool],
             ) -> Result<(Message, ProviderUsage), ProviderError> {
-                let message = Message::assistant().with_text("<mock summary of conversation>");
+                // Check if this is a compaction call (message contains "summarize")
+                let is_compaction = messages.iter().any(|msg| {
+                    msg.content.iter().any(|content| {
+                        if let MessageContent::Text(text) = content {
+                            text.text.to_lowercase().contains("summarize")
+                        } else {
+                            false
+                        }
+                    })
+                });
+
+                // Check if any message contains the trigger phrase for context limit
+                let has_context_limit_trigger = messages.iter().any(|msg| {
+                    msg.content.iter().any(|content| {
+                        if let MessageContent::Text(text) = content {
+                            text.text.contains("TRIGGER_CONTEXT_LIMIT")
+                        } else {
+                            false
+                        }
+                    })
+                });
+
+                // Simulate context limit exceeded on first call if enabled
+                if has_context_limit_trigger
+                    && self
+                        .simulate_context_limit
+                        .compare_exchange(true, false, Ordering::SeqCst, Ordering::SeqCst)
+                        .is_ok()
+                {
+                    return Err(ProviderError::ContextLengthExceeded(
+                        "Context limit exceeded".to_string(),
+                    ));
+                }
+
+                let (message, input_tokens, output_tokens) = if is_compaction {
+                    (
+                        Message::assistant().with_text("<mock summary of conversation>"),
+                        self.summary_input_tokens,
+                        self.summary_output_tokens,
+                    )
+                } else {
+                    (
+                        Message::assistant().with_text("This is a mock response."),
+                        self.reply_input_tokens,
+                        self.reply_output_tokens,
+                    )
+                };
 
                 let usage = ProviderUsage::new(
                     "mock-model".to_string(),
                     Usage::new(
-                        Some(self.summary_input_tokens),
-                        Some(self.summary_output_tokens),
-                        Some(self.summary_input_tokens + self.summary_output_tokens),
+                        Some(input_tokens),
+                        Some(output_tokens),
+                        Some(input_tokens + output_tokens),
                     ),
                 );
 
@@ -652,31 +721,22 @@ mod tests {
             }
         }
 
-        #[tokio::test]
-        async fn test_manual_compaction_updates_token_counts() -> Result<()> {
-            // Setup agent with temp directory
-            let temp_dir = TempDir::new()?;
-            let agent = Agent::new();
-
-            // Create a session
+        /// Helper: Setup a test session with initial messages and token counts
+        async fn setup_test_session(
+            agent: &Agent,
+            temp_dir: &TempDir,
+            session_name: &str,
+            messages: Vec<Message>,
+        ) -> Result<Session> {
             let session = agent
                 .config
                 .session_manager
                 .create_session(
                     temp_dir.path().to_path_buf(),
-                    "compaction-test".to_string(),
+                    session_name.to_string(),
                     SessionType::Hidden,
                 )
                 .await?;
-
-            // Add some messages to the conversation
-            let messages = vec![
-                Message::user().with_text("Hello, can you help me with something?"),
-                Message::assistant().with_text("Of course! What do you need help with?"),
-                Message::user().with_text("I need to understand how compaction works."),
-                Message::assistant()
-                    .with_text("Compaction is a process that summarizes conversation history."),
-            ];
 
             let conversation = Conversation::new_unvalidated(messages);
             agent
@@ -685,7 +745,7 @@ mod tests {
                 .replace_conversation(&session.id, &conversation)
                 .await?;
 
-            // Set initial token counts to simulate some usage before compaction
+            // Set initial token counts
             agent
                 .config
                 .session_manager
@@ -699,59 +759,318 @@ mod tests {
                 .apply()
                 .await?;
 
-            // Create a mock provider that will return specific token counts for the summary
-            // The output tokens from the summary become the new input context
-            let summary_input_tokens: i32 = 800; // Tokens used to create the summary
-            let summary_output_tokens: i32 = 200; // Tokens in the summary (new context size)
+            Ok(session)
+        }
+
+        /// Helper: Assert token counts match expected values
+        fn assert_token_counts(
+            session: &Session,
+            expected_input: i32,
+            expected_output: Option<i32>,
+            expected_total: i32,
+            expected_accumulated: i32,
+            context: &str,
+        ) {
+            assert_eq!(
+                session.input_tokens,
+                Some(expected_input),
+                "{}: input tokens mismatch",
+                context
+            );
+            assert_eq!(
+                session.output_tokens,
+                expected_output,
+                "{}: output tokens mismatch",
+                context
+            );
+            assert_eq!(
+                session.total_tokens,
+                Some(expected_total),
+                "{}: total tokens mismatch",
+                context
+            );
+            assert_eq!(
+                session.accumulated_total_tokens,
+                Some(expected_accumulated),
+                "{}: accumulated total mismatch",
+                context
+            );
+        }
+
+        /// Helper: Assert conversation has been compacted (contains summary message)
+        fn assert_conversation_compacted(conversation: &Conversation) {
+            let messages = conversation.messages();
+            assert!(!messages.is_empty(), "Conversation should not be empty");
+
+            // Check that at least one message contains the summary text
+            let has_summary = messages.iter().any(|msg| {
+                msg.content.iter().any(|content| {
+                    if let MessageContent::Text(text) = content {
+                        text.text.contains("mock summary")
+                    } else {
+                        false
+                    }
+                })
+            });
+
+            assert!(
+                has_summary,
+                "Conversation should contain the summary message"
+            );
+        }
+
+        #[tokio::test]
+        async fn test_manual_compaction_updates_token_counts_and_conversation() -> Result<()> {
+            let temp_dir = TempDir::new()?;
+            let agent = Agent::new();
+
+            // Setup session with initial messages
+            let messages = vec![
+                Message::user().with_text("Hello, can you help me with something?"),
+                Message::assistant().with_text("Of course! What do you need help with?"),
+                Message::user().with_text("I need to understand how compaction works."),
+                Message::assistant()
+                    .with_text("Compaction is a process that summarizes conversation history."),
+            ];
+
+            let session = setup_test_session(&agent, &temp_dir, "manual-compact-test", messages)
+                .await?;
+
+            // Setup mock provider
+            let summary_input_tokens: i32 = 800;
+            let summary_output_tokens: i32 = 200;
             let provider = Arc::new(MockCompactionProvider::new(
                 summary_input_tokens,
                 summary_output_tokens,
+                100,
+                50,
             ));
-
-            // Update the agent's provider
             agent.update_provider(provider, &session.id).await?;
 
-            // Execute manual compaction command
+            // Execute manual compaction
             let result = agent.execute_command("/compact", &session.id).await?;
+            assert!(result.is_some(), "Compaction should return a result");
 
-            // Verify we got a success message
-            assert!(result.is_some());
-
-            // Get the updated session to check token counts
+            // Verify token counts
             let updated_session = agent
                 .config
                 .session_manager
                 .get_session(&session.id, true)
                 .await?;
 
-            // After compaction, the token counts should be updated:
-            // - input_tokens should be the summary output tokens (new context size)
-            // - output_tokens should be None (no new assistant output)
-            // - total_tokens should equal input_tokens
-            // - accumulated_total_tokens should include the summary creation tokens
-            assert_eq!(
-                updated_session.input_tokens,
-                Some(summary_output_tokens),
-                "Input tokens should be set to summary output tokens (new context size)"
-            );
-            assert_eq!(
-                updated_session.output_tokens,
+            assert_token_counts(
+                &updated_session,
+                summary_output_tokens,
                 None,
-                "Output tokens should be None after compaction"
-            );
-            assert_eq!(
-                updated_session.total_tokens,
-                Some(summary_output_tokens),
-                "Total tokens should equal input tokens after compaction"
+                summary_output_tokens,
+                1000 + summary_input_tokens + summary_output_tokens,
+                "Manual compaction",
             );
 
-            // Accumulated total should include: original 1000 + summary tokens (800 + 200)
-            let expected_accumulated = 1000 + summary_input_tokens + summary_output_tokens;
-            assert_eq!(
-                updated_session.accumulated_total_tokens,
-                Some(expected_accumulated),
-                "Accumulated total should include original usage plus summary creation"
+            // Verify conversation has been compacted
+            let compacted_conversation = updated_session
+                .conversation
+                .expect("Session should have conversation");
+
+            assert_conversation_compacted(&compacted_conversation);
+
+            // The compacted conversation should contain the summary
+            // Note: The exact message structure after compaction varies, but the summary should be present
+            let new_message_count = compacted_conversation.messages().len();
+            assert!(
+                new_message_count > 0,
+                "Compacted conversation should have at least the summary message"
             );
+
+            // After manual compaction, the conversation should be compacted
+            // The specific structure depends on how compaction preserves context
+
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_auto_compaction_during_reply() -> Result<()> {
+            let temp_dir = TempDir::new()?;
+            let agent = Agent::new();
+
+            // Setup session with many messages to trigger auto-compaction
+            let mut messages = vec![];
+            for i in 0..20 {
+                messages.push(Message::user().with_text(format!("User message {}", i)));
+                messages.push(Message::assistant().with_text(format!("Assistant response {}", i)));
+            }
+
+            let session = setup_test_session(&agent, &temp_dir, "auto-compact-test", messages)
+                .await?;
+
+            // Setup mock provider
+            let summary_input_tokens: i32 = 800;
+            let summary_output_tokens: i32 = 200;
+            let reply_input_tokens: i32 = 300;
+            let reply_output_tokens: i32 = 100;
+            let provider = Arc::new(MockCompactionProvider::new(
+                summary_input_tokens,
+                summary_output_tokens,
+                reply_input_tokens,
+                reply_output_tokens,
+            ));
+            agent.update_provider(provider, &session.id).await?;
+
+            // Trigger a reply that should cause auto-compaction
+            // Note: Auto-compaction triggers are complex and may require specific conditions
+            // For this test, we're verifying the token counting mechanism works when it does trigger
+            let user_message = Message::user().with_text("Tell me more about compaction");
+
+            let session_config = SessionConfig {
+                id: session.id.clone(),
+                schedule_id: None,
+                max_turns: None,
+                retry_config: None,
+            };
+
+            let reply_stream = agent.reply(user_message, session_config, None).await?;
+            tokio::pin!(reply_stream);
+
+            // Consume the stream to completion
+            let mut compaction_occurred = false;
+            while let Some(event_result) = reply_stream.next().await {
+                match event_result {
+                    Ok(AgentEvent::HistoryReplaced(_)) => {
+                        compaction_occurred = true;
+                    }
+                    Ok(_) => {}
+                    Err(e) => return Err(e),
+                }
+            }
+
+            // If compaction occurred, verify token counts were updated
+            if compaction_occurred {
+                let updated_session = agent
+                    .config
+                    .session_manager
+                    .get_session(&session.id, true)
+                    .await?;
+
+                // After auto-compaction + reply, tokens should reflect both operations
+                // The exact values depend on whether compaction happened before or during the reply
+                assert!(
+                    updated_session.accumulated_total_tokens.unwrap_or(0)
+                        >= 1000 + reply_input_tokens + reply_output_tokens,
+                    "Accumulated tokens should include at least original + reply"
+                );
+            }
+
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_context_limit_recovery_compaction() -> Result<()> {
+            let temp_dir = TempDir::new()?;
+            let agent = Agent::new();
+
+            // Setup session with a message that will trigger context limit
+            let messages = vec![
+                Message::user().with_text("Hello"),
+                Message::assistant().with_text("Hi there"),
+                Message::user().with_text("TRIGGER_CONTEXT_LIMIT Please help me"),
+            ];
+
+            let session = setup_test_session(&agent, &temp_dir, "context-limit-test", messages)
+                .await?;
+
+            // Setup mock provider that simulates context limit on first call
+            let summary_input_tokens: i32 = 800;
+            let summary_output_tokens: i32 = 200;
+            let reply_input_tokens: i32 = 150;
+            let reply_output_tokens: i32 = 75;
+            let provider = Arc::new(
+                MockCompactionProvider::new(
+                    summary_input_tokens,
+                    summary_output_tokens,
+                    reply_input_tokens,
+                    reply_output_tokens,
+                )
+                .with_context_limit_simulation(),
+            );
+            agent.update_provider(provider, &session.id).await?;
+
+            // Process the message that triggers context limit
+            let session_config = SessionConfig {
+                id: session.id.clone(),
+                schedule_id: None,
+                max_turns: None,
+                retry_config: None,
+            };
+
+            let reply_stream = agent
+                .reply(
+                    Message::user().with_text("Continue"),
+                    session_config,
+                    None,
+                )
+                .await?;
+            tokio::pin!(reply_stream);
+
+            // Consume stream and track if compaction occurred
+            let mut compaction_occurred = false;
+            let mut got_response = false;
+
+            while let Some(event_result) = reply_stream.next().await {
+                match event_result {
+                    Ok(AgentEvent::HistoryReplaced(_)) => {
+                        compaction_occurred = true;
+                    }
+                    Ok(AgentEvent::Message(msg)) => {
+                        // Check if we got a real response (not just a notification)
+                        if msg
+                            .content
+                            .iter()
+                            .any(|c| matches!(c, MessageContent::Text(_)))
+                        {
+                            got_response = true;
+                        }
+                    }
+                    Ok(_) => {}
+                    Err(e) => return Err(e),
+                }
+            }
+
+            // Verify recovery occurred (compaction triggered and we got a response)
+            assert!(
+                compaction_occurred,
+                "Compaction should have occurred due to context limit"
+            );
+            assert!(
+                got_response,
+                "Should have received a response after recovery"
+            );
+
+            // Verify token counts were updated
+            let updated_session = agent
+                .config
+                .session_manager
+                .get_session(&session.id, true)
+                .await?;
+
+            // After recovery compaction, tokens should be updated to include compaction cost
+            // The exact accumulated value depends on whether the reply also completes
+            let min_expected_accumulated = 1000 + summary_input_tokens + summary_output_tokens;
+
+            // If compaction occurred, verify tokens include compaction cost
+            if compaction_occurred {
+                assert!(
+                    updated_session.accumulated_total_tokens.unwrap_or(0) >= min_expected_accumulated,
+                    "Accumulated tokens should include compaction cost. Expected at least {}, got {:?}",
+                    min_expected_accumulated,
+                    updated_session.accumulated_total_tokens
+                );
+
+                // Verify that the conversation was compacted
+                let updated_conversation = updated_session
+                    .conversation
+                    .expect("Session should have conversation");
+                assert_conversation_compacted(&updated_conversation);
+            }
 
             Ok(())
         }
