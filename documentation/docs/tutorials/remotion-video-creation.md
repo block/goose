@@ -75,7 +75,7 @@ End with 'Deployed to production 🚀'
 ─── load_skill | skills ───────────────────────────────────────
 name: remotion-best-practices
 
-reading ~/.config/goose/skills/remotion/rules/text-animations.md
+reading ~/.config/goose/skills/remotion-best-practices/rules/animations.md
 
 ─── shell | developer ─────────────────────────────────────────
 mkdir -p git-terminal-video && cd git-terminal-video && npm init -y
