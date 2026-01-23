@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import {
   AppWindow,
   ChefHat,
+  ChevronRight,
   Clock,
   FileText,
   History,
@@ -20,15 +21,17 @@ import {
   SidebarMenuItem,
   SidebarSeparator,
 } from '../ui/sidebar';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 import { Gear } from '../icons';
 import { View, ViewOptions } from '../../utils/navigationUtils';
 import { DEFAULT_CHAT_TITLE, useChatContext } from '../../contexts/ChatContext';
-import { listSessions, listApps, Session } from '../../api';
+import { listSessions, Session } from '../../api';
 import { resumeSession, startNewSession, shouldShowNewChatTitle } from '../../sessions';
 import { useNavigation } from '../../hooks/useNavigation';
 import { SessionIndicators } from '../SessionIndicators';
 import { useSidebarSessionStatus } from '../../hooks/useSidebarSessionStatus';
 import { getInitialWorkingDir } from '../../utils/workingDir';
+import { useConfig } from '../ConfigContext';
 
 interface SidebarProps {
   onSelectSession: (sessionId: string) => void;
@@ -62,6 +65,13 @@ const menuItems: NavigationEntry[] = [
   },
   {
     type: 'item',
+    path: '/apps',
+    label: 'Apps',
+    icon: AppWindow,
+    tooltip: 'MCP and custom apps',
+  },
+  {
+    type: 'item',
     path: '/schedules',
     label: 'Scheduler',
     icon: Clock,
@@ -73,13 +83,6 @@ const menuItems: NavigationEntry[] = [
     label: 'Extensions',
     icon: Puzzle,
     tooltip: 'Manage your extensions',
-  },
-  {
-    type: 'item',
-    path: '/apps',
-    label: 'Apps',
-    icon: AppWindow,
-    tooltip: 'Browse and launch MCP apps',
   },
   { type: 'separator' },
   {
@@ -195,10 +198,14 @@ SessionList.displayName = 'SessionList';
 const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   const navigate = useNavigate();
   const chatContext = useChatContext();
+  const configContext = useConfig();
   const setView = useNavigation();
+
+  const appsExtensionEnabled = !!configContext.extensionsList?.find((ext) => ext.name === 'apps')
+    ?.enabled;
   const [searchParams] = useSearchParams();
   const [recentSessions, setRecentSessions] = useState<Session[]>([]);
-  const [hasApps, setHasApps] = useState(false);
+  const [isChatExpanded, setIsChatExpanded] = useState(true);
   const activeSessionId = searchParams.get('resumeSessionId') ?? undefined;
   const { getSessionStatus, clearUnread } = useSidebarSessionStatus(activeSessionId);
 
@@ -252,26 +259,11 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   }, []);
 
   useEffect(() => {
-    const checkApps = async () => {
-      try {
-        const response = await listApps({
-          throwOnError: true,
-        });
-        setHasApps((response.data?.apps || []).length > 0);
-      } catch (err) {
-        console.warn('Failed to check for apps:', err);
-      }
-    };
-
-    checkApps();
-  }, [currentPath]);
-
-  useEffect(() => {
     let pollingTimeouts: ReturnType<typeof setTimeout>[] = [];
     let isPolling = false;
 
     const handleSessionCreated = (event: Event) => {
-      const { session } = (event as CustomEvent<{ session?: Session }>).detail;
+      const { session } = (event as CustomEvent<{ session?: Session }>).detail || {};
       // If session data is provided, add it immediately to the sidebar
       // This is for displaying sessions that won't be returned by the API due to not having messages yet
       if (session) {
@@ -477,8 +469,9 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   };
 
   const visibleMenuItems = menuItems.filter((entry) => {
+    // Filter out Apps if extension is not enabled
     if (entry.type === 'item' && entry.path === '/apps') {
-      return hasApps;
+      return appsExtensionEnabled;
     }
     return true;
   });
@@ -487,7 +480,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     <>
       <SidebarContent className="pt-12">
         <SidebarMenu>
-          {/* Home and New Chat */}
+          {/* Home */}
           <SidebarGroup className="px-2">
             <SidebarGroupContent className="space-y-1">
               <div className="sidebar-item">
@@ -504,47 +497,70 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </div>
-              <div className="sidebar-item">
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    data-testid="sidebar-new-chat-button"
-                    onClick={handleNewChat}
-                    tooltip="Start a new chat"
-                    className="w-full justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200"
-                  >
-                    <MessageSquarePlus className="w-4 h-4" />
-                    <span>Chat</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </div>
             </SidebarGroupContent>
           </SidebarGroup>
 
-          {/* Recent Sessions */}
-          {recentSessions.length > 0 && (
-            <SidebarGroup className="px-2">
-              <SidebarGroupContent className="space-y-1">
-                <SessionList
-                  sessions={recentSessions}
-                  activeSessionId={activeSessionId}
-                  getSessionStatus={getSessionStatus}
-                  onSessionClick={handleSessionClick}
-                />
-                {/* View All Link */}
-                <button
-                  onClick={handleViewAllClick}
-                  className="w-full text-left px-3 py-1.5 rounded-md text-sm text-text-muted hover:bg-background-medium/50 hover:text-text-default transition-colors flex items-center gap-2"
-                >
-                  <History className="w-4 h-4" />
-                  <span>View All</span>
-                </button>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          )}
+          {/* Chat with Collapsible Sessions */}
+          <SidebarGroup className="px-2">
+            <SidebarGroupContent className="space-y-1">
+              <Collapsible open={isChatExpanded} onOpenChange={setIsChatExpanded}>
+                <div className="sidebar-item">
+                  <SidebarMenuItem>
+                    <div className="flex items-center w-full">
+                      <SidebarMenuButton
+                        data-testid="sidebar-new-chat-button"
+                        onClick={handleNewChat}
+                        tooltip="Start a new chat"
+                        className="flex-1 justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200"
+                      >
+                        <MessageSquarePlus className="w-4 h-4" />
+                        <span>Chat</span>
+                      </SidebarMenuButton>
+                      {recentSessions.length > 0 && (
+                        <CollapsibleTrigger asChild>
+                          <button
+                            className="flex items-center justify-center w-6 h-8 hover:bg-background-medium/50 rounded-md transition-colors"
+                            aria-label={
+                              isChatExpanded ? 'Collapse chat sessions' : 'Expand chat sessions'
+                            }
+                          >
+                            <ChevronRight
+                              className={`w-4 h-4 text-text-muted transition-transform duration-200 ${
+                                isChatExpanded ? 'rotate-90' : ''
+                              }`}
+                            />
+                          </button>
+                        </CollapsibleTrigger>
+                      )}
+                    </div>
+                  </SidebarMenuItem>
+                </div>
+                {recentSessions.length > 0 && (
+                  <CollapsibleContent className="overflow-hidden transition-all data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0">
+                    <div className="mt-1 space-y-1">
+                      <SessionList
+                        sessions={recentSessions}
+                        activeSessionId={activeSessionId}
+                        getSessionStatus={getSessionStatus}
+                        onSessionClick={handleSessionClick}
+                      />
+                      {/* View All Link */}
+                      <button
+                        onClick={handleViewAllClick}
+                        className="w-full text-left px-3 py-1.5 rounded-md text-sm text-text-muted hover:bg-background-medium/50 hover:text-text-default transition-colors flex items-center gap-2"
+                      >
+                        <History className="w-4 h-4" />
+                        <span>View All</span>
+                      </button>
+                    </div>
+                  </CollapsibleContent>
+                )}
+              </Collapsible>
+            </SidebarGroupContent>
+          </SidebarGroup>
 
           <SidebarSeparator />
 
-          {/* Other menu items - filter out Apps if no apps available */}
           {visibleMenuItems.map((entry, index) => renderMenuItem(entry, index))}
         </SidebarMenu>
       </SidebarContent>

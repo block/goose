@@ -10,9 +10,13 @@ import { NavigationProvider, useNavigationContext } from './NavigationContext';
 import { ExpandedNavigation } from './ExpandedNavigation';
 import { CondensedNavigation } from './CondensedNavigation';
 import { cn } from '../../utils';
+import { UserInput } from '../../types/message';
 
 interface AppLayoutContentProps {
-  activeSessions: Array<{ sessionId: string; initialMessage?: string }>;
+  activeSessions: Array<{
+    sessionId: string;
+    initialMessage?: UserInput;
+  }>;
 }
 
 const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) => {
@@ -192,7 +196,10 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
 };
 
 interface AppLayoutProps {
-  activeSessions: Array<{ sessionId: string; initialMessage?: string }>;
+  activeSessions: Array<{
+    sessionId: string;
+    initialMessage?: UserInput;
+  }>;
 }
 
 export const AppLayout: React.FC<AppLayoutProps> = ({ activeSessions }) => {

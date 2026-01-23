@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Session } from '../api';
 import { Message } from '../api';
 import { ChatState } from '../types/chatState';
+import { UserInput } from '../types/message';
 
 /**
  * Auto-submit scenarios:
@@ -17,8 +18,8 @@ interface UseAutoSubmitProps {
   session: Session | undefined;
   messages: Message[];
   chatState: ChatState;
-  initialMessage: string | undefined;
-  handleSubmit: (message: string) => void;
+  initialMessage: UserInput | undefined;
+  handleSubmit: (input: UserInput) => void;
 }
 
 interface UseAutoSubmitReturn {
@@ -84,7 +85,7 @@ export function useAutoSubmit({
     // Scenario 3: Resume with shouldStartAgent (continue existing conversation)
     if (shouldStartAgent) {
       hasAutoSubmittedRef.current = true;
-      handleSubmit('');
+      handleSubmit({ msg: '', images: [] });
     }
   }, [
     session,

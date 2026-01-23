@@ -12,7 +12,7 @@ use std::ffi::OsString;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use thiserror::Error;
 
 const KEYRING_SERVICE: &str = "goose";
@@ -105,6 +105,7 @@ pub struct Config {
     config_path: PathBuf,
     secrets: SecretStorage,
     guard: Mutex<()>,
+    secrets_cache: Arc<Mutex<Option<HashMap<String, Value>>>>,
 }
 
 enum SecretStorage {
@@ -133,6 +134,7 @@ impl Default for Config {
             config_path,
             secrets,
             guard: Mutex::new(()),
+            secrets_cache: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -236,6 +238,7 @@ impl Config {
                 service: service.to_string(),
             },
             guard: Mutex::new(()),
+            secrets_cache: Arc::new(Mutex::new(None)),
         })
     }
 
@@ -253,6 +256,7 @@ impl Config {
                 path: secrets_path.as_ref().to_path_buf(),
             },
             guard: Mutex::new(()),
+            secrets_cache: Arc::new(Mutex::new(None)),
         })
     }
 
@@ -540,28 +544,43 @@ impl Config {
     }
 
     pub fn all_secrets(&self) -> Result<HashMap<String, Value>, ConfigError> {
-        match &self.secrets {
-            SecretStorage::Keyring { service } => {
-                let result =
-                    self.handle_keyring_operation(|entry| entry.get_password(), service, None);
+        let mut cache = self.secrets_cache.lock().unwrap();
 
-                match result {
-                    Ok(content) => {
-                        let values: HashMap<String, Value> = serde_json::from_str(&content)?;
-                        Ok(values)
+        let values = if let Some(ref cached_secrets) = *cache {
+            cached_secrets.clone()
+        } else {
+            tracing::debug!("secrets cache miss, fetching from storage");
+
+            let loaded = match &self.secrets {
+                SecretStorage::Keyring { service } => {
+                    let result =
+                        self.handle_keyring_operation(|entry| entry.get_password(), service, None);
+
+                    match result {
+                        Ok(content) => {
+                            let values: HashMap<String, Value> = serde_json::from_str(&content)?;
+                            values
+                        }
+                        Err(ConfigError::FallbackToFileStorage) => {
+                            self.fallback_to_file_storage()?
+                        }
+                        Err(ConfigError::KeyringError(msg))
+                            if msg.contains("No entry found")
+                                || msg.contains("No matching entry found") =>
+                        {
+                            HashMap::new()
+                        }
+                        Err(e) => return Err(e),
                     }
-                    Err(ConfigError::FallbackToFileStorage) => self.fallback_to_file_storage(),
-                    Err(ConfigError::KeyringError(msg))
-                        if msg.contains("No entry found")
-                            || msg.contains("No matching entry found") =>
-                    {
-                        Ok(HashMap::new())
-                    }
-                    Err(e) => Err(e),
                 }
-            }
-            SecretStorage::File { path } => self.read_secrets_from_file(path),
-        }
+                SecretStorage::File { path } => self.read_secrets_from_file(path)?,
+            };
+
+            *cache = Some(loaded.clone());
+            loaded
+        };
+
+        Ok(values)
     }
 
     /// Parse an environment variable value into a JSON Value.
@@ -786,6 +805,9 @@ impl Config {
                 std::fs::write(path, yaml_value)?;
             }
         };
+
+        self.invalidate_secrets_cache();
+
         Ok(())
     }
 
@@ -820,6 +842,9 @@ impl Config {
                 std::fs::write(path, yaml_value)?;
             }
         };
+
+        self.invalidate_secrets_cache();
+
         Ok(())
     }
 
@@ -856,6 +881,11 @@ impl Config {
         let yaml_value = serde_yaml::to_string(values)?;
         std::fs::write(path, yaml_value)?;
         Ok(())
+    }
+
+    fn invalidate_secrets_cache(&self) {
+        let mut cache = self.secrets_cache.lock().unwrap();
+        *cache = None;
     }
 
     /// Check if an error string indicates a keyring availability issue that should trigger fallback
@@ -1630,55 +1660,46 @@ mod tests {
 
     #[test]
     fn get_secrets_primary_from_env_uses_env_for_secondary() {
-        temp_env::with_vars(
-            [
-                ("TEST_PRIMARY", Some("primary_env")),
-                ("TEST_SECONDARY", Some("secondary_env")),
-            ],
-            || {
-                let config = new_test_config();
-                let secrets = config
-                    .get_secrets("TEST_PRIMARY", &["TEST_SECONDARY"])
-                    .unwrap();
+        let _guard = env_lock::lock_env([
+            ("TEST_PRIMARY", Some("primary_env")),
+            ("TEST_SECONDARY", Some("secondary_env")),
+        ]);
+        let config = new_test_config();
+        let secrets = config
+            .get_secrets("TEST_PRIMARY", &["TEST_SECONDARY"])
+            .unwrap();
 
-                assert_eq!(secrets["TEST_PRIMARY"], "primary_env");
-                assert_eq!(secrets["TEST_SECONDARY"], "secondary_env");
-            },
-        );
+        assert_eq!(secrets["TEST_PRIMARY"], "primary_env");
+        assert_eq!(secrets["TEST_SECONDARY"], "secondary_env");
     }
 
     #[test]
     fn get_secrets_primary_from_secret_uses_secret_for_secondary() {
-        temp_env::with_vars(
-            [("TEST_PRIMARY", None::<&str>), ("TEST_SECONDARY", None)],
-            || {
-                let config = new_test_config();
-                config
-                    .set_secret("TEST_PRIMARY", &"primary_secret")
-                    .unwrap();
-                config
-                    .set_secret("TEST_SECONDARY", &"secondary_secret")
-                    .unwrap();
+        let _guard = env_lock::lock_env([("TEST_PRIMARY", None::<&str>), ("TEST_SECONDARY", None)]);
+        let config = new_test_config();
+        config
+            .set_secret("TEST_PRIMARY", &"primary_secret")
+            .unwrap();
+        config
+            .set_secret("TEST_SECONDARY", &"secondary_secret")
+            .unwrap();
 
-                let secrets = config
-                    .get_secrets("TEST_PRIMARY", &["TEST_SECONDARY"])
-                    .unwrap();
+        let secrets = config
+            .get_secrets("TEST_PRIMARY", &["TEST_SECONDARY"])
+            .unwrap();
 
-                assert_eq!(secrets["TEST_PRIMARY"], "primary_secret");
-                assert_eq!(secrets["TEST_SECONDARY"], "secondary_secret");
-            },
-        );
+        assert_eq!(secrets["TEST_PRIMARY"], "primary_secret");
+        assert_eq!(secrets["TEST_SECONDARY"], "secondary_secret");
     }
 
     #[test]
     fn get_secrets_primary_missing_returns_error() {
-        temp_env::with_vars([("TEST_PRIMARY", None::<&str>)], || {
-            let config = new_test_config();
+        let _guard = env_lock::lock_env([("TEST_PRIMARY", None::<&str>)]);
+        let config = new_test_config();
 
-            let result = config.get_secrets("TEST_PRIMARY", &[]);
+        let result = config.get_secrets("TEST_PRIMARY", &[]);
 
-            assert!(matches!(result, Err(ConfigError::NotFound(_))));
-        });
+        assert!(matches!(result, Err(ConfigError::NotFound(_))));
     }
 
     fn new_test_config() -> Config {
