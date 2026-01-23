@@ -189,17 +189,6 @@ export type DetectProviderResponse = {
     provider_name: string;
 };
 
-export type EditMessageRequest = {
-    editType?: EditType;
-    timestamp: number;
-};
-
-export type EditMessageResponse = {
-    sessionId: string;
-};
-
-export type EditType = 'fork' | 'edit';
-
 export type EmbeddedResource = {
     _meta?: {
         [key: string]: unknown;
@@ -352,6 +341,16 @@ export type ExtensionResponse = {
     warnings?: Array<string>;
 };
 
+export type ForkRequest = {
+    copy: boolean;
+    timestamp?: number | null;
+    truncate: boolean;
+};
+
+export type ForkResponse = {
+    sessionId: string;
+};
+
 export type FrontendToolRequest = {
     id: string;
     toolCall: {
@@ -364,11 +363,9 @@ export type GetToolsQuery = {
     session_id: string;
 };
 
-/**
- * A Goose App combining MCP resource data with Goose-specific metadata
- */
 export type GooseApp = McpAppResource & (WindowProps | null) & {
-    mcpServer?: string | null;
+    mcpServers?: Array<string>;
+    prd?: string | null;
 };
 
 export type Icon = {
@@ -386,6 +383,15 @@ export type ImageContent = {
     };
     data: string;
     mimeType: string;
+};
+
+export type ImportAppRequest = {
+    html: string;
+};
+
+export type ImportAppResponse = {
+    message: string;
+    name: string;
 };
 
 export type ImportSessionRequest = {
@@ -542,6 +548,12 @@ export type ModelConfig = {
     fast_model?: string | null;
     max_tokens?: number | null;
     model_name: string;
+    /**
+     * Provider-specific request parameters (e.g., anthropic_beta headers)
+     */
+    request_params?: {
+        [key: string]: unknown;
+    } | null;
     temperature?: number | null;
     toolshim: boolean;
     toolshim_model?: string | null;
@@ -611,6 +623,17 @@ export type PricingResponse = {
 
 export type PrincipalType = 'Extension' | 'Tool';
 
+export type PromptContentResponse = {
+    content: string;
+    default_content: string;
+    is_customized: boolean;
+    name: string;
+};
+
+export type PromptsListResponse = {
+    prompts: Array<Template>;
+};
+
 export type ProviderDetails = {
     is_configured: boolean;
     metadata: ProviderMetadata;
@@ -624,6 +647,10 @@ export type ProviderEngine = 'openai' | 'ollama' | 'anthropic';
  * Metadata about a provider's configuration requirements and capabilities
  */
 export type ProviderMetadata = {
+    /**
+     * Whether this provider allows entering model names not in the fetched list
+     */
+    allows_unlisted_models?: boolean;
     /**
      * Required configuration keys
      */
@@ -847,6 +874,10 @@ export type RunNowResponse = {
     session_id: string;
 };
 
+export type SavePromptRequest = {
+    content: string;
+};
+
 export type SaveRecipeRequest = {
     id?: string | null;
     recipe: Recipe;
@@ -1018,6 +1049,7 @@ export type SystemInfo = {
 };
 
 export type SystemNotificationContent = {
+    data?: unknown;
     msg: string;
     notificationType: SystemNotificationType;
 };
@@ -1029,6 +1061,17 @@ export type TelemetryEventRequest = {
     properties?: {
         [key: string]: unknown;
     };
+};
+
+/**
+ * Information about a template including its content and customization status
+ */
+export type Template = {
+    default_content: string;
+    description: string;
+    is_customized: boolean;
+    name: string;
+    user_content?: string | null;
 };
 
 export type TextContent = {
@@ -1168,8 +1211,12 @@ export type UpdateFromSessionRequest = {
 };
 
 export type UpdateProviderRequest = {
+    context_limit?: number | null;
     model?: string | null;
     provider: string;
+    request_params?: {
+        [key: string]: unknown;
+    } | null;
     session_id: string;
 };
 
@@ -1308,6 +1355,69 @@ export type CallToolResponses = {
 };
 
 export type CallToolResponse2 = CallToolResponses[keyof CallToolResponses];
+
+export type ExportAppData = {
+    body?: never;
+    path: {
+        /**
+         * Name of the app to export
+         */
+        name: string;
+    };
+    query?: never;
+    url: '/agent/export_app/{name}';
+};
+
+export type ExportAppErrors = {
+    /**
+     * App not found
+     */
+    404: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type ExportAppError = ExportAppErrors[keyof ExportAppErrors];
+
+export type ExportAppResponses = {
+    /**
+     * App HTML exported successfully
+     */
+    200: string;
+};
+
+export type ExportAppResponse = ExportAppResponses[keyof ExportAppResponses];
+
+export type ImportAppData = {
+    body: ImportAppRequest;
+    path?: never;
+    query?: never;
+    url: '/agent/import_app';
+};
+
+export type ImportAppErrors = {
+    /**
+     * Bad request - Invalid HTML
+     */
+    400: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type ImportAppError = ImportAppErrors[keyof ImportAppErrors];
+
+export type ImportAppResponses = {
+    /**
+     * App imported successfully
+     */
+    201: ImportAppResponse;
+};
+
+export type ImportAppResponse2 = ImportAppResponses[keyof ImportAppResponses];
 
 export type ListAppsData = {
     body?: never;
@@ -1991,6 +2101,114 @@ export type GetPricingResponses = {
 
 export type GetPricingResponse = GetPricingResponses[keyof GetPricingResponses];
 
+export type GetPromptsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/config/prompts';
+};
+
+export type GetPromptsResponses = {
+    /**
+     * List of all available prompts
+     */
+    200: PromptsListResponse;
+};
+
+export type GetPromptsResponse = GetPromptsResponses[keyof GetPromptsResponses];
+
+export type ResetPromptData = {
+    body?: never;
+    path: {
+        /**
+         * Prompt template name (e.g., system.md)
+         */
+        name: string;
+    };
+    query?: never;
+    url: '/config/prompts/{name}';
+};
+
+export type ResetPromptErrors = {
+    /**
+     * Prompt not found
+     */
+    404: unknown;
+    /**
+     * Failed to reset prompt
+     */
+    500: unknown;
+};
+
+export type ResetPromptResponses = {
+    /**
+     * Prompt reset to default successfully
+     */
+    200: string;
+};
+
+export type ResetPromptResponse = ResetPromptResponses[keyof ResetPromptResponses];
+
+export type GetPromptData = {
+    body?: never;
+    path: {
+        /**
+         * Prompt template name (e.g., system.md)
+         */
+        name: string;
+    };
+    query?: never;
+    url: '/config/prompts/{name}';
+};
+
+export type GetPromptErrors = {
+    /**
+     * Prompt not found
+     */
+    404: unknown;
+};
+
+export type GetPromptResponses = {
+    /**
+     * Prompt content retrieved successfully
+     */
+    200: PromptContentResponse;
+};
+
+export type GetPromptResponse = GetPromptResponses[keyof GetPromptResponses];
+
+export type SavePromptData = {
+    body: SavePromptRequest;
+    path: {
+        /**
+         * Prompt template name (e.g., system.md)
+         */
+        name: string;
+    };
+    query?: never;
+    url: '/config/prompts/{name}';
+};
+
+export type SavePromptErrors = {
+    /**
+     * Prompt not found
+     */
+    404: unknown;
+    /**
+     * Failed to save prompt
+     */
+    500: unknown;
+};
+
+export type SavePromptResponses = {
+    /**
+     * Prompt saved successfully
+     */
+    200: string;
+};
+
+export type SavePromptResponse = SavePromptResponses[keyof SavePromptResponses];
+
 export type ProvidersData = {
     body?: never;
     path?: never;
@@ -2042,6 +2260,32 @@ export type GetProviderModelsResponses = {
 };
 
 export type GetProviderModelsResponse = GetProviderModelsResponses[keyof GetProviderModelsResponses];
+
+export type ConfigureProviderOauthData = {
+    body?: never;
+    path: {
+        /**
+         * Provider name
+         */
+        name: string;
+    };
+    query?: never;
+    url: '/config/providers/{name}/oauth';
+};
+
+export type ConfigureProviderOauthErrors = {
+    /**
+     * OAuth configuration failed
+     */
+    400: unknown;
+};
+
+export type ConfigureProviderOauthResponses = {
+    /**
+     * OAuth configuration completed
+     */
+    200: unknown;
+};
 
 export type ReadConfigData = {
     body: ConfigKeyQuery;
@@ -3030,46 +3274,6 @@ export type GetSessionResponses = {
 
 export type GetSessionResponse = GetSessionResponses[keyof GetSessionResponses];
 
-export type EditMessageData = {
-    body: EditMessageRequest;
-    path: {
-        /**
-         * Unique identifier for the session
-         */
-        session_id: string;
-    };
-    query?: never;
-    url: '/sessions/{session_id}/edit_message';
-};
-
-export type EditMessageErrors = {
-    /**
-     * Bad request - Invalid message timestamp
-     */
-    400: unknown;
-    /**
-     * Unauthorized - Invalid or missing API key
-     */
-    401: unknown;
-    /**
-     * Session or message not found
-     */
-    404: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type EditMessageResponses = {
-    /**
-     * Session prepared for editing - frontend should submit the edited message
-     */
-    200: EditMessageResponse;
-};
-
-export type EditMessageResponse2 = EditMessageResponses[keyof EditMessageResponses];
-
 export type ExportSessionData = {
     body?: never;
     path: {
@@ -3141,6 +3345,46 @@ export type GetSessionExtensionsResponses = {
 };
 
 export type GetSessionExtensionsResponse = GetSessionExtensionsResponses[keyof GetSessionExtensionsResponses];
+
+export type ForkSessionData = {
+    body: ForkRequest;
+    path: {
+        /**
+         * Unique identifier for the session
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/sessions/{session_id}/fork';
+};
+
+export type ForkSessionErrors = {
+    /**
+     * Bad request - truncate=true requires timestamp
+     */
+    400: unknown;
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type ForkSessionResponses = {
+    /**
+     * Session forked successfully
+     */
+    200: ForkResponse;
+};
+
+export type ForkSessionResponse = ForkSessionResponses[keyof ForkSessionResponses];
 
 export type UpdateSessionNameData = {
     body: UpdateSessionNameRequest;

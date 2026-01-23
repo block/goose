@@ -171,6 +171,8 @@ pub enum SystemNotificationType {
 pub struct SystemNotificationContent {
     pub notification_type: SystemNotificationType,
     pub msg: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -241,6 +243,64 @@ impl MessageContent {
             }
             .no_annotation(),
         )
+    }
+
+    pub fn filter_for_audience(&self, audience: Role) -> Option<MessageContent> {
+        match self {
+            MessageContent::Text(text) => {
+                if text
+                    .audience()
+                    .map(|roles| roles.contains(&audience))
+                    .unwrap_or(true)
+                {
+                    Some(self.clone())
+                } else {
+                    None
+                }
+            }
+            MessageContent::Image(img) => {
+                if img
+                    .audience()
+                    .map(|roles| roles.contains(&audience))
+                    .unwrap_or(true)
+                {
+                    Some(self.clone())
+                } else {
+                    None
+                }
+            }
+            MessageContent::ToolResponse(res) => {
+                let Ok(result) = &res.tool_result else {
+                    return Some(self.clone());
+                };
+
+                let filtered_content: Vec<Content> = result
+                    .content
+                    .iter()
+                    .filter(|c| {
+                        c.audience()
+                            .map(|roles| roles.contains(&audience))
+                            .unwrap_or(true)
+                    })
+                    .cloned()
+                    .collect();
+
+                if filtered_content.is_empty() {
+                    return None;
+                }
+
+                Some(MessageContent::ToolResponse(ToolResponse {
+                    id: res.id.clone(),
+                    tool_result: Ok(CallToolResult {
+                        content: filtered_content,
+                        ..result.clone()
+                    }),
+                    metadata: res.metadata.clone(),
+                }))
+            }
+            MessageContent::Thinking(_) | MessageContent::RedactedThinking(_) => None,
+            _ => Some(self.clone()),
+        }
     }
 
     pub fn image<S: Into<String>, T: Into<String>>(data: S, mime_type: T) -> Self {
@@ -369,6 +429,19 @@ impl MessageContent {
         MessageContent::SystemNotification(SystemNotificationContent {
             notification_type,
             msg: msg.into(),
+            data: None,
+        })
+    }
+
+    pub fn system_notification_with_data<S: Into<String>>(
+        notification_type: SystemNotificationType,
+        msg: S,
+        data: serde_json::Value,
+    ) -> Self {
+        MessageContent::SystemNotification(SystemNotificationContent {
+            notification_type,
+            msg: msg.into(),
+            data: Some(data),
         })
     }
 
@@ -606,6 +679,19 @@ impl Message {
         format!("{:?}", self)
     }
 
+    pub fn agent_visible_content(&self) -> Message {
+        let filtered_content = self
+            .content
+            .iter()
+            .filter_map(|c| c.filter_for_audience(Role::Assistant))
+            .collect();
+
+        Message {
+            content: filtered_content,
+            ..self.clone()
+        }
+    }
+
     /// Create a new user message with the current timestamp
     pub fn user() -> Self {
         Message {
@@ -816,39 +902,47 @@ impl Message {
             .with_metadata(MessageMetadata::user_only())
     }
 
-    /// Set the visibility metadata for the message
+    pub fn with_system_notification_with_data<S: Into<String>>(
+        self,
+        notification_type: SystemNotificationType,
+        msg: S,
+        data: serde_json::Value,
+    ) -> Self {
+        self.with_content(MessageContent::system_notification_with_data(
+            notification_type,
+            msg,
+            data,
+        ))
+        .with_metadata(MessageMetadata::user_only())
+    }
+
     pub fn with_visibility(mut self, user_visible: bool, agent_visible: bool) -> Self {
         self.metadata.user_visible = user_visible;
         self.metadata.agent_visible = agent_visible;
         self
     }
 
-    /// Set the entire metadata for the message
     pub fn with_metadata(mut self, metadata: MessageMetadata) -> Self {
         self.metadata = metadata;
         self
     }
 
-    /// Mark the message as only visible to the user (not the agent)
     pub fn user_only(mut self) -> Self {
         self.metadata.user_visible = true;
         self.metadata.agent_visible = false;
         self
     }
 
-    /// Mark the message as only visible to the agent (not the user)
     pub fn agent_only(mut self) -> Self {
         self.metadata.user_visible = false;
         self.metadata.agent_visible = true;
         self
     }
 
-    /// Check if the message is visible to the user
     pub fn is_user_visible(&self) -> bool {
         self.metadata.user_visible
     }
 
-    /// Check if the message is visible to the agent
     pub fn is_agent_visible(&self) -> bool {
         self.metadata.agent_visible
     }
@@ -898,6 +992,7 @@ mod tests {
             .with_tool_request(
                 "tool123",
                 Ok(CallToolRequestParam {
+                    task: None,
                     name: "test_tool".into(),
                     arguments: Some(object!({"param": "value"})),
                 }),
@@ -1156,6 +1251,7 @@ mod tests {
     #[test]
     fn test_message_with_tool_request() {
         let tool_call = Ok(CallToolRequestParam {
+            task: None,
             name: "test_tool".into(),
             arguments: Some(object!({})),
         });

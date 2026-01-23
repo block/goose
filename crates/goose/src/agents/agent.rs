@@ -23,8 +23,7 @@ use crate::agents::subagent_task_config::TaskConfig;
 use crate::agents::subagent_tool::{
     create_subagent_tool, handle_subagent_tool, SUBAGENT_TOOL_NAME,
 };
-use crate::agents::types::SessionConfig;
-use crate::agents::types::{FrontendTool, SharedProvider, ToolResultReceiver};
+use crate::agents::types::{FrontendTool, SessionConfig, SharedProvider, ToolResultReceiver};
 use crate::config::permission::PermissionManager;
 use crate::config::{get_enabled_extensions, Config, GooseMode};
 use crate::context_mgmt::{
@@ -634,6 +633,7 @@ impl Agent {
 
     /// Load extensions from session into the agent
     /// Skips extensions that are already loaded
+    /// Uses the session's working_dir for extension initialization
     pub async fn load_extensions_from_session(
         self: &Arc<Self>,
         session: &Session,
@@ -651,11 +651,15 @@ impl Agent {
             }
         };
 
+        // Capture the session's working_dir to pass to extensions
+        let working_dir = session.working_dir.clone();
+
         let extension_futures = enabled_configs
             .into_iter()
             .map(|config| {
                 let config_clone = config.clone();
                 let agent_ref = self.clone();
+                let working_dir_clone = working_dir.clone();
 
                 async move {
                     let name = config_clone.name().to_string();
@@ -674,7 +678,10 @@ impl Agent {
                         };
                     }
 
-                    match agent_ref.add_extension(config_clone).await {
+                    match agent_ref
+                        .add_extension_with_working_dir(config_clone, Some(working_dir_clone))
+                        .await
+                    {
                         Ok(_) => ExtensionLoadResult {
                             name,
                             success: true,
@@ -698,6 +705,14 @@ impl Agent {
     }
 
     pub async fn add_extension(&self, extension: ExtensionConfig) -> ExtensionResult<()> {
+        self.add_extension_with_working_dir(extension, None).await
+    }
+
+    pub async fn add_extension_with_working_dir(
+        &self,
+        extension: ExtensionConfig,
+        working_dir: Option<std::path::PathBuf>,
+    ) -> ExtensionResult<()> {
         match &extension {
             ExtensionConfig::Frontend {
                 tools,
@@ -726,7 +741,7 @@ impl Agent {
             }
             _ => {
                 self.extension_manager
-                    .add_extension(extension.clone())
+                    .add_extension_with_working_dir(extension.clone(), working_dir)
                     .await?;
             }
         }
@@ -769,7 +784,7 @@ impl Agent {
     pub async fn list_tools(&self, session_id: &str, extension_name: Option<String>) -> Vec<Tool> {
         let mut prefixed_tools = self
             .extension_manager
-            .get_prefixed_tools(extension_name.clone())
+            .get_prefixed_tools(session_id, extension_name.clone())
             .await
             .unwrap_or_default();
 
@@ -983,7 +998,14 @@ impl Agent {
                     )
                 );
 
-                match compact_messages(self.provider().await?.as_ref(), &conversation_to_compact, false).await {
+                match compact_messages(
+                    self.provider().await?.as_ref(),
+                    &session_config.id,
+                    &conversation_to_compact,
+                    false,
+                )
+                .await
+                {
                     Ok((compacted_conversation, summarization_usage)) => {
                         session_manager.replace_conversation(&session_config.id, &compacted_conversation).await?;
                         self.update_session_metrics(&session_config, &summarization_usage, true).await?;
@@ -1025,7 +1047,7 @@ impl Agent {
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         let context = self
-            .prepare_reply_context(&session_config.id, conversation, &session.working_dir)
+            .prepare_reply_context(&session.id, conversation, session.working_dir.as_path())
             .await?;
         let ReplyContext {
             mut conversation,
@@ -1092,6 +1114,7 @@ impl Agent {
 
                 let mut stream = Self::stream_response_from_provider(
                     self.provider().await?,
+                    &session_config.id,
                     &system_prompt,
                     conversation_with_moim.messages(),
                     &tools,
@@ -1278,6 +1301,26 @@ impl Agent {
                                             ToolStreamItem::Result(output) => {
                                                 let output = call_tool_result::validate(output);
 
+                                                // Platform extensions use meta as a way to publish notifications. Ideally we'd
+                                                // send the notifications directly, but the current plumbing doesn't support that
+                                                // well:
+                                                if let Ok(ref call_result) = output {
+                                                    if let Some(ref meta) = call_result.meta {
+                                                        if let Some(notification_data) = meta.0.get("platform_notification") {
+                                                            if let Some(method) = notification_data.get("method").and_then(|v| v.as_str()) {
+                                                                let params = notification_data.get("params").cloned();
+                                                                let custom_notification = rmcp::model::CustomNotification::new(
+                                                                    method.to_string(),
+                                                                    params,
+                                                                );
+
+                                                                let server_notification = rmcp::model::ServerNotification::CustomNotification(custom_notification);
+                                                                yield AgentEvent::McpNotification((request_id.clone(), server_notification));
+                                                            }
+                                                        }
+                                                    }
+                                                }
+
                                                 if enable_extension_request_ids.contains(&request_id)
                                                     && output.is_err()
                                                 {
@@ -1372,7 +1415,14 @@ impl Agent {
                                 )
                             );
 
-                            match compact_messages(self.provider().await?.as_ref(), &conversation, false).await {
+                            match compact_messages(
+                                self.provider().await?.as_ref(),
+                                &session_config.id,
+                                &conversation,
+                                false,
+                            )
+                            .await
+                            {
                                 Ok((compacted_conversation, usage)) => {
                                     session_manager.replace_conversation(&session_config.id, &compacted_conversation).await?;
                                     self.update_session_metrics(&session_config, &usage, true).await?;
@@ -1517,18 +1567,23 @@ impl Agent {
         prompt_manager.set_system_prompt_override(template);
     }
 
-    pub async fn list_extension_prompts(&self) -> HashMap<String, Vec<Prompt>> {
+    pub async fn list_extension_prompts(&self, session_id: &str) -> HashMap<String, Vec<Prompt>> {
         self.extension_manager
-            .list_prompts(CancellationToken::default())
+            .list_prompts(session_id, CancellationToken::default())
             .await
             .expect("Failed to list prompts")
     }
 
-    pub async fn get_prompt(&self, name: &str, arguments: Value) -> Result<GetPromptResult> {
+    pub async fn get_prompt(
+        &self,
+        session_id: &str,
+        name: &str,
+        arguments: Value,
+    ) -> Result<GetPromptResult> {
         // First find which extension has this prompt
         let prompts = self
             .extension_manager
-            .list_prompts(CancellationToken::default())
+            .list_prompts(session_id, CancellationToken::default())
             .await
             .map_err(|e| anyhow!("Failed to list prompts: {}", e))?;
 
@@ -1539,7 +1594,13 @@ impl Agent {
         {
             return self
                 .extension_manager
-                .get_prompt(extension, name, arguments, CancellationToken::default())
+                .get_prompt(
+                    session_id,
+                    extension,
+                    name,
+                    arguments,
+                    CancellationToken::default(),
+                )
                 .await
                 .map_err(|e| anyhow!("Failed to get prompt: {}", e));
         }
@@ -1547,8 +1608,11 @@ impl Agent {
         Err(anyhow!("Prompt '{}' not found", name))
     }
 
-    pub async fn get_plan_prompt(&self) -> Result<String> {
-        let tools = self.extension_manager.get_prefixed_tools(None).await?;
+    pub async fn get_plan_prompt(&self, session_id: &str) -> Result<String> {
+        let tools = self
+            .extension_manager
+            .get_prefixed_tools(session_id, None)
+            .await?;
         let tools_info = tools
             .into_iter()
             .map(|tool| {
@@ -1575,13 +1639,19 @@ impl Agent {
         }
     }
 
-    pub async fn create_recipe(&self, mut messages: Conversation) -> Result<Recipe> {
+    pub async fn create_recipe(
+        &self,
+        session_id: &str,
+        mut messages: Conversation,
+    ) -> Result<Recipe> {
         tracing::info!("Starting recipe creation with {} messages", messages.len());
 
         let extensions_info = self.extension_manager.get_extensions_info().await;
         tracing::debug!("Retrieved {} extensions info", extensions_info.len());
-        let (extension_count, tool_count) =
-            self.extension_manager.get_extension_and_tool_counts().await;
+        let (extension_count, tool_count) = self
+            .extension_manager
+            .get_extension_and_tool_counts(session_id)
+            .await;
 
         // Get model name from provider
         let provider = self.provider().await.map_err(|e| {
@@ -1603,7 +1673,7 @@ impl Agent {
         let recipe_prompt = prompt_manager.get_recipe_prompt().await;
         let tools = self
             .extension_manager
-            .get_prefixed_tools(None)
+            .get_prefixed_tools(session_id, None)
             .await
             .map_err(|e| {
                 tracing::error!("Failed to get tools for recipe creation: {}", e);
@@ -1635,7 +1705,7 @@ impl Agent {
                 tracing::error!("{}", error);
                 error
             })?
-            .complete(&system_prompt, messages.messages(), &tools)
+            .complete(session_id, &system_prompt, messages.messages(), &tools)
             .await
             .map_err(|e| {
                 tracing::error!("Provider completion failed during recipe creation: {}", e);

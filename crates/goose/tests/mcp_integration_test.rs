@@ -59,6 +59,7 @@ impl Provider for MockProvider {
 
     async fn complete_with_model(
         &self,
+        _session_id: &str,
         _model_config: &ModelConfig,
         _system: &str,
         _messages: &[Message],
@@ -121,18 +122,18 @@ enum TestMode {
 #[test_case(
     vec!["npx", "-y", "@modelcontextprotocol/server-everything"],
     vec![
-        CallToolRequestParam { name: "echo".into(), arguments: Some(object!({"message": "Hello, world!" })) },
-        CallToolRequestParam { name: "add".into(), arguments: Some(object!({"a": 1, "b": 2 })) },
-        CallToolRequestParam { name: "longRunningOperation".into(), arguments: Some(object!({"duration": 1, "steps": 5 })) },
-        CallToolRequestParam { name: "structuredContent".into(), arguments: Some(object!({"location": "11238"})) },
-        CallToolRequestParam { name: "sampleLLM".into(), arguments: Some(object!({"prompt": "Please provide a quote from The Great Gatsby", "maxTokens": 100 })) }
+        CallToolRequestParam { task: None, name: "echo".into(), arguments: Some(object!({"message": "Hello, world!" })) },
+        CallToolRequestParam { task: None, name: "add".into(), arguments: Some(object!({"a": 1, "b": 2 })) },
+        CallToolRequestParam { task: None, name: "longRunningOperation".into(), arguments: Some(object!({"duration": 1, "steps": 5 })) },
+        CallToolRequestParam { task: None, name: "structuredContent".into(), arguments: Some(object!({"location": "11238"})) },
+        CallToolRequestParam { task: None, name: "sampleLLM".into(), arguments: Some(object!({"prompt": "Please provide a quote from The Great Gatsby", "maxTokens": 100 })) }
     ],
     vec![]
 )]
 #[test_case(
     vec!["github-mcp-server", "stdio"],
     vec![
-        CallToolRequestParam { name: "get_file_contents".into(), arguments: Some(object!({
+        CallToolRequestParam { task: None, name: "get_file_contents".into(), arguments: Some(object!({
             "owner": "block",
             "repo": "goose",
             "path": "README.md",
@@ -144,7 +145,7 @@ enum TestMode {
 #[test_case(
     vec!["uvx", "mcp-server-fetch"],
     vec![
-        CallToolRequestParam { name: "fetch".into(), arguments: Some(object!({
+        CallToolRequestParam { task: None, name: "fetch".into(), arguments: Some(object!({
             "url": "https://example.com",
         })) }
     ],
@@ -153,7 +154,7 @@ enum TestMode {
 #[test_case(
     vec!["uv", "run", "--with", "fastmcp==2.14.4", "fastmcp", "run", "tests/fastmcp_test_server.py"],
     vec![
-        CallToolRequestParam { name: "divide".into(), arguments: Some(object!({
+        CallToolRequestParam { task: None, name: "divide".into(), arguments: Some(object!({
             "dividend": 10,
             "divisor": 2
         })) }
@@ -246,10 +247,13 @@ async fn test_replayed_session(
 
     #[allow(clippy::redundant_closure_call)]
     let result = (async || -> Result<(), Box<dyn std::error::Error>> {
-        extension_manager.add_extension(extension_config).await?;
+        extension_manager
+            .add_extension_with_working_dir(extension_config, None)
+            .await?;
         let mut results = Vec::new();
         for tool_call in tool_calls {
             let tool_call = CallToolRequestParam {
+                task: None,
                 name: format!("test__{}", tool_call.name).into(),
                 arguments: tool_call.arguments,
             };

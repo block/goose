@@ -19,11 +19,9 @@ use crate::providers::base::{ConfigKey, MessageStream, Provider, ProviderMetadat
 
 use crate::providers::errors::ProviderError;
 use crate::providers::formats::gcpvertexai::{
-    create_request, get_usage, response_to_message, response_to_streaming_message, ClaudeVersion,
-    GcpVertexAIModel, GeminiVersion, ModelProvider, RequestContext,
+    create_request, get_usage, response_to_message, response_to_streaming_message, GcpLocation,
+    ModelProvider, RequestContext, DEFAULT_MODEL, KNOWN_MODELS,
 };
-
-use crate::providers::formats::gcpvertexai::GcpLocation::Iowa;
 use crate::providers::gcpauth::GcpAuth;
 use crate::providers::retry::RetryConfig;
 use crate::providers::utils::RequestLog;
@@ -157,7 +155,7 @@ impl GcpVertexAIProvider {
         let config = crate::config::Config::global();
         let project_id = config.get_param("GCP_PROJECT_ID")?;
         let location = Self::determine_location(config)?;
-        let host = format!("https://{}-aiplatform.googleapis.com", location);
+        let host = Self::build_host_url(&location);
 
         let client = Client::builder()
             .timeout(Duration::from_secs(DEFAULT_TIMEOUT_SECS))
@@ -225,7 +223,15 @@ impl GcpVertexAIProvider {
             .get_param("GCP_LOCATION")
             .ok()
             .filter(|location: &String| !location.trim().is_empty())
-            .unwrap_or_else(|| Iowa.to_string()))
+            .unwrap_or_else(|| GcpLocation::Iowa.to_string()))
+    }
+
+    fn build_host_url(location: &str) -> String {
+        if location == "global" {
+            "https://aiplatform.googleapis.com".to_string()
+        } else {
+            format!("https://{}-aiplatform.googleapis.com", location)
+        }
     }
 
     /// Retrieves an authentication token for API requests.
@@ -430,43 +436,118 @@ impl GcpVertexAIProvider {
             _ => result,
         }
     }
+
+    async fn filter_by_org_policy(&self, models: Vec<String>) -> Vec<String> {
+        let Ok(auth_header) = self.get_auth_header().await else {
+            tracing::debug!("Could not get auth header for org policy check, returning all models");
+            return models;
+        };
+
+        let url = format!(
+            "https://cloudresourcemanager.googleapis.com/v1/projects/{}:getEffectiveOrgPolicy",
+            self.project_id
+        );
+
+        let payload = serde_json::json!({
+            "constraint": "constraints/vertexai.allowedModels"
+        });
+
+        let response = match self
+            .client
+            .post(&url)
+            .header("Authorization", &auth_header)
+            .json(&payload)
+            .send()
+            .await
+        {
+            Ok(r) => r,
+            Err(e) => {
+                tracing::debug!("Failed to fetch org policy: {e}, returning all models");
+                return models;
+            }
+        };
+
+        let json = match response.json::<Value>().await {
+            Ok(j) => j,
+            Err(e) => {
+                tracing::debug!("Failed to parse org policy response: {e}, returning all models");
+                return models;
+            }
+        };
+
+        let allowed_patterns: Vec<String> = json
+            .get("listPolicy")
+            .and_then(|lp| lp.get("allowedValues"))
+            .and_then(|av| av.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        if allowed_patterns.is_empty() {
+            return models;
+        }
+
+        models
+            .into_iter()
+            .filter(|model| Self::is_model_allowed(model, &allowed_patterns))
+            .collect()
+    }
+
+    fn is_model_allowed(model: &str, allowed_patterns: &[String]) -> bool {
+        let publisher = if model.starts_with("claude-") {
+            "anthropic"
+        } else if model.starts_with("gemini-") {
+            "google"
+        } else {
+            return true;
+        };
+
+        for pattern in allowed_patterns {
+            if pattern.contains(&format!("publishers/{publisher}/models/*")) {
+                return true;
+            }
+
+            let pattern_model = pattern
+                .split("/models/")
+                .nth(1)
+                .map(|s| s.trim_end_matches(":predict").trim_end_matches(":*"));
+
+            if let Some(pattern_model) = pattern_model {
+                if model == pattern_model || model.starts_with(&format!("{pattern_model}@")) {
+                    return true;
+                }
+            }
+        }
+
+        false
+    }
 }
 
 #[async_trait]
 impl Provider for GcpVertexAIProvider {
-    /// Returns metadata about the GCP Vertex AI provider.
     fn metadata() -> ProviderMetadata
     where
         Self: Sized,
     {
-        let model_strings: Vec<String> = [
-            GcpVertexAIModel::Claude(ClaudeVersion::Sonnet4),
-            GcpVertexAIModel::Claude(ClaudeVersion::Opus4),
-            GcpVertexAIModel::Gemini(GeminiVersion::Pro15),
-            GcpVertexAIModel::Gemini(GeminiVersion::Flash20),
-            GcpVertexAIModel::Gemini(GeminiVersion::Pro20Exp),
-            GcpVertexAIModel::Gemini(GeminiVersion::Pro25Exp),
-            GcpVertexAIModel::Gemini(GeminiVersion::Flash25Preview),
-            GcpVertexAIModel::Gemini(GeminiVersion::Pro25Preview),
-            GcpVertexAIModel::Gemini(GeminiVersion::Flash25),
-            GcpVertexAIModel::Gemini(GeminiVersion::Pro25),
-        ]
-        .iter()
-        .map(|model| model.to_string())
-        .collect();
-
-        let known_models: Vec<&str> = model_strings.iter().map(|s| s.as_str()).collect();
-
         ProviderMetadata::new(
             "gcp_vertex_ai",
             "GCP Vertex AI",
             "Access variety of AI models such as Claude, Gemini through Vertex AI",
-            "gemini-2.5-flash",
-            known_models,
+            DEFAULT_MODEL,
+            KNOWN_MODELS.to_vec(),
             GCP_VERTEX_AI_DOC_URL,
             vec![
                 ConfigKey::new("GCP_PROJECT_ID", true, false, None),
-                ConfigKey::new("GCP_LOCATION", true, false, Some(Iowa.to_string().as_str())),
+                ConfigKey::new(
+                    "GCP_LOCATION",
+                    true,
+                    false,
+                    Some(&GcpLocation::Iowa.to_string()),
+                ),
                 ConfigKey::new(
                     "GCP_MAX_RETRIES",
                     false,
@@ -493,6 +574,7 @@ impl Provider for GcpVertexAIProvider {
                 ),
             ],
         )
+        .with_unlisted_models()
     }
 
     fn get_name(&self) -> &str {
@@ -511,6 +593,7 @@ impl Provider for GcpVertexAIProvider {
     )]
     async fn complete_with_model(
         &self,
+        _session_id: &str,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -544,6 +627,7 @@ impl Provider for GcpVertexAIProvider {
 
     async fn stream(
         &self,
+        _session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -586,6 +670,15 @@ impl Provider for GcpVertexAIProvider {
                 yield (message, usage);
             }
         }))
+    }
+
+    async fn fetch_supported_models(
+        &self,
+        _session_id: &str,
+    ) -> Result<Option<Vec<String>>, ProviderError> {
+        let models: Vec<String> = KNOWN_MODELS.iter().map(|s| s.to_string()).collect();
+        let filtered = self.filter_by_org_policy(models).await;
+        Ok(Some(filtered))
     }
 }
 
@@ -705,15 +798,9 @@ mod tests {
     #[test]
     fn test_provider_metadata() {
         let metadata = GcpVertexAIProvider::metadata();
-        let model_names: Vec<String> = metadata
-            .known_models
-            .iter()
-            .map(|m| m.name.clone())
-            .collect();
-        assert!(model_names.contains(&"claude-sonnet-4@20250514".to_string()));
-        assert!(model_names.contains(&"gemini-1.5-pro-002".to_string()));
-        assert!(model_names.contains(&"gemini-2.5-pro".to_string()));
-        // Should contain the original 2 config keys plus 4 new retry-related ones
+        assert!(!metadata.known_models.is_empty());
+        assert_eq!(metadata.default_model, "gemini-2.5-flash");
         assert_eq!(metadata.config_keys.len(), 6);
+        assert!(metadata.allows_unlisted_models);
     }
 }

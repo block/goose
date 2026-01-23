@@ -3,7 +3,7 @@ use crate::config::permission::PermissionLevel;
 use crate::config::PermissionManager;
 use crate::conversation::message::{Message, MessageContent, ToolRequest};
 use crate::conversation::Conversation;
-use crate::prompt_template::render_global_file;
+use crate::prompt_template::render_template;
 use crate::providers::base::Provider;
 use chrono::Utc;
 use indoc::indoc;
@@ -131,6 +131,7 @@ fn extract_read_only_tools(response: &Message) -> Option<Vec<String>> {
 /// Executes the read-only tools detection and returns the list of tools with read-only operations.
 pub async fn detect_read_only_tools(
     provider: Arc<dyn Provider>,
+    session_id: &str,
     tool_requests: Vec<&ToolRequest>,
 ) -> Vec<String> {
     if tool_requests.is_empty() {
@@ -140,11 +141,12 @@ pub async fn detect_read_only_tools(
     let check_messages = create_check_messages(tool_requests);
 
     let context = PermissionJudgeContext {};
-    let system_prompt = render_global_file("permission_judge.md", &context)
+    let system_prompt = render_template("permission_judge.md", &context)
         .unwrap_or_else(|_| "You are a good analyst and can detect operations whether they have read-only operations.".to_string());
 
     let res = provider
         .complete(
+            session_id,
             &system_prompt,
             check_messages.messages(),
             std::slice::from_ref(&tool),
@@ -168,6 +170,7 @@ pub struct PermissionCheckResult {
 }
 
 pub async fn check_tool_permissions(
+    session_id: &str,
     candidate_requests: &[ToolRequest],
     mode: &str,
     tools_with_readonly_annotation: HashSet<String>,
@@ -238,7 +241,8 @@ pub async fn check_tool_permissions(
     // 3. LLM detect
     if !llm_detect_candidates.is_empty() && mode == "smart_approve" {
         let detected_readonly_tools =
-            detect_read_only_tools(provider, llm_detect_candidates.iter().collect()).await;
+            detect_read_only_tools(provider, session_id, llm_detect_candidates.iter().collect())
+                .await;
         for request in llm_detect_candidates {
             if let Ok(tool_call) = request.tool_call.clone() {
                 if detected_readonly_tools.contains(&tool_call.name.to_string()) {

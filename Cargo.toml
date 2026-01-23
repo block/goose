@@ -4,7 +4,7 @@ resolver = "2"
 
 [workspace.package]
 edition = "2021"
-version = "1.20.0"
+version = "1.21.0"
 authors = ["Block <ai-oss-tools@block.xyz>"]
 license = "Apache-2.0"
 repository = "https://github.com/block/goose"
@@ -15,7 +15,7 @@ uninlined_format_args = "allow"
 string_slice = "warn"
 
 [workspace.dependencies]
-rmcp = { version = "0.12.0", features = ["schemars", "auth"] }
+rmcp = { version = "0.13.0", features = ["schemars", "auth"] }
 anyhow = "1.0"
 futures = "0.3"
 regex = "1.12"
@@ -30,3 +30,9 @@ crunchy = "0.2.4"
 env-lock = "1.0.1"
 wiremock = "0.6"
 serial_test = "3.2.0"
+test-case = "3.3.1"
+base64 = "0.22.1"
+reqwest = { version = "0.12.28", default-features = false }
+tower = "0.5.2"
+tower-http = "0.6.8"
+url = "2.5.8"

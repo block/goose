@@ -1,6 +1,6 @@
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::extension_manager::get_parameter_names;
-use crate::agents::mcp_client::{Error, McpClientTrait, McpMeta};
+use crate::agents::mcp_client::{Error, McpClientTrait};
 use anyhow::Result;
 use async_trait::async_trait;
 use boa_engine::builtins::promise::PromiseState;
@@ -422,6 +422,7 @@ impl CodeExecutionClient {
         let info = InitializeResult {
             protocol_version: ProtocolVersion::V_2025_03_26,
             capabilities: ServerCapabilities {
+                tasks: None,
                 tools: Some(ToolsCapability {
                     list_changed: Some(false),
                 }),
@@ -457,7 +458,7 @@ impl CodeExecutionClient {
         Ok(Self { info, context })
     }
 
-    async fn get_tool_infos(&self) -> Vec<ToolInfo> {
+    async fn get_tool_infos(&self, session_id: &str) -> Vec<ToolInfo> {
         let Some(manager) = self
             .context
             .extension_manager
@@ -467,7 +468,10 @@ impl CodeExecutionClient {
             return Vec::new();
         };
 
-        match manager.get_prefixed_tools_excluding(EXTENSION_NAME).await {
+        match manager
+            .get_prefixed_tools_excluding(session_id, EXTENSION_NAME)
+            .await
+        {
             Ok(tools) if !tools.is_empty() => {
                 tools.iter().filter_map(ToolInfo::from_mcp_tool).collect()
             }
@@ -487,7 +491,7 @@ impl CodeExecutionClient {
             .ok_or("Missing required parameter: code")?
             .to_string();
 
-        let tools = self.get_tool_infos().await;
+        let tools = self.get_tool_infos(session_id).await;
         let (call_tx, call_rx) = mpsc::unbounded_channel();
         let tool_handler = tokio::spawn(Self::run_tool_handler(
             session_id.to_string(),
@@ -505,6 +509,7 @@ impl CodeExecutionClient {
 
     async fn handle_read_module(
         &self,
+        session_id: &str,
         arguments: Option<JsonObject>,
     ) -> Result<Vec<Content>, String> {
         let path = arguments
@@ -513,7 +518,7 @@ impl CodeExecutionClient {
             .and_then(|v| v.as_str())
             .ok_or("Missing required parameter: module_path")?;
 
-        let tools = self.get_tool_infos().await;
+        let tools = self.get_tool_infos(session_id).await;
         let parts: Vec<&str> = path.trim_start_matches('/').split('/').collect();
 
         match parts.as_slice() {
@@ -548,6 +553,7 @@ impl CodeExecutionClient {
 
     async fn handle_search_modules(
         &self,
+        session_id: &str,
         arguments: Option<JsonObject>,
     ) -> Result<Vec<Content>, String> {
         let terms = arguments
@@ -579,7 +585,7 @@ impl CodeExecutionClient {
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
 
-        let tools = self.get_tool_infos().await;
+        let tools = self.get_tool_infos(session_id).await;
         Self::handle_search(&tools, &terms_vec, use_regex)
     }
 
@@ -667,6 +673,7 @@ impl CodeExecutionClient {
             let result = match extension_manager.as_ref().and_then(|w| w.upgrade()) {
                 Some(manager) => {
                     let tool_call = CallToolRequestParam {
+                        task: None,
                         name: tool_name.into(),
                         arguments: serde_json::from_str(&arguments).ok(),
                     };
@@ -705,6 +712,7 @@ impl McpClientTrait for CodeExecutionClient {
     #[allow(clippy::too_many_lines)]
     async fn list_tools(
         &self,
+        _session_id: &str,
         _next_cursor: Option<String>,
         _cancellation_token: CancellationToken,
     ) -> Result<ListToolsResult, Error> {
@@ -829,15 +837,15 @@ impl McpClientTrait for CodeExecutionClient {
 
     async fn call_tool(
         &self,
+        session_id: &str,
         name: &str,
         arguments: Option<JsonObject>,
-        meta: McpMeta,
         _cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         let content = match name {
-            "execute_code" => self.handle_execute_code(&meta.session_id, arguments).await,
-            "read_module" => self.handle_read_module(arguments).await,
-            "search_modules" => self.handle_search_modules(arguments).await,
+            "execute_code" => self.handle_execute_code(session_id, arguments).await,
+            "read_module" => self.handle_read_module(session_id, arguments).await,
+            "search_modules" => self.handle_search_modules(session_id, arguments).await,
             _ => Err(format!("Unknown tool: {name}")),
         };
 
@@ -853,8 +861,8 @@ impl McpClientTrait for CodeExecutionClient {
         Some(&self.info)
     }
 
-    async fn get_moim(&self, _session_id: &str) -> Option<String> {
-        let tools = self.get_tool_infos().await;
+    async fn get_moim(&self, session_id: &str) -> Option<String> {
+        let tools = self.get_tool_infos(session_id).await;
         if tools.is_empty() {
             return None;
         }
@@ -907,9 +915,9 @@ mod tests {
 
         let result = client
             .call_tool(
+                "test-session-id",
                 "execute_code",
                 Some(args),
-                McpMeta::new("test-session-id"),
                 CancellationToken::new(),
             )
             .await
@@ -944,9 +952,9 @@ mod tests {
 
         let result = client
             .call_tool(
+                "test-session-id",
                 "execute_code",
                 Some(args),
-                McpMeta::new("test-session-id"),
                 CancellationToken::new(),
             )
             .await
@@ -982,7 +990,9 @@ mod tests {
             Value::String("nonexistent".to_string()),
         );
 
-        let result = client.handle_read_module(Some(args)).await;
+        let result = client
+            .handle_read_module("test-session-id", Some(args))
+            .await;
         assert!(result.is_err());
     }
 

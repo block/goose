@@ -1,3 +1,4 @@
+import { AppEvents } from '../../constants/events';
 import React, { useEffect, useState, useRef, useCallback, useMemo, startTransition } from 'react';
 import {
   MessageSquareText,
@@ -10,6 +11,7 @@ import {
   Download,
   Upload,
   ExternalLink,
+  Copy,
   Puzzle,
 } from 'lucide-react';
 import { Card } from '../ui/card';
@@ -27,6 +29,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/
 import {
   deleteSession,
   exportSession,
+  forkSession,
   importSession,
   listSessions,
   Session,
@@ -36,6 +39,8 @@ import {
 } from '../../api';
 import { formatExtensionName } from '../settings/extensions/subcomponents/ExtensionList';
 import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
+import { shouldShowNewChatTitle } from '../../sessions';
+import { DEFAULT_CHAT_TITLE } from '../../contexts/ChatContext';
 
 function getSessionExtensionNames(extensionData: ExtensionData): string[] {
   try {
@@ -416,6 +421,11 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       setSessions((prevSessions) =>
         prevSessions.map((s) => (s.id === sessionId ? { ...s, name: newDescription } : s))
       );
+      window.dispatchEvent(
+        new CustomEvent(AppEvents.SESSION_RENAMED, {
+          detail: { sessionId, newName: newDescription },
+        })
+      );
     }, []);
 
     const handleEditSession = useCallback((session: Session) => {
@@ -427,6 +437,25 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       setSessionToDelete(session);
       setShowDeleteConfirmation(true);
     }, []);
+
+    const handleDuplicateSession = useCallback(
+      async (session: Session) => {
+        try {
+          await forkSession({
+            path: { session_id: session.id },
+            body: { truncate: false, copy: true },
+            throwOnError: true,
+          });
+          toast.success(`Session "${session.name}" duplicated successfully`);
+          await loadSessions();
+        } catch (error) {
+          console.error('Error duplicating session:', error);
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          toast.error(`Failed to duplicate session: ${errorMessage}`);
+        }
+      },
+      [loadSessions]
+    );
 
     const handleConfirmDelete = useCallback(async () => {
       if (!sessionToDelete) return;
@@ -442,6 +471,9 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           throwOnError: true,
         });
         toast.success('Session deleted successfully');
+        window.dispatchEvent(
+          new CustomEvent(AppEvents.SESSION_DELETED, { detail: { sessionId: sessionToDeleteId } })
+        );
       } catch (error) {
         console.error('Error deleting session:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -519,27 +551,37 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
     const SessionItem = React.memo(function SessionItem({
       session,
       onEditClick,
+      onDuplicateClick,
       onDeleteClick,
       onExportClick,
       onOpenInNewWindow,
     }: {
       session: Session;
       onEditClick: (session: Session) => void;
+      onDuplicateClick: (session: Session) => void;
       onDeleteClick: (session: Session) => void;
       onExportClick: (session: Session, e: React.MouseEvent) => void;
       onOpenInNewWindow: (session: Session, e: React.MouseEvent) => void;
     }) {
       const handleEditClick = useCallback(
         (e: React.MouseEvent) => {
-          e.stopPropagation(); // Prevent card click
+          e.stopPropagation();
           onEditClick(session);
         },
         [onEditClick, session]
       );
 
+      const handleDuplicateClick = useCallback(
+        (e: React.MouseEvent) => {
+          e.stopPropagation();
+          onDuplicateClick(session);
+        },
+        [onDuplicateClick, session]
+      );
+
       const handleDeleteClick = useCallback(
         (e: React.MouseEvent) => {
-          e.stopPropagation(); // Prevent card click
+          e.stopPropagation();
           onDeleteClick(session);
         },
         [onDeleteClick, session]
@@ -563,6 +605,8 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         [onOpenInNewWindow, session]
       );
 
+      const displayName = shouldShowNewChatTitle(session) ? DEFAULT_CHAT_TITLE : session.name;
+
       // Get extension names for this session
       const extensionNames = useMemo(
         () => getSessionExtensionNames(session.extension_data),
@@ -576,7 +620,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           ref={(el) => setSessionRefs(session.id, el)}
         >
           <div className="flex items-start justify-between gap-2 mb-1">
-            <h3 className="text-base break-words line-clamp-2 flex-1 min-w-0">{session.name}</h3>
+            <h3 className="text-base break-words line-clamp-2 flex-1 min-w-0">{displayName}</h3>
             <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
               <button
                 onClick={handleOpenInNewWindowClick}
@@ -591,6 +635,13 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                 title="Edit session name"
               >
                 <Edit2 className="w-3 h-3 text-textSubtle hover:text-textStandard" />
+              </button>
+              <button
+                onClick={handleDuplicateClick}
+                className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+                title="Duplicate session"
+              >
+                <Copy className="w-3 h-3 text-textSubtle hover:text-textStandard" />
               </button>
               <button
                 onClick={handleDeleteClick}
@@ -744,6 +795,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                     key={session.id}
                     session={session}
                     onEditClick={handleEditSession}
+                    onDuplicateClick={handleDuplicateSession}
                     onDeleteClick={handleDeleteSession}
                     onExportClick={handleExportSession}
                     onOpenInNewWindow={handleOpenInNewWindow}

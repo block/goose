@@ -29,6 +29,7 @@ import { expandTilde } from './utils/pathUtils';
 import log from './utils/logger';
 import { ensureWinShims } from './utils/winShims';
 import { addRecentDir, loadRecentDirs } from './utils/recentDirs';
+import { formatAppName } from './utils/conversionUtils';
 import {
   EnvToggles,
   loadSettings,
@@ -516,8 +517,8 @@ let appConfig = {
 
 const windowMap = new Map<number, BrowserWindow>();
 const goosedClients = new Map<number, Client>();
+const appWindows = new Map<string, BrowserWindow>();
 
-// Track power save blockers per window
 const windowPowerSaveBlockers = new Map<number, number>(); // windowId -> blockerId
 // Track pending initial messages per window
 const pendingInitialMessages = new Map<number, string>(); // windowId -> initialMessage
@@ -853,7 +854,14 @@ const createChat = async (
   return mainWindow;
 };
 
+let activeLauncherWindow: BrowserWindow | null = null;
+
 const createLauncher = () => {
+  if (activeLauncherWindow && !activeLauncherWindow.isDestroyed()) {
+    activeLauncherWindow.focus();
+    return activeLauncherWindow;
+  }
+
   const launcherWindow = new BrowserWindow({
     width: 600,
     height: 80,
@@ -895,6 +903,11 @@ const createLauncher = () => {
 
   url.hash = '/launcher';
   launcherWindow.loadURL(formatUrl(url));
+  activeLauncherWindow = launcherWindow;
+
+  launcherWindow.on('closed', () => {
+    activeLauncherWindow = null;
+  });
 
   // Destroy window when it loses focus
   launcherWindow.on('blur', () => {
@@ -1563,79 +1576,6 @@ ipcMain.handle('save-data-url-to-temp', async (_event, dataUrl: string, uniqueId
   }
 });
 
-// IPC handler to serve temporary image files
-ipcMain.handle('get-temp-image', async (_event, filePath: string) => {
-  console.log(`[Main] Received get-temp-image for path: ${filePath}`);
-
-  // Input validation
-  if (!filePath || typeof filePath !== 'string') {
-    console.warn('[Main] Invalid file path provided for image serving');
-    return null;
-  }
-
-  // Ensure the path is within the designated temp directory
-  const resolvedPath = path.resolve(filePath);
-  const resolvedTempDir = path.resolve(gooseTempDir);
-
-  if (!resolvedPath.startsWith(resolvedTempDir + path.sep)) {
-    console.warn(`[Main] Attempted to access file outside designated temp directory: ${filePath}`);
-    return null;
-  }
-
-  try {
-    // Check if it's a regular file first, before trying realpath
-    const stats = await fs.lstat(filePath);
-    if (!stats.isFile()) {
-      console.warn(`[Main] Not a regular file, refusing to serve: ${filePath}`);
-      return null;
-    }
-
-    // Get the real paths for both the temp directory and the file to handle symlinks properly
-    let realTempDir: string;
-    let actualPath = filePath;
-
-    try {
-      realTempDir = await fs.realpath(gooseTempDir);
-      const realPath = await fs.realpath(filePath);
-
-      // Double-check that the real path is still within our real temp directory
-      if (!realPath.startsWith(realTempDir + path.sep)) {
-        console.warn(
-          `[Main] Real path is outside designated temp directory: ${realPath} not in ${realTempDir}`
-        );
-        return null;
-      }
-      actualPath = realPath;
-    } catch (realpathError) {
-      // If realpath fails, use the original path validation
-      console.log(
-        `[Main] realpath failed for ${filePath}, using original path validation:`,
-        realpathError instanceof Error ? realpathError.message : String(realpathError)
-      );
-    }
-
-    // Read the file and return as base64 data URL
-    const fileBuffer = await fs.readFile(actualPath);
-    const fileExtension = path.extname(actualPath).toLowerCase().substring(1);
-
-    // Validate file extension
-    const allowedExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
-    if (!allowedExtensions.includes(fileExtension)) {
-      console.warn(`[Main] Unsupported file extension: ${fileExtension}`);
-      return null;
-    }
-
-    const mimeType = fileExtension === 'jpg' ? 'image/jpeg' : `image/${fileExtension}`;
-    const base64Data = fileBuffer.toString('base64');
-    const dataUrl = `data:${mimeType};base64,${base64Data}`;
-
-    console.log(`[Main] Served temp image: ${filePath}`);
-    return dataUrl;
-  } catch (error) {
-    console.error(`[Main] Failed to serve temp image: ${filePath}`, error);
-    return null;
-  }
-});
 ipcMain.on('delete-temp-file', async (_event, filePath: string) => {
   console.log(`[Main] Received delete-temp-file for path: ${filePath}`);
 
@@ -1953,13 +1893,11 @@ async function appMain() {
     callback({ cancel: false, requestHeaders: details.requestHeaders });
   });
 
-  // Create tray if enabled in settings
   const settings = loadSettings();
   if (settings.showMenuBarIcon) {
     createTray();
   }
 
-  // Handle dock icon visibility (macOS only)
   if (process.platform === 'darwin' && !settings.showDockIcon && settings.showMenuBarIcon) {
     app.dock?.hide();
   }
@@ -1982,9 +1920,8 @@ async function appMain() {
         log.error('Error setting up auto-updater:', error);
       }
     }
-  }, 2000); // 2 second delay after window is shown
+  }, 2000);
 
-  // Setup macOS dock menu
   if (process.platform === 'darwin') {
     const dockMenu = Menu.buildFromTemplate([
       {
@@ -1997,13 +1934,10 @@ async function appMain() {
     app.dock?.setMenu(dockMenu);
   }
 
-  // Get the existing menu
   const menu = Menu.getApplicationMenu();
 
-  // App menu
   const appMenu = menu?.items.find((item) => item.label === 'Goose');
   if (appMenu?.submenu) {
-    // add Settings to app menu after About
     appMenu.submenu.insert(1, new MenuItem({ type: 'separator' }));
     appMenu.submenu.insert(
       1,
@@ -2019,13 +1953,10 @@ async function appMain() {
     appMenu.submenu.insert(1, new MenuItem({ type: 'separator' }));
   }
 
-  // Add Find submenu to Edit menu
   const editMenu = menu?.items.find((item) => item.label === 'Edit');
   if (editMenu?.submenu) {
-    // Find the index of Select All to insert after it
     const selectAllIndex = editMenu.submenu.items.findIndex((item) => item.label === 'Select All');
 
-    // Create Find submenu
     const findSubmenu = Menu.buildFromTemplate([
       {
         label: 'Find…',
@@ -2062,7 +1993,6 @@ async function appMain() {
       },
     ]);
 
-    // Add Find submenu to Edit menu
     editMenu.submenu.insert(
       selectAllIndex + 1,
       new MenuItem({
@@ -2082,7 +2012,7 @@ async function appMain() {
         accelerator: 'CmdOrCtrl+T',
         click() {
           const focusedWindow = BrowserWindow.getFocusedWindow();
-          if (focusedWindow) focusedWindow.webContents.send('set-view', '');
+          if (focusedWindow) focusedWindow.webContents.send('new-chat');
         },
       })
     );
@@ -2098,7 +2028,6 @@ async function appMain() {
       })
     );
 
-    // Open goose to specific dir and set that as its working space
     fileMenu.submenu.insert(
       2,
       new MenuItem({
@@ -2108,7 +2037,6 @@ async function appMain() {
       })
     );
 
-    // Add Recent Files submenu
     const recentFilesSubmenu = buildRecentFilesMenu();
     if (recentFilesSubmenu.length > 0) {
       fileMenu.submenu.insert(
@@ -2122,15 +2050,22 @@ async function appMain() {
 
     fileMenu.submenu.insert(4, new MenuItem({ type: 'separator' }));
 
-    // The Close Window item is here.
-
-    // Add menu item to tell the user about the keyboard shortcut
     fileMenu.submenu.append(
       new MenuItem({
         label: 'Focus Goose Window',
         accelerator: 'CmdOrCtrl+Alt+G',
         click() {
           focusWindow();
+        },
+      })
+    );
+
+    fileMenu.submenu.append(
+      new MenuItem({
+        label: 'Quick Launcher',
+        accelerator: 'CmdOrCtrl+Alt+Shift+G',
+        click() {
+          createLauncher();
         },
       })
     );
@@ -2234,12 +2169,33 @@ async function appMain() {
 
   ipcMain.on(
     'create-chat-window',
-    (_, query, dir, version, resumeSessionId, viewType, recipeId) => {
+    (event, query, dir, version, resumeSessionId, viewType, recipeId) => {
       if (!dir?.trim()) {
         const recentDirs = loadRecentDirs();
         dir = recentDirs.length > 0 ? recentDirs[0] : undefined;
       }
 
+      const isFromLauncher = query && !resumeSessionId && !viewType && !recipeId;
+
+      if (isFromLauncher) {
+        const senderWindow = BrowserWindow.fromWebContents(event.sender);
+        const launcherWindowId = senderWindow?.id;
+        const allWindows = BrowserWindow.getAllWindows();
+
+        const existingWindows = allWindows.filter(
+          (win) => !win.isDestroyed() && win.id !== launcherWindowId
+        );
+
+        if (existingWindows.length > 0) {
+          const targetWindow = existingWindows[0];
+          targetWindow.show();
+          targetWindow.focus();
+          targetWindow.webContents.send('set-initial-message', query);
+          return;
+        }
+      }
+
+      // Otherwise, create a new window
       createChat(
         app,
         query,
@@ -2456,10 +2412,11 @@ async function appMain() {
       const baseUrl = new URL(currentUrl).origin;
 
       const appWindow = new BrowserWindow({
-        title: gooseApp.name,
+        title: formatAppName(gooseApp.name),
         width: gooseApp.width ?? 800,
         height: gooseApp.height ?? 600,
         resizable: gooseApp.resizable ?? true,
+        useContentSize: true,
         webPreferences: {
           preload: path.join(__dirname, 'preload.js'),
           nodeIntegration: false,
@@ -2470,13 +2427,15 @@ async function appMain() {
       });
 
       goosedClients.set(appWindow.id, launchingClient);
+      appWindows.set(gooseApp.name, appWindow);
 
       appWindow.on('close', () => {
         goosedClients.delete(appWindow.id);
+        appWindows.delete(gooseApp.name);
       });
 
       const workingDir = app.getPath('home');
-      const extensionName = gooseApp.mcpServer ?? '';
+      const extensionName = gooseApp.mcpServers?.[0] ?? '';
       const standaloneUrl =
         `${baseUrl}/#/standalone-app?` +
         `resourceUri=${encodeURIComponent(gooseApp.uri)}` +
@@ -2488,6 +2447,44 @@ async function appMain() {
       appWindow.show();
     } catch (error) {
       console.error('Failed to launch app:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('refresh-app', async (_event, gooseApp: GooseApp) => {
+    try {
+      const appWindow = appWindows.get(gooseApp.name);
+      if (!appWindow || appWindow.isDestroyed()) {
+        console.log(`App window for '${gooseApp.name}' not found or destroyed, skipping refresh`);
+        return;
+      }
+
+      // Bring to front first
+      if (appWindow.isMinimized()) {
+        appWindow.restore();
+      }
+      appWindow.show();
+      appWindow.focus();
+
+      // Then reload
+      await appWindow.webContents.reload();
+    } catch (error) {
+      console.error('Failed to refresh app:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('close-app', async (_event, appName: string) => {
+    try {
+      const appWindow = appWindows.get(appName);
+      if (!appWindow || appWindow.isDestroyed()) {
+        console.log(`App window for '${appName}' not found or destroyed, skipping close`);
+        return;
+      }
+
+      appWindow.close();
+    } catch (error) {
+      console.error('Failed to close app:', error);
       throw error;
     }
   });

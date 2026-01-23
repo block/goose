@@ -100,7 +100,12 @@ impl ProviderTester {
 
         let (response, _) = self
             .provider
-            .complete("You are a helpful assistant.", &[message], &[])
+            .complete(
+                "test-session-id",
+                "You are a helpful assistant.",
+                &[message],
+                &[],
+            )
             .await?;
 
         assert_eq!(
@@ -138,6 +143,7 @@ impl ProviderTester {
         let (response1, _) = self
             .provider
             .complete(
+                "test-session-id",
                 "You are a helpful weather assistant.",
                 std::slice::from_ref(&message),
                 std::slice::from_ref(&weather_tool),
@@ -186,6 +192,7 @@ impl ProviderTester {
         let (response2, _) = self
             .provider
             .complete(
+                "test-session-id",
                 "You are a helpful weather assistant.",
                 &[message, response1, weather],
                 &[weather_tool],
@@ -228,7 +235,12 @@ impl ProviderTester {
 
         let result = self
             .provider
-            .complete("You are a helpful assistant.", &messages, &[])
+            .complete(
+                "test-session-id",
+                "You are a helpful assistant.",
+                &messages,
+                &[],
+            )
             .await;
 
         println!("=== {}::context_length_exceeded_error ===", self.name);
@@ -286,6 +298,7 @@ impl ProviderTester {
         let result = self
             .provider
             .complete(
+                "test-session-id",
                 "You are a helpful assistant. Describe what you see in the image briefly.",
                 &[message_with_image],
                 &[],
@@ -317,6 +330,7 @@ impl ProviderTester {
         let tool_request = Message::assistant().with_tool_request(
             "test_id",
             Ok(CallToolRequestParam {
+                task: None,
                 name: "get_screenshot".into(),
                 arguments: Some(object!({})),
             }),
@@ -337,6 +351,7 @@ impl ProviderTester {
         let result2 = self
             .provider
             .complete(
+                "test-session-id",
                 "You are a helpful assistant.",
                 &[user_message, tool_request, tool_response],
                 &[screenshot_tool],
