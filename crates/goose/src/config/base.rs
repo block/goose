@@ -1630,55 +1630,46 @@ mod tests {
 
     #[test]
     fn get_secrets_primary_from_env_uses_env_for_secondary() {
-        temp_env::with_vars(
-            [
-                ("TEST_PRIMARY", Some("primary_env")),
-                ("TEST_SECONDARY", Some("secondary_env")),
-            ],
-            || {
-                let config = new_test_config();
-                let secrets = config
-                    .get_secrets("TEST_PRIMARY", &["TEST_SECONDARY"])
-                    .unwrap();
+        let _guard = env_lock::lock_env([
+            ("TEST_PRIMARY", Some("primary_env")),
+            ("TEST_SECONDARY", Some("secondary_env")),
+        ]);
+        let config = new_test_config();
+        let secrets = config
+            .get_secrets("TEST_PRIMARY", &["TEST_SECONDARY"])
+            .unwrap();
 
-                assert_eq!(secrets["TEST_PRIMARY"], "primary_env");
-                assert_eq!(secrets["TEST_SECONDARY"], "secondary_env");
-            },
-        );
+        assert_eq!(secrets["TEST_PRIMARY"], "primary_env");
+        assert_eq!(secrets["TEST_SECONDARY"], "secondary_env");
     }
 
     #[test]
     fn get_secrets_primary_from_secret_uses_secret_for_secondary() {
-        temp_env::with_vars(
-            [("TEST_PRIMARY", None::<&str>), ("TEST_SECONDARY", None)],
-            || {
-                let config = new_test_config();
-                config
-                    .set_secret("TEST_PRIMARY", &"primary_secret")
-                    .unwrap();
-                config
-                    .set_secret("TEST_SECONDARY", &"secondary_secret")
-                    .unwrap();
+        let _guard = env_lock::lock_env([("TEST_PRIMARY", None::<&str>), ("TEST_SECONDARY", None)]);
+        let config = new_test_config();
+        config
+            .set_secret("TEST_PRIMARY", &"primary_secret")
+            .unwrap();
+        config
+            .set_secret("TEST_SECONDARY", &"secondary_secret")
+            .unwrap();
 
-                let secrets = config
-                    .get_secrets("TEST_PRIMARY", &["TEST_SECONDARY"])
-                    .unwrap();
+        let secrets = config
+            .get_secrets("TEST_PRIMARY", &["TEST_SECONDARY"])
+            .unwrap();
 
-                assert_eq!(secrets["TEST_PRIMARY"], "primary_secret");
-                assert_eq!(secrets["TEST_SECONDARY"], "secondary_secret");
-            },
-        );
+        assert_eq!(secrets["TEST_PRIMARY"], "primary_secret");
+        assert_eq!(secrets["TEST_SECONDARY"], "secondary_secret");
     }
 
     #[test]
     fn get_secrets_primary_missing_returns_error() {
-        temp_env::with_vars([("TEST_PRIMARY", None::<&str>)], || {
-            let config = new_test_config();
+        let _guard = env_lock::lock_env([("TEST_PRIMARY", None::<&str>)]);
+        let config = new_test_config();
 
-            let result = config.get_secrets("TEST_PRIMARY", &[]);
+        let result = config.get_secrets("TEST_PRIMARY", &[]);
 
-            assert!(matches!(result, Err(ConfigError::NotFound(_))));
-        });
+        assert!(matches!(result, Err(ConfigError::NotFound(_))));
     }
 
     fn new_test_config() -> Config {

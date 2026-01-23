@@ -18,18 +18,15 @@ tokio-stream = { version = "0.1", features = ["io-util"] }
 tracing = { workspace = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-appender = "0.2"
-url = "2.5"
-base64 = "0.21"
+url = { workspace = true }
+base64 = { workspace = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { workspace = true }
 schemars = "1.0"
 shellexpand = "3.1.0"
 indoc = "2.0.5"
 xcap = "=0.4.0"
-reqwest = { version = "0.11", features = [
-    "json",
-    "rustls-tls-native-roots",
-], default-features = false }
+reqwest = { workspace = true, features = ["json", "rustls-tls-native-roots"], default-features = false }
 chrono = { version = "0.4.38", features = ["serde"] }
 etcetera = { workspace = true }
 tempfile = "3.8"
@@ -41,7 +38,6 @@ lopdf = "0.36.0"
 docx-rs = "0.4.7"
 image = "0.24.9"
 umya-spreadsheet = "2.2.3"
-utoipa = { version = "4.1", optional = true }
 which = {workspace = true}
 lru = "0.16"
 tree-sitter = "0.21"
@@ -62,10 +58,6 @@ mpatch = "=0.2.0"
 tokio-util = "0.7.16"
 
 [dev-dependencies]
-sysinfo = "0.32.1"
-temp-env = "0.3.6"
-colored = "2"
 serial_test = { workspace = true }
 
 [features]
-utoipa = ["dep:utoipa"]
