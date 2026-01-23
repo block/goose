@@ -40,7 +40,7 @@ use crate::oauth::oauth_flow;
 use crate::prompt_template;
 use crate::subprocess::configure_command_no_window;
 use rmcp::model::{
-    CallToolRequestParam, Content, ErrorCode, ErrorData, GetPromptResult, Prompt, Resource,
+    CallToolRequestParams, Content, ErrorCode, ErrorData, GetPromptResult, Prompt, Resource,
     ResourceContents, ServerInfo, Tool,
 };
 use rmcp::transport::auth::AuthClient;
@@ -1138,7 +1138,7 @@ impl ExtensionManager {
     pub async fn dispatch_tool_call(
         &self,
         session_id: &str,
-        tool_call: CallToolRequestParam,
+        tool_call: CallToolRequestParams,
         cancellation_token: CancellationToken,
     ) -> Result<ToolCallResult> {
         // Some models strip the tool prefix, so auto-add it for known code_execution tools
@@ -1668,7 +1668,8 @@ mod tests {
             .await;
 
         // verify a normal tool call
-        let tool_call = CallToolRequestParam {
+        let tool_call = CallToolRequestParams {
+            meta: None,
             task: None,
             name: "test_client__tool".to_string().into(),
             arguments: Some(object!({})),
@@ -1679,7 +1680,8 @@ mod tests {
             .await;
         assert!(result.is_ok());
 
-        let tool_call = CallToolRequestParam {
+        let tool_call = CallToolRequestParams {
+            meta: None,
             task: None,
             name: "test_client__test__tool".to_string().into(),
             arguments: Some(object!({})),
@@ -1691,7 +1693,8 @@ mod tests {
         assert!(result.is_ok());
 
         // verify a multiple underscores dispatch
-        let tool_call = CallToolRequestParam {
+        let tool_call = CallToolRequestParams {
+            meta: None,
             task: None,
             name: "__cli__ent____tool".to_string().into(),
             arguments: Some(object!({})),
@@ -1703,7 +1706,8 @@ mod tests {
         assert!(result.is_ok());
 
         // Test unicode in tool name, "client 🚀" should become "client_"
-        let tool_call = CallToolRequestParam {
+        let tool_call = CallToolRequestParams {
+            meta: None,
             task: None,
             name: "client___tool".to_string().into(),
             arguments: Some(object!({})),
@@ -1714,7 +1718,8 @@ mod tests {
             .await;
         assert!(result.is_ok());
 
-        let tool_call = CallToolRequestParam {
+        let tool_call = CallToolRequestParams {
+            meta: None,
             task: None,
             name: "client___test__tool".to_string().into(),
             arguments: Some(object!({})),
@@ -1726,7 +1731,8 @@ mod tests {
         assert!(result.is_ok());
 
         // this should error out, specifically for an ToolError::ExecutionError
-        let invalid_tool_call = CallToolRequestParam {
+        let invalid_tool_call = CallToolRequestParams {
+            meta: None,
             task: None,
             name: "client___tools".to_string().into(),
             arguments: Some(object!({})),
@@ -1752,7 +1758,8 @@ mod tests {
 
         // this should error out, specifically with an ToolError::NotFound
         // this client doesn't exist
-        let invalid_tool_call = CallToolRequestParam {
+        let invalid_tool_call = CallToolRequestParams {
+            meta: None,
             task: None,
             name: "_client__tools".to_string().into(),
             arguments: Some(object!({})),
@@ -1853,7 +1860,8 @@ mod tests {
             .await;
 
         // Try to call an unavailable tool
-        let unavailable_tool_call = CallToolRequestParam {
+        let unavailable_tool_call = CallToolRequestParams {
+            meta: None,
             task: None,
             name: "test_extension__tool".to_string().into(),
             arguments: Some(object!({})),
@@ -1877,7 +1885,8 @@ mod tests {
         }
 
         // Try to call an available tool - should succeed
-        let available_tool_call = CallToolRequestParam {
+        let available_tool_call = CallToolRequestParams {
+            meta: None,
             task: None,
             name: "test_extension__available_tool".to_string().into(),
             arguments: Some(object!({})),
