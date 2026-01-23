@@ -922,8 +922,8 @@ mod tests {
                     .with_text("Compaction is a process that summarizes conversation history."),
             ];
 
-            let session = setup_test_session(&agent, &temp_dir, "manual-compact-test", messages)
-                .await?;
+            let session =
+                setup_test_session(&agent, &temp_dir, "manual-compact-test", messages).await?;
 
             // Setup mock provider
             let provider = Arc::new(MockCompactionProvider::new());
@@ -966,8 +966,7 @@ mod tests {
                 "Input tokens should be exactly the summary output (200 tokens)"
             );
             assert_eq!(
-                updated_session.output_tokens,
-                None,
+                updated_session.output_tokens, None,
                 "Output tokens should be None after compaction (no new assistant output)"
             );
             assert_eq!(
@@ -1011,8 +1010,8 @@ mod tests {
                 messages.push(Message::assistant().with_text(format!("Assistant response {}", i)));
             }
 
-            let session = setup_test_session(&agent, &temp_dir, "auto-compact-test", messages)
-                .await?;
+            let session =
+                setup_test_session(&agent, &temp_dir, "auto-compact-test", messages).await?;
 
             // Capture initial context size before triggering reply
             // Should be: system (6000) + 40 messages (4000) = ~10000 tokens
@@ -1073,7 +1072,8 @@ mod tests {
 
             if compaction_occurred {
                 // Verify that current input context decreased after compaction
-                let tokens_after = input_tokens_after_compaction.expect("Should have captured tokens after compaction");
+                let tokens_after = input_tokens_after_compaction
+                    .expect("Should have captured tokens after compaction");
 
                 // Before compaction: system (6000) + 40 messages (4000) = 10,000 tokens
                 // After compaction: only the summary (200 tokens) - this becomes the new input
@@ -1086,8 +1086,7 @@ mod tests {
 
                 // After compaction, input should be exactly the summary: 200 tokens
                 assert_eq!(
-                    tokens_after,
-                    200,
+                    tokens_after, 200,
                     "Input tokens after compaction should be exactly 200 (summary). Got: {}",
                     tokens_after
                 );
@@ -1104,8 +1103,7 @@ mod tests {
                     final_input
                 );
                 assert_eq!(
-                    final_output,
-                    100,
+                    final_output, 100,
                     "Final output should be 100 tokens (default response). Got: {}",
                     final_output
                 );
@@ -1149,8 +1147,7 @@ mod tests {
                     final_input
                 );
                 assert_eq!(
-                    final_output,
-                    100,
+                    final_output, 100,
                     "Output should be 100. Got: {}",
                     final_output
                 );
@@ -1178,8 +1175,8 @@ mod tests {
             // - Total conversation: ~15400 tokens
             // - With system prompt (6000): 21400 tokens
 
-            let session = setup_test_session(&agent, &temp_dir, "context-limit-test", messages)
-                .await?;
+            let session =
+                setup_test_session(&agent, &temp_dir, "context-limit-test", messages).await?;
 
             // Note: The initial session input_tokens is set to 600 by setup_test_session,
             // but the actual context during the provider call will be calculated dynamically:
@@ -1276,8 +1273,7 @@ mod tests {
             // Before: system (6000) + long_tool_call messages (~15,400) = 21,400 (exceeded limit!)
             // After: only summary (200 tokens)
             assert_eq!(
-                tokens_after,
-                200,
+                tokens_after, 200,
                 "Input tokens after compaction should be exactly 200 (summary only). Got: {}",
                 tokens_after
             );
