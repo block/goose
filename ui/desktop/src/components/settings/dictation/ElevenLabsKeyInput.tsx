@@ -18,9 +18,13 @@ export const ElevenLabsKeyInput = () => {
         const keyExists = await read(ELEVENLABS_API_KEY, true);
         if (keyExists === true) {
           setHasElevenLabsKey(true);
+          setElevenLabsKeyCache(true);
+        } else {
+          setElevenLabsKeyCache(false);
         }
       } catch (error) {
         console.error('Error checking ElevenLabs API key:', error);
+        setElevenLabsKeyCache(false);
       } finally {
         setIsLoadingKey(false);
       }

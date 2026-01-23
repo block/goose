@@ -13,10 +13,8 @@ export interface DictationSettings {
   provider: DictationProvider;
 }
 
-// Module-level cache for ElevenLabs key check (avoids repeated slow keychain calls)
 let elevenLabsKeyCache: boolean | null = null;
 
-// Export setter for ElevenLabsKeyInput to update cache when saving
 export const setElevenLabsKeyCache = (value: boolean) => {
   elevenLabsKeyCache = value;
 };
@@ -31,15 +29,15 @@ export const useDictationSettings = () => {
       // Load settings from localStorage
       const saved = localStorage.getItem(DICTATION_SETTINGS_KEY);
 
+      let currentSettings: DictationSettings;
       if (saved) {
-        const parsedSettings = JSON.parse(saved);
-        setSettings(parsedSettings);
+        currentSettings = JSON.parse(saved);
       } else {
-        const defaultSettings = await getDefaultDictationSettings(getProviders);
-        setSettings(defaultSettings);
+        currentSettings = await getDefaultDictationSettings(getProviders);
       }
+      setSettings(currentSettings);
 
-      if (elevenLabsKeyCache === null) {
+      if (currentSettings.provider === 'elevenlabs' && elevenLabsKeyCache === null) {
         try {
           const keyExists = await read(ELEVENLABS_API_KEY, true);
           const hasKey = keyExists === true;
