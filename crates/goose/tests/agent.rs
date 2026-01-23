@@ -1178,11 +1178,6 @@ mod tests {
             let session =
                 setup_test_session(&agent, &temp_dir, "context-limit-test", messages).await?;
 
-            // Note: The initial session input_tokens is set to 600 by setup_test_session,
-            // but the actual context during the provider call will be calculated dynamically:
-            // system (6000) + messages with long_tool_call (~15400) = ~21400 tokens
-            // This will exceed the 20000 token limit when the call is made.
-
             // Setup mock provider with context limit of 20000 tokens
             // Initial context (6000 system + 15400 messages = 21400) exceeds this limit
             let provider = Arc::new(MockCompactionProvider::new());
