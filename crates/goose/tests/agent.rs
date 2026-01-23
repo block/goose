@@ -586,14 +586,12 @@ mod tests {
         use std::sync::Arc;
         use tempfile::TempDir;
 
-        /// Mock provider that simulates realistic token counting and context limits
         struct MockCompactionProvider {
-            /// Tracks whether compaction has occurred (for context limit recovery)
+            /// Tracks whether compaction has occurred (for context limit recovery case)
             has_compacted: Arc<AtomicBool>,
         }
 
         impl MockCompactionProvider {
-            /// Create a new mock provider
             fn new() -> Self {
                 Self {
                     has_compacted: Arc::new(AtomicBool::new(false)),
@@ -846,9 +844,7 @@ mod tests {
 
             let summary_msg = &messages[summary_index];
 
-            // Assert summary message visibility:
-            // - Agent visible: true (agent needs to see the summary)
-            // - User visible: false (user doesn't see internal summary)
+            // Assert summary message visibility
             assert!(
                 summary_msg.is_agent_visible(),
                 "Summary message should be agent visible"
@@ -933,7 +929,6 @@ mod tests {
             let provider = Arc::new(MockCompactionProvider::new());
             agent.update_provider(provider, &session.id).await?;
 
-            // Execute manual compaction
             // Execute manual compaction
             let result = agent.execute_command("/compact", &session.id).await?;
             assert!(result.is_some(), "Compaction should return a result");

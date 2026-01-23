@@ -98,7 +98,6 @@ impl Agent {
             .replace_conversation(session_id, &compacted_conversation)
             .await?;
 
-        // Update session metrics with compaction usage
         let session_config = super::types::SessionConfig {
             id: session_id.to_string(),
             schedule_id: session.schedule_id,
