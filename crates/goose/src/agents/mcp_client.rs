@@ -542,7 +542,6 @@ impl McpClientTrait for McpClient {
     ) -> Result<CallToolResult, Error> {
         let request = ClientRequest::CallToolRequest(CallToolRequest {
             params: CallToolRequestParam {
-                task: None,
                 name: name.to_string().into(),
                 arguments,
             },
@@ -722,7 +721,6 @@ mod tests {
     fn call_tool_request(extensions: Extensions) -> ClientRequest {
         ClientRequest::CallToolRequest(CallToolRequest {
             params: CallToolRequestParam {
-                task: None,
                 name: "tool".to_string().into(),
                 arguments: None,
             },

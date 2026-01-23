@@ -278,7 +278,6 @@ mod tests {
         let tool_request = ToolRequest {
             id: "req_1".to_string(),
             tool_call: Ok(CallToolRequestParam {
-                task: None,
                 name: "test_tool".into(),
                 arguments: Some(object!({})),
             }),

@@ -341,7 +341,6 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                             content.push(MessageContent::tool_request(
                                 id,
                                 Ok(CallToolRequestParam {
-                                    task: None,
                                     name: function_name.into(),
                                     arguments: Some(object(params)),
                                 }),
@@ -736,7 +735,6 @@ mod tests {
             Message::assistant().with_tool_request(
                 "tool1",
                 Ok(CallToolRequestParam {
-                    task: None,
                     name: "example".into(),
                     arguments: Some(object!({"param1": "value1"})),
                 }),
@@ -782,7 +780,6 @@ mod tests {
         let mut messages = vec![Message::assistant().with_tool_request(
             "tool1",
             Ok(CallToolRequestParam {
-                task: None,
                 name: "example".into(),
                 arguments: Some(object!({"param1": "value1"})),
             }),
@@ -1161,7 +1158,6 @@ mod tests {
         let message = Message::assistant().with_tool_request(
             "tool1",
             Ok(CallToolRequestParam {
-                task: None,
                 name: "test_tool".into(),
                 arguments: None, // This is the key case the fix addresses
             }),
@@ -1191,7 +1187,6 @@ mod tests {
         let message = Message::assistant().with_tool_request(
             "tool1",
             Ok(CallToolRequestParam {
-                task: None,
                 name: "test_tool".into(),
                 arguments: Some(object!({"param": "value", "number": 42})),
             }),

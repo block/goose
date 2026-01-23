@@ -898,7 +898,6 @@ mod tests {
             .with_tool_request(
                 "tool123",
                 Ok(CallToolRequestParam {
-                    task: None,
                     name: "test_tool".into(),
                     arguments: Some(object!({"param": "value"})),
                 }),
@@ -1157,7 +1156,6 @@ mod tests {
     #[test]
     fn test_message_with_tool_request() {
         let tool_call = Ok(CallToolRequestParam {
-            task: None,
             name: "test_tool".into(),
             arguments: Some(object!({})),
         });

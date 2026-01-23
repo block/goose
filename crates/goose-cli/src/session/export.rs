@@ -527,7 +527,6 @@ mod tests {
     #[test]
     fn test_tool_request_to_markdown_shell() {
         let tool_call = CallToolRequestParam {
-            task: None,
             name: "developer__shell".into(),
             arguments: Some(object!({
                 "command": "ls -la",
@@ -553,7 +552,6 @@ mod tests {
     #[test]
     fn test_tool_request_to_markdown_text_editor() {
         let tool_call = CallToolRequestParam {
-            task: None,
             name: "developer__text_editor".into(),
             arguments: Some(object!({
                 "path": "/path/to/file.txt",
@@ -637,7 +635,6 @@ mod tests {
     #[test]
     fn test_message_to_markdown_with_tool_request() {
         let tool_call = CallToolRequestParam {
-            task: None,
             name: "test_tool".into(),
             arguments: Some(object!({"param": "value"})),
         };
@@ -697,7 +694,6 @@ mod tests {
     #[test]
     fn test_shell_tool_with_code_output() {
         let tool_call = CallToolRequestParam {
-            task: None,
             name: "developer__shell".into(),
             arguments: Some(object!({
                 "command": "cat main.py"
@@ -752,7 +748,6 @@ if __name__ == "__main__":
     #[test]
     fn test_shell_tool_with_git_commands() {
         let git_status_call = CallToolRequestParam {
-            task: None,
             name: "developer__shell".into(),
             arguments: Some(object!({
                 "command": "git status --porcelain"
@@ -799,7 +794,6 @@ if __name__ == "__main__":
     #[test]
     fn test_shell_tool_with_build_output() {
         let cargo_build_call = CallToolRequestParam {
-            task: None,
             name: "developer__shell".into(),
             arguments: Some(object!({
                 "command": "cargo build"
@@ -852,7 +846,6 @@ warning: unused variable `x`
     #[test]
     fn test_shell_tool_with_json_api_response() {
         let curl_call = CallToolRequestParam {
-            task: None,
             name: "developer__shell".into(),
             arguments: Some(object!({
                 "command": "curl -s https://api.github.com/repos/microsoft/vscode/releases/latest"
@@ -907,7 +900,6 @@ warning: unused variable `x`
     #[test]
     fn test_text_editor_tool_with_code_creation() {
         let editor_call = CallToolRequestParam {
-            task: None,
             name: "developer__text_editor".into(),
             arguments: Some(object!({
                 "command": "write",
@@ -957,7 +949,6 @@ warning: unused variable `x`
     #[test]
     fn test_text_editor_tool_view_code() {
         let editor_call = CallToolRequestParam {
-            task: None,
             name: "developer__text_editor".into(),
             arguments: Some(object!({
                 "command": "view",
@@ -1016,7 +1007,6 @@ def process_data(data: List[Dict]) -> List[Dict]:
     #[test]
     fn test_shell_tool_with_error_output() {
         let error_call = CallToolRequestParam {
-            task: None,
             name: "developer__shell".into(),
             arguments: Some(object!({
                 "command": "python nonexistent_script.py"
@@ -1060,7 +1050,6 @@ Command failed with exit code 2"#;
     #[test]
     fn test_shell_tool_complex_script_execution() {
         let script_call = CallToolRequestParam {
-            task: None,
             name: "developer__shell".into(),
             arguments: Some(object!({
                 "command": "python -c \"import sys; print(f'Python {sys.version}'); [print(f'{i}^2 = {i**2}') for i in range(1, 6)]\""
@@ -1115,7 +1104,6 @@ Command failed with exit code 2"#;
     #[test]
     fn test_shell_tool_with_multi_command() {
         let multi_call = CallToolRequestParam {
-            task: None,
             name: "developer__shell".into(),
             arguments: Some(object!({
                 "command": "cd /tmp && ls -la | head -5 && pwd"
@@ -1168,7 +1156,6 @@ drwx------   3 user  staff    96 Dec  6 16:20 com.apple.launchd.abc
     #[test]
     fn test_developer_tool_grep_code_search() {
         let grep_call = CallToolRequestParam {
-            task: None,
             name: "developer__shell".into(),
             arguments: Some(object!({
                 "command": "rg 'async fn' --type rust -n"
@@ -1220,7 +1207,6 @@ src/middleware.rs:12:async fn auth_middleware(req: Request, next: Next) -> Resul
     fn test_shell_tool_json_detection_works() {
         // This test shows that JSON detection in tool responses DOES work
         let tool_call = CallToolRequestParam {
-            task: None,
             name: "developer__shell".into(),
             arguments: Some(object!({
                 "command": "echo '{\"test\": \"json\"}'"
@@ -1263,7 +1249,6 @@ src/middleware.rs:12:async fn auth_middleware(req: Request, next: Next) -> Resul
     #[test]
     fn test_shell_tool_with_package_management() {
         let npm_call = CallToolRequestParam {
-            task: None,
             name: "developer__shell".into(),
             arguments: Some(object!({
                 "command": "npm install express typescript @types/node --save-dev"

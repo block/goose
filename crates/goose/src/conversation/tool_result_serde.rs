@@ -43,7 +43,6 @@ impl ToolCallWithValueArguments {
             }
         };
         CallToolRequestParam {
-            task: None,
             name: Cow::Owned(self.name),
             arguments,
         }

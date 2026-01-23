@@ -226,7 +226,6 @@ impl OllamaInterpreter {
 
                                 // Add the tool call to our result vector
                                 tool_calls.push(CallToolRequestParam {
-                                    task: None,
                                     name: name.into(),
                                     arguments: Some(object(arguments)),
                                 });
