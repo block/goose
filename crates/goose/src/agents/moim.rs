@@ -117,7 +117,6 @@ mod tests {
                 .with_tool_request(
                     "search_1",
                     Ok(CallToolRequestParam {
-                        task: None,
                         name: "search".into(),
                         arguments: None,
                     }),
@@ -136,7 +135,6 @@ mod tests {
                 .with_tool_request(
                     "search_2",
                     Ok(CallToolRequestParam {
-                        task: None,
                         name: "search".into(),
                         arguments: None,
                     }),

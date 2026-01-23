@@ -919,7 +919,6 @@ async fn call_tool(
     };
 
     let tool_call = CallToolRequestParam {
-        task: None,
         name: payload.name.into(),
         arguments,
     };
