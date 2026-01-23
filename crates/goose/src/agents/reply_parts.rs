@@ -353,11 +353,11 @@ impl Agent {
 
     pub(crate) async fn update_session_metrics(
         &self,
-        session_config: &crate::agents::types::SessionConfig,
+        session_id: &str,
+        schedule_id: Option<String>,
         usage: &ProviderUsage,
         is_compaction_usage: bool,
     ) -> Result<()> {
-        let session_id = session_config.id.as_str();
         let manager = self.config.session_manager.clone();
         let session = manager.get_session(session_id, false).await?;
 
@@ -389,7 +389,7 @@ impl Agent {
 
         manager
             .update(session_id)
-            .schedule_id(session_config.schedule_id.clone())
+            .schedule_id(schedule_id)
             .total_tokens(current_total)
             .input_tokens(current_input)
             .output_tokens(current_output)

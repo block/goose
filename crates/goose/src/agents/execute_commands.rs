@@ -98,13 +98,7 @@ impl Agent {
             .replace_conversation(session_id, &compacted_conversation)
             .await?;
 
-        let session_config = super::types::SessionConfig {
-            id: session_id.to_string(),
-            schedule_id: session.schedule_id,
-            max_turns: None,
-            retry_config: None,
-        };
-        self.update_session_metrics(&session_config, &usage, true)
+        self.update_session_metrics(session_id, session.schedule_id, &usage, true)
             .await?;
 
         Ok(Some(Message::assistant().with_system_notification(
