@@ -291,7 +291,7 @@ Provide goose with context from your codebase, documents, and other files to get
 
 ## Mid-Session Changes
 
-Some settings can be changed during a session and will take effect immediately, rather than requiring you to start a new session. This gives you more control over the context and capabilities while you're interacting with goose.
+You can change some settings during a session and they will take effect immediately, rather than requiring you to start a new session. This gives you more control over context and capabilities while you're interacting with goose.
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>

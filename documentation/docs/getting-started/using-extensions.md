@@ -328,7 +328,7 @@ extensions:
 
 ## Enabling/Disabling Extensions
 
-You can enable or disable installed extensions at any time—either as defaults for new sessions or mid-session without starting over.
+You can enable or disable installed extensions at any time, either as defaults for new sessions or to change the extensions you're using in the current session.
 
 ### Set Default Extensions for New Sessions
 
@@ -390,7 +390,7 @@ Changes made during a session preserve your current conversation without startin
   /extension npx -y @modelcontextprotocol/server-memory
   ```
 
-  **Add built-in extensions:**
+  **Add built-in extension:**
   ```bash
   /builtin developer
   ```
