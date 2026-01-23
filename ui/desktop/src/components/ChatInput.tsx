@@ -17,6 +17,7 @@ import { AlertType, useAlerts } from './alerts';
 import { useConfig } from './ConfigContext';
 import { useModelAndProvider } from './ModelAndProviderContext';
 import { useWhisper } from '../hooks/useWhisper';
+import { DICTATION_PROVIDER_ELEVENLABS } from '../hooks/dictationConstants';
 import { WaveformVisualizer } from './WaveformVisualizer';
 import { toastError } from '../toasts';
 import MentionPopover, { DisplayItemWithMatch } from './MentionPopover';
@@ -1277,7 +1278,7 @@ export default function ChatInput({
                           <b>Models.</b>
                         </p>
                       ) : VOICE_DICTATION_ELEVENLABS_ENABLED &&
-                        dictationSettings.provider === 'elevenlabs' ? (
+                        dictationSettings.provider === DICTATION_PROVIDER_ELEVENLABS ? (
                         <p>
                           ElevenLabs API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
                           <b>Chat</b> {'>'} <b>Voice Dictation.</b>

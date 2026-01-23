@@ -3,10 +3,11 @@ import { useConfig } from '../components/ConfigContext';
 import {
   DICTATION_SETTINGS_KEY,
   ELEVENLABS_API_KEY,
+  DICTATION_PROVIDER_ELEVENLABS,
   getDefaultDictationSettings,
 } from './dictationConstants';
 
-export type DictationProvider = 'openai' | 'elevenlabs' | null;
+export type DictationProvider = 'openai' | typeof DICTATION_PROVIDER_ELEVENLABS | null;
 
 export interface DictationSettings {
   enabled: boolean;
@@ -37,7 +38,10 @@ export const useDictationSettings = () => {
       }
       setSettings(currentSettings);
 
-      if (currentSettings.provider === 'elevenlabs' && elevenLabsKeyCache === null) {
+      if (
+        currentSettings.provider === DICTATION_PROVIDER_ELEVENLABS &&
+        elevenLabsKeyCache === null
+      ) {
         try {
           const keyExists = await read(ELEVENLABS_API_KEY, true);
           const hasKey = keyExists === true;
