@@ -5,7 +5,7 @@ title: Using Extensions
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import { PanelLeft, Settings } from 'lucide-react';
+import { PanelLeft, Settings, Puzzle } from 'lucide-react';
 
 Extensions are add-ons that provide a way to extend the functionality of goose by connecting with applications and tools you already use in your workflow. These extensions can be used to add new features, access data and resources, or integrate with other systems.
 
@@ -328,38 +328,72 @@ extensions:
 
 ## Enabling/Disabling Extensions
 
-You can enable or disable installed extensions based on your workflow needs.
+You can enable or disable installed extensions at any time—either as defaults for new sessions or mid-session without starting over.
+
+### Set Default Extensions for New Sessions
+
+Changes made to your default extensions apply to future sessions. Updates to these settings do not affect any currently active sessions.
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
+
   1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
   2. Click the `Extensions` button on the sidebar.
-  2. Use the toggle switch next to each extension to enable or disable it.
+  3. Use the toggle switch next to an extension to enable or disable it.
 
   </TabItem>
 
   <TabItem value="cli" label="goose CLI">
-    1. Run the following command to open up goose's configurations:
-    ```sh
-    goose configure
-    ```
-    2. Select `Toggle Extensions` from the menu.
-    3. A list of already installed extensions will populate.
-    4. Press the `space bar` to toggle the extension. Solid means enabled. 
 
-    **Example:**
+  1. Run the following command to open up goose's configurations:
+      ```sh
+      goose configure
+      ```
+  2. Select `Toggle Extensions` from the menu.
+  3. A list of already installed extensions will populate.
+  4. Press the `space bar` to toggle the extension. Solid means enabled.
 
-    ```
-    ┌   goose-configure 
-    │
-    ◇  What would you like to configure?
-    │  Toggle Extensions 
-    │
-    ◆  enable extensions: (use "space" to toggle and "enter" to submit)
-    │  ◼ developer 
-    │  ◻ fetch 
-    └   
-    ```
+  **Example:**
+
+  ```
+  ┌   goose-configure 
+  │
+  ◇  What would you like to configure?
+  │  Toggle Extensions 
+  │
+  ◆  enable extensions: (use "space" to toggle and "enter" to submit)
+  │  ◼ developer 
+  │  ◻ fetch 
+  └   
+  ```
+  </TabItem>
+</Tabs>
+
+### Change Extensions Mid-Session
+
+Changes made during a session preserve your current conversation without starting over. Mid-session changes apply only to the current chat session and do not change your default extensions for new sessions.
+
+<Tabs groupId="interface">
+  <TabItem value="ui" label="goose Desktop" default>
+
+  1. Click the <Puzzle className="inline" size={16} /> button at the bottom of the app.
+  2. Use the toggle switch next to an extension to enable or disable it.
+
+  </TabItem>
+
+  <TabItem value="cli" label="goose CLI">
+
+  Add extensions during an interactive session with slash commands:
+
+  **Add a stdio extension:**
+  ```bash
+  /extension npx -y @modelcontextprotocol/server-memory
+  ```
+
+  **Add built-in extensions:**
+  ```bash
+  /builtin developer
+  ```
   </TabItem>
 </Tabs>
 
