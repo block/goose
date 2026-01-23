@@ -1,12 +1,6 @@
 #!/bin/bash
 set -e
 
-echo "=== FastMCP stderr Regression Test ==="
-echo "This script reproduces the bug where FastMCP servers fail to start"
-echo "because they write a banner to stderr during initialization."
-echo ""
-
-# Build goose if not skipped
 if [ -z "$SKIP_BUILD" ]; then
   echo "Building goose..."
   cargo build --release --bin goose
@@ -19,19 +13,14 @@ fi
 SCRIPT_DIR=$(pwd)
 GOOSE_BIN="$SCRIPT_DIR/target/release/goose"
 
-# Set provider/model defaults if not specified
 TEST_PROVIDER=${GOOSE_PROVIDER:-anthropic}
 TEST_MODEL=${GOOSE_MODEL:-claude-haiku-4-5-20251001}
+MCP_SAMPLING_TOOL="trigger-sampling-request"
 
-echo "Provider: ${TEST_PROVIDER}"
-echo "Model: ${TEST_MODEL}"
-echo ""
+RESULTS=()
 
 TESTDIR=$(mktemp -d)
-echo "Test directory: $TESTDIR"
-echo ""
 
-# Create a minimal FastMCP server
 cat > "$TESTDIR/test_mcp.py" << 'EOF'
 from typing import Annotated
 from fastmcp import FastMCP
@@ -47,7 +36,6 @@ def add(
     return a + b
 EOF
 
-# Create recipe
 cat > "$TESTDIR/recipe.yaml" << 'EOF'
 title: FastMCP Test
 description: Test that FastMCP servers with stderr banners work
@@ -65,37 +53,82 @@ extensions:
     type: stdio
 EOF
 
-echo "Running goose with FastMCP server..."
-echo "Expected: Tool should be called and return 100"
-echo "Actual with bug: 'Failed to start extension' error"
-echo ""
-
 TMPFILE=$(mktemp)
 (cd "$TESTDIR" && GOOSE_PROVIDER="$TEST_PROVIDER" GOOSE_MODEL="$TEST_MODEL" \
     "$GOOSE_BIN" run --recipe recipe.yaml 2>&1) | tee "$TMPFILE"
 
-echo ""
-echo "=== Test Result ==="
-if grep -q "add | test_mcp" "$TMPFILE"; then
-    if grep -q "100" "$TMPFILE"; then
-        echo "✓ SUCCESS: FastMCP server started and tool was called"
-        rm "$TMPFILE"
-        rm -rf "$TESTDIR"
-        exit 0
-    fi
+if grep -q "add | test_mcp" "$TMPFILE" && grep -q "100" "$TMPFILE"; then
+    echo "✓ FastMCP stderr test passed"
+    RESULTS+=("✓ FastMCP stderr")
+else
+    echo "✗ FastMCP stderr test failed"
+    RESULTS+=("✗ FastMCP stderr")
 fi
 
-if grep -q "Failed to start extension 'test_mcp'" "$TMPFILE"; then
-    echo "✗ BUG CONFIRMED: FastMCP server failed to start due to stderr banner"
-    echo ""
-    echo "The error message shows the server banner was captured as stderr,"
-    echo "which caused rmcp to think the process quit before initialization."
-    rm "$TMPFILE"
-    rm -rf "$TESTDIR"
-    exit 1
-fi
-
-echo "? UNCLEAR: Test didn't match expected patterns"
 rm "$TMPFILE"
 rm -rf "$TESTDIR"
-exit 1
+echo ""
+
+TESTDIR=$(mktemp -d)
+TMPFILE=$(mktemp)
+
+(cd "$TESTDIR" && GOOSE_PROVIDER="$TEST_PROVIDER" GOOSE_MODEL="$TEST_MODEL" \
+    "$GOOSE_BIN" run --text "Use the sampleLLM tool to ask for a quote from The Great Gatsby" \
+    --with-extension "npx -y @modelcontextprotocol/server-everything@2026.1.14" 2>&1) | tee "$TMPFILE"
+
+if grep -q "$MCP_SAMPLING_TOOL | " "$TMPFILE"; then
+    JUDGE_PROMPT=$(cat <<EOF
+You are a validator. You will be given a transcript of a CLI run that used an MCP tool to initiate MCP sampling.
+The MCP server requests a quote from The Great Gatsby from the model via sampling.
+
+Task: Determine whether the transcript shows that the sampling request reached the model and that the output included either:
+  • A recognizable quote, paraphrase, or reference from The Great Gatsby, or
+  • A clear attempt or explanation from the model about why the quote could not be returned.
+
+If either of these conditions is true, respond PASS.
+If there is no evidence that the model attempted or returned a Gatsby-related response, respond FAIL.
+If uncertain, lean toward PASS.
+
+Output format: Respond with exactly one word on a single line:
+PASS
+or
+FAIL
+
+Transcript:
+----- BEGIN TRANSCRIPT -----
+$(cat "$TMPFILE")
+----- END TRANSCRIPT -----
+EOF
+)
+    JUDGE_OUT=$(GOOSE_PROVIDER="$TEST_PROVIDER" GOOSE_MODEL="$TEST_MODEL" \
+        "$GOOSE_BIN" run --text "$JUDGE_PROMPT" 2>&1)
+
+    if echo "$JUDGE_OUT" | tr -d '\r' | grep -Eq '^[[:space:]]*PASS[[:space:]]*$'; then
+        echo "✓ MCP sampling test passed"
+        RESULTS+=("✓ MCP sampling")
+    else
+        echo "✗ MCP sampling test failed"
+        RESULTS+=("✗ MCP sampling")
+    fi
+else
+    echo "✗ MCP sampling test failed - $MCP_SAMPLING_TOOL tool not called"
+    RESULTS+=("✗ MCP sampling")
+fi
+
+rm "$TMPFILE"
+rm -rf "$TESTDIR"
+echo ""
+
+echo "=== Test Summary ==="
+for result in "${RESULTS[@]}"; do
+  echo "$result"
+done
+
+if echo "${RESULTS[@]}" | grep -q "✗"; then
+  echo ""
+  echo "Some tests failed!"
+  exit 1
+else
+  echo ""
+  echo "All tests passed!"
+fi
