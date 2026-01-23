@@ -41,8 +41,8 @@ If you use Goose, Copilot, Claude, or other AI tools to help with your PRs:
 
 ## Prerequisites
 
-goose includes rust binaries alongside an electron app for the GUI. To work
-on the rust backend, you will need to [install rust and cargo][rustup]. To work
+goose includes Rust binaries alongside an electron app for the GUI. To work
+on the Rust backend, you will need to [install Rust and cargo][rustup]. To work
 on the App, you will also need to [install node and npm][nvm] - we recommend through nvm.
 
 We provide a shortcut to standard commands using [just][just] in our `justfile`.

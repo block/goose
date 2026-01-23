@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import McpAppRenderer from '../McpApps/McpAppRenderer';
 import { startAgent, resumeAgent, listApps, stopAgent } from '../../api';
+import { formatAppName } from '../../utils/conversionUtils';
 
 export default function StandaloneAppView() {
   const [searchParams] = useSearchParams();
@@ -35,7 +36,7 @@ export default function StandaloneAppView() {
 
         const apps = response.data?.apps || [];
         const cachedApp = apps.find(
-          (app) => app.uri === resourceUri && app.mcpServer === extensionName
+          (app) => app.uri === resourceUri && app.mcpServers?.includes(extensionName)
         );
 
         if (cachedApp?.text) {
@@ -88,7 +89,7 @@ export default function StandaloneAppView() {
 
   useEffect(() => {
     if (appName) {
-      document.title = appName;
+      document.title = formatAppName(appName);
     }
   }, [appName]);
 

@@ -41,7 +41,7 @@ function getHeadings(content) {
 }
 
 async function main() {
-  const globby = (await import('globby')).default;
+  const { globby } = await import('globby');
   
   const sections = [
     { name: 'Getting Started', pattern: 'getting-started/*.{md,mdx}' },

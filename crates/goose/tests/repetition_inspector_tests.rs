@@ -1,5 +1,5 @@
 use goose::tool_monitor::RepetitionInspector;
-use rmcp::model::CallToolRequestParam;
+use rmcp::model::CallToolRequestParams;
 use rmcp::object;
 
 // This test targets RepetitionInspector::check_tool_call
@@ -13,7 +13,8 @@ fn test_repetition_inspector_denies_after_exceeding_and_resets_on_param_change()
     let mut inspector = RepetitionInspector::new(Some(2));
 
     // First identical call → allowed
-    let call_v1 = CallToolRequestParam {
+    let call_v1 = CallToolRequestParams {
+        meta: None,
         task: None,
         name: "fetch_user".into(),
         arguments: Some(object!({"id": 123})),
@@ -27,7 +28,8 @@ fn test_repetition_inspector_denies_after_exceeding_and_resets_on_param_change()
     assert!(!inspector.check_tool_call(call_v1.clone()));
 
     // Change parameters; this should reset the consecutive counter
-    let call_v2 = CallToolRequestParam {
+    let call_v2 = CallToolRequestParams {
+        meta: None,
         task: None,
         name: "fetch_user".into(),
         arguments: Some(object!({"id": 456})),

@@ -4,7 +4,7 @@ use crate::security::classification_client::ClassificationClient;
 use crate::security::patterns::{PatternMatch, PatternMatcher};
 use anyhow::Result;
 use futures::stream::{self, StreamExt};
-use rmcp::model::CallToolRequestParam;
+use rmcp::model::CallToolRequestParams;
 
 const USER_SCAN_LIMIT: usize = 10;
 const ML_SCAN_CONCURRENCY: usize = 3;
@@ -107,7 +107,7 @@ impl PromptInjectionScanner {
 
     pub async fn analyze_tool_call_with_context(
         &self,
-        tool_call: &CallToolRequestParam,
+        tool_call: &CallToolRequestParams,
         messages: &[Message],
     ) -> Result<ScanResult> {
         let tool_content = self.extract_tool_content(tool_call);
@@ -292,7 +292,7 @@ impl PromptInjectionScanner {
             .collect()
     }
 
-    fn extract_tool_content(&self, tool_call: &CallToolRequestParam) -> String {
+    fn extract_tool_content(&self, tool_call: &CallToolRequestParams) -> String {
         let mut s = format!("Tool: {}", tool_call.name);
         if let Some(args) = &tool_call.arguments {
             if let Ok(json) = serde_json::to_string_pretty(args) {
@@ -336,7 +336,8 @@ mod tests {
     async fn test_tool_call_analysis() {
         let scanner = PromptInjectionScanner::new();
 
-        let tool_call = CallToolRequestParam {
+        let tool_call = CallToolRequestParams {
+            meta: None,
             task: None,
             name: "shell".into(),
             arguments: Some(object!({

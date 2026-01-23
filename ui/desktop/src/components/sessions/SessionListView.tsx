@@ -11,6 +11,7 @@ import {
   Download,
   Upload,
   ExternalLink,
+  Copy,
   Puzzle,
 } from 'lucide-react';
 import { Card } from '../ui/card';
@@ -28,6 +29,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/
 import {
   deleteSession,
   exportSession,
+  forkSession,
   importSession,
   listSessions,
   Session,
@@ -436,6 +438,25 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       setShowDeleteConfirmation(true);
     }, []);
 
+    const handleDuplicateSession = useCallback(
+      async (session: Session) => {
+        try {
+          await forkSession({
+            path: { session_id: session.id },
+            body: { truncate: false, copy: true },
+            throwOnError: true,
+          });
+          toast.success(`Session "${session.name}" duplicated successfully`);
+          await loadSessions();
+        } catch (error) {
+          console.error('Error duplicating session:', error);
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          toast.error(`Failed to duplicate session: ${errorMessage}`);
+        }
+      },
+      [loadSessions]
+    );
+
     const handleConfirmDelete = useCallback(async () => {
       if (!sessionToDelete) return;
 
@@ -530,27 +551,37 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
     const SessionItem = React.memo(function SessionItem({
       session,
       onEditClick,
+      onDuplicateClick,
       onDeleteClick,
       onExportClick,
       onOpenInNewWindow,
     }: {
       session: Session;
       onEditClick: (session: Session) => void;
+      onDuplicateClick: (session: Session) => void;
       onDeleteClick: (session: Session) => void;
       onExportClick: (session: Session, e: React.MouseEvent) => void;
       onOpenInNewWindow: (session: Session, e: React.MouseEvent) => void;
     }) {
       const handleEditClick = useCallback(
         (e: React.MouseEvent) => {
-          e.stopPropagation(); // Prevent card click
+          e.stopPropagation();
           onEditClick(session);
         },
         [onEditClick, session]
       );
 
+      const handleDuplicateClick = useCallback(
+        (e: React.MouseEvent) => {
+          e.stopPropagation();
+          onDuplicateClick(session);
+        },
+        [onDuplicateClick, session]
+      );
+
       const handleDeleteClick = useCallback(
         (e: React.MouseEvent) => {
-          e.stopPropagation(); // Prevent card click
+          e.stopPropagation();
           onDeleteClick(session);
         },
         [onDeleteClick, session]
@@ -604,6 +635,13 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                 title="Edit session name"
               >
                 <Edit2 className="w-3 h-3 text-textSubtle hover:text-textStandard" />
+              </button>
+              <button
+                onClick={handleDuplicateClick}
+                className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+                title="Duplicate session"
+              >
+                <Copy className="w-3 h-3 text-textSubtle hover:text-textStandard" />
               </button>
               <button
                 onClick={handleDeleteClick}
@@ -757,6 +795,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                     key={session.id}
                     session={session}
                     onEditClick={handleEditSession}
+                    onDuplicateClick={handleDuplicateSession}
                     onDeleteClick={handleDeleteSession}
                     onExportClick={handleExportSession}
                     onOpenInNewWindow={handleOpenInNewWindow}
