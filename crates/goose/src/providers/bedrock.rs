@@ -531,19 +531,28 @@ mod tests {
         std::env::set_var("BEDROCK_ENABLE_CACHING", "true");
 
         let provider = create_mock_provider("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
-        let enable_caching = provider.should_enable_caching("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
+        let enable_caching =
+            provider.should_enable_caching("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
 
-        assert!(enable_caching, "Caching should be enabled when BEDROCK_ENABLE_CACHING is set");
+        assert!(
+            enable_caching,
+            "Caching should be enabled when BEDROCK_ENABLE_CACHING is set"
+        );
 
         // Test with 5 messages - should cache last 3
         let messages: Vec<Message> = (0..5)
             .map(|i| {
                 Message::new(
-                    if i % 2 == 0 { Role::User } else { Role::Assistant },
+                    if i % 2 == 0 {
+                        Role::User
+                    } else {
+                        Role::Assistant
+                    },
                     Utc::now().timestamp(),
-                    vec![crate::conversation::message::MessageContent::text(
-                        format!("Message {}", i),
-                    )],
+                    vec![crate::conversation::message::MessageContent::text(format!(
+                        "Message {}",
+                        i
+                    ))],
                 )
             })
             .collect();
@@ -582,19 +591,28 @@ mod tests {
         std::env::set_var("BEDROCK_ENABLE_CACHING", "true");
 
         let provider = create_mock_provider("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
-        let enable_caching = provider.should_enable_caching("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
+        let enable_caching =
+            provider.should_enable_caching("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
 
-        assert!(enable_caching, "Caching should be enabled when BEDROCK_ENABLE_CACHING is set");
+        assert!(
+            enable_caching,
+            "Caching should be enabled when BEDROCK_ENABLE_CACHING is set"
+        );
 
         // Test with 2 messages - should cache all
         let messages: Vec<Message> = (0..2)
             .map(|i| {
                 Message::new(
-                    if i % 2 == 0 { Role::User } else { Role::Assistant },
+                    if i % 2 == 0 {
+                        Role::User
+                    } else {
+                        Role::Assistant
+                    },
                     Utc::now().timestamp(),
-                    vec![crate::conversation::message::MessageContent::text(
-                        format!("Message {}", i),
-                    )],
+                    vec![crate::conversation::message::MessageContent::text(format!(
+                        "Message {}",
+                        i
+                    ))],
                 )
             })
             .collect();
@@ -673,9 +691,13 @@ mod tests {
         env::set_var("BEDROCK_ENABLE_CACHING", "true");
 
         let provider = create_mock_provider("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
-        let enable_caching = provider.should_enable_caching("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
+        let enable_caching =
+            provider.should_enable_caching("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
 
-        assert!(enable_caching, "Caching should be enabled when BEDROCK_ENABLE_CACHING is set");
+        assert!(
+            enable_caching,
+            "Caching should be enabled when BEDROCK_ENABLE_CACHING is set"
+        );
 
         // Verify the logic for system blocks with caching enabled
         let system_blocks = if enable_caching {
@@ -689,7 +711,9 @@ mod tests {
                 ),
             ]
         } else {
-            vec![bedrock::SystemContentBlock::Text("System prompt".to_string())]
+            vec![bedrock::SystemContentBlock::Text(
+                "System prompt".to_string(),
+            )]
         };
 
         // Should have 2 blocks: text + cache point
