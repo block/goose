@@ -633,9 +633,13 @@ impl McpClientTrait for AppsManagerClient {
 }
 
 fn schema<T: JsonSchema>() -> JsonObject {
-    serde_json::to_value(schema_for!(T))
+    let mut obj = serde_json::to_value(schema_for!(T))
         .map(|v| v.as_object().unwrap().clone())
-        .expect("valid schema")
+        .expect("valid schema");
+    // Ensure properties key exists (required by OpenAI-compatible APIs)
+    obj.entry("properties")
+        .or_insert_with(|| serde_json::json!({}));
+    obj
 }
 
 fn extract_string(args: &JsonObject, key: &str) -> Result<String, String> {
