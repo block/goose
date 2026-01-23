@@ -4,6 +4,7 @@ import SessionHistoryView from './SessionHistoryView';
 import { useLocation } from 'react-router-dom';
 import { getSession, Session } from '../../api';
 import { useNavigation } from '../../hooks/useNavigation';
+import { AppEvents } from '../../constants/events';
 
 const SessionsView: React.FC = () => {
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
@@ -38,6 +39,15 @@ const SessionsView: React.FC = () => {
 
   const handleSelectSession = useCallback(
     async (sessionId: string) => {
+      // Add session to active sessions before navigating
+      // This ensures the session is properly tracked and doesn't trigger a resumeAgent call
+      // that would interrupt an already-running agent
+      window.dispatchEvent(
+        new CustomEvent(AppEvents.ADD_ACTIVE_SESSION, {
+          detail: { sessionId, initialMessage: undefined },
+        })
+      );
+
       setView('pair', {
         disableAnimation: true,
         resumeSessionId: sessionId,
