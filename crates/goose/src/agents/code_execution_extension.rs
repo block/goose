@@ -12,9 +12,12 @@ use rmcp::model::{
 };
 use schemars::{schema_for, JsonSchema};
 use serde_json::{json, Value};
+use std::collections::hash_map::DefaultHasher;
 use std::future::Future;
+use std::hash::{Hash, Hasher};
 use std::pin::Pin;
 use std::sync::Arc;
+use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 
 pub static EXTENSION_NAME: &str = "code_execution";
@@ -22,6 +25,7 @@ pub static EXTENSION_NAME: &str = "code_execution";
 pub struct CodeExecutionClient {
     info: InitializeResult,
     context: PlatformExtensionContext,
+    state: RwLock<Option<CodeModeState>>,
 }
 
 impl CodeExecutionClient {
@@ -47,11 +51,11 @@ impl CodeExecutionClient {
                 website_url: None,
             },
             instructions: Some(indoc! {r#"
-                BATCH MULTIPLE TOOL CALLS INTO ONE execute_code CALL.
+                BATCH MULTIPLE TOOL CALLS INTO ONE execute CALL.
 
                 This extension exists to reduce round-trips. When a task requires multiple tool calls:
-                - WRONG: Multiple execute_code calls, each with one tool
-                - RIGHT: One execute_code call with a script that calls all needed tools
+                - WRONG: Multiple execute calls, each with one tool
+                - RIGHT: One execute call with a script that calls all needed tools
 
                 IMPORTANT: All tool calls are ASYNC. Use await for each call.
 
@@ -63,48 +67,68 @@ impl CodeExecutionClient {
             "#}.to_string()),
         };
 
-        Ok(Self { info, context })
+        Ok(Self {
+            info,
+            context,
+            state: RwLock::new(None),
+        })
     }
 
-    async fn load_callbacks_configs(&self) -> Option<Vec<CallbackConfig>> {
+    async fn load_callback_configs(&self) -> Option<Vec<CallbackConfig>> {
         let manager = self
             .context
             .extension_manager
             .as_ref()
             .and_then(|w| w.upgrade())?;
 
-        // generate callback configurations
-        let mut callback_cfgs = vec![];
-        if let Ok(tools) = manager.get_prefixed_tools_excluding(EXTENSION_NAME).await {
-            for tool in tools {
-                let (server_name, tool_name) = tool.name.as_ref().split_once("__")?;
-                callback_cfgs.push(CallbackConfig {
-                    name: tool_name.into(),
-                    namespace: server_name.into(),
-                    description: tool.description.map(String::from),
-                    input_schema: Some(json!(tool.input_schema)),
-                    output_schema: tool.output_schema.map(|s| json!(s)),
-                })
+        let tools = manager
+            .get_prefixed_tools_excluding(EXTENSION_NAME)
+            .await
+            .ok()?;
+        let mut cfgs = vec![];
+        for tool in tools {
+            let (server_name, tool_name) = tool.name.as_ref().split_once("__")?;
+            cfgs.push(CallbackConfig {
+                name: tool_name.into(),
+                namespace: server_name.into(),
+                description: tool.description.as_ref().map(|d| d.to_string()),
+                input_schema: Some(json!(tool.input_schema)),
+                output_schema: tool.output_schema.as_ref().map(|s| json!(s)),
+            })
+        }
+        Some(cfgs)
+    }
+
+    /// Get the cached CodeMode, rebuilding if callback configs have changed
+    async fn get_code_mode(&self) -> Result<CodeMode, String> {
+        let cfgs = self
+            .load_callback_configs()
+            .await
+            .ok_or("Failed to load callback configs")?;
+        let current_hash = CodeModeState::hash(&cfgs);
+
+        // Use cache if no state change
+        {
+            let guard = self.state.read().await;
+            if let Some(state) = guard.as_ref() {
+                if state.hash == current_hash {
+                    return Ok(state.code_mode.clone());
+                }
             }
         }
 
-        Some(callback_cfgs)
-    }
-
-    /// Build a CodeMode instance with all available callbacks configured
-    async fn build_code_mode(&self) -> Result<CodeMode, String> {
-        let callback_cfgs = self
-            .load_callbacks_configs()
-            .await
-            .ok_or("Failed to load callback configurations")?;
-
-        let mut code_mode = CodeMode::default();
-        for cfg in &callback_cfgs {
-            code_mode
-                .add_callback(cfg)
-                .map_err(|e| format!("Failed to add callback: {e}"))?;
+        // Rebuild CodeMode & cache
+        let mut guard = self.state.write().await;
+        // Double-check after acquiring write lock
+        if let Some(state) = guard.as_ref() {
+            if state.hash == current_hash {
+                return Ok(state.code_mode.clone());
+            }
         }
 
+        let state = CodeModeState::new(cfgs)?;
+        let code_mode = state.code_mode.clone();
+        *guard = Some(state);
         Ok(code_mode)
     }
 
@@ -112,7 +136,7 @@ impl CodeExecutionClient {
     fn build_callback_registry(
         &self,
         session_id: &str,
-        callback_cfgs: &[CallbackConfig],
+        code_mode: &CodeMode,
     ) -> Result<CallbackRegistry, String> {
         let manager = self
             .context
@@ -122,8 +146,8 @@ impl CodeExecutionClient {
             .ok_or("Extension manager not available")?;
 
         let registry = CallbackRegistry::default();
-        for cfg in callback_cfgs {
-            let full_name = format!("{}__{}", cfg.namespace, cfg.name);
+        for cfg in &code_mode.callbacks {
+            let full_name = format!("{}__{}", &cfg.namespace, &cfg.name);
             let callback = create_tool_callback(session_id.to_string(), full_name, manager.clone());
             registry
                 .add(&cfg.id(), callback)
@@ -135,7 +159,7 @@ impl CodeExecutionClient {
 
     /// Handle the list_functions tool call
     async fn handle_list_functions(&self) -> Result<Vec<Content>, String> {
-        let code_mode = self.build_code_mode().await?;
+        let code_mode = self.get_code_mode().await?;
         let output = code_mode.list_functions();
 
         Ok(vec![Content::text(output.code)])
@@ -152,7 +176,7 @@ impl CodeExecutionClient {
             .map_err(|e| format!("Failed to parse arguments: {e}"))?
             .ok_or("Missing arguments for get_function_details")?;
 
-        let code_mode = self.build_code_mode().await?;
+        let code_mode = self.get_code_mode().await?;
         let output = code_mode.get_function_details(input);
 
         Ok(vec![Content::text(output.code)])
@@ -170,19 +194,8 @@ impl CodeExecutionClient {
             .map_err(|e| format!("Failed to parse arguments: {e}"))?
             .ok_or("Missing arguments for execute")?;
 
-        let callback_cfgs = self
-            .load_callbacks_configs()
-            .await
-            .ok_or("Failed to load callback configurations")?;
-
-        let mut code_mode = CodeMode::default();
-        for cfg in &callback_cfgs {
-            code_mode
-                .add_callback(cfg)
-                .map_err(|e| format!("Failed to add callback: {e}"))?;
-        }
-
-        let registry = self.build_callback_registry(session_id, &callback_cfgs)?;
+        let code_mode = self.get_code_mode().await?;
+        let registry = self.build_callback_registry(session_id, &code_mode)?;
         let code = input.code.clone();
 
         // Deno runtime is not Send, so we need to run it in a blocking task
@@ -203,16 +216,7 @@ impl CodeExecutionClient {
         .await
         .map_err(|e| format!("Execution task failed: {e}"))??;
 
-        if output.success {
-            let result_text = if let Some(output_value) = output.output {
-                serde_json::to_string_pretty(&output_value).unwrap_or_else(|_| output.stdout)
-            } else {
-                output.stdout
-            };
-            Ok(vec![Content::text(result_text)])
-        } else {
-            Err(format!("Execution failed:\n{}", output.stderr))
-        }
+        Ok(vec![Content::text(output.markdown())])
     }
 }
 
@@ -403,7 +407,7 @@ impl McpClientTrait for CodeExecutionClient {
     }
 
     async fn get_moim(&self, _session_id: &str) -> Option<String> {
-        let code_mode = self.build_code_mode().await.ok()?;
+        let code_mode = self.get_code_mode().await.ok()?;
         let available: Vec<_> = code_mode
             .list_functions()
             .functions
@@ -423,5 +427,40 @@ impl McpClientTrait for CodeExecutionClient {
             "#},
             available.join(", ")
         ))
+    }
+}
+
+struct CodeModeState {
+    code_mode: CodeMode,
+    hash: u64,
+}
+
+impl CodeModeState {
+    fn new(cfgs: Vec<CallbackConfig>) -> Result<Self, String> {
+        let hash = Self::hash(&cfgs);
+
+        let mut code_mode = CodeMode::default();
+        for cfg in &cfgs {
+            code_mode
+                .add_callback(cfg)
+                .map_err(|e| format!("Failed to add callback: {e}"))?;
+        }
+
+        Ok(Self { code_mode, hash })
+    }
+
+    /// Compute order-independent hash of callback configs
+    fn hash(cfgs: &[CallbackConfig]) -> u64 {
+        let mut cfg_strings: Vec<_> = cfgs
+            .iter()
+            .filter_map(|c| serde_json::to_string(c).ok())
+            .collect();
+        cfg_strings.sort();
+
+        let mut hasher = DefaultHasher::new();
+        for s in cfg_strings {
+            s.hash(&mut hasher);
+        }
+        hasher.finish()
     }
 }
