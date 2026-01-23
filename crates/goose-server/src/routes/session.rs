@@ -347,6 +347,27 @@ async fn import_session(
     State(state): State<Arc<AppState>>,
     Json(request): Json<ImportSessionRequest>,
 ) -> Result<Json<Session>, StatusCode> {
+    // Parse the imported session data to extract and validate the session ID
+    let imported_data: serde_json::Value = serde_json::from_str(&request.json)
+        .map_err(|_| StatusCode::BAD_REQUEST)?;
+    
+    // Extract the session ID from the imported data
+    let imported_session_id = imported_data
+        .get("id")
+        .and_then(|v| v.as_str())
+        .ok_or(StatusCode::BAD_REQUEST)?;
+    
+    // Verify that the session doesn't already exist to prevent overwriting existing sessions
+    if state.session_manager().get_session(imported_session_id, false).await.is_ok() {
+        // Session already exists - this is a security violation attempt
+        tracing::warn!(
+            "Attempted to import session with existing ID: {}",
+            imported_session_id
+        );
+        return Err(StatusCode::CONFLICT);
+    }
+    
+    // Import the session with validation
     let session = state
         .session_manager()
         .import_session(&request.json)
