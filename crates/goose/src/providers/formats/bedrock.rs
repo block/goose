@@ -621,7 +621,7 @@ mod tests {
         assert!(result
             .unwrap_err()
             .to_string()
-            .contains("CachePoint blocks should be filtered out"));
+            .contains("CachePoint blocks should have been filtered out"));
     }
 
     #[test]
