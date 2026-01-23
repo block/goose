@@ -116,6 +116,14 @@ jobs:
           # Run the provider test script (binary already built and downloaded)
           bash scripts/test_providers.sh
 
+      - name: Set up Python (for MCP tests)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv (for MCP tests)
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # pin@v6
+
       - name: Run MCP Tests
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
