@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { DictationProvider, DictationSettings } from '../../../hooks/useDictationSettings';
+import { DICTATION_PROVIDER_ELEVENLABS } from '../../../hooks/dictationConstants';
 import { useConfig } from '../../ConfigContext';
 import { ElevenLabsKeyInput } from './ElevenLabsKeyInput';
 import { ProviderInfo } from './ProviderInfo';
@@ -57,7 +58,7 @@ export const ProviderSelector = ({ settings, onProviderChange }: ProviderSelecto
     switch (provider) {
       case 'openai':
         return 'OpenAI Whisper';
-      case 'elevenlabs':
+      case DICTATION_PROVIDER_ELEVENLABS:
         return 'ElevenLabs';
       default:
         return 'None (disabled)';
@@ -95,11 +96,13 @@ export const ProviderSelector = ({ settings, onProviderChange }: ProviderSelecto
 
               {VOICE_DICTATION_ELEVENLABS_ENABLED && (
                 <button
-                  onClick={() => handleProviderChange('elevenlabs')}
+                  onClick={() => handleProviderChange(DICTATION_PROVIDER_ELEVENLABS)}
                   className="w-full px-3 py-2 text-left text-sm hover:bg-background-subtle transition-colors text-text-default last:rounded-b-md"
                 >
                   ElevenLabs
-                  {settings.provider === 'elevenlabs' && <span className="float-right">✓</span>}
+                  {settings.provider === DICTATION_PROVIDER_ELEVENLABS && (
+                    <span className="float-right">✓</span>
+                  )}
                 </button>
               )}
             </div>
@@ -107,9 +110,8 @@ export const ProviderSelector = ({ settings, onProviderChange }: ProviderSelecto
         </div>
       </div>
 
-      {VOICE_DICTATION_ELEVENLABS_ENABLED && settings.provider === 'elevenlabs' && (
-        <ElevenLabsKeyInput />
-      )}
+      {VOICE_DICTATION_ELEVENLABS_ENABLED &&
+        settings.provider === DICTATION_PROVIDER_ELEVENLABS && <ElevenLabsKeyInput />}
 
       <ProviderInfo provider={settings.provider} />
     </div>

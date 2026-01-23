@@ -12,7 +12,7 @@ workspace = true
 
 [build-dependencies]
 tokio = { workspace = true }
-reqwest = { version = "0.12.9", features = ["json", "rustls-tls-native-roots"], default-features = false }
+reqwest = { workspace = true, features = ["json", "rustls-tls-native-roots"], default-features = false }
 
 [dependencies]
 lru = "0.16"
@@ -27,19 +27,7 @@ anyhow = { workspace = true }
 thiserror = "1.0"
 futures = { workspace = true }
 dirs = "5.0"
-reqwest = { version = "0.12.9", features = [
-    "rustls-tls-native-roots",
-    "json",
-    "cookies",
-    "gzip",
-    "brotli",
-    "deflate",
-    "zstd",
-    "charset",
-    "http2",
-    "stream",
-    "blocking"
-], default-features = false }
+reqwest = { workspace = true, features = ["rustls-tls-native-roots", "json", "cookies", "gzip", "brotli", "deflate", "zstd", "charset", "http2", "stream", "blocking"], default-features = false }
 tokio = { workspace = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { workspace = true }
@@ -57,8 +45,8 @@ clap = { version = "4.4", features = ["derive"] }
 indoc = "2.0.5"
 nanoid = "0.4"
 sha2 = "0.10"
-base64 = "0.21"
-url = "2.5"
+base64 = { workspace = true }
+url = { workspace = true }
 axum = "0.8.1"
 webbrowser = {workspace = true}
 lazy_static = "1.5.0"
@@ -77,6 +65,7 @@ rand = "0.8.5"
 utoipa = { version = "4.1", features = ["chrono"] }
 tokio-cron-scheduler = "0.14.0"
 urlencoding = "2.1"
+v_htmlescape = "0.15"
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "sqlite", "chrono", "json"] }
 
 # For Bedrock provider
@@ -117,17 +106,14 @@ unbinder = "0.1.7"
 winapi = { version = "0.3", features = ["wincred"] }
 
 [dev-dependencies]
-agent-client-protocol-schema = "0.10.5"
-criterion = "0.5"
 serial_test = { workspace = true }
 mockall = "0.13.1"
 wiremock = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { version = "0.7.15", features = ["compat"] }
-temp-env = "0.3.6"
 dotenvy = "0.15.7"
 ctor = "0.2.9"
-test-case = "3.3"
+test-case = { workspace = true }
 env-lock = { workspace = true }
 rmcp = { workspace = true, features = ["transport-streamable-http-server"] }
 

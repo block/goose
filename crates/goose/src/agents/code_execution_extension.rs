@@ -1,12 +1,12 @@
 use crate::agents::extension::PlatformExtensionContext;
-use crate::agents::mcp_client::{Error, McpClientTrait, McpMeta};
+use crate::agents::mcp_client::{Error, McpClientTrait};
 use anyhow::Result;
 use async_trait::async_trait;
 use indoc::indoc;
 use pctx_code_mode::model::{CallbackConfig, ExecuteInput, GetFunctionDetailsInput};
 use pctx_code_mode::{CallbackRegistry, CodeMode};
 use rmcp::model::{
-    CallToolRequestParam, CallToolResult, Content, Implementation, InitializeResult, JsonObject,
+    CallToolRequestParams, CallToolResult, Content, Implementation, InitializeResult, JsonObject,
     ListToolsResult, ProtocolVersion, RawContent, ServerCapabilities, Tool as McpTool,
     ToolAnnotations, ToolsCapability,
 };
@@ -74,7 +74,7 @@ impl CodeExecutionClient {
         })
     }
 
-    async fn load_callback_configs(&self) -> Option<Vec<CallbackConfig>> {
+    async fn load_callback_configs(&self, session_id: &str) -> Option<Vec<CallbackConfig>> {
         let manager = self
             .context
             .extension_manager
@@ -82,7 +82,7 @@ impl CodeExecutionClient {
             .and_then(|w| w.upgrade())?;
 
         let tools = manager
-            .get_prefixed_tools_excluding(EXTENSION_NAME)
+            .get_prefixed_tools_excluding(session_id, EXTENSION_NAME)
             .await
             .ok()?;
         let mut cfgs = vec![];
@@ -100,9 +100,9 @@ impl CodeExecutionClient {
     }
 
     /// Get the cached CodeMode, rebuilding if callback configs have changed
-    async fn get_code_mode(&self) -> Result<CodeMode, String> {
+    async fn get_code_mode(&self, session_id: &str) -> Result<CodeMode, String> {
         let cfgs = self
-            .load_callback_configs()
+            .load_callback_configs(session_id)
             .await
             .ok_or("Failed to load callback configs")?;
         let current_hash = CodeModeState::hash(&cfgs);
@@ -158,8 +158,8 @@ impl CodeExecutionClient {
     }
 
     /// Handle the list_functions tool call
-    async fn handle_list_functions(&self) -> Result<Vec<Content>, String> {
-        let code_mode = self.get_code_mode().await?;
+    async fn handle_list_functions(&self, session_id: &str) -> Result<Vec<Content>, String> {
+        let code_mode = self.get_code_mode(session_id).await?;
         let output = code_mode.list_functions();
 
         Ok(vec![Content::text(output.code)])
@@ -168,6 +168,7 @@ impl CodeExecutionClient {
     /// Handle the get_function_details tool call
     async fn handle_get_function_details(
         &self,
+        session_id: &str,
         arguments: Option<JsonObject>,
     ) -> Result<Vec<Content>, String> {
         let input: GetFunctionDetailsInput = arguments
@@ -176,7 +177,7 @@ impl CodeExecutionClient {
             .map_err(|e| format!("Failed to parse arguments: {e}"))?
             .ok_or("Missing arguments for get_function_details")?;
 
-        let code_mode = self.get_code_mode().await?;
+        let code_mode = self.get_code_mode(session_id).await?;
         let output = code_mode.get_function_details(input);
 
         Ok(vec![Content::text(output.code)])
@@ -194,7 +195,7 @@ impl CodeExecutionClient {
             .map_err(|e| format!("Failed to parse arguments: {e}"))?
             .ok_or("Missing arguments for execute")?;
 
-        let code_mode = self.get_code_mode().await?;
+        let code_mode = self.get_code_mode(session_id).await?;
         let registry = self.build_callback_registry(session_id, &code_mode)?;
         let code = input.code.clone();
 
@@ -230,8 +231,9 @@ fn create_tool_callback(
         let full_name = full_name.clone();
         let manager = manager.clone();
         Box::pin(async move {
-            let tool_call = CallToolRequestParam {
+            let tool_call = CallToolRequestParams {
                 task: None,
+                meta: None,
                 name: full_name.into(),
                 arguments: args.and_then(|v| v.as_object().cloned()),
             };
@@ -270,6 +272,7 @@ impl McpClientTrait for CodeExecutionClient {
     #[allow(clippy::too_many_lines)]
     async fn list_tools(
         &self,
+        _session_id: &str,
         _next_cursor: Option<String>,
         _cancellation_token: CancellationToken,
     ) -> Result<ListToolsResult, Error> {
@@ -354,6 +357,7 @@ impl McpClientTrait for CodeExecutionClient {
                         - Variables don't persist between `execute()` calls - return or log anything you need later
                         - Add console.log() statements between API calls to track progress if errors occur
                         - Code runs in an isolated Deno sandbox with restricted network access
+                        - If a function returns `any` do not assume it has any particular fields
 
                         TOKEN USAGE WARNING: This tool could return LARGE responses if your code returns big objects.
                         To minimize tokens:
@@ -382,15 +386,18 @@ impl McpClientTrait for CodeExecutionClient {
 
     async fn call_tool(
         &self,
+        session_id: &str,
         name: &str,
         arguments: Option<JsonObject>,
-        meta: McpMeta,
         _cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         let result = match name {
-            "list_functions" => self.handle_list_functions().await,
-            "get_function_details" => self.handle_get_function_details(arguments).await,
-            "execute" => self.handle_execute(&meta.session_id, arguments).await,
+            "list_functions" => self.handle_list_functions(session_id).await,
+            "get_function_details" => {
+                self.handle_get_function_details(session_id, arguments)
+                    .await
+            }
+            "execute" => self.handle_execute(session_id, arguments).await,
             _ => Err(format!("Unknown tool: {name}")),
         };
 
@@ -406,8 +413,8 @@ impl McpClientTrait for CodeExecutionClient {
         Some(&self.info)
     }
 
-    async fn get_moim(&self, _session_id: &str) -> Option<String> {
-        let code_mode = self.get_code_mode().await.ok()?;
+    async fn get_moim(&self, session_id: &str) -> Option<String> {
+        let code_mode = self.get_code_mode(session_id).await.ok()?;
         let available: Vec<_> = code_mode
             .list_functions()
             .functions

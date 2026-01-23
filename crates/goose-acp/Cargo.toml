@@ -18,17 +18,16 @@ anyhow = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { version = "0.7.15", features = ["compat", "rt"] }
 tracing = { workspace = true }
-url = "2.5"
 serde_json = { workspace = true }
 futures = { workspace = true }
 regex = { workspace = true }
 fs-err = "3"
+url = { workspace = true }
 
 [dev-dependencies]
 assert-json-diff = "2.0.2"
 wiremock = { workspace = true }
 tempfile = "3"
-test-case = "3.3"
+test-case = { workspace = true }
 axum = "0.8"
-tower-http = { version = "0.6", features = ["cors", "fs", "auth"] }
 rmcp = { workspace = true, features = ["transport-streamable-http-server"] }

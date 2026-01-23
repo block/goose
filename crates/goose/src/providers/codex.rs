@@ -507,6 +507,7 @@ impl Provider for CodexProvider {
     )]
     async fn complete_with_model(
         &self,
+        session_id: &str,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],

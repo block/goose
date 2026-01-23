@@ -69,7 +69,7 @@ export type AnalyticsEvent =
   | { name: 'onboarding_started'; properties: Record<string, never> }
   | {
       name: 'onboarding_provider_selected';
-      properties: { method: 'api_key' | 'openrouter' | 'tetrate' | 'ollama' | 'other' };
+      properties: { method: 'api_key' | 'openrouter' | 'tetrate' | 'chatgpt_codex' | 'ollama' | 'other' };
     }
   | {
       name: 'onboarding_completed';
@@ -78,7 +78,7 @@ export type AnalyticsEvent =
   | { name: 'onboarding_abandoned'; properties: { step: string; duration_seconds?: number } }
   | {
       name: 'onboarding_setup_failed';
-      properties: { provider: 'openrouter' | 'tetrate'; error_message?: string };
+      properties: { provider: 'openrouter' | 'tetrate' | 'chatgpt_codex'; error_message?: string };
     }
   | {
       name: 'error_occurred';
@@ -282,7 +282,7 @@ export function trackOnboardingStarted(): void {
 }
 
 export function trackOnboardingProviderSelected(
-  method: 'api_key' | 'openrouter' | 'tetrate' | 'ollama' | 'other'
+  method: 'api_key' | 'openrouter' | 'tetrate' | 'chatgpt_codex' | 'ollama' | 'other'
 ): void {
   trackEvent({
     name: 'onboarding_provider_selected',
@@ -315,7 +315,7 @@ export function trackOnboardingAbandoned(step: string): void {
 }
 
 export function trackOnboardingSetupFailed(
-  provider: 'openrouter' | 'tetrate',
+  provider: 'openrouter' | 'tetrate' | 'chatgpt_codex',
   errorMessage?: string
 ): void {
   trackEvent({

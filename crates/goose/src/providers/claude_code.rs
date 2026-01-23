@@ -417,6 +417,7 @@ impl Provider for ClaudeCodeProvider {
     )]
     async fn complete_with_model(
         &self,
+        _session_id: &str,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],

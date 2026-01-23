@@ -88,9 +88,11 @@ export async function startNewSession(
   // Include session data so sidebar can add it immediately (before it has messages)
   window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED, { detail: { session } }));
 
+  const initialMessage = initialText ? { msg: initialText, images: [] } : undefined;
+
   const eventDetail = {
     sessionId: session.id,
-    initialMessage: initialText,
+    initialMessage,
   };
 
   window.dispatchEvent(
@@ -101,7 +103,7 @@ export async function startNewSession(
 
   setView('pair', {
     disableAnimation: true,
-    initialMessage: initialText,
+    initialMessage,
     resumeSessionId: session.id,
   });
   return session;
