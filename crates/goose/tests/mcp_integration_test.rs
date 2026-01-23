@@ -154,7 +154,7 @@ enum TestMode {
 #[test_case(
     vec!["uv", "run", "--with", "fastmcp==2.14.4", "fastmcp", "run", "tests/fastmcp_test_server.py"],
     vec![
-        CallToolRequestParam { task: None, name: "divide".into(), arguments: Some(object!({
+        CallToolRequestParams { task: None, name: "divide".into(), arguments: Some(object!({
             "dividend": 10,
             "divisor": 2
         })) }
