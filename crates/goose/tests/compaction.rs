@@ -118,8 +118,10 @@ impl Provider for MockCompactionProvider {
 
         // Simulate context limit: if input > 20k tokens and we haven't compacted yet, fail
         const CONTEXT_LIMIT: i32 = 20000;
-        if !is_compaction && input_tokens > CONTEXT_LIMIT
-            && !self.has_compacted.load(Ordering::SeqCst) {
+        if !is_compaction
+            && input_tokens > CONTEXT_LIMIT
+            && !self.has_compacted.load(Ordering::SeqCst)
+        {
             return Err(ProviderError::ContextLengthExceeded(format!(
                 "Context limit exceeded: {} > {}",
                 input_tokens, CONTEXT_LIMIT
@@ -349,8 +351,7 @@ async fn test_manual_compaction_updates_token_counts_and_conversation() -> Resul
             .with_text("Compaction is a process that summarizes conversation history."),
     ];
 
-    let session =
-        setup_test_session(&agent, &temp_dir, "manual-compact-test", messages).await?;
+    let session = setup_test_session(&agent, &temp_dir, "manual-compact-test", messages).await?;
 
     // Setup mock provider
     let provider = Arc::new(MockCompactionProvider::new());
@@ -437,8 +438,7 @@ async fn test_auto_compaction_during_reply() -> Result<()> {
         messages.push(Message::assistant().with_text(format!("Assistant response {}", i)));
     }
 
-    let session =
-        setup_test_session(&agent, &temp_dir, "auto-compact-test", messages).await?;
+    let session = setup_test_session(&agent, &temp_dir, "auto-compact-test", messages).await?;
 
     // Capture initial context size before triggering reply
     // Should be: system (6000) + 40 messages (4000) = ~10000 tokens
@@ -499,8 +499,8 @@ async fn test_auto_compaction_during_reply() -> Result<()> {
 
     if compaction_occurred {
         // Verify that current input context decreased after compaction
-        let tokens_after = input_tokens_after_compaction
-            .expect("Should have captured tokens after compaction");
+        let tokens_after =
+            input_tokens_after_compaction.expect("Should have captured tokens after compaction");
 
         // Before compaction: system (6000) + 40 messages (4000) = 10,000 tokens
         // After compaction: only the summary (200 tokens) - this becomes the new input
@@ -602,8 +602,7 @@ async fn test_context_limit_recovery_compaction() -> Result<()> {
     // - Total conversation: ~15400 tokens
     // - With system prompt (6000): 21400 tokens
 
-    let session =
-        setup_test_session(&agent, &temp_dir, "context-limit-test", messages).await?;
+    let session = setup_test_session(&agent, &temp_dir, "context-limit-test", messages).await?;
 
     // Setup mock provider with context limit of 20000 tokens
     // Initial context (6000 system + 15400 messages = 21400) exceeds this limit
@@ -688,8 +687,8 @@ async fn test_context_limit_recovery_compaction() -> Result<()> {
     //    - Output: 100 tokens (response)
 
     // Verify that current input context is dramatically reduced after compaction
-    let tokens_after = input_tokens_after_compaction
-        .expect("Should have captured tokens after compaction");
+    let tokens_after =
+        input_tokens_after_compaction.expect("Should have captured tokens after compaction");
 
     // After compaction, the input context should be ONLY the summary: 200 tokens
     // Before: system (6000) + long_tool_call messages (~15,400) = 21,400 (exceeded limit!)
