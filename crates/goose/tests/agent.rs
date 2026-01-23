@@ -567,4 +567,193 @@ mod tests {
             );
         }
     }
+
+    #[cfg(test)]
+    mod manual_compaction_tests {
+        use super::*;
+        use async_trait::async_trait;
+        use goose::conversation::message::Message;
+        use goose::conversation::Conversation;
+        use goose::model::ModelConfig;
+        use goose::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
+        use goose::providers::errors::ProviderError;
+        use goose::session::session_manager::SessionType;
+        use rmcp::model::Tool;
+        use tempfile::TempDir;
+
+        struct MockCompactionProvider {
+            summary_input_tokens: i32,
+            summary_output_tokens: i32,
+        }
+
+        impl MockCompactionProvider {
+            fn new(summary_input_tokens: i32, summary_output_tokens: i32) -> Self {
+                Self {
+                    summary_input_tokens,
+                    summary_output_tokens,
+                }
+            }
+        }
+
+        #[async_trait]
+        impl Provider for MockCompactionProvider {
+            async fn complete(
+                &self,
+                _session_id: &str,
+                _system_prompt: &str,
+                _messages: &[Message],
+                _tools: &[Tool],
+            ) -> Result<(Message, ProviderUsage), ProviderError> {
+                let message = Message::assistant().with_text("<mock summary of conversation>");
+
+                let usage = ProviderUsage::new(
+                    "mock-model".to_string(),
+                    Usage::new(
+                        Some(self.summary_input_tokens),
+                        Some(self.summary_output_tokens),
+                        Some(self.summary_input_tokens + self.summary_output_tokens),
+                    ),
+                );
+
+                Ok((message, usage))
+            }
+
+            async fn complete_with_model(
+                &self,
+                session_id: &str,
+                _model_config: &ModelConfig,
+                system_prompt: &str,
+                messages: &[Message],
+                tools: &[Tool],
+            ) -> Result<(Message, ProviderUsage), ProviderError> {
+                self.complete(session_id, system_prompt, messages, tools)
+                    .await
+            }
+
+            fn get_model_config(&self) -> ModelConfig {
+                ModelConfig::new("mock-model").unwrap()
+            }
+
+            fn metadata() -> ProviderMetadata {
+                ProviderMetadata {
+                    name: "mock".to_string(),
+                    display_name: "Mock Compaction Provider".to_string(),
+                    description: "Mock provider for compaction testing".to_string(),
+                    default_model: "mock-model".to_string(),
+                    known_models: vec![],
+                    model_doc_link: "".to_string(),
+                    config_keys: vec![],
+                    allows_unlisted_models: false,
+                }
+            }
+
+            fn get_name(&self) -> &str {
+                "mock-compaction"
+            }
+        }
+
+        #[tokio::test]
+        async fn test_manual_compaction_updates_token_counts() -> Result<()> {
+            // Setup agent with temp directory
+            let temp_dir = TempDir::new()?;
+            let agent = Agent::new();
+
+            // Create a session
+            let session = agent
+                .config
+                .session_manager
+                .create_session(
+                    temp_dir.path().to_path_buf(),
+                    "compaction-test".to_string(),
+                    SessionType::Hidden,
+                )
+                .await?;
+
+            // Add some messages to the conversation
+            let messages = vec![
+                Message::user().with_text("Hello, can you help me with something?"),
+                Message::assistant().with_text("Of course! What do you need help with?"),
+                Message::user().with_text("I need to understand how compaction works."),
+                Message::assistant()
+                    .with_text("Compaction is a process that summarizes conversation history."),
+            ];
+
+            let conversation = Conversation::new_unvalidated(messages);
+            agent
+                .config
+                .session_manager
+                .replace_conversation(&session.id, &conversation)
+                .await?;
+
+            // Set initial token counts to simulate some usage before compaction
+            agent
+                .config
+                .session_manager
+                .update(&session.id)
+                .total_tokens(Some(1000))
+                .input_tokens(Some(600))
+                .output_tokens(Some(400))
+                .accumulated_total_tokens(Some(1000))
+                .accumulated_input_tokens(Some(600))
+                .accumulated_output_tokens(Some(400))
+                .apply()
+                .await?;
+
+            // Create a mock provider that will return specific token counts for the summary
+            // The output tokens from the summary become the new input context
+            let summary_input_tokens: i32 = 800; // Tokens used to create the summary
+            let summary_output_tokens: i32 = 200; // Tokens in the summary (new context size)
+            let provider = Arc::new(MockCompactionProvider::new(
+                summary_input_tokens,
+                summary_output_tokens,
+            ));
+
+            // Update the agent's provider
+            agent.update_provider(provider, &session.id).await?;
+
+            // Execute manual compaction command
+            let result = agent.execute_command("/compact", &session.id).await?;
+
+            // Verify we got a success message
+            assert!(result.is_some());
+
+            // Get the updated session to check token counts
+            let updated_session = agent
+                .config
+                .session_manager
+                .get_session(&session.id, true)
+                .await?;
+
+            // After compaction, the token counts should be updated:
+            // - input_tokens should be the summary output tokens (new context size)
+            // - output_tokens should be None (no new assistant output)
+            // - total_tokens should equal input_tokens
+            // - accumulated_total_tokens should include the summary creation tokens
+            assert_eq!(
+                updated_session.input_tokens,
+                Some(summary_output_tokens),
+                "Input tokens should be set to summary output tokens (new context size)"
+            );
+            assert_eq!(
+                updated_session.output_tokens,
+                None,
+                "Output tokens should be None after compaction"
+            );
+            assert_eq!(
+                updated_session.total_tokens,
+                Some(summary_output_tokens),
+                "Total tokens should equal input tokens after compaction"
+            );
+
+            // Accumulated total should include: original 1000 + summary tokens (800 + 200)
+            let expected_accumulated = 1000 + summary_input_tokens + summary_output_tokens;
+            assert_eq!(
+                updated_session.accumulated_total_tokens,
+                Some(expected_accumulated),
+                "Accumulated total should include original usage plus summary creation"
+            );
+
+            Ok(())
+        }
+    }
 }

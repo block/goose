@@ -86,7 +86,7 @@ impl Agent {
             .conversation
             .ok_or_else(|| anyhow!("Session has no conversation"))?;
 
-        let (compacted_conversation, _usage) = compact_messages(
+        let (compacted_conversation, usage) = compact_messages(
             self.provider().await?.as_ref(),
             session_id,
             &conversation,
@@ -96,6 +96,16 @@ impl Agent {
 
         manager
             .replace_conversation(session_id, &compacted_conversation)
+            .await?;
+
+        // Update session metrics with compaction usage
+        let session_config = super::types::SessionConfig {
+            id: session_id.to_string(),
+            schedule_id: session.schedule_id,
+            max_turns: None,
+            retry_config: None,
+        };
+        self.update_session_metrics(&session_config, &usage, true)
             .await?;
 
         Ok(Some(Message::assistant().with_system_notification(
