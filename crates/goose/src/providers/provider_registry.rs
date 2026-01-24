@@ -160,4 +160,75 @@ impl ProviderRegistry {
     pub fn remove_custom_providers(&mut self) {
         self.entries.retain(|name, _| !name.starts_with("custom_"));
     }
+
+    /// Registers a provider with a dynamic constructor that returns `Arc<dyn Provider>`.
+    /// Used for routed providers where the concrete type depends on the model.
+    pub fn register_dynamic(
+        &mut self,
+        config: &DeclarativeProviderConfig,
+        provider_type: ProviderType,
+        constructor: impl Fn(ModelConfig) -> Result<Arc<dyn Provider>> + Send + Sync + 'static,
+    ) {
+        let description = config
+            .description
+            .clone()
+            .unwrap_or_else(|| format!("Custom {} provider", config.display_name));
+
+        // Use explicit default_model if provided, otherwise first model
+        let default_model = config
+            .default_model
+            .clone()
+            .or_else(|| config.models.first().map(|m| m.name.clone()))
+            .unwrap_or_default();
+
+        let known_models: Vec<ModelInfo> = config
+            .models
+            .iter()
+            .map(|m| ModelInfo {
+                name: m.name.clone(),
+                context_limit: m.context_limit,
+                input_token_cost: m.input_token_cost,
+                output_token_cost: m.output_token_cost,
+                currency: m.currency.clone(),
+                supports_cache_control: Some(m.supports_cache_control.unwrap_or(false)),
+            })
+            .collect();
+
+        // Build config keys from explicit config_keys if provided, otherwise infer from api_key_env
+        let config_keys = if let Some(ref keys) = config.config_keys {
+            keys.iter()
+                .map(|k| super::base::ConfigKey::new(&k.name, k.required, k.secret, None))
+                .collect()
+        } else {
+            vec![super::base::ConfigKey::new(
+                &config.api_key_env,
+                true,
+                true,
+                None,
+            )]
+        };
+
+        let custom_metadata = ProviderMetadata {
+            name: config.name.clone(),
+            display_name: config.display_name.clone(),
+            description,
+            default_model,
+            known_models,
+            model_doc_link: String::new(),
+            config_keys,
+            allows_unlisted_models: false,
+        };
+
+        self.entries.insert(
+            config.name.clone(),
+            ProviderEntry {
+                metadata: custom_metadata,
+                constructor: Arc::new(move |model| {
+                    let result = constructor(model);
+                    Box::pin(async move { result })
+                }),
+                provider_type,
+            },
+        );
+    }
 }

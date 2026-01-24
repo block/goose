@@ -1,0 +1,40 @@
+{
+  "name": "microsoft_foundry",
+  "display_name": "Microsoft Foundry",
+  "description": "Multi-model AI platform via Azure AI Foundry supporting Claude, GPT, and other models",
+  "api_key_env": "MICROSOFT_FOUNDRY_API_KEY",
+  "base_url": "https://${MICROSOFT_FOUNDRY_RESOURCE}.services.ai.azure.com",
+  "default_model": "claude-sonnet-4-5",
+  "models": [
+    {"name": "claude-sonnet-4-5", "context_limit": 200000},
+    {"name": "claude-haiku-4-5", "context_limit": 200000},
+    {"name": "claude-opus-4-5", "context_limit": 200000},
+    {"name": "claude-opus-4-1", "context_limit": 200000},
+    {"name": "gpt-4o", "context_limit": 128000},
+    {"name": "gpt-4o-mini", "context_limit": 128000},
+    {"name": "mistral-large", "context_limit": 128000},
+    {"name": "llama-3.1-70b", "context_limit": 128000},
+    {"name": "deepseek-v3", "context_limit": 128000}
+  ],
+  "routes": [
+    {
+      "match": {"model": "claude-*"},
+      "engine": "anthropic",
+      "path": "anthropic/v1/messages",
+      "auth": {"type": "header", "name": "x-api-key"},
+      "headers": {"anthropic-version": "2023-06-01"}
+    },
+    {
+      "match": {"model": "*"},
+      "engine": "openai",
+      "path": "models/chat/completions",
+      "auth": {"type": "header", "name": "api-key"},
+      "query": {"api-version": "2024-05-01-preview"}
+    }
+  ],
+  "config_keys": [
+    {"name": "MICROSOFT_FOUNDRY_RESOURCE", "required": true, "secret": false},
+    {"name": "MICROSOFT_FOUNDRY_API_KEY", "required": true, "secret": true}
+  ],
+  "supports_streaming": true
+}

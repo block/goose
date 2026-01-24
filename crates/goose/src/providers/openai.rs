@@ -153,15 +153,32 @@ impl OpenAiProvider {
         } else {
             format!("{}://{}", url.scheme(), url.host_str().unwrap_or(""))
         };
-        let base_path = url.path().trim_start_matches('/').to_string();
-        let base_path = if base_path.is_empty() || base_path == "v1" || base_path == "v1/" {
+
+        // Extract path and preserve query string if present (e.g., api-version for Azure)
+        let path = url.path().trim_start_matches('/').to_string();
+        let base_path = if path.is_empty() || path == "v1" || path == "v1/" {
             "v1/chat/completions".to_string()
+        } else if let Some(query) = url.query() {
+            format!("{}?{}", path, query)
         } else {
-            base_path
+            path
         };
 
         let timeout_secs = config.timeout_seconds.unwrap_or(600);
-        let auth = AuthMethod::BearerToken(api_key);
+        // Use auth config if provided, otherwise default to Bearer token
+        let auth = if let Some(auth_config) = &config.auth {
+            if auth_config.auth_type == "header" {
+                AuthMethod::ApiKey {
+                    header_name: auth_config.name.clone(),
+                    key: api_key,
+                }
+            } else {
+                // Default to Bearer for unknown auth types
+                AuthMethod::BearerToken(api_key)
+            }
+        } else {
+            AuthMethod::BearerToken(api_key)
+        };
         let mut api_client =
             ApiClient::with_timeout(host, auth, std::time::Duration::from_secs(timeout_secs))?;
 
