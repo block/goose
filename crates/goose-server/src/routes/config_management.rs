@@ -95,6 +95,12 @@ pub struct UpdateCustomProviderRequest {
     pub models: Vec<String>,
     pub supports_streaming: Option<bool>,
     pub headers: Option<std::collections::HashMap<String, String>>,
+    #[serde(default = "default_requires_auth")]
+    pub requires_auth: bool,
+}
+
+fn default_requires_auth() -> bool {
+    true
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -708,13 +714,16 @@ pub async fn create_custom_provider(
     Json(request): Json<UpdateCustomProviderRequest>,
 ) -> Result<Json<String>, StatusCode> {
     let config = goose::config::declarative_providers::create_custom_provider(
-        &request.engine,
-        request.display_name,
-        request.api_url,
-        request.api_key,
-        request.models,
-        request.supports_streaming,
-        request.headers,
+        goose::config::declarative_providers::CreateCustomProviderParams {
+            engine: request.engine,
+            display_name: request.display_name,
+            api_url: request.api_url,
+            api_key: request.api_key,
+            models: request.models,
+            supports_streaming: request.supports_streaming,
+            headers: request.headers,
+            requires_auth: request.requires_auth,
+        },
     )
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -778,13 +787,17 @@ pub async fn update_custom_provider(
     Json(request): Json<UpdateCustomProviderRequest>,
 ) -> Result<Json<String>, StatusCode> {
     goose::config::declarative_providers::update_custom_provider(
-        &id,
-        &request.engine,
-        request.display_name,
-        request.api_url,
-        request.api_key,
-        request.models,
-        request.supports_streaming,
+        goose::config::declarative_providers::UpdateCustomProviderParams {
+            id: id.clone(),
+            engine: request.engine,
+            display_name: request.display_name,
+            api_url: request.api_url,
+            api_key: request.api_key,
+            models: request.models,
+            supports_streaming: request.supports_streaming,
+            headers: request.headers,
+            requires_auth: request.requires_auth,
+        },
     )
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
