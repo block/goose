@@ -745,7 +745,7 @@ async fn execute_job(
 
     let extensions = resolve_extensions_for_new_session(recipe.extensions.as_deref(), None);
     for ext in extensions {
-        agent.add_extension(ext.clone()).await?;
+        agent.add_extension(ext.clone(), None).await?;
     }
 
     let session = agent

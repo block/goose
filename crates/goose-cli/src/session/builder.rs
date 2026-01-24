@@ -206,7 +206,7 @@ async fn offer_extension_debugging_help(
     let extensions = get_all_extensions();
     for ext_wrapper in extensions {
         if ext_wrapper.enabled && ext_wrapper.config.name() == "developer" {
-            if let Err(e) = debug_agent.add_extension(ext_wrapper.config).await {
+            if let Err(e) = debug_agent.add_extension(ext_wrapper.config, None).await {
                 // If we can't add developer extension, continue without it
                 eprintln!(
                     "Note: Could not load developer extension for debugging: {}",
@@ -261,7 +261,7 @@ async fn load_extensions(
     for (id, (_label, extension)) in extensions_to_load.iter().enumerate() {
         let agent_ptr = agent_ptr.clone();
         let cfg = extension.clone();
-        set.spawn(async move { (id, agent_ptr.add_extension(cfg).await) });
+        set.spawn(async move { (id, agent_ptr.add_extension(cfg, None).await) });
     }
 
     let get_message = |waiting_ids: &BTreeSet<usize>| {

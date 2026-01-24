@@ -679,7 +679,7 @@ impl Agent {
                     }
 
                     match agent_ref
-                        .add_extension_with_working_dir(config_clone, Some(working_dir_clone))
+                        .add_extension_with_working_dir(config_clone, Some(working_dir_clone), None)
                         .await
                     {
                         Ok(_) => ExtensionLoadResult {
@@ -704,14 +704,30 @@ impl Agent {
         futures::future::join_all(extension_futures).await
     }
 
-    pub async fn add_extension(&self, extension: ExtensionConfig) -> ExtensionResult<()> {
-        self.add_extension_with_working_dir(extension, None).await
+    pub async fn add_extension(
+        &self,
+        extension: ExtensionConfig,
+        session_id: Option<&str>,
+    ) -> ExtensionResult<()> {
+        self.add_extension_internal(extension, None, session_id)
+            .await
     }
 
     pub async fn add_extension_with_working_dir(
         &self,
         extension: ExtensionConfig,
         working_dir: Option<std::path::PathBuf>,
+        session_id: Option<&str>,
+    ) -> ExtensionResult<()> {
+        self.add_extension_internal(extension, working_dir, session_id)
+            .await
+    }
+
+    async fn add_extension_internal(
+        &self,
+        extension: ExtensionConfig,
+        working_dir: Option<std::path::PathBuf>,
+        session_id: Option<&str>,
     ) -> ExtensionResult<()> {
         match &extension {
             ExtensionConfig::Frontend {
@@ -744,6 +760,17 @@ impl Agent {
                     .add_extension_with_working_dir(extension.clone(), working_dir)
                     .await?;
             }
+        }
+
+        // Persist state if session_id provided (only after successful add)
+        if let Some(sid) = session_id {
+            self.persist_extension_state(sid).await.map_err(|e| {
+                error!("Failed to persist extension state: {}", e);
+                crate::agents::extension::ExtensionError::SetupError(format!(
+                    "Failed to persist extension state: {}",
+                    e
+                ))
+            })?;
         }
 
         Ok(())
@@ -810,8 +837,17 @@ impl Agent {
         prefixed_tools
     }
 
-    pub async fn remove_extension(&self, name: &str) -> Result<()> {
+    pub async fn remove_extension(&self, name: &str, session_id: Option<&str>) -> Result<()> {
         self.extension_manager.remove_extension(name).await?;
+
+        // Persist state if session_id provided (only after successful removal)
+        if let Some(sid) = session_id {
+            self.persist_extension_state(sid).await.map_err(|e| {
+                error!("Failed to persist extension state: {}", e);
+                anyhow!("Failed to persist extension state: {}", e)
+            })?;
+        }
+
         Ok(())
     }
 
