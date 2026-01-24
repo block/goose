@@ -534,8 +534,16 @@ impl Agent {
             };
 
             let extensions = self.get_extension_configs().await;
+
+            let max_turns_from_recipe = session
+                .recipe
+                .as_ref()
+                .and_then(|r| r.settings.as_ref())
+                .and_then(|s| s.max_turns);
+
             let task_config =
-                TaskConfig::new(provider, &session.id, &session.working_dir, extensions);
+                TaskConfig::new(provider, &session.id, &session.working_dir, extensions)
+                    .with_max_turns(max_turns_from_recipe);
             let sub_recipes = self.sub_recipes.lock().await.clone();
 
             let arguments = tool_call
@@ -1833,6 +1841,7 @@ impl Agent {
             goose_provider: Some(provider_name.clone()),
             goose_model: Some(model_name.clone()),
             temperature: Some(model_config.temperature.unwrap_or(0.0)),
+            max_turns: None,
         };
 
         tracing::debug!(

@@ -53,4 +53,11 @@ impl TaskConfig {
             ),
         }
     }
+
+    pub fn with_max_turns(mut self, max_turns: Option<usize>) -> Self {
+        if let Some(turns) = max_turns {
+            self.max_turns = Some(turns);
+        }
+        self
+    }
 }
