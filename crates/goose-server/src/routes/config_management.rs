@@ -747,6 +747,8 @@ pub async fn update_custom_provider(
             requires_auth: request.requires_auth,
         },
     )?;
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+>>>>>>> 04269837bc8 (Backend: Add headers parameter to update_custom_provider)
 
     goose::providers::refresh_custom_providers().await?;
 
