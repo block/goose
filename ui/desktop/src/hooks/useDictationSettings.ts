@@ -3,6 +3,7 @@ import { useConfig } from '../components/ConfigContext';
 import {
   DICTATION_SETTINGS_KEY,
   ELEVENLABS_API_KEY,
+  DICTATION_PROVIDER_ELEVENLABS,
   getDefaultDictationSettings,
   isSecretKeyConfigured,
 } from './dictationConstants';
@@ -14,29 +15,42 @@ export interface DictationSettings {
   provider: DictationProvider;
 }
 
+let elevenLabsKeyCache: boolean | null = null;
+
+export const setElevenLabsKeyCache = (value: boolean) => {
+  elevenLabsKeyCache = value;
+};
+
 export const useDictationSettings = () => {
   const [settings, setSettings] = useState<DictationSettings | null>(null);
-  const [hasElevenLabsKey, setHasElevenLabsKey] = useState<boolean>(false);
+  const [hasElevenLabsKey, setHasElevenLabsKey] = useState<boolean>(elevenLabsKeyCache ?? false);
   const { read, getProviders } = useConfig();
 
   useEffect(() => {
     const loadSettings = async () => {
       const saved = localStorage.getItem(DICTATION_SETTINGS_KEY);
 
+      let currentSettings: DictationSettings;
       if (saved) {
-        const parsedSettings = JSON.parse(saved);
-        setSettings(parsedSettings);
+        currentSettings = JSON.parse(saved);
       } else {
-        const defaultSettings = await getDefaultDictationSettings(getProviders);
-        setSettings(defaultSettings);
+        currentSettings = await getDefaultDictationSettings(getProviders);
       }
-
-      try {
-        const response = await read(ELEVENLABS_API_KEY, true);
-        const hasKey = isSecretKeyConfigured(response);
-        setHasElevenLabsKey(hasKey);
-      } catch (error) {
-        console.error('[useDictationSettings] Error loading ElevenLabs API key:', error);
+      setSettings(currentSettings);
+      if (
+        currentSettings.provider === DICTATION_PROVIDER_ELEVENLABS &&
+        elevenLabsKeyCache === null
+      ) {
+        try {
+          const response = await read(ELEVENLABS_API_KEY, true);
+          const hasKey = isSecretKeyConfigured(response);
+          elevenLabsKeyCache = hasKey;
+          setHasElevenLabsKey(hasKey);
+        } catch (error) {
+          elevenLabsKeyCache = false;
+          setHasElevenLabsKey(false);
+          console.error('[useDictationSettings] Error checking ElevenLabs API key:', error);
+        }
       }
     };
 

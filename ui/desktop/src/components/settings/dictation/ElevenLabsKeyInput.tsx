@@ -3,6 +3,7 @@ import { Input } from '../../ui/input';
 import { Button } from '../../ui/button';
 import { useConfig } from '../../ConfigContext';
 import { ELEVENLABS_API_KEY, isSecretKeyConfigured } from '../../../hooks/dictationConstants';
+import { setElevenLabsKeyCache } from '../../../hooks/useDictationSettings';
 
 export const ElevenLabsKeyInput = () => {
   const [elevenLabsApiKey, setElevenLabsApiKey] = useState('');
@@ -17,10 +18,11 @@ export const ElevenLabsKeyInput = () => {
     try {
       const response = await read(ELEVENLABS_API_KEY, true);
       const hasKey = isSecretKeyConfigured(response);
-
       setHasElevenLabsKey(hasKey);
+      setElevenLabsKeyCache(hasKey);
     } catch (error) {
       console.error(error);
+      setElevenLabsKeyCache(false);
     } finally {
       setIsLoadingKey(false);
     }
@@ -64,6 +66,7 @@ export const ElevenLabsKeyInput = () => {
       setElevenLabsApiKey('');
       setValidationError('');
       setIsEditing(false);
+      setElevenLabsKeyCache(false);
     } catch (error) {
       console.error(error);
       setValidationError('Failed to remove API key');
