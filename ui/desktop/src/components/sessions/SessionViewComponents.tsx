@@ -2,18 +2,16 @@ import React from 'react';
 import { MessageSquare, AlertCircle } from 'lucide-react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
-import BackButton from '../ui/BackButton';
 import { ScrollArea } from '../ui/scroll-area';
 import MarkdownContent from '../MarkdownContent';
 import ToolCallWithResponse from '../ToolCallWithResponse';
 import ImagePreview from '../ImagePreview';
 import {
-  getTextContent,
+  getTextAndImageContent,
   ToolRequestMessageContent,
   ToolResponseMessageContent,
 } from '../../types/message';
 import { formatMessageTimestamp } from '../../utils/timeUtils';
-import { extractImagePaths, removeImagePathsFromText } from '../../utils/imageUtils';
 import { Message } from '../../api';
 
 /**
@@ -44,34 +42,6 @@ export const getToolResponsesMap = (
   return responseMap;
 };
 
-/**
- * Props for the SessionHeaderCard component
- */
-export interface SessionHeaderCardProps {
-  onBack: () => void;
-  children: React.ReactNode;
-}
-
-/**
- * Common header card for session views
- */
-export const SessionHeaderCard: React.FC<SessionHeaderCardProps> = ({ onBack, children }) => {
-  return (
-    <Card className="rounded-none px-8 pt-6 pb-4 bg-background-defaultInverse text-textProminentInverse flex items-center">
-      <BackButton
-        showText={false}
-        onClick={onBack}
-        size="lg"
-        className="!text-textProminentInverse dark:!text-textStandardInverse"
-      />
-      {children}
-    </Card>
-  );
-};
-
-/**
- * Props for the SessionMessages component
- */
 interface SessionMessagesProps {
   messages: Message[];
   isLoading: boolean;
@@ -111,15 +81,7 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
             ) : messages?.length > 0 ? (
               messages
                 .map((message, index) => {
-                  const textContent = getTextContent(message);
-                  // Extract image paths from the message
-                  const imagePaths = extractImagePaths(textContent);
-
-                  // Remove image paths from text for display
-                  const displayText =
-                    imagePaths.length > 0
-                      ? removeImagePathsFromText(textContent, imagePaths)
-                      : textContent;
+                  const { textContent, imagePaths } = getTextAndImageContent(message);
 
                   // Get tool requests from the message
                   const toolRequests = message.content
@@ -157,24 +119,18 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
                       </div>
 
                       <div className="flex flex-col w-full">
-                        {/* Text content */}
-                        {displayText && (
+                        {textContent && (
                           <div
                             className={`${toolRequests.length > 0 || imagePaths.length > 0 ? 'mb-4' : ''}`}
                           >
-                            <MarkdownContent content={displayText} />
+                            <MarkdownContent content={textContent} />
                           </div>
                         )}
 
-                        {/* Render images if any */}
                         {imagePaths.length > 0 && (
                           <div className="flex flex-wrap gap-2 mt-2 mb-2">
                             {imagePaths.map((imagePath, imageIndex) => (
-                              <ImagePreview
-                                key={imageIndex}
-                                src={imagePath}
-                                alt={`Image ${imageIndex + 1}`}
-                              />
+                              <ImagePreview key={imageIndex} src={imagePath} />
                             ))}
                           </div>
                         )}
@@ -189,6 +145,7 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
                                 isCancelledMessage={
                                   toolResponsesMap.get(toolRequest.id) == undefined
                                 }
+                                isPendingApproval={false}
                                 key={toolRequest.id}
                                 toolRequest={toolRequest}
                                 toolResponse={toolResponsesMap.get(toolRequest.id)}

@@ -44,6 +44,8 @@
 - Async runtime: tokio
 - See HOWTOAI.md for AI-assisted code standards
 - MCP protocol implementations require extra scrutiny
+- Naming convention: In `documentation/docs` and `documentation/blog`, always refer to the project as "goose" (lowercase), never "Goose" (even at the start of sentences)
+- No prerelease docs: PRs should not contain updates in `/documentation` that correspond to code changes in the PR so that the public docs stay in sync with the latest released version. New topics should be marked with `unlisted: true`; other content should be removed or hidden from public view.
 
 ## CI Pipeline Context
 

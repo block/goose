@@ -1,11 +1,12 @@
 ---
-sidebar_position: 20
+sidebar_position: 25
 title: Updating goose
 sidebar_label: Updating goose
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import { DesktopAutoUpdateSteps } from '@site/src/components/DesktopAutoUpdateSteps';
 import MacDesktopInstallButtons from '@site/src/components/MacDesktopInstallButtons';
 import WindowsDesktopInstallButtons from '@site/src/components/WindowsDesktopInstallButtons';
 import LinuxDesktopInstallButtons from '@site/src/components/LinuxDesktopInstallButtons';
@@ -16,16 +17,16 @@ The goose CLI and desktop apps are under active and continuous development. To g
   <TabItem value="mac" label="macOS" default>
     <Tabs groupId="interface">
       <TabItem value="ui" label="goose Desktop" default>
-        :::info
-        To update goose to the latest stable version, reinstall using the instructions below
-        :::
-        <div style={{ marginTop: '1rem' }}>
-          1. <MacDesktopInstallButtons/>
-          2. Unzip the downloaded zip file.
-          3. Run the executable file to launch the goose Desktop application.
-          4. Overwrite the existing goose application with the new version.
-          5. Run the executable file to launch the goose Desktop application.
-        </div>
+        Update goose to the latest stable version.
+
+        <DesktopAutoUpdateSteps />
+        
+        **To manually download and install updates:**
+        1. <MacDesktopInstallButtons/>
+        2. Unzip the downloaded zip file
+        3. Drag the extracted `Goose.app` file to the `Applications` folder to overwrite your current version
+        4. Launch goose Desktop
+
       </TabItem>
       <TabItem value="cli" label="goose CLI">
         You can update goose by running:
@@ -62,19 +63,17 @@ The goose CLI and desktop apps are under active and continuous development. To g
   <TabItem value="linux" label="Linux">
     <Tabs groupId="interface">
       <TabItem value="ui" label="goose Desktop" default>
-        :::info
-        To update goose to the latest stable version, reinstall using the instructions below
-        :::
-        <div style={{ marginTop: '1rem' }}>
-          1. <LinuxDesktopInstallButtons/>
-          
-          **For Debian/Ubuntu-based distributions:**
-          2. Download the DEB file
-          3. Navigate to the directory where it is saved in a terminal
-          4. Run `sudo dpkg -i (filename).deb`
-          5. Launch goose from the app menu
+        Update goose to the latest stable version.
 
-        </div>
+        <DesktopAutoUpdateSteps />
+        
+        **To manually download and install updates:**
+        1. <LinuxDesktopInstallButtons/>
+
+        #### For Debian/Ubuntu-based distributions
+        2. In a terminal, navigate to the downloaded DEB file
+        3. Run `sudo dpkg -i (filename).deb`
+        4. Launch goose from the app menu
       </TabItem>
       <TabItem value="cli" label="goose CLI">
         You can update goose by running:
@@ -111,16 +110,14 @@ The goose CLI and desktop apps are under active and continuous development. To g
   <TabItem value="windows" label="Windows">
     <Tabs groupId="interface">
       <TabItem value="ui" label="goose Desktop" default>
-        :::info
-        To update goose to the latest stable version, reinstall using the instructions below
-        :::
-        <div style={{ marginTop: '1rem' }}>
-          1. <WindowsDesktopInstallButtons/>
-          2. Unzip the downloaded zip file.
-          3. Run the executable file to launch the goose Desktop application.
-          4. Overwrite the existing goose application with the new version.
-          5. Run the executable file to launch the goose Desktop application.
-        </div>
+        Update goose to the latest stable version.
+
+        <DesktopAutoUpdateSteps />
+        
+        **To manually download and install updates:**
+        1. <WindowsDesktopInstallButtons/>
+        2. Unzip the downloaded zip file
+        3. Run the executable file to launch the goose Desktop app
       </TabItem>
       <TabItem value="cli" label="goose CLI">
         You can update goose by running:

@@ -10,9 +10,9 @@ interface EnvVar {
 interface CLIExtensionInstructionsProps {
   name: string;
   description: string;
-  type?: 'stdio' | 'sse' | 'http';
+  type?: 'stdio' | 'http';
   command?: string; // Only for stdio
-  url?: string; // For both sse and http
+  url?: string; // For http
   timeout?: number;
   envVars?: EnvVar[]; // For stdio: environment variables, for http: headers
   infoNote?: string;
@@ -31,9 +31,8 @@ export default function CLIExtensionInstructions({
   commandNote,
 }: CLIExtensionInstructionsProps) {
   const hasEnvVars = envVars.length > 0;
-  const isSSE = type === 'sse';
   const isHttp = type === 'http';
-  const isRemote = isSSE || isHttp;
+  const isRemote = isHttp;
 
   // Determine last-step prompt text
   const lastStepText = isHttp
@@ -57,27 +56,23 @@ export default function CLIExtensionInstructions({
         <li>
           Choose to add a{' '}
           <code>
-            {isSSE 
-              ? 'Remote Extension (SSE)' 
-              : isHttp 
-              ? 'Remote Extension (Streaming HTTP)' 
+            {isHttp
+              ? 'Remote Extension (Streamable HTTP)'
               : 'Command-line Extension'
             }
           </code>.
         </li>
       </ol>
-      <CodeBlock language="sh">{`┌   goose-configure 
+      <CodeBlock language="sh">{`┌   goose-configure
 │
 ◇  What would you like to configure?
-│  Add Extension 
+│  Add Extension
 │
 ◆  What type of extension would you like to add?
 ${
-  isSSE
-    ? '│  ○ Built-in Extension\n│  ○ Command-line Extension\n// highlight-start\n│  ● Remote Extension (SSE) (Connect to a remote extension via Server-Sent Events)\n// highlight-end\n│  ○ Remote Extension (Streaming HTTP)'
-    : isHttp
-    ? '│  ○ Built-in Extension\n│  ○ Command-line Extension\n│  ○ Remote Extension (SSE)\n// highlight-start\n│  ● Remote Extension (Streaming HTTP) (Connect to a remote extension via MCP Streaming HTTP)\n// highlight-end'
-    : '│  ○ Built-in Extension\n// highlight-start\n│  ● Command-line Extension (Run a local command or script)\n// highlight-end\n│  ○ Remote Extension (SSE)\n│  ○ Remote Extension (Streaming HTTP)'
+  isHttp
+    ? '│  ○ Built-in Extension\n│  ○ Command-line Extension\n// highlight-start\n│  ● Remote Extension (Streamable HTTP) (Connect to a remote extension via MCP Streamable HTTP)\n// highlight-end'
+    : '│  ○ Built-in Extension\n// highlight-start\n│  ● Command-line Extension (Run a local command or script)\n// highlight-end\n│  ○ Remote Extension (Streamable HTTP)'
 }
 └`}</CodeBlock>
 
@@ -90,7 +85,7 @@ ${
 │  Add Extension
 │
 ◇  What type of extension would you like to add?
-│  ${isSSE ? 'Remote Extension (SSE)' : isHttp ? 'Remote Extension (Streaming HTTP)' : 'Command-line Extension'}
+│  ${isHttp ? 'Remote Extension (Streamable HTTP)' : 'Command-line Extension'}
 │
 // highlight-start
 ◆  What would you like to call this extension?
@@ -101,7 +96,7 @@ ${
       {isRemote ? (
         <>
           <ol start={4}>
-            <li>Enter the {isSSE ? 'SSE endpoint URI' : 'Streaming HTTP endpoint URI'}.</li>
+            <li>Enter the Streamable HTTP endpoint URI.</li>
           </ol>
           {commandNote && (
             <>
@@ -117,13 +112,13 @@ ${
 │  Add Extension 
 │
 ◇  What type of extension would you like to add?
-│  ${isSSE ? 'Remote Extension (SSE)' : 'Remote Extension (Streaming HTTP)'}
+│  Remote Extension (Streamable HTTP)
 │
 ◇  What would you like to call this extension?
 │  ${name}
 │
 // highlight-start
-◆  What is the ${isSSE ? 'SSE endpoint URI' : 'Streaming HTTP endpoint URI'}?
+◆  What is the Streamable HTTP endpoint URI?
 │  ${url}
 // highlight-end
 └`}</CodeBlock>
@@ -162,7 +157,7 @@ ${
 
       <ol start={5}>
         <li>
-          Enter the number of seconds Goose should wait for actions to complete before timing out. Default is{' '}
+          Enter the number of seconds goose should wait for actions to complete before timing out. Default is{' '}
           <code>300</code> seconds.
         </li>
       </ol>
@@ -172,14 +167,14 @@ ${
 │  Add Extension
 │
 ◇  What type of extension would you like to add?
-│  ${isSSE ? 'Remote Extension (SSE)' : isHttp ? 'Remote Extension (Streaming HTTP)' : 'Command-line Extension'}
+│  ${isHttp ? 'Remote Extension (Streamable HTTP)' : 'Command-line Extension'}
 │
 ◇  What would you like to call this extension?
 │  ${name}
 │
 ${
   isRemote
-    ? `◇  What is the ${isSSE ? 'SSE endpoint URI' : 'Streaming HTTP endpoint URI'}?\n│  ${url}\n│`
+    ? `◇  What is the Streamable HTTP endpoint URI?\n│  ${url}\n│`
     : `◇  What command should be run?\n│  ${command}\n│`
 }
 // highlight-start
@@ -197,14 +192,14 @@ ${
 │  Add Extension
 │
 ◇  What type of extension would you like to add?
-│  ${isSSE ? 'Remote Extension (SSE)' : isHttp ? 'Remote Extension (Streaming HTTP)' : 'Command-line Extension'}
+│  ${isHttp ? 'Remote Extension (Streamable HTTP)' : 'Command-line Extension'}
 │
 ◇  What would you like to call this extension?
 │  ${name}
 │
 ${
   isRemote
-    ? `◇  What is the ${isSSE ? 'SSE endpoint URI' : 'Streaming HTTP endpoint URI'}?\n│  ${url}\n│`
+    ? `◇  What is the Streamable HTTP endpoint URI?\n│  ${url}\n│`
     : `◇  What command should be run?\n│  ${command}\n│`
 }
 ◇  Please set the timeout for this tool (in secs):
@@ -236,14 +231,14 @@ ${
 │  Add Extension 
 │
 ◇  What type of extension would you like to add?
-│  ${isSSE ? 'Remote Extension (SSE)' : isHttp ? 'Remote Extension (Streaming HTTP)' : 'Command-line Extension'}
+│  ${isHttp ? 'Remote Extension (Streamable HTTP)' : 'Command-line Extension'}
 │
 ◇  What would you like to call this extension?
 │  ${name}
 │
 ${
   isRemote
-    ? `◇  What is the ${isSSE ? 'SSE endpoint URI' : 'Streaming HTTP endpoint URI'}?\n│  ${url}\n│`
+    ? `◇  What is the Streamable HTTP endpoint URI?\n│  ${url}\n│`
     : `◇  What command should be run?\n│  ${command}\n│`
 }
 ◇  Please set the timeout for this tool (in secs):
@@ -277,14 +272,14 @@ ${
 │  Add Extension
 │
 ◇  What type of extension would you like to add?
-│  ${isSSE ? 'Remote Extension (SSE)' : isHttp ? 'Remote Extension (Streaming HTTP)' : 'Command-line Extension'}
+│  ${isHttp ? 'Remote Extension (Streamable HTTP)' : 'Command-line Extension'}
 │
 ◇  What would you like to call this extension?
 │  ${name}
 │
 ${
   isRemote
-    ? `◇  What is the ${isSSE ? 'SSE endpoint URI' : 'Streaming HTTP endpoint URI'}?\n│  ${url}\n│`
+    ? `◇  What is the Streamable HTTP endpoint URI?\n│  ${url}\n│`
     : `◇  What command should be run?\n│  ${command}\n│`
 }
 ◇  Please set the timeout for this tool (in secs):

@@ -6,10 +6,11 @@ use goose::providers::anthropic::ANTHROPIC_DEFAULT_MODEL;
 use goose::providers::create_with_named_model;
 use goose::providers::databricks::DATABRICKS_DEFAULT_MODEL;
 use goose::providers::openai::OPEN_AI_DEFAULT_MODEL;
-use rmcp::model::{CallToolRequestParam, Content, Tool};
+use rmcp::model::{CallToolRequestParams, Content, Tool};
 use rmcp::object;
 use std::fs;
 use std::sync::Arc;
+use uuid::Uuid;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -32,7 +33,9 @@ async fn main() -> Result<()> {
             Message::user().with_text("Read the image at ./test_image.png please"),
             Message::assistant().with_tool_request(
                 "000",
-                Ok(CallToolRequestParam {
+                Ok(CallToolRequestParams {
+                    meta: None,
+                    task: None,
                     name: "view_image".into(),
                     arguments: Some(object!({"path": "./test_image.png"})),
                 }),
@@ -60,8 +63,10 @@ async fn main() -> Result<()> {
                 },
             }
         });
+        let session_id = Uuid::new_v4().to_string();
         let (response, usage) = provider
             .complete(
+                &session_id,
                 "You are a helpful assistant. Please describe any text you see in the image.",
                 &messages,
                 &[Tool::new("view_image", "View an image", input_schema)],

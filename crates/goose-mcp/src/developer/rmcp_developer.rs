@@ -1,5 +1,6 @@
 use anyhow::anyhow;
 use base64::Engine;
+use etcetera::AppStrategy;
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use include_dir::{include_dir, Dir};
 use indoc::{formatdoc, indoc};
@@ -7,8 +8,8 @@ use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
         CallToolResult, CancelledNotificationParam, Content, ErrorCode, ErrorData,
-        GetPromptRequestParam, GetPromptResult, Implementation, ListPromptsResult, LoggingLevel,
-        LoggingMessageNotificationParam, PaginatedRequestParam, Prompt, PromptArgument,
+        GetPromptRequestParams, GetPromptResult, Implementation, ListPromptsResult, LoggingLevel,
+        LoggingMessageNotificationParam, PaginatedRequestParams, Prompt, PromptArgument,
         PromptMessage, PromptMessageRole, Role, ServerCapabilities, ServerInfo,
     },
     schemars::JsonSchema,
@@ -393,19 +394,20 @@ impl ServerHandler for DeveloperServer {
     // implementation with the macro-based approach for better maintainability.
     fn list_prompts(
         &self,
-        _request: Option<PaginatedRequestParam>,
+        _request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> impl Future<Output = Result<ListPromptsResult, ErrorData>> + Send + '_ {
         let prompts: Vec<Prompt> = self.prompts.values().cloned().collect();
         std::future::ready(Ok(ListPromptsResult {
             prompts,
             next_cursor: None,
+            meta: None,
         }))
     }
 
     fn get_prompt(
         &self,
-        request: GetPromptRequestParam,
+        request: GetPromptRequestParams,
         _context: RequestContext<RoleServer>,
     ) -> impl Future<Output = Result<GetPromptResult, ErrorData>> + Send + '_ {
         let prompt_name = request.name;
@@ -588,7 +590,7 @@ impl DeveloperServer {
         })?;
 
         let window_titles: Vec<String> =
-            windows.into_iter().map(|w| w.title().to_string()).collect();
+            windows.into_iter().filter_map(|w| w.title().ok()).collect();
 
         let content_text = format!("Available windows:\n{}", window_titles.join("\n"));
 
@@ -628,7 +630,7 @@ impl DeveloperServer {
 
             let window = windows
                 .into_iter()
-                .find(|w| w.title() == window_title)
+                .find(|w| w.title().is_ok_and(|t| &t == window_title))
                 .ok_or_else(|| {
                     ErrorData::new(
                         ErrorCode::INTERNAL_ERROR,
@@ -967,6 +969,10 @@ impl DeveloperServer {
             .and_then(|s| s.to_str())
             .unwrap_or("bash");
 
+        let working_dir = std::env::var("GOOSE_WORKING_DIR")
+            .ok()
+            .map(std::path::PathBuf::from);
+
         if let Some(ref env_file) = self.bash_env_file {
             if shell_name == "bash" {
                 shell_config.envs.push((
@@ -976,7 +982,7 @@ impl DeveloperServer {
             }
         }
 
-        let mut command = configure_shell_command(&shell_config, command);
+        let mut command = configure_shell_command(&shell_config, command, working_dir.as_deref());
 
         if self.extend_path_with_shell {
             if let Err(e) = get_shell_path_dirs()
@@ -1284,14 +1290,26 @@ impl DeveloperServer {
     fn build_ignore_patterns(cwd: &PathBuf) -> Gitignore {
         let mut builder = GitignoreBuilder::new(cwd);
         let local_ignore_path = cwd.join(".gooseignore");
-        let mut has_ignore_file = false;
 
-        if local_ignore_path.is_file() {
-            let _ = builder.add(local_ignore_path);
-            has_ignore_file = true;
+        let global_ignore_path = etcetera::choose_app_strategy(crate::APP_STRATEGY.clone())
+            .map(|strategy| strategy.config_dir().join(".gooseignore"))
+            .ok();
+
+        let has_local_ignore = local_ignore_path.is_file();
+        let has_global_ignore = global_ignore_path
+            .as_ref()
+            .map(|p| p.is_file())
+            .unwrap_or(false);
+
+        if has_global_ignore {
+            let _ = builder.add(global_ignore_path.as_ref().unwrap());
         }
 
-        if !has_ignore_file {
+        if has_local_ignore {
+            let _ = builder.add(&local_ignore_path);
+        }
+
+        if !has_local_ignore && !has_global_ignore {
             let _ = builder.add_line(None, "**/.env");
             let _ = builder.add_line(None, "**/.env.*");
             let _ = builder.add_line(None, "**/secrets.*");

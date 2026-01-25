@@ -40,6 +40,7 @@ pub trait ToolInspector: Send + Sync {
         &self,
         tool_requests: &[ToolRequest],
         messages: &[Message],
+        goose_mode: GooseMode,
     ) -> Result<Vec<InspectionResult>>;
 
     /// Whether this inspector is enabled
@@ -74,6 +75,7 @@ impl ToolInspectionManager {
         &self,
         tool_requests: &[ToolRequest],
         messages: &[Message],
+        goose_mode: GooseMode,
     ) -> Result<Vec<InspectionResult>> {
         let mut all_results = Vec::new();
 
@@ -88,7 +90,7 @@ impl ToolInspectionManager {
                 "Running tool inspector"
             );
 
-            match inspector.inspect(tool_requests, messages).await {
+            match inspector.inspect(tool_requests, messages, goose_mode).await {
                 Ok(results) => {
                     tracing::debug!(
                         inspector_name = inspector.name(),
@@ -116,22 +118,6 @@ impl ToolInspectionManager {
         self.inspectors.iter().map(|i| i.name()).collect()
     }
 
-    /// Update the permission inspector's mode
-    pub async fn update_permission_inspector_mode(&self, mode: GooseMode) {
-        for inspector in &self.inspectors {
-            if inspector.name() == "permission" {
-                // Downcast to PermissionInspector to access update_mode method
-                if let Some(permission_inspector) =
-                    inspector.as_any().downcast_ref::<PermissionInspector>()
-                {
-                    permission_inspector.update_mode(mode).await;
-                    return;
-                }
-            }
-        }
-        tracing::warn!("Permission inspector not found for mode update");
-    }
-
     /// Update the permission manager for a specific tool
     pub async fn update_permission_manager(
         &self,
@@ -144,9 +130,9 @@ impl ToolInspectionManager {
                 if let Some(permission_inspector) =
                     inspector.as_any().downcast_ref::<PermissionInspector>()
                 {
-                    let mut permission_manager =
-                        permission_inspector.permission_manager.lock().await;
-                    permission_manager.update_user_permission(tool_name, permission_level);
+                    permission_inspector
+                        .permission_manager
+                        .update_user_permission(tool_name, permission_level);
                     return;
                 }
             }
@@ -284,18 +270,21 @@ pub fn get_security_finding_id_from_results(
 mod tests {
     use super::*;
     use crate::conversation::message::ToolRequest;
-    use rmcp::model::CallToolRequestParam;
+    use rmcp::model::CallToolRequestParams;
     use rmcp::object;
 
     #[test]
     fn test_apply_inspection_results() {
         let tool_request = ToolRequest {
             id: "req_1".to_string(),
-            tool_call: Ok(CallToolRequestParam {
+            tool_call: Ok(CallToolRequestParams {
+                meta: None,
+                task: None,
                 name: "test_tool".into(),
                 arguments: Some(object!({})),
             }),
             metadata: None,
+            tool_meta: None,
         };
 
         let permission_result = PermissionCheckResult {

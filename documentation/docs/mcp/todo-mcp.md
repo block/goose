@@ -10,9 +10,11 @@ import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';
 
 The Todo extension helps goose stay organized by breaking complex work into a series of steps and keeping you updated as it completes each step.
 
-goose automatically knows to use the Todo extension if it has to do tasks that have 2 or more steps, involve multiple files/components, or have an uncertain scope.
+goose automatically knows to use the Todo extension for tasks involving multiple files/components or uncertain scope. At the start of the task, goose will create an internal checklist, read and update progress as it works, and verify that all tasks are completed.
 
-At the start of the task, goose will create an internal checklist, read and update progress as it works, and verify that all tasks are completed.
+:::tip
+You can ask goose to "show me the current todo list" at any time to see what's being tracked.
+:::
 
 This tutorial will cover enabling and using the Todo extension.
 

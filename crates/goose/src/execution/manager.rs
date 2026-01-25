@@ -1,9 +1,10 @@
-use crate::agents::extension::PlatformExtensionContext;
-use crate::agents::Agent;
+use crate::agents::{Agent, AgentConfig};
 use crate::config::paths::Paths;
-use crate::config::Config;
+use crate::config::permission::PermissionManager;
+use crate::config::{Config, GooseMode};
 use crate::scheduler::Scheduler;
 use crate::scheduler_trait::SchedulerTrait;
+use crate::session::SessionManager;
 use anyhow::Result;
 use lru::LruCache;
 use std::num::NonZeroUsize;
@@ -18,25 +19,17 @@ static AGENT_MANAGER: OnceCell<Arc<AgentManager>> = OnceCell::const_new();
 pub struct AgentManager {
     sessions: Arc<RwLock<LruCache<String, Arc<Agent>>>>,
     scheduler: Arc<dyn SchedulerTrait>,
+    session_manager: Arc<SessionManager>,
     default_provider: Arc<RwLock<Option<Arc<dyn crate::providers::base::Provider>>>>,
 }
 
 impl AgentManager {
-    #[cfg(test)]
-    pub fn reset_for_test() {
-        unsafe {
-            // Cast away the const to get mutable access
-            // This is safe in test context where we control execution with #[serial]
-            let cell_ptr = &AGENT_MANAGER as *const OnceCell<Arc<AgentManager>>
-                as *mut OnceCell<Arc<AgentManager>>;
-            let _ = (*cell_ptr).take();
-        }
-    }
-
-    async fn new(max_sessions: Option<usize>) -> Result<Self> {
-        let schedule_file_path = Paths::data_dir().join("schedule.json");
-
-        let scheduler = Scheduler::new(schedule_file_path).await?;
+    pub async fn new(
+        session_manager: Arc<SessionManager>,
+        schedule_file_path: std::path::PathBuf,
+        max_sessions: Option<usize>,
+    ) -> Result<Self> {
+        let scheduler = Scheduler::new(schedule_file_path, session_manager.clone()).await?;
 
         let capacity = NonZeroUsize::new(max_sessions.unwrap_or(DEFAULT_MAX_SESSION))
             .unwrap_or_else(|| NonZeroUsize::new(100).unwrap());
@@ -44,6 +37,7 @@ impl AgentManager {
         let manager = Self {
             sessions: Arc::new(RwLock::new(LruCache::new(capacity))),
             scheduler,
+            session_manager,
             default_provider: Arc::new(RwLock::new(None)),
         };
 
@@ -56,7 +50,10 @@ impl AgentManager {
                 let max_sessions = Config::global()
                     .get_goose_max_active_agents()
                     .unwrap_or(DEFAULT_MAX_SESSION);
-                let manager = Self::new(Some(max_sessions)).await?;
+                let schedule_file_path = Paths::data_dir().join("schedule.json");
+                let session_manager = Arc::new(SessionManager::instance());
+                let manager =
+                    Self::new(session_manager, schedule_file_path, Some(max_sessions)).await?;
                 Ok(Arc::new(manager))
             })
             .await
@@ -65,6 +62,11 @@ impl AgentManager {
 
     pub fn scheduler(&self) -> Arc<dyn SchedulerTrait> {
         Arc::clone(&self.scheduler)
+    }
+
+    /// Get the shared SessionManager for session-only operations
+    pub fn session_manager(&self) -> &SessionManager {
+        &self.session_manager
     }
 
     pub async fn set_default_provider(&self, provider: Arc<dyn crate::providers::base::Provider>) {
@@ -80,17 +82,15 @@ impl AgentManager {
             }
         }
 
-        let agent = Arc::new(Agent::new());
-        agent.set_scheduler(Arc::clone(&self.scheduler)).await;
-        agent
-            .extension_manager
-            .set_context(PlatformExtensionContext {
-                session_id: Some(session_id.clone()),
-                extension_manager: Some(Arc::downgrade(&agent.extension_manager)),
-                tool_route_manager: Some(Arc::downgrade(&agent.tool_route_manager)),
-                sub_recipes: Some(agent.sub_recipes()),
-            })
-            .await;
+        let mode = Config::global().get_goose_mode().unwrap_or(GooseMode::Auto);
+        let permission_manager = PermissionManager::instance();
+        let config = AgentConfig::new(
+            Arc::clone(&self.session_manager),
+            permission_manager,
+            Some(Arc::clone(&self.scheduler)),
+            mode,
+        );
+        let agent = Arc::new(Agent::with_config(config));
         if let Some(provider) = &*self.default_provider.read().await {
             agent
                 .update_provider(Arc::clone(provider), &session_id)
@@ -126,10 +126,21 @@ impl AgentManager {
 
 #[cfg(test)]
 mod tests {
-    use serial_test::serial;
     use std::sync::Arc;
+    use tempfile::TempDir;
 
-    use crate::execution::{manager::AgentManager, SessionExecutionMode};
+    use crate::execution::SessionExecutionMode;
+    use crate::session::SessionManager;
+
+    use super::AgentManager;
+
+    async fn create_test_manager(temp_dir: &TempDir) -> AgentManager {
+        let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+        let schedule_path = temp_dir.path().join("schedule.json");
+        AgentManager::new(session_manager, schedule_path, Some(100))
+            .await
+            .unwrap()
+    }
 
     #[test]
     fn test_execution_mode_constructors() {
@@ -152,10 +163,9 @@ mod tests {
     }
 
     #[tokio::test]
-    #[serial]
     async fn test_session_isolation() {
-        AgentManager::reset_for_test();
-        let manager = AgentManager::instance().await.unwrap();
+        let temp_dir = TempDir::new().unwrap();
+        let manager = create_test_manager(&temp_dir).await;
 
         let session1 = uuid::Uuid::new_v4().to_string();
         let session2 = uuid::Uuid::new_v4().to_string();
@@ -171,15 +181,12 @@ mod tests {
         let agent1_again = manager.get_or_create_agent(session1).await.unwrap();
 
         assert!(Arc::ptr_eq(&agent1, &agent1_again));
-
-        AgentManager::reset_for_test();
     }
 
     #[tokio::test]
-    #[serial]
     async fn test_session_limit() {
-        AgentManager::reset_for_test();
-        let manager = AgentManager::instance().await.unwrap();
+        let temp_dir = TempDir::new().unwrap();
+        let manager = create_test_manager(&temp_dir).await;
 
         let sessions: Vec<_> = (0..100).map(|i| format!("session-{}", i)).collect();
 
@@ -195,10 +202,9 @@ mod tests {
     }
 
     #[tokio::test]
-    #[serial]
     async fn test_remove_session() {
-        AgentManager::reset_for_test();
-        let manager = AgentManager::instance().await.unwrap();
+        let temp_dir = TempDir::new().unwrap();
+        let manager = create_test_manager(&temp_dir).await;
         let session = String::from("remove-test");
 
         manager.get_or_create_agent(session.clone()).await.unwrap();
@@ -211,10 +217,9 @@ mod tests {
     }
 
     #[tokio::test]
-    #[serial]
     async fn test_concurrent_access() {
-        AgentManager::reset_for_test();
-        let manager = AgentManager::instance().await.unwrap();
+        let temp_dir = TempDir::new().unwrap();
+        let manager = Arc::new(create_test_manager(&temp_dir).await);
         let session = String::from("concurrent-test");
 
         let mut handles = vec![];
@@ -240,12 +245,11 @@ mod tests {
     }
 
     #[tokio::test]
-    #[serial]
     async fn test_concurrent_session_creation_race_condition() {
         // Test that concurrent attempts to create the same new session ID
         // result in only one agent being created (tests double-check pattern)
-        AgentManager::reset_for_test();
-        let manager = AgentManager::instance().await.unwrap();
+        let temp_dir = TempDir::new().unwrap();
+        let manager = Arc::new(create_test_manager(&temp_dir).await);
         let session_id = String::from("race-condition-test");
 
         // Spawn multiple tasks trying to create the same NEW session simultaneously
@@ -275,24 +279,18 @@ mod tests {
     }
 
     #[tokio::test]
-    #[serial]
     async fn test_set_default_provider() {
         use crate::providers::testprovider::TestProvider;
-        use std::sync::Arc;
 
-        AgentManager::reset_for_test();
-        let manager = AgentManager::instance().await.unwrap();
+        let temp_dir = TempDir::new().unwrap();
+        let manager = create_test_manager(&temp_dir).await;
 
         // Create a test provider for replaying (doesn't need inner provider)
-        let temp_file = format!(
-            "{}/test_provider_{}.json",
-            std::env::temp_dir().display(),
-            std::process::id()
-        );
+        let temp_file = temp_dir.path().join("test_provider.json");
 
         // Create an empty test provider (will fail on actual use but that's ok for this test)
-        let test_provider = TestProvider::new_replaying(&temp_file)
-            .unwrap_or_else(|_| TestProvider::new_replaying("/tmp/dummy.json").unwrap());
+        std::fs::write(&temp_file, "{}").unwrap();
+        let test_provider = TestProvider::new_replaying(temp_file.to_str().unwrap()).unwrap();
 
         manager.set_default_provider(Arc::new(test_provider)).await;
 
@@ -303,12 +301,11 @@ mod tests {
     }
 
     #[tokio::test]
-    #[serial]
     async fn test_eviction_updates_last_used() {
-        AgentManager::reset_for_test();
         // Test that accessing a session updates its last_used timestamp
         // and affects eviction order
-        let manager = AgentManager::instance().await.unwrap();
+        let temp_dir = TempDir::new().unwrap();
+        let manager = create_test_manager(&temp_dir).await;
 
         let sessions: Vec<_> = (0..100).map(|i| format!("session-{}", i)).collect();
 
@@ -338,11 +335,10 @@ mod tests {
     }
 
     #[tokio::test]
-    #[serial]
     async fn test_remove_nonexistent_session_error() {
         // Test that removing a non-existent session returns an error
-        AgentManager::reset_for_test();
-        let manager = AgentManager::instance().await.unwrap();
+        let temp_dir = TempDir::new().unwrap();
+        let manager = create_test_manager(&temp_dir).await;
         let session = String::from("never-created");
 
         let result = manager.remove_session(&session).await;

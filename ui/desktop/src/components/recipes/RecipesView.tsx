@@ -11,13 +11,16 @@ import {
   Clock,
   Terminal,
   ExternalLink,
+  Share2,
+  Copy,
+  Download,
 } from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Skeleton } from '../ui/skeleton';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
-import { toastSuccess } from '../../toasts';
+import { toastSuccess, toastError } from '../../toasts';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
 import {
   deleteRecipe,
@@ -25,6 +28,7 @@ import {
   startAgent,
   scheduleRecipe,
   setRecipeSlashCommand,
+  recipeToYaml,
 } from '../../api';
 import ImportRecipeForm, { ImportRecipeButton } from './ImportRecipeForm';
 import CreateEditRecipeModal from './CreateEditRecipeModal';
@@ -34,14 +38,25 @@ import { CronPicker } from '../schedule/CronPicker';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { SearchView } from '../conversation/SearchView';
 import cronstrue from 'cronstrue';
+import { getInitialWorkingDir } from '../../utils/workingDir';
 import {
   trackRecipeDeleted,
   trackRecipeStarted,
   trackRecipeDeeplinkCopied,
+  trackRecipeYamlCopied,
+  trackRecipeExportedToFile,
   trackRecipeScheduled,
   trackRecipeSlashCommandSet,
   getErrorType,
 } from '../../utils/analytics';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from '../ui/dropdown-menu';
+import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
 
 export default function RecipesView() {
   const setView = useNavigation();
@@ -126,7 +141,7 @@ export default function RecipesView() {
     try {
       const newAgent = await startAgent({
         body: {
-          working_dir: window.appConfig.get('GOOSE_WORKING_DIR') as string,
+          working_dir: getInitialWorkingDir(),
           recipe,
         },
         throwOnError: true,
@@ -149,7 +164,7 @@ export default function RecipesView() {
     try {
       window.electron.createChatWindow(
         undefined,
-        window.appConfig.get('GOOSE_WORKING_DIR') as string,
+        getInitialWorkingDir(),
         undefined,
         undefined,
         'pair',
@@ -217,9 +232,81 @@ export default function RecipesView() {
     } catch (error) {
       console.error('Failed to copy deeplink:', error);
       trackRecipeDeeplinkCopied(false, getErrorType(error));
-      toastSuccess({
+      toastError({
         title: 'Copy failed',
         msg: 'Failed to copy deeplink to clipboard',
+      });
+    }
+  };
+
+  const handleCopyYaml = async (recipeManifest: RecipeManifest) => {
+    try {
+      const response = await recipeToYaml({
+        body: { recipe: recipeManifest.recipe },
+        throwOnError: true,
+      });
+
+      if (!response.data?.yaml) {
+        throw new Error('No YAML data returned from API');
+      }
+
+      await navigator.clipboard.writeText(response.data.yaml);
+      trackRecipeYamlCopied(true);
+      toastSuccess({
+        title: 'YAML copied',
+        msg: 'Recipe YAML has been copied to clipboard',
+      });
+    } catch (error) {
+      console.error('Failed to copy YAML:', error);
+      trackRecipeYamlCopied(false, getErrorType(error));
+      toastError({
+        title: 'Copy failed',
+        msg: 'Failed to copy recipe YAML to clipboard',
+      });
+    }
+  };
+
+  const handleExportFile = async (recipeManifest: RecipeManifest) => {
+    try {
+      const response = await recipeToYaml({
+        body: { recipe: recipeManifest.recipe },
+        throwOnError: true,
+      });
+
+      if (!response.data?.yaml) {
+        throw new Error('No YAML data returned from API');
+      }
+
+      const sanitizedTitle = (recipeManifest.recipe.title || 'recipe')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '');
+
+      const filename = `${sanitizedTitle}.yaml`;
+
+      const result = await window.electron.showSaveDialog({
+        title: 'Export Recipe',
+        defaultPath: filename,
+        filters: [
+          { name: 'YAML Files', extensions: ['yaml', 'yml'] },
+          { name: 'All Files', extensions: ['*'] },
+        ],
+      });
+
+      if (!result.canceled && result.filePath) {
+        await window.electron.writeFile(result.filePath, response.data.yaml);
+        trackRecipeExportedToFile(true);
+        toastSuccess({
+          title: 'Recipe exported',
+          msg: `Recipe saved to ${result.filePath}`,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to export recipe:', error);
+      trackRecipeExportedToFile(false, getErrorType(error));
+      toastError({
+        title: 'Export failed',
+        msg: 'Failed to export recipe to file',
       });
     }
   };
@@ -450,18 +537,34 @@ export default function RecipesView() {
           >
             <Edit className="w-4 h-4" />
           </Button>
-          <Button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleCopyDeeplink(recipeManifestResponse);
-            }}
-            variant="outline"
-            size="sm"
-            className="h-8 w-8 p-0"
-            title="Copy deeplink"
-          >
-            <Link className="w-4 h-4" />
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                onClick={(e) => e.stopPropagation()}
+                variant="outline"
+                size="sm"
+                className="h-8 w-8 p-0"
+                title="Share recipe"
+              >
+                <Share2 className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+              <DropdownMenuItem onClick={() => handleCopyDeeplink(recipeManifestResponse)}>
+                <Link className="w-4 h-4" />
+                Copy Deeplink
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleCopyYaml(recipeManifestResponse)}>
+                <Copy className="w-4 h-4" />
+                Copy YAML
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => handleExportFile(recipeManifestResponse)}>
+                <Download className="w-4 h-4" />
+                Export to File
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             onClick={(e) => {
               e.stopPropagation();
@@ -593,7 +696,7 @@ export default function RecipesView() {
               </div>
               <p className="text-sm text-text-muted mb-1">
                 View and manage your saved recipes to quickly start new sessions with predefined
-                configurations. ⌘F/Ctrl+F to search.
+                configurations. {getSearchShortcutText()} to search.
               </p>
             </div>
           </div>

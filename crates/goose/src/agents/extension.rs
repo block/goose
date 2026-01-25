@@ -1,3 +1,4 @@
+use crate::agents::apps_extension;
 use crate::agents::chatrecall_extension;
 use crate::agents::code_execution_extension;
 use crate::agents::extension_manager_extension;
@@ -52,9 +53,20 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
             PlatformExtensionDef {
                 name: todo_extension::EXTENSION_NAME,
                 description:
-                    "Enable a todo list for Goose so it can keep track of what it is doing",
+                    "Enable a todo list for goose so it can keep track of what it is doing",
                 default_enabled: true,
                 client_factory: |ctx| Box::new(todo_extension::TodoClient::new(ctx).unwrap()),
+            },
+        );
+
+        map.insert(
+            apps_extension::EXTENSION_NAME,
+            PlatformExtensionDef {
+                name: apps_extension::EXTENSION_NAME,
+                description:
+                    "Create and manage custom Goose apps through chat. Apps are HTML/CSS/JavaScript and run in sandboxed windows.",
+                default_enabled: true,
+                client_factory: |ctx| Box::new(apps_extension::AppsManagerClient::new(ctx).unwrap()),
             },
         );
 
@@ -118,14 +130,44 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
     },
 );
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct PlatformExtensionContext {
-    pub session_id: Option<String>,
     pub extension_manager:
         Option<std::sync::Weak<crate::agents::extension_manager::ExtensionManager>>,
-    pub tool_route_manager:
-        Option<std::sync::Weak<crate::agents::tool_route_manager::ToolRouteManager>>,
+    pub session_manager: std::sync::Arc<crate::session::SessionManager>,
     pub sub_recipes: Option<Arc<RwLock<HashMap<String, SubRecipe>>>>,
+}
+
+impl PlatformExtensionContext {
+    pub fn result_with_platform_notification(
+        &self,
+        mut result: rmcp::model::CallToolResult,
+        extension_name: impl Into<String>,
+        event_type: impl Into<String>,
+        mut additional_params: serde_json::Map<String, serde_json::Value>,
+    ) -> rmcp::model::CallToolResult {
+        additional_params.insert("extension".to_string(), extension_name.into().into());
+        additional_params.insert("event_type".to_string(), event_type.into().into());
+
+        let meta_value = serde_json::json!({
+            "platform_notification": {
+                "method": "platform_event",
+                "params": additional_params
+            }
+        });
+
+        if let Some(ref mut meta) = result.meta {
+            if let Some(obj) = meta_value.as_object() {
+                for (k, v) in obj {
+                    meta.0.insert(k.clone(), v.clone());
+                }
+            }
+        } else {
+            result.meta = Some(rmcp::model::Meta(meta_value.as_object().unwrap().clone()));
+        }
+
+        result
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -157,7 +199,7 @@ pub enum ExtensionError {
 
 pub type ExtensionResult<T> = Result<T, ExtensionError>;
 
-#[derive(Debug, Clone, Deserialize, Serialize, Default, ToSchema)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default, ToSchema, PartialEq)]
 pub struct Envs {
     /// A map of environment variables to set, e.g. API_KEY -> some_secret, HOST -> host
     #[serde(default)]
@@ -247,30 +289,21 @@ impl Envs {
 }
 
 /// Represents the different types of MCP extensions that can be added to the manager
-#[derive(Debug, Clone, Deserialize, Serialize, ToSchema)]
+#[derive(Debug, Clone, Deserialize, Serialize, ToSchema, PartialEq)]
 #[serde(tag = "type")]
 pub enum ExtensionConfig {
-    /// Server-sent events client with a URI endpoint
+    /// SSE transport is no longer supported - kept only for config file compatibility
     #[serde(rename = "sse")]
     Sse {
-        /// The name used to identify this extension
+        #[serde(default)]
+        #[schema(required)]
         name: String,
         #[serde(default)]
         #[serde(deserialize_with = "deserialize_null_with_default")]
         #[schema(required)]
         description: String,
-        uri: String,
         #[serde(default)]
-        envs: Envs,
-        #[serde(default)]
-        env_keys: Vec<String>,
-        // NOTE: set timeout to be optional for compatibility.
-        // However, new configurations should include this field.
-        timeout: Option<u64>,
-        #[serde(default)]
-        bundled: Option<bool>,
-        #[serde(default)]
-        available_tools: Vec<String>,
+        uri: Option<String>,
     },
     /// Standard I/O client with command and arguments
     #[serde(rename = "stdio")]
@@ -396,19 +429,6 @@ impl Default for ExtensionConfig {
 }
 
 impl ExtensionConfig {
-    pub fn sse<S: Into<String>, T: Into<u64>>(name: S, uri: S, description: S, timeout: T) -> Self {
-        Self::Sse {
-            name: name.into(),
-            uri: uri.into(),
-            envs: Envs::default(),
-            env_keys: Vec::new(),
-            description: description.into(),
-            timeout: Some(timeout.into()),
-            bundled: None,
-            available_tools: Vec::new(),
-        }
-    }
-
     pub fn streamable_http<S: Into<String>, T: Into<u64>>(
         name: S,
         uri: S,
@@ -516,10 +536,8 @@ impl ExtensionConfig {
     /// Check if a tool should be available to the LLM
     pub fn is_tool_available(&self, tool_name: &str) -> bool {
         let available_tools = match self {
-            Self::Sse {
-                available_tools, ..
-            }
-            | Self::StreamableHttp {
+            Self::Sse { .. } => return false, // SSE is unsupported
+            Self::StreamableHttp {
                 available_tools, ..
             }
             | Self::Stdio {
@@ -548,7 +566,9 @@ impl ExtensionConfig {
 impl std::fmt::Display for ExtensionConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ExtensionConfig::Sse { name, uri, .. } => write!(f, "SSE({}: {})", name, uri),
+            ExtensionConfig::Sse { name, .. } => {
+                write!(f, "SSE({}: unsupported)", name)
+            }
             ExtensionConfig::StreamableHttp { name, uri, .. } => {
                 write!(f, "StreamableHttp({}: {})", name, uri)
             }

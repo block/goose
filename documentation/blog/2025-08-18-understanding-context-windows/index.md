@@ -69,7 +69,7 @@ When your conversation gets too long, you can summarize the key points and start
 
 **2. `.goosehints`**
 
-Use [.goosehints](https://block.github.io/goose/docs/guides/using-goosehints/) files to avoid repeating the same instructions. Instead of typing out your project context, coding standards, and preferences in every conversation, define them once in a .goosehints file. This prevents wasting tokens on repetitive explanations and helps Goose understand your requirements more quickly.
+Use [.goosehints](/docs/guides/context-engineering/using-goosehints/) files to avoid repeating the same instructions. Instead of typing out your project context, coding standards, and preferences in every conversation, define them once in a .goosehints file. This prevents wasting tokens on repetitive explanations and helps Goose understand your requirements more quickly.
 
 **3. Memory extension**
 

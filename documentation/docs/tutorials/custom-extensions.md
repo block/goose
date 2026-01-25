@@ -4,6 +4,8 @@ description: Create your own custom MCP Server to use as a goose extension
 ---
 
 import { PanelLeft } from 'lucide-react';
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
 
 # Building Custom Extensions with goose
 
@@ -12,14 +14,21 @@ goose allows you to extend its functionality by creating your own custom extensi
 
 In this guide, we build an MCP server using the [Python SDK for MCP][mcp-python]. We’ll demonstrate how to create an MCP server that reads Wikipedia articles and converts them to Markdown, integrate it as an extension in goose. You can follow a similar process to develop your own custom extensions for goose.
 
-You can checkout other examples in this [MCP servers repository][mcp-servers]. MCP SDKs are also available in [Typescript][mcp-typescript] and [Kotlin][mcp-kotlin].
+You can check out other example servers in the [MCP servers repository][mcp-servers]. MCP SDKs are also available for other common languages, such as [Typescript][mcp-typescript] and [Kotlin][mcp-kotlin].
 
 :::info
-
-goose currently supports Tools and Resources for [MCP Server features](https://spec.modelcontextprotocol.io/specification/2024-11-05/server/). 
-We will be adding support for MCP Prompts soon.
-
+goose supports Tools, Resources, and Prompts from the [Model Context Protocol](https://modelcontextprotocol.io/). See [`mcp_client.rs`](https://github.com/block/goose/blob/main/crates/goose/src/agents/mcp_client.rs) for the supported protocol version and client capabilities.
 :::
+
+---
+
+## Prerequisites
+
+Before you begin, ensure you have the following installed on your system:
+
+- **Python 3.13 or higher** - Required for the MCP server
+- **[uv](https://docs.astral.sh/uv/)** - Python package manager used in this tutorial
+- **Node.js and npm** - Only required if you want to use the MCP Inspector development tool in [Step 4](#step-4-test-your-mcp-server).
 
 ---
 
@@ -44,13 +53,12 @@ Your project directory structure should look like this:
 .
 ├── README.md
 ├── pyproject.toml
-├── src
-│   └── mcp_wiki
-│       ├── __init__.py   # Primary CLI entry point
-│       ├── __main__.py   # To enable running as a Python module
-│       ├── py.typed      # Indicates the package supports type hints
-│       └── server.py     # Your MCP server code (tool, resources, prompts)
-└── uv.lock
+└── src
+    └── mcp_wiki
+        ├── __init__.py   # Primary CLI entry point
+        ├── __main__.py   # To enable running as a Python module
+        ├── py.typed      # Indicates the package supports type hints
+        └── server.py     # Your MCP server code (tool, resources, prompts)
 ```
 
 ---
@@ -72,6 +80,7 @@ import requests
 from requests.exceptions import RequestException
 from bs4 import BeautifulSoup
 from html2text import html2text
+from urllib.parse import urlparse
 
 from mcp.server.fastmcp import FastMCP
 from mcp.shared.exceptions import McpError
@@ -93,12 +102,24 @@ def read_wikipedia_article(url: str) -> str:
         if not url.startswith("http"):
             raise ValueError("URL must start with http or https.")
 
-        response = requests.get(url, timeout=10)
+        # SSRF protection: only allow Wikipedia domains
+        parsed = urlparse(url)
+        hostname = parsed.netloc.lower()
+        
+        # Allow wikipedia.org or *.wikipedia.org subdomains only
+        if hostname != 'wikipedia.org' and not hostname.endswith('.wikipedia.org'):
+            raise ValueError(f"Only Wikipedia URLs are allowed. Got: {parsed.netloc}")
+
+        # Add User-Agent header to avoid 403 from Wikipedia
+        headers = {
+            'User-Agent': 'MCP-Wiki/1.0 (Educational purposes; Python requests)'
+        }
+        response = requests.get(url, headers=headers, timeout=10)
         if response.status_code != 200:
             raise McpError(
                 ErrorData(
-                    INTERNAL_ERROR,
-                    f"Failed to retrieve the article. HTTP status code: {response.status_code}"
+                    code=INTERNAL_ERROR,
+                    message=f"Failed to retrieve the article. HTTP status code: {response.status_code}"
                 )
             )
 
@@ -107,8 +128,8 @@ def read_wikipedia_article(url: str) -> str:
         if not content_div:
             raise McpError(
                 ErrorData(
-                    INVALID_PARAMS,
-                    "Could not find the main content on the provided Wikipedia URL."
+                    code=INVALID_PARAMS,
+                    message="Could not find the main content on the provided Wikipedia URL."
                 )
             )
 
@@ -117,11 +138,11 @@ def read_wikipedia_article(url: str) -> str:
         return markdown_text
 
     except ValueError as e:
-        raise McpError(ErrorData(INVALID_PARAMS, str(e))) from e
+        raise McpError(ErrorData(code=INVALID_PARAMS, message=str(e))) from e
     except RequestException as e:
-        raise McpError(ErrorData(INTERNAL_ERROR, f"Request error: {str(e)}")) from e
+        raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"Request error: {str(e)}")) from e
     except Exception as e:
-        raise McpError(ErrorData(INTERNAL_ERROR, f"Unexpected error: {str(e)}")) from e
+        raise McpError(ErrorData(code=INTERNAL_ERROR, message=f"Unexpected error: {str(e)}")) from e
 ```
 
 ### `__init__.py`
@@ -164,9 +185,9 @@ description = "MCP Server for Wikipedia"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "beautifulsoup4>=4.12.3",
-    "html2text>=2024.2.26",
-    "mcp[cli]>=1.2.0",
+    "beautifulsoup4>=4.14.0",
+    "html2text>=2025.4.15",
+    "mcp[cli]>=1.25.0",
     "requests>=2.32.3",
 ]
 
@@ -182,7 +203,13 @@ build-backend = "hatchling.build"
 
 ## Step 4: Test Your MCP Server
 
-### Using MCP Inspector
+Verify that your MCP server is running in the MCP Inspector (a browser-based development tool) or the server CLI.
+
+<Tabs>
+  <TabItem value="ui" label="In MCP Inspector" default>
+:::info
+MCP Inspector requires Node.js and npm installed on your computer. 
+:::
 
 1. Setup the project environment:
 
@@ -196,34 +223,42 @@ build-backend = "hatchling.build"
    source .venv/bin/activate
    ```
 
-3. Run your server in development mode:
+3. Run your server in development mode: 
 
    ```bash
    mcp dev src/mcp_wiki/server.py
    ```
+   
+   MCP Inspector should open automatically in your browser. On first run, you'll be prompted to install `@modelcontextprotocol/inspector`.
 
-4. Go to `http://localhost:5173` in your browser to open the MCP Inspector UI.
+4. Test the tool:
+   1. Click `Connect` to initialize your MCP server
+   2. On the `Tools` tab, click `List Tools` and click the `read_wikipedia_article` tool
+   3. Enter `https://en.wikipedia.org/wiki/Bangladesh` for the URL and click `Run Tool` 
 
-5. In the UI, you can click "Connect" to initialize your MCP server. Then click on "Tools" tab > "List Tools" and you should see the `read_wikipedia_article` tool. 
-   Then you can try to call the `read_wikipedia_article` tool with URL set to "https://en.wikipedia.org/wiki/Bangladesh" and click "Run Tool". 
+[![MCP Inspector UI](../assets/guides/custom-extension-mcp-inspector.png)](../assets/guides/custom-extension-mcp-inspector.png)
 
-![MCP Inspector UI](../assets/guides/custom-extension-mcp-inspector.png)
+  </TabItem>
+  <TabItem value="cli" label="In the CLI">
+1. Setup the project environment:
 
-### Testing the CLI
+   ```bash
+   uv sync
+   ```
 
-1. Install your project locally:
+2. Activate your virtual environment:
+
+   ```bash
+   source .venv/bin/activate
+   ```
+   
+3. Install your project locally:
 
    ```bash
    uv pip install .
    ```
 
-2. Check the executable in your virtual environment:
-
-   ```bash
-   ls .venv/bin/  # Verify your CLI is available
-   ```
-
-3. Test the CLI:
+4. Verify the CLI:
 
    ```bash
    mcp-wiki --help
@@ -240,6 +275,8 @@ build-backend = "hatchling.build"
    options:
      -h, --help  show this help message and exit
    ```
+  </TabItem>
+</Tabs>
 
 ---
 
@@ -247,11 +284,17 @@ build-backend = "hatchling.build"
 
 To add your MCP server as an extension in goose:
 
-1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-2. Click `Extensions` in the sidebar
-3. Set the `Type` to `STDIO`
-4. Provide a name and description for your extension
-5. In the `Command` field, provide the absolute path to your executable:
+1. Build the extension binary:
+
+   ```bash
+   uv pip install .
+   ```
+
+2. Open goose Desktop and click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+3. Click `Extensions` in the sidebar
+4. Set the `Type` to `STDIO`
+5. Provide a name and description for your extension
+6. In the `Command` field, provide the absolute path to your executable:
    ```plaintext
    uv run /full/path/to/mcp-wiki/.venv/bin/mcp-wiki
    ```
@@ -261,7 +304,11 @@ To add your MCP server as an extension in goose:
    uv run /Users/smohammed/Development/mcp/mcp-wiki/.venv/bin/mcp-wiki
    ```
 
-For the purposes on this guide, we'll run the local version. Alternatively, you can publish your package to PyPI. Once published, the server can be run directly using `uvx`. For example:
+:::tip Rebuild binary after changes
+To see any changes you make to your MCP server code after integrating with goose, re-run `uv pip install .` and then restart goose Desktop.
+:::
+
+For the purposes of this guide, we'll run the local version. Alternatively, you can publish your package to PyPI. Once published, the server can be run directly using `uvx`. For example:
 
 ```
 uvx mcp-wiki
@@ -308,25 +355,22 @@ goose supports advanced MCP features that can enhance your extensions.
 
 **Learn More:** See the [MCP Specification](https://modelcontextprotocol.io/specification/draft/client/sampling) for technical details.
 
-### MCP-UI: Interactive Extensions
+### MCP Apps: Interactive Extensions
 
-**[MCP-UI Extensions](/docs/guides/interactive-chat/mcp-ui)** enable rich, interactive user interfaces instead of text-only responses, transforming static MCP servers into dynamic, engaging experiences.
+**[MCP Apps](/docs/tutorials/building-mcp-apps)** enable rich, interactive user interfaces instead of text-only responses.
 
 **Key Benefits:**
-- Your MCP server can return interactive UI components alongside or instead of text
-- Components render securely in isolated environments within goose Desktop
-- Real-time user interactions trigger callbacks to your MCP server
-- Standardized protocol ensures consistent behavior across different clients
+- Return interactive UI components from your MCP server tools
+- Components render securely in isolated sandboxes within goose Desktop
+- Real-time user interactions trigger callbacks to your server
 
-**Getting Started:**
-- Use MCP-UI SDKs in multiple programming languages to create `UIResource` objects in your MCP server
-- Return UI components from tools or resources using the standardized specification
-- goose Desktop automatically renders MCP-UI components when detected
-- Components support multiple rendering approaches for flexible styling
+**Use Cases:** Interactive forms, data visualizations, booking interfaces, configuration wizards
 
-**Use Cases:** Interactive forms, seat selection maps, data visualization dashboards, booking interfaces, configuration wizards
+**Learn More:** [Building MCP Apps Tutorial](/docs/tutorials/building-mcp-apps)
 
-**Learn More:** See the [MCP-UI Specification](https://mcpui.dev/guide/introduction) for technical details and implementation examples.
+:::note
+goose also supports [MCP-UI](/docs/guides/interactive-chat/mcp-ui), but MCP Apps is the recommended path for new extensions.
+:::
 
 [mcp-docs]: https://modelcontextprotocol.io/
 [mcp-python]: https://github.com/modelcontextprotocol/python-sdk

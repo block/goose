@@ -12,11 +12,11 @@ use tokio_util::sync::CancellationToken;
 use crate::agents::subagent_handler::run_complete_subagent_task;
 use crate::agents::subagent_task_config::TaskConfig;
 use crate::agents::tool_execution::DeferredToolCall;
+use crate::agents::AgentConfig;
 use crate::providers;
 use crate::recipe::build_recipe::build_recipe_from_template;
 use crate::recipe::local_recipes::load_local_recipe_file;
 use crate::recipe::{Recipe, SubRecipe};
-use crate::session::SessionManager;
 
 pub const SUBAGENT_TOOL_NAME: &str = "subagent";
 
@@ -176,6 +176,7 @@ fn get_subrecipe_params_description(sub_recipe: &SubRecipe) -> String {
 /// (e.g., "[run sequentially, not in parallel]") but not enforced. The LLM controls
 /// sequencing by making sequential vs parallel tool calls.
 pub fn handle_subagent_tool(
+    config: &AgentConfig,
     params: Value,
     task_config: TaskConfig,
     sub_recipes: HashMap<String, SubRecipe>,
@@ -220,10 +221,12 @@ pub fn handle_subagent_tool(
         }
     };
 
+    let config = config.clone();
     DeferredToolCall {
         notification_stream: None,
         result: Box::new(
             execute_subagent(
+                config,
                 recipe,
                 task_config,
                 parsed_params,
@@ -236,23 +239,26 @@ pub fn handle_subagent_tool(
 }
 
 async fn execute_subagent(
+    config: AgentConfig,
     recipe: Recipe,
     task_config: TaskConfig,
     params: SubagentParams,
     working_dir: PathBuf,
     cancellation_token: Option<CancellationToken>,
 ) -> Result<rmcp::model::CallToolResult, ErrorData> {
-    let session = SessionManager::create_session(
-        working_dir,
-        "Subagent task".to_string(),
-        crate::session::session_manager::SessionType::SubAgent,
-    )
-    .await
-    .map_err(|e| ErrorData {
-        code: ErrorCode::INTERNAL_ERROR,
-        message: Cow::from(format!("Failed to create session: {}", e)),
-        data: None,
-    })?;
+    let session = config
+        .session_manager
+        .create_session(
+            working_dir,
+            "Subagent task".to_string(),
+            crate::session::session_manager::SessionType::SubAgent,
+        )
+        .await
+        .map_err(|e| ErrorData {
+            code: ErrorCode::INTERNAL_ERROR,
+            message: Cow::from(format!("Failed to create session: {}", e)),
+            data: None,
+        })?;
 
     let task_config = apply_settings_overrides(task_config, &params)
         .await
@@ -263,6 +269,7 @@ async fn execute_subagent(
         })?;
 
     let result = run_complete_subagent_task(
+        config,
         recipe,
         task_config,
         params.summary,

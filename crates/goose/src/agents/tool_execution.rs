@@ -48,6 +48,7 @@ pub const CHAT_MODE_TOOL_SKIPPED_RESPONSE: &str = "Let the user know the tool ca
 impl Agent {
     pub(crate) fn handle_approval_tool_requests<'a>(
         &'a self,
+        session_id: &'a str,
         tool_requests: &'a [ToolRequest],
         tool_futures: Arc<Mutex<Vec<(String, ToolStream)>>>,
         request_to_response_map: &'a HashMap<String, Arc<Mutex<Message>>>,
@@ -92,7 +93,7 @@ impl Agent {
                         }
 
                         if confirmation.permission == Permission::AllowOnce || confirmation.permission == Permission::AlwaysAllow {
-                            let (req_id, tool_result) = self.dispatch_tool_call(tool_call.clone(), request.id.clone(), cancellation_token.clone()).await;
+                            let (req_id, tool_result) = self.dispatch_tool_call(session_id, tool_call.clone(), request.id.clone(), cancellation_token.clone()).await;
                             let mut futures = tool_futures.lock().await;
 
                             futures.push((req_id, match tool_result {
@@ -126,6 +127,12 @@ impl Agent {
                                     }),
                                     request.metadata.as_ref(),
                                 );
+                            }
+
+                            if confirmation.permission == Permission::AlwaysDeny {
+                                self.tool_inspection_manager
+                                    .update_permission_manager(&tool_call.name, PermissionLevel::NeverAllow)
+                                    .await;
                             }
                         }
                         break; // Exit the loop once the matching `req_id` is found

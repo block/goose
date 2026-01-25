@@ -5,7 +5,7 @@ use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
         AnnotateAble, CallToolResult, Content, ErrorCode, ErrorData, Implementation,
-        ListResourcesResult, PaginatedRequestParam, RawResource, ReadResourceRequestParam,
+        ListResourcesResult, PaginatedRequestParams, RawResource, ReadResourceRequestParams,
         ReadResourceResult, Resource, ResourceContents, ServerCapabilities, ServerInfo,
     },
     schemars::JsonSchema,
@@ -44,7 +44,7 @@ pub enum SaveAsFormat {
 pub struct WebScrapeParams {
     /// The URL to fetch content from
     pub url: String,
-    /// How to interpret and save the content
+    /// Format of the response.
     #[serde(default)]
     pub save_as: SaveAsFormat,
 }
@@ -479,8 +479,7 @@ impl ComputerControllerServer {
             - text (for HTML pages)
             - json (for API responses)
             - binary (for images and other files)
-            The content is cached locally and can be accessed later using the cache_path
-            returned in the response.
+            Returns 'Content saved to: <path>'. Use cache to read the content.
         "
     )]
     pub async fn web_scrape(
@@ -1314,7 +1313,7 @@ impl ServerHandler for ComputerControllerServer {
 
     async fn list_resources(
         &self,
-        _pagination: Option<PaginatedRequestParam>,
+        _pagination: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, ErrorData> {
         let active_resources = self.active_resources.lock().unwrap();
@@ -1331,12 +1330,13 @@ impl ServerHandler for ComputerControllerServer {
         Ok(ListResourcesResult {
             resources,
             next_cursor: None,
+            meta: None,
         })
     }
 
     async fn read_resource(
         &self,
-        params: ReadResourceRequestParam,
+        params: ReadResourceRequestParams,
         _context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResult, ErrorData> {
         let active_resources = self.active_resources.lock().unwrap();

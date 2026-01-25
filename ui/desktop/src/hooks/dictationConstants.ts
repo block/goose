@@ -2,6 +2,13 @@ import { DictationSettings, DictationProvider } from './useDictationSettings';
 
 export const DICTATION_SETTINGS_KEY = 'dictation_settings';
 export const ELEVENLABS_API_KEY = 'ELEVENLABS_API_KEY';
+export const DICTATION_PROVIDER_ELEVENLABS = 'elevenlabs' as const;
+
+export const isSecretKeyConfigured = (response: unknown): boolean =>
+  typeof response === 'object' &&
+  response !== null &&
+  'maskedValue' in response &&
+  !!(response as { maskedValue: string }).maskedValue;
 
 export const getDefaultDictationSettings = async (
   getProviders: (refresh: boolean) => Promise<Array<{ name: string; is_configured: boolean }>>

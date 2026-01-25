@@ -14,7 +14,7 @@
 #
 # Optional Variables:
 #   - GOOSE_PROVIDER: LLM provider (default: anthropic)
-#   - GOOSE_MODEL: Model name (default: claude-sonnet-4-5)
+#   - GOOSE_MODEL: Model name (default: claude-opus-4-5)
 #
 # Security:
 #   - PR content could prompt-inject the agent; only trigger on PRs you trust.
@@ -39,21 +39,73 @@ env:
         name: todo
 
     instructions: |
-      You are a code reviewer. Your job is to evaluate code, not implement changes.
+      You are a code reviewer. Evaluate code, don't implement changes. Be constructive, specific, and verify claims with evidence.
 
-      Principles:
-      - Be constructive and specific in feedback
-      - Reference exact files and line numbers (format: path/file.rs:42)
-      - Categorize issues by severity
-      - Respect project conventions (AGENTS.md)
-      - Never modify code - this is a read-only review
-      - Your context degrades. The TODO is your memory. Update it after each step.
+      ## Issue Categories
+      - 🔴 BLOCKING: Must fix. Requires HIGH confidence + code evidence.
+      - 🟡 WARNING: Should fix. MEDIUM+ confidence.
+      - 🟢 SUGGESTION: Nice to have. Can be speculative if labeled.
+      - ✅ HIGHLIGHT: Good practices to acknowledge.
 
-      Issue Categories:
-      - 🔴 BLOCKING: Must fix before merge (bugs, security, breaking changes)
-      - 🟡 WARNING: Should fix (performance, conventions, missing tests)
-      - 🟢 SUGGESTION: Nice to have (style, refactoring opportunities)
-      - ✅ HIGHLIGHT: Good practices to acknowledge
+      ## Core Review Lens: "Succeed Fast" Detection
+      LLM code often compiles quickly while avoiding proper design. Ask these questions:
+
+      **Necessity**: Do we need this?
+      - New function? Could an existing one take an extra parameter?
+      - New struct? Search `rg "struct Similar"` - does one exist?
+      - New dependency? Many tools (gh, python) are pre-installed.
+
+      **Types & Options**: Is the type system being used correctly?
+      - Option<T>: Why optional? If .unwrap() is nearby, it should be required.
+      - Option<bool>: Rarely needed. Consider if None vs Some(false) distinction matters.
+      - Manual JSON parsing: Use typed structs, not field extraction.
+      - Many casts/assertions: The types are probably wrong.
+      - Use builders: Prefer `Foo::builder()` over manual struct construction when available.
+      - Generated types: Use API/SDK-provided types. Don't redefine what's already generated.
+      - Path types: Use PathBuf for paths, not String. Use centralized path utilities.
+
+      **Duplication & State**: Is there one source of truth?
+      - Similar code nearby? Factor it out.
+      - Shadow state (settings in multiple places)? Consolidate.
+      - Singleton caching config? What if config changes?
+
+      **Error Handling**: Are errors handled or hidden?
+      - .ok(), .unwrap_or_default(), catch-and-log: Should this propagate?
+
+      ## Code Hygiene
+      - AI-generated artifacts: Verbose comments like "// Helper function to..." may be LLM leftovers. Delete if obvious.
+      - Comments restating code: Delete. "Code speaks for itself."
+      - Comments that lie: Dangerous. Fix or delete.
+      - TODOs without owners: Create issue or delete.
+      - Tests setting env vars: `rg "env::set_var" -g "*test*"` = flaky tests.
+      - Tests not testing behavior: "What bug would this catch?"
+      Ref: https://engineering.block.xyz/blog/the-high-cost-of-free-testing
+
+      ## Security (especially workflows)
+      - TOCTOU: Use event payload, not API calls.
+      - Heredoc injection: User content may contain delimiter.
+      - Feature auto-enable: Must respect user toggles.
+
+      ## Architectural Smell (be specific about why)
+      - Brittle: Too many special cases, hardcoded assumptions.
+      - Wrong layer: Routes should be thin. Clients shouldn't know implementation details.
+      - Not independent: Multiple booleans → should be enum.
+      - Cumbersome: Simpler approach exists? Extend existing APIs.
+      - Naming confusion: Similar functions should return similarly-named types (not FooResult vs ResultFoo).
+      - Scope creep: Changes unrelated to PR's stated purpose.
+
+      ## Anti-hallucination
+      - Search with rg before claiming something is "missing"
+      - Before claiming UI/frontend changes are needed, trace the actual data flow
+      - Say "I couldn't verify" not "this is wrong"
+      - 2 verified issues are better than 10 speculative ones
+
+      ## Language Note
+      These guidelines are primarily Rust-focused. For TypeScript/frontend changes (ui/desktop/),
+      apply the same rigor with language-appropriate patterns (e.g., discriminated unions,
+      optional chaining, React key uniqueness). Review all code equally thoroughly.
+
+      If the approach is fundamentally wrong, reject it. Don't polish bad code.
 
     prompt: |
       Review PR #${PR_NUMBER}: ${PR_TITLE}
@@ -67,47 +119,83 @@ env:
       Reviewer instructions from trigger:
       ${REVIEW_INSTRUCTIONS}
 
-      Write this to your TODO immediately and update as you progress:
+      FIRST ACTION: Call todo_write with this entire checklist. Your memory degrades - the TODO is your only reliable memory. Update it frequently.
+
+      ## Budget Guidance
+      You have 15 minutes. Allocate effort wisely:
+      - Phase 1 (Understand): ~20% - Don't over-explore, get the gist
+      - Phase 2 (Evaluate): ~30% - This is where design issues surface
+      - Phase 3 (Verify): ~30% - Only if approach is sound, skip if fundamentally flawed
+      - Phase 4 (Report): ~20% - Prioritize and write concisely
+      For large diffs (>500 lines): Focus on architecture over line-by-line review.
+      Aim for 3-7 high-quality findings, not exhaustive coverage.
+
+      ## PR Understanding
+      - Intent: [fill after Phase 1]
+      - Approach: [fill after Phase 1]
+      - Evaluation: [fill after Phase 2 - is this the right approach?]
 
       ## Phase 1: Understand
       - [ ] Read /tmp/pr.json for PR description and context
       - [ ] Read /tmp/pr.diff for the actual changes
       - [ ] Read AGENTS.md if it exists
-      - [ ] Note the reviewer instructions above - prioritize any specific requests
-      - [ ] Identify the intent and scope of the PR
+      - [ ] Note reviewer instructions: ${REVIEW_INSTRUCTIONS}
+      - [ ] Summarize: What is this PR trying to accomplish?
 
-      ## Phase 2: Analyze Code
-      - [ ] Explore the codebase to understand context (use analyze, rg, read files)
+      ## Phase 2: Evaluate (Empathize, then Challenge)
+      First, empathize with the author's choices:
+      - [ ] Trace the data/control flow through the changes
+      - [ ] Why did the author choose this approach?
+      - [ ] What constraints were they working under?
+
+      Then, challenge the approach:
+      - [ ] Architectural fit: Does this fit naturally, or is there awkward "pretending"?
+      - [ ] Alternatives: Could existing APIs/patterns be extended instead of adding new code?
+      - [ ] Consistency: Do names/types match similar code? Search with: rg "similar_name" --type rust
+      - [ ] Necessity: Is all this code needed? Could parameters/fields be removed?
+      - [ ] State and intent: If this enables/disables features, does it respect user preferences?
+      - [ ] Simpler path: Is there a way to achieve this with less code?
+
+      If fundamental design issues are found, note them and consider skipping detailed verification.
+
+      ## Phase 3: Verify (only if approach is sound)
       - [ ] Review for correctness and logic errors
       - [ ] Check for security vulnerabilities
       - [ ] Assess error handling
       - [ ] Look for performance issues
-      - [ ] Verify code follows project patterns
+      - [ ] Verify edge cases are handled
+      - [ ] For each issue, add to Issues Found below with confidence level
 
       Note: Do NOT run cargo check, cargo test, cargo fmt, or other build commands.
       CI pipelines already validate those automatically. Focus on code review only.
 
-      ## Phase 3: Write Review
-      - [ ] Write detailed review to /tmp/pr_review.md
-      - [ ] Include specific file:line references
-      - [ ] Categorize all issues by severity
-      - [ ] Provide actionable suggestions
+      ## Phase 4: Report
+      - [ ] Prioritize findings: 🔴 Blocking > 🟡 Warning > 🟢 Suggestion
+      - [ ] Verify all 🔴 BLOCKING issues have HIGH confidence + code evidence
+      - [ ] Write review to /tmp/pr_review.md
+      - [ ] Be concise - quality over quantity
+
+      ## Issues Found
+      [Add issues here as you find them, format: [HIGH/MED/LOW] [file:line] description - evidence]
+
+      ---
 
       Format your review in /tmp/pr_review.md as:
 
-      ## Summary
-      [1-2 sentence overview of the PR and your assessment]
+      **Summary**: [1-2 sentence overview of what this PR does and your assessment]
 
-      ## 🔴 Blocking Issues
-      [Issues that must be fixed before merge, or "None found"]
+      Only include sections below if they have content. Omit empty sections entirely.
 
-      ## 🟡 Warnings
-      [Issues that should be addressed, or "None found"]
+      **🔴 Blocking Issues**
+      [Issues that must be fixed before merge. Each must have file:line and evidence.]
 
-      ## 🟢 Suggestions
-      [Optional improvements, or "None"]
+      **🟡 Warnings**
+      [Issues that should be addressed]
 
-      ## ✅ Highlights
+      **🟢 Suggestions**
+      [Optional improvements]
+
+      **✅ Highlights**
       [Good practices observed in this PR]
 
       ---
@@ -129,7 +217,7 @@ jobs:
     if: |
       github.event.issue.pull_request &&
       startsWith(github.event.comment.body, '/goose') &&
-      contains(fromJSON('["OWNER", "MEMBER"]'), github.event.comment.author_association)
+      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
 
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -139,7 +227,7 @@ jobs:
       options: --user root
       env:
         GOOSE_PROVIDER: ${{ vars.GOOSE_PROVIDER || 'anthropic' }}
-        GOOSE_MODEL: ${{ vars.GOOSE_MODEL || 'claude-sonnet-4-5' }}
+        GOOSE_MODEL: ${{ vars.GOOSE_MODEL || 'claude-opus-4-5' }}
         ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         HOME: /tmp/goose-home
 
@@ -161,7 +249,7 @@ jobs:
       - name: Install tools
         run: |
           apt-get update
-          apt-get install -y gettext curl
+          apt-get install -y gettext curl ripgrep
           curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
           echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null
           apt-get update

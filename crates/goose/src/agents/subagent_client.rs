@@ -5,8 +5,10 @@ use crate::agents::subagent_tool::{
     create_subagent_tool, handle_subagent_tool, SUBAGENT_TOOL_NAME,
 };
 use crate::agents::tool_execution::DeferredToolCall;
+use crate::agents::AgentConfig;
 use crate::config::get_enabled_extensions;
-use crate::session::{SessionManager, SessionType};
+use crate::config::{GooseMode, PermissionManager};
+use crate::session::SessionType;
 use anyhow::Result;
 use async_trait::async_trait;
 use rmcp::model::{
@@ -15,6 +17,7 @@ use rmcp::model::{
     ServerCapabilities, ServerNotification, Tool,
 };
 use serde_json::Value;
+use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
@@ -49,7 +52,8 @@ impl SubagentClient {
 
     async fn get_provider(&self) -> Option<std::sync::Arc<dyn crate::providers::base::Provider>> {
         let em = self.context.extension_manager.as_ref()?.upgrade()?;
-        em.get_provider().await
+        let provider_guard = em.get_provider().lock().await;
+        provider_guard.clone()
     }
 
     async fn get_extensions(&self) -> Vec<crate::agents::ExtensionConfig> {
@@ -87,6 +91,7 @@ impl SubagentClient {
 impl McpClientTrait for SubagentClient {
     async fn list_resources(
         &self,
+        _session_id: &str,
         _next_cursor: Option<String>,
         _cancellation_token: CancellationToken,
     ) -> Result<ListResourcesResult, Error> {
@@ -95,6 +100,7 @@ impl McpClientTrait for SubagentClient {
 
     async fn read_resource(
         &self,
+        _session_id: &str,
         _uri: &str,
         _cancellation_token: CancellationToken,
     ) -> Result<ReadResourceResult, Error> {
@@ -103,17 +109,20 @@ impl McpClientTrait for SubagentClient {
 
     async fn list_tools(
         &self,
+        _session_id: &str,
         _next_cursor: Option<String>,
         _cancellation_token: CancellationToken,
     ) -> Result<ListToolsResult, Error> {
         Ok(ListToolsResult {
             tools: vec![self.build_tool().await],
             next_cursor: None,
+            meta: None,
         })
     }
 
     async fn call_tool(
         &self,
+        _session_id: &str,
         name: &str,
         _arguments: Option<JsonObject>,
         _cancellation_token: CancellationToken,
@@ -131,6 +140,7 @@ impl McpClientTrait for SubagentClient {
 
     async fn call_tool_deferred(
         &self,
+        session_id: &str,
         name: &str,
         arguments: Option<JsonObject>,
         cancellation_token: CancellationToken,
@@ -141,13 +151,13 @@ impl McpClientTrait for SubagentClient {
             ]))));
         }
 
-        if let Some(ref session_id) = self.context.session_id {
-            if let Ok(session) = SessionManager::get_session(session_id, false).await {
-                if session.session_type == SessionType::SubAgent {
-                    return Ok(DeferredToolCall::from(Ok(CallToolResult::error(vec![
-                        Content::text("Subagents cannot spawn subagents."),
-                    ]))));
-                }
+        // Check if this is already a subagent session
+        let session_manager = Arc::clone(&self.context.session_manager);
+        if let Ok(session) = session_manager.get_session(session_id, false).await {
+            if session.session_type == SessionType::SubAgent {
+                return Ok(DeferredToolCall::from(Ok(CallToolResult::error(vec![
+                    Content::text("Subagents cannot spawn subagents."),
+                ]))));
             }
         }
 
@@ -157,13 +167,11 @@ impl McpClientTrait for SubagentClient {
             ]))));
         };
 
-        let working_dir = match &self.context.session_id {
-            Some(session_id) => SessionManager::get_session(session_id, false)
-                .await
-                .map(|s| s.working_dir)
-                .unwrap_or_else(|_| std::env::current_dir().unwrap_or_else(|_| ".".into())),
-            None => std::env::current_dir().unwrap_or_else(|_| ".".into()),
-        };
+        let working_dir = session_manager
+            .get_session(session_id, false)
+            .await
+            .map(|s| s.working_dir)
+            .unwrap_or_else(|_| std::env::current_dir().unwrap_or_else(|_| ".".into()));
 
         let extensions = self.get_extensions().await;
         let sub_recipes = self.get_sub_recipes().await;
@@ -172,7 +180,16 @@ impl McpClientTrait for SubagentClient {
             .map(Value::Object)
             .unwrap_or(Value::Object(serde_json::Map::new()));
 
+        // Create AgentConfig for the subagent
+        let agent_config = AgentConfig::new(
+            session_manager,
+            PermissionManager::instance(),
+            None,
+            GooseMode::Auto,
+        );
+
         Ok(handle_subagent_tool(
+            &agent_config,
             arguments_value,
             task_config,
             sub_recipes,
@@ -183,6 +200,7 @@ impl McpClientTrait for SubagentClient {
 
     async fn list_prompts(
         &self,
+        _session_id: &str,
         _next_cursor: Option<String>,
         _cancellation_token: CancellationToken,
     ) -> Result<ListPromptsResult, Error> {
@@ -191,6 +209,7 @@ impl McpClientTrait for SubagentClient {
 
     async fn get_prompt(
         &self,
+        _session_id: &str,
         _name: &str,
         _arguments: Value,
         _cancellation_token: CancellationToken,
@@ -206,7 +225,7 @@ impl McpClientTrait for SubagentClient {
         Some(&self.info)
     }
 
-    async fn get_moim(&self) -> Option<String> {
+    async fn get_moim(&self, _session_id: &str) -> Option<String> {
         None
     }
 }

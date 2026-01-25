@@ -1,15 +1,16 @@
 use anyhow::Result;
-use clap::{Args, Parser, Subcommand};
-
-use goose::config::{Config, ExtensionConfig};
+use clap::{Args, CommandFactory, Parser, Subcommand};
+use clap_complete::{generate, Shell as ClapShell};
+use goose::config::Config;
+use goose::posthog::get_telemetry_choice;
+use goose::recipe::Recipe;
 use goose_mcp::mcp_server_runner::{serve, McpCommand};
 use goose_mcp::{
     AutoVisualiserRouter, ComputerControllerServer, DeveloperServer, MemoryServer, TutorialServer,
 };
 
-use crate::commands::acp::run_acp_agent;
 use crate::commands::bench::agent_generator;
-use crate::commands::configure::handle_configure;
+use crate::commands::configure::{configure_telemetry_consent_dialog, handle_configure};
 use crate::commands::info::handle_info;
 use crate::commands::project::{handle_project_default, handle_projects_interactive};
 use crate::commands::recipe::{handle_deeplink, handle_list, handle_open, handle_validate};
@@ -25,7 +26,7 @@ use crate::commands::schedule::{
 use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::recipes::extract_from_cli::extract_recipe_info_from_cli;
 use crate::recipes::recipe::{explain_recipe, render_recipe_as_yaml};
-use crate::session::{build_session, SessionBuilderConfig, SessionSettings};
+use crate::session::{build_session, SessionBuilderConfig};
 use goose::session::session_manager::SessionType;
 use goose::session::SessionManager;
 use goose_bench::bench_config::BenchRunConfig;
@@ -75,6 +76,241 @@ jsonl' -> '20250325_200615')."
     pub path: Option<PathBuf>,
 }
 
+/// Session behavior options shared between Session and Run commands
+#[derive(Args, Debug, Clone, Default)]
+pub struct SessionOptions {
+    #[arg(
+        long,
+        help = "Enable debug output mode with full content and no truncation",
+        long_help = "When enabled, shows complete tool responses without truncation and full paths."
+    )]
+    pub debug: bool,
+
+    #[arg(
+        long = "max-tool-repetitions",
+        value_name = "NUMBER",
+        help = "Maximum number of consecutive identical tool calls allowed",
+        long_help = "Set a limit on how many times the same tool can be called consecutively with identical parameters. Helps prevent infinite loops."
+    )]
+    pub max_tool_repetitions: Option<u32>,
+
+    #[arg(
+        long = "max-turns",
+        value_name = "NUMBER",
+        help = "Maximum number of turns allowed without user input (default: 1000)",
+        long_help = "Set a limit on how many turns (iterations) the agent can take without asking for user input to continue."
+    )]
+    pub max_turns: Option<u32>,
+}
+
+/// Extension configuration options shared between Session and Run commands
+#[derive(Args, Debug, Clone, Default)]
+pub struct ExtensionOptions {
+    #[arg(
+        long = "with-extension",
+        value_name = "COMMAND",
+        help = "Add stdio extensions (can be specified multiple times)",
+        long_help = "Add stdio extensions from full commands with environment variables. Can be specified multiple times. Format: 'ENV1=val1 ENV2=val2 command args...'",
+        action = clap::ArgAction::Append
+    )]
+    pub extensions: Vec<String>,
+
+    #[arg(
+        long = "with-streamable-http-extension",
+        value_name = "URL",
+        help = "Add streamable HTTP extensions (can be specified multiple times)",
+        long_help = "Add streamable HTTP extensions from a URL. Can be specified multiple times. Format: 'url...'",
+        action = clap::ArgAction::Append
+    )]
+    pub streamable_http_extensions: Vec<String>,
+
+    #[arg(
+        long = "with-builtin",
+        value_name = "NAME",
+        help = "Add builtin extensions by name (e.g., 'developer' or multiple: 'developer,github')",
+        long_help = "Add one or more builtin extensions that are bundled with goose by specifying their names, comma-separated",
+        value_delimiter = ','
+    )]
+    pub builtins: Vec<String>,
+}
+
+/// Input source and recipe options for the run command
+#[derive(Args, Debug, Clone, Default)]
+pub struct InputOptions {
+    /// Path to instruction file containing commands
+    #[arg(
+        short,
+        long,
+        value_name = "FILE",
+        help = "Path to instruction file containing commands. Use - for stdin.",
+        conflicts_with = "input_text",
+        conflicts_with = "recipe"
+    )]
+    pub instructions: Option<String>,
+
+    /// Input text containing commands
+    #[arg(
+        short = 't',
+        long = "text",
+        value_name = "TEXT",
+        help = "Input text to provide to goose directly",
+        long_help = "Input text containing commands for goose. Use this in lieu of the instructions argument.",
+        conflicts_with = "instructions",
+        conflicts_with = "recipe"
+    )]
+    pub input_text: Option<String>,
+
+    /// Recipe name or full path to the recipe file
+    #[arg(
+        short = None,
+        long = "recipe",
+        value_name = "RECIPE_NAME or FULL_PATH_TO_RECIPE_FILE",
+        help = "Recipe name to get recipe file or the full path of the recipe file (use --explain to see recipe details)",
+        long_help = "Recipe name to get recipe file or the full path of the recipe file that defines a custom agent configuration. Use --explain to see the recipe's title, description, and parameters.",
+        conflicts_with = "instructions",
+        conflicts_with = "input_text"
+    )]
+    pub recipe: Option<String>,
+
+    /// Additional system prompt to customize agent behavior
+    #[arg(
+        long = "system",
+        value_name = "TEXT",
+        help = "Additional system prompt to customize agent behavior",
+        long_help = "Provide additional system instructions to customize the agent's behavior",
+        conflicts_with = "recipe"
+    )]
+    pub system: Option<String>,
+
+    #[arg(
+        long,
+        value_name = "KEY=VALUE",
+        help = "Dynamic parameters (e.g., --params username=alice --params channel_name=goose-channel)",
+        long_help = "Key-value parameters to pass to the recipe file. Can be specified multiple times.",
+        action = clap::ArgAction::Append,
+        value_parser = parse_key_val,
+    )]
+    pub params: Vec<(String, String)>,
+
+    /// Additional sub-recipe file paths
+    #[arg(
+        long = "sub-recipe",
+        value_name = "RECIPE",
+        help = "Sub-recipe name or file path (can be specified multiple times)",
+        long_help = "Specify sub-recipes to include alongside the main recipe. Can be:\n  - Recipe names from GitHub (if GOOSE_RECIPE_GITHUB_REPO is configured)\n  - Local file paths to YAML files\nCan be specified multiple times to include multiple sub-recipes.",
+        action = clap::ArgAction::Append
+    )]
+    pub additional_sub_recipes: Vec<String>,
+
+    /// Show the recipe title, description, and parameters
+    #[arg(
+        long = "explain",
+        help = "Show the recipe title, description, and parameters"
+    )]
+    pub explain: bool,
+
+    /// Print the rendered recipe instead of running it
+    #[arg(
+        long = "render-recipe",
+        help = "Print the rendered recipe instead of running it."
+    )]
+    pub render_recipe: bool,
+}
+
+/// Output configuration options for the run command
+#[derive(Args, Debug, Clone)]
+pub struct OutputOptions {
+    /// Quiet mode - suppress non-response output
+    #[arg(
+        short = 'q',
+        long = "quiet",
+        help = "Quiet mode. Suppress non-response output, printing only the model response to stdout"
+    )]
+    pub quiet: bool,
+
+    /// Output format (text, json, stream-json)
+    #[arg(
+        long = "output-format",
+        value_name = "FORMAT",
+        help = "Output format (text, json, stream-json)",
+        default_value = "text",
+        value_parser = clap::builder::PossibleValuesParser::new(["text", "json", "stream-json"])
+    )]
+    pub output_format: String,
+}
+
+impl Default for OutputOptions {
+    fn default() -> Self {
+        Self {
+            quiet: false,
+            output_format: "text".to_string(),
+        }
+    }
+}
+
+/// Model/provider override options for the run command
+#[derive(Args, Debug, Clone, Default)]
+pub struct ModelOptions {
+    /// Provider to use for this run (overrides environment variable)
+    #[arg(
+        long = "provider",
+        value_name = "PROVIDER",
+        help = "Specify the LLM provider to use (e.g., 'openai', 'anthropic')",
+        long_help = "Override the GOOSE_PROVIDER environment variable for this run. Available providers include openai, anthropic, ollama, databricks, gemini-cli, claude-code, and others."
+    )]
+    pub provider: Option<String>,
+
+    /// Model to use for this run (overrides environment variable)
+    #[arg(
+        long = "model",
+        value_name = "MODEL",
+        help = "Specify the model to use (e.g., 'gpt-4o', 'claude-sonnet-4-20250514')",
+        long_help = "Override the GOOSE_MODEL environment variable for this run. The model must be supported by the specified provider."
+    )]
+    pub model: Option<String>,
+}
+
+/// Run execution behavior options
+#[derive(Args, Debug, Clone, Default)]
+pub struct RunBehavior {
+    /// Continue in interactive mode after processing input
+    #[arg(
+        short = 's',
+        long = "interactive",
+        help = "Continue in interactive mode after processing initial input"
+    )]
+    pub interactive: bool,
+
+    /// Run without storing a session file
+    #[arg(
+        long = "no-session",
+        help = "Run without storing a session file",
+        long_help = "Execute commands without creating or using a session file. Useful for automated runs.",
+        conflicts_with_all = ["resume", "name", "path"]
+    )]
+    pub no_session: bool,
+
+    /// Resume a previous run
+    #[arg(
+        short,
+        long,
+        action = clap::ArgAction::SetTrue,
+        help = "Resume from a previous run",
+        long_help = "Continue from a previous run, maintaining the execution state and context."
+    )]
+    pub resume: bool,
+
+    /// Scheduled job ID (used internally for scheduled executions)
+    #[arg(
+        long = "scheduled-job-id",
+        value_name = "ID",
+        help = "ID of the scheduled job that triggered this execution (internal use)",
+        long_help = "Internal parameter used when this run command is executed by a scheduled job. This associates the session with the schedule for tracking purposes.",
+        hide = true
+    )]
+    pub scheduled_job_id: Option<String>,
+}
+
 async fn get_or_create_session_id(
     identifier: Option<Identifier>,
     resume: bool,
@@ -84,74 +320,80 @@ async fn get_or_create_session_id(
         return Ok(None);
     }
 
-    let Some(id) = identifier else {
-        return if resume {
-            let sessions = SessionManager::list_sessions().await?;
+    let session_manager = SessionManager::instance();
+
+    let resolved_id = if resume {
+        let Some(id) = identifier else {
+            let sessions = session_manager.list_sessions().await?;
             let session_id = sessions
                 .first()
                 .map(|s| s.id.clone())
                 .ok_or_else(|| anyhow::anyhow!("No session found to resume"))?;
-            Ok(Some(session_id))
-        } else {
-            let session = SessionManager::create_session(
-                std::env::current_dir()?,
-                "CLI Session".to_string(),
-                SessionType::User,
-            )
-            .await?;
-            Ok(Some(session.id))
+            return Ok(Some(session_id));
         };
-    };
 
-    if let Some(session_id) = id.session_id {
-        Ok(Some(session_id))
-    } else if let Some(name) = id.name {
-        if resume {
-            let sessions = SessionManager::list_sessions().await?;
-            let session_id = sessions
+        if let Some(session_id) = id.session_id {
+            session_id
+        } else if let Some(name) = id.name {
+            let sessions = session_manager.list_sessions().await?;
+            sessions
                 .into_iter()
                 .find(|s| s.name == name || s.id == name)
                 .map(|s| s.id)
-                .ok_or_else(|| anyhow::anyhow!("No session found with name '{}'", name))?;
-            Ok(Some(session_id))
+                .ok_or_else(|| anyhow::anyhow!("No session found with name '{}'", name))?
+        } else if let Some(path) = id.path {
+            path.file_stem()
+                .and_then(|s| s.to_str())
+                .map(|s| s.to_string())
+                .ok_or_else(|| {
+                    anyhow::anyhow!("Could not extract session ID from path: {:?}", path)
+                })?
         } else {
-            let session = SessionManager::create_session(
-                std::env::current_dir()?,
-                name.clone(),
-                SessionType::User,
-            )
+            return Err(anyhow::anyhow!("Invalid identifier"));
+        }
+    } else {
+        let Some(id) = identifier else {
+            let session = session_manager
+                .create_session(
+                    std::env::current_dir()?,
+                    "CLI Session".to_string(),
+                    SessionType::User,
+                )
+                .await?;
+            return Ok(Some(session.id));
+        };
+
+        if id.session_id.is_some() {
+            return Err(anyhow::anyhow!("Cannot use --session-id without --resume"));
+        }
+
+        let has_user_provided_name = id.name.is_some();
+        let name = id.name.unwrap_or_else(|| "CLI Session".to_string());
+        let session = session_manager
+            .create_session(std::env::current_dir()?, name.clone(), SessionType::User)
             .await?;
 
-            SessionManager::update_session(&session.id)
+        if has_user_provided_name {
+            session_manager
+                .update(&session.id)
                 .user_provided_name(name)
                 .apply()
                 .await?;
-
-            Ok(Some(session.id))
         }
-    } else if let Some(path) = id.path {
-        let session_id = path
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .map(|s| s.to_string())
-            .ok_or_else(|| anyhow::anyhow!("Could not extract session ID from path: {:?}", path))?;
-        Ok(Some(session_id))
-    } else {
-        let session = SessionManager::create_session(
-            std::env::current_dir()?,
-            "CLI Session".to_string(),
-            SessionType::User,
-        )
-        .await?;
-        Ok(Some(session.id))
-    }
+
+        return Ok(Some(session.id));
+    };
+
+    Ok(Some(resolved_id))
 }
 
 async fn lookup_session_id(identifier: Identifier) -> Result<String> {
+    let session_manager = SessionManager::instance();
+
     if let Some(session_id) = identifier.session_id {
         Ok(session_id)
     } else if let Some(name) = identifier.name {
-        let sessions = SessionManager::list_sessions().await?;
+        let sessions = session_manager.list_sessions().await?;
         sessions
             .into_iter()
             .find(|s| s.name == name || s.id == name)
@@ -450,7 +692,17 @@ enum Command {
 
     /// Run goose as an ACP (Agent Client Protocol) agent
     #[command(about = "Run goose as an ACP agent server on stdio")]
-    Acp {},
+    Acp {
+        /// Add builtin extensions by name
+        #[arg(
+            long = "with-builtin",
+            value_name = "NAME",
+            help = "Add builtin extensions by name (e.g., 'developer' or multiple: 'developer,github')",
+            long_help = "Add one or more builtin extensions that are bundled with goose by specifying their names, comma-separated",
+            value_delimiter = ','
+        )]
+        builtins: Vec<String>,
+    },
 
     /// Start or resume interactive chat sessions
     #[command(
@@ -460,7 +712,7 @@ enum Command {
     Session {
         #[command(subcommand)]
         command: Option<SessionCommand>,
-        /// Identifier for the chat session
+
         #[command(flatten)]
         identifier: Option<Identifier>,
 
@@ -473,6 +725,15 @@ enum Command {
         )]
         resume: bool,
 
+        /// Fork a previous session (creates new session with copied history)
+        #[arg(
+            long,
+            requires = "resume",
+            help = "Fork a previous session (creates new session with copied history)",
+            long_help = "Create a new session by copying all messages from a previous session. Must be used with --resume. If --name or --session-id is provided, forks that specific session. Otherwise forks the most recently used session."
+        )]
+        fork: bool,
+
         /// Show message history when resuming
         #[arg(
             long,
@@ -481,71 +742,11 @@ enum Command {
         )]
         history: bool,
 
-        /// Enable debug output mode
-        #[arg(
-            long,
-            help = "Enable debug output mode with full content and no truncation",
-            long_help = "When enabled, shows complete tool responses without truncation and full paths."
-        )]
-        debug: bool,
+        #[command(flatten)]
+        session_opts: SessionOptions,
 
-        /// Maximum number of consecutive identical tool calls allowed
-        #[arg(
-            long = "max-tool-repetitions",
-            value_name = "NUMBER",
-            help = "Maximum number of consecutive identical tool calls allowed",
-            long_help = "Set a limit on how many times the same tool can be called consecutively with identical parameters. Helps prevent infinite loops."
-        )]
-        max_tool_repetitions: Option<u32>,
-
-        /// Maximum number of turns (iterations) allowed in a single response
-        #[arg(
-            long = "max-turns",
-            value_name = "NUMBER",
-            help = "Maximum number of turns allowed without user input (default: 1000)",
-            long_help = "Set a limit on how many turns (iterations) the agent can take without asking for user input to continue."
-        )]
-        max_turns: Option<u32>,
-
-        /// Add stdio extensions with environment variables and commands
-        #[arg(
-            long = "with-extension",
-            value_name = "COMMAND",
-            help = "Add stdio extensions (can be specified multiple times)",
-            long_help = "Add stdio extensions from full commands with environment variables. Can be specified multiple times. Format: 'ENV1=val1 ENV2=val2 command args...'",
-            action = clap::ArgAction::Append
-        )]
-        extensions: Vec<String>,
-
-        /// Add remote extensions with a URL
-        #[arg(
-            long = "with-remote-extension",
-            value_name = "URL",
-            help = "Add remote extensions (can be specified multiple times)",
-            long_help = "Add remote extensions from a URL. Can be specified multiple times. Format: 'url...'",
-            action = clap::ArgAction::Append
-        )]
-        remote_extensions: Vec<String>,
-
-        /// Add streamable HTTP extensions with a URL
-        #[arg(
-            long = "with-streamable-http-extension",
-            value_name = "URL",
-            help = "Add streamable HTTP extensions (can be specified multiple times)",
-            long_help = "Add streamable HTTP extensions from a URL. Can be specified multiple times. Format: 'url...'",
-            action = clap::ArgAction::Append
-        )]
-        streamable_http_extensions: Vec<String>,
-
-        /// Add builtin extensions by name
-        #[arg(
-            long = "with-builtin",
-            value_name = "NAME",
-            help = "Add builtin extensions by name (e.g., 'developer' or multiple: 'developer,github')",
-            long_help = "Add one or more builtin extensions that are bundled with goose by specifying their names, comma-separated",
-            value_delimiter = ','
-        )]
-        builtins: Vec<String>,
+        #[command(flatten)]
+        extension_opts: ExtensionOptions,
     },
 
     /// Open the last project directory
@@ -559,227 +760,26 @@ enum Command {
     /// Execute commands from an instruction file
     #[command(about = "Execute commands from an instruction file or stdin")]
     Run {
-        /// Path to instruction file containing commands
-        #[arg(
-            short,
-            long,
-            value_name = "FILE",
-            help = "Path to instruction file containing commands. Use - for stdin.",
-            conflicts_with = "input_text",
-            conflicts_with = "recipe"
-        )]
-        instructions: Option<String>,
+        #[command(flatten)]
+        input_opts: InputOptions,
 
-        /// Input text containing commands
-        #[arg(
-            short = 't',
-            long = "text",
-            value_name = "TEXT",
-            help = "Input text to provide to goose directly",
-            long_help = "Input text containing commands for goose. Use this in lieu of the instructions argument.",
-            conflicts_with = "instructions",
-            conflicts_with = "recipe"
-        )]
-        input_text: Option<String>,
-
-        /// Additional system prompt to customize agent behavior
-        #[arg(
-            long = "system",
-            value_name = "TEXT",
-            help = "Additional system prompt to customize agent behavior",
-            long_help = "Provide additional system instructions to customize the agent's behavior",
-            conflicts_with = "recipe"
-        )]
-        system: Option<String>,
-
-        /// Recipe name or full path to the recipe file
-        #[arg(
-            short = None,
-            long = "recipe",
-            value_name = "RECIPE_NAME or FULL_PATH_TO_RECIPE_FILE",
-            help = "Recipe name to get recipe file or the full path of the recipe file (use --explain to see recipe details)",
-            long_help = "Recipe name to get recipe file or the full path of the recipe file that defines a custom agent configuration. Use --explain to see the recipe's title, description, and parameters.",
-            conflicts_with = "instructions",
-            conflicts_with = "input_text"
-        )]
-        recipe: Option<String>,
-
-        #[arg(
-            long,
-            value_name = "KEY=VALUE",
-            help = "Dynamic parameters (e.g., --params username=alice --params channel_name=goose-channel)",
-            long_help = "Key-value parameters to pass to the recipe file. Can be specified multiple times.",
-            action = clap::ArgAction::Append,
-            value_parser = parse_key_val,
-        )]
-        params: Vec<(String, String)>,
-
-        /// Continue in interactive mode after processing input
-        #[arg(
-            short = 's',
-            long = "interactive",
-            help = "Continue in interactive mode after processing initial input"
-        )]
-        interactive: bool,
-
-        /// Run without storing a session file
-        #[arg(
-            long = "no-session",
-            help = "Run without storing a session file",
-            long_help = "Execute commands without creating or using a session file. Useful for automated runs.",
-            conflicts_with_all = ["resume", "name", "path"]
-        )]
-        no_session: bool,
-
-        /// Show the recipe title, description, and parameters
-        #[arg(
-            long = "explain",
-            help = "Show the recipe title, description, and parameters"
-        )]
-        explain: bool,
-
-        /// Print the rendered recipe instead of running it
-        #[arg(
-            long = "render-recipe",
-            help = "Print the rendered recipe instead of running it."
-        )]
-        render_recipe: bool,
-
-        /// Maximum number of consecutive identical tool calls allowed
-        #[arg(
-            long = "max-tool-repetitions",
-            value_name = "NUMBER",
-            help = "Maximum number of consecutive identical tool calls allowed",
-            long_help = "Set a limit on how many times the same tool can be called consecutively with identical parameters. Helps prevent infinite loops."
-        )]
-        max_tool_repetitions: Option<u32>,
-
-        /// Maximum number of turns (iterations) allowed in a single response
-        #[arg(
-            long = "max-turns",
-            value_name = "NUMBER",
-            help = "Maximum number of turns allowed without user input (default: 1000)",
-            long_help = "Set a limit on how many turns (iterations) the agent can take without asking for user input to continue."
-        )]
-        max_turns: Option<u32>,
-
-        /// Identifier for this run session
         #[command(flatten)]
         identifier: Option<Identifier>,
 
-        /// Resume a previous run
-        #[arg(
-            short,
-            long,
-            action = clap::ArgAction::SetTrue,
-            help = "Resume from a previous run",
-            long_help = "Continue from a previous run, maintaining the execution state and context."
-        )]
-        resume: bool,
+        #[command(flatten)]
+        run_behavior: RunBehavior,
 
-        /// Enable debug output mode
-        #[arg(
-            long,
-            help = "Enable debug output mode with full content and no truncation",
-            long_help = "When enabled, shows complete tool responses without truncation and full paths."
-        )]
-        debug: bool,
+        #[command(flatten)]
+        session_opts: SessionOptions,
 
-        /// Add stdio extensions with environment variables and commands
-        #[arg(
-            long = "with-extension",
-            value_name = "COMMAND",
-            help = "Add stdio extensions (can be specified multiple times)",
-            long_help = "Add stdio extensions from full commands with environment variables. Can be specified multiple times. Format: 'ENV1=val1 ENV2=val2 command args...'",
-            action = clap::ArgAction::Append
-        )]
-        extensions: Vec<String>,
+        #[command(flatten)]
+        extension_opts: ExtensionOptions,
 
-        /// Add remote extensions
-        #[arg(
-            long = "with-remote-extension",
-            value_name = "URL",
-            help = "Add remote extensions (can be specified multiple times)",
-            long_help = "Add remote extensions. Can be specified multiple times. Format: 'url...'",
-            action = clap::ArgAction::Append
-        )]
-        remote_extensions: Vec<String>,
+        #[command(flatten)]
+        output_opts: OutputOptions,
 
-        /// Add streamable HTTP extensions
-        #[arg(
-            long = "with-streamable-http-extension",
-            value_name = "URL",
-            help = "Add streamable HTTP extensions (can be specified multiple times)",
-            long_help = "Add streamable HTTP extensions. Can be specified multiple times. Format: 'url...'",
-            action = clap::ArgAction::Append
-        )]
-        streamable_http_extensions: Vec<String>,
-
-        /// Add builtin extensions by name
-        #[arg(
-            long = "with-builtin",
-            value_name = "NAME",
-            help = "Add builtin extensions by name (e.g., 'developer' or multiple: 'developer,github')",
-            long_help = "Add one or more builtin extensions that are bundled with goose by specifying their names, comma-separated",
-            value_delimiter = ','
-        )]
-        builtins: Vec<String>,
-
-        /// Quiet mode - suppress non-response output
-        #[arg(
-            short = 'q',
-            long = "quiet",
-            help = "Quiet mode. Suppress non-response output, printing only the model response to stdout"
-        )]
-        quiet: bool,
-
-        /// Scheduled job ID (used internally for scheduled executions)
-        #[arg(
-            long = "scheduled-job-id",
-            value_name = "ID",
-            help = "ID of the scheduled job that triggered this execution (internal use)",
-            long_help = "Internal parameter used when this run command is executed by a scheduled job. This associates the session with the schedule for tracking purposes.",
-            hide = true
-        )]
-        scheduled_job_id: Option<String>,
-
-        /// Additional sub-recipe file paths
-        #[arg(
-            long = "sub-recipe",
-            value_name = "RECIPE",
-            help = "Sub-recipe name or file path (can be specified multiple times)",
-            long_help = "Specify sub-recipes to include alongside the main recipe. Can be:\n  - Recipe names from GitHub (if GOOSE_RECIPE_GITHUB_REPO is configured)\n  - Local file paths to YAML files\nCan be specified multiple times to include multiple sub-recipes.",
-            action = clap::ArgAction::Append
-        )]
-        additional_sub_recipes: Vec<String>,
-
-        /// Output format (text, json)
-        #[arg(
-            long = "output-format",
-            value_name = "FORMAT",
-            help = "Output format (text, json)",
-            default_value = "text",
-            value_parser = clap::builder::PossibleValuesParser::new(["text", "json"])
-        )]
-        output_format: String,
-
-        /// Provider to use for this run (overrides environment variable)
-        #[arg(
-            long = "provider",
-            value_name = "PROVIDER",
-            help = "Specify the LLM provider to use (e.g., 'openai', 'anthropic')",
-            long_help = "Override the GOOSE_PROVIDER environment variable for this run. Available providers include openai, anthropic, ollama, databricks, gemini-cli, claude-code, and others."
-        )]
-        provider: Option<String>,
-
-        /// Model to use for this run (overrides environment variable)
-        #[arg(
-            long = "model",
-            value_name = "MODEL",
-            help = "Specify the model to use (e.g., 'gpt-4o', 'claude-sonnet-4-20250514')",
-            long_help = "Override the GOOSE_MODEL environment variable for this run. The model must be supported by the specified provider."
-        )]
-        model: Option<String>,
+        #[command(flatten)]
+        model_opts: ModelOptions,
     },
 
     /// Recipe utilities for validation and deeplinking
@@ -847,6 +847,13 @@ enum Command {
         /// Authentication token for both Basic Auth (password) and Bearer token
         #[arg(long, help = "Authentication token to secure the web interface")]
         auth_token: Option<String>,
+
+        /// Allow running without authentication when exposed on the network (unsafe)
+        #[arg(
+            long,
+            help = "Skip auth requirement when exposed on the network (unsafe)"
+        )]
+        no_auth: bool,
     },
 
     /// Terminal-integrated session (one session per terminal)
@@ -864,6 +871,15 @@ enum Command {
     Term {
         #[command(subcommand)]
         command: TermCommand,
+    },
+    /// Generate completions for various shells
+    #[command(about = "Generate the autocompletion script for the specified shell")]
+    Completion {
+        #[arg(value_enum)]
+        shell: ClapShell,
+
+        #[arg(long, default_value = "goose", help = "Provide a custom binary name")]
+        bin_name: String,
     },
 }
 
@@ -938,30 +954,15 @@ enum CliProviderVariant {
 #[derive(Debug)]
 pub struct InputConfig {
     pub contents: Option<String>,
-    pub extensions_override: Option<Vec<ExtensionConfig>>,
     pub additional_system_prompt: Option<String>,
 }
 
-#[derive(Debug)]
-pub struct RecipeInfo {
-    pub session_settings: Option<SessionSettings>,
-    pub sub_recipes: Option<Vec<goose::recipe::SubRecipe>>,
-    pub final_output_response: Option<goose::recipe::Response>,
-    pub retry_config: Option<goose::agents::types::RetryConfig>,
-}
-
-pub async fn cli() -> anyhow::Result<()> {
-    let cli = Cli::parse();
-
-    if let Err(e) = crate::project_tracker::update_project_tracker(None, None) {
-        warn!("Warning: Failed to update project tracker: {}", e);
-    }
-
-    let command_name = match &cli.command {
+fn get_command_name(command: &Option<Command>) -> &'static str {
+    match command {
         Some(Command::Configure {}) => "configure",
         Some(Command::Info { .. }) => "info",
         Some(Command::Mcp { .. }) => "mcp",
-        Some(Command::Acp {}) => "acp",
+        Some(Command::Acp { .. }) => "acp",
         Some(Command::Session { .. }) => "session",
         Some(Command::Project {}) => "project",
         Some(Command::Projects) => "projects",
@@ -972,9 +973,499 @@ pub async fn cli() -> anyhow::Result<()> {
         Some(Command::Recipe { .. }) => "recipe",
         Some(Command::Web { .. }) => "web",
         Some(Command::Term { .. }) => "term",
+        Some(Command::Completion { .. }) => "completion",
         None => "default_session",
+    }
+}
+
+async fn handle_mcp_command(server: McpCommand) -> Result<()> {
+    let name = server.name();
+    crate::logging::setup_logging(Some(&format!("mcp-{name}")), None)?;
+    match server {
+        McpCommand::AutoVisualiser => serve(AutoVisualiserRouter::new()).await?,
+        McpCommand::ComputerController => serve(ComputerControllerServer::new()).await?,
+        McpCommand::Memory => serve(MemoryServer::new()).await?,
+        McpCommand::Tutorial => serve(TutorialServer::new()).await?,
+        McpCommand::Developer => serve(DeveloperServer::new()).await?,
+    }
+    Ok(())
+}
+
+async fn handle_session_subcommand(command: SessionCommand) -> Result<()> {
+    match command {
+        SessionCommand::List {
+            format,
+            ascending,
+            working_dir,
+            limit,
+        } => {
+            handle_session_list(format, ascending, working_dir, limit).await?;
+        }
+        SessionCommand::Remove { identifier, regex } => {
+            let (session_id, name) = if let Some(id) = identifier {
+                (id.session_id, id.name)
+            } else {
+                (None, None)
+            };
+            handle_session_remove(session_id, name, regex).await?;
+        }
+        SessionCommand::Export {
+            identifier,
+            output,
+            format,
+        } => {
+            let session_manager = SessionManager::instance();
+            let session_identifier = if let Some(id) = identifier {
+                lookup_session_id(id).await?
+            } else {
+                match crate::commands::session::prompt_interactive_session_selection(
+                    &session_manager,
+                )
+                .await
+                {
+                    Ok(id) => id,
+                    Err(e) => {
+                        eprintln!("Error: {}", e);
+                        return Ok(());
+                    }
+                }
+            };
+            crate::commands::session::handle_session_export(session_identifier, output, format)
+                .await?;
+        }
+        SessionCommand::Diagnostics { identifier, output } => {
+            let session_manager = SessionManager::instance();
+            let session_id = if let Some(id) = identifier {
+                lookup_session_id(id).await?
+            } else {
+                match crate::commands::session::prompt_interactive_session_selection(
+                    &session_manager,
+                )
+                .await
+                {
+                    Ok(id) => id,
+                    Err(e) => {
+                        eprintln!("Error: {}", e);
+                        return Ok(());
+                    }
+                }
+            };
+            crate::commands::session::handle_diagnostics(&session_id, output).await?;
+        }
+    }
+    Ok(())
+}
+
+async fn handle_interactive_session(
+    identifier: Option<Identifier>,
+    resume: bool,
+    fork: bool,
+    history: bool,
+    session_opts: SessionOptions,
+    extension_opts: ExtensionOptions,
+) -> Result<()> {
+    if get_telemetry_choice().is_none() {
+        configure_telemetry_consent_dialog()?;
+    }
+
+    let session_start = std::time::Instant::now();
+    let session_type = if fork {
+        "forked"
+    } else if resume {
+        "resumed"
+    } else {
+        "new"
     };
 
+    tracing::info!(
+        counter.goose.session_starts = 1,
+        session_type,
+        interactive = true,
+        "Session started"
+    );
+
+    if let Some(Identifier {
+        session_id: Some(_),
+        ..
+    }) = &identifier
+    {
+        if !resume {
+            eprintln!("Error: --session-id can only be used with --resume flag");
+            std::process::exit(1);
+        }
+    }
+
+    let mut session_id = get_or_create_session_id(identifier, resume, false).await?;
+
+    if fork {
+        if let Some(id) = session_id {
+            let session_manager = SessionManager::instance();
+            let original = session_manager.get_session(&id, false).await?;
+            let copied = session_manager.copy_session(&id, original.name).await?;
+            session_id = Some(copied.id);
+        }
+    }
+
+    let mut session: crate::CliSession = build_session(SessionBuilderConfig {
+        session_id,
+        resume,
+        fork,
+        no_session: false,
+        extensions: extension_opts.extensions,
+        streamable_http_extensions: extension_opts.streamable_http_extensions,
+        builtins: extension_opts.builtins,
+        recipe: None,
+        additional_system_prompt: None,
+        provider: None,
+        model: None,
+        debug: session_opts.debug,
+        max_tool_repetitions: session_opts.max_tool_repetitions,
+        max_turns: session_opts.max_turns,
+        scheduled_job_id: None,
+        interactive: true,
+        quiet: false,
+        output_format: "text".to_string(),
+    })
+    .await;
+
+    if (resume || fork) && history {
+        session.render_message_history();
+    }
+
+    let result = session.interactive(None).await;
+    log_session_completion(&session, session_start, session_type, result.is_ok()).await;
+    result
+}
+
+async fn log_session_completion(
+    session: &crate::CliSession,
+    session_start: std::time::Instant,
+    session_type: &str,
+    success: bool,
+) {
+    let session_duration = session_start.elapsed();
+    let exit_type = if success { "normal" } else { "error" };
+
+    let (total_tokens, message_count) = session
+        .get_session()
+        .await
+        .map(|m| (m.total_tokens.unwrap_or(0), m.message_count))
+        .unwrap_or((0, 0));
+
+    tracing::info!(
+        counter.goose.session_completions = 1,
+        session_type,
+        exit_type,
+        duration_ms = session_duration.as_millis() as u64,
+        total_tokens,
+        message_count,
+        "Session completed"
+    );
+
+    tracing::info!(
+        counter.goose.session_duration_ms = session_duration.as_millis() as u64,
+        session_type,
+        "Session duration"
+    );
+
+    if total_tokens > 0 {
+        tracing::info!(
+            counter.goose.session_tokens = total_tokens,
+            session_type,
+            "Session tokens"
+        );
+    }
+}
+
+fn parse_run_input(
+    input_opts: &InputOptions,
+    quiet: bool,
+) -> Result<Option<(InputConfig, Option<Recipe>)>> {
+    match (
+        &input_opts.instructions,
+        &input_opts.input_text,
+        &input_opts.recipe,
+    ) {
+        (Some(file), _, _) if file == "-" => {
+            let mut contents = String::new();
+            std::io::stdin()
+                .read_to_string(&mut contents)
+                .expect("Failed to read from stdin");
+            Ok(Some((
+                InputConfig {
+                    contents: Some(contents),
+                    additional_system_prompt: input_opts.system.clone(),
+                },
+                None,
+            )))
+        }
+        (Some(file), _, _) => {
+            let contents = std::fs::read_to_string(file).unwrap_or_else(|err| {
+                eprintln!(
+                    "Instruction file not found — did you mean to use goose run --text?\n{}",
+                    err
+                );
+                std::process::exit(1);
+            });
+            Ok(Some((
+                InputConfig {
+                    contents: Some(contents),
+                    additional_system_prompt: None,
+                },
+                None,
+            )))
+        }
+        (_, Some(text), _) => Ok(Some((
+            InputConfig {
+                contents: Some(text.clone()),
+                additional_system_prompt: input_opts.system.clone(),
+            },
+            None,
+        ))),
+        (_, _, Some(recipe_name)) => {
+            let recipe_display_name = std::path::Path::new(recipe_name)
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or(recipe_name);
+
+            let recipe_version = crate::recipes::search_recipe::load_recipe_file(recipe_name)
+                .ok()
+                .and_then(|rf| {
+                    goose::recipe::template_recipe::parse_recipe_content(
+                        &rf.content,
+                        Some(rf.parent_dir.display().to_string()),
+                    )
+                    .ok()
+                    .map(|(r, _)| r.version)
+                })
+                .unwrap_or_else(|| "unknown".to_string());
+
+            if input_opts.explain {
+                explain_recipe(recipe_name, input_opts.params.clone())?;
+                return Ok(None);
+            }
+            if input_opts.render_recipe {
+                if let Err(err) = render_recipe_as_yaml(recipe_name, input_opts.params.clone()) {
+                    eprintln!("{}: {}", console::style("Error").red().bold(), err);
+                    std::process::exit(1);
+                }
+                return Ok(None);
+            }
+
+            tracing::info!(
+                counter.goose.recipe_runs = 1,
+                recipe_name = %recipe_display_name,
+                recipe_version = %recipe_version,
+                session_type = "recipe",
+                interface = "cli",
+                "Recipe execution started"
+            );
+
+            let (input_config, recipe) = extract_recipe_info_from_cli(
+                recipe_name.clone(),
+                input_opts.params.clone(),
+                input_opts.additional_sub_recipes.clone(),
+                quiet,
+            )?;
+            Ok(Some((input_config, Some(recipe))))
+        }
+        (None, None, None) => {
+            eprintln!("Error: Must provide either --instructions (-i), --text (-t), or --recipe. Use -i - for stdin.");
+            std::process::exit(1);
+        }
+    }
+}
+
+async fn handle_run_command(
+    input_opts: InputOptions,
+    identifier: Option<Identifier>,
+    run_behavior: RunBehavior,
+    session_opts: SessionOptions,
+    extension_opts: ExtensionOptions,
+    output_opts: OutputOptions,
+    model_opts: ModelOptions,
+) -> Result<()> {
+    if run_behavior.interactive && get_telemetry_choice().is_none() {
+        configure_telemetry_consent_dialog()?;
+    }
+
+    let parsed = parse_run_input(&input_opts, output_opts.quiet)?;
+
+    let Some((input_config, recipe)) = parsed else {
+        return Ok(());
+    };
+
+    if let Some(Identifier {
+        session_id: Some(_),
+        ..
+    }) = &identifier
+    {
+        if !run_behavior.resume {
+            eprintln!("Error: --session-id can only be used with --resume flag");
+            std::process::exit(1);
+        }
+    }
+
+    let session_id =
+        get_or_create_session_id(identifier, run_behavior.resume, run_behavior.no_session).await?;
+
+    let mut session = build_session(SessionBuilderConfig {
+        session_id,
+        resume: run_behavior.resume,
+        fork: false,
+        no_session: run_behavior.no_session,
+        extensions: extension_opts.extensions,
+        streamable_http_extensions: extension_opts.streamable_http_extensions,
+        builtins: extension_opts.builtins,
+        recipe: recipe.clone(),
+        additional_system_prompt: input_config.additional_system_prompt,
+        provider: model_opts.provider,
+        model: model_opts.model,
+        debug: session_opts.debug,
+        max_tool_repetitions: session_opts.max_tool_repetitions,
+        max_turns: session_opts.max_turns,
+        scheduled_job_id: run_behavior.scheduled_job_id,
+        interactive: run_behavior.interactive,
+        quiet: output_opts.quiet,
+        output_format: output_opts.output_format,
+    })
+    .await;
+
+    if run_behavior.interactive {
+        session.interactive(input_config.contents).await
+    } else if let Some(contents) = input_config.contents {
+        let session_start = std::time::Instant::now();
+        let session_type = if recipe.is_some() { "recipe" } else { "run" };
+
+        tracing::info!(
+            counter.goose.session_starts = 1,
+            session_type,
+            interactive = false,
+            "Headless session started"
+        );
+
+        let result = session.headless(contents).await;
+        log_session_completion(&session, session_start, session_type, result.is_ok()).await;
+        result
+    } else {
+        Err(anyhow::anyhow!(
+            "no text provided for prompt in headless mode"
+        ))
+    }
+}
+
+async fn handle_schedule_command(command: SchedulerCommand) -> Result<()> {
+    match command {
+        SchedulerCommand::Add {
+            schedule_id,
+            cron,
+            recipe_source,
+        } => handle_schedule_add(schedule_id, cron, recipe_source).await,
+        SchedulerCommand::List {} => handle_schedule_list().await,
+        SchedulerCommand::Remove { schedule_id } => handle_schedule_remove(schedule_id).await,
+        SchedulerCommand::Sessions { schedule_id, limit } => {
+            handle_schedule_sessions(schedule_id, limit).await
+        }
+        SchedulerCommand::RunNow { schedule_id } => handle_schedule_run_now(schedule_id).await,
+        SchedulerCommand::ServicesStatus {} => handle_schedule_services_status().await,
+        SchedulerCommand::ServicesStop {} => handle_schedule_services_stop().await,
+        SchedulerCommand::CronHelp {} => handle_schedule_cron_help().await,
+    }
+}
+
+async fn handle_bench_command(cmd: BenchCommand) -> Result<()> {
+    match cmd {
+        BenchCommand::Selectors { config } => BenchRunner::list_selectors(config)?,
+        BenchCommand::InitConfig { name } => {
+            let mut config = BenchRunConfig::default();
+            let cwd = std::env::current_dir()?;
+            config.output_dir = Some(cwd);
+            config.save(name);
+        }
+        BenchCommand::Run { config } => BenchRunner::new(config)?.run()?,
+        BenchCommand::EvalModel { config } => ModelRunner::from(config)?.run()?,
+        BenchCommand::ExecEval { config } => EvalRunner::from(config)?.run(agent_generator).await?,
+        BenchCommand::GenerateLeaderboard { benchmark_dir } => {
+            MetricAggregator::generate_csv_from_benchmark_dir(&benchmark_dir)?
+        }
+    }
+    Ok(())
+}
+
+fn handle_recipe_subcommand(command: RecipeCommand) -> Result<()> {
+    match command {
+        RecipeCommand::Validate { recipe_name } => handle_validate(&recipe_name),
+        RecipeCommand::Deeplink {
+            recipe_name,
+            params,
+        } => {
+            handle_deeplink(&recipe_name, &params)?;
+            Ok(())
+        }
+        RecipeCommand::Open {
+            recipe_name,
+            params,
+        } => handle_open(&recipe_name, &params),
+        RecipeCommand::List { format, verbose } => handle_list(&format, verbose),
+    }
+}
+
+async fn handle_term_subcommand(command: TermCommand) -> Result<()> {
+    match command {
+        TermCommand::Init {
+            shell,
+            name,
+            default,
+        } => handle_term_init(shell, name, default).await,
+        TermCommand::Log { command } => handle_term_log(command).await,
+        TermCommand::Run { prompt } => handle_term_run(prompt).await,
+        TermCommand::Info => handle_term_info().await,
+    }
+}
+
+async fn handle_default_session() -> Result<()> {
+    if !Config::global().exists() {
+        return handle_configure().await;
+    }
+
+    if get_telemetry_choice().is_none() {
+        configure_telemetry_consent_dialog()?;
+    }
+
+    let session_id = get_or_create_session_id(None, false, false).await?;
+
+    let mut session = build_session(SessionBuilderConfig {
+        session_id,
+        resume: false,
+        fork: false,
+        no_session: false,
+        extensions: Vec::new(),
+        streamable_http_extensions: Vec::new(),
+        builtins: Vec::new(),
+        recipe: None,
+        additional_system_prompt: None,
+        provider: None,
+        model: None,
+        debug: false,
+        max_tool_repetitions: None,
+        max_turns: None,
+        scheduled_job_id: None,
+        interactive: true,
+        quiet: false,
+        output_format: "text".to_string(),
+    })
+    .await;
+    session.interactive(None).await
+}
+
+pub async fn cli() -> anyhow::Result<()> {
+    let cli = Cli::parse();
+
+    if let Err(e) = crate::project_tracker::update_project_tracker(None, None) {
+        warn!("Warning: Failed to update project tracker: {}", e);
+    }
+
+    let command_name = get_command_name(&cli.command);
     tracing::info!(
         counter.goose.cli_commands = 1,
         command = command_name,
@@ -982,573 +1473,83 @@ pub async fn cli() -> anyhow::Result<()> {
     );
 
     match cli.command {
-        Some(Command::Configure {}) => handle_configure().await?,
-        Some(Command::Info { verbose }) => handle_info(verbose)?,
-        Some(Command::Mcp { server }) => {
-            let name = server.name();
-            crate::logging::setup_logging(Some(&format!("mcp-{name}")), None)?;
-            match server {
-                McpCommand::AutoVisualiser => serve(AutoVisualiserRouter::new()).await?,
-                McpCommand::ComputerController => serve(ComputerControllerServer::new()).await?,
-                McpCommand::Memory => serve(MemoryServer::new()).await?,
-                McpCommand::Tutorial => serve(TutorialServer::new()).await?,
-                McpCommand::Developer => serve(DeveloperServer::new()).await?,
-            }
+        Some(Command::Completion { shell, bin_name }) => {
+            let mut cmd = Cli::command();
+            generate(shell, &mut cmd, bin_name, &mut std::io::stdout());
+            Ok(())
         }
-        Some(Command::Acp {}) => {
-            run_acp_agent().await?;
-        }
+        Some(Command::Configure {}) => handle_configure().await,
+        Some(Command::Info { verbose }) => handle_info(verbose),
+        Some(Command::Mcp { server }) => handle_mcp_command(server).await,
+        Some(Command::Acp { builtins }) => goose_acp::server::run(builtins).await,
         Some(Command::Session {
-            command,
+            command: Some(cmd), ..
+        }) => handle_session_subcommand(cmd).await,
+        Some(Command::Session {
+            command: None,
             identifier,
             resume,
+            fork,
             history,
-            debug,
-            max_tool_repetitions,
-            max_turns,
-            extensions,
-            remote_extensions,
-            streamable_http_extensions,
-            builtins,
+            session_opts,
+            extension_opts,
         }) => {
-            return match command {
-                Some(SessionCommand::List {
-                    format,
-                    ascending,
-                    working_dir,
-                    limit,
-                }) => Ok(handle_session_list(format, ascending, working_dir, limit).await?),
-                Some(SessionCommand::Remove { identifier, regex }) => {
-                    let (session_id, name) = if let Some(id) = identifier {
-                        (id.session_id, id.name)
-                    } else {
-                        (None, None)
-                    };
-                    Ok(handle_session_remove(session_id, name, regex).await?)
-                }
-                Some(SessionCommand::Export {
-                    identifier,
-                    output,
-                    format,
-                }) => {
-                    let session_identifier = if let Some(id) = identifier {
-                        lookup_session_id(id).await?
-                    } else {
-                        // If no identifier is provided, prompt for interactive selection
-                        match crate::commands::session::prompt_interactive_session_selection().await
-                        {
-                            Ok(id) => id,
-                            Err(e) => {
-                                eprintln!("Error: {}", e);
-                                return Ok(());
-                            }
-                        }
-                    };
-
-                    crate::commands::session::handle_session_export(
-                        session_identifier,
-                        output,
-                        format,
-                    )
-                    .await?;
-                    Ok(())
-                }
-                Some(SessionCommand::Diagnostics { identifier, output }) => {
-                    let session_id = if let Some(id) = identifier {
-                        lookup_session_id(id).await?
-                    } else {
-                        match crate::commands::session::prompt_interactive_session_selection().await
-                        {
-                            Ok(id) => id,
-                            Err(e) => {
-                                eprintln!("Error: {}", e);
-                                return Ok(());
-                            }
-                        }
-                    };
-                    crate::commands::session::handle_diagnostics(&session_id, output).await?;
-                    Ok(())
-                }
-                None => {
-                    let session_start = std::time::Instant::now();
-                    let session_type = if resume { "resumed" } else { "new" };
-
-                    tracing::info!(
-                        counter.goose.session_starts = 1,
-                        session_type,
-                        interactive = true,
-                        "Session started"
-                    );
-
-                    if let Some(Identifier {
-                        session_id: Some(_),
-                        ..
-                    }) = &identifier
-                    {
-                        if !resume {
-                            eprintln!("Error: --session-id can only be used with --resume flag");
-                            std::process::exit(1);
-                        }
-                    }
-
-                    let session_id = get_or_create_session_id(identifier, resume, false).await?;
-
-                    // Run session command by default
-                    let mut session: crate::CliSession = build_session(SessionBuilderConfig {
-                        session_id,
-                        resume,
-                        no_session: false,
-                        extensions,
-                        remote_extensions,
-                        streamable_http_extensions,
-                        builtins,
-                        extensions_override: None,
-                        additional_system_prompt: None,
-                        settings: None,
-                        provider: None,
-                        model: None,
-                        debug,
-                        max_tool_repetitions,
-                        max_turns,
-                        scheduled_job_id: None,
-                        interactive: true,
-                        quiet: false,
-                        sub_recipes: None,
-                        final_output_response: None,
-                        retry_config: None,
-                        output_format: "text".to_string(),
-                    })
-                    .await;
-
-                    // Render previous messages if resuming a session and history flag is set
-                    if resume && history {
-                        session.render_message_history();
-                    }
-
-                    let result = session.interactive(None).await;
-
-                    let session_duration = session_start.elapsed();
-                    let exit_type = if result.is_ok() { "normal" } else { "error" };
-
-                    let (total_tokens, message_count) = session
-                        .get_session()
-                        .await
-                        .map(|m| (m.total_tokens.unwrap_or(0), m.message_count))
-                        .unwrap_or((0, 0));
-
-                    tracing::info!(
-                        counter.goose.session_completions = 1,
-                        session_type,
-                        exit_type,
-                        duration_ms = session_duration.as_millis() as u64,
-                        total_tokens,
-                        message_count,
-                        "Session completed"
-                    );
-
-                    tracing::info!(
-                        counter.goose.session_duration_ms = session_duration.as_millis() as u64,
-                        session_type,
-                        "Session duration"
-                    );
-
-                    if total_tokens > 0 {
-                        tracing::info!(
-                            counter.goose.session_tokens = total_tokens,
-                            session_type,
-                            "Session tokens"
-                        );
-                    }
-
-                    Ok(())
-                }
-            };
+            handle_interactive_session(
+                identifier,
+                resume,
+                fork,
+                history,
+                session_opts,
+                extension_opts,
+            )
+            .await
         }
         Some(Command::Project {}) => {
-            // Default behavior: offer to resume the last project
             handle_project_default()?;
-            return Ok(());
+            Ok(())
         }
         Some(Command::Projects) => {
-            // Interactive project selection
             handle_projects_interactive()?;
-            return Ok(());
+            Ok(())
         }
-
         Some(Command::Run {
-            instructions,
-            input_text,
-            recipe,
-            system,
-            interactive,
+            input_opts,
             identifier,
-            resume,
-            no_session,
-            debug,
-            max_tool_repetitions,
-            max_turns,
-            extensions,
-            remote_extensions,
-            streamable_http_extensions,
-            builtins,
-            params,
-            explain,
-            render_recipe,
-            scheduled_job_id,
-            quiet,
-            additional_sub_recipes,
-            output_format,
-            provider,
-            model,
+            run_behavior,
+            session_opts,
+            extension_opts,
+            output_opts,
+            model_opts,
         }) => {
-            let (input_config, recipe_info) = match (instructions, input_text, recipe) {
-                (Some(file), _, _) if file == "-" => {
-                    let mut input = String::new();
-                    std::io::stdin()
-                        .read_to_string(&mut input)
-                        .expect("Failed to read from stdin");
-
-                    let input_config = InputConfig {
-                        contents: Some(input),
-                        extensions_override: None,
-                        additional_system_prompt: system,
-                    };
-                    (input_config, None)
-                }
-                (Some(file), _, _) => {
-                    let contents = std::fs::read_to_string(&file).unwrap_or_else(|err| {
-                        eprintln!(
-                            "Instruction file not found — did you mean to use goose run --text?\n{}",
-                            err
-                        );
-                        std::process::exit(1);
-                    });
-                    let input_config = InputConfig {
-                        contents: Some(contents),
-                        extensions_override: None,
-                        additional_system_prompt: None,
-                    };
-                    (input_config, None)
-                }
-                (_, Some(text), _) => {
-                    let input_config = InputConfig {
-                        contents: Some(text),
-                        extensions_override: None,
-                        additional_system_prompt: system,
-                    };
-                    (input_config, None)
-                }
-                (_, _, Some(recipe_name)) => {
-                    let recipe_display_name = std::path::Path::new(&recipe_name)
-                        .file_name()
-                        .and_then(|name| name.to_str())
-                        .unwrap_or(&recipe_name);
-
-                    let recipe_version =
-                        crate::recipes::search_recipe::load_recipe_file(&recipe_name)
-                            .ok()
-                            .and_then(|rf| {
-                                goose::recipe::template_recipe::parse_recipe_content(
-                                    &rf.content,
-                                    Some(rf.parent_dir.display().to_string()),
-                                )
-                                .ok()
-                                .map(|(r, _)| r.version)
-                            })
-                            .unwrap_or_else(|| "unknown".to_string());
-
-                    if explain {
-                        explain_recipe(&recipe_name, params)?;
-                        return Ok(());
-                    }
-                    if render_recipe {
-                        if let Err(err) = render_recipe_as_yaml(&recipe_name, params) {
-                            eprintln!("{}: {}", console::style("Error").red().bold(), err);
-                            std::process::exit(1);
-                        }
-                        return Ok(());
-                    }
-
-                    tracing::info!(
-                        counter.goose.recipe_runs = 1,
-                        recipe_name = %recipe_display_name,
-                        recipe_version = %recipe_version,
-                        session_type = "recipe",
-                        interface = "cli",
-                        "Recipe execution started"
-                    );
-
-                    let (input_config, recipe_info) = extract_recipe_info_from_cli(
-                        recipe_name,
-                        params,
-                        additional_sub_recipes,
-                        quiet,
-                    )?;
-                    (input_config, Some(recipe_info))
-                }
-                (None, None, None) => {
-                    eprintln!("Error: Must provide either --instructions (-i), --text (-t), or --recipe. Use -i - for stdin.");
-                    std::process::exit(1);
-                }
-            };
-
-            if let Some(Identifier {
-                session_id: Some(_),
-                ..
-            }) = &identifier
-            {
-                if !resume {
-                    eprintln!("Error: --session-id can only be used with --resume flag");
-                    std::process::exit(1);
-                }
-            }
-
-            let session_id = get_or_create_session_id(identifier, resume, no_session).await?;
-
-            let mut session = build_session(SessionBuilderConfig {
-                session_id,
-                resume,
-                no_session,
-                extensions,
-                remote_extensions,
-                streamable_http_extensions,
-                builtins,
-                extensions_override: input_config.extensions_override,
-                additional_system_prompt: input_config.additional_system_prompt,
-                settings: recipe_info
-                    .as_ref()
-                    .and_then(|r| r.session_settings.clone()),
-                provider,
-                model,
-                debug,
-                max_tool_repetitions,
-                max_turns,
-                scheduled_job_id,
-                interactive, // Use the interactive flag from the Run command
-                quiet,
-                sub_recipes: recipe_info.as_ref().and_then(|r| r.sub_recipes.clone()),
-                final_output_response: recipe_info
-                    .as_ref()
-                    .and_then(|r| r.final_output_response.clone()),
-                retry_config: recipe_info.as_ref().and_then(|r| r.retry_config.clone()),
-                output_format,
-            })
-            .await;
-
-            if interactive {
-                session.interactive(input_config.contents).await?;
-            } else if let Some(contents) = input_config.contents {
-                let session_start = std::time::Instant::now();
-                let session_type = if recipe_info.is_some() {
-                    "recipe"
-                } else {
-                    "run"
-                };
-
-                tracing::info!(
-                    counter.goose.session_starts = 1,
-                    session_type,
-                    interactive = false,
-                    "Headless session started"
-                );
-
-                let result = session.headless(contents).await;
-
-                let session_duration = session_start.elapsed();
-                let exit_type = if result.is_ok() { "normal" } else { "error" };
-
-                let (total_tokens, message_count) = session
-                    .get_session()
-                    .await
-                    .map(|m| (m.total_tokens.unwrap_or(0), m.message_count))
-                    .unwrap_or((0, 0));
-
-                tracing::info!(
-                    counter.goose.session_completions = 1,
-                    session_type,
-                    exit_type,
-                    duration_ms = session_duration.as_millis() as u64,
-                    total_tokens,
-                    message_count,
-                    interactive = false,
-                    "Headless session completed"
-                );
-
-                tracing::info!(
-                    counter.goose.session_duration_ms = session_duration.as_millis() as u64,
-                    session_type,
-                    "Headless session duration"
-                );
-
-                if total_tokens > 0 {
-                    tracing::info!(
-                        counter.goose.session_tokens = total_tokens,
-                        session_type,
-                        "Headless session tokens"
-                    );
-                }
-
-                result?;
-            } else {
-                return Err(anyhow::anyhow!(
-                    "no text provided for prompt in headless mode"
-                ));
-            }
-
-            return Ok(());
+            handle_run_command(
+                input_opts,
+                identifier,
+                run_behavior,
+                session_opts,
+                extension_opts,
+                output_opts,
+                model_opts,
+            )
+            .await
         }
-        Some(Command::Schedule { command }) => {
-            match command {
-                SchedulerCommand::Add {
-                    schedule_id,
-                    cron,
-                    recipe_source,
-                } => {
-                    handle_schedule_add(schedule_id, cron, recipe_source).await?;
-                }
-                SchedulerCommand::List {} => {
-                    handle_schedule_list().await?;
-                }
-                SchedulerCommand::Remove { schedule_id } => {
-                    handle_schedule_remove(schedule_id).await?;
-                }
-                SchedulerCommand::Sessions { schedule_id, limit } => {
-                    // New arm
-                    handle_schedule_sessions(schedule_id, limit).await?;
-                }
-                SchedulerCommand::RunNow { schedule_id } => {
-                    // New arm
-                    handle_schedule_run_now(schedule_id).await?;
-                }
-                SchedulerCommand::ServicesStatus {} => {
-                    handle_schedule_services_status().await?;
-                }
-                SchedulerCommand::ServicesStop {} => {
-                    handle_schedule_services_stop().await?;
-                }
-                SchedulerCommand::CronHelp {} => {
-                    handle_schedule_cron_help().await?;
-                }
-            }
-            return Ok(());
-        }
+        Some(Command::Schedule { command }) => handle_schedule_command(command).await,
         Some(Command::Update {
             canary,
             reconfigure,
         }) => {
             crate::commands::update::update(canary, reconfigure)?;
-            return Ok(());
+            Ok(())
         }
-        Some(Command::Bench { cmd }) => {
-            match cmd {
-                BenchCommand::Selectors { config } => BenchRunner::list_selectors(config)?,
-                BenchCommand::InitConfig { name } => {
-                    let mut config = BenchRunConfig::default();
-                    let cwd = std::env::current_dir()?;
-                    config.output_dir = Some(cwd);
-                    config.save(name);
-                }
-                BenchCommand::Run { config } => BenchRunner::new(config)?.run()?,
-                BenchCommand::EvalModel { config } => ModelRunner::from(config)?.run()?,
-                BenchCommand::ExecEval { config } => {
-                    EvalRunner::from(config)?.run(agent_generator).await?
-                }
-                BenchCommand::GenerateLeaderboard { benchmark_dir } => {
-                    MetricAggregator::generate_csv_from_benchmark_dir(&benchmark_dir)?
-                }
-            }
-            return Ok(());
-        }
-        Some(Command::Recipe { command }) => {
-            match command {
-                RecipeCommand::Validate { recipe_name } => {
-                    handle_validate(&recipe_name)?;
-                }
-                RecipeCommand::Deeplink {
-                    recipe_name,
-                    params,
-                } => {
-                    handle_deeplink(&recipe_name, &params)?;
-                }
-                RecipeCommand::Open {
-                    recipe_name,
-                    params,
-                } => {
-                    handle_open(&recipe_name, &params)?;
-                }
-                RecipeCommand::List { format, verbose } => {
-                    handle_list(&format, verbose)?;
-                }
-            }
-            return Ok(());
-        }
+        Some(Command::Bench { cmd }) => handle_bench_command(cmd).await,
+        Some(Command::Recipe { command }) => handle_recipe_subcommand(command),
         Some(Command::Web {
             port,
             host,
             open,
             auth_token,
-        }) => {
-            crate::commands::web::handle_web(port, host, open, auth_token).await?;
-            return Ok(());
-        }
-        Some(Command::Term { command }) => {
-            match command {
-                TermCommand::Init {
-                    shell,
-                    name,
-                    default,
-                } => {
-                    handle_term_init(shell, name, default).await?;
-                }
-                TermCommand::Log { command } => {
-                    handle_term_log(command).await?;
-                }
-                TermCommand::Run { prompt } => {
-                    handle_term_run(prompt).await?;
-                }
-                TermCommand::Info => {
-                    handle_term_info().await?;
-                }
-            }
-            return Ok(());
-        }
-        None => {
-            return if !Config::global().exists() {
-                handle_configure().await?;
-                Ok(())
-            } else {
-                // Run session command by default
-                let session_id = get_or_create_session_id(None, false, false).await?;
-
-                let mut session = build_session(SessionBuilderConfig {
-                    session_id,
-                    resume: false,
-                    no_session: false,
-                    extensions: Vec::new(),
-                    remote_extensions: Vec::new(),
-                    streamable_http_extensions: Vec::new(),
-                    builtins: Vec::new(),
-                    extensions_override: None,
-                    additional_system_prompt: None,
-                    settings: None::<SessionSettings>,
-                    provider: None,
-                    model: None,
-                    debug: false,
-                    max_tool_repetitions: None,
-                    max_turns: None,
-                    scheduled_job_id: None,
-                    interactive: true,
-                    quiet: false,
-                    sub_recipes: None,
-                    final_output_response: None,
-                    retry_config: None,
-                    output_format: "text".to_string(),
-                })
-                .await;
-                session.interactive(None).await?;
-                Ok(())
-            };
-        }
+            no_auth,
+        }) => crate::commands::web::handle_web(port, host, open, auth_token, no_auth).await,
+        Some(Command::Term { command }) => handle_term_subcommand(command).await,
+        None => handle_default_session().await,
     }
-    Ok(())
 }

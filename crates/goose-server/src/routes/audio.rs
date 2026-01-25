@@ -392,12 +392,25 @@ mod tests {
     use super::*;
     use axum::{body::Body, http::Request};
     use tower::ServiceExt;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_transcribe_endpoint_requires_auth() {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1/audio/transcriptions"))
+            .respond_with(ResponseTemplate::new(401))
+            .mount(&mock_server)
+            .await;
+
+        let _guard = env_lock::lock_env([
+            ("OPENAI_API_KEY", Some("fake-key")),
+            ("OPENAI_HOST", Some(mock_server.uri().as_str())),
+        ]);
+
         let state = AppState::new().await.unwrap();
         let app = routes(state);
-        // Test without auth header
         let request = Request::builder()
             .uri("/audio/transcribe")
             .method("POST")
@@ -412,10 +425,7 @@ mod tests {
             .unwrap();
 
         let response = app.oneshot(request).await.unwrap();
-        assert!(
-            response.status() == StatusCode::PRECONDITION_FAILED
-                || response.status() == StatusCode::UNAUTHORIZED
-        );
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     }
 
     #[tokio::test(flavor = "multi_thread")]

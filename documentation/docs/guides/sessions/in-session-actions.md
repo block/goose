@@ -5,62 +5,92 @@ sidebar_label: In-Session Actions
 ---
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import { PanelLeft, Paperclip, Edit2, Send, GripVertical, X, ChevronUp, ChevronDown } from 'lucide-react';
+import { PanelLeft, Paperclip, Edit2, Send, GripVertical, X, ChevronUp, ChevronDown, FolderDot, Puzzle, Bot, Tornado } from 'lucide-react';
 
 goose provides features you can use to manage conversations and share information during sessions.
 
 ## Edit Message
 
-Edit your previously sent messages to refine conversations and correct course.  
+Edit your previously sent messages to refine conversations, correct course, or try different approaches.
 
-Editing any message in the session gives you complete control over the conversation history by overwriting all the context that follows the edited message. Your change can be as simple as fixing a path in your last message or completely starting over from a given point. 
+**Example Message Flow:**
 
-This is useful when:
+Your original conversation has five messages. After editing message 3, all message and response context from messages 4 and 5 is deleted.
+
+```
+┌─────┐   ┌─────┐   ┌─────┐   ┌─────┐   ┌─────┐
+│  1  │ → │  2  │ → │  3  │ → │  4  │ → │  5  │
+└─────┘   └─────┘   └─────┘   └─────┘   └─────┘
+           
+                   Edit here
+                       ↓
+┌─────┐   ┌─────┐   ┌─────┐    continue from here in
+│  1  │ → │  2  │ → │  3  │ →  current session, or
+└─────┘   └─────┘   └─────┘    copy to new session
+```
+
+You choose to continue working in the current session or create a fork in a new session:
+
+- [Edit in Place](#edit-in-place) to update the current session and delete all message and response context after the edited message. This lets you start your conversation over from a given point.
+- [Fork Session](#fork-session) to create a new session with all conversation history prior to and including the edited message. This lets you explore different approaches while preserving your original conversation.
+
+### Edit in Place
+
+Edit in Place gives you complete control over the conversation history by overwriting all context that follows the edited message. Your change can be as simple as fixing a path in your last message or completely starting over from a given point. 
+
+Editing in place is useful when:
 
 - You realize a prompt you sent was unclear or incomplete
-- goose misunderstood your intent and went in the wrong direction  
-- You want to try different approaches to a problem without starting a new session
+- goose misunderstood your intent and went in the wrong direction
 
 <Tabs groupId="interface">
     <TabItem value="ui" label="goose Desktop" default>
 
-        1. Hover over any of your previous messages to reveal the edit button
-        2. Click the <Edit2 className="inline" size={16} /> edit button that appears
+        1. Hover over any of your previous messages
+        2. Click the <Edit2 className="inline" size={16} /> `Edit` button that appears
         3. Make your changes in the inline editor
-        4. Click `Save` to save your changes and reprompt goose (or use `Cmd+Enter` (macOS) or `Ctrl+Enter` (Windows/Linux))
+        4. Click `Edit in Place` to save your changes and reprompt goose
 
         goose removes all conversation history after the edited message and responds contextually from that point.
 
         :::warning Deleted Context
-        Subsequent conversation history is permanently deleted from the session and removed from goose's context. Edit a message only if you don't need goose to remember the context that follows it.
+        With Edit in Place, subsequent conversation history is permanently deleted from the session and removed from goose's context. Use this option only if you don't need goose to remember the context that follows the edited message.
         :::
-
-        #### Example Message Flow
-        
-        Your original conversation has five messages. After editing message 3, the conversation continues from that point, and all message and response context from messages 4 and 5 is deleted.
-
-        ```
-        ┌─────┐    ┌─────┐    ┌─────┐    ┌─────┐    ┌─────┐
-        │  1  │ -> │  2  │ -> │  3  │ -> │  4  │ -> │  5  │
-        └─────┘    └─────┘    └─────┘    └─────┘    └─────┘
-                                 
-                             Edit here
-                                 ↓
-        ┌─────┐    ┌─────┐    ┌─────┐     conversation
-        │  1  │ -> │  2  │ -> │  3  │ ->  continues
-        └─────┘    └─────┘    └─────┘     from here
-        ```
-
-        #### Editing Scenario Tips
-    
-        - **Iterative Prompt Refinement**: Start with a basic prompt, then edit and refine based on goose's response. This often works better than trying to craft the perfect prompt from the start.
-        - **When to Edit vs. Interrupt**: Editing earlier messages when a conversation has gone off track can be more effective than trying to correct course using new messages or [interruptions](#interrupt-task). By editing messages, you rewrite history. With interruptions, you only affect the conversation from the current message onwards.
 
     </TabItem>
     <TabItem value="cli" label="goose CLI">
-        Message editing is not available in the goose CLI.
+        Message editing options are not available in the goose CLI.
     </TabItem>
 </Tabs>
+
+### Fork Session
+
+Fork Session creates a new session with your edited message while preserving the original conversation. You can experiment with variations and compare results while keeping the original session as a reference point.
+
+Forking sessions is useful to:
+- Compare different approaches to the same problem side-by-side
+- Test how different prompts affect goose's responses
+
+<Tabs groupId="interface">
+    <TabItem value="ui" label="goose Desktop" default>
+
+        1. Hover over any of your previous messages
+        2. Click the <Edit2 className="inline" size={16} /> `Edit` button that appears
+        3. Make your changes in the inline editor
+        4. Click `Fork Session` to save your changes and start a new session (or use `Cmd+Enter` (macOS) or `Ctrl+Enter` (Windows/Linux))
+
+        goose copies the conversation history from the original session to the new session. The new session is named "(edited)" and the original session is unchanged.
+    </TabItem>
+    <TabItem value="cli" label="goose CLI">
+        Message editing options are not available in the goose CLI.
+    </TabItem>
+</Tabs>
+
+### Editing Scenario Tips
+
+- **Iterative Prompt Refinement**: Start with a basic prompt, then edit and refine based on goose's response. This often works better than trying to craft the perfect prompt from the start.
+- **When to Edit vs. Interrupt**: Editing earlier messages when a conversation has gone off track can be more effective than trying to correct course using new messages or [interruptions](#interrupt-task). By editing messages, you rewrite history. With interruptions, you only affect the conversation from the current message onwards.
+- **Preserving Progress**: Use Fork Session when you've made good progress but want to try a different approach. This way you can always return to the original if the new direction doesn't work out.
 
 ## Queue Messages
 
@@ -258,3 +288,38 @@ Provide goose with context from your codebase, documents, and other files to get
         ```
     </TabItem>
 </Tabs>
+
+## Mid-Session Changes
+
+You can change some settings during a session and they will take effect immediately, rather than requiring you to start a new session. This gives you more control over context and capabilities while you're interacting with goose.
+
+<Tabs groupId="interface">
+  <TabItem value="ui" label="goose Desktop" default>
+
+  Use the toolbar at the bottom of the app to change supported settings mid-session:
+
+  | Setting | Toolbar Item | Persistence* |
+  |---------|--------------|-------------|
+  | **Working Directory** | <FolderDot className="inline" size={16} /> directory switcher | New sessions (after restart) |
+  | [**Enabled Extensions**](/docs/getting-started/using-extensions#change-extensions-mid-session) | <Puzzle className="inline" size={16} /> icon | Current session only |
+  | [**Model**](/docs/getting-started/providers#configure-provider-and-model) | <Bot className="inline" size={16} /> model switcher | New sessions |
+  | [**goose Mode**](/docs/guides/goose-permissions#configuring-goose-mode) | <Tornado className="inline" size={16} /> mode switcher | New sessions |
+
+  </TabItem>
+  <TabItem value="cli" label="goose CLI">
+
+  Use the slash commands to change supported settings mid-session:
+
+  | Setting | Slash Command | Persistence* |
+  |---------|--------------|-------------|
+  | [**Enabled Extensions**](/docs/getting-started/using-extensions#change-extensions-mid-session) | `/extension` or `/builtin` | Current session only |
+  | [**goose Mode**](/docs/guides/goose-permissions#configuring-goose-mode) | `/mode [options]` | New sessions |
+
+  :::info
+  The CLI supports [additional slash commands](/docs/guides/goose-cli-commands#slash-commands) but doesn't support mid-session changes to the working directory or model.
+  :::
+
+  </TabItem>
+</Tabs>
+
+*Persistence indicates whether changes apply to your current session only or carry over to new sessions

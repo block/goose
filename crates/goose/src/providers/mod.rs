@@ -6,7 +6,9 @@ pub mod azureauth;
 pub mod base;
 pub mod bedrock;
 pub mod canonical;
+pub mod chatgpt_codex;
 pub mod claude_code;
+pub mod codex;
 pub mod cursor_agent;
 pub mod databricks;
 pub mod embedding;
@@ -24,7 +26,6 @@ pub mod oauth;
 pub mod ollama;
 pub mod openai;
 pub mod openrouter;
-pub mod pricing;
 pub mod provider_registry;
 pub mod provider_test;
 mod retry;
@@ -35,10 +36,10 @@ pub mod tetrate;
 pub mod toolshim;
 pub mod usage_estimator;
 pub mod utils;
-pub mod utils_universal_openai_stream;
 pub mod venice;
 pub mod xai;
 
 pub use factory::{
     create, create_with_default_model, create_with_named_model, providers, refresh_custom_providers,
 };
+pub use retry::{retry_operation, RetryConfig};
