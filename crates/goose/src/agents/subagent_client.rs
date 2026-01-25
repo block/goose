@@ -146,6 +146,12 @@ impl McpClientTrait for SubagentClient {
             ]))));
         }
 
+        if self.context.goose_mode != GooseMode::Auto {
+            return Ok(DeferredToolCall::from(Ok(CallToolResult::error(vec![
+                Content::text("Subagents are only available in Auto mode."),
+            ]))));
+        }
+
         // Check if this is already a subagent session
         let session_manager = Arc::clone(&self.context.session_manager);
         if let Ok(session) = session_manager.get_session(session_id, false).await {
@@ -161,6 +167,12 @@ impl McpClientTrait for SubagentClient {
                 Content::text("No provider configured"),
             ]))));
         };
+
+        if provider.get_active_model_name().starts_with("gemini") {
+            return Ok(DeferredToolCall::from(Ok(CallToolResult::error(vec![
+                Content::text("Subagents are not supported with Gemini models."),
+            ]))));
+        }
 
         let working_dir = session_manager
             .get_session(session_id, false)

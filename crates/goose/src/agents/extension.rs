@@ -121,7 +121,7 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
             PlatformExtensionDef {
                 name: subagent_client::EXTENSION_NAME,
                 description: "Delegate tasks to independent subagents",
-                default_enabled: true,
+                default_enabled: false,
                 client_factory: |ctx| Box::new(subagent_client::SubagentClient::new(ctx).unwrap()),
             },
         );
@@ -136,6 +136,7 @@ pub struct PlatformExtensionContext {
         Option<std::sync::Weak<crate::agents::extension_manager::ExtensionManager>>,
     pub session_manager: std::sync::Arc<crate::session::SessionManager>,
     pub sub_recipes: Option<Arc<RwLock<HashMap<String, SubRecipe>>>>,
+    pub goose_mode: crate::config::GooseMode,
 }
 
 impl PlatformExtensionContext {

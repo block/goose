@@ -160,6 +160,7 @@ pub async fn build_recipe_with_parameter_values(
 pub async fn apply_recipe_to_agent(
     agent: &Arc<Agent>,
     recipe: &Recipe,
+    session_id: &str,
     include_final_output_tool: bool,
 ) -> Option<String> {
     agent
@@ -170,7 +171,7 @@ pub async fn apply_recipe_to_agent(
         )
         .await;
 
-    agent.ensure_subagent_for_recipes().await;
+    agent.ensure_subagent_extension(session_id).await;
 
     recipe.instructions.as_ref().map(|instructions| {
         let mut context: HashMap<&str, Value> = HashMap::new();

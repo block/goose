@@ -22,7 +22,7 @@ use crate::agents::retry::{RetryManager, RetryResult};
 use crate::agents::subagent_client;
 use crate::agents::types::{FrontendTool, SessionConfig, SharedProvider, ToolResultReceiver};
 use crate::config::permission::PermissionManager;
-use crate::config::{get_enabled_extensions, Config, GooseMode};
+use crate::config::{get_enabled_extensions, is_extension_enabled, Config, GooseMode};
 use crate::context_mgmt::{
     check_if_compaction_needed, compact_messages, DEFAULT_COMPACTION_THRESHOLD,
 };
@@ -194,6 +194,7 @@ impl Agent {
 
         let session_manager = Arc::clone(&config.session_manager);
         let permission_manager = Arc::clone(&config.permission_manager);
+        let goose_mode = config.goose_mode;
         let sub_recipes = Arc::new(tokio::sync::RwLock::new(HashMap::new()));
         Self {
             provider: provider.clone(),
@@ -202,6 +203,7 @@ impl Agent {
                 provider.clone(),
                 session_manager,
                 Some(sub_recipes.clone()),
+                goose_mode,
             )),
             sub_recipes,
             final_output_tool: Arc::new(Mutex::new(None)),
@@ -457,32 +459,33 @@ impl Agent {
         }
     }
 
-    pub async fn ensure_subagent_for_recipes(&self) {
-        let has_sub_recipes = !self.sub_recipes.read().await.is_empty();
-        if has_sub_recipes {
-            // Enable subagent extension without session check since we know recipes need it
-            if self
-                .extension_manager
-                .is_extension_enabled(subagent_client::EXTENSION_NAME)
-                .await
-            {
-                return;
-            }
-            if let Err(e) = self
-                .extension_manager
-                .add_extension_with_working_dir(
-                    ExtensionConfig::Platform {
-                        name: subagent_client::EXTENSION_NAME.to_string(),
-                        description: "Delegate tasks to independent subagents".to_string(),
-                        bundled: Some(true),
-                        available_tools: vec![],
-                    },
-                    None,
-                )
-                .await
-            {
-                warn!("Failed to enable subagent extension for recipe: {}", e);
-            }
+    pub async fn ensure_subagent_extension(&self, session_id: &str) {
+        if !self.subagents_enabled(session_id).await {
+            return;
+        }
+
+        if self
+            .extension_manager
+            .is_extension_enabled(subagent_client::EXTENSION_NAME)
+            .await
+        {
+            return;
+        }
+
+        if let Err(e) = self
+            .extension_manager
+            .add_extension_with_working_dir(
+                ExtensionConfig::Platform {
+                    name: subagent_client::EXTENSION_NAME.to_string(),
+                    description: "Delegate tasks to independent subagents".to_string(),
+                    bundled: Some(true),
+                    available_tools: vec![],
+                },
+                None,
+            )
+            .await
+        {
+            warn!("Failed to enable subagent extension: {}", e);
         }
     }
 
@@ -738,6 +741,9 @@ impl Agent {
     }
 
     pub async fn subagents_enabled(&self, session_id: &str) -> bool {
+        if !is_extension_enabled(subagent_client::EXTENSION_NAME) {
+            return false;
+        }
         if self.config.goose_mode != GooseMode::Auto {
             return false;
         }

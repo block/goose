@@ -907,6 +907,7 @@ mod tests {
             extension_manager: None,
             session_manager,
             sub_recipes: None,
+            goose_mode: crate::config::GooseMode::Auto,
         }
     }
 

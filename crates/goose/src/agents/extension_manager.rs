@@ -446,6 +446,7 @@ impl ExtensionManager {
         sub_recipes: Option<
             Arc<tokio::sync::RwLock<std::collections::HashMap<String, crate::recipe::SubRecipe>>>,
         >,
+        goose_mode: crate::config::GooseMode,
     ) -> Self {
         Self {
             extensions: Mutex::new(HashMap::new()),
@@ -453,6 +454,7 @@ impl ExtensionManager {
                 extension_manager: None,
                 session_manager,
                 sub_recipes,
+                goose_mode,
             },
             provider,
             tools_cache: Mutex::new(None),
@@ -463,7 +465,12 @@ impl ExtensionManager {
     #[cfg(test)]
     pub fn new_without_provider(data_dir: std::path::PathBuf) -> Self {
         let session_manager = Arc::new(crate::session::SessionManager::new(data_dir));
-        Self::new(Arc::new(Mutex::new(None)), session_manager, None)
+        Self::new(
+            Arc::new(Mutex::new(None)),
+            session_manager,
+            None,
+            crate::config::GooseMode::Auto,
+        )
     }
 
     pub fn get_context(&self) -> &PlatformExtensionContext {

@@ -426,7 +426,9 @@ async fn update_from_session(
         .await
         {
             Ok(Some(recipe)) => {
-                if let Some(prompt) = apply_recipe_to_agent(&agent, &recipe, true).await {
+                if let Some(prompt) =
+                    apply_recipe_to_agent(&agent, &recipe, &payload.session_id, true).await
+                {
                     update_prompt = prompt;
                 }
             }
@@ -700,7 +702,8 @@ async fn restart_agent_internal(
         .await
         {
             Ok(Some(recipe)) => {
-                if let Some(prompt) = apply_recipe_to_agent(&agent, &recipe, true).await {
+                if let Some(prompt) = apply_recipe_to_agent(&agent, &recipe, session_id, true).await
+                {
                     update_prompt = prompt;
                 }
             }
