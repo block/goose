@@ -18,7 +18,7 @@ use crate::recipe::build_recipe::build_recipe_from_template;
 use crate::recipe::local_recipes::load_local_recipe_file;
 use crate::recipe::{Recipe, SubRecipe};
 
-pub const SUBAGENT_TOOL_NAME: &str = "subagent";
+pub const SUBAGENT_TOOL_NAME: &str = "delegate";
 
 const SUMMARY_INSTRUCTIONS: &str = r#"
 Important: Your parent agent will only receive your final message as a summary of your work.
@@ -434,13 +434,13 @@ mod tests {
 
     #[test]
     fn test_tool_name() {
-        assert_eq!(SUBAGENT_TOOL_NAME, "subagent");
+        assert_eq!(SUBAGENT_TOOL_NAME, "delegate");
     }
 
     #[test]
     fn test_create_tool_without_subrecipes() {
         let tool = create_subagent_tool(&[]);
-        assert_eq!(tool.name, "subagent");
+        assert_eq!(tool.name, "delegate");
         assert!(tool.description.as_ref().unwrap().contains("Ad-hoc"));
         assert!(!tool
             .description
