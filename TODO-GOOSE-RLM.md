@@ -1,11 +1,11 @@
 # TODO: RLM (Recursive Language Models) Implementation for Goose
 
-**Reference Paper**: [Recursive Language Models (arXiv:2512.24601)](https://arxiv.org/abs/2512.24601)  
+**Reference Paper**: [Recursive Language Models (arXiv:2512.24601)](https://arxiv.org/abs/2512.24601)
 **GitHub Issue**: [#6651](https://github.com/block/goose/issues/6651)
 
 ## Overview
 
-Implement RLM support in goose to handle arbitrarily long prompts by treating them as external environment variables that can be programmatically examined, decomposed, and recursively processed through sub-agent calls.
+Implement RLM support in Goose to handle arbitrarily long prompts by treating them as external environment variables that can be programmatically examined, decomposed, and recursively processed through sub-agent calls.
 
 ### Key Benefits
 - Handle inputs 100x+ beyond normal context windows
@@ -15,19 +15,46 @@ Implement RLM support in goose to handle arbitrarily long prompts by treating th
 
 ---
 
+## Goose Architecture Context
+
+> **Important**: Goose is written in **Rust**, not Python. The implementation must use Rust idioms and integrate with the existing crate structure.
+
+### Relevant Crates & Files
+
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| Agent Core | `crates/goose/src/agents/agent.rs` | Main agent loop, tool dispatch |
+| Extensions | `crates/goose/src/agents/extension.rs` | Extension types (Platform, Stdio, etc.) |
+| Extension Manager | `crates/goose/src/agents/extension_manager.rs` | Loads/manages extensions |
+| Session Manager | `crates/goose/src/session/session_manager.rs` | Session lifecycle, SQLite storage |
+| Config | `crates/goose/src/config/` | YAML-based configuration |
+| Providers | `crates/goose/src/providers/` | LLM provider implementations |
+| Code Execution | `crates/goose/src/agents/code_execution_extension.rs` | Existing JS sandbox (can reference) |
+| Sub-Agent Tool | `crates/goose/src/agents/subagent_tool.rs` | Existing sub-agent support |
+
+### Existing Infrastructure to Leverage
+
+1. **Sub-Agent System**: Goose already has `SUBAGENT_TOOL_NAME` for spawning sub-agents
+2. **Code Execution Extension**: Existing `code_execution_extension` runs JavaScript in sandbox
+3. **Platform Extensions**: Internal extensions with direct agent access
+4. **Session Types**: `SessionType::SubAgent` already exists
+5. **Provider Abstraction**: Can use any configured LLM provider
+
+---
+
 ## Architecture Summary
 
 ```
 User Input (large context)
     ↓
-Context Store (filesystem/db)
+Context Store (filesystem)
     ↓
-REPL Environment (Python)
+REPL Environment (Python via subprocess or JS sandbox)
     ↓
 Root Agent (with RLM system prompt)
     ↓
 ├── Code Execution (filter/chunk context)
-├── Sub-Agent Calls (recursive LLM queries)
+├── Sub-Agent Calls (recursive LLM queries via existing subagent_tool)
 └── Variable Storage → Final Answer
 ```
 
@@ -38,220 +65,266 @@ Root Agent (with RLM system prompt)
 ### Phase 1: Core Components
 
 #### 1. Context Storage System
-**File**: `goose/toolkit/rlm/context_store.py`
+**File**: `crates/goose/src/rlm/context_store.rs`
 
-- [ ] Create `ContextStore` class
-  - [ ] `store_context(content: str)` - Write context to file
-  - [ ] `get_metadata()` - Return length, path, chunk info
-  - [ ] `_get_chunk_info(content)` - Calculate chunk boundaries
-  - [ ] `read_context()` - Load context from storage
-  - [ ] `read_slice(start, end)` - Load partial context
+- [ ] Create `ContextStore` struct
+  - [ ] `store_context(content: &str) -> Result<ContextMetadata>` - Write context to file
+  - [ ] `get_metadata() -> ContextMetadata` - Return length, path, chunk info
+  - [ ] `read_context() -> Result<String>` - Load context from storage
+  - [ ] `read_slice(start: usize, end: usize) -> Result<String>` - Load partial context
+  - [ ] `get_chunk_boundaries(chunk_size: usize) -> Vec<(usize, usize)>` - Calculate chunk boundaries
 
 **Key Features**:
-- Store context as plain text file in workspace
-- Return metadata: `{length, path, chunks}`
-- Support chunking by lines, tokens, or bytes
+- Store context as plain text file in session working directory
+- Return metadata: `ContextMetadata { length, path, chunk_count, chunk_boundaries }`
+- Support chunking by characters (default ~500K per chunk)
 
-```python
-class ContextStore:
-    def __init__(self, workspace_path):
-        self.workspace = workspace_path
-        self.context_file = workspace / "rlm_context.txt"
-    
-    def store_context(self, content: str) -> dict:
-        """Store context and return metadata"""
-        # TODO: Implement
-        pass
+```rust
+pub struct ContextStore {
+    session_dir: PathBuf,
+    context_file: PathBuf,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContextMetadata {
+    pub length: usize,
+    pub path: PathBuf,
+    pub chunk_count: usize,
+    pub chunk_boundaries: Vec<(usize, usize)>,
+}
+
+impl ContextStore {
+    pub fn new(session_dir: PathBuf) -> Self {
+        let context_file = session_dir.join("rlm_context.txt");
+        Self { session_dir, context_file }
+    }
+
+    pub async fn store_context(&self, content: &str) -> Result<ContextMetadata> {
+        // Write to file, calculate chunks
+        todo!()
+    }
+
+    pub async fn read_slice(&self, start: usize, end: usize) -> Result<String> {
+        // Read partial content
+        todo!()
+    }
+}
 ```
 
 ---
 
-#### 2. REPL Environment Integration
-**File**: `goose/toolkit/rlm/repl_environment.py`
+#### 2. RLM Platform Extension
+**File**: `crates/goose/src/agents/rlm_extension.rs`
 
-- [ ] Create `RLMEnvironment` class
-  - [ ] Initialize with context store and sub-agent factory
-  - [ ] Expose `context` variable to Python REPL
-  - [ ] Implement `llm_query(prompt, context_chunk)` function
-  - [ ] Track variable state across iterations
-  - [ ] Handle `FINAL()` and `FINAL_VAR()` tags
+- [ ] Create `RlmClient` implementing `McpClientTrait`
+  - [ ] `read_context_slice` tool - Read portion of stored context
+  - [ ] `get_context_metadata` tool - Get context info (length, chunks)
+  - [ ] `store_variable` tool - Store intermediate results
+  - [ ] `get_variable` tool - Retrieve stored variables
+  - [ ] `llm_query` tool - Call sub-agent with context chunk (wraps existing subagent_tool)
+  - [ ] `finalize` tool - Signal completion with final answer
 
 **Key Features**:
-- Persistent Python REPL across iterations
-- `llm_query()` callable from agent's code
-- Variables persist between code executions
-- Detect final answer tags
+- Expose context as tools rather than injecting into prompt
+- Leverage existing `subagent_tool` for recursive calls
+- Track variable state in memory (HashMap)
 
-```python
-class RLMEnvironment:
-    def __init__(self, context_store, sub_agent_factory):
-        self.store = context_store
-        self.sub_agent = sub_agent_factory
-        self.variables = {}
-        self.repl_globals = {}
-    
-    def execute_code(self, code: str) -> str:
-        """Execute Python code in REPL"""
-        # TODO: Implement
-        pass
-    
-    def llm_query(self, prompt: str, context_slice: str = None):
-        """Recursively call a sub-agent"""
-        # TODO: Implement
-        pass
+```rust
+pub const EXTENSION_NAME: &str = "rlm_extension";
+
+pub struct RlmClient {
+    context_store: ContextStore,
+    variables: Arc<Mutex<HashMap<String, String>>>,
+    ctx: PlatformExtensionContext,
+}
+
+impl RlmClient {
+    pub fn new(ctx: PlatformExtensionContext, session_dir: PathBuf) -> Result<Self> {
+        Ok(Self {
+            context_store: ContextStore::new(session_dir),
+            variables: Arc::new(Mutex::new(HashMap::new())),
+            ctx,
+        })
+    }
+}
+
+impl McpClientTrait for RlmClient {
+    // Implement tool handlers
+}
 ```
 
 ---
 
-#### 3. Sub-Agent Factory
-**File**: `goose/toolkit/rlm/sub_agent.py`
+#### 3. RLM System Prompts
+**File**: `crates/goose/src/rlm/prompts.rs`
 
-- [ ] Create `SubAgentFactory` class
-  - [ ] Initialize with model name and max recursion depth
-  - [ ] `query(prompt, context)` - Call sub-agent
-  - [ ] Track recursion depth (default max=1)
-  - [ ] Use cheaper model for sub-calls (e.g., gpt-4o-mini)
-  - [ ] Handle recursive vs base queries
-
-**Key Features**:
-- Use cheaper model for sub-queries (cost optimization)
-- Enforce max recursion depth (paper uses depth=1)
-- Async support for parallel sub-calls (future optimization)
-
-```python
-class SubAgentFactory:
-    def __init__(self, model_name="gpt-4o-mini", max_depth=1):
-        self.model = model_name
-        self.max_depth = max_depth
-        self.current_depth = 0
-    
-    async def query(self, prompt: str, context: str = None):
-        """Execute a sub-agent query"""
-        # TODO: Implement with depth tracking
-        pass
-```
-
----
-
-#### 4. RLM System Prompts
-**File**: `goose/toolkit/rlm/prompts.py`
-
-- [ ] Define `RLM_SYSTEM_PROMPT` (adapted from paper Appendix D)
+- [ ] Define `RLM_SYSTEM_PROMPT` constant
 - [ ] Include instructions for:
-  - [ ] Accessing `context` variable
-  - [ ] Using `llm_query()` for recursive calls
+  - [ ] Using `read_context_slice` to access context
+  - [ ] Using `llm_query` for recursive sub-agent calls
   - [ ] Chunking strategies (aim for ~500K chars per sub-call)
-  - [ ] Using `FINAL()` or `FINAL_VAR()` for answers
+  - [ ] Using `finalize` tool for final answers
   - [ ] Code execution patterns (regex, filtering, aggregation)
-- [ ] Add model-specific variants (GPT vs Qwen-style)
 
-**Template** (from paper):
-```python
-RLM_SYSTEM_PROMPT = """
-You are tasked with answering a query with associated context. 
-You can access, transform, and analyze this context interactively 
-in a REPL environment that can recursively query sub-LLMs.
+```rust
+pub const RLM_SYSTEM_PROMPT: &str = r#"
+You are tasked with answering a query with associated context.
+The context is stored externally and can be accessed using the provided tools.
 
-Your context is a {context_type} with {context_total_length} total 
-characters, broken into chunks of: {context_lengths}.
+## Available Tools
 
-The REPL environment provides:
-1. A 'context' variable with your input data
-2. An 'llm_query(prompt, context_chunk)' function for recursive queries
-3. Python execution with 'print()' for viewing results
+### Context Access
+- `get_context_metadata()` - Returns context length, chunk count, and boundaries
+- `read_context_slice(start, end)` - Read characters from position start to end
 
-IMPORTANT: When done, return your answer with:
-- FINAL(your answer here) for direct answers
-- FINAL_VAR(variable_name) for answers stored in variables
+### Recursive Queries
+- `llm_query(prompt, context_slice)` - Query a sub-agent with a portion of context
+  - Aim for ~500,000 characters per sub-call
+  - Sub-agents have the same capabilities as you
 
-Example strategies:
-- Chunk context intelligently (500K chars per sub-call)
-- Use regex/code to filter before querying sub-agents
-- Store intermediate results in variables
-- Batch related queries together
-"""
+### Variable Storage
+- `store_variable(name, value)` - Store intermediate results
+- `get_variable(name)` - Retrieve stored values
+
+### Completion
+- `finalize(answer)` - Return your final answer
+
+## Strategy
+1. First, call `get_context_metadata()` to understand the context size
+2. If context is small enough (<500K chars), read it directly
+3. For large contexts, chunk and delegate to sub-agents
+4. Aggregate results and call `finalize(answer)` when done
+
+## Important
+- Never try to read more than 500K characters at once
+- Use code execution for filtering/processing when helpful
+- Store intermediate results in variables for later aggregation
+"#;
+```
+
+---
+
+#### 4. RLM Mode Detection & Session Handling
+**File**: `crates/goose/src/rlm/mod.rs`
+
+- [ ] Create `RlmConfig` struct for configuration
+- [ ] Create `is_rlm_candidate(content: &str, config: &RlmConfig) -> bool` function
+- [ ] Create `prepare_rlm_session(...)` function to set up RLM mode
+
+```rust
+pub mod context_store;
+pub mod prompts;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RlmConfig {
+    pub enabled: bool,
+    pub context_threshold: usize,  // chars, default 100_000
+    pub chunk_size: usize,         // chars, default 500_000
+    pub max_iterations: u32,       // default 50
+    pub max_recursion_depth: u32,  // default 1
+}
+
+impl Default for RlmConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            context_threshold: 100_000,
+            chunk_size: 500_000,
+            max_iterations: 50,
+            max_recursion_depth: 1,
+        }
+    }
+}
+
+pub fn is_rlm_candidate(content: &str, config: &RlmConfig) -> bool {
+    config.enabled && content.len() > config.context_threshold
+}
 ```
 
 ---
 
 ### Phase 2: Integration with Goose
 
-#### 5. Session/Agent Modifications
-**File**: `goose/cli/session.py` or main agent file
+#### 5. Agent Modifications
+**File**: `crates/goose/src/agents/agent.rs` (modifications)
 
-- [ ] Add RLM mode detection
-  - [ ] Check if input exceeds threshold (default: 100K chars)
-  - [ ] CLI flag: `--rlm` to force RLM mode
-  - [ ] Auto-enable for large contexts
-- [ ] Create `_rlm_process()` method
-  - [ ] Initialize context store
-  - [ ] Set up REPL environment
-  - [ ] Run RLM loop until `FINAL()` tag detected
-- [ ] Add cost tracking for recursive calls
-- [ ] Implement iteration limit (prevent infinite loops)
+- [ ] Add RLM config to `AgentConfig`
+- [ ] Modify `reply()` to detect large context and enable RLM mode
+- [ ] Add `_rlm_prepare()` helper method
+  - [ ] Store context to file
+  - [ ] Add RLM extension to session
+  - [ ] Inject RLM system prompt
 
-```python
-class RLMSession(Session):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.rlm_mode = False
-        self.context_threshold = 100_000  # chars
-        
-    async def process_message(self, user_input):
-        # Auto-detect large context
-        if len(user_input) > self.context_threshold:
-            return await self._rlm_process(user_input)
-        return await super().process_message(user_input)
-    
-    async def _rlm_process(self, large_context):
-        """Process using RLM strategy"""
-        # TODO: Implement RLM loop
-        pass
+```rust
+// In AgentConfig
+pub struct AgentConfig {
+    // ... existing fields ...
+    pub rlm_config: RlmConfig,
+}
+
+// In Agent impl
+impl Agent {
+    async fn maybe_enable_rlm(&self, user_input: &str, session: &Session) -> Result<bool> {
+        if !is_rlm_candidate(user_input, &self.config.rlm_config) {
+            return Ok(false);
+        }
+
+        // Store context
+        let context_store = ContextStore::new(session.working_dir.clone());
+        let metadata = context_store.store_context(user_input).await?;
+
+        // Add RLM extension
+        self.add_extension(ExtensionConfig::Platform {
+            name: "rlm_extension".to_string(),
+            description: "RLM context access tools".to_string(),
+            bundled: Some(true),
+            available_tools: Vec::new(),
+        }).await?;
+
+        // Inject system prompt
+        self.extend_system_prompt(format!(
+            "{}\n\nContext metadata: {} characters, {} chunks",
+            RLM_SYSTEM_PROMPT,
+            metadata.length,
+            metadata.chunk_count,
+        )).await;
+
+        Ok(true)
+    }
+}
 ```
 
 ---
 
 #### 6. Configuration System
-**File**: `profiles.yaml` or config system
+**File**: `crates/goose/src/config/rlm.rs`
 
-- [ ] Add RLM configuration section:
-  - [ ] `rlm.enabled` - Enable/disable RLM
-  - [ ] `rlm.context_threshold` - Auto-enable threshold (chars)
-  - [ ] `rlm.sub_model` - Model for recursive calls
-  - [ ] `rlm.max_recursion_depth` - Max depth (default: 1)
-  - [ ] `rlm.chunk_size` - Target chunk size (default: 500K)
-  - [ ] `rlm.max_iterations` - Safety limit (default: 50)
+- [ ] Add RLM configuration parsing from YAML
+- [ ] Add config keys: `rlm.enabled`, `rlm.context_threshold`, etc.
 
 ```yaml
-default:
-  provider: openai
-  processor: gpt-4o
-  
-  rlm:
-    enabled: true
-    context_threshold: 100000
-    sub_model: gpt-4o-mini
-    max_recursion_depth: 1
-    chunk_size: 500000
-    max_iterations: 50
+# Example config.yaml
+rlm:
+  enabled: true
+  context_threshold: 100000
+  chunk_size: 500000
+  max_iterations: 50
+  max_recursion_depth: 1
 ```
 
 ---
 
-#### 7. CLI Enhancements
-**File**: `goose/cli/main.py`
+#### 7. CLI Enhancements (Optional)
+**File**: `crates/goose-cli/src/commands/session.rs`
 
 - [ ] Add `--rlm` flag to force RLM mode
 - [ ] Add `--rlm-threshold` to override threshold
-- [ ] Add `--rlm-sub-model` to specify sub-agent model
 - [ ] Show RLM status in session info
-- [ ] Display recursion depth in logs
 
 ```bash
 # Usage examples
-goose session --rlm
-goose session --rlm-threshold 50000
-goose session --rlm-sub-model gpt-4o-mini
+goose run --rlm --input large_file.txt
+goose run --rlm-threshold 50000 --input medium_file.txt
 ```
 
 ---
@@ -259,55 +332,45 @@ goose session --rlm-sub-model gpt-4o-mini
 ### Phase 3: Testing & Validation
 
 #### 8. Unit Tests
-**File**: `tests/toolkit/rlm/test_*.py`
+**Files**: `crates/goose/src/rlm/tests/`
 
-- [ ] `test_context_store.py`
+- [ ] `test_context_store.rs`
   - [ ] Test storing/retrieving context
-  - [ ] Test chunk metadata calculation
+  - [ ] Test chunk boundary calculation
   - [ ] Test large context handling (1M+ chars)
-- [ ] `test_repl_environment.py`
-  - [ ] Test code execution
-  - [ ] Test variable persistence
-  - [ ] Test `llm_query()` function
-  - [ ] Test `FINAL()` tag detection
-- [ ] `test_sub_agent.py`
-  - [ ] Test recursion depth limits
-  - [ ] Test sub-agent queries
-  - [ ] Test cost tracking
+  - [ ] Test slice reading
+- [ ] `test_rlm_extension.rs`
+  - [ ] Test tool execution
+  - [ ] Test variable storage
+  - [ ] Test llm_query delegation
 
 ---
 
 #### 9. Integration Tests
-**File**: `tests/integration/test_rlm.py`
+**File**: `crates/goose/tests/rlm_integration.rs`
 
-- [ ] Test with paper's benchmarks:
+- [ ] Test with paper's benchmark patterns:
   - [ ] S-NIAH (needle in haystack)
-  - [ ] OOLONG (semantic aggregation)
   - [ ] Simple multi-document QA
-- [ ] Test cost vs base model
 - [ ] Test context sizes: 100K, 1M, 10M chars
-- [ ] Test different chunking strategies
-- [ ] Test error handling (max iterations, recursion depth)
+- [ ] Test recursion depth limits
+- [ ] Test max iteration limits
 
 ---
 
 #### 10. Example Benchmarks
-**File**: `examples/rlm_benchmarks/`
+**Directory**: `examples/rlm_benchmarks/`
 
 Create simple reproducible tests:
 
-- [ ] `needle_in_haystack.py` - S-NIAH style task
-  ```python
-  # Generate 1M char context with hidden "magic number"
-  # Query: "What is the magic number?"
+- [ ] `needle_in_haystack.rs` - S-NIAH style task
+  ```rust
+  // Generate 1M char context with hidden "magic number"
+  // Query: "What is the magic number?"
   ```
-- [ ] `document_qa.py` - Multi-document question answering
-  ```python
-  # 100 documents, find answer across multiple docs
-  ```
-- [ ] `semantic_aggregation.py` - OOLONG style task
-  ```python
-  # Classify 1000 entries, count by category
+- [ ] `document_qa.rs` - Multi-document question answering
+  ```rust
+  // 100 documents, find answer across multiple docs
   ```
 
 ---
@@ -316,48 +379,31 @@ Create simple reproducible tests:
 
 #### 11. Performance Improvements
 
-- [ ] **Async Sub-Agent Calls** (paper Appendix A notes this is critical)
+- [ ] **Async Sub-Agent Calls** (paper notes this is critical)
   - [ ] Parallel execution of independent sub-queries
-  - [ ] Reduce wall-clock time significantly
+  - [ ] Use `tokio::spawn` for concurrent sub-agent calls
 - [ ] **Caching**
   - [ ] Cache sub-query results for identical inputs
-  - [ ] Cache chunk classifications
+  - [ ] Cache context chunks in memory
 - [ ] **Smart Chunking**
   - [ ] Detect natural boundaries (paragraphs, sections)
-  - [ ] Use semantic chunking for code repositories
+  - [ ] Consider semantic chunking for code
 
 ---
 
-#### 12. Documentation
-
-- [ ] **README Updates**
-  - [ ] Add RLM section to main README
-  - [ ] Explain when to use RLM mode
-  - [ ] Show example usage
-- [ ] **Tutorial Notebook** (`docs/rlm_tutorial.ipynb`)
-  - [ ] Walkthrough of RLM concepts
-  - [ ] Compare base model vs RLM
-  - [ ] Show cost analysis
-- [ ] **API Documentation**
-  - [ ] Document all RLM classes and methods
-  - [ ] Add docstrings with examples
-
----
-
-#### 13. Monitoring & Debugging
+#### 12. Monitoring & Debugging
 
 - [ ] **Cost Tracking**
   - [ ] Track total tokens per RLM query
   - [ ] Track sub-agent call count
-  - [ ] Compare to theoretical base model cost
+  - [ ] Add to session metrics
 - [ ] **Logging**
-  - [ ] Log each RLM iteration
+  - [ ] Log each RLM iteration via `tracing`
   - [ ] Log sub-agent calls with context
   - [ ] Log final answer extraction
 - [ ] **Debug Mode**
   - [ ] `--rlm-debug` flag for verbose output
-  - [ ] Visualize recursion tree
-  - [ ] Show intermediate variables
+  - [ ] Show recursion tree in logs
 
 ---
 
@@ -365,16 +411,16 @@ Create simple reproducible tests:
 
 **Recommended sequence for fastest MVP**:
 
-1. ✅ Create basic `ContextStore` (Phase 1.1)
-2. ✅ Create `RLMEnvironment` with code execution (Phase 1.2)
-3. ✅ Add `SubAgentFactory` (Phase 1.3)
-4. ✅ Define `RLM_SYSTEM_PROMPT` (Phase 1.4)
-5. ✅ Integrate into session/agent (Phase 2.5)
-6. ✅ Add config options (Phase 2.6)
-7. ✅ Create simple needle-in-haystack test (Phase 3.9)
-8. ✅ Test and iterate
-9. ✅ Add async sub-calls (Phase 4.11)
-10. ✅ Polish and document (Phase 4.12-13)
+1. [ ] Create `crates/goose/src/rlm/mod.rs` module structure
+2. [ ] Implement `ContextStore` (Phase 1.1)
+3. [ ] Implement `RlmClient` platform extension (Phase 1.2)
+4. [ ] Define `RLM_SYSTEM_PROMPT` (Phase 1.3)
+5. [ ] Add RLM detection in Agent (Phase 2.5)
+6. [ ] Create simple needle-in-haystack test (Phase 3.10)
+7. [ ] Test and iterate
+8. [ ] Add config options (Phase 2.6)
+9. [ ] Add async sub-calls (Phase 4.11)
+10. [ ] Polish and document
 
 ---
 
@@ -382,47 +428,39 @@ Create simple reproducible tests:
 
 ### 1. Context as Environment Variable
 - **Why**: Prevents context from overwhelming neural network
-- **How**: Store in file, expose as Python variable in REPL
+- **How**: Store in file, expose via tools instead of prompt
 
 ### 2. Recursion Depth = 1 (Default)
 - **Why**: Paper found depth=1 sufficient for most tasks
-- **How**: Root agent uses main model, sub-agents use cheaper model
+- **How**: Root agent uses main model, sub-agents use same model (Goose doesn't have model switching yet)
 
-### 3. Sub-Agent Model Choice
-- **GPT Example**: Root=gpt-4o, Sub=gpt-4o-mini
-- **Why**: Cost optimization (paper shows comparable quality)
-
-### 4. Chunking Strategy
+### 3. Chunking Strategy
 - **Target**: ~500K chars per sub-call (paper recommendation)
 - **Balance**: Large enough to be useful, small enough to avoid context rot
 
-### 5. Answer Detection
-- **Tags**: `FINAL(answer)` or `FINAL_VAR(variable_name)`
-- **Why**: Clear signal that reasoning is complete
+### 4. Answer Detection
+- **Method**: Use `finalize` tool instead of text tags
+- **Why**: More reliable than parsing `FINAL()` tags from output
 
 ---
 
 ## Common Pitfalls to Avoid (from Paper Appendix A)
 
-1. ❌ **Same prompt for all models**
-   - Different models need different prompting
-   - Add model-specific adjustments
-
-2. ❌ **Insufficient coding ability**
-   - Smaller models struggle as RLMs
-   - Ensure base model has strong code generation
-
-3. ❌ **Limited output tokens**
+1. **Limited output tokens**
    - Thinking models can run out of tokens
-   - Set generous output limits
+   - Set generous output limits in provider config
 
-4. ❌ **Synchronous sub-calls only**
+2. **Synchronous sub-calls only**
    - Makes RLMs very slow
-   - Implement async ASAP
+   - Implement async ASAP (Phase 4.11)
 
-5. ❌ **Brittle answer detection**
-   - `FINAL()` tag detection can fail
-   - Add safeguards and retries
+3. **Brittle answer detection**
+   - Text-based `FINAL()` tag detection can fail
+   - Use tool-based `finalize` instead
+
+4. **Same prompt for all models**
+   - Different models need different prompting
+   - May need model-specific prompt variants
 
 ---
 
@@ -433,7 +471,29 @@ Track these to validate implementation:
 - [ ] **Context Length**: Successfully handle 1M+ char inputs
 - [ ] **Accuracy**: Match or exceed base model on test benchmarks
 - [ ] **Cost**: Stay within 2x base model cost for equivalent tasks
-- [ ] **Speed**: Reasonable completion time (<5min for 1M char inputs)
+- [ ] **Speed**: Reasonable completion time (<5min for 1M char inputs with async)
+
+---
+
+## File Structure
+
+```
+crates/goose/src/
+├── rlm/
+│   ├── mod.rs              # Module exports, RlmConfig
+│   ├── context_store.rs    # Context storage
+│   ├── prompts.rs          # System prompts
+│   └── tests/
+│       ├── mod.rs
+│       ├── test_context_store.rs
+│       └── test_rlm_extension.rs
+├── agents/
+│   ├── rlm_extension.rs    # Platform extension (new)
+│   ├── extension.rs        # Add to PLATFORM_EXTENSIONS (modify)
+│   └── agent.rs            # Add RLM detection (modify)
+└── config/
+    └── rlm.rs              # RLM config parsing (new)
+```
 
 ---
 
@@ -448,13 +508,14 @@ Track these to validate implementation:
 
 ## Notes
 
+- Goose already has sub-agent support - leverage `subagent_tool.rs`
+- Existing `code_execution_extension` runs JS - could add Python support later
 - Start with simple implementation, optimize later
 - Test frequently with real long-context tasks
 - Monitor costs closely during development
-- Consider adding `--dry-run` mode for testing without API calls
 
 ---
 
-**Status**: 📋 Ready for implementation  
-**Priority**: High (significant capability improvement)  
-**Estimated Effort**: 2-4 weeks for MVP, 4-6 weeks for polished release
+**Status**: Ready for implementation
+**Priority**: High (significant capability improvement)
+**Language**: Rust
