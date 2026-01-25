@@ -1,6 +1,7 @@
 pub mod action_required_manager;
 pub mod agents;
 pub mod config;
+pub mod rlm;
 pub mod context_mgmt;
 pub mod conversation;
 pub mod execution;

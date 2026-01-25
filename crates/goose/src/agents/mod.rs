@@ -16,6 +16,7 @@ pub mod platform_tools;
 pub mod prompt_manager;
 mod reply_parts;
 pub mod retry;
+pub(crate) mod rlm_extension;
 mod schedule_tool;
 pub(crate) mod skills_extension;
 pub mod subagent_execution_tool;
