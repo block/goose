@@ -1,7 +1,13 @@
-//! Integration tests for RLM functionality
+//! Test utilities for RLM functionality
+//!
+//! This module provides test utilities like needle-in-haystack generators
+//! for testing RLM's large context handling capabilities.
 
+#[cfg(test)]
 use super::context_store::ContextStore;
+#[cfg(test)]
 use super::RlmConfig;
+#[cfg(test)]
 use tempfile::TempDir;
 
 /// Generate a "needle in haystack" test context

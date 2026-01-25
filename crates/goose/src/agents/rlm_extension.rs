@@ -6,6 +6,7 @@
 
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
+use crate::conversation::message::Message;
 use crate::rlm::context_store::ContextStore;
 use crate::rlm::prompts::RLM_SYSTEM_PROMPT;
 use anyhow::Result;
@@ -22,6 +23,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
+use tracing::{debug, warn};
 
 pub static EXTENSION_NAME: &str = "rlm";
 
@@ -248,29 +250,118 @@ impl RlmClient {
             store.read_slice(start, end).await.map_err(|e| e.to_string())?
         };
 
-        // For now, we return a message indicating this would spawn a sub-agent
-        // In a full implementation, this would use the subagent_tool to spawn an actual sub-agent
-        // with the context slice and prompt
-
-        // TODO: Integrate with actual sub-agent system
-        // This is a placeholder that returns the context slice for the parent agent to process
-        // In a production implementation, you would:
-        // 1. Create a sub-agent with the context slice injected
-        // 2. Run the sub-agent with the given prompt
-        // 3. Return the sub-agent's response
-
-        Ok(vec![Content::text(format!(
-            "[RLM Sub-Query]\nPrompt: {}\nContext range: {} to {} ({} chars)\n\n---\n\nNote: Sub-agent queries are currently processed by the parent agent. Process this context slice and answer the prompt:\n\n{}",
+        debug!(
+            "RLM query: prompt='{}', context range {}..{} ({} chars)",
             prompt,
             start,
             end,
+            context_slice.len()
+        );
+
+        // Try to get the provider through the extension manager
+        let extension_manager = self
+            .context
+            .extension_manager
+            .as_ref()
+            .and_then(|weak| weak.upgrade())
+            .ok_or("Extension manager not available - cannot make LLM queries")?;
+
+        let provider_guard = extension_manager.get_provider().lock().await;
+        let provider = provider_guard
+            .as_ref()
+            .ok_or("Provider not configured - cannot make LLM queries")?
+            .clone();
+        drop(provider_guard);
+
+        // Build the system prompt for the sub-query
+        let system_prompt = format!(
+            "You are a sub-agent processing a portion of a larger context. \
+            Answer the following question based ONLY on the context provided. \
+            Be concise and direct in your response.\n\n\
+            Question: {}",
+            prompt
+        );
+
+        // Build the user message with the context slice
+        let user_message = Message::user().with_text(format!(
+            "Here is the context to analyze ({} characters, positions {} to {}):\n\n{}",
             context_slice.len(),
-            if context_slice.len() > 10000 {
-                format!("{}...\n[truncated, {} more chars]", &context_slice[..10000], context_slice.len() - 10000)
-            } else {
-                context_slice
+            start,
+            end,
+            context_slice
+        ));
+
+        // Make the LLM call (no tools for sub-queries)
+        let result = provider
+            .complete(session_id, &system_prompt, &[user_message], &[])
+            .await;
+
+        match result {
+            Ok((response_message, provider_usage)) => {
+                let input_tokens = provider_usage.usage.input_tokens.unwrap_or(0);
+                let output_tokens = provider_usage.usage.output_tokens.unwrap_or(0);
+
+                debug!(
+                    "RLM sub-query completed: {} input tokens, {} output tokens",
+                    input_tokens, output_tokens
+                );
+
+                // Extract text from the response
+                let response_text = response_message
+                    .content
+                    .iter()
+                    .filter_map(|c| {
+                        if let crate::conversation::message::MessageContent::Text(t) = c {
+                            Some(t.text.clone())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n");
+
+                Ok(vec![Content::text(format!(
+                    "[RLM Sub-Query Result]\n\
+                    Query: {}\n\
+                    Context range: {} to {} ({} chars)\n\
+                    Tokens used: {} in, {} out\n\n\
+                    Response:\n{}",
+                    prompt,
+                    start,
+                    end,
+                    context_slice.len(),
+                    input_tokens,
+                    output_tokens,
+                    response_text
+                ))])
             }
-        ))])
+            Err(e) => {
+                warn!("RLM sub-query failed: {}", e);
+                // Fallback: return the context for the parent agent to process
+                Ok(vec![Content::text(format!(
+                    "[RLM Sub-Query Failed - Fallback Mode]\n\
+                    Error: {}\n\n\
+                    The sub-query could not be executed. Please process this context slice manually:\n\n\
+                    Prompt: {}\n\
+                    Context range: {} to {} ({} chars)\n\n\
+                    Context:\n{}",
+                    e,
+                    prompt,
+                    start,
+                    end,
+                    context_slice.len(),
+                    if context_slice.len() > 10000 {
+                        format!(
+                            "{}...\n[truncated, {} more chars]",
+                            &context_slice[..10000],
+                            context_slice.len() - 10000
+                        )
+                    } else {
+                        context_slice
+                    }
+                ))])
+            }
+        }
     }
 
     async fn handle_store_variable(

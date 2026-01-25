@@ -78,5 +78,6 @@ mod unit_tests {
     }
 }
 
-#[cfg(test)]
-pub mod tests;  // Additional test utilities (needle-in-haystack generators)
+/// Test utilities for RLM (needle-in-haystack generators, etc.)
+/// These are public to allow integration tests to use them.
+pub mod test_utils;
