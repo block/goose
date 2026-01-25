@@ -121,7 +121,7 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
             PlatformExtensionDef {
                 name: subagent_client::EXTENSION_NAME,
                 description: "Delegate tasks to independent subagents",
-                default_enabled: false,
+                default_enabled: true,
                 client_factory: |ctx| Box::new(subagent_client::SubagentClient::new(ctx).unwrap()),
             },
         );
