@@ -443,13 +443,16 @@ impl ExtensionManager {
     pub fn new(
         provider: SharedProvider,
         session_manager: Arc<crate::session::SessionManager>,
+        sub_recipes: Option<
+            Arc<tokio::sync::RwLock<std::collections::HashMap<String, crate::recipe::SubRecipe>>>,
+        >,
     ) -> Self {
         Self {
             extensions: Mutex::new(HashMap::new()),
             context: PlatformExtensionContext {
                 extension_manager: None,
                 session_manager,
-                sub_recipes: None,
+                sub_recipes,
             },
             provider,
             tools_cache: Mutex::new(None),
@@ -460,7 +463,7 @@ impl ExtensionManager {
     #[cfg(test)]
     pub fn new_without_provider(data_dir: std::path::PathBuf) -> Self {
         let session_manager = Arc::new(crate::session::SessionManager::new(data_dir));
-        Self::new(Arc::new(Mutex::new(None)), session_manager)
+        Self::new(Arc::new(Mutex::new(None)), session_manager, None)
     }
 
     pub fn get_context(&self) -> &PlatformExtensionContext {

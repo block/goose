@@ -194,11 +194,16 @@ impl Agent {
 
         let session_manager = Arc::clone(&config.session_manager);
         let permission_manager = Arc::clone(&config.permission_manager);
+        let sub_recipes = Arc::new(tokio::sync::RwLock::new(HashMap::new()));
         Self {
             provider: provider.clone(),
             config,
-            extension_manager: Arc::new(ExtensionManager::new(provider.clone(), session_manager)),
-            sub_recipes: Arc::new(tokio::sync::RwLock::new(HashMap::new())),
+            extension_manager: Arc::new(ExtensionManager::new(
+                provider.clone(),
+                session_manager,
+                Some(sub_recipes.clone()),
+            )),
+            sub_recipes,
             final_output_tool: Arc::new(Mutex::new(None)),
             frontend_tools: Mutex::new(HashMap::new()),
             frontend_instructions: Mutex::new(None),
@@ -784,30 +789,6 @@ impl Agent {
         }
 
         prefixed_tools
-    }
-
-    pub async fn enable_subagent_extension(&self, session_id: &str) -> ExtensionResult<()> {
-        if !self.subagents_enabled(session_id).await {
-            return Ok(());
-        }
-        if self
-            .extension_manager
-            .is_extension_enabled(subagent_client::EXTENSION_NAME)
-            .await
-        {
-            return Ok(());
-        }
-        self.extension_manager
-            .add_extension_with_working_dir(
-                ExtensionConfig::Platform {
-                    name: subagent_client::EXTENSION_NAME.to_string(),
-                    description: "Delegate tasks to independent subagents".to_string(),
-                    bundled: Some(true),
-                    available_tools: vec![],
-                },
-                None,
-            )
-            .await
     }
 
     pub async fn remove_extension(&self, name: &str) -> Result<()> {

@@ -122,20 +122,15 @@ impl McpClientTrait for SubagentClient {
 
     async fn call_tool(
         &self,
-        _session_id: &str,
+        session_id: &str,
         name: &str,
-        _arguments: Option<JsonObject>,
-        _cancellation_token: CancellationToken,
+        arguments: Option<JsonObject>,
+        cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
-        if name != SUBAGENT_TOOL_NAME {
-            return Ok(CallToolResult::error(vec![Content::text(format!(
-                "Unknown tool: {}",
-                name
-            ))]));
-        }
-        Ok(CallToolResult::error(vec![Content::text(
-            "Subagent tool must be called via call_tool_deferred",
-        )]))
+        let deferred = self
+            .call_tool_deferred(session_id, name, arguments, cancellation_token)
+            .await?;
+        deferred.result.await.map_err(Error::McpError)
     }
 
     async fn call_tool_deferred(
