@@ -67,7 +67,9 @@ pub trait McpClientTrait: Send + Sync {
         arguments: Option<JsonObject>,
         cancel_token: CancellationToken,
     ) -> Result<DeferredToolCall, Error> {
-        let result = self.call_tool(session_id, name, arguments, cancel_token).await;
+        let result = self
+            .call_tool(session_id, name, arguments, cancel_token)
+            .await;
         Ok(DeferredToolCall {
             result: Box::new(futures::future::ready(result.map_err(|e| match e {
                 ServiceError::McpError(error_data) => error_data,

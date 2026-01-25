@@ -497,7 +497,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             process::exit(1);
         });
 
-
     if session_config.resume {
         let session = agent
             .config

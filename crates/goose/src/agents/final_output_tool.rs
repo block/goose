@@ -116,7 +116,10 @@ impl FinalOutputTool {
         }
     }
 
-    pub async fn execute_tool_call(&mut self, tool_call: CallToolRequestParams) -> DeferredToolCall {
+    pub async fn execute_tool_call(
+        &mut self,
+        tool_call: CallToolRequestParams,
+    ) -> DeferredToolCall {
         match tool_call.name.to_string().as_str() {
             FINAL_OUTPUT_TOOL_NAME => {
                 let result = self.validate_json_output(&tool_call.arguments.into()).await;
