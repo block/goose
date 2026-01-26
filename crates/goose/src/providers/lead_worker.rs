@@ -5,11 +5,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use super::base::{
-    LeadWorkerProviderTrait,
-    MessageStream,
-    Provider,
-    ProviderMetadata,
-    ProviderUsage,
+    LeadWorkerProviderTrait, MessageStream, Provider, ProviderMetadata, ProviderUsage,
 };
 use super::errors::ProviderError;
 use crate::conversation::message::{Message, MessageContent};
