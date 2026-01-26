@@ -303,7 +303,9 @@ fn process_tool_call(id: String, function_name: String, arguments_str: String) -
         match safely_parse_json(&arguments_str) {
             Ok(params) => MessageContent::tool_request(
                 id,
-                Ok(CallToolRequestParam {
+                Ok(CallToolRequestParams {
+                    meta: None,
+                    task: None,
                     name: function_name.into(),
                     arguments: Some(object(params)),
                 }),
