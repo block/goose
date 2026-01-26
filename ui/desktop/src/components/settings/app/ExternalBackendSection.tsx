@@ -3,7 +3,7 @@ import { Switch } from '../../ui/switch';
 import { Input } from '../../ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import { AlertCircle } from 'lucide-react';
-import { ExternalGoosedConfig } from '../../../utils/settings';
+import { ExternalGoosedConfig } from '../../../utils/settingsTypes';
 
 const DEFAULT_CONFIG: ExternalGoosedConfig = {
   enabled: false,

@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../..
 import { Button } from '../../ui/button';
 import { Switch } from '../../ui/switch';
 import { ShortcutRecorder } from './ShortcutRecorder';
-import { KeyboardShortcuts, defaultKeyboardShortcuts } from '../../../utils/settings';
+import { KeyboardShortcuts, defaultKeyboardShortcuts } from '../../../utils/settingsTypes';
 import { trackSettingToggled } from '../../../utils/analytics';
 
 interface ShortcutConfig {
