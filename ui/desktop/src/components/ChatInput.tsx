@@ -1237,10 +1237,10 @@ export default function ChatInput({
               overflowY: 'auto',
               opacity: isRecording ? 0 : 1,
             }}
-            className="w-full outline-none border-none focus:ring-0 bg-transparent px-3 pt-3 pb-1.5 pr-32 text-sm resize-none text-textStandard placeholder:text-textPlaceholder"
+            className="w-full outline-none border-none focus:ring-0 bg-transparent px-3 pt-3 pb-1.5 pr-44 text-sm resize-none text-textStandard placeholder:text-textPlaceholder"
           />
           {isRecording && (
-            <div className="absolute inset-0 flex items-center pl-4 pr-32 pt-3 pb-1.5">
+            <div className="absolute inset-0 flex items-center pl-4 pr-44 pt-3 pb-1.5">
               <WaveformVisualizer
                 audioContext={audioContext}
                 analyser={analyser}
@@ -1249,8 +1249,8 @@ export default function ChatInput({
             </div>
           )}
 
-          {/* Inline action buttons - absolutely positioned on the right */}
-          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+          {/* Inline action buttons - pinned to bottom-right so text never overlaps when input grows */}
+          <div className="absolute right-2 bottom-2 flex items-center gap-1">
             {/* Microphone button - show only if dictation is enabled */}
             {dictationSettings?.enabled && (
               <>
