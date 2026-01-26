@@ -1,3 +1,4 @@
+use super::builtin_skills;
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
 use crate::config::paths::Paths;
@@ -65,15 +66,36 @@ impl SkillsClient {
             instructions: Some(String::new()),
         };
 
+        let mut skills = Self::load_builtin_skills();
+
         let directories = Self::get_default_skill_directories()
             .into_iter()
             .filter(|d| d.exists())
             .collect::<Vec<_>>();
-        let skills = Self::discover_skills_in_directories(&directories);
+        let fs_skills = Self::discover_skills_in_directories(&directories);
+        skills.extend(fs_skills);
 
         let mut client = Self { info, skills };
         client.info.instructions = Some(client.generate_instructions());
         Ok(client)
+    }
+
+    fn load_builtin_skills() -> HashMap<String, Skill> {
+        let mut skills = HashMap::new();
+        for content in builtin_skills::get_all_builtin_skills() {
+            if let Ok((metadata, body)) = Self::parse_frontmatter(content) {
+                skills.insert(
+                    metadata.name.clone(),
+                    Skill {
+                        metadata,
+                        body,
+                        directory: PathBuf::new(),
+                        supporting_files: vec![],
+                    },
+                );
+            }
+        }
+        skills
     }
 
     fn get_default_skill_directories() -> Vec<PathBuf> {
@@ -831,5 +853,13 @@ Working dir goose content
             .unwrap()
             .body
             .contains("Working dir goose content"));
+    }
+
+    #[test]
+    fn test_builtin_skills_loaded() {
+        let skills = SkillsClient::load_builtin_skills();
+
+        assert!(!skills.is_empty());
+        assert!(skills.contains_key("goose-doc-guide"));
     }
 }

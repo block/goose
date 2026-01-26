@@ -222,7 +222,7 @@ pub async fn check_if_compaction_needed(
     Ok(needs_compaction)
 }
 
-fn filter_tool_responses<'a>(messages: &[&'a Message], remove_percent: u32) -> Vec<&'a Message> {
+fn filter_tool_responses(messages: &[Message], remove_percent: u32) -> Vec<&Message> {
     fn has_tool_response(msg: &Message) -> bool {
         msg.content
             .iter()
@@ -230,7 +230,7 @@ fn filter_tool_responses<'a>(messages: &[&'a Message], remove_percent: u32) -> V
     }
 
     if remove_percent == 0 {
-        return messages.to_vec();
+        return messages.iter().collect();
     }
 
     let tool_indices: Vec<usize> = messages
@@ -241,7 +241,7 @@ fn filter_tool_responses<'a>(messages: &[&'a Message], remove_percent: u32) -> V
         .collect();
 
     if tool_indices.is_empty() {
-        return messages.to_vec();
+        return messages.iter().collect();
     }
 
     let num_to_remove = ((tool_indices.len() * remove_percent as usize) / 100).max(1);
@@ -268,7 +268,7 @@ fn filter_tool_responses<'a>(messages: &[&'a Message], remove_percent: u32) -> V
         .iter()
         .enumerate()
         .filter(|(i, _)| !indices_to_remove.contains(i))
-        .map(|(_, msg)| *msg)
+        .map(|(_, msg)| msg)
         .collect()
 }
 
@@ -277,9 +277,10 @@ async fn do_compact(
     session_id: &str,
     messages: &[Message],
 ) -> Result<(Message, ProviderUsage), anyhow::Error> {
-    let agent_visible_messages: Vec<&Message> = messages
+    let agent_visible_messages: Vec<Message> = messages
         .iter()
         .filter(|msg| msg.is_agent_visible())
+        .map(|msg| msg.agent_visible_content())
         .collect();
 
     // Try progressively removing more tool response messages from the middle to reduce context length
@@ -350,7 +351,7 @@ fn format_message_for_compacting(msg: &Message) -> String {
                     format!(
                         "tool_request({}): {}",
                         call.name,
-                        serde_json::to_string_pretty(&call.arguments)
+                        serde_json::to_string(&call.arguments)
                             .unwrap_or_else(|_| "<<invalid json>>".to_string())
                     )
                 } else {
@@ -397,7 +398,7 @@ fn format_message_for_compacting(msg: &Message) -> String {
                     "frontend_tool_request: [error]".to_string()
                 }
             }
-            MessageContent::Thinking(thinking) => format!("thinking: {}", thinking.thinking),
+            MessageContent::Thinking(_) => "thinking".to_string(),
             MessageContent::RedactedThinking(_) => "redacted_thinking".to_string(),
             MessageContent::SystemNotification(notification) => {
                 format!("system_notification: {}", notification.msg)
@@ -428,7 +429,7 @@ mod tests {
         },
     };
     use async_trait::async_trait;
-    use rmcp::model::{AnnotateAble, CallToolRequestParam, RawContent, Tool};
+    use rmcp::model::{AnnotateAble, CallToolRequestParams, RawContent, Tool};
 
     struct MockProvider {
         message: Message,
@@ -516,7 +517,8 @@ mod tests {
             Message::user().with_text("read hello.txt"),
             Message::assistant().with_tool_request(
                 "tool_0",
-                Ok(CallToolRequestParam {
+                Ok(CallToolRequestParams {
+                    meta: None,
                     task: None,
                     name: "read_file".into(),
                     arguments: None,
@@ -556,7 +558,8 @@ mod tests {
         for i in 0..10 {
             messages.push(Message::assistant().with_tool_request(
                 format!("tool_{}", i),
-                Ok(CallToolRequestParam {
+                Ok(CallToolRequestParams {
+                    meta: None,
                     task: None,
                     name: "read_file".into(),
                     arguments: None,

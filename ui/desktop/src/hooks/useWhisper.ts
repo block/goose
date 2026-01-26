@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { useConfig } from '../components/ConfigContext';
 import { getApiUrl } from '../config';
 import { useDictationSettings } from './useDictationSettings';
+import { DICTATION_PROVIDER_ELEVENLABS } from './dictationConstants';
 import { safeJsonParse } from '../utils/conversionUtils';
 
 interface UseWhisperOptions {
@@ -77,7 +78,7 @@ export const useWhisper = ({ onTranscription, onError, onSizeWarning }: UseWhisp
       case 'openai':
         setCanUseDictation(hasOpenAIKey);
         break;
-      case 'elevenlabs':
+      case DICTATION_PROVIDER_ELEVENLABS:
         setCanUseDictation(hasElevenLabsKey);
         break;
       default:
@@ -180,7 +181,7 @@ export const useWhisper = ({ onTranscription, onError, onSizeWarning }: UseWhisp
           case 'openai':
             endpoint = '/audio/transcribe';
             break;
-          case 'elevenlabs':
+          case DICTATION_PROVIDER_ELEVENLABS:
             endpoint = '/audio/transcribe/elevenlabs';
             break;
           default:
@@ -373,5 +374,6 @@ export const useWhisper = ({ onTranscription, onError, onSizeWarning }: UseWhisp
     stopRecording,
     recordingDuration,
     estimatedSize,
+    dictationSettings,
   };
 };

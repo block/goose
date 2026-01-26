@@ -17,7 +17,7 @@ module.exports = function markdownExportPlugin(context, options) {
 
       console.log('[markdown-export] Starting markdown export...');
       
-      const globby = (await import('globby')).default;
+      const { globby } = await import('globby');
       
       const docsDir = path.join(context.siteDir, 'docs');
       const outputDir = path.join(outDir, 'docs');
