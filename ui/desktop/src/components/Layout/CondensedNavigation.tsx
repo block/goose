@@ -24,6 +24,7 @@ import { useNavigation } from '../../hooks/useNavigation';
 import { startNewSession, resumeSession, shouldShowNewChatTitle } from '../../sessions';
 import { getInitialWorkingDir } from '../../utils/workingDir';
 import type { Session } from '../../api';
+import type { UserInput } from '../../types/message';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -49,7 +50,7 @@ interface RecentSession {
 
 interface ActiveSession {
   sessionId: string;
-  initialMessage?: string;
+  initialMessage?: UserInput;
 }
 
 interface CondensedNavigationProps {
@@ -75,7 +76,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
   const [dragOverItem, setDragOverItem] = useState<string | null>(null);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [chatPopoverOpen, setChatPopoverOpen] = useState(false);
-  
+
   // Stats for tags
   const [todayChatsCount, setTodayChatsCount] = useState(0);
   const [totalSessions, setTotalSessions] = useState(0);
@@ -94,7 +95,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
       if (sessionsResponse.data) {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        
+
         let todayCount = 0;
         sessionsResponse.data.sessions.forEach((session) => {
           const sessionDate = new Date(session.created_at);
@@ -103,9 +104,9 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
             todayCount++;
           }
         });
-        
+
         setTodayChatsCount(todayCount);
-        
+
         // Get the 10 most recent sessions
         const sorted = [...sessionsResponse.data.sessions]
           .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
@@ -125,15 +126,21 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
   // Build nav items with dynamic tags
   const getNavItems = (): NavItem[] => [
     { id: 'home', path: '/', label: 'Home', icon: Home },
-    { 
-      id: 'chat', 
-      path: '/pair', 
-      label: 'Chat', 
-      icon: MessageSquare, 
+    {
+      id: 'chat',
+      path: '/pair',
+      label: 'Chat',
+      icon: MessageSquare,
       getTag: () => `${todayChatsCount}`,
       hasSubItems: true, // Always has sub-items for recent sessions
     },
-    { id: 'history', path: '/sessions', label: 'History', icon: History, getTag: () => `${totalSessions}` },
+    {
+      id: 'history',
+      path: '/sessions',
+      label: 'History',
+      icon: History,
+      getTag: () => `${totalSessions}`,
+    },
     { id: 'recipes', path: '/recipes', label: 'Recipes', icon: FileText },
     { id: 'scheduler', path: '/schedules', label: 'Scheduler', icon: Clock },
     {
@@ -143,7 +150,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
       icon: Puzzle,
       getTag: () => {
         if (!extensionsList || !Array.isArray(extensionsList)) return '0/0';
-        const enabled = extensionsList.filter(ext => ext.enabled).length;
+        const enabled = extensionsList.filter((ext) => ext.enabled).length;
         return `${enabled}/${extensionsList.length}`;
       },
     },
@@ -153,7 +160,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
   const navItems = getNavItems();
 
   const getNavItemById = (id: string): NavItem | undefined => {
-    return navItems.find(item => item.id === id);
+    return navItems.find((item) => item.id === id);
   };
 
   // Handle escape key to close overlay
@@ -161,7 +168,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
     if (!(effectiveNavigationMode === 'overlay' && isNavExpanded)) {
       return;
     }
-    
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isNavExpanded && effectiveNavigationMode === 'overlay') {
         e.preventDefault();
@@ -177,7 +184,8 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
   const [searchParams] = useSearchParams();
   const chatContext = useChatContext();
   const lastSessionIdRef = useRef<string | null>(null);
-  const currentSessionId = location.pathname === '/pair' ? searchParams.get('resumeSessionId') : null;
+  const currentSessionId =
+    location.pathname === '/pair' ? searchParams.get('resumeSessionId') : null;
 
   // Keep track of last session ID
   useEffect(() => {
@@ -198,24 +206,34 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
   // Guard ref to prevent duplicate session creation
   const isCreatingSessionRef = useRef(false);
 
-  const handleNavClick = useCallback((path: string) => {
-    // For /pair, preserve the current session if one exists
-    if (path === '/pair') {
-      const sessionId = currentSessionId || lastSessionIdRef.current || chatContext?.chat?.sessionId;
-      if (sessionId && sessionId.length > 0) {
-        navigate(`/pair?resumeSessionId=${sessionId}`);
+  const handleNavClick = useCallback(
+    (path: string) => {
+      // For /pair, preserve the current session if one exists
+      if (path === '/pair') {
+        const sessionId =
+          currentSessionId || lastSessionIdRef.current || chatContext?.chat?.sessionId;
+        if (sessionId && sessionId.length > 0) {
+          navigate(`/pair?resumeSessionId=${sessionId}`);
+        } else {
+          // No session - go to home to start a new chat
+          navigate('/');
+        }
       } else {
-        // No session - go to home to start a new chat
-        navigate('/');
+        navigate(path);
       }
-    } else {
-      navigate(path);
-    }
-    // Close nav on selection only for overlay mode
-    if (effectiveNavigationMode === 'overlay') {
-      setIsNavExpanded(false);
-    }
-  }, [navigate, currentSessionId, chatContext?.chat?.sessionId, effectiveNavigationMode, setIsNavExpanded]);
+      // Close nav on selection only for overlay mode
+      if (effectiveNavigationMode === 'overlay') {
+        setIsNavExpanded(false);
+      }
+    },
+    [
+      navigate,
+      currentSessionId,
+      chatContext?.chat?.sessionId,
+      effectiveNavigationMode,
+      setIsNavExpanded,
+    ]
+  );
 
   // New chat handler - matches original AppSidebar implementation
   // If there's already an empty session, resume it; otherwise create a new one
@@ -247,16 +265,19 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
     }
   }, [setView, effectiveNavigationMode, setIsNavExpanded]);
 
-  const handleSessionClick = useCallback((sessionId: string) => {
-    navigate(`/pair?resumeSessionId=${sessionId}`);
-    // Close nav on selection only for overlay mode
-    if (effectiveNavigationMode === 'overlay') {
-      setIsNavExpanded(false);
-    }
-  }, [navigate, effectiveNavigationMode, setIsNavExpanded]);
+  const handleSessionClick = useCallback(
+    (sessionId: string) => {
+      navigate(`/pair?resumeSessionId=${sessionId}`);
+      // Close nav on selection only for overlay mode
+      if (effectiveNavigationMode === 'overlay') {
+        setIsNavExpanded(false);
+      }
+    },
+    [navigate, effectiveNavigationMode, setIsNavExpanded]
+  );
 
   const toggleExpanded = (itemId: string) => {
-    setExpandedItems(prev => {
+    setExpandedItems((prev) => {
       const next = new Set(prev);
       if (next.has(itemId)) {
         next.delete(itemId);
@@ -312,8 +333,8 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
 
   // Get ordered and enabled items
   const visibleItems = preferences.itemOrder
-    .filter(id => preferences.enabledItems.includes(id))
-    .map(id => getNavItemById(id))
+    .filter((id) => preferences.enabledItems.includes(id))
+    .map((id) => getNavItemById(id))
     .filter((item): item is NavItem => item !== undefined);
 
   const isOverlayMode = effectiveNavigationMode === 'overlay';
@@ -332,7 +353,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      transition={{ type: "spring", stiffness: 350, damping: 25 }}
+      transition={{ type: 'spring', stiffness: 350, damping: 25 }}
       className={cn(
         'bg-app',
         isOverlayMode && 'rounded-xl backdrop-blur-md shadow-lg p-2',
@@ -348,10 +369,12 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
     >
       {/* Top spacer (vertical only) */}
       {isVertical && (
-        <div className={cn(
-          "bg-background-default rounded-lg w-full flex-shrink-0",
-          isCondensedIconOnly ? "h-[80px]" : "h-[48px]"
-        )} />
+        <div
+          className={cn(
+            'bg-background-default rounded-lg w-full flex-shrink-0',
+            isCondensedIconOnly ? 'h-[80px]' : 'h-[48px]'
+          )}
+        />
       )}
 
       {/* Left spacer (horizontal top position only) */}
@@ -377,13 +400,13 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
             onDrop={(e) => handleDrop(e as unknown as React.DragEvent, item.id)}
             onDragEnd={handleDragEnd}
             initial={{ opacity: 0, [isVertical ? 'x' : 'y']: 20, scale: 0.9 }}
-            animate={{ 
-              opacity: isDragging ? 0.5 : 1, 
-              [isVertical ? 'x' : 'y']: 0, 
+            animate={{
+              opacity: isDragging ? 0.5 : 1,
+              [isVertical ? 'x' : 'y']: 0,
               scale: isDragging ? 0.95 : 1,
             }}
             transition={{
-              type: "spring",
+              type: 'spring',
               stiffness: 350,
               damping: 25,
               delay: index * 0.02,
@@ -396,10 +419,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
               isChatItem && !isCondensedIconOnly && 'overflow-visible'
             )}
           >
-            <div className={cn(
-              'flex flex-col',
-              isVertical ? 'w-full' : ''
-            )}>
+            <div className={cn('flex flex-col', isVertical ? 'w-full' : '')}>
               {/* Chat item with dropdown in horizontal mode OR icon-only mode */}
               {isChatItem && (!isVertical || isCondensedIconOnly) ? (
                 <>
@@ -425,12 +445,14 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                             </span>
                             {item.getTag && (
                               <div className="flex items-center gap-1 flex-shrink-0 hidden min-[1200px]:flex">
-                                <span className={cn(
-                                  'text-xs font-mono px-2 py-0.5 rounded-full',
-                                  active
-                                    ? 'bg-background-default/20 text-text-on-accent/80'
-                                    : 'bg-background-muted text-text-muted'
-                                )}>
+                                <span
+                                  className={cn(
+                                    'text-xs font-mono px-2 py-0.5 rounded-full',
+                                    active
+                                      ? 'bg-background-default/20 text-text-on-accent/80'
+                                      : 'bg-background-muted text-text-muted'
+                                  )}
+                                >
                                   {item.getTag()}
                                 </span>
                               </div>
@@ -439,9 +461,17 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                         )}
                       </motion.button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent 
+                    <DropdownMenuContent
                       className="w-64 p-1 bg-background-default border-border-subtle rounded-lg shadow-lg"
-                      side={isCondensedIconOnly ? (navigationPosition === 'left' ? 'right' : 'left') : (isTopPosition ? 'bottom' : 'top')}
+                      side={
+                        isCondensedIconOnly
+                          ? navigationPosition === 'left'
+                            ? 'right'
+                            : 'left'
+                          : isTopPosition
+                            ? 'bottom'
+                            : 'top'
+                      }
                       align="start"
                       sideOffset={8}
                     >
@@ -453,11 +483,9 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                         <Plus className="w-4 h-4 flex-shrink-0" />
                         <span>New Chat</span>
                       </DropdownMenuItem>
-                      
-                      {recentSessions.length > 0 && (
-                        <DropdownMenuSeparator className="my-1" />
-                      )}
-                      
+
+                      {recentSessions.length > 0 && <DropdownMenuSeparator className="my-1" />}
+
                       {/* Recent sessions */}
                       {recentSessions.map((session) => (
                         <DropdownMenuItem
@@ -466,12 +494,10 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                           className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer"
                         >
                           <MessageSquare className="w-4 h-4 flex-shrink-0 text-text-muted" />
-                          <span className="truncate">
-                            {truncateMessage(session.name, 30)}
-                          </span>
+                          <span className="truncate">{truncateMessage(session.name, 30)}</span>
                         </DropdownMenuItem>
                       ))}
-                      
+
                       {/* Show All button */}
                       {totalSessions > 10 && (
                         <>
@@ -487,7 +513,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                       )}
                     </DropdownMenuContent>
                   </DropdownMenu>
-                  
+
                   {/* New Chat button - appears outside nav panel for chat item in horizontal mode, hidden when dropdown is open */}
                   {!isCondensedIconOnly && !chatPopoverOpen && (
                     <motion.button
@@ -526,10 +552,10 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                     className={cn(
                       'flex flex-row items-center gap-2',
                       'relative rounded-lg transition-colors duration-200 no-drag',
-                      isCondensedIconOnly 
-                        ? 'justify-center p-2.5' 
-                        : isVertical 
-                          ? 'w-full pl-2 pr-4 py-2.5' 
+                      isCondensedIconOnly
+                        ? 'justify-center p-2.5'
+                        : isVertical
+                          ? 'w-full pl-2 pr-4 py-2.5'
                           : 'px-3 py-2.5',
                       active
                         ? 'bg-background-accent text-text-on-accent'
@@ -538,39 +564,47 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                   >
                     {/* Drag handle - visible on hover (not in icon-only mode) */}
                     {!isCondensedIconOnly && (
-                      <div className={cn(
-                        'opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0',
-                        !isVertical && 'hidden'
-                      )}>
+                      <div
+                        className={cn(
+                          'opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0',
+                          !isVertical && 'hidden'
+                        )}
+                      >
                         <GripVertical className="w-4 h-4 text-text-muted" />
                       </div>
                     )}
 
                     {/* Icon */}
                     <Icon className="w-5 h-5 flex-shrink-0" />
-                    
+
                     {/* Label - hidden in icon-only mode and on horizontal unless wide screen */}
                     {!isCondensedIconOnly && (
-                      <span className={cn(
-                        'text-sm font-medium text-left',
-                        isVertical ? 'flex-1' : 'hidden min-[1200px]:block'
-                      )}>
+                      <span
+                        className={cn(
+                          'text-sm font-medium text-left',
+                          isVertical ? 'flex-1' : 'hidden min-[1200px]:block'
+                        )}
+                      >
                         {item.label}
                       </span>
                     )}
 
                     {/* Tag/Badge - hidden in icon-only mode */}
                     {!isCondensedIconOnly && item.getTag && (
-                      <div className={cn(
-                        'flex items-center gap-1 flex-shrink-0',
-                        !isVertical && 'hidden min-[1200px]:flex'
-                      )}>
-                        <span className={cn(
-                          'text-xs font-mono px-2 py-0.5 rounded-full',
-                          active
-                            ? 'bg-background-default/20 text-text-on-accent/80'
-                            : 'bg-background-muted text-text-muted'
-                        )}>
+                      <div
+                        className={cn(
+                          'flex items-center gap-1 flex-shrink-0',
+                          !isVertical && 'hidden min-[1200px]:flex'
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            'text-xs font-mono px-2 py-0.5 rounded-full',
+                            active
+                              ? 'bg-background-default/20 text-text-on-accent/80'
+                              : 'bg-background-muted text-text-muted'
+                          )}
+                        >
                           {item.getTag()}
                         </span>
                       </div>
@@ -587,7 +621,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                       </div>
                     )}
                   </motion.button>
-                  
+
                   {/* New Chat button - appears outside nav panel for chat item in vertical mode, hidden when menu is expanded */}
                   {isChatItem && isVertical && !isCondensedIconOnly && !isItemExpanded && (
                     <motion.button
@@ -633,10 +667,12 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                           'flex items-center gap-2 text-text-default font-medium'
                         )}
                       >
-                        <span className="w-3 h-3 flex-shrink-0 flex items-center justify-center">+</span>
+                        <span className="w-3 h-3 flex-shrink-0 flex items-center justify-center">
+                          +
+                        </span>
                         <span>New Chat</span>
                       </button>
-                      
+
                       {/* Recent sessions */}
                       {recentSessions.map((session) => (
                         <button
@@ -654,7 +690,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                           </span>
                         </button>
                       ))}
-                      
+
                       {/* Show All button */}
                       {totalSessions > 10 && (
                         <button
@@ -704,19 +740,19 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
               className="absolute inset-0 bg-black/20 backdrop-blur-sm"
               onClick={() => setIsNavExpanded(false)}
             />
-            
+
             {/* Scrollable container for navigation panel */}
             <div className="absolute inset-0 overflow-y-auto pointer-events-none">
-              <div className={cn(
-                'min-h-full flex p-4',
-                navigationPosition === 'top' && 'items-start justify-center pt-16',
-                navigationPosition === 'bottom' && 'items-end justify-center pb-8',
-                navigationPosition === 'left' && 'items-center justify-start pl-4',
-                navigationPosition === 'right' && 'items-center justify-end pr-4'
-              )}>
-                <div className="pointer-events-auto">
-                  {navContent}
-                </div>
+              <div
+                className={cn(
+                  'min-h-full flex p-4',
+                  navigationPosition === 'top' && 'items-start justify-center pt-16',
+                  navigationPosition === 'bottom' && 'items-end justify-center pb-8',
+                  navigationPosition === 'left' && 'items-center justify-start pl-4',
+                  navigationPosition === 'right' && 'items-center justify-end pr-4'
+                )}
+              >
+                <div className="pointer-events-auto">{navContent}</div>
               </div>
             </div>
           </div>

@@ -21,6 +21,7 @@ import { useNavigation } from '../../hooks/useNavigation';
 import { startNewSession, resumeSession, shouldShowNewChatTitle } from '../../sessions';
 import { getInitialWorkingDir } from '../../utils/workingDir';
 import type { Session } from '../../api';
+import type { UserInput } from '../../types/message';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,7 +42,7 @@ interface NavItem {
 
 interface ActiveSession {
   sessionId: string;
-  initialMessage?: string;
+  initialMessage?: UserInput;
 }
 
 interface ExpandedNavigationProps {
@@ -49,7 +50,10 @@ interface ExpandedNavigationProps {
   activeSessions?: ActiveSession[];
 }
 
-export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ className, activeSessions = [] }) => {
+export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({
+  className,
+  activeSessions = [],
+}) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { extensionsList } = useConfig();
@@ -72,7 +76,7 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
   const [isClosing, setIsClosing] = useState(false);
   const prevIsNavExpandedRef = useRef(isNavExpanded);
   const gridRef = useRef<HTMLDivElement>(null);
-  
+
   // Stats for tags
   const [currentTime, setCurrentTime] = useState('');
   const [todayChatsCount, setTodayChatsCount] = useState(0);
@@ -83,7 +87,9 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
   useEffect(() => {
     const updateTime = () => {
       const now = new Date();
-      setCurrentTime(now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }));
+      setCurrentTime(
+        now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
+      );
     };
     updateTime();
     const interval = setInterval(updateTime, 1000);
@@ -92,7 +98,7 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
 
   // Ref to track sessions for new chat logic without causing re-renders
   const sessionsRef = useRef<Session[]>([]);
-  
+
   // Guard ref to prevent duplicate session creation
   const isCreatingSessionRef = useRef(false);
 
@@ -103,7 +109,7 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
       if (sessionsResponse.data) {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        
+
         let todayCount = 0;
         sessionsResponse.data.sessions.forEach((session) => {
           const sessionDate = new Date(session.created_at);
@@ -112,12 +118,12 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
             todayCount++;
           }
         });
-        
+
         setTodayChatsCount(todayCount);
-        
+
         // Store sessions for new chat logic
         sessionsRef.current = sessionsResponse.data.sessions;
-        
+
         // Get recent sessions for dropdown (sorted by most recent, limit 10)
         const sortedSessions = [...sessionsResponse.data.sessions]
           .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
@@ -180,7 +186,9 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
     const updateGridColumns = () => {
       if (gridRef.current) {
         const gridStyle = window.getComputedStyle(gridRef.current);
-        const columns = gridStyle.gridTemplateColumns.split(' ').filter(col => col.trim() !== '').length;
+        const columns = gridStyle.gridTemplateColumns
+          .split(' ')
+          .filter((col) => col.trim() !== '').length;
         if (columns > 0) {
           setGridColumns(columns);
           setGridMeasured(true);
@@ -190,18 +198,18 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
 
     // Initial update with a small delay to ensure grid is rendered
     const timeoutId = setTimeout(updateGridColumns, 100);
-    
+
     // Use ResizeObserver for more reliable updates
     const resizeObserver = new ResizeObserver(() => {
       updateGridColumns();
     });
-    
+
     if (gridRef.current) {
       resizeObserver.observe(gridRef.current);
     }
 
     window.addEventListener('resize', updateGridColumns);
-    
+
     return () => {
       clearTimeout(timeoutId);
       resizeObserver.disconnect();
@@ -223,7 +231,8 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
       path: '/pair',
       label: 'Chat',
       icon: MessageSquare,
-      getTag: () => activeSessions.length > 0 ? `${activeSessions.length} active` : `${todayChatsCount} today`,
+      getTag: () =>
+        activeSessions.length > 0 ? `${activeSessions.length} active` : `${todayChatsCount} today`,
       tagAlign: 'right',
       hasSubItems: activeSessions.length > 0,
     },
@@ -255,7 +264,7 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
       icon: Puzzle,
       getTag: () => {
         if (!extensionsList || !Array.isArray(extensionsList)) return '0/0';
-        const enabled = extensionsList.filter(ext => ext.enabled).length;
+        const enabled = extensionsList.filter((ext) => ext.enabled).length;
         return `${enabled}/${extensionsList.length}`;
       },
     },
@@ -270,7 +279,7 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
   const navItems = getNavItems();
 
   const getNavItemById = (id: string): NavItem | undefined => {
-    return navItems.find(item => item.id === id);
+    return navItems.find((item) => item.id === id);
   };
 
   // Handle escape key to close overlay
@@ -278,7 +287,7 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
     if (!(effectiveNavigationMode === 'overlay' && isNavExpanded)) {
       return;
     }
-    
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isNavExpanded && effectiveNavigationMode === 'overlay') {
         e.preventDefault();
@@ -294,7 +303,8 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
   const [searchParams] = useSearchParams();
   const chatContext = useChatContext();
   const lastSessionIdRef = useRef<string | null>(null);
-  const currentSessionId = location.pathname === '/pair' ? searchParams.get('resumeSessionId') : null;
+  const currentSessionId =
+    location.pathname === '/pair' ? searchParams.get('resumeSessionId') : null;
 
   // Use setView for navigation to pair view (matches original AppSidebar behavior)
   const setView = useNavigation();
@@ -306,24 +316,34 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
     }
   }, [currentSessionId]);
 
-  const handleNavClick = useCallback((path: string) => {
-    // For /pair, preserve the current session if one exists
-    if (path === '/pair') {
-      const sessionId = currentSessionId || lastSessionIdRef.current || chatContext?.chat?.sessionId;
-      if (sessionId && sessionId.length > 0) {
-        navigate(`/pair?resumeSessionId=${sessionId}`);
+  const handleNavClick = useCallback(
+    (path: string) => {
+      // For /pair, preserve the current session if one exists
+      if (path === '/pair') {
+        const sessionId =
+          currentSessionId || lastSessionIdRef.current || chatContext?.chat?.sessionId;
+        if (sessionId && sessionId.length > 0) {
+          navigate(`/pair?resumeSessionId=${sessionId}`);
+        } else {
+          // No session - go to home to start a new chat
+          navigate('/');
+        }
       } else {
-        // No session - go to home to start a new chat
-        navigate('/');
+        navigate(path);
       }
-    } else {
-      navigate(path);
-    }
-    // Close nav on selection only for overlay mode
-    if (effectiveNavigationMode === 'overlay') {
-      setIsNavExpanded(false);
-    }
-  }, [navigate, currentSessionId, chatContext?.chat?.sessionId, effectiveNavigationMode, setIsNavExpanded]);
+      // Close nav on selection only for overlay mode
+      if (effectiveNavigationMode === 'overlay') {
+        setIsNavExpanded(false);
+      }
+    },
+    [
+      navigate,
+      currentSessionId,
+      chatContext?.chat?.sessionId,
+      effectiveNavigationMode,
+      setIsNavExpanded,
+    ]
+  );
 
   // New chat handler - matches original AppSidebar implementation
   // If there's already an empty session, resume it; otherwise create a new one
@@ -355,13 +375,16 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
     }
   }, [setView, effectiveNavigationMode, setIsNavExpanded]);
 
-  const handleSessionClick = useCallback((sessionId: string) => {
-    navigate(`/pair?resumeSessionId=${sessionId}`);
-    // Close nav on selection only for overlay mode
-    if (effectiveNavigationMode === 'overlay') {
-      setIsNavExpanded(false);
-    }
-  }, [navigate, effectiveNavigationMode, setIsNavExpanded]);
+  const handleSessionClick = useCallback(
+    (sessionId: string) => {
+      navigate(`/pair?resumeSessionId=${sessionId}`);
+      // Close nav on selection only for overlay mode
+      if (effectiveNavigationMode === 'overlay') {
+        setIsNavExpanded(false);
+      }
+    },
+    [navigate, effectiveNavigationMode, setIsNavExpanded]
+  );
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -407,8 +430,8 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
 
   // Get ordered and enabled items
   const visibleItems = preferences.itemOrder
-    .filter(id => preferences.enabledItems.includes(id))
-    .map(id => getNavItemById(id))
+    .filter((id) => preferences.enabledItems.includes(id))
+    .map((id) => getNavItemById(id))
     .filter((item): item is NavItem => item !== undefined);
 
   const isOverlayMode = effectiveNavigationMode === 'overlay';
@@ -427,7 +450,7 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      transition={{ type: "spring", stiffness: 350, damping: 25 }}
+      transition={{ type: 'spring', stiffness: 350, damping: 25 }}
       className={cn(
         'bg-app h-full overflow-hidden',
         isOverlayMode && 'backdrop-blur-md shadow-2xl rounded-lg p-4',
@@ -442,7 +465,7 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
       {/* Navigation grid - square tiles with scroll */}
       {/* Completely hide content during close animation to prevent layout thrashing */}
       {showContent ? (
-        <div 
+        <div
           ref={gridRef}
           className={cn(
             'grid gap-[2px] overflow-y-auto overflow-x-hidden h-full',
@@ -451,254 +474,256 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
           style={{
             // Use CSS grid with auto-fill for responsive tiles based on container width
             gridTemplateColumns: isOverlayMode
-              // For overlay mode: responsive - single row on larger screens, wraps to 2 rows on smaller
-              ? 'repeat(auto-fit, minmax(120px, 1fr))'
-              : (navigationPosition === 'left' || navigationPosition === 'right')
-                // For left/right: larger min size (140px) to trigger single column sooner
-                ? 'repeat(auto-fill, minmax(140px, 1fr))'
-                // For top/bottom: auto-fit with larger min size to fit all in 1 row on large screens, wrap to 2 rows on smaller
-                : 'repeat(auto-fit, minmax(160px, 1fr))',
+              ? // For overlay mode: responsive - single row on larger screens, wraps to 2 rows on smaller
+                'repeat(auto-fit, minmax(120px, 1fr))'
+              : navigationPosition === 'left' || navigationPosition === 'right'
+                ? // For left/right: larger min size (140px) to trigger single column sooner
+                  'repeat(auto-fill, minmax(140px, 1fr))'
+                : // For top/bottom: auto-fit with larger min size to fit all in 1 row on large screens, wrap to 2 rows on smaller
+                  'repeat(auto-fit, minmax(160px, 1fr))',
             // Align items to start so they don't stretch vertically
             alignContent: 'start',
           }}
         >
-        {visibleItems.map((item, index) => {
-          const Icon = item.icon;
-          const active = isActive(item.path);
-          const isDragging = draggedItem === item.id;
-          const isDragOver = dragOverItem === item.id;
-          const isChatItem = item.id === 'chat';
+          {visibleItems.map((item, index) => {
+            const Icon = item.icon;
+            const active = isActive(item.path);
+            const isDragging = draggedItem === item.id;
+            const isDragOver = dragOverItem === item.id;
+            const isChatItem = item.id === 'chat';
 
-          // Chat tile with dropdown
-          if (isChatItem) {
-            return (
-              <DropdownMenu key={item.id} open={chatDropdownOpen} onOpenChange={setChatDropdownOpen}>
-                <motion.div
-                  draggable
-                  onDragStart={(e) => handleDragStart(e as unknown as React.DragEvent, item.id)}
-                  onDragOver={(e) => handleDragOver(e as unknown as React.DragEvent, item.id)}
-                  onDrop={(e) => handleDrop(e as unknown as React.DragEvent, item.id)}
-                  onDragEnd={handleDragEnd}
-                  initial={{ opacity: 0, y: 20, scale: 0.9 }}
-                  animate={{ 
-                    opacity: tilesReady ? (isDragging ? 0.5 : 1) : 0, 
-                    y: tilesReady ? 0 : 20, 
-                    scale: tilesReady ? (isDragging ? 0.95 : 1) : 0.9,
-                  }}
-                  transition={{
-                    type: "spring",
-                    stiffness: 350,
-                    damping: 25,
-                    delay: tilesReady ? index * 0.05 : 0,
-                  }}
-                  className={cn(
-                    'relative cursor-move group',
-                    isDragOver && 'ring-2 ring-blue-500 rounded-lg'
-                  )}
+            // Chat tile with dropdown
+            if (isChatItem) {
+              return (
+                <DropdownMenu
+                  key={item.id}
+                  open={chatDropdownOpen}
+                  onOpenChange={setChatDropdownOpen}
                 >
-                  <div className="relative">
-                    <DropdownMenuTrigger asChild>
-                      <motion.div
-                        className={cn(
-                          'w-full relative flex flex-col',
-                          'rounded-lg',
-                          'transition-colors duration-200',
-                          'aspect-square cursor-pointer',
-                          active
-                            ? 'bg-background-accent text-text-on-accent'
-                            : 'bg-background-default hover:bg-background-medium'
-                        )}
-                      >
-                        <div className="flex-1 flex flex-col items-start justify-between p-5 no-drag text-left">
-                          {/* Drag handle */}
-                          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                            <GripVertical className="w-4 h-4 text-text-muted" />
-                          </div>
-
-                          {/* Tag/Badge */}
-                          {item.getTag && (
-                            <div className={cn(
-                              'absolute top-3 px-2 py-1 rounded-full',
-                              item.tagAlign === 'left' ? 'left-8' : 'right-8',
-                              'bg-background-muted'
-                            )}>
-                              <span className="text-xs font-mono text-text-muted">
-                                {item.getTag()}
-                              </span>
-                            </div>
-                          )}
-                          
-                          {/* Icon and Label at bottom */}
-                          <div className="mt-auto w-full">
-                            <Icon className="w-6 h-6 mb-2" />
-                            <h2 className="font-light text-left text-xl">{item.label}</h2>
-                          </div>
-                        </div>
-                      </motion.div>
-                    </DropdownMenuTrigger>
-
-                    {/* New Chat button - bottom right corner, outside DropdownMenuTrigger */}
-                    <motion.button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        handleNewChat();
-                      }}
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.95 }}
-                      className={cn(
-                        'absolute bottom-3 right-3 p-2 rounded-md z-10',
-                        'opacity-0 group-hover:opacity-100 transition-opacity',
-                        active
-                          ? 'bg-background-default/20 hover:bg-background-default/30 text-text-on-accent'
-                          : 'bg-background-medium hover:bg-background-accent hover:text-text-on-accent',
-                        'flex items-center justify-center'
-                      )}
-                      title="New Chat"
-                    >
-                      <Plus className="w-4 h-4" />
-                    </motion.button>
-                  </div>
-                  <DropdownMenuContent 
-                    className="w-64 p-1 bg-background-default border-border-subtle rounded-lg shadow-lg z-[10001]"
-                    side="right"
-                    align="start"
-                    sideOffset={8}
-                  >
-                    {/* New chat button */}
-                    <DropdownMenuItem
-                      onClick={handleNewChat}
-                      className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer"
-                    >
-                      <Plus className="w-4 h-4 flex-shrink-0" />
-                      <span>New Chat</span>
-                    </DropdownMenuItem>
-                    
-                    {recentSessions.length > 0 && (
-                      <DropdownMenuSeparator className="my-1" />
+                  <motion.div
+                    draggable
+                    onDragStart={(e) => handleDragStart(e as unknown as React.DragEvent, item.id)}
+                    onDragOver={(e) => handleDragOver(e as unknown as React.DragEvent, item.id)}
+                    onDrop={(e) => handleDrop(e as unknown as React.DragEvent, item.id)}
+                    onDragEnd={handleDragEnd}
+                    initial={{ opacity: 0, y: 20, scale: 0.9 }}
+                    animate={{
+                      opacity: tilesReady ? (isDragging ? 0.5 : 1) : 0,
+                      y: tilesReady ? 0 : 20,
+                      scale: tilesReady ? (isDragging ? 0.95 : 1) : 0.9,
+                    }}
+                    transition={{
+                      type: 'spring',
+                      stiffness: 350,
+                      damping: 25,
+                      delay: tilesReady ? index * 0.05 : 0,
+                    }}
+                    className={cn(
+                      'relative cursor-move group',
+                      isDragOver && 'ring-2 ring-blue-500 rounded-lg'
                     )}
-                    
-                    {/* Recent sessions */}
-                    {recentSessions.map((session) => (
+                  >
+                    <div className="relative">
+                      <DropdownMenuTrigger asChild>
+                        <motion.div
+                          className={cn(
+                            'w-full relative flex flex-col',
+                            'rounded-lg',
+                            'transition-colors duration-200',
+                            'aspect-square cursor-pointer',
+                            active
+                              ? 'bg-background-accent text-text-on-accent'
+                              : 'bg-background-default hover:bg-background-medium'
+                          )}
+                        >
+                          <div className="flex-1 flex flex-col items-start justify-between p-5 no-drag text-left">
+                            {/* Drag handle */}
+                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                              <GripVertical className="w-4 h-4 text-text-muted" />
+                            </div>
+
+                            {/* Tag/Badge */}
+                            {item.getTag && (
+                              <div
+                                className={cn(
+                                  'absolute top-3 px-2 py-1 rounded-full',
+                                  item.tagAlign === 'left' ? 'left-8' : 'right-8',
+                                  'bg-background-muted'
+                                )}
+                              >
+                                <span className="text-xs font-mono text-text-muted">
+                                  {item.getTag()}
+                                </span>
+                              </div>
+                            )}
+
+                            {/* Icon and Label at bottom */}
+                            <div className="mt-auto w-full">
+                              <Icon className="w-6 h-6 mb-2" />
+                              <h2 className="font-light text-left text-xl">{item.label}</h2>
+                            </div>
+                          </div>
+                        </motion.div>
+                      </DropdownMenuTrigger>
+
+                      {/* New Chat button - bottom right corner, outside DropdownMenuTrigger */}
+                      <motion.button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          handleNewChat();
+                        }}
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.95 }}
+                        className={cn(
+                          'absolute bottom-3 right-3 p-2 rounded-md z-10',
+                          'opacity-0 group-hover:opacity-100 transition-opacity',
+                          active
+                            ? 'bg-background-default/20 hover:bg-background-default/30 text-text-on-accent'
+                            : 'bg-background-medium hover:bg-background-accent hover:text-text-on-accent',
+                          'flex items-center justify-center'
+                        )}
+                        title="New Chat"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </motion.button>
+                    </div>
+                    <DropdownMenuContent
+                      className="w-64 p-1 bg-background-default border-border-subtle rounded-lg shadow-lg z-[10001]"
+                      side="right"
+                      align="start"
+                      sideOffset={8}
+                    >
+                      {/* New chat button */}
                       <DropdownMenuItem
-                        key={session.id}
-                        onClick={() => handleSessionClick(session.id)}
+                        onClick={handleNewChat}
                         className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer"
                       >
-                        <MessageSquare className="w-4 h-4 flex-shrink-0 text-text-muted" />
-                        <span className="truncate">
-                          {truncateMessage(session.name, 30)}
-                        </span>
+                        <Plus className="w-4 h-4 flex-shrink-0" />
+                        <span>New Chat</span>
                       </DropdownMenuItem>
-                    ))}
-                    
-                    {/* Show All button */}
-                    {totalSessions > 10 && (
-                      <>
-                        <DropdownMenuSeparator className="my-1" />
-                        <DropdownMenuItem
-                          onClick={() => handleNavClick('/sessions')}
-                          className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer text-text-muted"
-                        >
-                          <History className="w-4 h-4 flex-shrink-0" />
-                          <span>Show All ({totalSessions})</span>
-                        </DropdownMenuItem>
-                      </>
-                    )}
-                  </DropdownMenuContent>
-                </motion.div>
-              </DropdownMenu>
-            );
-          }
 
-          // Regular tile for non-chat items
-          return (
-            <motion.div
-              key={item.id}
-              draggable
-              onDragStart={(e) => handleDragStart(e as unknown as React.DragEvent, item.id)}
-              onDragOver={(e) => handleDragOver(e as unknown as React.DragEvent, item.id)}
-              onDrop={(e) => handleDrop(e as unknown as React.DragEvent, item.id)}
-              onDragEnd={handleDragEnd}
-              initial={{ opacity: 0, y: 20, scale: 0.9 }}
-              animate={{ 
-                opacity: tilesReady ? (isDragging ? 0.5 : 1) : 0, 
-                y: tilesReady ? 0 : 20, 
-                scale: tilesReady ? (isDragging ? 0.95 : 1) : 0.9,
-              }}
-              transition={{
-                type: "spring",
-                stiffness: 350,
-                damping: 25,
-                delay: tilesReady ? index * 0.05 : 0,
-              }}
-              className={cn(
-                'relative cursor-move group',
-                isDragOver && 'ring-2 ring-blue-500 rounded-lg'
-              )}
-            >
+                      {recentSessions.length > 0 && <DropdownMenuSeparator className="my-1" />}
+
+                      {/* Recent sessions */}
+                      {recentSessions.map((session) => (
+                        <DropdownMenuItem
+                          key={session.id}
+                          onClick={() => handleSessionClick(session.id)}
+                          className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer"
+                        >
+                          <MessageSquare className="w-4 h-4 flex-shrink-0 text-text-muted" />
+                          <span className="truncate">{truncateMessage(session.name, 30)}</span>
+                        </DropdownMenuItem>
+                      ))}
+
+                      {/* Show All button */}
+                      {totalSessions > 10 && (
+                        <>
+                          <DropdownMenuSeparator className="my-1" />
+                          <DropdownMenuItem
+                            onClick={() => handleNavClick('/sessions')}
+                            className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer text-text-muted"
+                          >
+                            <History className="w-4 h-4 flex-shrink-0" />
+                            <span>Show All ({totalSessions})</span>
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                    </DropdownMenuContent>
+                  </motion.div>
+                </DropdownMenu>
+              );
+            }
+
+            // Regular tile for non-chat items
+            return (
               <motion.div
+                key={item.id}
+                draggable
+                onDragStart={(e) => handleDragStart(e as unknown as React.DragEvent, item.id)}
+                onDragOver={(e) => handleDragOver(e as unknown as React.DragEvent, item.id)}
+                onDrop={(e) => handleDrop(e as unknown as React.DragEvent, item.id)}
+                onDragEnd={handleDragEnd}
+                initial={{ opacity: 0, y: 20, scale: 0.9 }}
+                animate={{
+                  opacity: tilesReady ? (isDragging ? 0.5 : 1) : 0,
+                  y: tilesReady ? 0 : 20,
+                  scale: tilesReady ? (isDragging ? 0.95 : 1) : 0.9,
+                }}
+                transition={{
+                  type: 'spring',
+                  stiffness: 350,
+                  damping: 25,
+                  delay: tilesReady ? index * 0.05 : 0,
+                }}
                 className={cn(
-                  'w-full relative flex flex-col',
-                  'rounded-lg',
-                  'transition-colors duration-200',
-                  'aspect-square',
-                  active
-                    ? 'bg-background-accent text-text-on-accent'
-                    : 'bg-background-default hover:bg-background-medium'
+                  'relative cursor-move group',
+                  isDragOver && 'ring-2 ring-blue-500 rounded-lg'
                 )}
               >
-                {/* Main button area */}
-                <button
-                  onClick={() => handleNavClick(item.path)}
-                  className="flex-1 flex flex-col items-start justify-between p-5 no-drag text-left"
-                >
-                  {/* Drag handle */}
-                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                    <GripVertical className="w-4 h-4 text-text-muted" />
-                  </div>
-
-                  {/* Tag/Badge */}
-                  {item.getTag && (
-                    <div className={cn(
-                      'absolute top-3 px-2 py-1 rounded-full',
-                      item.tagAlign === 'left' ? 'left-8' : 'right-8',
-                      'bg-background-muted'
-                    )}>
-                      <span className="text-xs font-mono text-text-muted">
-                        {item.getTag()}
-                      </span>
-                    </div>
+                <motion.div
+                  className={cn(
+                    'w-full relative flex flex-col',
+                    'rounded-lg',
+                    'transition-colors duration-200',
+                    'aspect-square',
+                    active
+                      ? 'bg-background-accent text-text-on-accent'
+                      : 'bg-background-default hover:bg-background-medium'
                   )}
-                  
-                  {/* Icon and Label at bottom */}
-                  <div className="mt-auto w-full">
-                    <Icon className="w-6 h-6 mb-2" />
-                    <h2 className="font-light text-left text-xl">{item.label}</h2>
-                  </div>
-                </button>
+                >
+                  {/* Main button area */}
+                  <button
+                    onClick={() => handleNavClick(item.path)}
+                    className="flex-1 flex flex-col items-start justify-between p-5 no-drag text-left"
+                  >
+                    {/* Drag handle */}
+                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                      <GripVertical className="w-4 h-4 text-text-muted" />
+                    </div>
+
+                    {/* Tag/Badge */}
+                    {item.getTag && (
+                      <div
+                        className={cn(
+                          'absolute top-3 px-2 py-1 rounded-full',
+                          item.tagAlign === 'left' ? 'left-8' : 'right-8',
+                          'bg-background-muted'
+                        )}
+                      >
+                        <span className="text-xs font-mono text-text-muted">{item.getTag()}</span>
+                      </div>
+                    )}
+
+                    {/* Icon and Label at bottom */}
+                    <div className="mt-auto w-full">
+                      <Icon className="w-6 h-6 mb-2" />
+                      <h2 className="font-light text-left text-xl">{item.label}</h2>
+                    </div>
+                  </button>
+                </motion.div>
               </motion.div>
-            </motion.div>
-          );
-        })}
-        
-        {/* Spacer tiles to fill empty grid spaces - only render after grid is measured */}
-        {!isOverlayMode && gridMeasured && gridColumns >= 2 &&
-          Array.from({ 
-            // For left/right: add extra rows of spacers to fill vertical space
-            // For top/bottom: just fill remaining spaces in the last row
-            length: (navigationPosition === 'left' || navigationPosition === 'right')
-              ? ((gridColumns - (visibleItems.length % gridColumns)) % gridColumns) + (gridColumns * 6) // Fill last row + 6 more rows
-              : (gridColumns - (visibleItems.length % gridColumns)) % gridColumns
-          }).map((_, index) => (
-            <div
-              key={`spacer-${index}`}
-              className="relative"
-            >
-              <div className="w-full aspect-square rounded-lg bg-background-default" />
-            </div>
-          ))
-        }
+            );
+          })}
+
+          {/* Spacer tiles to fill empty grid spaces - only render after grid is measured */}
+          {!isOverlayMode &&
+            gridMeasured &&
+            gridColumns >= 2 &&
+            Array.from({
+              // For left/right: add extra rows of spacers to fill vertical space
+              // For top/bottom: just fill remaining spaces in the last row
+              length:
+                navigationPosition === 'left' || navigationPosition === 'right'
+                  ? ((gridColumns - (visibleItems.length % gridColumns)) % gridColumns) +
+                    gridColumns * 6 // Fill last row + 6 more rows
+                  : (gridColumns - (visibleItems.length % gridColumns)) % gridColumns,
+            }).map((_, index) => (
+              <div key={`spacer-${index}`} className="relative">
+                <div className="w-full aspect-square rounded-lg bg-background-default" />
+              </div>
+            ))}
         </div>
       ) : null}
     </motion.div>
@@ -718,13 +743,11 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
               className="absolute inset-0 bg-black/20 backdrop-blur-sm"
               onClick={() => setIsNavExpanded(false)}
             />
-            
+
             {/* Scrollable container for navigation panel */}
             <div className="absolute inset-0 overflow-y-auto pointer-events-none">
               <div className="min-h-full flex items-center justify-center p-8">
-                <div className="pointer-events-auto max-w-3xl w-full">
-                  {navContent}
-                </div>
+                <div className="pointer-events-auto max-w-3xl w-full">{navContent}</div>
               </div>
             </div>
           </div>

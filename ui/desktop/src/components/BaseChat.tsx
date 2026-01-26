@@ -39,7 +39,6 @@ import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal
 import { toastSuccess } from '../toasts';
 import { Recipe } from '../recipe';
 import { useAutoSubmit } from '../hooks/useAutoSubmit';
-import { Goose } from './icons';
 import EnvironmentBadge from './GooseSidebar/EnvironmentBadge';
 
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
@@ -85,10 +84,7 @@ export default function BaseChat({
 
   // Determine if we need extra top padding (when nav is collapsed or on mobile)
   const isNavCollapsed = !navContext?.isNavExpanded;
-  const contentClassName = cn(
-    'pr-1 pb-10 pt-10',
-    (isMobile || isNavCollapsed) && 'pt-14'
-  );
+  const contentClassName = cn('pr-1 pb-10 pt-10', (isMobile || isNavCollapsed) && 'pt-14');
   const { droppedFiles, setDroppedFiles, handleDrop, handleDragOver } = useFileDrop();
 
   const onStreamFinish = useCallback(() => {}, []);
