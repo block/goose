@@ -348,12 +348,13 @@ pub fn process_response_part(
     part: &Value,
     last_signature: &mut Option<String>,
 ) -> Option<MessageContent> {
-    // Gemini 2.5 models include thoughtSignature on the first streaming chunk
-    process_response_part_impl(
-        part,
-        last_signature,
-        SignedTextHandling::SignedTextAsRegularText,
-    )
+    let has_signature = part.get(THOUGHT_SIGNATURE_KEY).is_some();
+    let handling = if has_signature {
+        SignedTextHandling::SignedTextAsThinking
+    } else {
+        SignedTextHandling::SignedTextAsRegularText
+    };
+    process_response_part_impl(part, last_signature, handling)
 }
 
 fn process_response_part_non_streaming(
@@ -1413,17 +1414,26 @@ mod tests {
         let mut message_stream = std::pin::pin!(response_to_streaming_message(stream));
 
         let mut text_parts = Vec::new();
+        let mut thinking_parts = Vec::new();
 
         while let Some(result) = message_stream.next().await {
             let (message, _usage) = result.unwrap();
             if let Some(msg) = message {
-                if let Some(MessageContent::Text(text)) = msg.content.first() {
-                    text_parts.push(text.text.clone());
+                match msg.content.first() {
+                    Some(MessageContent::Text(text)) => {
+                        text_parts.push(text.text.clone());
+                    }
+                    Some(MessageContent::Thinking(thinking)) => {
+                        thinking_parts.push(thinking.thinking.clone());
+                        assert_eq!(thinking.signature, "sig123");
+                    }
+                    _ => {}
                 }
             }
         }
 
-        assert_eq!(text_parts, vec!["Begin", " middle", " end"]);
+        assert_eq!(thinking_parts, vec!["Begin"]);
+        assert_eq!(text_parts, vec![" middle", " end"]);
     }
 
     #[tokio::test]
