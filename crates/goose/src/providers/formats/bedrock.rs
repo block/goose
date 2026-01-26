@@ -17,8 +17,6 @@ use serde_json::Value;
 use super::super::base::Usage;
 use crate::conversation::message::{Message, MessageContent};
 
-<<<<<<< HEAD
-=======
 /// Accumulates streaming chunks into a complete message
 #[derive(Debug, Default)]
 pub struct BedrockStreamAccumulator {
@@ -135,7 +133,9 @@ impl BedrockStreamAccumulator {
         for idx in tool_indices {
             if let Some((tool_use_id, name, json)) = self.tool_blocks.get(&idx) {
                 if let Ok(args) = serde_json::from_str::<serde_json::Value>(json) {
-                    let tool_call = CallToolRequestParam {
+                    let tool_call = CallToolRequestParams {
+                        meta: None,
+                        task: None,
                         name: name.clone().into(),
                         arguments: args.as_object().cloned(),
                     };
@@ -159,7 +159,6 @@ impl BedrockStreamAccumulator {
     }
 }
 
->>>>>>> c1b919482b (fix: use or_default() instead of or_insert_with(String::new))
 pub fn to_bedrock_message(message: &Message) -> Result<bedrock::Message> {
     bedrock::Message::builder()
         .role(to_bedrock_role(&message.role))

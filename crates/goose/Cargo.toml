@@ -25,11 +25,7 @@ rmcp = { workspace = true, features = [
 ] }
 anyhow = { workspace = true }
 thiserror = "1.0"
-<<<<<<< HEAD
 futures = { workspace = true }
-=======
-futures = { version = "0.3", default-features = false }
->>>>>>> 10e623cfd0 (Add streaming support for Bedrock provider)
 dirs = "5.0"
 reqwest = { workspace = true, features = ["rustls-tls-native-roots", "json", "cookies", "gzip", "brotli", "deflate", "zstd", "charset", "http2", "stream", "blocking"], default-features = false }
 tokio = { workspace = true }

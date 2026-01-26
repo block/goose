@@ -10,13 +10,10 @@ use anyhow::Result;
 use async_trait::async_trait;
 use aws_sdk_bedrockruntime::config::ProvideCredentials;
 use aws_sdk_bedrockruntime::operation::converse::ConverseError;
+use aws_sdk_bedrockruntime::operation::converse_stream::ConverseStreamError;
 use aws_sdk_bedrockruntime::{types as bedrock, Client};
-<<<<<<< HEAD
-use futures::{Stream, StreamExt};
-=======
 
 use crate::providers::base::MessageStream;
->>>>>>> c1b919482b (fix: use or_default() instead of or_insert_with(String::new))
 use rmcp::model::Tool;
 use serde_json::Value;
 use tokio::sync::mpsc;
@@ -25,6 +22,7 @@ use tokio_stream::wrappers::ReceiverStream;
 // Import the migrated helper functions from providers/formats/bedrock.rs
 use crate::providers::formats::bedrock::{
     from_bedrock_message, from_bedrock_usage, to_bedrock_message, to_bedrock_tool_config,
+    BedrockStreamAccumulator,
 };
 
 pub const BEDROCK_DOC_LINK: &str =
@@ -56,6 +54,7 @@ pub struct BedrockProvider {
 }
 
 impl BedrockProvider {
+    #[allow(clippy::type_complexity)]
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
 
@@ -198,8 +197,6 @@ impl BedrockProvider {
             )),
         }
     }
-<<<<<<< HEAD
-=======
 
     #[allow(clippy::type_complexity)]
     async fn converse_stream_internal(
@@ -346,7 +343,6 @@ impl BedrockProvider {
             err => ProviderError::ServerError(format!("Bedrock streaming error: {:?}", err)),
         }
     }
->>>>>>> c1b919482b (fix: use or_default() instead of or_insert_with(String::new))
 }
 
 #[async_trait]
@@ -421,6 +417,7 @@ impl Provider for BedrockProvider {
 
     async fn stream(
         &self,
+        _session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -431,7 +428,6 @@ impl Provider for BedrockProvider {
         let stream_receiver = ReceiverStream::new(rx);
 
         // Create the streaming task
-        let task_tx = tx.clone();
         let client = self.client.clone();
         let model_name = self.model.model_name.clone();
         let system_prompt = system.to_string();
@@ -439,112 +435,6 @@ impl Provider for BedrockProvider {
         let tools_clone = tools.to_vec();
 
         tokio::spawn(async move {
-<<<<<<< HEAD
-            // Due to limitations or complexity with actual Bedrock streaming API,
-            // we'll simulate the streaming behavior here by making the API call
-            // and returning it as a single-stream event for compatibility
-            
-            let result = async {
-                // Convert messages to Bedrock format
-                let mut bedrock_messages = Vec::new();
-                
-                // Add system message if provided and not empty  
-                if !system_prompt.is_empty() {
-                    // Create proper Bedrock Message for system prompt
-                    bedrock_messages.push(bedrock::Message::builder()
-                        .role(bedrock::ConversationRole::User)
-                        .content(bedrock::ContentBlock::Text(system_prompt))
-                        .build()
-                        .map_err(|e| anyhow::anyhow!("Failed to build system message: {}", e))?);
-                }
-                
-                // Add user messages 
-                for message in &messages_clone {
-                    if message.is_agent_visible() {
-                        bedrock_messages.push(to_bedrock_message(message)?);
-                    }
-                }
-
-                // Prepare tool config if needed
-                let tool_config = if !tools_clone.is_empty() {
-                    Some(to_bedrock_tool_config(&tools_clone)?)
-                } else {
-                    None
-                };
-
-                // Make the converse call (similar to what complete_with_model does)
-                let mut request = client
-                    .converse()
-                    .model_id(model_name.clone())
-                    .set_messages(Some(bedrock_messages));
-
-                if let Some(tc) = tool_config {
-                    request = request.tool_config(tc);
-                }
-
-                let response = request
-                    .send()
-                    .await
-                    .map_err(|err| match err.into_service_error() {
-                        ConverseError::ThrottlingException(throttle_err) => {
-                            ProviderError::RateLimitExceeded {
-                                details: format!("Bedrock throttling error: {:?}", throttle_err),
-                                retry_delay: None,
-                            }
-                        }
-                        ConverseError::AccessDeniedException(err) => {
-                            ProviderError::Authentication(format!("Failed to call Bedrock: {:?}", err))
-                        }
-                        ConverseError::ValidationException(err)
-                            if err
-                                .message()
-                                .unwrap_or_default()
-                                .contains("Input is too long for requested model.") =>
-                        {
-                            ProviderError::ContextLengthExceeded(format!(
-                                "Failed to call Bedrock: {:?}",
-                                err
-                            ))
-                        }
-                        ConverseError::ModelErrorException(err) => {
-                            ProviderError::ExecutionError(format!("Failed to call Bedrock: {:?}", err))
-                        }
-                        err => ProviderError::ServerError(format!("Failed to call Bedrock: {:?}", err)),
-                    })?;
-                
-                match response.output {
-                    Some(bedrock::ConverseOutput::Message(message)) => {
-                        // Convert the Bedrock message to Goose message
-                        let bedrock_message = message;
-                        let bedrock_usage = response.usage;
-                        
-                        // Convert bedrock message to our format
-                        let converted_message = from_bedrock_message(&bedrock_message)?;
-                        
-                        // Convert usage if present
-                        let usage = bedrock_usage
-                            .as_ref()
-                            .map(from_bedrock_usage)
-                            .unwrap_or_default();
-                        
-                        let provider_usage = ProviderUsage::new(model_name, usage);
-                        
-                        // Send the message and usage - this is how we simulate streaming
-                        task_tx.send(Ok((Some(converted_message), Some(provider_usage)))).await.unwrap();
-                        
-                        // Also send a final None,None signal to indicate stream completion
-                        task_tx.send(Ok((None, None))).await.unwrap();
-                        
-                        Ok::<(), ProviderError>(())
-                    }
-                    _ => {
-                        task_tx.send(Err(ProviderError::RequestFailed("No valid output from Bedrock".to_string()))).await.unwrap();
-                        Ok(())
-                    }
-                }
-            }.await;
-            
-=======
             let result = Self::converse_stream_internal(
                 &client,
                 &model_name,
@@ -555,9 +445,8 @@ impl Provider for BedrockProvider {
             )
             .await;
 
->>>>>>> c1b919482b (fix: use or_default() instead of or_insert_with(String::new))
             if let Err(e) = result {
-                task_tx.send(Err(e)).await.unwrap();
+                let _ = tx.send(Err(e)).await;
             }
         });
 

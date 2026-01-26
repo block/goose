@@ -25,7 +25,9 @@ async fn test_bedrock_streaming_basic() -> Result<()> {
     let message = Message::user().with_text("Say hello in 3 words");
     let system_prompt = "You are a helpful assistant.";
 
-    let mut stream = provider.stream(system_prompt, &[message], &[]).await?;
+    let mut stream = provider
+        .stream("test-session-id", system_prompt, &[message], &[])
+        .await?;
 
     let mut message_count = 0;
     let mut text_content = String::new();
@@ -120,7 +122,7 @@ async fn test_bedrock_streaming_with_tools() -> Result<()> {
     let system_prompt = "You are a helpful weather assistant. Always use the get_weather tool to answer weather questions.";
 
     let mut stream = provider
-        .stream(system_prompt, &[message], &[weather_tool])
+        .stream("test-session-id", system_prompt, &[message], &[weather_tool])
         .await?;
 
     let mut received_tool_request = false;
@@ -170,14 +172,16 @@ async fn test_bedrock_streaming_vs_non_streaming_consistency() -> Result<()> {
 
     // Get non-streaming response
     let (non_stream_msg, non_stream_usage) = provider
-        .complete(system_prompt, &[message.clone()], &[])
+        .complete("test-session-id", system_prompt, &[message.clone()], &[])
         .await?;
 
     println!("Non-streaming response: {:?}", non_stream_msg.content);
     println!("Non-streaming usage: {:?}", non_stream_usage);
 
     // Get streaming response
-    let mut stream = provider.stream(system_prompt, &[message], &[]).await?;
+    let mut stream = provider
+        .stream("test-session-id", system_prompt, &[message], &[])
+        .await?;
 
     let mut stream_text = String::new();
     let mut stream_usage: Option<ProviderUsage> = None;
