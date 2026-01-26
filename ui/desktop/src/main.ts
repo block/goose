@@ -30,13 +30,8 @@ import log from './utils/logger';
 import { ensureWinShims } from './utils/winShims';
 import { addRecentDir, loadRecentDirs } from './utils/recentDirs';
 import { formatAppName } from './utils/conversionUtils';
-import {
-  EnvToggles,
-  loadSettings,
-  saveSettings,
-  updateEnvironmentVariables,
-  getKeyboardShortcuts,
-} from './utils/settings';
+import type { Settings } from './utils/settings';
+import { defaultKeyboardShortcuts, getKeyboardShortcuts } from './utils/settings';
 import * as crypto from 'crypto';
 import * as yaml from 'yaml';
 import windowStateKeeper from 'electron-window-state';
@@ -56,6 +51,31 @@ import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-insta
 function shouldSetupUpdater(): boolean {
   // Setup updater if either the flag is enabled OR dev updates are enabled
   return UPDATES_ENABLED || process.env.ENABLE_DEV_UPDATES === 'true';
+}
+
+// Settings management
+const SETTINGS_FILE = path.join(app.getPath('userData'), 'settings.json');
+
+const defaultSettings: Settings = {
+  showMenuBarIcon: true,
+  showDockIcon: true,
+  enableWakelock: false,
+  spellcheckEnabled: true,
+  keyboardShortcuts: defaultKeyboardShortcuts,
+};
+
+function getSettings(): Settings {
+  if (fsSync.existsSync(SETTINGS_FILE)) {
+    const data = fsSync.readFileSync(SETTINGS_FILE, 'utf8');
+    return JSON.parse(data);
+  }
+  return defaultSettings;
+}
+
+function updateSettings(modifier: (settings: Settings) => void): void {
+  const settings = getSettings();
+  modifier(settings);
+  fsSync.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
 }
 
 // Define temp directory for pasted images
@@ -449,9 +469,6 @@ async function handleFileOpen(filePath: string) {
 declare var MAIN_WINDOW_VITE_DEV_SERVER_URL: string;
 declare var MAIN_WINDOW_VITE_NAME: string;
 
-// State for environment variable toggles
-let envToggles: EnvToggles = loadSettings().envToggles;
-
 // Parse command line arguments
 const parseArgs = () => {
   let dirPath = null;
@@ -494,7 +511,7 @@ const { defaultProvider, defaultModel, predefinedModels, baseUrlShare, version }
 
 const GENERATED_SECRET = crypto.randomBytes(32).toString('hex');
 
-const getServerSecret = (settings: ReturnType<typeof loadSettings>): string => {
+const getServerSecret = (settings: Settings): string => {
   if (settings.externalGoosed?.enabled && settings.externalGoosed.secret) {
     return settings.externalGoosed.secret;
   }
@@ -534,9 +551,7 @@ const createChat = async (
   recipeId?: string,
   recipeParameters?: Record<string, string> // Recipe parameter values from deeplink URL
 ) => {
-  updateEnvironmentVariables(envToggles);
-
-  const settings = loadSettings();
+  const settings = getSettings();
   const serverSecret = getServerSecret(settings);
 
   const goosedResult = await startGoosed({
@@ -628,15 +643,11 @@ const createChat = async (
       });
 
       if (response === 0) {
-        const updatedSettings = {
-          ...settings,
-          externalGoosed: {
-            enabled: false,
-            url: settings.externalGoosed?.url || '',
-            secret: settings.externalGoosed?.secret || '',
-          },
-        };
-        saveSettings(updatedSettings);
+        updateSettings((s) => {
+          if (s.externalGoosed) {
+            s.externalGoosed.enabled = false;
+          }
+        });
         mainWindow.destroy();
         return createChat(app, initialMessage, dir);
       }
@@ -935,9 +946,9 @@ const destroyTray = () => {
 };
 
 const disableTray = () => {
-  const settings = loadSettings();
-  settings.showMenuBarIcon = false;
-  saveSettings(settings);
+  updateSettings((s) => {
+    s.showMenuBarIcon = false;
+  });
 };
 
 const createTray = () => {
@@ -1255,31 +1266,27 @@ ipcMain.handle('add-recent-dir', (_event, dir: string) => {
 
 // Handle scheduling engine settings
 ipcMain.handle('get-settings', () => {
-  return loadSettings(); // Always returns Settings (uses defaults as fallback)
+  return getSettings(); // Always returns Settings (uses defaults as fallback)
 });
 
 ipcMain.handle('save-settings', (_event, settings) => {
-  try {
-    const oldSettings = loadSettings();
+  const oldSettings = getSettings();
 
-    const oldShortcuts = getKeyboardShortcuts(oldSettings);
-    const newShortcuts = getKeyboardShortcuts(settings);
-    const shortcutsChanged = JSON.stringify(oldShortcuts) !== JSON.stringify(newShortcuts);
+  const oldShortcuts = getKeyboardShortcuts(oldSettings);
+  const newShortcuts = getKeyboardShortcuts(settings);
+  const shortcutsChanged = JSON.stringify(oldShortcuts) !== JSON.stringify(newShortcuts);
 
-    if (shortcutsChanged) {
-      registerGlobalShortcuts();
-    }
+  fsSync.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
 
-    saveSettings(settings);
-    return true;
-  } catch (error) {
-    console.error('Error saving settings:', error);
-    return false;
+  if (shortcutsChanged) {
+    registerGlobalShortcuts();
   }
+
+  return true;
 });
 
 ipcMain.handle('get-secret-key', () => {
-  const settings = loadSettings();
+  const settings = getSettings();
   return getServerSecret(settings);
 });
 
@@ -1297,26 +1304,21 @@ ipcMain.handle('get-goosed-host-port', async (event) => {
 
 // Handle menu bar icon visibility
 ipcMain.handle('set-menu-bar-icon', async (_event, show: boolean) => {
-  try {
-    const settings = loadSettings();
-    settings.showMenuBarIcon = show;
-    saveSettings(settings);
+  updateSettings((s) => {
+    s.showMenuBarIcon = show;
+  });
 
-    if (show) {
-      createTray();
-    } else {
-      destroyTray();
-    }
-    return true;
-  } catch (error) {
-    console.error('Error setting menu bar icon:', error);
-    return false;
+  if (show) {
+    createTray();
+  } else {
+    destroyTray();
   }
+  return true;
 });
 
 ipcMain.handle('get-menu-bar-icon-state', () => {
   try {
-    const settings = loadSettings();
+    const settings = getSettings();
     return settings.showMenuBarIcon ?? true;
   } catch (error) {
     console.error('Error getting menu bar icon state:', error);
@@ -1326,35 +1328,31 @@ ipcMain.handle('get-menu-bar-icon-state', () => {
 
 // Handle dock icon visibility (macOS only)
 ipcMain.handle('set-dock-icon', async (_event, show: boolean) => {
-  try {
-    if (process.platform !== 'darwin') return false;
+  if (process.platform !== 'darwin') return false;
 
-    const settings = loadSettings();
-    settings.showDockIcon = show;
-    saveSettings(settings);
+  const settings = getSettings();
+  updateSettings((s) => {
+    s.showDockIcon = show;
+  });
 
-    if (show) {
-      app.dock?.show();
-    } else {
-      // Only hide the dock if we have a menu bar icon to maintain accessibility
-      if (settings.showMenuBarIcon) {
-        app.dock?.hide();
-        setTimeout(() => {
-          focusWindow();
-        }, 50);
-      }
+  if (show) {
+    app.dock?.show();
+  } else {
+    // Only hide the dock if we have a menu bar icon to maintain accessibility
+    if (settings.showMenuBarIcon) {
+      app.dock?.hide();
+      setTimeout(() => {
+        focusWindow();
+      }, 50);
     }
-    return true;
-  } catch (error) {
-    console.error('Error setting dock icon:', error);
-    return false;
   }
+  return true;
 });
 
 ipcMain.handle('get-dock-icon-state', () => {
   try {
     if (process.platform !== 'darwin') return true;
-    const settings = loadSettings();
+    const settings = getSettings();
     return settings.showDockIcon ?? true;
   } catch (error) {
     console.error('Error getting dock icon state:', error);
@@ -1420,39 +1418,34 @@ ipcMain.handle('open-notifications-settings', async () => {
 
 // Handle wakelock setting
 ipcMain.handle('set-wakelock', async (_event, enable: boolean) => {
-  try {
-    const settings = loadSettings();
-    settings.enableWakelock = enable;
-    saveSettings(settings);
+  updateSettings((s) => {
+    s.enableWakelock = enable;
+  });
 
-    // Stop all existing power save blockers when disabling the setting
-    if (!enable) {
-      for (const [windowId, blockerId] of windowPowerSaveBlockers.entries()) {
-        try {
-          powerSaveBlocker.stop(blockerId);
-          console.log(
-            `[Main] Stopped power save blocker ${blockerId} for window ${windowId} due to wakelock setting disabled`
-          );
-        } catch (error) {
-          console.error(
-            `[Main] Failed to stop power save blocker ${blockerId} for window ${windowId}:`,
-            error
-          );
-        }
+  // Stop all existing power save blockers when disabling the setting
+  if (!enable) {
+    for (const [windowId, blockerId] of windowPowerSaveBlockers.entries()) {
+      try {
+        powerSaveBlocker.stop(blockerId);
+        console.log(
+          `[Main] Stopped power save blocker ${blockerId} for window ${windowId} due to wakelock setting disabled`
+        );
+      } catch (error) {
+        console.error(
+          `[Main] Failed to stop power save blocker ${blockerId} for window ${windowId}:`,
+          error
+        );
       }
-      windowPowerSaveBlockers.clear();
     }
-
-    return true;
-  } catch (error) {
-    console.error('Error setting wakelock:', error);
-    return false;
+    windowPowerSaveBlockers.clear();
   }
+
+  return true;
 });
 
 ipcMain.handle('get-wakelock-state', () => {
   try {
-    const settings = loadSettings();
+    const settings = getSettings();
     return settings.enableWakelock ?? false;
   } catch (error) {
     console.error('Error getting wakelock state:', error);
@@ -1461,20 +1454,15 @@ ipcMain.handle('get-wakelock-state', () => {
 });
 
 ipcMain.handle('set-spellcheck', async (_event, enable: boolean) => {
-  try {
-    const settings = loadSettings();
-    settings.spellcheckEnabled = enable;
-    saveSettings(settings);
-    return true;
-  } catch (error) {
-    console.error('Error setting spellcheck:', error);
-    return false;
-  }
+  updateSettings((s) => {
+    s.spellcheckEnabled = enable;
+  });
+  return true;
 });
 
 ipcMain.handle('get-spellcheck-state', () => {
   try {
-    const settings = loadSettings();
+    const settings = getSettings();
     return settings.spellcheckEnabled ?? true;
   } catch (error) {
     console.error('Error getting spellcheck state:', error);
@@ -1813,7 +1801,7 @@ const focusWindow = () => {
 const registerGlobalShortcuts = () => {
   globalShortcut.unregisterAll();
 
-  const settings = loadSettings();
+  const settings = getSettings();
   const shortcuts = getKeyboardShortcuts(settings);
 
   if (shortcuts.focusWindow) {
@@ -1866,7 +1854,7 @@ async function appMain() {
       'https://objects.githubusercontent.com',
     ];
 
-    const settings = loadSettings();
+    const settings = getSettings();
     if (settings.externalGoosed?.enabled && settings.externalGoosed.url) {
       try {
         const externalUrl = new URL(settings.externalGoosed.url);
@@ -1904,11 +1892,12 @@ async function appMain() {
   });
 
   // Migrate old settings format if needed (one-time migration)
-  let settings = loadSettings();
+  const settings = getSettings();
   if (!settings.keyboardShortcuts && settings.globalShortcut !== undefined) {
-    settings.keyboardShortcuts = getKeyboardShortcuts(settings);
-    delete settings.globalShortcut; // Remove deprecated field
-    saveSettings(settings);
+    updateSettings((s) => {
+      s.keyboardShortcuts = getKeyboardShortcuts(s);
+      delete s.globalShortcut;
+    });
   }
 
   // Register global shortcuts based on settings
