@@ -24,7 +24,6 @@ export default function ChatSessionsContainer({
   const currentSessionId = searchParams.get('resumeSessionId') ?? undefined;
 
   // Always render active sessions to keep SSE connections alive, even when not on /pair route
-  // If there's no currentSessionId and no active sessions, return null
   if (!currentSessionId && activeSessions.length === 0) {
     return null;
   }
