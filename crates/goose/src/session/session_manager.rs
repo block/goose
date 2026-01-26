@@ -365,7 +365,10 @@ impl SessionManager {
     }
 
     pub async fn consolidate_fragmented_messages() -> Result<usize> {
-        Self::instance().storage.migrate_consolidate_messages().await
+        Self::instance()
+            .storage
+            .migrate_consolidate_messages()
+            .await
     }
 }
 

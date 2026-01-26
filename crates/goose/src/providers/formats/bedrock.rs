@@ -65,7 +65,7 @@ impl BedrockStreamAccumulator {
         match delta {
             bedrock::ContentBlockDelta::Text(text) => {
                 // Ensure the block exists (in case we get delta before start)
-            self.text_blocks.entry(index).or_default().push_str(text);
+                self.text_blocks.entry(index).or_default().push_str(text);
                 self.build_incremental_delta_message(index)
             }
             bedrock::ContentBlockDelta::ToolUse(tool_delta) => {

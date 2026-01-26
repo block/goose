@@ -122,7 +122,12 @@ async fn test_bedrock_streaming_with_tools() -> Result<()> {
     let system_prompt = "You are a helpful weather assistant. Always use the get_weather tool to answer weather questions.";
 
     let mut stream = provider
-        .stream("test-session-id", system_prompt, &[message], &[weather_tool])
+        .stream(
+            "test-session-id",
+            system_prompt,
+            &[message],
+            &[weather_tool],
+        )
         .await?;
 
     let mut received_tool_request = false;
