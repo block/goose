@@ -1,6 +1,7 @@
 import { app } from 'electron';
 import fs from 'fs';
 import path from 'path';
+import { defaultKeyboardShortcuts } from './keyboardShortcutDefaults';
 
 export interface EnvToggles {
   GOOSE_SERVER__MEMORY: boolean;
@@ -13,6 +14,19 @@ export interface ExternalGoosedConfig {
   secret: string;
 }
 
+export interface KeyboardShortcuts {
+  focusWindow: string | null; // null means disabled
+  quickLauncher: string | null;
+  newChat: string | null;
+  newChatWindow: string | null;
+  openDirectory: string | null;
+  settings: string | null;
+  find: string | null;
+  findNext: string | null;
+  findPrevious: string | null;
+  alwaysOnTop: string | null;
+}
+
 export interface Settings {
   envToggles: EnvToggles;
   showMenuBarIcon: boolean;
@@ -20,6 +34,8 @@ export interface Settings {
   enableWakelock: boolean;
   spellcheckEnabled: boolean;
   externalGoosed?: ExternalGoosedConfig;
+  globalShortcut?: string | null; // Deprecated: use keyboardShortcuts.focusWindow
+  keyboardShortcuts?: KeyboardShortcuts;
 }
 
 const SETTINGS_FILE = path.join(app.getPath('userData'), 'settings.json');
@@ -33,6 +49,8 @@ const defaultSettings: Settings = {
   showDockIcon: true,
   enableWakelock: false,
   spellcheckEnabled: true,
+  globalShortcut: 'CommandOrControl+Alt+G', // Deprecated: kept for backwards compatibility
+  keyboardShortcuts: defaultKeyboardShortcuts,
 };
 
 // Settings management
@@ -68,4 +86,18 @@ export function updateEnvironmentVariables(envToggles: EnvToggles): void {
   } else {
     delete process.env.GOOSE_SERVER__COMPUTER_CONTROLLER;
   }
+}
+
+export function getKeyboardShortcuts(settings: Settings): KeyboardShortcuts {
+  // Migrate from old globalShortcut field if needed
+  if (!settings.keyboardShortcuts && settings.globalShortcut !== undefined) {
+    return {
+      ...defaultKeyboardShortcuts,
+      focusWindow: settings.globalShortcut,
+      quickLauncher: settings.globalShortcut
+        ? settings.globalShortcut.replace(/\+G$/i, '+Shift+G')
+        : null,
+    };
+  }
+  return settings.keyboardShortcuts || defaultKeyboardShortcuts;
 }

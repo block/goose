@@ -35,6 +35,7 @@ import {
   loadSettings,
   saveSettings,
   updateEnvironmentVariables,
+  getKeyboardShortcuts,
 } from './utils/settings';
 import * as crypto from 'crypto';
 // import electron from "electron";
@@ -1266,11 +1267,23 @@ ipcMain.handle('get-settings', () => {
 
 ipcMain.handle('save-settings', (_event, settings) => {
   try {
+    const oldSettings = loadSettings();
     saveSettings(settings);
-    return true;
+
+    // Check if keyboard shortcuts changed
+    const oldShortcuts = getKeyboardShortcuts(oldSettings);
+    const newShortcuts = getKeyboardShortcuts(settings);
+    const shortcutsChanged = JSON.stringify(oldShortcuts) !== JSON.stringify(newShortcuts);
+
+    // Re-register global shortcuts if they changed
+    if (shortcutsChanged) {
+      registerGlobalShortcuts();
+    }
+
+    return { success: true, shortcutsChanged };
   } catch (error) {
     console.error('Error saving settings:', error);
-    return false;
+    return { success: false, shortcutsChanged: false };
   }
 });
 
@@ -1806,6 +1819,37 @@ const focusWindow = () => {
   }
 };
 
+// Register global shortcuts based on settings
+const registerGlobalShortcuts = () => {
+  // Unregister all existing shortcuts first
+  globalShortcut.unregisterAll();
+
+  const settings = loadSettings();
+  const shortcuts = getKeyboardShortcuts(settings);
+
+  // Register focus window shortcut (global)
+  if (shortcuts.focusWindow) {
+    try {
+      globalShortcut.register(shortcuts.focusWindow, () => {
+        focusWindow();
+      });
+    } catch (e) {
+      console.error('Error registering focus window hotkey:', e);
+    }
+  }
+
+  // Register quick launcher shortcut (global)
+  if (shortcuts.quickLauncher) {
+    try {
+      globalShortcut.register(shortcuts.quickLauncher, () => {
+        createLauncher();
+      });
+    } catch (e) {
+      console.error('Error registering launcher hotkey:', e);
+    }
+  }
+};
+
 async function appMain() {
   await configureProxy();
 
@@ -1872,21 +1916,8 @@ async function appMain() {
     });
   });
 
-  try {
-    globalShortcut.register('CommandOrControl+Alt+Shift+G', () => {
-      createLauncher();
-    });
-  } catch (e) {
-    console.error('Error registering launcher hotkey:', e);
-  }
-
-  try {
-    globalShortcut.register('CommandOrControl+Alt+G', () => {
-      focusWindow();
-    });
-  } catch (e) {
-    console.error('Error registering focus window hotkey:', e);
-  }
+  // Register global shortcuts based on settings
+  registerGlobalShortcuts();
 
   session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
     details.requestHeaders['Origin'] = 'http://localhost:5173';
@@ -1936,20 +1967,24 @@ async function appMain() {
 
   const menu = Menu.getApplicationMenu();
 
+  const shortcuts = getKeyboardShortcuts(settings);
+
   const appMenu = menu?.items.find((item) => item.label === 'Goose');
   if (appMenu?.submenu) {
     appMenu.submenu.insert(1, new MenuItem({ type: 'separator' }));
-    appMenu.submenu.insert(
-      1,
-      new MenuItem({
-        label: 'Settings',
-        accelerator: 'CmdOrCtrl+,',
-        click() {
-          const focusedWindow = BrowserWindow.getFocusedWindow();
-          if (focusedWindow) focusedWindow.webContents.send('set-view', 'settings');
-        },
-      })
-    );
+    if (shortcuts.settings) {
+      appMenu.submenu.insert(
+        1,
+        new MenuItem({
+          label: 'Settings',
+          accelerator: shortcuts.settings,
+          click() {
+            const focusedWindow = BrowserWindow.getFocusedWindow();
+            if (focusedWindow) focusedWindow.webContents.send('set-view', 'settings');
+          },
+        })
+      );
+    }
     appMenu.submenu.insert(1, new MenuItem({ type: 'separator' }));
   }
 
@@ -1960,7 +1995,7 @@ async function appMain() {
     const findSubmenu = Menu.buildFromTemplate([
       {
         label: 'Find…',
-        accelerator: process.platform === 'darwin' ? 'Command+F' : 'Control+F',
+        accelerator: shortcuts.find || undefined,
         click() {
           const focusedWindow = BrowserWindow.getFocusedWindow();
           if (focusedWindow) focusedWindow.webContents.send('find-command');
@@ -1968,7 +2003,7 @@ async function appMain() {
       },
       {
         label: 'Find Next',
-        accelerator: process.platform === 'darwin' ? 'Command+G' : 'Control+G',
+        accelerator: shortcuts.findNext || undefined,
         click() {
           const focusedWindow = BrowserWindow.getFocusedWindow();
           if (focusedWindow) focusedWindow.webContents.send('find-next');
@@ -1976,7 +2011,7 @@ async function appMain() {
       },
       {
         label: 'Find Previous',
-        accelerator: process.platform === 'darwin' ? 'Shift+Command+G' : 'Shift+Control+G',
+        accelerator: shortcuts.findPrevious || undefined,
         click() {
           const focusedWindow = BrowserWindow.getFocusedWindow();
           if (focusedWindow) focusedWindow.webContents.send('find-previous');
@@ -2005,37 +2040,43 @@ async function appMain() {
   const fileMenu = menu?.items.find((item) => item.label === 'File');
 
   if (fileMenu?.submenu) {
-    fileMenu.submenu.insert(
-      0,
-      new MenuItem({
-        label: 'New Chat',
-        accelerator: 'CmdOrCtrl+T',
-        click() {
-          const focusedWindow = BrowserWindow.getFocusedWindow();
-          if (focusedWindow) focusedWindow.webContents.send('new-chat');
-        },
-      })
-    );
+    if (shortcuts.newChat) {
+      fileMenu.submenu.insert(
+        0,
+        new MenuItem({
+          label: 'New Chat',
+          accelerator: shortcuts.newChat,
+          click() {
+            const focusedWindow = BrowserWindow.getFocusedWindow();
+            if (focusedWindow) focusedWindow.webContents.send('new-chat');
+          },
+        })
+      );
+    }
 
-    fileMenu.submenu.insert(
-      1,
-      new MenuItem({
-        label: 'New Chat Window',
-        accelerator: process.platform === 'darwin' ? 'Cmd+N' : 'Ctrl+N',
-        click() {
-          ipcMain.emit('create-chat-window');
-        },
-      })
-    );
+    if (shortcuts.newChatWindow) {
+      fileMenu.submenu.insert(
+        1,
+        new MenuItem({
+          label: 'New Chat Window',
+          accelerator: shortcuts.newChatWindow,
+          click() {
+            ipcMain.emit('create-chat-window');
+          },
+        })
+      );
+    }
 
-    fileMenu.submenu.insert(
-      2,
-      new MenuItem({
-        label: 'Open Directory...',
-        accelerator: 'CmdOrCtrl+O',
-        click: () => openDirectoryDialog(),
-      })
-    );
+    if (shortcuts.openDirectory) {
+      fileMenu.submenu.insert(
+        2,
+        new MenuItem({
+          label: 'Open Directory...',
+          accelerator: shortcuts.openDirectory,
+          click: () => openDirectoryDialog(),
+        })
+      );
+    }
 
     const recentFilesSubmenu = buildRecentFilesMenu();
     if (recentFilesSubmenu.length > 0) {
@@ -2050,25 +2091,30 @@ async function appMain() {
 
     fileMenu.submenu.insert(4, new MenuItem({ type: 'separator' }));
 
-    fileMenu.submenu.append(
-      new MenuItem({
-        label: 'Focus Goose Window',
-        accelerator: 'CmdOrCtrl+Alt+G',
-        click() {
-          focusWindow();
-        },
-      })
-    );
+    // Add global shortcuts from settings
+    if (shortcuts.focusWindow) {
+      fileMenu.submenu.append(
+        new MenuItem({
+          label: 'Focus Goose Window',
+          accelerator: shortcuts.focusWindow,
+          click() {
+            focusWindow();
+          },
+        })
+      );
+    }
 
-    fileMenu.submenu.append(
-      new MenuItem({
-        label: 'Quick Launcher',
-        accelerator: 'CmdOrCtrl+Alt+Shift+G',
-        click() {
-          createLauncher();
-        },
-      })
-    );
+    if (shortcuts.quickLauncher) {
+      fileMenu.submenu.append(
+        new MenuItem({
+          label: 'Quick Launcher',
+          accelerator: shortcuts.quickLauncher,
+          click() {
+            createLauncher();
+          },
+        })
+      );
+    }
   }
 
   if (menu) {
@@ -2089,29 +2135,31 @@ async function appMain() {
     }
 
     if (windowMenu.submenu) {
-      windowMenu.submenu.append(
-        new MenuItem({
-          label: 'Always on Top',
-          type: 'checkbox',
-          accelerator: process.platform === 'darwin' ? 'Cmd+Shift+T' : 'Ctrl+Shift+T',
-          click(menuItem) {
-            const focusedWindow = BrowserWindow.getFocusedWindow();
-            if (focusedWindow) {
-              const isAlwaysOnTop = menuItem.checked;
+      if (shortcuts.alwaysOnTop) {
+        windowMenu.submenu.append(
+          new MenuItem({
+            label: 'Always on Top',
+            type: 'checkbox',
+            accelerator: shortcuts.alwaysOnTop,
+            click(menuItem) {
+              const focusedWindow = BrowserWindow.getFocusedWindow();
+              if (focusedWindow) {
+                const isAlwaysOnTop = menuItem.checked;
 
-              if (process.platform === 'darwin') {
-                focusedWindow.setAlwaysOnTop(isAlwaysOnTop, 'floating');
-              } else {
-                focusedWindow.setAlwaysOnTop(isAlwaysOnTop);
+                if (process.platform === 'darwin') {
+                  focusedWindow.setAlwaysOnTop(isAlwaysOnTop, 'floating');
+                } else {
+                  focusedWindow.setAlwaysOnTop(isAlwaysOnTop);
+                }
+
+                console.log(
+                  `[Main] Set always-on-top to ${isAlwaysOnTop} for window ${focusedWindow.id}`
+                );
               }
-
-              console.log(
-                `[Main] Set always-on-top to ${isAlwaysOnTop} for window ${focusedWindow.id}`
-              );
-            }
-          },
-        })
-      );
+            },
+          })
+        );
+      }
     }
   }
 
