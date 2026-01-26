@@ -17,11 +17,11 @@ jobs:
     runs-on: ubuntu-latest
     if: startsWith(github.event.pull_request.head.ref, 'release/') && github.event.pull_request.user.login == 'github-actions[bot]'
     steps:
-    - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4
+    - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
       with:
         fetch-depth: 0 # to generate complete release log
 
-    - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4
+    - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
       with:
         ref: ${{ github.base_ref }}
         path: './prior-version'

@@ -62,7 +62,7 @@ jobs:
       - name: Get PR info
         id: get_pr_info
         if: ${{ steps.command.outputs.continue == 'true' || github.event_name == 'workflow_dispatch' }}
-        uses: actions/github-script@v7
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd  # v8
         with:
           script: |
             let prNumber;
@@ -121,7 +121,7 @@ jobs:
 
     steps:
       - name: Download ARM64 artifact
-        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # pin@v4
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7.0.0
         with:
           name: Goose-darwin-arm64
           path: arm64-dist

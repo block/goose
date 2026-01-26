@@ -25,7 +25,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
         with:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
@@ -122,7 +122,7 @@ jobs:
           ls -la ui/desktop/src/bin/
 
       - name: Cache npm dependencies
-        uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
+        uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7  # v5.0.2
         with:
           path: |
             ui/desktop/node_modules
@@ -164,28 +164,28 @@ jobs:
           find ui/desktop/out/ -name "*.deb" -o -name "*.rpm" -o -name "*.flatpak" -exec ls -lh {} \;
 
       - name: Upload .deb package
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
         with:
           name: Goose-linux-x64-deb
           path: ui/desktop/out/make/deb/x64/*.deb
           if-no-files-found: error
 
       - name: Upload .rpm package
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
         with:
           name: Goose-linux-x64-rpm
           path: ui/desktop/out/make/rpm/x64/*.rpm
           if-no-files-found: error
 
       - name: Upload .flatpak package
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
         with:
           name: Goose-linux-x64-flatpak
           path: ui/desktop/out/make/flatpak/**/*.flatpak
           if-no-files-found: error
 
       - name: Upload combined Linux packages
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
         with:
           name: Goose-linux-x64
           path: |
