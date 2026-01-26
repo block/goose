@@ -95,30 +95,13 @@ export default function KeyboardShortcutsSection() {
   const [editingKey, setEditingKey] = useState<keyof KeyboardShortcuts | null>(null);
   const [showRestartNotice, setShowRestartNotice] = useState(false);
 
-  // Migrate from the old single globalShortcut field to the new keyboardShortcuts object
-  // This provides backwards compatibility for users upgrading from older versions
-  const migrateFromOldFormat = useCallback((settings: Settings): KeyboardShortcuts => {
-    // If there was an old globalShortcut, preserve it for focusWindow and derive quickLauncher
-    if (settings.globalShortcut !== undefined) {
-      return {
-        ...defaultKeyboardShortcuts,
-        focusWindow: settings.globalShortcut,
-        quickLauncher: settings.globalShortcut
-          ? settings.globalShortcut.replace(/\+G$/i, '+Shift+G')
-          : defaultKeyboardShortcuts.quickLauncher,
-      };
-    }
-    return defaultKeyboardShortcuts;
-  }, []);
-
   const loadShortcuts = useCallback(async () => {
     const settings = (await window.electron.getSettings()) as Settings | null;
     if (settings) {
-      // If keyboardShortcuts exists, use it. Otherwise, migrate from old globalShortcut field
-      const shortcuts = settings.keyboardShortcuts || migrateFromOldFormat(settings);
-      setShortcuts(shortcuts);
+      // Settings are already migrated at app startup, so just use keyboardShortcuts directly
+      setShortcuts(settings.keyboardShortcuts || defaultKeyboardShortcuts);
     }
-  }, [migrateFromOldFormat]);
+  }, []);
 
   useEffect(() => {
     loadShortcuts();
@@ -137,9 +120,7 @@ export default function KeyboardShortcutsSection() {
     const settings = (await window.electron.getSettings()) as Settings | null;
     if (settings) {
       settings.keyboardShortcuts = newShortcuts;
-      const result = await window.electron.saveSettings(settings);
-      // Handle both boolean and object return types
-      const success = typeof result === 'boolean' ? result : result?.success;
+      const success = await window.electron.saveSettings(settings);
       if (success) {
         setShortcuts(newShortcuts);
         trackSettingToggled(`shortcut_${key}`, enabled);
@@ -220,9 +201,7 @@ export default function KeyboardShortcutsSection() {
     const settings = (await window.electron.getSettings()) as Settings | null;
     if (settings) {
       settings.keyboardShortcuts = newShortcuts;
-      const result = await window.electron.saveSettings(settings);
-      // Handle both boolean and object return types
-      const success = typeof result === 'boolean' ? result : result?.success;
+      const success = await window.electron.saveSettings(settings);
       if (success) {
         setShortcuts(newShortcuts);
         setEditingKey(null);
@@ -252,9 +231,7 @@ export default function KeyboardShortcutsSection() {
       const settings = (await window.electron.getSettings()) as Settings | null;
       if (settings) {
         settings.keyboardShortcuts = { ...defaultKeyboardShortcuts };
-        const result = await window.electron.saveSettings(settings);
-        // Handle both boolean and object return types
-        const success = typeof result === 'boolean' ? result : result?.success;
+        const success = await window.electron.saveSettings(settings);
         if (success) {
           setShortcuts({ ...defaultKeyboardShortcuts });
           setShowRestartNotice(true);

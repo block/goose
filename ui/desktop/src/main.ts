@@ -1270,20 +1270,19 @@ ipcMain.handle('save-settings', (_event, settings) => {
     const oldSettings = loadSettings();
     saveSettings(settings);
 
-    // Check if keyboard shortcuts changed
+    // Check if keyboard shortcuts changed and re-register them
     const oldShortcuts = getKeyboardShortcuts(oldSettings);
     const newShortcuts = getKeyboardShortcuts(settings);
     const shortcutsChanged = JSON.stringify(oldShortcuts) !== JSON.stringify(newShortcuts);
 
-    // Re-register global shortcuts if they changed
     if (shortcutsChanged) {
       registerGlobalShortcuts();
     }
 
-    return { success: true, shortcutsChanged };
+    return true;
   } catch (error) {
     console.error('Error saving settings:', error);
-    return { success: false, shortcutsChanged: false };
+    return false;
   }
 });
 
@@ -1916,6 +1915,14 @@ async function appMain() {
     });
   });
 
+  // Migrate old settings format if needed (one-time migration)
+  let settings = loadSettings();
+  if (!settings.keyboardShortcuts && settings.globalShortcut !== undefined) {
+    settings.keyboardShortcuts = getKeyboardShortcuts(settings);
+    delete settings.globalShortcut; // Remove deprecated field
+    saveSettings(settings);
+  }
+
   // Register global shortcuts based on settings
   registerGlobalShortcuts();
 
@@ -1924,7 +1931,6 @@ async function appMain() {
     callback({ cancel: false, requestHeaders: details.requestHeaders });
   });
 
-  const settings = loadSettings();
   if (settings.showMenuBarIcon) {
     createTray();
   }
