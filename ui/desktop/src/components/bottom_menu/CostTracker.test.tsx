@@ -26,13 +26,29 @@ describe('CostTracker', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Mock localStorage to enable pricing
-    Storage.prototype.getItem = vi.fn(() => null);
+    vi.spyOn(window.localStorage, 'getItem').mockReturnValue(null);
 
     mockUseModelAndProvider.mockReturnValue({
       currentModel: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
       currentProvider: 'aws_bedrock',
       setCurrentModel: vi.fn(),
       setCurrentProvider: vi.fn(),
+      changeModel: vi.fn(async () => {}),
+      getCurrentModelAndProvider: vi.fn(async () => ({
+        model: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+        provider: 'aws_bedrock',
+      })),
+      getFallbackModelAndProvider: vi.fn(async () => ({
+        model: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+        provider: 'aws_bedrock',
+      })),
+      getCurrentModelAndProviderForDisplay: vi.fn(async () => ({
+        model: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+        provider: 'aws_bedrock',
+      })),
+      getCurrentModelDisplayName: vi.fn(async () => 'anthropic.claude-3-5-sonnet-20241022-v2:0'),
+      getCurrentProviderDisplayName: vi.fn(async () => 'aws_bedrock'),
+      refreshCurrentModelAndProvider: vi.fn(async () => {}),
     });
   });
 
@@ -196,6 +212,22 @@ describe('CostTracker', () => {
         currentProvider: 'ollama',
         setCurrentModel: vi.fn(),
         setCurrentProvider: vi.fn(),
+        changeModel: vi.fn(async () => {}),
+        getCurrentModelAndProvider: vi.fn(async () => ({
+          model: 'llama2',
+          provider: 'ollama',
+        })),
+        getFallbackModelAndProvider: vi.fn(async () => ({
+          model: 'llama2',
+          provider: 'ollama',
+        })),
+        getCurrentModelAndProviderForDisplay: vi.fn(async () => ({
+          model: 'llama2',
+          provider: 'ollama',
+        })),
+        getCurrentModelDisplayName: vi.fn(async () => 'llama2'),
+        getCurrentProviderDisplayName: vi.fn(async () => 'ollama'),
+        refreshCurrentModelAndProvider: vi.fn(async () => {}),
       });
 
       mockFetchModelPricing.mockResolvedValue(null);
@@ -225,8 +257,8 @@ describe('CostTracker', () => {
       const mockPricingData: PricingData = {
         provider: 'aws_bedrock',
         model: 'unknown-model',
-        input_token_cost: undefined as any,
-        output_token_cost: undefined as any,
+        input_token_cost: undefined as unknown as number,
+        output_token_cost: undefined as unknown as number,
         currency: '$',
         context_length: 0,
       };

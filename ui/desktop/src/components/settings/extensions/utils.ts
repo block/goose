@@ -170,7 +170,7 @@ export function createExtensionConfig(formData: ExtensionFormData): ExtensionCon
 }
 
 export function splitCmdAndArgs(str: string): { cmd: string; args: string[] } {
-  const parts = parse(str.trim()).filter((p): p is string => typeof p === 'string');
+  const parts = parse(str.trim()).filter((p: unknown): p is string => typeof p === 'string');
   return { cmd: parts[0] || '', args: parts.slice(1) };
 }
 
