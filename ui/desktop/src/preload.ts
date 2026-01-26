@@ -44,12 +44,6 @@ interface FileResponse {
   found: boolean;
 }
 
-interface SaveDataUrlResponse {
-  id: string;
-  filePath?: string;
-  error?: string;
-}
-
 const config = JSON.parse(process.argv.find((arg) => arg.startsWith('{')) || '{}');
 
 interface UpdaterEvent {
@@ -117,10 +111,6 @@ type ElectronAPI = {
     useSystemTheme: boolean;
     theme: string;
   }) => void;
-  // Functions for image pasting
-  saveDataUrlToTemp: (dataUrl: string, uniqueId: string) => Promise<SaveDataUrlResponse>;
-  deleteTempFile: (filePath: string) => void;
-  // Function for opening external URLs securely
   openExternal: (url: string) => Promise<void>;
   // Update-related functions
   getVersion: () => string;
@@ -235,12 +225,6 @@ const electronAPI: ElectronAPI = {
   },
   broadcastThemeChange: (themeData: { mode: string; useSystemTheme: boolean; theme: string }) => {
     ipcRenderer.send('broadcast-theme-change', themeData);
-  },
-  saveDataUrlToTemp: (dataUrl: string, uniqueId: string): Promise<SaveDataUrlResponse> => {
-    return ipcRenderer.invoke('save-data-url-to-temp', dataUrl, uniqueId);
-  },
-  deleteTempFile: (filePath: string): void => {
-    ipcRenderer.send('delete-temp-file', filePath);
   },
   openExternal: (url: string): Promise<void> => {
     return ipcRenderer.invoke('open-external', url);
