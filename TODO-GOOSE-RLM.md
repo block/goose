@@ -17,7 +17,7 @@
 | RLM Module Structure | ✅ Done | `crates/goose/src/rlm/mod.rs` |
 | Context Store | ✅ Done | `crates/goose/src/rlm/context_store.rs` |
 | RLM System Prompts | ✅ Done | `crates/goose/src/rlm/prompts.rs` |
-| Test Utilities | ✅ Done | `crates/goose/src/rlm/tests.rs` |
+| Test Utilities | ✅ Done | `crates/goose/src/rlm/test_utils.rs` |
 | RLM Platform Extension | ✅ Done | `crates/goose/src/agents/rlm_extension.rs` |
 | Extension Registration | ✅ Done | Added to `PLATFORM_EXTENSIONS` |
 | Unit Tests | ✅ Done | 562 tests passing |
@@ -104,7 +104,7 @@ Implement RLM support in Goose to handle arbitrarily long prompts by treating th
 - [x] `is_rlm_candidate()` function
 
 #### 5. Test Utilities ✅
-**File**: `crates/goose/src/rlm/tests.rs`
+**File**: `crates/goose/src/rlm/test_utils.rs`
 
 - [x] `generate_needle_haystack()` - Create test data
 - [x] `generate_multi_document_context()` - Multi-doc test data
@@ -125,7 +125,7 @@ Implement RLM support in Goose to handle arbitrarily long prompts by treating th
 #### 6. Agent Auto-Detection ✅
 **File**: `crates/goose/src/agents/agent.rs` (modifications)
 
-- [x] Add `default_rlm_config()` function
+- [x] Add `get_rlm_config()` function (uses RlmConfigManager)
 - [x] Add `maybe_enable_rlm()` helper method
 - [x] Detect large context in `reply()` method
 - [x] Auto-enable RLM extension when threshold exceeded
