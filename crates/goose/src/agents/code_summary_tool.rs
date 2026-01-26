@@ -146,7 +146,7 @@ async fn execute_summarize(
     let user_message = Message::user().with_text(&prompt);
 
     let (response, _usage) = provider
-        .complete(system, &[user_message], &[])
+        .complete("code_summary", system, &[user_message], &[])
         .await
         .map_err(|e| ErrorData {
             code: ErrorCode::INTERNAL_ERROR,
