@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../..
 import { Button } from '../../ui/button';
 import { Switch } from '../../ui/switch';
 import { ShortcutRecorder } from './ShortcutRecorder';
-import { KeyboardShortcuts, defaultKeyboardShortcuts, Settings } from '../../../utils/settings';
+import { KeyboardShortcuts, defaultKeyboardShortcuts } from '../../../utils/settings';
 import { trackSettingToggled } from '../../../utils/analytics';
 
 interface ShortcutConfig {
@@ -76,6 +76,35 @@ const shortcutConfigs: ShortcutConfig[] = [
   },
 ];
 
+// Shortcuts that require app restart to take effect (non-global shortcuts)
+const needsRestart = new Set<keyof KeyboardShortcuts>([
+  'newChat',
+  'newChatWindow',
+  'openDirectory',
+  'settings',
+  'find',
+  'findNext',
+  'findPrevious',
+  'alwaysOnTop',
+]);
+
+// Helper to get label for a shortcut key
+export const getShortcutLabel = (key: string): string => {
+  const config = shortcutConfigs.find((c) => c.key === key);
+  return config?.label || key;
+};
+
+// Helper to format shortcut for display
+export const formatShortcut = (shortcut: string): string => {
+  const isMac = window.electron.platform === 'darwin';
+  return shortcut
+    .replace('CommandOrControl', isMac ? '⌘' : 'Ctrl')
+    .replace('Command', '⌘')
+    .replace('Control', 'Ctrl')
+    .replace('Alt', isMac ? '⌥' : 'Alt')
+    .replace('Shift', isMac ? '⇧' : 'Shift');
+};
+
 const categoryLabels = {
   global: 'Global Shortcuts',
   application: 'Application Shortcuts',
@@ -96,11 +125,9 @@ export default function KeyboardShortcutsSection() {
   const [showRestartNotice, setShowRestartNotice] = useState(false);
 
   const loadShortcuts = useCallback(async () => {
-    const settings = (await window.electron.getSettings()) as Settings | null;
-    if (settings) {
-      // Settings are already migrated at app startup, so just use keyboardShortcuts directly
-      setShortcuts(settings.keyboardShortcuts || defaultKeyboardShortcuts);
-    }
+    const settings = await window.electron.getSettings();
+    // Settings are already migrated at app startup, so just use keyboardShortcuts directly
+    setShortcuts(settings.keyboardShortcuts || defaultKeyboardShortcuts);
   }, []);
 
   useEffect(() => {
@@ -117,39 +144,21 @@ export default function KeyboardShortcutsSection() {
       [key]: enabled ? defaultValue : null,
     };
 
-    const settings = (await window.electron.getSettings()) as Settings | null;
-    if (settings) {
-      settings.keyboardShortcuts = newShortcuts;
-      const success = await window.electron.saveSettings(settings);
-      if (success) {
-        setShortcuts(newShortcuts);
-        trackSettingToggled(`shortcut_${key}`, enabled);
-        // Show restart notice for non-global shortcuts
-        if (key !== 'focusWindow' && key !== 'quickLauncher') {
-          setShowRestartNotice(true);
-        }
+    const settings = await window.electron.getSettings();
+    settings.keyboardShortcuts = newShortcuts;
+    const success = await window.electron.saveSettings(settings);
+    if (success) {
+      setShortcuts(newShortcuts);
+      trackSettingToggled(`shortcut_${key}`, enabled);
+      // Show restart notice for non-global shortcuts
+      if (needsRestart.has(key)) {
+        setShowRestartNotice(true);
       }
     }
   };
 
   const handleEdit = (key: keyof KeyboardShortcuts) => {
     setEditingKey(key);
-  };
-
-  const formatKeyLabel = (key: string): string => {
-    const labels: Record<string, string> = {
-      focusWindow: 'Focus Window',
-      quickLauncher: 'Quick Launcher',
-      newChat: 'New Chat',
-      newChatWindow: 'New Chat Window',
-      openDirectory: 'Open Directory',
-      settings: 'Settings',
-      find: 'Find',
-      findNext: 'Find Next',
-      findPrevious: 'Find Previous',
-      alwaysOnTop: 'Always on Top',
-    };
-    return labels[key] || key;
   };
 
   const handleSave = async (shortcut: string) => {
@@ -162,21 +171,11 @@ export default function KeyboardShortcutsSection() {
 
     if (conflictingKey) {
       // Show confirmation dialog
-      const formatShortcut = (s: string) => {
-        const isMac = window.electron.platform === 'darwin';
-        return s
-          .replace('CommandOrControl', isMac ? '⌘' : 'Ctrl')
-          .replace('Command', '⌘')
-          .replace('Control', 'Ctrl')
-          .replace('Alt', isMac ? '⌥' : 'Alt')
-          .replace('Shift', isMac ? '⇧' : 'Shift');
-      };
-
       const confirmed = await window.electron.showMessageBox({
         type: 'warning',
         title: 'Shortcut Conflict',
-        message: `The shortcut ${formatShortcut(shortcut)} is already assigned to "${formatKeyLabel(conflictingKey)}".`,
-        detail: `Saving this will remove the shortcut from "${formatKeyLabel(conflictingKey)}" and assign it to "${formatKeyLabel(editingKey)}". Do you want to continue?`,
+        message: `The shortcut ${formatShortcut(shortcut)} is already assigned to "${getShortcutLabel(conflictingKey)}".`,
+        detail: `Saving this will remove the shortcut from "${getShortcutLabel(conflictingKey)}" and assign it to "${getShortcutLabel(editingKey)}". Do you want to continue?`,
         buttons: ['Reassign Shortcut', 'Cancel'],
         defaultId: 1,
       });
@@ -198,17 +197,15 @@ export default function KeyboardShortcutsSection() {
     // Set the new shortcut
     newShortcuts[editingKey] = shortcut || null;
 
-    const settings = (await window.electron.getSettings()) as Settings | null;
-    if (settings) {
-      settings.keyboardShortcuts = newShortcuts;
-      const success = await window.electron.saveSettings(settings);
-      if (success) {
-        setShortcuts(newShortcuts);
-        setEditingKey(null);
-        // Show restart notice for non-global shortcuts
-        if (editingKey !== 'focusWindow' && editingKey !== 'quickLauncher') {
-          setShowRestartNotice(true);
-        }
+    const settings = await window.electron.getSettings();
+    settings.keyboardShortcuts = newShortcuts;
+    const success = await window.electron.saveSettings(settings);
+    if (success) {
+      setShortcuts(newShortcuts);
+      setEditingKey(null);
+      // Show restart notice for non-global shortcuts
+      if (needsRestart.has(editingKey)) {
+        setShowRestartNotice(true);
       }
     }
   };
@@ -228,25 +225,15 @@ export default function KeyboardShortcutsSection() {
     });
 
     if (confirmed.response === 0) {
-      const settings = (await window.electron.getSettings()) as Settings | null;
-      if (settings) {
-        settings.keyboardShortcuts = { ...defaultKeyboardShortcuts };
-        const success = await window.electron.saveSettings(settings);
-        if (success) {
-          setShortcuts({ ...defaultKeyboardShortcuts });
-          setShowRestartNotice(true);
-          trackSettingToggled('shortcuts_reset', true);
-        }
+      const settings = await window.electron.getSettings();
+      settings.keyboardShortcuts = { ...defaultKeyboardShortcuts };
+      const success = await window.electron.saveSettings(settings);
+      if (success) {
+        setShortcuts({ ...defaultKeyboardShortcuts });
+        setShowRestartNotice(true);
+        trackSettingToggled('shortcuts_reset', true);
       }
     }
-  };
-
-  const formatShortcut = (shortcut: string) => {
-    const isMac = window.electron.platform === 'darwin';
-    return shortcut
-      .replace('CommandOrControl', isMac ? 'Cmd' : 'Ctrl')
-      .replace('Command', 'Cmd')
-      .replace('Control', 'Ctrl');
   };
 
   const groupedShortcuts = shortcutConfigs.reduce(

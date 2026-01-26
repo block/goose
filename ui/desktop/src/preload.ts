@@ -1,6 +1,7 @@
 import Electron, { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { Recipe } from './recipe';
 import { GooseApp } from './api';
+import type { Settings } from './utils/settings';
 
 interface NotificationData {
   title: string;
@@ -91,8 +92,8 @@ type ElectronAPI = {
   getMenuBarIconState: () => Promise<boolean>;
   setDockIcon: (show: boolean) => Promise<boolean>;
   getDockIconState: () => Promise<boolean>;
-  getSettings: () => Promise<unknown | null>;
-  saveSettings: (settings: unknown) => Promise<boolean>;
+  getSettings: () => Promise<Settings>;
+  saveSettings: (settings: Settings) => Promise<boolean>;
   getSecretKey: () => Promise<string>;
   getGoosedHostPort: () => Promise<string | null>;
   setWakelock: (enable: boolean) => Promise<boolean>;

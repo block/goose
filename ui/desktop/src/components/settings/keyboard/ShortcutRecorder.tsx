@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '../../ui/button';
 import { KeyboardShortcuts } from '../../../utils/settings';
+import { getShortcutLabel, formatShortcut } from './KeyboardShortcutsSection';
 
 interface ShortcutRecorderProps {
   value: string;
@@ -17,13 +18,12 @@ export function ShortcutRecorder({
   allShortcuts,
   currentKey,
 }: ShortcutRecorderProps) {
-  const [recording, setRecording] = useState(true); // Start recording immediately
+  const [recording, setRecording] = useState(true);
   const [capturedShortcut, setCapturedShortcut] = useState(value);
   const [displayShortcut, setDisplayShortcut] = useState('');
   const [conflict, setConflict] = useState<string | null>(null);
   const inputRef = useRef<HTMLDivElement>(null);
 
-  // Auto-focus on mount to start recording immediately
   useEffect(() => {
     if (inputRef.current) {
       inputRef.current.focus();
@@ -47,10 +47,8 @@ export function ShortcutRecorder({
       return;
     }
 
-    // Build the accelerator string
     const parts: string[] = [];
 
-    // Add modifiers in Electron's expected order
     if (e.ctrlKey || e.metaKey) {
       parts.push('CommandOrControl');
     }
@@ -61,10 +59,8 @@ export function ShortcutRecorder({
       parts.push('Shift');
     }
 
-    // Add the key
     let key = e.key;
 
-    // Map special keys to Electron's format
     const keyMap: Record<string, string> = {
       ' ': 'Space',
       ArrowUp: 'Up',
@@ -81,7 +77,6 @@ export function ShortcutRecorder({
     if (keyMap[key]) {
       key = keyMap[key];
     } else {
-      // Uppercase single letters
       key = key.length === 1 ? key.toUpperCase() : key;
     }
 
@@ -90,7 +85,6 @@ export function ShortcutRecorder({
     const accelerator = parts.join('+');
     setCapturedShortcut(accelerator);
 
-    // Check for conflicts
     if (allShortcuts && currentKey) {
       const conflictingKey = Object.entries(allShortcuts).find(
         ([key, shortcut]) => key !== currentKey && shortcut === accelerator
@@ -102,16 +96,7 @@ export function ShortcutRecorder({
       }
     }
 
-    // Format for display
-    const isMac = window.electron.platform === 'darwin';
-    const display = accelerator
-      .replace('CommandOrControl', isMac ? '⌘' : 'Ctrl')
-      .replace('Command', '⌘')
-      .replace('Control', 'Ctrl')
-      .replace('Alt', isMac ? '⌥' : 'Alt')
-      .replace('Shift', isMac ? '⇧' : 'Shift');
-
-    setDisplayShortcut(display);
+    setDisplayShortcut(formatShortcut(accelerator));
     setRecording(false);
   };
 
@@ -122,39 +107,12 @@ export function ShortcutRecorder({
     setConflict(null);
   };
 
-  const formatKeyLabel = (key: string): string => {
-    // Convert camelCase to readable labels
-    const labels: Record<string, string> = {
-      focusWindow: 'Focus Window',
-      quickLauncher: 'Quick Launcher',
-      newChat: 'New Chat',
-      newChatWindow: 'New Chat Window',
-      openDirectory: 'Open Directory',
-      settings: 'Settings',
-      find: 'Find',
-      findNext: 'Find Next',
-      findPrevious: 'Find Previous',
-      alwaysOnTop: 'Always on Top',
-    };
-    return labels[key] || key;
-  };
-
   const handleSave = () => {
     onSave(capturedShortcut);
   };
 
   const handleCancel = () => {
     onCancel();
-  };
-
-  const formatShortcut = (shortcut: string) => {
-    const isMac = window.electron.platform === 'darwin';
-    return shortcut
-      .replace('CommandOrControl', isMac ? '⌘' : 'Ctrl')
-      .replace('Command', '⌘')
-      .replace('Control', 'Ctrl')
-      .replace('Alt', isMac ? '⌥' : 'Alt')
-      .replace('Shift', isMac ? '⇧' : 'Shift');
   };
 
   return (
@@ -209,7 +167,7 @@ export function ShortcutRecorder({
         <div className="text-xs text-yellow-600 flex items-center gap-1">
           <span>⚠️</span>
           <span>
-            This shortcut is already used by <strong>{formatKeyLabel(conflict)}</strong>. Saving
+            This shortcut is already used by <strong>{getShortcutLabel(conflict)}</strong>. Saving
             will reassign it to this action.
           </span>
         </div>

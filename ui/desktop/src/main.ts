@@ -1257,12 +1257,7 @@ ipcMain.handle('add-recent-dir', (_event, dir: string) => {
 
 // Handle scheduling engine settings
 ipcMain.handle('get-settings', () => {
-  try {
-    return loadSettings();
-  } catch (error) {
-    console.error('Error getting settings:', error);
-    return null;
-  }
+  return loadSettings(); // Always returns Settings (uses defaults as fallback)
 });
 
 ipcMain.handle('save-settings', (_event, settings) => {
