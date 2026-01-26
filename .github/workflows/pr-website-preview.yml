@@ -40,7 +40,7 @@ jobs:
           npm run build
 
       - name: Deploy preview
-        uses: rossjrw/pr-preview-action@8ff09e486b4c23709012eedd3b42e9f0b95dd0c5 # v1
+        uses: rossjrw/pr-preview-action@ffa7509e91a3ec8dfc2e5536c4d5c1acdf7a6de9  # v1.8.1
         if: ${{ github.event.pull_request.head.repo.full_name == 'block/goose' }}
         with:
           source-dir: documentation/build
@@ -56,7 +56,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: astral-sh/setup-uv@38f3f104447c67c051c4a08e39b64a148898af3a # v4
+      - uses: astral-sh/setup-uv@61cb8a9741eeb8a550a1b8544337180c0fc8476b  # v7.2.0
 
       - name: Clean up gh-pages branch
         run: |
