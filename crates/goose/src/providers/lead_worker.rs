@@ -4,7 +4,13 @@ use std::ops::Deref;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use super::base::{LeadWorkerProviderTrait, Provider, ProviderMetadata, ProviderUsage};
+use super::base::{
+    LeadWorkerProviderTrait,
+    MessageStream,
+    Provider,
+    ProviderMetadata,
+    ProviderUsage,
+};
 use super::errors::ProviderError;
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
@@ -479,6 +485,41 @@ impl Provider for LeadWorkerProvider {
                 "Neither lead nor worker provider supports embeddings".to_string(),
             ))
         }
+    }
+
+    async fn stream(
+        &self,
+        session_id: &str,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+    ) -> Result<MessageStream, ProviderError> {
+        // Prefer the current active provider if it supports streaming, otherwise
+        // fall back to the other provider that does.
+        let count = *self.turn_count.lock().await;
+        let in_fallback = *self.in_fallback_mode.lock().await;
+
+        let (primary, secondary) = if count < self.lead_turns || in_fallback {
+            (&self.lead_provider, &self.worker_provider)
+        } else {
+            (&self.worker_provider, &self.lead_provider)
+        };
+
+        if primary.supports_streaming() {
+            return primary.stream(session_id, system, messages, tools).await;
+        }
+
+        if secondary.supports_streaming() {
+            return secondary.stream(session_id, system, messages, tools).await;
+        }
+
+        Err(ProviderError::NotImplemented(
+            "streaming not implemented for lead/worker configuration".to_string(),
+        ))
+    }
+
+    fn supports_streaming(&self) -> bool {
+        self.lead_provider.supports_streaming() || self.worker_provider.supports_streaming()
     }
 
     /// Check if this provider is a LeadWorkerProvider

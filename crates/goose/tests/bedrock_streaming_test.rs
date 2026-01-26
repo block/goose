@@ -177,7 +177,12 @@ async fn test_bedrock_streaming_vs_non_streaming_consistency() -> Result<()> {
 
     // Get non-streaming response
     let (non_stream_msg, non_stream_usage) = provider
-        .complete("test-session-id", system_prompt, &[message.clone()], &[])
+        .complete(
+            "test-session-id",
+            system_prompt,
+            std::slice::from_ref(&message),
+            &[],
+        )
         .await?;
 
     println!("Non-streaming response: {:?}", non_stream_msg.content);
