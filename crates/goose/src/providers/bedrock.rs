@@ -49,6 +49,10 @@ pub struct BedrockProvider {
 
 impl BedrockProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
+        // Get canonical ID and create config with canonical limits populated
+        let canonical_id = crate::providers::canonical::get_canonical_id("amazon-bedrock", &model.model_name);
+        let model = ModelConfig::from_canonical(&model.model_name, canonical_id)?;
+
         let config = crate::config::Config::global();
 
         // Attempt to load config and secrets to get AWS_ prefixed keys

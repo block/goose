@@ -125,6 +125,31 @@ impl ModelConfig {
         Self::new_with_context_env(model_name.to_string(), None)
     }
 
+    /// Create a ModelConfig with context limits populated from canonical model if available
+    /// Falls back to standard initialization if canonical model not found
+    pub fn from_canonical(model_name: &str, canonical_id: Option<String>) -> Result<Self, ConfigError> {
+        let mut config = Self::new(model_name)?;
+
+        // If we have a canonical ID and canonical data is available, use it to populate limits
+        if let Some(canonical_id) = canonical_id {
+            if let Ok(registry) = crate::providers::canonical::CanonicalModelRegistry::bundled() {
+                if let Some((provider, model)) = canonical_id.split_once('/') {
+                    if let Some(canonical) = registry.get(provider, model) {
+                        // Only set if not already overridden by env vars
+                        if config.context_limit.is_none() {
+                            config.context_limit = Some(canonical.limit.context);
+                        }
+                        if config.max_tokens.is_none() {
+                            config.max_tokens = canonical.limit.output.map(|o| o as i32);
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(config)
+    }
+
     pub fn new_with_context_env(
         model_name: String,
         context_env_var: Option<&str>,
@@ -353,12 +378,17 @@ impl ModelConfig {
     }
 
     pub fn context_limit(&self) -> usize {
-        // If we have an explicit context limit set, use it
+        // Priority 1: Explicit context limit override (includes canonical data if set during init)
         if let Some(limit) = self.context_limit {
+            if let Some(fast_model) = &self.fast_model {
+                let fast_limit =
+                    Self::get_model_specific_limit(fast_model).unwrap_or(DEFAULT_CONTEXT_LIMIT);
+                return limit.min(fast_limit);
+            }
             return limit;
         }
 
-        // Otherwise, get the model's default limit
+        // Priority 2: Hardcoded model-specific limits (for backwards compatibility)
         let main_limit =
             Self::get_model_specific_limit(&self.model_name).unwrap_or(DEFAULT_CONTEXT_LIMIT);
 
@@ -370,6 +400,18 @@ impl ModelConfig {
         } else {
             main_limit
         }
+    }
+
+    /// Get the maximum output tokens for this model
+    /// Returns the value to use for max_tokens in API requests
+    pub fn max_output_tokens(&self) -> i32 {
+        // Priority 1: Explicit max_tokens (includes canonical data if set during init)
+        if let Some(tokens) = self.max_tokens {
+            return tokens;
+        }
+
+        // Priority 2: Global default
+        4_096
     }
 
     pub fn new_or_fail(model_name: &str) -> ModelConfig {

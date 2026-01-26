@@ -68,7 +68,10 @@ pub struct GoogleProvider {
 
 impl GoogleProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let model = model.with_fast(GOOGLE_DEFAULT_FAST_MODEL.to_string());
+        // Get canonical ID and create config with canonical limits populated
+        let canonical_id = crate::providers::canonical::get_canonical_id("google", &model.model_name);
+        let model = ModelConfig::from_canonical(&model.model_name, canonical_id)?
+            .with_fast(GOOGLE_DEFAULT_FAST_MODEL.to_string());
 
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("GOOGLE_API_KEY")?;

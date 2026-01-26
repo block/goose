@@ -64,7 +64,10 @@ pub struct OpenAiProvider {
 
 impl OpenAiProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let model = model.with_fast(OPEN_AI_DEFAULT_FAST_MODEL.to_string());
+        // Get canonical ID and create config with canonical limits populated
+        let canonical_id = crate::providers::canonical::get_canonical_id("openai", &model.model_name);
+        let model = ModelConfig::from_canonical(&model.model_name, canonical_id)?
+            .with_fast(OPEN_AI_DEFAULT_FAST_MODEL.to_string());
 
         let config = crate::config::Config::global();
         let secrets = config.get_secrets("OPENAI_API_KEY", &["OPENAI_CUSTOM_HEADERS"])?;

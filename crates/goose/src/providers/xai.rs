@@ -52,6 +52,10 @@ pub struct XaiProvider {
 
 impl XaiProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
+        // Get canonical ID and create config with canonical limits populated
+        let canonical_id = crate::providers::canonical::get_canonical_id("x-ai", &model.model_name);
+        let model = ModelConfig::from_canonical(&model.model_name, canonical_id)?;
+
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("XAI_API_KEY")?;
         let host: String = config

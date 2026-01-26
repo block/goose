@@ -152,6 +152,10 @@ impl GcpVertexAIProvider {
     /// # Arguments
     /// * `model` - Configuration for the model to be used
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
+        // Get canonical ID and create config with canonical limits populated
+        let canonical_id = crate::providers::canonical::get_canonical_id("google-vertex", &model.model_name);
+        let model = ModelConfig::from_canonical(&model.model_name, canonical_id)?;
+
         let config = crate::config::Config::global();
         let project_id = config.get_param("GCP_PROJECT_ID")?;
         let location = Self::determine_location(config)?;
