@@ -76,7 +76,6 @@ const shortcutConfigs: ShortcutConfig[] = [
   },
 ];
 
-// Shortcuts that require app restart to take effect (non-global shortcuts)
 const needsRestart = new Set<keyof KeyboardShortcuts>([
   'newChat',
   'newChatWindow',
@@ -88,13 +87,11 @@ const needsRestart = new Set<keyof KeyboardShortcuts>([
   'alwaysOnTop',
 ]);
 
-// Helper to get label for a shortcut key
 export const getShortcutLabel = (key: string): string => {
   const config = shortcutConfigs.find((c) => c.key === key);
   return config?.label || key;
 };
 
-// Helper to format shortcut for display
 export const formatShortcut = (shortcut: string): string => {
   const isMac = window.electron.platform === 'darwin';
   return shortcut
@@ -126,7 +123,6 @@ export default function KeyboardShortcutsSection() {
 
   const loadShortcuts = useCallback(async () => {
     const settings = await window.electron.getSettings();
-    // Settings are already migrated at app startup, so just use keyboardShortcuts directly
     setShortcuts(settings.keyboardShortcuts || defaultKeyboardShortcuts);
   }, []);
 
@@ -138,11 +134,34 @@ export default function KeyboardShortcutsSection() {
     if (!shortcuts) return;
 
     const defaultValue = defaultKeyboardShortcuts[key];
+    const newShortcuts = { ...shortcuts };
 
-    const newShortcuts = {
-      ...shortcuts,
-      [key]: enabled ? defaultValue : null,
-    };
+    if (enabled) {
+      const conflictingKey = Object.entries(shortcuts).find(
+        ([k, value]) => k !== key && value === defaultValue
+      )?.[0];
+
+      if (conflictingKey) {
+        const confirmed = await window.electron.showMessageBox({
+          type: 'warning',
+          title: 'Shortcut Conflict',
+          message: `The shortcut ${formatShortcut(defaultValue)} is already assigned to "${getShortcutLabel(conflictingKey)}".`,
+          detail: `Enabling this will remove the shortcut from "${getShortcutLabel(conflictingKey)}" and assign it to "${getShortcutLabel(key)}". Do you want to continue?`,
+          buttons: ['Reassign Shortcut', 'Cancel'],
+          defaultId: 1,
+        });
+
+        if (confirmed.response !== 0) {
+          return;
+        }
+
+        newShortcuts[conflictingKey as keyof KeyboardShortcuts] = null;
+      }
+
+      newShortcuts[key] = defaultValue;
+    } else {
+      newShortcuts[key] = null;
+    }
 
     const settings = await window.electron.getSettings();
     settings.keyboardShortcuts = newShortcuts;
@@ -150,7 +169,6 @@ export default function KeyboardShortcutsSection() {
     if (success) {
       setShortcuts(newShortcuts);
       trackSettingToggled(`shortcut_${key}`, enabled);
-      // Show restart notice for non-global shortcuts
       if (needsRestart.has(key)) {
         setShowRestartNotice(true);
       }

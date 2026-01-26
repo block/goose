@@ -26,6 +26,10 @@ export interface KeyboardShortcuts {
   alwaysOnTop: string | null;
 }
 
+type DefaultKeyboardShortcuts = {
+  [K in keyof KeyboardShortcuts]: string;
+};
+
 export interface Settings {
   envToggles: EnvToggles;
   showMenuBarIcon: boolean;
@@ -39,7 +43,7 @@ export interface Settings {
 
 const SETTINGS_FILE = path.join(app.getPath('userData'), 'settings.json');
 
-export const defaultKeyboardShortcuts: KeyboardShortcuts = {
+export const defaultKeyboardShortcuts: DefaultKeyboardShortcuts = {
   focusWindow: 'CommandOrControl+Alt+G',
   quickLauncher: 'CommandOrControl+Alt+Shift+G',
   newChat: 'CommandOrControl+T',
