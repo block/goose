@@ -410,7 +410,7 @@ pub fn message_to_markdown(message: &Message, export_all_content: bool) -> Strin
 mod tests {
     use super::*;
     use goose::conversation::message::{Message, ToolRequest, ToolResponse};
-    use rmcp::model::{CallToolRequestParam, Content, RawTextContent, TextContent};
+    use rmcp::model::{CallToolRequestParams, Content, RawTextContent, TextContent};
     use rmcp::object;
     use serde_json::json;
 
@@ -526,7 +526,8 @@ mod tests {
 
     #[test]
     fn test_tool_request_to_markdown_shell() {
-        let tool_call = CallToolRequestParam {
+        let tool_call = CallToolRequestParams {
+            meta: None,
             task: None,
             name: "developer__shell".into(),
             arguments: Some(object!({
@@ -552,7 +553,8 @@ mod tests {
 
     #[test]
     fn test_tool_request_to_markdown_text_editor() {
-        let tool_call = CallToolRequestParam {
+        let tool_call = CallToolRequestParams {
+            meta: None,
             task: None,
             name: "developer__text_editor".into(),
             arguments: Some(object!({
@@ -636,7 +638,8 @@ mod tests {
 
     #[test]
     fn test_message_to_markdown_with_tool_request() {
-        let tool_call = CallToolRequestParam {
+        let tool_call = CallToolRequestParams {
+            meta: None,
             task: None,
             name: "test_tool".into(),
             arguments: Some(object!({"param": "value"})),
@@ -696,7 +699,8 @@ mod tests {
 
     #[test]
     fn test_shell_tool_with_code_output() {
-        let tool_call = CallToolRequestParam {
+        let tool_call = CallToolRequestParams {
+            meta: None,
             task: None,
             name: "developer__shell".into(),
             arguments: Some(object!({
@@ -751,7 +755,8 @@ if __name__ == "__main__":
 
     #[test]
     fn test_shell_tool_with_git_commands() {
-        let git_status_call = CallToolRequestParam {
+        let git_status_call = CallToolRequestParams {
+            meta: None,
             task: None,
             name: "developer__shell".into(),
             arguments: Some(object!({
@@ -798,7 +803,8 @@ if __name__ == "__main__":
 
     #[test]
     fn test_shell_tool_with_build_output() {
-        let cargo_build_call = CallToolRequestParam {
+        let cargo_build_call = CallToolRequestParams {
+            meta: None,
             task: None,
             name: "developer__shell".into(),
             arguments: Some(object!({
@@ -851,7 +857,8 @@ warning: unused variable `x`
 
     #[test]
     fn test_shell_tool_with_json_api_response() {
-        let curl_call = CallToolRequestParam {
+        let curl_call = CallToolRequestParams {
+            meta: None,
             task: None,
             name: "developer__shell".into(),
             arguments: Some(object!({
@@ -906,7 +913,8 @@ warning: unused variable `x`
 
     #[test]
     fn test_text_editor_tool_with_code_creation() {
-        let editor_call = CallToolRequestParam {
+        let editor_call = CallToolRequestParams {
+            meta: None,
             task: None,
             name: "developer__text_editor".into(),
             arguments: Some(object!({
@@ -956,7 +964,8 @@ warning: unused variable `x`
 
     #[test]
     fn test_text_editor_tool_view_code() {
-        let editor_call = CallToolRequestParam {
+        let editor_call = CallToolRequestParams {
+            meta: None,
             task: None,
             name: "developer__text_editor".into(),
             arguments: Some(object!({
@@ -1015,7 +1024,8 @@ def process_data(data: List[Dict]) -> List[Dict]:
 
     #[test]
     fn test_shell_tool_with_error_output() {
-        let error_call = CallToolRequestParam {
+        let error_call = CallToolRequestParams {
+            meta: None,
             task: None,
             name: "developer__shell".into(),
             arguments: Some(object!({
@@ -1059,7 +1069,8 @@ Command failed with exit code 2"#;
 
     #[test]
     fn test_shell_tool_complex_script_execution() {
-        let script_call = CallToolRequestParam {
+        let script_call = CallToolRequestParams {
+            meta: None,
             task: None,
             name: "developer__shell".into(),
             arguments: Some(object!({
@@ -1114,7 +1125,8 @@ Command failed with exit code 2"#;
 
     #[test]
     fn test_shell_tool_with_multi_command() {
-        let multi_call = CallToolRequestParam {
+        let multi_call = CallToolRequestParams {
+            meta: None,
             task: None,
             name: "developer__shell".into(),
             arguments: Some(object!({
@@ -1167,7 +1179,8 @@ drwx------   3 user  staff    96 Dec  6 16:20 com.apple.launchd.abc
 
     #[test]
     fn test_developer_tool_grep_code_search() {
-        let grep_call = CallToolRequestParam {
+        let grep_call = CallToolRequestParams {
+            meta: None,
             task: None,
             name: "developer__shell".into(),
             arguments: Some(object!({
@@ -1219,7 +1232,8 @@ src/middleware.rs:12:async fn auth_middleware(req: Request, next: Next) -> Resul
     #[test]
     fn test_shell_tool_json_detection_works() {
         // This test shows that JSON detection in tool responses DOES work
-        let tool_call = CallToolRequestParam {
+        let tool_call = CallToolRequestParams {
+            meta: None,
             task: None,
             name: "developer__shell".into(),
             arguments: Some(object!({
@@ -1262,7 +1276,8 @@ src/middleware.rs:12:async fn auth_middleware(req: Request, next: Next) -> Resul
 
     #[test]
     fn test_shell_tool_with_package_management() {
-        let npm_call = CallToolRequestParam {
+        let npm_call = CallToolRequestParams {
+            meta: None,
             task: None,
             name: "developer__shell".into(),
             arguments: Some(object!({

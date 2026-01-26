@@ -428,7 +428,9 @@ export default function BaseChat({
                 <div className="block h-8" />
               </>
             ) : !recipe && showPopularTopics ? (
-              <PopularChatTopics append={(text: string) => handleSubmit({ msg: text, images: [] })} />
+              <PopularChatTopics
+                append={(text: string) => handleSubmit({ msg: text, images: [] })}
+              />
             ) : null}
           </ScrollArea>
 

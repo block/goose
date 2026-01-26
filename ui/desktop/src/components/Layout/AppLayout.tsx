@@ -82,14 +82,12 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
   const mainContent = (
     <div className="flex-1 overflow-hidden">
       <div className="h-full w-full bg-background-default rounded-lg overflow-hidden">
-        {isOnPairRoute ? (
-          <>
-            <Outlet />
-            <ChatSessionsContainer setChat={setChat} activeSessions={activeSessions} />
-          </>
-        ) : (
-          <Outlet />
-        )}
+        <Outlet />
+        {/* Always render ChatSessionsContainer to keep SSE connections alive.
+            When navigating away from /pair, hide it with CSS */}
+        <div className={isOnPairRoute ? 'contents' : 'hidden'}>
+          <ChatSessionsContainer setChat={setChat} activeSessions={activeSessions} />
+        </div>
       </div>
     </div>
   );

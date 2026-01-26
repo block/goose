@@ -28,6 +28,7 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
   const [pendingSort, setPendingSort] = useState(false);
   const [togglingExtension, setTogglingExtension] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [isSessionExtensionsLoaded, setIsSessionExtensionsLoaded] = useState(false);
   const sortTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { extensionsList: allExtensions } = useConfig();
   const isHubView = !sessionId;
@@ -70,12 +71,15 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
 
         if (response.data?.extensions) {
           setSessionExtensions(response.data.extensions);
+          setIsSessionExtensionsLoaded(true);
         }
       } catch (error) {
         console.error('Failed to fetch session extensions:', error);
+        setIsSessionExtensionsLoaded(true);
       }
     };
 
+    setIsSessionExtensionsLoaded(false);
     fetchExtensions();
   }, [sessionId, isOpen, refreshTrigger]);
 
@@ -225,7 +229,7 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
     >
       <DropdownMenuTrigger asChild>
         <button
-          className="flex items-center cursor-pointer [&_svg]:size-4 text-text-default/70 hover:text-text-default hover:scale-100 hover:bg-transparent text-xs"
+          className={`flex items-center [&_svg]:size-4 text-text-default/70 hover:text-text-default hover:scale-100 hover:bg-transparent text-xs cursor-pointer ${allExtensions.length === 0 || (!isHubView && !isSessionExtensionsLoaded) ? 'invisible' : ''}`}
           title="manage extensions"
         >
           <Puzzle className="mr-1 h-4 w-4" />

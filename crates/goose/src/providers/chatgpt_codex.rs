@@ -971,7 +971,7 @@ mod tests {
     use super::*;
     use crate::conversation::message::Message;
     use jsonwebtoken::{Algorithm, EncodingKey, Header};
-    use rmcp::model::{CallToolRequestParam, CallToolResult, Content, ErrorCode, ErrorData};
+    use rmcp::model::{CallToolRequestParams, CallToolResult, Content, ErrorCode, ErrorData};
     use rmcp::object;
     use test_case::test_case;
     use wiremock::matchers::{body_string_contains, method, path};
@@ -1003,8 +1003,8 @@ mod tests {
             Message::user().with_text("user text"),
             Message::assistant().with_text("assistant prelude").with_tool_request(
                 "call-1",
-                Ok(CallToolRequestParam {
-                    task: None,
+                Ok(CallToolRequestParams {
+                    meta: None, task: None,
                     name: "tool_name".into(),
                     arguments: Some(object!({"param": "value"})),
                 }),
@@ -1029,8 +1029,8 @@ mod tests {
             Message::user().with_text("user text"),
             Message::assistant().with_tool_request(
                 "call-1",
-                Ok(CallToolRequestParam {
-                    task: None,
+                Ok(CallToolRequestParams {
+                    meta: None, task: None,
                     name: "tool_name".into(),
                     arguments: Some(object!({"param": "value"})),
                 }),
@@ -1054,8 +1054,8 @@ mod tests {
             Message::user().with_text("user text"),
             Message::assistant().with_tool_request(
                 "call-1",
-                Ok(CallToolRequestParam {
-                    task: None,
+                Ok(CallToolRequestParams {
+                    meta: None, task: None,
                     name: "tool_name".into(),
                     arguments: Some(object!({"param": "value"})),
                 }),

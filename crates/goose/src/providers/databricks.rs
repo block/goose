@@ -134,7 +134,6 @@ impl DatabricksProvider {
         let api_client =
             ApiClient::with_timeout(host, auth_method, Duration::from_secs(DEFAULT_TIMEOUT_SECS))?;
 
-        // Create the provider without the fast model first
         let mut provider = Self {
             api_client,
             auth,
@@ -143,31 +142,7 @@ impl DatabricksProvider {
             retry_config,
             name: Self::metadata().name,
         };
-
-        // Check if the default fast model exists in the workspace
-        // Generate UUID for this initialization request since no user session exists yet
-        let session_id = uuid::Uuid::new_v4().to_string();
-        let model_with_fast =
-            if let Ok(Some(models)) = provider.fetch_supported_models(&session_id).await {
-                if models.contains(&DATABRICKS_DEFAULT_FAST_MODEL.to_string()) {
-                    tracing::debug!(
-                        "Found {} in Databricks workspace, setting as fast model",
-                        DATABRICKS_DEFAULT_FAST_MODEL
-                    );
-                    model.with_fast(DATABRICKS_DEFAULT_FAST_MODEL.to_string())
-                } else {
-                    tracing::debug!(
-                        "{} not found in Databricks workspace, not setting fast model",
-                        DATABRICKS_DEFAULT_FAST_MODEL
-                    );
-                    model
-                }
-            } else {
-                tracing::debug!("Could not fetch Databricks models, not setting fast model");
-                model
-            };
-
-        provider.model = model_with_fast;
+        provider.model = model.with_fast(DATABRICKS_DEFAULT_FAST_MODEL.to_string());
         Ok(provider)
     }
 
