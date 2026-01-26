@@ -38,7 +38,6 @@ import {
   getKeyboardShortcuts,
 } from './utils/settings';
 import * as crypto from 'crypto';
-// import electron from "electron";
 import * as yaml from 'yaml';
 import windowStateKeeper from 'electron-window-state';
 import {
@@ -54,7 +53,6 @@ import { Client, createClient, createConfig } from './api/client';
 import { GooseApp } from './api';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 
-// Updater functions (moved here to keep updates.ts minimal for release replacement)
 function shouldSetupUpdater(): boolean {
   // Setup updater if either the flag is enabled OR dev updates are enabled
   return UPDATES_ENABLED || process.env.ENABLE_DEV_UPDATES === 'true';
@@ -1263,9 +1261,7 @@ ipcMain.handle('get-settings', () => {
 ipcMain.handle('save-settings', (_event, settings) => {
   try {
     const oldSettings = loadSettings();
-    saveSettings(settings);
 
-    // Check if keyboard shortcuts changed and re-register them
     const oldShortcuts = getKeyboardShortcuts(oldSettings);
     const newShortcuts = getKeyboardShortcuts(settings);
     const shortcutsChanged = JSON.stringify(oldShortcuts) !== JSON.stringify(newShortcuts);
@@ -1274,6 +1270,7 @@ ipcMain.handle('save-settings', (_event, settings) => {
       registerGlobalShortcuts();
     }
 
+    saveSettings(settings);
     return true;
   } catch (error) {
     console.error('Error saving settings:', error);
@@ -1813,15 +1810,12 @@ const focusWindow = () => {
   }
 };
 
-// Register global shortcuts based on settings
 const registerGlobalShortcuts = () => {
-  // Unregister all existing shortcuts first
   globalShortcut.unregisterAll();
 
   const settings = loadSettings();
   const shortcuts = getKeyboardShortcuts(settings);
 
-  // Register focus window shortcut (global)
   if (shortcuts.focusWindow) {
     try {
       globalShortcut.register(shortcuts.focusWindow, () => {
@@ -1832,7 +1826,6 @@ const registerGlobalShortcuts = () => {
     }
   }
 
-  // Register quick launcher shortcut (global)
   if (shortcuts.quickLauncher) {
     try {
       globalShortcut.register(shortcuts.quickLauncher, () => {

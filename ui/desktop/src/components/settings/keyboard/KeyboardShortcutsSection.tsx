@@ -182,13 +182,11 @@ export default function KeyboardShortcutsSection() {
   const handleSave = async (shortcut: string) => {
     if (!shortcuts || !editingKey) return;
 
-    // Check if this shortcut is already used by another action
     const conflictingKey = Object.entries(shortcuts).find(
       ([key, value]) => key !== editingKey && value === shortcut
     )?.[0];
 
     if (conflictingKey) {
-      // Show confirmation dialog
       const confirmed = await window.electron.showMessageBox({
         type: 'warning',
         title: 'Shortcut Conflict',
@@ -199,20 +197,16 @@ export default function KeyboardShortcutsSection() {
       });
 
       if (confirmed.response !== 0) {
-        // User cancelled
         return;
       }
     }
 
-    // Create new shortcuts, clearing any conflicts
     const newShortcuts = { ...shortcuts };
 
-    // Clear the shortcut from any conflicting action
     if (conflictingKey) {
       newShortcuts[conflictingKey as keyof KeyboardShortcuts] = null;
     }
 
-    // Set the new shortcut
     newShortcuts[editingKey] = shortcut || null;
 
     const settings = await window.electron.getSettings();
@@ -221,7 +215,6 @@ export default function KeyboardShortcutsSection() {
     if (success) {
       setShortcuts(newShortcuts);
       setEditingKey(null);
-      // Show restart notice for non-global shortcuts
       if (needsRestart.has(editingKey)) {
         setShowRestartNotice(true);
       }
