@@ -23,6 +23,9 @@ import { useChatContext } from '../../contexts/ChatContext';
 import { useNavigation } from '../../hooks/useNavigation';
 import { startNewSession, resumeSession, shouldShowNewChatTitle } from '../../sessions';
 import { getInitialWorkingDir } from '../../utils/workingDir';
+import { useSidebarSessionStatus } from '../../hooks/useSidebarSessionStatus';
+import { SessionIndicators } from '../SessionIndicators';
+import { AppEvents } from '../../constants/events';
 import type { Session } from '../../api';
 import type { UserInput } from '../../types/message';
 import {
@@ -42,12 +45,6 @@ interface NavItem {
   hasSubItems?: boolean;
 }
 
-interface RecentSession {
-  id: string;
-  name: string;
-  created_at: string;
-}
-
 interface ActiveSession {
   sessionId: string;
   initialMessage?: UserInput;
@@ -58,7 +55,10 @@ interface CondensedNavigationProps {
   activeSessions?: ActiveSession[];
 }
 
-export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ className }) => {
+export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
+  className,
+  activeSessions = [],
+}) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { extensionsList } = useConfig();
@@ -80,7 +80,14 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
   // Stats for tags
   const [todayChatsCount, setTodayChatsCount] = useState(0);
   const [totalSessions, setTotalSessions] = useState(0);
-  const [recentSessions, setRecentSessions] = useState<RecentSession[]>([]);
+  const [recentSessions, setRecentSessions] = useState<Session[]>([]);
+
+  // Track session for /pair navigation
+  const [searchParams] = useSearchParams();
+  const activeSessionId = searchParams.get('resumeSessionId') ?? undefined;
+
+  // Use sidebar session status hook for streaming/unread indicators
+  const { getSessionStatus, clearUnread } = useSidebarSessionStatus(activeSessionId);
 
   // Fetch stats when expanded
   useEffect(() => {
@@ -123,6 +130,67 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
     }
   };
 
+  // Listen for new session creation events to update the list immediately
+  useEffect(() => {
+    let pollingTimeouts: ReturnType<typeof setTimeout>[] = [];
+    let isPolling = false;
+
+    const handleSessionCreated = (event: Event) => {
+      const { session } = (event as CustomEvent<{ session?: Session }>).detail || {};
+      // If session data is provided, add it immediately
+      if (session) {
+        setRecentSessions((prev) => {
+          if (prev.some((s) => s.id === session.id)) return prev;
+          return [session, ...prev].slice(0, 10);
+        });
+      }
+
+      // Poll for updates to get the generated session name
+      if (isPolling) return;
+      isPolling = true;
+
+      const pollIntervalMs = 300;
+      const maxPollDurationMs = 10000;
+      const maxPolls = maxPollDurationMs / pollIntervalMs;
+      let pollCount = 0;
+
+      const pollForUpdates = async () => {
+        pollCount++;
+        try {
+          const response = await listSessions({ throwOnError: false });
+          if (response.data) {
+            const apiSessions = response.data.sessions.slice(0, 10);
+            setRecentSessions((prev) => {
+              // Merge: keep empty local sessions not in API, add API sessions
+              const emptyLocalSessions = prev.filter(
+                (local) =>
+                  local.message_count === 0 && !apiSessions.some((api) => api.id === local.id)
+              );
+              return [...emptyLocalSessions, ...apiSessions].slice(0, 10);
+            });
+          }
+        } catch (error) {
+          console.error('Failed to poll sessions:', error);
+        }
+
+        if (pollCount < maxPolls) {
+          const timeout = setTimeout(pollForUpdates, pollIntervalMs);
+          pollingTimeouts.push(timeout);
+        } else {
+          isPolling = false;
+        }
+      };
+
+      pollForUpdates();
+    };
+
+    window.addEventListener(AppEvents.SESSION_CREATED, handleSessionCreated);
+    return () => {
+      window.removeEventListener(AppEvents.SESSION_CREATED, handleSessionCreated);
+      pollingTimeouts.forEach(clearTimeout);
+    };
+  }, []);
+
   // Build nav items with dynamic tags
   const getNavItems = (): NavItem[] => [
     { id: 'home', path: '/', label: 'Home', icon: Home },
@@ -131,7 +199,8 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
       path: '/pair',
       label: 'Chat',
       icon: MessageSquare,
-      getTag: () => `${todayChatsCount}`,
+      getTag: () =>
+        activeSessions.length > 0 ? `${activeSessions.length} active` : `${todayChatsCount}`,
       hasSubItems: true, // Always has sub-items for recent sessions
     },
     {
@@ -180,8 +249,6 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
     return () => document.removeEventListener('keydown', handleKeyDown, { capture: true });
   }, [isNavExpanded, effectiveNavigationMode, setIsNavExpanded]);
 
-  // Track session for /pair navigation
-  const [searchParams] = useSearchParams();
   const chatContext = useChatContext();
   const lastSessionIdRef = useRef<string | null>(null);
   const currentSessionId =
@@ -487,16 +554,32 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                       {recentSessions.length > 0 && <DropdownMenuSeparator className="my-1" />}
 
                       {/* Recent sessions */}
-                      {recentSessions.map((session) => (
-                        <DropdownMenuItem
-                          key={session.id}
-                          onClick={() => handleSessionClick(session.id)}
-                          className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer"
-                        >
-                          <MessageSquare className="w-4 h-4 flex-shrink-0 text-text-muted" />
-                          <span className="truncate">{truncateMessage(session.name, 30)}</span>
-                        </DropdownMenuItem>
-                      ))}
+                      {recentSessions.map((session) => {
+                        const status = getSessionStatus(session.id);
+                        const isStreaming = status?.streamState === 'streaming';
+                        const hasError = status?.streamState === 'error';
+                        const hasUnread = status?.hasUnreadActivity ?? false;
+                        return (
+                          <DropdownMenuItem
+                            key={session.id}
+                            onClick={() => {
+                              clearUnread(session.id);
+                              handleSessionClick(session.id);
+                            }}
+                            className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer"
+                          >
+                            <MessageSquare className="w-4 h-4 flex-shrink-0 text-text-muted" />
+                            <span className="truncate flex-1">
+                              {truncateMessage(session.name, 30)}
+                            </span>
+                            <SessionIndicators
+                              isStreaming={isStreaming}
+                              hasUnread={hasUnread}
+                              hasError={hasError}
+                            />
+                          </DropdownMenuItem>
+                        );
+                      })}
 
                       {/* Show All button */}
                       {totalSessions > 10 && (
@@ -674,22 +757,36 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                       </button>
 
                       {/* Recent sessions */}
-                      {recentSessions.map((session) => (
-                        <button
-                          key={session.id}
-                          onClick={() => handleSessionClick(session.id)}
-                          className={cn(
-                            'w-full text-left px-2 py-1.5 text-xs rounded-md',
-                            'hover:bg-background-medium transition-colors',
-                            'flex items-center gap-2'
-                          )}
-                        >
-                          <MessageSquare className="w-3 h-3 flex-shrink-0 text-text-muted" />
-                          <span className="truncate text-text-default">
-                            {truncateMessage(session.name)}
-                          </span>
-                        </button>
-                      ))}
+                      {recentSessions.map((session) => {
+                        const status = getSessionStatus(session.id);
+                        const isStreaming = status?.streamState === 'streaming';
+                        const hasError = status?.streamState === 'error';
+                        const hasUnread = status?.hasUnreadActivity ?? false;
+                        return (
+                          <button
+                            key={session.id}
+                            onClick={() => {
+                              clearUnread(session.id);
+                              handleSessionClick(session.id);
+                            }}
+                            className={cn(
+                              'w-full text-left px-2 py-1.5 text-xs rounded-md',
+                              'hover:bg-background-medium transition-colors',
+                              'flex items-center gap-2'
+                            )}
+                          >
+                            <MessageSquare className="w-3 h-3 flex-shrink-0 text-text-muted" />
+                            <span className="truncate text-text-default flex-1">
+                              {truncateMessage(session.name)}
+                            </span>
+                            <SessionIndicators
+                              isStreaming={isStreaming}
+                              hasUnread={hasUnread}
+                              hasError={hasError}
+                            />
+                          </button>
+                        );
+                      })}
 
                       {/* Show All button */}
                       {totalSessions > 10 && (

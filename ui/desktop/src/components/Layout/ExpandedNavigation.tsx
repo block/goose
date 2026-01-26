@@ -20,6 +20,9 @@ import { useChatContext } from '../../contexts/ChatContext';
 import { useNavigation } from '../../hooks/useNavigation';
 import { startNewSession, resumeSession, shouldShowNewChatTitle } from '../../sessions';
 import { getInitialWorkingDir } from '../../utils/workingDir';
+import { useSidebarSessionStatus } from '../../hooks/useSidebarSessionStatus';
+import { SessionIndicators } from '../SessionIndicators';
+import { AppEvents } from '../../constants/events';
 import type { Session } from '../../api';
 import type { UserInput } from '../../types/message';
 import {
@@ -303,8 +306,12 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({
   const [searchParams] = useSearchParams();
   const chatContext = useChatContext();
   const lastSessionIdRef = useRef<string | null>(null);
+  const activeSessionId = searchParams.get('resumeSessionId') ?? undefined;
   const currentSessionId =
     location.pathname === '/pair' ? searchParams.get('resumeSessionId') : null;
+
+  // Use sidebar session status hook for streaming/unread indicators
+  const { getSessionStatus, clearUnread } = useSidebarSessionStatus(activeSessionId);
 
   // Use setView for navigation to pair view (matches original AppSidebar behavior)
   const setView = useNavigation();
@@ -315,6 +322,69 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({
       lastSessionIdRef.current = currentSessionId;
     }
   }, [currentSessionId]);
+
+  // Listen for new session creation events to update the list immediately
+  useEffect(() => {
+    let pollingTimeouts: ReturnType<typeof setTimeout>[] = [];
+    let isPolling = false;
+
+    const handleSessionCreated = (event: Event) => {
+      const { session } = (event as CustomEvent<{ session?: Session }>).detail || {};
+      // If session data is provided, add it immediately
+      if (session) {
+        setRecentSessions((prev) => {
+          if (prev.some((s) => s.id === session.id)) return prev;
+          return [session, ...prev].slice(0, 10);
+        });
+        sessionsRef.current = [session, ...sessionsRef.current.filter((s) => s.id !== session.id)];
+      }
+
+      // Poll for updates to get the generated session name
+      if (isPolling) return;
+      isPolling = true;
+
+      const pollIntervalMs = 300;
+      const maxPollDurationMs = 10000;
+      const maxPolls = maxPollDurationMs / pollIntervalMs;
+      let pollCount = 0;
+
+      const pollForUpdates = async () => {
+        pollCount++;
+        try {
+          const response = await listSessions({ throwOnError: false });
+          if (response.data) {
+            const apiSessions = response.data.sessions.slice(0, 10);
+            setRecentSessions((prev) => {
+              // Merge: keep empty local sessions not in API, add API sessions
+              const emptyLocalSessions = prev.filter(
+                (local) =>
+                  local.message_count === 0 && !apiSessions.some((api) => api.id === local.id)
+              );
+              return [...emptyLocalSessions, ...apiSessions].slice(0, 10);
+            });
+            sessionsRef.current = response.data.sessions;
+          }
+        } catch (error) {
+          console.error('Failed to poll sessions:', error);
+        }
+
+        if (pollCount < maxPolls) {
+          const timeout = setTimeout(pollForUpdates, pollIntervalMs);
+          pollingTimeouts.push(timeout);
+        } else {
+          isPolling = false;
+        }
+      };
+
+      pollForUpdates();
+    };
+
+    window.addEventListener(AppEvents.SESSION_CREATED, handleSessionCreated);
+    return () => {
+      window.removeEventListener(AppEvents.SESSION_CREATED, handleSessionCreated);
+      pollingTimeouts.forEach(clearTimeout);
+    };
+  }, []);
 
   const handleNavClick = useCallback(
     (path: string) => {
@@ -606,16 +676,32 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({
                       {recentSessions.length > 0 && <DropdownMenuSeparator className="my-1" />}
 
                       {/* Recent sessions */}
-                      {recentSessions.map((session) => (
-                        <DropdownMenuItem
-                          key={session.id}
-                          onClick={() => handleSessionClick(session.id)}
-                          className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer"
-                        >
-                          <MessageSquare className="w-4 h-4 flex-shrink-0 text-text-muted" />
-                          <span className="truncate">{truncateMessage(session.name, 30)}</span>
-                        </DropdownMenuItem>
-                      ))}
+                      {recentSessions.map((session) => {
+                        const status = getSessionStatus(session.id);
+                        const isStreaming = status?.streamState === 'streaming';
+                        const hasError = status?.streamState === 'error';
+                        const hasUnread = status?.hasUnreadActivity ?? false;
+                        return (
+                          <DropdownMenuItem
+                            key={session.id}
+                            onClick={() => {
+                              clearUnread(session.id);
+                              handleSessionClick(session.id);
+                            }}
+                            className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer"
+                          >
+                            <MessageSquare className="w-4 h-4 flex-shrink-0 text-text-muted" />
+                            <span className="truncate flex-1">
+                              {truncateMessage(session.name, 30)}
+                            </span>
+                            <SessionIndicators
+                              isStreaming={isStreaming}
+                              hasUnread={hasUnread}
+                              hasError={hasError}
+                            />
+                          </DropdownMenuItem>
+                        );
+                      })}
 
                       {/* Show All button */}
                       {totalSessions > 10 && (
