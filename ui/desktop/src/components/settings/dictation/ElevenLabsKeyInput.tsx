@@ -62,11 +62,10 @@ export const ElevenLabsKeyInput = () => {
   const handleRemove = async () => {
     try {
       await remove(ELEVENLABS_API_KEY, true);
-      setHasElevenLabsKey(false);
+      await loadKey();
       setElevenLabsApiKey('');
       setValidationError('');
       setIsEditing(false);
-      setElevenLabsKeyCache(false);
     } catch (error) {
       console.error(error);
       setValidationError('Failed to remove API key');
