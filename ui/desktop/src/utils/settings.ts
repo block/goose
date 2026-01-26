@@ -107,7 +107,15 @@ export function updateEnvironmentVariables(envToggles: EnvToggles): void {
 export function getKeyboardShortcuts(settings: Settings): KeyboardShortcuts {
   if (!settings.keyboardShortcuts && settings.globalShortcut !== undefined) {
     const focusShortcut = settings.globalShortcut;
-    const launcherShortcut = focusShortcut ? focusShortcut.replace(/\+G$/i, '+Shift+G') : null;
+    let launcherShortcut: string | null = null;
+
+    if (focusShortcut) {
+      if (focusShortcut.includes('Shift')) {
+        launcherShortcut = focusShortcut;
+      } else {
+        launcherShortcut = focusShortcut.replace(/\+([Gg])$/, '+Shift+$1');
+      }
+    }
 
     return {
       ...defaultKeyboardShortcuts,
