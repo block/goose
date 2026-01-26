@@ -116,14 +116,12 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
         />
       </Sidebar>
       <SidebarInset>
-        {isOnPairRoute ? (
-          <>
-            <Outlet />
-            <ChatSessionsContainer setChat={setChat} activeSessions={activeSessions} />
-          </>
-        ) : (
-          <Outlet />
-        )}
+        <Outlet />
+        {/* Always render ChatSessionsContainer to keep SSE connections alive.
+            When navigating away from /pair */}
+        <div className={isOnPairRoute ? 'contents' : 'hidden'}>
+          <ChatSessionsContainer setChat={setChat} activeSessions={activeSessions} />
+        </div>
       </SidebarInset>
     </div>
   );

@@ -9,11 +9,10 @@ on:
       - closed
     paths:
       - 'documentation/**'
-  push:
-    branches-ignore:
-      - 'dependabot/**'
 
-concurrency: pr-preview
+concurrency:
+  group: pr-preview
+  cancel-in-progress: false
 
 jobs:
   deploy:
