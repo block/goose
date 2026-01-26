@@ -8,9 +8,20 @@ use goose::providers::create_with_named_model;
 use rmcp::model::Tool;
 use rmcp::object;
 
+fn has_bedrock_credentials() -> bool {
+    std::env::var("AWS_ACCESS_KEY_ID").is_ok()
+        || std::env::var("AWS_PROFILE").is_ok()
+        || std::env::var("AWS_SESSION_TOKEN").is_ok()
+}
+
 #[tokio::test]
 async fn test_bedrock_streaming_basic() -> Result<()> {
     dotenv().ok();
+
+    if !has_bedrock_credentials() {
+        eprintln!("Skipping Bedrock streaming test: no AWS credentials in environment");
+        return Ok(());
+    }
 
     // Check if streaming is supported
     // Note: Provider is registered as "aws_bedrock", not "bedrock"
@@ -98,6 +109,11 @@ async fn test_bedrock_streaming_basic() -> Result<()> {
 async fn test_bedrock_streaming_with_tools() -> Result<()> {
     dotenv().ok();
 
+    if !has_bedrock_credentials() {
+        eprintln!("Skipping Bedrock streaming-with-tools test: no AWS credentials in environment");
+        return Ok(());
+    }
+
     let provider = create_with_named_model("aws_bedrock", BEDROCK_DEFAULT_MODEL).await?;
 
     // Create a simple tool
@@ -175,6 +191,13 @@ async fn test_bedrock_streaming_with_tools() -> Result<()> {
 #[tokio::test]
 async fn test_bedrock_streaming_vs_non_streaming_consistency() -> Result<()> {
     dotenv().ok();
+
+    if !has_bedrock_credentials() {
+        eprintln!(
+            "Skipping Bedrock streaming vs non-streaming consistency test: no AWS credentials in environment"
+        );
+        return Ok(());
+    }
 
     let provider = create_with_named_model("aws_bedrock", BEDROCK_DEFAULT_MODEL).await?;
 
