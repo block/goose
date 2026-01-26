@@ -532,7 +532,7 @@ async fn update_agent_provider(
         }
     };
 
-    let model_config = ModelConfig::new(&model)
+    let model_config = ModelConfig::new(&model, &payload.provider)
         .map_err(|e| {
             (
                 StatusCode::BAD_REQUEST,

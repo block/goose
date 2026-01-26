@@ -96,13 +96,6 @@ impl VeniceProvider {
             .get_param("VENICE_MODELS_PATH")
             .unwrap_or_else(|_| VENICE_DEFAULT_MODELS_PATH.to_string());
 
-        // Ensure we only keep the bare model id internally
-        let bare_model_name = strip_flags(&model.model_name).to_string();
-
-        // Get canonical ID and create config with canonical limits populated
-        let canonical_id = crate::providers::canonical::get_canonical_id("venice", &bare_model_name);
-        let model = ModelConfig::from_canonical(&bare_model_name, canonical_id)?;
-
         let auth = AuthMethod::BearerToken(api_key);
         let api_client = ApiClient::new(host, auth)?;
 

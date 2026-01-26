@@ -153,7 +153,7 @@ pub async fn create_with_named_model(
     provider_name: &str,
     model_name: &str,
 ) -> Result<Arc<dyn Provider>> {
-    let config = ModelConfig::new(model_name)?;
+    let config = ModelConfig::new(model_name, provider_name)?;
     create(provider_name, config).await
 }
 
@@ -180,10 +180,11 @@ async fn create_lead_worker_from_env(
 
     let lead_model_config = ModelConfig::new_with_context_env(
         lead_model_name.to_string(),
+        &lead_provider_name,
         Some("GOOSE_LEAD_CONTEXT_LIMIT"),
     )?;
 
-    let worker_model_config = create_worker_model_config(default_model)?;
+    let worker_model_config = create_worker_model_config(default_model, default_provider_name)?;
 
     let registry = get_registry().await;
 
@@ -219,8 +220,8 @@ async fn create_lead_worker_from_env(
     )))
 }
 
-fn create_worker_model_config(default_model: &ModelConfig) -> Result<ModelConfig> {
-    let mut worker_config = ModelConfig::new_or_fail(&default_model.model_name)
+fn create_worker_model_config(default_model: &ModelConfig, provider_name: &str) -> Result<ModelConfig> {
+    let mut worker_config = ModelConfig::new_or_fail(&default_model.model_name, provider_name)
         .with_context_limit(default_model.context_limit)
         .with_temperature(default_model.temperature)
         .with_max_tokens(default_model.max_tokens)
@@ -262,7 +263,7 @@ mod tests {
             ("OPENAI_API_KEY", Some("fake-openai-no-keyring")),
         ]);
 
-        let provider = create("openai", ModelConfig::new_or_fail("gpt-4o-mini"))
+        let provider = create("openai", ModelConfig::new_or_fail("gpt-4o-mini", "openai"))
             .await
             .unwrap();
         let lw = provider.as_lead_worker().unwrap();
@@ -286,7 +287,7 @@ mod tests {
             ("OPENAI_API_KEY", Some("fake-openai-no-keyring")),
         ]);
 
-        let provider = create("openai", ModelConfig::new_or_fail("gpt-4o-mini"))
+        let provider = create("openai", ModelConfig::new_or_fail("gpt-4o-mini", "openai"))
             .await
             .unwrap();
         assert!(provider.as_lead_worker().is_none());
@@ -307,9 +308,9 @@ mod tests {
         ]);
 
         let default_model =
-            ModelConfig::new_or_fail("gpt-3.5-turbo").with_context_limit(Some(16_000));
+            ModelConfig::new_or_fail("gpt-3.5-turbo", "openai").with_context_limit(Some(16_000));
 
-        let result = create_worker_model_config(&default_model).unwrap();
+        let result = create_worker_model_config(&default_model, "openai").unwrap();
         assert_eq!(result.context_limit, Some(expected_limit));
     }
 

@@ -164,7 +164,7 @@ impl Provider for TestProvider {
     }
 
     fn get_model_config(&self) -> ModelConfig {
-        ModelConfig::new_or_fail("test-model")
+        ModelConfig::new_or_fail("test-model", "test")
     }
 }
 

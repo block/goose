@@ -54,10 +54,6 @@ pub struct SnowflakeProvider {
 
 impl SnowflakeProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        // Get canonical ID and create config with canonical limits populated
-        let canonical_id = crate::providers::canonical::get_canonical_id("snowflake", &model.model_name);
-        let model = ModelConfig::from_canonical(&model.model_name, canonical_id)?;
-
         let config = crate::config::Config::global();
         let mut host: Result<String, ConfigError> = config.get_param("SNOWFLAKE_HOST");
         if host.is_err() {

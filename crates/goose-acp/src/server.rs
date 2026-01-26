@@ -289,7 +289,7 @@ impl GooseAcpAgent {
             .get_goose_model()
             .map_err(|e| anyhow::anyhow!("No model configured: {}", e))?;
 
-        let model_config = goose::model::ModelConfig::new(&model_name)?;
+        let model_config = goose::model::ModelConfig::new(&model_name, &provider_name)?;
         let provider = create(&provider_name, model_config).await?;
         let goose_mode = config
             .get_goose_mode()

@@ -389,7 +389,7 @@ mod tests {
             }
 
             fn get_model_config(&self) -> ModelConfig {
-                ModelConfig::new("mock-model").unwrap()
+                ModelConfig::new("mock-model", "mock").unwrap()
             }
 
             fn metadata() -> ProviderMetadata {

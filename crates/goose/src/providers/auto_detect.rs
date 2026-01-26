@@ -25,7 +25,7 @@ pub async fn detect_provider_from_api_key(
 
                 let result = match crate::providers::create(
                     provider_name,
-                    ModelConfig::new_or_fail("default"),
+                    ModelConfig::new_or_fail("default", provider_name),
                 )
                 .await
                 {

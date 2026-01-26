@@ -404,7 +404,7 @@ pub async fn get_provider_models(
     }
 
     let model_config =
-        ModelConfig::new(&metadata.default_model).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        ModelConfig::new(&metadata.default_model, &name).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let provider = goose::providers::create(&name, model_config)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -852,7 +852,7 @@ pub async fn configure_provider_oauth(
     }
 
     let temp_model =
-        ModelConfig::new("temp").map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+        ModelConfig::new("temp", &provider_name).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
     let provider = create(&provider_name, temp_model).await.map_err(|e| {
         (

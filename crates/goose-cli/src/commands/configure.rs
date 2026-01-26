@@ -327,7 +327,7 @@ async fn handle_oauth_configuration(provider_name: &str, key_name: &str) -> anyh
     ));
 
     // Create a temporary provider instance to handle OAuth
-    let temp_model = ModelConfig::new("temp")?;
+    let temp_model = ModelConfig::new("temp", provider_name)?;
     match create(provider_name, temp_model).await {
         Ok(provider) => match provider.configure_oauth().await {
             Ok(_) => {
@@ -681,7 +681,7 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
     let spin = spinner();
     spin.start("Attempting to fetch supported models...");
     let models_res = {
-        let temp_model_config = ModelConfig::new(&provider_meta.default_model)?;
+        let temp_model_config = ModelConfig::new(&provider_meta.default_model, provider_name)?;
         let temp_provider = create(provider_name, temp_model_config).await?;
         // Provider setup runs before any user session exists; use an ephemeral id.
         let session_id = Uuid::new_v4().to_string();
@@ -1432,7 +1432,7 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
     let model: String = config
         .get_goose_model()
         .expect("No model configured. Please set model first");
-    let model_config = ModelConfig::new(&model)?;
+    let model_config = ModelConfig::new(&model, &provider_name)?;
 
     let agent = Agent::new();
     let new_provider = create(&provider_name, model_config).await?;
@@ -1647,7 +1647,7 @@ pub async fn handle_openrouter_auth() -> anyhow::Result<()> {
     // Test configuration - get the model that was configured
     println!("\nTesting configuration...");
     let configured_model: String = config.get_goose_model()?;
-    let model_config = match goose::model::ModelConfig::new(&configured_model) {
+    let model_config = match goose::model::ModelConfig::new(&configured_model, "openrouter") {
         Ok(config) => config,
         Err(e) => {
             eprintln!("⚠️  Invalid model configuration: {}", e);
@@ -1727,7 +1727,7 @@ pub async fn handle_tetrate_auth() -> anyhow::Result<()> {
     // Test configuration
     println!("\nTesting configuration...");
     let configured_model: String = config.get_goose_model()?;
-    let model_config = match goose::model::ModelConfig::new(&configured_model) {
+    let model_config = match goose::model::ModelConfig::new(&configured_model, "tetrate") {
         Ok(config) => config,
         Err(e) => {
             eprintln!("⚠️  Invalid model configuration: {}", e);

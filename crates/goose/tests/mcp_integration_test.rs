@@ -237,7 +237,7 @@ async fn test_replayed_session(
     };
 
     let provider = Arc::new(tokio::sync::Mutex::new(Some(Arc::new(MockProvider {
-        model_config: ModelConfig::new("test-model").unwrap(),
+        model_config: ModelConfig::new("test-model", "test").unwrap(),
     }) as Arc<dyn Provider>)));
     let temp_dir = tempfile::tempdir().unwrap();
     let session_manager = Arc::new(goose::session::SessionManager::new(
