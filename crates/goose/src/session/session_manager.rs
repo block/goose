@@ -1564,6 +1564,121 @@ mod tests {
     const NUM_CONCURRENT_SESSIONS: i32 = 10;
 
     #[tokio::test]
+    async fn session_storage_pool_uses_single_connection() {
+        let temp_dir = TempDir::new().unwrap();
+        let storage = SessionStorage::new(temp_dir.path().to_path_buf());
+        let pool = storage.pool.clone();
+
+        let mut handles = Vec::new();
+        for _ in 0..NUM_CONCURRENT_SESSIONS {
+            let pool = pool.clone();
+            handles.push(tokio::spawn(async move {
+                sqlx::query("SELECT 1").execute(&pool).await.unwrap();
+            }));
+        }
+
+        for handle in handles {
+            handle.await.unwrap();
+        }
+
+        assert_eq!(pool.size(), 1);
+    }
+
+    #[tokio::test]
+    async fn session_storage_sets_busy_timeout_to_5_seconds() {
+        let temp_dir = TempDir::new().unwrap();
+        let storage = SessionStorage::new(temp_dir.path().to_path_buf());
+
+        let pool = storage.pool().await.unwrap();
+        let timeout: i64 = sqlx::query_scalar("PRAGMA busy_timeout;")
+            .fetch_one(pool)
+            .await
+            .unwrap();
+
+        assert_eq!(timeout, 5000);
+    }
+
+    #[tokio::test]
+    async fn session_storage_sets_journal_mode_to_wal() {
+        let temp_dir = TempDir::new().unwrap();
+        let storage = SessionStorage::new(temp_dir.path().to_path_buf());
+
+        let pool = storage.pool().await.unwrap();
+        let mode: String = sqlx::query_scalar("PRAGMA journal_mode;")
+            .fetch_one(pool)
+            .await
+            .unwrap();
+
+        assert_eq!(mode.to_lowercase(), "wal");
+    }
+
+    #[tokio::test]
+    async fn session_storage_connects_lazily_with_configured_options() {
+        let temp_dir = TempDir::new().unwrap();
+        let data_dir = temp_dir.path().to_path_buf();
+        let session_dir = data_dir.join(SESSIONS_FOLDER);
+        let db_path = session_dir.join(DB_NAME);
+
+        assert!(!session_dir.exists());
+        assert!(!db_path.exists());
+
+        let storage = SessionStorage::new(data_dir);
+
+        assert!(session_dir.exists());
+        assert!(!db_path.exists());
+
+        let pool = storage.pool().await.unwrap();
+        sqlx::query("SELECT 1").execute(pool).await.unwrap();
+
+        assert!(db_path.exists());
+    }
+
+    #[tokio::test]
+    async fn session_storage_serializes_writes_avoiding_database_locked_errors() {
+        let temp_dir = TempDir::new().unwrap();
+        let storage = Arc::new(SessionStorage::create(temp_dir.path()).await.unwrap());
+
+        let session = storage
+            .create_session(
+                PathBuf::from("/tmp/test"),
+                "Lock test".to_string(),
+                SessionType::User,
+            )
+            .await
+            .unwrap();
+
+        let mut handles = Vec::new();
+        for i in 0..NUM_CONCURRENT_SESSIONS {
+            let storage = Arc::clone(&storage);
+            let session_id = session.id.clone();
+            handles.push(tokio::spawn(async move {
+                storage
+                    .add_message(
+                        &session_id,
+                        &Message {
+                            id: None,
+                            role: Role::User,
+                            created: chrono::Utc::now().timestamp_millis(),
+                            content: vec![MessageContent::text(format!("msg {}", i))],
+                            metadata: Default::default(),
+                        },
+                    )
+                    .await
+            }));
+        }
+
+        for handle in handles {
+            handle.await.unwrap().unwrap();
+        }
+
+        let session_with_messages = storage.get_session(&session.id, true).await.unwrap();
+        assert_eq!(
+            session_with_messages.message_count,
+            NUM_CONCURRENT_SESSIONS as usize
+        );
+    }
+
+    #[tokio::test]
     async fn test_concurrent_session_creation() {
         let temp_dir = TempDir::new().unwrap();
         let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
