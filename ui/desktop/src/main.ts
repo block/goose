@@ -2040,9 +2040,12 @@ async function appMain() {
   const fileMenu = menu?.items.find((item) => item.label === 'File');
 
   if (fileMenu?.submenu) {
+    // Use a counter to track the actual insertion index
+    let menuIndex = 0;
+
     if (shortcuts.newChat) {
       fileMenu.submenu.insert(
-        0,
+        menuIndex++,
         new MenuItem({
           label: 'New Chat',
           accelerator: shortcuts.newChat,
@@ -2056,7 +2059,7 @@ async function appMain() {
 
     if (shortcuts.newChatWindow) {
       fileMenu.submenu.insert(
-        1,
+        menuIndex++,
         new MenuItem({
           label: 'New Chat Window',
           accelerator: shortcuts.newChatWindow,
@@ -2069,7 +2072,7 @@ async function appMain() {
 
     if (shortcuts.openDirectory) {
       fileMenu.submenu.insert(
-        2,
+        menuIndex++,
         new MenuItem({
           label: 'Open Directory...',
           accelerator: shortcuts.openDirectory,
@@ -2081,7 +2084,7 @@ async function appMain() {
     const recentFilesSubmenu = buildRecentFilesMenu();
     if (recentFilesSubmenu.length > 0) {
       fileMenu.submenu.insert(
-        3,
+        menuIndex++,
         new MenuItem({
           label: 'Recent Directories',
           submenu: recentFilesSubmenu,
@@ -2089,9 +2092,8 @@ async function appMain() {
       );
     }
 
-    fileMenu.submenu.insert(4, new MenuItem({ type: 'separator' }));
+    fileMenu.submenu.insert(menuIndex++, new MenuItem({ type: 'separator' }));
 
-    // Add global shortcuts from settings
     if (shortcuts.focusWindow) {
       fileMenu.submenu.append(
         new MenuItem({

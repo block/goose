@@ -92,7 +92,9 @@ type ElectronAPI = {
   setDockIcon: (show: boolean) => Promise<boolean>;
   getDockIconState: () => Promise<boolean>;
   getSettings: () => Promise<unknown | null>;
-  saveSettings: (settings: unknown) => Promise<boolean>;
+  saveSettings: (
+    settings: unknown
+  ) => Promise<boolean | { success: boolean; shortcutsChanged: boolean }>;
   getSecretKey: () => Promise<string>;
   getGoosedHostPort: () => Promise<string | null>;
   setWakelock: (enable: boolean) => Promise<boolean>;

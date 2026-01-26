@@ -1,7 +1,6 @@
 import { app } from 'electron';
 import fs from 'fs';
 import path from 'path';
-import { defaultKeyboardShortcuts } from './keyboardShortcutDefaults';
 
 export interface EnvToggles {
   GOOSE_SERVER__MEMORY: boolean;
@@ -15,7 +14,7 @@ export interface ExternalGoosedConfig {
 }
 
 export interface KeyboardShortcuts {
-  focusWindow: string | null; // null means disabled
+  focusWindow: string | null;
   quickLauncher: string | null;
   newChat: string | null;
   newChatWindow: string | null;
@@ -40,6 +39,19 @@ export interface Settings {
 
 const SETTINGS_FILE = path.join(app.getPath('userData'), 'settings.json');
 
+export const defaultKeyboardShortcuts: KeyboardShortcuts = {
+  focusWindow: 'CommandOrControl+Alt+G',
+  quickLauncher: 'CommandOrControl+Alt+Shift+G',
+  newChat: 'CommandOrControl+T',
+  newChatWindow: 'CommandOrControl+N',
+  openDirectory: 'CommandOrControl+O',
+  settings: 'CommandOrControl+,',
+  find: 'CommandOrControl+F',
+  findNext: 'CommandOrControl+G',
+  findPrevious: 'CommandOrControl+Shift+G',
+  alwaysOnTop: 'CommandOrControl+Shift+T',
+};
+
 const defaultSettings: Settings = {
   envToggles: {
     GOOSE_SERVER__MEMORY: false,
@@ -49,7 +61,7 @@ const defaultSettings: Settings = {
   showDockIcon: true,
   enableWakelock: false,
   spellcheckEnabled: true,
-  globalShortcut: 'CommandOrControl+Alt+G', // Deprecated: kept for backwards compatibility
+  // globalShortcut is deprecated - not set in defaults, only kept in interface for backwards compatibility
   keyboardShortcuts: defaultKeyboardShortcuts,
 };
 
@@ -91,12 +103,13 @@ export function updateEnvironmentVariables(envToggles: EnvToggles): void {
 export function getKeyboardShortcuts(settings: Settings): KeyboardShortcuts {
   // Migrate from old globalShortcut field if needed
   if (!settings.keyboardShortcuts && settings.globalShortcut !== undefined) {
+    const focusShortcut = settings.globalShortcut;
+    const launcherShortcut = focusShortcut ? focusShortcut.replace(/\+G$/i, '+Shift+G') : null;
+
     return {
       ...defaultKeyboardShortcuts,
-      focusWindow: settings.globalShortcut,
-      quickLauncher: settings.globalShortcut
-        ? settings.globalShortcut.replace(/\+G$/i, '+Shift+G')
-        : null,
+      focusWindow: focusShortcut,
+      quickLauncher: launcherShortcut,
     };
   }
   return settings.keyboardShortcuts || defaultKeyboardShortcuts;
