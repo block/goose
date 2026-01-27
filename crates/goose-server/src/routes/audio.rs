@@ -89,7 +89,7 @@ fn get_openai_config() -> Result<(String, String), ErrorResponse> {
     let config = goose::config::Config::global();
 
     let api_key: String = config.get_secret("OPENAI_API_KEY").map_err(|e| {
-        ErrorResponse::bad_request(&format!("Failed to get OpenAI API key: {:?}", e))
+        ErrorResponse::bad_request(format!("Failed to get OpenAI API key: {:?}", e))
     })?;
 
     let openai_host = match config.get("OPENAI_HOST", false) {
@@ -124,7 +124,7 @@ async fn send_openai_request(
         .file_name(format!("audio.{}", file_extension))
         .mime_str(mime_type)
         .map_err(|e| {
-            ErrorResponse::internal(&format!("Failed to create multipart part: {:?}", e))
+            ErrorResponse::internal(format!("Failed to create multipart part: {:?}", e))
         })?;
 
     let form = reqwest::multipart::Form::new()
@@ -138,7 +138,7 @@ async fn send_openai_request(
     let client = Client::builder()
         .timeout(Duration::from_secs(OPENAI_TIMEOUT_SECONDS))
         .build()
-        .map_err(|e| ErrorResponse::internal(&format!("Failed to create HTTP client: {}", e)))?;
+        .map_err(|e| ErrorResponse::internal(format!("Failed to create HTTP client: {}", e)))?;
 
     tracing::info!(
         "Sending request to OpenAI: {}/v1/audio/transcriptions",
@@ -200,7 +200,7 @@ async fn send_openai_request(
     let whisper_response: WhisperResponse = response
         .json()
         .await
-        .map_err(|e| ErrorResponse::internal(&format!("Failed to parse OpenAI response: {}", e)))?;
+        .map_err(|e| ErrorResponse::internal(format!("Failed to parse OpenAI response: {}", e)))?;
 
     Ok(whisper_response)
 }
@@ -282,7 +282,7 @@ async fn transcribe_elevenlabs_handler(
                             key
                         }
                         None => {
-                            return Err(ErrorResponse::bad_request(&format!(
+                            return Err(ErrorResponse::bad_request(format!(
                                 "ElevenLabs API key is not a string, found: {:?}",
                                 value
                             )));
@@ -314,7 +314,7 @@ async fn transcribe_elevenlabs_handler(
     let client = Client::builder()
         .timeout(Duration::from_secs(OPENAI_TIMEOUT_SECONDS))
         .build()
-        .map_err(|e| ErrorResponse::internal(&format!("Failed to create HTTP client: {}", e)))?;
+        .map_err(|e| ErrorResponse::internal(format!("Failed to create HTTP client: {}", e)))?;
 
     let response = client
         .post("https://api.elevenlabs.io/v1/speech-to-text")
@@ -373,7 +373,7 @@ async fn transcribe_elevenlabs_handler(
     }
 
     let elevenlabs_response: ElevenLabsResponse = response.json().await.map_err(|e| {
-        ErrorResponse::internal(&format!("Failed to parse ElevenLabs response: {}", e))
+        ErrorResponse::internal(format!("Failed to parse ElevenLabs response: {}", e))
     })?;
 
     Ok(Json(TranscribeResponse {
