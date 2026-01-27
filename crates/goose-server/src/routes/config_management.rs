@@ -173,7 +173,9 @@ pub async fn upsert_config(
         (status = 500, description = "Internal server error")
     )
 )]
-pub async fn remove_config(Json(query): Json<ConfigKeyQuery>) -> Result<Json<String>, ErrorResponse> {
+pub async fn remove_config(
+    Json(query): Json<ConfigKeyQuery>,
+) -> Result<Json<String>, ErrorResponse> {
     let config = Config::global();
 
     if query.is_secret {
@@ -222,9 +224,9 @@ pub async fn read_config(
 ) -> Result<Json<ConfigValueResponse>, ErrorResponse> {
     if query.key == "model-limits" {
         let limits = ModelConfig::get_all_model_limits();
-        return Ok(Json(ConfigValueResponse::Value(
-            serde_json::to_value(limits)?,
-        )));
+        return Ok(Json(ConfigValueResponse::Value(serde_json::to_value(
+            limits,
+        )?)));
     }
 
     let config = Config::global();
@@ -317,7 +319,9 @@ pub async fn remove_extension(Path(name): Path<String>) -> Result<Json<String>, 
 )]
 pub async fn read_all_config() -> Result<Json<ConfigResponse>, ErrorResponse> {
     let config = Config::global();
-    let values = config.all_values().map_err(|e| ErrorResponse::unprocessable(e.to_string()))?;
+    let values = config
+        .all_values()
+        .map_err(|e| ErrorResponse::unprocessable(e.to_string()))?;
     Ok(Json(ConfigResponse { config: values }))
 }
 
@@ -376,15 +380,18 @@ pub async fn get_provider_models(
         ));
     }
 
-    let all = get_providers()
-        .await
-        .into_iter()
-        .collect::<Vec<_>>();
+    let all = get_providers().await.into_iter().collect::<Vec<_>>();
     let Some((metadata, provider_type)) = all.into_iter().find(|(m, _)| m.name == name) else {
-        return Err(ErrorResponse::bad_request(format!("Unknown provider: {}", name)));
+        return Err(ErrorResponse::bad_request(format!(
+            "Unknown provider: {}",
+            name
+        )));
     };
     if !check_provider_configured(&metadata, provider_type) {
-        return Err(ErrorResponse::bad_request(format!("Provider '{}' is not configured", name)));
+        return Err(ErrorResponse::bad_request(format!(
+            "Provider '{}' is not configured",
+            name
+        )));
     }
 
     let model_config = ModelConfig::new(&metadata.default_model)?;
@@ -464,8 +471,12 @@ pub async fn get_pricing(
     Json(query): Json<PricingQuery>,
 ) -> Result<Json<PricingResponse>, ErrorResponse> {
     let canonical_model =
-        maybe_get_canonical_model(&query.provider, &query.model)
-            .ok_or_else(|| ErrorResponse::not_found(format!("Model '{}/{}' not found", query.provider, query.model)))?;
+        maybe_get_canonical_model(&query.provider, &query.model).ok_or_else(|| {
+            ErrorResponse::not_found(format!(
+                "Model '{}/{}' not found",
+                query.provider, query.model
+            ))
+        })?;
 
     let mut pricing_data = Vec::new();
 
@@ -559,7 +570,9 @@ pub async fn detect_provider(
             provider_name,
             models,
         })),
-        None => Err(ErrorResponse::not_found("Could not detect provider from the provided API key")),
+        None => Err(ErrorResponse::not_found(
+            "Could not detect provider from the provided API key",
+        )),
     }
 }
 
@@ -678,7 +691,9 @@ pub async fn get_custom_provider(
     Path(id): Path<String>,
 ) -> Result<Json<LoadedProvider>, ErrorResponse> {
     let loaded_provider = goose::config::declarative_providers::load_provider(id.as_str())
-        .map_err(|e| ErrorResponse::not_found(format!("Custom provider '{}' not found: {}", id, e)))?;
+        .map_err(|e| {
+            ErrorResponse::not_found(format!("Custom provider '{}' not found: {}", id, e))
+        })?;
 
     Ok(Json(loaded_provider))
 }
@@ -737,9 +752,9 @@ pub async fn update_custom_provider(
 pub async fn check_provider(
     Json(CheckProviderRequest { provider }): Json<CheckProviderRequest>,
 ) -> Result<(), ErrorResponse> {
-    create_with_default_model(&provider)
-        .await
-        .map_err(|err| ErrorResponse::bad_request(format!("Provider '{}' check failed: {}", provider, err)))?;
+    create_with_default_model(&provider).await.map_err(|err| {
+        ErrorResponse::bad_request(format!("Provider '{}' check failed: {}", provider, err))
+    })?;
     Ok(())
 }
 
@@ -760,7 +775,12 @@ pub async fn set_config_provider(
                 .and_then(|_| config.set_goose_model(model.clone()))
                 .map_err(|e| anyhow::anyhow!(e))
         })
-        .map_err(|err| ErrorResponse::bad_request(format!("Failed to set provider to '{}' with model '{}': {}", provider, model, err)))?;
+        .map_err(|err| {
+            ErrorResponse::bad_request(format!(
+                "Failed to set provider to '{}' with model '{}': {}",
+                provider, model, err
+            ))
+        })?;
     Ok(())
 }
 
@@ -782,17 +802,29 @@ pub async fn configure_provider_oauth(
     use goose::providers::create;
 
     if !is_valid_provider_name(&provider_name) {
-        return Err(ErrorResponse::bad_request(format!("Invalid provider name: '{}'", provider_name)));
+        return Err(ErrorResponse::bad_request(format!(
+            "Invalid provider name: '{}'",
+            provider_name
+        )));
     }
 
-    let temp_model = ModelConfig::new("temp")
-        .map_err(|e| ErrorResponse::bad_request(format!("Failed to create temporary model config: {}", e)))?;
+    let temp_model = ModelConfig::new("temp").map_err(|e| {
+        ErrorResponse::bad_request(format!("Failed to create temporary model config: {}", e))
+    })?;
 
-    let provider = create(&provider_name, temp_model).await
-        .map_err(|e| ErrorResponse::bad_request(format!("Failed to create provider '{}': {}", provider_name, e)))?;
+    let provider = create(&provider_name, temp_model).await.map_err(|e| {
+        ErrorResponse::bad_request(format!(
+            "Failed to create provider '{}': {}",
+            provider_name, e
+        ))
+    })?;
 
-    provider.configure_oauth().await
-        .map_err(|e| ErrorResponse::bad_request(format!("OAuth configuration failed for provider '{}': {}", provider_name, e)))?;
+    provider.configure_oauth().await.map_err(|e| {
+        ErrorResponse::bad_request(format!(
+            "OAuth configuration failed for provider '{}': {}",
+            provider_name, e
+        ))
+    })?;
 
     // Mark the provider as configured after successful OAuth
     let configured_marker = format!("{}_configured", provider_name);

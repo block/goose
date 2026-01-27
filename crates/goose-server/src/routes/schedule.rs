@@ -8,6 +8,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 
+use crate::routes::errors::ErrorResponse;
 use crate::state::AppState;
 use goose::scheduler::ScheduledJob;
 
@@ -87,13 +88,9 @@ pub struct SessionDisplayInfo {
 async fn create_schedule(
     State(state): State<Arc<AppState>>,
     Json(req): Json<CreateScheduleRequest>,
-) -> Result<Json<ScheduledJob>, StatusCode> {
+) -> Result<Json<ScheduledJob>, ErrorResponse> {
     let scheduler = state.scheduler();
 
-    tracing::info!(
-        "Server: Calling scheduler.add_scheduled_job() for job '{}'",
-        req.id
-    );
     let job = ScheduledJob {
         id: req.id,
         source: req.recipe_source,
@@ -107,15 +104,21 @@ async fn create_schedule(
     scheduler
         .add_scheduled_job(job.clone(), true)
         .await
-        .map_err(|e| {
-            eprintln!("Error creating schedule: {:?}", e); // Log error
-            match e {
-                goose::scheduler::SchedulerError::JobNotFound(_) => StatusCode::NOT_FOUND,
-                goose::scheduler::SchedulerError::CronParseError(_) => StatusCode::BAD_REQUEST,
-                goose::scheduler::SchedulerError::RecipeLoadError(_) => StatusCode::BAD_REQUEST,
-                goose::scheduler::SchedulerError::JobIdExists(_) => StatusCode::CONFLICT,
-                _ => StatusCode::INTERNAL_SERVER_ERROR,
+        .map_err(|e| match e {
+            goose::scheduler::SchedulerError::JobNotFound(msg) => {
+                ErrorResponse::not_found(format!("Job not found: {}", msg))
             }
+            goose::scheduler::SchedulerError::CronParseError(msg) => {
+                ErrorResponse::bad_request(format!("Invalid cron expression: {}", msg))
+            }
+            goose::scheduler::SchedulerError::RecipeLoadError(msg) => {
+                ErrorResponse::bad_request(format!("Recipe load error: {}", msg))
+            }
+            goose::scheduler::SchedulerError::JobIdExists(msg) => ErrorResponse {
+                message: format!("Job ID already exists: {}", msg),
+                status: StatusCode::CONFLICT,
+            },
+            _ => ErrorResponse::internal(format!("Error creating schedule: {}", e)),
         })?;
     Ok(Json(job))
 }
@@ -132,10 +135,9 @@ async fn create_schedule(
 #[axum::debug_handler]
 async fn list_schedules(
     State(state): State<Arc<AppState>>,
-) -> Result<Json<ListSchedulesResponse>, StatusCode> {
+) -> Result<Json<ListSchedulesResponse>, ErrorResponse> {
     let scheduler = state.scheduler();
 
-    tracing::info!("Server: Calling scheduler.list_scheduled_jobs()");
     let jobs = scheduler.list_scheduled_jobs().await;
     Ok(Json(ListSchedulesResponse { jobs }))
 }
@@ -157,17 +159,16 @@ async fn list_schedules(
 async fn delete_schedule(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
-) -> Result<StatusCode, StatusCode> {
+) -> Result<StatusCode, ErrorResponse> {
     let scheduler = state.scheduler();
     scheduler
         .remove_scheduled_job(&id, true)
         .await
-        .map_err(|e| {
-            eprintln!("Error deleting schedule '{}': {:?}", id, e);
-            match e {
-                goose::scheduler::SchedulerError::JobNotFound(_) => StatusCode::NOT_FOUND,
-                _ => StatusCode::INTERNAL_SERVER_ERROR,
+        .map_err(|e| match e {
+            goose::scheduler::SchedulerError::JobNotFound(msg) => {
+                ErrorResponse::not_found(format!("Schedule not found: {}", msg))
             }
+            _ => ErrorResponse::internal(format!("Error deleting schedule: {}", e)),
         })?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -189,7 +190,7 @@ async fn delete_schedule(
 async fn run_now_handler(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
-) -> Result<Json<RunNowResponse>, StatusCode> {
+) -> Result<Json<RunNowResponse>, ErrorResponse> {
     let scheduler = state.scheduler();
 
     let (recipe_display_name, recipe_version_opt) = if let Some(job) = scheduler
@@ -238,28 +239,31 @@ async fn run_now_handler(
         "Recipe execution started"
     );
 
-    tracing::info!("Server: Calling scheduler.run_now() for job '{}'", id);
-
     match scheduler.run_now(&id).await {
         Ok(session_id) => Ok(Json(RunNowResponse { session_id })),
-        Err(e) => {
-            eprintln!("Error running schedule '{}' now: {:?}", id, e);
-            match e {
-                goose::scheduler::SchedulerError::JobNotFound(_) => Err(StatusCode::NOT_FOUND),
-                goose::scheduler::SchedulerError::AnyhowError(ref err) => {
-                    // Check if this is a cancellation error
-                    if err.to_string().contains("was successfully cancelled") {
-                        // Return a special session_id to indicate cancellation
-                        Ok(Json(RunNowResponse {
-                            session_id: "CANCELLED".to_string(),
-                        }))
-                    } else {
-                        Err(StatusCode::INTERNAL_SERVER_ERROR)
-                    }
+        Err(e) => match e {
+            goose::scheduler::SchedulerError::JobNotFound(msg) => Err(ErrorResponse::not_found(
+                format!("Schedule not found: {}", msg),
+            )),
+            goose::scheduler::SchedulerError::AnyhowError(ref err) => {
+                // Check if this is a cancellation error
+                if err.to_string().contains("was successfully cancelled") {
+                    // Return a special session_id to indicate cancellation
+                    Ok(Json(RunNowResponse {
+                        session_id: "CANCELLED".to_string(),
+                    }))
+                } else {
+                    Err(ErrorResponse::internal(format!(
+                        "Error running schedule: {}",
+                        err
+                    )))
                 }
-                _ => Err(StatusCode::INTERNAL_SERVER_ERROR),
             }
-        }
+            _ => Err(ErrorResponse::internal(format!(
+                "Error running schedule: {}",
+                e
+            ))),
+        },
     }
 }
 
@@ -281,41 +285,32 @@ async fn sessions_handler(
     State(state): State<Arc<AppState>>,
     Path(schedule_id_param): Path<String>, // Renamed to avoid confusion with session_id
     Query(query_params): Query<SessionsQuery>,
-) -> Result<Json<Vec<SessionDisplayInfo>>, StatusCode> {
+) -> Result<Json<Vec<SessionDisplayInfo>>, ErrorResponse> {
     let scheduler = state.scheduler();
 
-    match scheduler
+    let session_tuples = scheduler
         .sessions(&schedule_id_param, query_params.limit)
         .await
-    {
-        Ok(session_tuples) => {
-            let mut display_infos = Vec::new();
-            for (session_name, session) in session_tuples {
-                display_infos.push(SessionDisplayInfo {
-                    id: session_name.clone(),
-                    name: session.name,
-                    created_at: session.created_at.to_rfc3339(),
-                    working_dir: session.working_dir.to_string_lossy().into_owned(),
-                    schedule_id: session.schedule_id,
-                    message_count: session.message_count,
-                    total_tokens: session.total_tokens,
-                    input_tokens: session.input_tokens,
-                    output_tokens: session.output_tokens,
-                    accumulated_total_tokens: session.accumulated_total_tokens,
-                    accumulated_input_tokens: session.accumulated_input_tokens,
-                    accumulated_output_tokens: session.accumulated_output_tokens,
-                });
-            }
-            Ok(Json(display_infos))
-        }
-        Err(e) => {
-            eprintln!(
-                "Error fetching sessions for schedule '{}': {:?}",
-                schedule_id_param, e
-            );
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
+        .map_err(|e| ErrorResponse::internal(format!("Error fetching sessions: {}", e)))?;
+
+    let mut display_infos = Vec::new();
+    for (session_name, session) in session_tuples {
+        display_infos.push(SessionDisplayInfo {
+            id: session_name.clone(),
+            name: session.name,
+            created_at: session.created_at.to_rfc3339(),
+            working_dir: session.working_dir.to_string_lossy().into_owned(),
+            schedule_id: session.schedule_id,
+            message_count: session.message_count,
+            total_tokens: session.total_tokens,
+            input_tokens: session.input_tokens,
+            output_tokens: session.output_tokens,
+            accumulated_total_tokens: session.accumulated_total_tokens,
+            accumulated_input_tokens: session.accumulated_input_tokens,
+            accumulated_output_tokens: session.accumulated_output_tokens,
+        });
     }
+    Ok(Json(display_infos))
 }
 
 #[utoipa::path(
@@ -336,16 +331,17 @@ async fn sessions_handler(
 async fn pause_schedule(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
-) -> Result<StatusCode, StatusCode> {
+) -> Result<StatusCode, ErrorResponse> {
     let scheduler = state.scheduler();
 
-    scheduler.pause_schedule(&id).await.map_err(|e| {
-        eprintln!("Error pausing schedule '{}': {:?}", id, e);
-        match e {
-            goose::scheduler::SchedulerError::JobNotFound(_) => StatusCode::NOT_FOUND,
-            goose::scheduler::SchedulerError::AnyhowError(_) => StatusCode::BAD_REQUEST,
-            _ => StatusCode::INTERNAL_SERVER_ERROR,
+    scheduler.pause_schedule(&id).await.map_err(|e| match e {
+        goose::scheduler::SchedulerError::JobNotFound(msg) => {
+            ErrorResponse::not_found(format!("Schedule not found: {}", msg))
         }
+        goose::scheduler::SchedulerError::AnyhowError(err) => {
+            ErrorResponse::bad_request(format!("Cannot pause schedule: {}", err))
+        }
+        _ => ErrorResponse::internal(format!("Error pausing schedule: {}", e)),
     })?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -367,15 +363,14 @@ async fn pause_schedule(
 async fn unpause_schedule(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
-) -> Result<StatusCode, StatusCode> {
+) -> Result<StatusCode, ErrorResponse> {
     let scheduler = state.scheduler();
 
-    scheduler.unpause_schedule(&id).await.map_err(|e| {
-        eprintln!("Error unpausing schedule '{}': {:?}", id, e);
-        match e {
-            goose::scheduler::SchedulerError::JobNotFound(_) => StatusCode::NOT_FOUND,
-            _ => StatusCode::INTERNAL_SERVER_ERROR,
+    scheduler.unpause_schedule(&id).await.map_err(|e| match e {
+        goose::scheduler::SchedulerError::JobNotFound(msg) => {
+            ErrorResponse::not_found(format!("Schedule not found: {}", msg))
         }
+        _ => ErrorResponse::internal(format!("Error unpausing schedule: {}", e)),
     })?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -400,27 +395,30 @@ async fn update_schedule(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
     Json(req): Json<UpdateScheduleRequest>,
-) -> Result<Json<ScheduledJob>, StatusCode> {
+) -> Result<Json<ScheduledJob>, ErrorResponse> {
     let scheduler = state.scheduler();
 
     scheduler
         .update_schedule(&id, req.cron)
         .await
-        .map_err(|e| {
-            eprintln!("Error updating schedule '{}': {:?}", id, e);
-            match e {
-                goose::scheduler::SchedulerError::JobNotFound(_) => StatusCode::NOT_FOUND,
-                goose::scheduler::SchedulerError::AnyhowError(_) => StatusCode::BAD_REQUEST,
-                goose::scheduler::SchedulerError::CronParseError(_) => StatusCode::BAD_REQUEST,
-                _ => StatusCode::INTERNAL_SERVER_ERROR,
+        .map_err(|e| match e {
+            goose::scheduler::SchedulerError::JobNotFound(msg) => {
+                ErrorResponse::not_found(format!("Schedule not found: {}", msg))
             }
+            goose::scheduler::SchedulerError::AnyhowError(err) => {
+                ErrorResponse::bad_request(format!("Cannot update schedule: {}", err))
+            }
+            goose::scheduler::SchedulerError::CronParseError(msg) => {
+                ErrorResponse::bad_request(format!("Invalid cron expression: {}", msg))
+            }
+            _ => ErrorResponse::internal(format!("Error updating schedule: {}", e)),
         })?;
 
     let jobs = scheduler.list_scheduled_jobs().await;
     let updated_job = jobs
         .into_iter()
         .find(|job| job.id == id)
-        .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+        .ok_or_else(|| ErrorResponse::internal("Schedule not found after update"))?;
 
     Ok(Json(updated_job))
 }
@@ -437,16 +435,17 @@ async fn update_schedule(
 pub async fn kill_running_job(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
-) -> Result<Json<KillJobResponse>, StatusCode> {
+) -> Result<Json<KillJobResponse>, ErrorResponse> {
     let scheduler = state.scheduler();
 
-    scheduler.kill_running_job(&id).await.map_err(|e| {
-        eprintln!("Error killing running job '{}': {:?}", id, e);
-        match e {
-            goose::scheduler::SchedulerError::JobNotFound(_) => StatusCode::NOT_FOUND,
-            goose::scheduler::SchedulerError::AnyhowError(_) => StatusCode::BAD_REQUEST,
-            _ => StatusCode::INTERNAL_SERVER_ERROR,
+    scheduler.kill_running_job(&id).await.map_err(|e| match e {
+        goose::scheduler::SchedulerError::JobNotFound(msg) => {
+            ErrorResponse::not_found(format!("Job not found: {}", msg))
         }
+        goose::scheduler::SchedulerError::AnyhowError(err) => {
+            ErrorResponse::bad_request(format!("Cannot kill job: {}", err))
+        }
+        _ => ErrorResponse::internal(format!("Error killing job: {}", e)),
     })?;
 
     Ok(Json(KillJobResponse {
@@ -471,33 +470,32 @@ pub async fn kill_running_job(
 pub async fn inspect_running_job(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
-) -> Result<Json<InspectJobResponse>, StatusCode> {
+) -> Result<Json<InspectJobResponse>, ErrorResponse> {
     let scheduler = state.scheduler();
 
-    match scheduler.get_running_job_info(&id).await {
-        Ok(info) => {
-            if let Some((session_id, start_time)) = info {
-                let duration = chrono::Utc::now().signed_duration_since(start_time);
-                Ok(Json(InspectJobResponse {
-                    session_id: Some(session_id),
-                    process_start_time: Some(start_time.to_rfc3339()),
-                    running_duration_seconds: Some(duration.num_seconds()),
-                }))
-            } else {
-                Ok(Json(InspectJobResponse {
-                    session_id: None,
-                    process_start_time: None,
-                    running_duration_seconds: None,
-                }))
+    let info = scheduler
+        .get_running_job_info(&id)
+        .await
+        .map_err(|e| match e {
+            goose::scheduler::SchedulerError::JobNotFound(msg) => {
+                ErrorResponse::not_found(format!("Job not found: {}", msg))
             }
-        }
-        Err(e) => {
-            eprintln!("Error inspecting running job '{}': {:?}", id, e);
-            match e {
-                goose::scheduler::SchedulerError::JobNotFound(_) => Err(StatusCode::NOT_FOUND),
-                _ => Err(StatusCode::INTERNAL_SERVER_ERROR),
-            }
-        }
+            _ => ErrorResponse::internal(format!("Error inspecting job: {}", e)),
+        })?;
+
+    if let Some((session_id, start_time)) = info {
+        let duration = chrono::Utc::now().signed_duration_since(start_time);
+        Ok(Json(InspectJobResponse {
+            session_id: Some(session_id),
+            process_start_time: Some(start_time.to_rfc3339()),
+            running_duration_seconds: Some(duration.num_seconds()),
+        }))
+    } else {
+        Ok(Json(InspectJobResponse {
+            session_id: None,
+            process_start_time: None,
+            running_duration_seconds: None,
+        }))
     }
 }
 

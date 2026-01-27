@@ -77,6 +77,16 @@ impl From<ModelConfigError> for ErrorResponse {
     }
 }
 
+impl From<StatusCode> for ErrorResponse {
+    fn from(status: StatusCode) -> Self {
+        let message = status.canonical_reason().unwrap_or("Unknown error");
+        Self {
+            message: message.to_string(),
+            status,
+        }
+    }
+}
+
 impl From<std::io::Error> for ErrorResponse {
     fn from(err: std::io::Error) -> Self {
         Self::internal(format!("IO error: {}", err))
@@ -102,10 +112,9 @@ impl From<ProviderError> for ErrorResponse {
                 StatusCode::BAD_REQUEST,
                 format!("Authentication failed: {}", err),
             ),
-            ProviderError::UsageError(_) => (
-                StatusCode::BAD_REQUEST,
-                format!("Usage error: {}", err),
-            ),
+            ProviderError::UsageError(_) => {
+                (StatusCode::BAD_REQUEST, format!("Usage error: {}", err))
+            }
             ProviderError::RateLimitExceeded { .. } => (
                 StatusCode::TOO_MANY_REQUESTS,
                 format!("Rate limit exceeded: {}", err),
@@ -116,9 +125,6 @@ impl From<ProviderError> for ErrorResponse {
             ),
         };
 
-        Self {
-            message,
-            status,
-        }
+        Self { message, status }
     }
 }
