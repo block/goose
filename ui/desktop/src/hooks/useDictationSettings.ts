@@ -13,6 +13,7 @@ export type DictationProvider = 'openai' | typeof DICTATION_PROVIDER_ELEVENLABS 
 export interface DictationSettings {
   enabled: boolean;
   provider: DictationProvider;
+  preferredDeviceId: string | null;
 }
 
 let elevenLabsKeyCache: boolean | null = null;
@@ -33,7 +34,12 @@ export const useDictationSettings = () => {
 
       let currentSettings: DictationSettings;
       if (saved) {
-        currentSettings = JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        // Ensure backward compatibility: add preferredDeviceId if missing
+        currentSettings = {
+          preferredDeviceId: null,
+          ...parsed,
+        };
       } else {
         currentSettings = await getDefaultDictationSettings(getProviders);
       }
@@ -65,8 +71,20 @@ export const useDictationSettings = () => {
       }
     };
 
+    // Listen for same-window settings changes (storage event only fires cross-tab)
+    const handleLocalChange = () => {
+      const saved = localStorage.getItem(DICTATION_SETTINGS_KEY);
+      if (saved) {
+        setSettings(JSON.parse(saved));
+      }
+    };
+
     window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    window.addEventListener('dictation-settings-changed', handleLocalChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('dictation-settings-changed', handleLocalChange);
+    };
   }, [read, getProviders]);
 
   return { settings, hasElevenLabsKey };

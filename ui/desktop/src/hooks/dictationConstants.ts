@@ -22,11 +22,13 @@ export const getDefaultDictationSettings = async (
     return {
       enabled: true,
       provider: 'openai' as DictationProvider,
+      preferredDeviceId: null,
     };
   } else {
     return {
       enabled: false,
       provider: null as DictationProvider,
+      preferredDeviceId: null,
     };
   }
 };
