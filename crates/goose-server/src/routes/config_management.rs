@@ -17,7 +17,6 @@ use goose::providers::canonical::maybe_get_canonical_model;
 use goose::providers::create_with_default_model;
 use goose::providers::errors::ProviderError;
 use goose::providers::providers as get_providers;
-use goose::providers::{retry_operation, RetryConfig};
 use goose::{
     agents::execute_commands, agents::ExtensionConfig, config::permission::PermissionLevel,
     slash_commands,
@@ -408,10 +407,7 @@ pub async fn get_provider_models(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let models_result = retry_operation(&RetryConfig::default(), || async {
-        provider.fetch_recommended_models().await
-    })
-    .await;
+    let models_result = provider.fetch_recommended_models().await;
 
     match models_result {
         Ok(Some(models)) => Ok(Json(models)),
