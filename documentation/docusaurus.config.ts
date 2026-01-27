@@ -392,6 +392,10 @@ const config: Config = {
               label: 'Extensions',
             },
             {
+              to: '/skills',
+              label: 'Skills Marketplace',
+            },
+            {
               to: '/recipe-generator',
               label: 'Recipe Generator',
             },
