@@ -589,7 +589,7 @@ impl Provider for GcpVertexAIProvider {
 
     fn build_stream_request(
         &self,
-        session_id: &str,
+        _session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -617,11 +617,6 @@ impl Provider for GcpVertexAIProvider {
 
         // Create the stream request
         let mut stream_request = StreamRequest::new(url.to_string(), request, format);
-
-        // Add session_id header if provided
-        if !session_id.is_empty() {
-            stream_request = stream_request.with_header(SESSION_ID_HEADER, session_id)?;
-        }
 
         // Build fallback URL for location retry if known location differs from configured
         let known_location = context.model.known_location().to_string();

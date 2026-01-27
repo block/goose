@@ -260,13 +260,13 @@ impl Provider for OpenRouterProvider {
     }
 
     #[tracing::instrument(
-        skip(self, model_config, system, messages, tools),
+        skip(self, _model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
     async fn complete_impl(
         &self,
         session_id: Option<&str>,
-        model_config: &ModelConfig,
+        _model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -389,7 +389,7 @@ impl Provider for OpenRouterProvider {
 
     fn build_stream_request(
         &self,
-        session_id: &str,
+        _session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],

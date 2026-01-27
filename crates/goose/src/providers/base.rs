@@ -343,7 +343,7 @@ impl Usage {
 
 use async_trait::async_trait;
 use reqwest::header::HeaderMap;
-use serde_json::json;
+use crate::session_context::SESSION_ID_HEADER;
 
 use super::utils::{
     stream_anthropic_raw, stream_google_raw, stream_openai_compat_raw, stream_openai_responses_raw,
@@ -607,7 +607,12 @@ pub trait Provider: Send + Sync {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let request = self.build_stream_request(session_id, system, messages, tools)?;
+        let mut request = self.build_stream_request(session_id, system, messages, tools)?;
+
+        // Add session_id header if provided - this is done centrally so providers don't need to
+        if !session_id.is_empty() {
+            request = request.with_header(SESSION_ID_HEADER, session_id)?;
+        }
 
         let mut log = RequestLog::start(&self.get_model_config(), &request.payload)?;
 

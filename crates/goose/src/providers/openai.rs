@@ -357,7 +357,7 @@ impl Provider for OpenAiProvider {
 
     fn build_stream_request(
         &self,
-        session_id: &str,
+        _session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
