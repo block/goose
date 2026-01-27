@@ -1,10 +1,8 @@
 use anyhow::Result;
 use dotenvy::dotenv;
 use goose::conversation::message::Message;
+use goose::providers::create_with_named_model;
 use goose::providers::databricks::DATABRICKS_DEFAULT_MODEL;
-use goose::providers::{base::Usage, create_with_named_model};
-use tokio_stream::StreamExt;
-use uuid::Uuid;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -20,25 +18,25 @@ async fn main() -> Result<()> {
     let message = Message::user().with_text("Tell me a short joke about programming.");
 
     // Get a response
-    let session_id = Uuid::new_v4().to_string();
-    let mut stream = provider
-        .stream(&session_id, "You are a helpful assistant.", &[message], &[])
+    let (response, usage) = provider
+        .complete_with_model(
+            None,
+            &provider.get_model_config(),
+            "You are a helpful assistant.",
+            &[message],
+            &[],
+        )
         .await?;
 
     println!("\nResponse from AI:");
     println!("---------------");
-    let mut usage = Usage::default();
-    while let Some(Ok((msg, usage_part))) = stream.next().await {
-        dbg!(msg);
-        if let Some(u) = usage_part {
-            usage += u.usage;
-        }
-    }
+    println!("{:?}", response);
+
     println!("\nToken Usage:");
     println!("------------");
-    println!("Input tokens: {:?}", usage.input_tokens);
-    println!("Output tokens: {:?}", usage.output_tokens);
-    println!("Total tokens: {:?}", usage.total_tokens);
+    println!("Input tokens: {:?}", usage.usage.input_tokens);
+    println!("Output tokens: {:?}", usage.usage.output_tokens);
+    println!("Total tokens: {:?}", usage.usage.total_tokens);
 
     Ok(())
 }

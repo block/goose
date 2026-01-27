@@ -378,12 +378,14 @@ mod tests {
 
             async fn complete_with_model(
                 &self,
-                session_id: &str,
+                session_id: Option<&str>,
                 _model_config: &ModelConfig,
                 system_prompt: &str,
                 messages: &[Message],
                 tools: &[Tool],
             ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {
+                // Test-only: coerce missing session_id to empty so complete() can be reused.
+                let session_id = session_id.unwrap_or("");
                 self.complete(session_id, system_prompt, messages, tools)
                     .await
             }

@@ -342,7 +342,7 @@ impl Provider for LeadWorkerProvider {
 
     async fn complete_with_model(
         &self,
-        session_id: &str,
+        session_id: Option<&str>,
         _model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -393,7 +393,10 @@ impl Provider for LeadWorkerProvider {
         }
 
         // Make the completion request
-        let result = provider.complete(session_id, system, messages, tools).await;
+        let model_config = provider.get_model_config();
+        let result = provider
+            .complete_with_model(session_id, &model_config, system, messages, tools)
+            .await;
 
         // For technical failures, try with default model (lead provider) instead
         let final_result = match &result {
@@ -401,9 +404,10 @@ impl Provider for LeadWorkerProvider {
                 tracing::warn!("Technical failure with {} provider, retrying with default model (lead provider)", provider_type);
 
                 // Try with lead provider as the default/fallback for technical failures
+                let model_config = self.lead_provider.get_model_config();
                 let default_result = self
                     .lead_provider
-                    .complete(session_id, system, messages, tools)
+                    .complete_with_model(session_id, &model_config, system, messages, tools)
                     .await;
 
                 match &default_result {
@@ -428,19 +432,10 @@ impl Provider for LeadWorkerProvider {
         final_result
     }
 
-    async fn fetch_supported_models(
-        &self,
-        session_id: &str,
-    ) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         // Combine models from both providers
-        let lead_models = self
-            .lead_provider
-            .fetch_supported_models(session_id)
-            .await?;
-        let worker_models = self
-            .worker_provider
-            .fetch_supported_models(session_id)
-            .await?;
+        let lead_models = self.lead_provider.fetch_supported_models().await?;
+        let worker_models = self.worker_provider.fetch_supported_models().await?;
 
         match (lead_models, worker_models) {
             (Some(lead), Some(worker)) => {
@@ -517,7 +512,7 @@ mod tests {
 
         async fn complete_with_model(
             &self,
-            _session_id: &str,
+            _session_id: Option<&str>,
             _model_config: &ModelConfig,
             _system: &str,
             _messages: &[Message],
@@ -703,7 +698,7 @@ mod tests {
 
         async fn complete_with_model(
             &self,
-            _session_id: &str,
+            _session_id: Option<&str>,
             _model_config: &ModelConfig,
             _system: &str,
             _messages: &[Message],

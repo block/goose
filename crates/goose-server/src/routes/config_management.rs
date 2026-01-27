@@ -17,7 +17,6 @@ use goose::providers::canonical::maybe_get_canonical_model;
 use goose::providers::create_with_default_model;
 use goose::providers::errors::ProviderError;
 use goose::providers::providers as get_providers;
-use goose::providers::{retry_operation, RetryConfig};
 use goose::{
     agents::execute_commands, agents::ExtensionConfig, config::permission::PermissionLevel,
     slash_commands,
@@ -28,7 +27,6 @@ use serde_json::Value;
 use serde_yaml;
 use std::{collections::HashMap, sync::Arc};
 use utoipa::ToSchema;
-use uuid::Uuid;
 
 #[derive(Serialize, ToSchema)]
 pub struct ExtensionResponse {
@@ -409,12 +407,7 @@ pub async fn get_provider_models(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    // Config endpoints have no user session; use an ephemeral id for the probe.
-    let session_id = Uuid::new_v4().to_string();
-    let models_result = retry_operation(&RetryConfig::default(), || async {
-        provider.fetch_recommended_models(&session_id).await
-    })
-    .await;
+    let models_result = provider.fetch_recommended_models().await;
 
     match models_result {
         Ok(Some(models)) => Ok(Json(models)),
@@ -592,10 +585,8 @@ pub async fn detect_provider(
     Json(detect_request): Json<DetectProviderRequest>,
 ) -> Result<Json<DetectProviderResponse>, StatusCode> {
     let api_key = detect_request.api_key.trim();
-    // Provider detection runs without a user session; use an ephemeral id.
-    let session_id = Uuid::new_v4().to_string();
 
-    match detect_provider_from_api_key(&session_id, api_key).await {
+    match detect_provider_from_api_key(api_key).await {
         Some((provider_name, models)) => Ok(Json(DetectProviderResponse {
             provider_name,
             models,

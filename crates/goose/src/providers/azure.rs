@@ -99,7 +99,11 @@ impl AzureProvider {
         })
     }
 
-    async fn post(&self, session_id: &str, payload: &Value) -> Result<Value, ProviderError> {
+    async fn post(
+        &self,
+        session_id: Option<&str>,
+        payload: &Value,
+    ) -> Result<Value, ProviderError> {
         // Build the path for Azure OpenAI
         let path = format!(
             "openai/deployments/{}/chat/completions?api-version={}",
@@ -147,7 +151,7 @@ impl Provider for AzureProvider {
     )]
     async fn complete_with_model(
         &self,
-        session_id: &str,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],

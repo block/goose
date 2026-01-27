@@ -25,6 +25,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, warn};
 
+use super::container::Container;
 use super::extension::{
     ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult, PlatformExtensionContext,
     ToolInfo, PLATFORM_EXTENSIONS,
@@ -215,6 +216,7 @@ async fn child_process_client(
     timeout: &Option<u64>,
     provider: SharedProvider,
     working_dir: Option<&PathBuf>,
+    docker_container: Option<String>,
 ) -> ExtensionResult<McpClient> {
     #[cfg(unix)]
     command.process_group(0);
@@ -258,10 +260,11 @@ async fn child_process_client(
         Ok::<String, std::io::Error>(String::from_utf8_lossy(&all_stderr).into())
     });
 
-    let client_result = McpClient::connect(
+    let client_result = McpClient::connect_with_container(
         transport,
         Duration::from_secs(timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT)),
         provider,
+        docker_container,
     )
     .await;
 
@@ -485,6 +488,7 @@ impl ExtensionManager {
         self: &Arc<Self>,
         config: ExtensionConfig,
         working_dir: Option<PathBuf>,
+        container: Option<&Container>,
     ) -> ExtensionResult<()> {
         let config_name = config.key().to_string();
         let sanitized_name = normalize(&config_name);
@@ -538,50 +542,100 @@ impl ExtensionManager {
                 // Check for malicious packages before launching the process
                 extension_malware_check::deny_if_malicious_cmd_args(cmd, args).await?;
 
-                let cmd = resolve_command(cmd);
-
-                let command = Command::new(cmd).configure(|command| {
-                    command.args(args).envs(all_envs);
-                });
+                let command = if let Some(container) = container {
+                    let container_id = container.id();
+                    tracing::info!(
+                        container = %container_id,
+                        cmd = %cmd,
+                        "Starting stdio extension inside Docker container"
+                    );
+                    Command::new("docker").configure(|command| {
+                        command.arg("exec").arg("-i");
+                        for (key, value) in &all_envs {
+                            command.arg("-e").arg(format!("{}={}", key, value));
+                        }
+                        command.arg(container_id);
+                        command.arg(cmd);
+                        command.args(args);
+                    })
+                } else {
+                    let cmd = resolve_command(cmd);
+                    Command::new(cmd).configure(|command| {
+                        command.args(args).envs(all_envs);
+                    })
+                };
 
                 let client = child_process_client(
                     command,
                     timeout,
                     self.provider.clone(),
                     Some(&effective_working_dir),
+                    container.map(|c| c.id().to_string()),
                 )
                 .await?;
                 Box::new(client)
             }
             ExtensionConfig::Builtin { name, timeout, .. } => {
                 let timeout_duration = Duration::from_secs(timeout.unwrap_or(300));
-                let def = goose_mcp::BUILTIN_EXTENSIONS
-                    .get(name.as_str())
-                    .ok_or_else(|| {
-                        ExtensionError::ConfigError(format!("Unknown builtin extension: {}", name))
-                    })?;
 
-                // Set GOOSE_WORKING_DIR in the current process for builtin extensions
-                // since they run in-process and read from std::env::var
-                if effective_working_dir.exists() && effective_working_dir.is_dir() {
-                    std::env::set_var("GOOSE_WORKING_DIR", &effective_working_dir);
-                    tracing::info!(
-                        "Set GOOSE_WORKING_DIR for builtin extension: {:?}",
-                        effective_working_dir
-                    );
+                if !goose_mcp::BUILTIN_EXTENSIONS.contains_key(name.as_str()) {
+                    return Err(ExtensionError::ConfigError(format!(
+                        "Unknown builtin extension: {}",
+                        name
+                    )));
                 }
 
-                let (server_read, client_write) = tokio::io::duplex(65536);
-                let (client_read, server_write) = tokio::io::duplex(65536);
-                (def.spawn_server)(server_read, server_write);
-                Box::new(
-                    McpClient::connect(
-                        (client_read, client_write),
-                        timeout_duration,
+                if let Some(container) = container {
+                    let container_id = container.id();
+                    tracing::info!(
+                        container = %container_id,
+                        builtin = %name,
+                        "Starting builtin extension inside Docker container"
+                    );
+                    let command = Command::new("docker").configure(|command| {
+                        command
+                            .arg("exec")
+                            .arg("-i")
+                            .arg(container_id)
+                            .arg("goose")
+                            .arg("mcp")
+                            .arg(name);
+                    });
+
+                    let client = child_process_client(
+                        command,
+                        timeout,
                         self.provider.clone(),
+                        Some(&effective_working_dir),
+                        Some(container_id.to_string()),
                     )
-                    .await?,
-                )
+                    .await?;
+                    Box::new(client)
+                } else {
+                    let def = goose_mcp::BUILTIN_EXTENSIONS.get(name.as_str()).unwrap();
+
+                    // Set GOOSE_WORKING_DIR in the current process for builtin extensions
+                    // since they run in-process and read from std::env::var
+                    if effective_working_dir.exists() && effective_working_dir.is_dir() {
+                        std::env::set_var("GOOSE_WORKING_DIR", &effective_working_dir);
+                        tracing::info!(
+                            "Set GOOSE_WORKING_DIR for builtin extension: {:?}",
+                            effective_working_dir
+                        );
+                    }
+
+                    let (server_read, client_write) = tokio::io::duplex(65536);
+                    let (client_read, server_write) = tokio::io::duplex(65536);
+                    (def.spawn_server)(server_read, server_write);
+                    Box::new(
+                        McpClient::connect(
+                            (client_read, client_write),
+                            timeout_duration,
+                            self.provider.clone(),
+                        )
+                        .await?,
+                    )
+                }
             }
             ExtensionConfig::Platform { name, .. } => {
                 let normalized_key = normalize(name);
@@ -619,6 +673,7 @@ impl ExtensionManager {
                     timeout,
                     self.provider.clone(),
                     Some(&effective_working_dir),
+                    container.map(|c| c.id().to_string()),
                 )
                 .await?;
 

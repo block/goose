@@ -257,6 +257,25 @@ Speak to goose directly instead of typing your prompts.
     </TabItem>
 </Tabs>
 
+## Spellcheck
+
+Spellcheck is enabled by default in the goose Desktop chat input field.
+
+<Tabs groupId="interface">
+    <TabItem value="ui" label="goose Desktop" default>
+    To disable or re-enable spellcheck:
+        1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+        2. Click `Settings` in the sidebar
+        3. Click `Chat`
+        4. Scroll down to `Enable Spellcheck` and toggle it on or off
+        5. Restart goose for the change to take effect
+        
+    </TabItem>
+    <TabItem value="cli" label="goose CLI">
+        Spellcheck is not available in the goose CLI.
+    </TabItem>
+</Tabs>
+
 ## Share Files in Session
 
 Provide goose with context from your codebase, documents, and other files to get more relevant and accurate assistance.

@@ -63,7 +63,11 @@ impl TetrateProvider {
         })
     }
 
-    async fn post(&self, session_id: &str, payload: &Value) -> Result<Value, ProviderError> {
+    async fn post(
+        &self,
+        session_id: Option<&str>,
+        payload: &Value,
+    ) -> Result<Value, ProviderError> {
         let response = self
             .api_client
             .response_post(session_id, "v1/chat/completions", payload)
@@ -158,7 +162,7 @@ impl Provider for TetrateProvider {
     )]
     async fn complete_with_model(
         &self,
-        session_id: &str,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -215,7 +219,7 @@ impl Provider for TetrateProvider {
             .with_retry(|| async {
                 let resp = self
                     .api_client
-                    .response_post(session_id, "v1/chat/completions", &payload)
+                    .response_post(Some(session_id), "v1/chat/completions", &payload)
                     .await?;
                 handle_status_openai_compat(resp).await
             })
@@ -228,12 +232,14 @@ impl Provider for TetrateProvider {
     }
 
     /// Fetch supported models from Tetrate Agent Router Service API (only models with tool support)
-    async fn fetch_supported_models(
-        &self,
-        session_id: &str,
-    ) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         // Use the existing api_client which already has authentication configured
-        let response = match self.api_client.response_get(session_id, "v1/models").await {
+        let response = match self
+            .api_client
+            .request(None, "v1/models")
+            .response_get()
+            .await
+        {
             Ok(response) => response,
             Err(e) => {
                 tracing::warn!("Failed to fetch models from Tetrate Agent Router Service API: {}, falling back to manual model entry", e);

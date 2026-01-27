@@ -69,7 +69,9 @@ export type AnalyticsEvent =
   | { name: 'onboarding_started'; properties: Record<string, never> }
   | {
       name: 'onboarding_provider_selected';
-      properties: { method: 'api_key' | 'openrouter' | 'tetrate' | 'chatgpt_codex' | 'ollama' | 'other' };
+      properties: {
+        method: 'api_key' | 'openrouter' | 'tetrate' | 'chatgpt_codex' | 'ollama' | 'other';
+      };
     }
   | {
       name: 'onboarding_completed';
