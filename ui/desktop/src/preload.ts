@@ -130,7 +130,20 @@ type ElectronAPI = {
   refreshApp: (app: GooseApp) => Promise<void>;
   closeApp: (appName: string) => Promise<void>;
   addRecentDir: (dir: string) => Promise<boolean>;
+  getRecentDirs: () => Promise<string[]>;
+  getRecentFiles: (hoursAgo?: number) => Promise<RecentItem[]>;
 };
+
+export type RecentItemType = 'image' | 'document' | 'repo';
+
+export interface RecentItem {
+  type: RecentItemType;
+  name: string;
+  path: string;
+  fullPath: string;
+  suggestion: string;
+  secondarySuggestions: string[];
+}
 
 type AppConfigAPI = {
   get: (key: string) => unknown;
@@ -263,6 +276,8 @@ const electronAPI: ElectronAPI = {
   refreshApp: (app: GooseApp) => ipcRenderer.invoke('refresh-app', app),
   closeApp: (appName: string) => ipcRenderer.invoke('close-app', appName),
   addRecentDir: (dir: string) => ipcRenderer.invoke('add-recent-dir', dir),
+  getRecentDirs: () => ipcRenderer.invoke('get-recent-dirs'),
+  getRecentFiles: (hoursAgo?: number) => ipcRenderer.invoke('get-recent-files', hoursAgo),
 };
 
 const appConfigAPI: AppConfigAPI = {

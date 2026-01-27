@@ -28,6 +28,7 @@ import { expandTilde } from './utils/pathUtils';
 import log from './utils/logger';
 import { ensureWinShims } from './utils/winShims';
 import { addRecentDir, loadRecentDirs } from './utils/recentDirs';
+import { loadRecentFiles } from './utils/recentFiles';
 import { formatAppName } from './utils/conversionUtils';
 import type { Settings } from './utils/settings';
 import { defaultKeyboardShortcuts, getKeyboardShortcuts } from './utils/settings';
@@ -1187,6 +1188,14 @@ ipcMain.handle('add-recent-dir', (_event, dir: string) => {
   if (dir) {
     addRecentDir(dir);
   }
+});
+
+ipcMain.handle('get-recent-dirs', () => {
+  return loadRecentDirs();
+});
+
+ipcMain.handle('get-recent-files', (_event, hoursAgo?: number) => {
+  return loadRecentFiles(hoursAgo);
 });
 
 // Handle scheduling engine settings
