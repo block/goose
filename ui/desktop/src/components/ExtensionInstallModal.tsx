@@ -15,7 +15,7 @@ import type { ExtensionConfig } from '../api/types.gen';
 import { View, ViewOptions } from '../utils/navigationUtils';
 import { useConfig } from './ConfigContext';
 import { toastService } from '../toasts';
-import { errorMessage } from '../../utils/conversionUtils';
+import { errorMessage } from '../utils/conversionUtils';
 
 type ModalType = 'blocked' | 'untrusted' | 'trusted';
 
@@ -249,16 +249,11 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
       } else {
         throw new Error('addExtension function not provided to component');
       }
-
-      // Only dismiss modal after successful installation
       dismissModal();
     } catch (error) {
-      const errorMessage = errorMessage(error, 'Installation failed');
-      console.error('Extension installation failed:', error);
-
       setModalState((prev) => ({
         ...prev,
-        error: errorMessage,
+        error: errorMessage(error, 'Installation failed'),
         isPending: false,
       }));
     }

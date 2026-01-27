@@ -9,10 +9,9 @@ import {
   getPreferredModel,
   type PullProgress,
 } from '../utils/ollamaDetection';
-//import { initializeSystem } from '../utils/providerUtils';
 import { toastService } from '../toasts';
 import { Ollama } from './icons';
-import { errorMessage } from '../../utils/conversionUtils';
+import { errorMessage } from '../utils/conversionUtils';
 
 interface OllamaSetupProps {
   onSuccess: () => void;

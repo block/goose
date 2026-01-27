@@ -9,7 +9,6 @@ import { getUiNames, providerPrefixes } from '../../../utils/configUtils';
 import type { ConfigData, ConfigValue } from '../../../types/config';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import {
-import { errorMessage } from '../../utils/conversionUtils';
   Dialog,
   DialogContent,
   DialogDescription,
@@ -18,6 +17,7 @@ import { errorMessage } from '../../utils/conversionUtils';
   DialogTitle,
   DialogTrigger,
 } from '../../ui/dialog';
+import { errorMessage } from '../../../utils/conversionUtils';
 
 export default function ConfigSettings() {
   const { config, upsert } = useConfig();

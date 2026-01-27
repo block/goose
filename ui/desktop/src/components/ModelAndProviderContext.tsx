@@ -3,16 +3,13 @@ import { toastError, toastSuccess } from '../toasts';
 import Model, { getProviderMetadata } from './settings/models/modelInterface';
 import { ProviderMetadata, setConfigProvider, updateAgentProvider } from '../api';
 import { useConfig } from './ConfigContext';
+import { errorMessage } from '../utils/conversionUtils';
 import {
-import { errorMessage } from '../../utils/conversionUtils';
   getModelDisplayName,
   getProviderDisplayName,
 } from './settings/models/predefinedModelsUtils';
 
-// titles
 export const UNKNOWN_PROVIDER_TITLE = 'Provider name lookup';
-
-// errors
 export const UNKNOWN_PROVIDER_MSG = 'Unknown provider in config -- please inspect your config.yaml';
 
 // success
