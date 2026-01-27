@@ -59,10 +59,11 @@ export function ShortcutRecorder({
       parts.push('Shift');
     }
 
-    let key = e.key;
+    let key = e.code && e.code.startsWith('Key') ? e.code.replace('Key', '') : e.key;
 
     const keyMap: Record<string, string> = {
       ' ': 'Space',
+      Space: 'Space',
       ArrowUp: 'Up',
       ArrowDown: 'Down',
       ArrowLeft: 'Left',
@@ -72,12 +73,25 @@ export function ShortcutRecorder({
       Backspace: 'Backspace',
       Tab: 'Tab',
       Enter: 'Return',
+      Minus: '-',
+      Equal: '=',
+      BracketLeft: '[',
+      BracketRight: ']',
+      Backslash: '\\',
+      Semicolon: ';',
+      Quote: "'",
+      Comma: ',',
+      Period: '.',
+      Slash: '/',
+      Backquote: '`',
     };
 
-    if (keyMap[key]) {
-      key = keyMap[key];
-    } else {
-      key = key.length === 1 ? key.toUpperCase() : key;
+    if (e.code && e.code.startsWith('Digit')) {
+      key = e.code.replace('Digit', '');
+    } else if (keyMap[key] || keyMap[e.code]) {
+      key = keyMap[key] || keyMap[e.code];
+    } else if (key.length === 1) {
+      key = key.toUpperCase();
     }
 
     parts.push(key);
