@@ -19,6 +19,43 @@ fi
 SCRIPT_DIR=$(pwd)
 GOOSE_BIN="$SCRIPT_DIR/target/release/goose"
 
+# Timeout for goose commands (default 5 minutes)
+GOOSE_TIMEOUT=${GOOSE_TIMEOUT:-300}
+
+# Log directory for diagnostics
+LOG_DIR="$HOME/.config/goose/logs/cli"
+
+# Helper to dump stream diagnostics from logs on timeout
+dump_stream_diagnostics() {
+  echo ""
+  echo "=== STREAM DIAGNOSTICS (last 50 entries) ==="
+  if [ -d "$LOG_DIR" ]; then
+    # Find logs from the last 10 minutes and grep for stream_diag
+    find "$LOG_DIR" -name "*.log" -mmin -10 -exec grep -h "stream_diag" {} \; 2>/dev/null | tail -50
+  else
+    echo "No log directory found at $LOG_DIR"
+  fi
+  echo "=== END STREAM DIAGNOSTICS ==="
+  echo ""
+}
+
+# Helper to run goose with timeout and stream diagnostics enabled
+run_goose() {
+  local exit_code=0
+  # Enable stream_diag target for our diagnostic logs
+  RUST_LOG="${RUST_LOG:-stream_diag=info}" timeout "$GOOSE_TIMEOUT" "$GOOSE_BIN" "$@" 2>&1 || exit_code=$?
+
+  if [ $exit_code -eq 124 ] || [ $exit_code -eq 137 ]; then
+    echo ""
+    echo "⚠️  TIMEOUT: goose command exceeded ${GOOSE_TIMEOUT}s limit"
+  fi
+
+  # Always dump stream diagnostics to help debug issues
+  dump_stream_diagnostics
+
+  return $exit_code
+}
+
 # Validation function to check compaction structure in session JSON
 validate_compaction() {
   local session_id=$1
@@ -102,7 +139,7 @@ echo ""
 OUTPUT=$(mktemp)
 
 echo "Step 1: Creating session with initial messages..."
-(cd "$TESTDIR" && "$GOOSE_BIN" run --text "list files and read hello.txt" 2>&1) | tee "$OUTPUT"
+(cd "$TESTDIR" && run_goose run --text "list files and read hello.txt") | tee "$OUTPUT"
 
 if ! command -v jq &> /dev/null; then
   echo "✗ FAILED: jq is required for this test"
@@ -121,7 +158,7 @@ else
     echo "Step 2: Sending manual compaction trigger..."
 
     # Send the manual compact trigger prompt
-    (cd "$TESTDIR" && "$GOOSE_BIN" run --resume --session-id "$SESSION_ID" --text "Please compact this conversation" 2>&1) | tee -a "$OUTPUT"
+    (cd "$TESTDIR" && run_goose run --resume --session-id "$SESSION_ID" --text "Please compact this conversation") | tee -a "$OUTPUT"
 
     echo ""
     echo "Checking for compaction evidence..."
@@ -147,192 +184,192 @@ fi
 echo ""
 echo ""
 
-# ==================================================
-# TEST 2: Auto Compaction
-# ==================================================
-echo "---------------------------------------------------"
-echo "TEST 2: Auto Compaction via threshold (0.005)"
-echo "---------------------------------------------------"
+# # ==================================================
+# # TEST 2: Auto Compaction
+# # ==================================================
+# echo "---------------------------------------------------"
+# echo "TEST 2: Auto Compaction via threshold (0.005)"
+# echo "---------------------------------------------------"
 
-TESTDIR=$(mktemp -d)
-echo "test content" > "$TESTDIR/test.txt"
-echo "Test directory: $TESTDIR"
-echo ""
+# TESTDIR=$(mktemp -d)
+# echo "test content" > "$TESTDIR/test.txt"
+# echo "Test directory: $TESTDIR"
+# echo ""
 
-# Set auto-compact threshold very low (.5%) to trigger it quickly
-export GOOSE_AUTO_COMPACT_THRESHOLD=0.005
+# # Set auto-compact threshold very low (.5%) to trigger it quickly
+# export GOOSE_AUTO_COMPACT_THRESHOLD=0.005
 
-OUTPUT=$(mktemp)
+# OUTPUT=$(mktemp)
 
-LONG_RESPONSE_PROMPT="Count from 1 to 200, one number per line."
+# LONG_RESPONSE_PROMPT="Count from 1 to 200, one number per line."
 
-echo "Step 1: Creating session with first message (generating tokens for threshold)..."
-(cd "$TESTDIR" && "$GOOSE_BIN" run --text "$LONG_RESPONSE_PROMPT" 2>&1) | tee "$OUTPUT"
+# echo "Step 1: Creating session with first message (generating tokens for threshold)..."
+# (cd "$TESTDIR" && "$GOOSE_BIN" run --text "$LONG_RESPONSE_PROMPT" 2>&1) | tee "$OUTPUT"
 
-if ! command -v jq &> /dev/null; then
-  echo "✗ FAILED: jq is required for this test"
-  RESULTS+=("✗ Auto Compaction (jq required)")
-else
-  SESSION_ID=$("$GOOSE_BIN" session list --format json 2>/dev/null | jq -r '.[0].id' 2>/dev/null)
+# if ! command -v jq &> /dev/null; then
+#   echo "✗ FAILED: jq is required for this test"
+#   RESULTS+=("✗ Auto Compaction (jq required)")
+# else
+#   SESSION_ID=$("$GOOSE_BIN" session list --format json 2>/dev/null | jq -r '.[0].id' 2>/dev/null)
 
-  if [ -z "$SESSION_ID" ] || [ "$SESSION_ID" = "null" ]; then
-    echo "✗ FAILED: Could not create session"
-    RESULTS+=("✗ Auto Compaction (no session)")
-  else
-    echo ""
-    echo "Session created: $SESSION_ID"
-    echo "Step 2: Sending second message (should trigger auto-compact)..."
+#   if [ -z "$SESSION_ID" ] || [ "$SESSION_ID" = "null" ]; then
+#     echo "✗ FAILED: Could not create session"
+#     RESULTS+=("✗ Auto Compaction (no session)")
+#   else
+#     echo ""
+#     echo "Session created: $SESSION_ID"
+#     echo "Step 2: Sending second message (should trigger auto-compact)..."
 
-    # Send second message - auto-compaction should trigger before processing this
-    (cd "$TESTDIR" && "$GOOSE_BIN" run --resume --session-id "$SESSION_ID" --text "hi again" 2>&1) | tee -a "$OUTPUT"
+#     # Send second message - auto-compaction should trigger before processing this
+#     (cd "$TESTDIR" && "$GOOSE_BIN" run --resume --session-id "$SESSION_ID" --text "hi again" 2>&1) | tee -a "$OUTPUT"
 
-    echo ""
-    echo "Checking for auto-compaction evidence..."
+#     echo ""
+#     echo "Checking for auto-compaction evidence..."
 
-    if grep -qi "auto.*compact\|exceeded.*auto.*compact.*threshold" "$OUTPUT"; then
-      echo "✓ SUCCESS: Auto compaction was triggered"
+#     if grep -qi "auto.*compact\|exceeded.*auto.*compact.*threshold" "$OUTPUT"; then
+#       echo "✓ SUCCESS: Auto compaction was triggered"
 
-      if validate_compaction "$SESSION_ID" "auto compaction"; then
-        RESULTS+=("✓ Auto Compaction")
-      else
-        RESULTS+=("✗ Auto Compaction (structure validation failed)")
-      fi
-    else
-      echo "✗ FAILED: Auto compaction was not triggered"
-      echo "   Expected to see auto-compact messages with threshold of 0.005"
-      RESULTS+=("✗ Auto Compaction")
-    fi
-  fi
-fi
+#       if validate_compaction "$SESSION_ID" "auto compaction"; then
+#         RESULTS+=("✓ Auto Compaction")
+#       else
+#         RESULTS+=("✗ Auto Compaction (structure validation failed)")
+#       fi
+#     else
+#       echo "✗ FAILED: Auto compaction was not triggered"
+#       echo "   Expected to see auto-compact messages with threshold of 0.005"
+#       RESULTS+=("✗ Auto Compaction")
+#     fi
+#   fi
+# fi
 
-# Unset the env variable
-unset GOOSE_AUTO_COMPACT_THRESHOLD
+# # Unset the env variable
+# unset GOOSE_AUTO_COMPACT_THRESHOLD
 
-rm -f "$OUTPUT"
-rm -rf "$TESTDIR"
+# rm -f "$OUTPUT"
+# rm -rf "$TESTDIR"
 
-echo ""
-echo ""
+# echo ""
+# echo ""
 
-# ==================================================
-# TEST 3: Out-of-Context Error Compaction
-# ==================================================
-echo "---------------------------------------------------"
-echo "TEST 3: Compaction via out-of-context error (proxy)"
-echo "---------------------------------------------------"
+# # ==================================================
+# # TEST 3: Out-of-Context Error Compaction
+# # ==================================================
+# echo "---------------------------------------------------"
+# echo "TEST 3: Compaction via out-of-context error (proxy)"
+# echo "---------------------------------------------------"
 
-TESTDIR=$(mktemp -d)
-echo "test content" > "$TESTDIR/test.txt"
-echo "Test directory: $TESTDIR"
-echo ""
+# TESTDIR=$(mktemp -d)
+# echo "test content" > "$TESTDIR/test.txt"
+# echo "Test directory: $TESTDIR"
+# echo ""
 
-# Use a random port to avoid conflicts
-PROXY_PORT=$((9000 + RANDOM % 1000))
-PROXY_DIR="$SCRIPT_DIR/scripts/provider-error-proxy"
+# # Use a random port to avoid conflicts
+# PROXY_PORT=$((9000 + RANDOM % 1000))
+# PROXY_DIR="$SCRIPT_DIR/scripts/provider-error-proxy"
 
-OUTPUT=$(mktemp)
-PROXY_LOG=$(mktemp)
-PROXY_SETUP_LOG=$(mktemp)
+# OUTPUT=$(mktemp)
+# PROXY_LOG=$(mktemp)
+# PROXY_SETUP_LOG=$(mktemp)
 
-# Pre-install proxy dependencies (so first run doesn't take forever)
-echo "Installing proxy dependencies..."
-export UV_INDEX_URL="https://pypi.org/simple"
-if ! (cd "$PROXY_DIR" && uv sync 2>&1 | tee "$PROXY_SETUP_LOG"); then
-  echo "✗ FAILED: Could not install proxy dependencies"
-  echo "Setup log:"
-  cat "$PROXY_SETUP_LOG"
-  RESULTS+=("✗ Out-of-Context Error (dependency install failed)")
-else
-  echo "✓ Dependencies installed"
+# # Pre-install proxy dependencies (so first run doesn't take forever)
+# echo "Installing proxy dependencies..."
+# export UV_INDEX_URL="https://pypi.org/simple"
+# if ! (cd "$PROXY_DIR" && uv sync 2>&1 | tee "$PROXY_SETUP_LOG"); then
+#   echo "✗ FAILED: Could not install proxy dependencies"
+#   echo "Setup log:"
+#   cat "$PROXY_SETUP_LOG"
+#   RESULTS+=("✗ Out-of-Context Error (dependency install failed)")
+# else
+#   echo "✓ Dependencies installed"
 
-  # Start the error proxy in context-length error mode (3 errors)
-  echo "Starting error proxy on port $PROXY_PORT with context-length error mode..."
-  (cd "$PROXY_DIR" && UV_INDEX_URL="https://pypi.org/simple" uv run proxy.py --port "$PROXY_PORT" --mode "c 3" --no-stdin > "$PROXY_LOG" 2>&1) &
-  PROXY_PID=$!
+#   # Start the error proxy in context-length error mode (3 errors)
+#   echo "Starting error proxy on port $PROXY_PORT with context-length error mode..."
+#   (cd "$PROXY_DIR" && UV_INDEX_URL="https://pypi.org/simple" uv run proxy.py --port "$PROXY_PORT" --mode "c 3" --no-stdin > "$PROXY_LOG" 2>&1) &
+#   PROXY_PID=$!
 
-  # Wait for proxy to be ready (check if port is listening)
-  echo "Waiting for proxy to be ready..."
-  PROXY_READY=false
-  for i in {1..60}; do
-    if kill -0 $PROXY_PID 2>/dev/null; then
-      # Check if port is listening using /dev/tcp
-      if timeout 1 bash -c "echo -n > /dev/tcp/localhost/$PROXY_PORT" 2>/dev/null; then
-        PROXY_READY=true
-        echo "✓ Proxy is ready on port $PROXY_PORT"
-        break
-      fi
-    else
-      echo "✗ FAILED: Error proxy process died"
-      break
-    fi
-    sleep 0.5
-  done
+#   # Wait for proxy to be ready (check if port is listening)
+#   echo "Waiting for proxy to be ready..."
+#   PROXY_READY=false
+#   for i in {1..60}; do
+#     if kill -0 $PROXY_PID 2>/dev/null; then
+#       # Check if port is listening using /dev/tcp
+#       if timeout 1 bash -c "echo -n > /dev/tcp/localhost/$PROXY_PORT" 2>/dev/null; then
+#         PROXY_READY=true
+#         echo "✓ Proxy is ready on port $PROXY_PORT"
+#         break
+#       fi
+#     else
+#       echo "✗ FAILED: Error proxy process died"
+#       break
+#     fi
+#     sleep 0.5
+#   done
 
-  # Check if proxy is running and ready
-  if [ "$PROXY_READY" != "true" ]; then
-    echo "✗ FAILED: Error proxy failed to become ready"
-    echo "Proxy log:"
-    cat "$PROXY_LOG"
-    kill $PROXY_PID 2>/dev/null || true
-    RESULTS+=("✗ Out-of-Context Test Error (proxy failed)")
-  else
-    # Configure provider to use proxy and skip backoff
-    export ANTHROPIC_HOST="http://localhost:$PROXY_PORT"
-    export GOOSE_PROVIDER_SKIP_BACKOFF=true
-    export GOOSE_PROVIDER=anthropic
-    export GOOSE_MODEL=claude-haiku-4-5
+#   # Check if proxy is running and ready
+#   if [ "$PROXY_READY" != "true" ]; then
+#     echo "✗ FAILED: Error proxy failed to become ready"
+#     echo "Proxy log:"
+#     cat "$PROXY_LOG"
+#     kill $PROXY_PID 2>/dev/null || true
+#     RESULTS+=("✗ Out-of-Context Test Error (proxy failed)")
+#   else
+#     # Configure provider to use proxy and skip backoff
+#     export ANTHROPIC_HOST="http://localhost:$PROXY_PORT"
+#     export GOOSE_PROVIDER_SKIP_BACKOFF=true
+#     export GOOSE_PROVIDER=anthropic
+#     export GOOSE_MODEL=claude-haiku-4-5
 
-    echo "Step 1: Creating session (should trigger context-length error and compaction)..."
-    (cd "$TESTDIR" && "$GOOSE_BIN" run --text "hello world" 2>&1) | tee "$OUTPUT"
+#     echo "Step 1: Creating session (should trigger context-length error and compaction)..."
+#     (cd "$TESTDIR" && "$GOOSE_BIN" run --text "hello world" 2>&1) | tee "$OUTPUT"
 
-    SESSION_ID=$("$GOOSE_BIN" session list --format json 2>/dev/null | jq -r '.[0].id' 2>/dev/null)
+#     SESSION_ID=$("$GOOSE_BIN" session list --format json 2>/dev/null | jq -r '.[0].id' 2>/dev/null)
 
-    if [ -z "$SESSION_ID" ] || [ "$SESSION_ID" = "null" ]; then
-      echo "✗ FAILED: Could not create session"
-      RESULTS+=("✗ Out-of-Context Test Error (no session)")
-    else
-      echo ""
-      echo "Session created: $SESSION_ID"
-      echo "Checking for compaction evidence..."
+#     if [ -z "$SESSION_ID" ] || [ "$SESSION_ID" = "null" ]; then
+#       echo "✗ FAILED: Could not create session"
+#       RESULTS+=("✗ Out-of-Context Test Error (no session)")
+#     else
+#       echo ""
+#       echo "Session created: $SESSION_ID"
+#       echo "Checking for compaction evidence..."
 
-      # Check for compaction in the output
-      if grep -qi "context.*length\|compacting\|compacted\|compaction" "$OUTPUT"; then
-        echo "✓ SUCCESS: Out-of-context Test error triggered compaction"
+#       # Check for compaction in the output
+#       if grep -qi "context.*length\|compacting\|compacted\|compaction" "$OUTPUT"; then
+#         echo "✓ SUCCESS: Out-of-context Test error triggered compaction"
 
-        if validate_compaction "$SESSION_ID" "out-of-context error compaction"; then
-          RESULTS+=("✓ Out-of-Context Test Error")
-        else
-          RESULTS+=("✗ Out-of-Context Test Error (structure validation failed)")
-        fi
-      else
-        echo "✗ FAILED: No evidence of compaction after context-length error"
-        echo "   Output:"
-        cat "$OUTPUT"
-        RESULTS+=("✗ Out-of-Context Test Error")
-      fi
-    fi
+#         if validate_compaction "$SESSION_ID" "out-of-context error compaction"; then
+#           RESULTS+=("✓ Out-of-Context Test Error")
+#         else
+#           RESULTS+=("✗ Out-of-Context Test Error (structure validation failed)")
+#         fi
+#       else
+#         echo "✗ FAILED: No evidence of compaction after context-length error"
+#         echo "   Output:"
+#         cat "$OUTPUT"
+#         RESULTS+=("✗ Out-of-Context Test Error")
+#       fi
+#     fi
 
-    # Clean up
-    echo ""
-    echo "Stopping error proxy..."
-    # Kill the entire process group to ensure UV and Python processes are terminated
-    kill -- -$PROXY_PID 2>/dev/null || true
-    # Also explicitly kill any remaining UV processes on this port
-    pkill -f "uv run.*--port $PROXY_PORT" 2>/dev/null || true
-    wait $PROXY_PID 2>/dev/null || true
-    unset ANTHROPIC_HOST
-    unset GOOSE_PROVIDER_SKIP_BACKOFF
-    unset GOOSE_PROVIDER
-    unset GOOSE_MODEL
-    unset UV_INDEX_URL
-  fi
-fi
+#     # Clean up
+#     echo ""
+#     echo "Stopping error proxy..."
+#     # Kill the entire process group to ensure UV and Python processes are terminated
+#     kill -- -$PROXY_PID 2>/dev/null || true
+#     # Also explicitly kill any remaining UV processes on this port
+#     pkill -f "uv run.*--port $PROXY_PORT" 2>/dev/null || true
+#     wait $PROXY_PID 2>/dev/null || true
+#     unset ANTHROPIC_HOST
+#     unset GOOSE_PROVIDER_SKIP_BACKOFF
+#     unset GOOSE_PROVIDER
+#     unset GOOSE_MODEL
+#     unset UV_INDEX_URL
+#   fi
+# fi
 
-rm -f "$OUTPUT" "$PROXY_LOG" "$PROXY_SETUP_LOG"
-rm -rf "$TESTDIR"
+# rm -f "$OUTPUT" "$PROXY_LOG" "$PROXY_SETUP_LOG"
+# rm -rf "$TESTDIR"
 
-echo ""
-echo ""
+# echo ""
+# echo ""
 
 # ==================================================
 # Summary

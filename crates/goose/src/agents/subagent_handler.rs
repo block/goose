@@ -186,7 +186,22 @@ fn get_agent_messages(
             .reply(user_message, session_config, cancellation_token)
             .await
             .map_err(|e| anyhow!("Failed to get reply from agent: {}", e))?;
+
+        // Stream diagnostics for debugging hangs
+        let mut event_count = 0u64;
+        let stream_start = std::time::Instant::now();
+        let mut last_event_time = stream_start;
+        tracing::info!(target: "stream_diag", "[STREAM] subagent: starting to consume agent events");
+
         while let Some(message_result) = stream.next().await {
+            event_count += 1;
+            let now = std::time::Instant::now();
+            let since_last = now.duration_since(last_event_time);
+            if since_last.as_secs() >= 5 {
+                tracing::warn!(target: "stream_diag", "[STREAM] subagent: event #{} after {:.1}s delay", event_count, since_last.as_secs_f64());
+            }
+            last_event_time = now;
+
             match message_result {
                 Ok(AgentEvent::Message(msg)) => conversation.push(msg),
                 Ok(AgentEvent::McpNotification(_)) | Ok(AgentEvent::ModelChange { .. }) => {}
@@ -199,6 +214,9 @@ fn get_agent_messages(
                 }
             }
         }
+
+        let total_duration = stream_start.elapsed();
+        tracing::info!(target: "stream_diag", "[STREAM] subagent: stream ended after {} events in {:.1}s", event_count, total_duration.as_secs_f64());
 
         let final_output = if has_response_schema {
             agent
