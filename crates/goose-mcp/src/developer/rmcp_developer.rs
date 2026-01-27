@@ -102,6 +102,12 @@ pub struct ImageProcessorParams {
     pub path: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct SearchParams {
+    /// Search query (e.g., "rust tokio timeout", "react useEffect cleanup")
+    pub query: String,
+}
+
 /// Template structure for prompt definitions
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PromptTemplate {
@@ -185,6 +191,7 @@ pub struct DeveloperServer {
     running_processes: Arc<RwLock<HashMap<String, CancellationToken>>>,
     bash_env_file: Option<PathBuf>,
     extend_path_with_shell: bool,
+    http_client: reqwest::Client,
 }
 
 #[tool_handler(router = self.tool_router)]
@@ -543,11 +550,8 @@ impl Default for DeveloperServer {
 #[tool_router(router = tool_router)]
 impl DeveloperServer {
     pub fn new() -> Self {
-        // Build ignore patterns (simplified version for this tool)
         let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
         let ignore_patterns = Self::build_ignore_patterns(&cwd);
-
-        // Initialize editor model for AI-powered code editing
         let editor_model = create_editor_model();
 
         Self {
@@ -560,6 +564,11 @@ impl DeveloperServer {
             running_processes: Arc::new(RwLock::new(HashMap::new())),
             extend_path_with_shell: false,
             bash_env_file: None,
+            http_client: reqwest::Client::builder()
+                .user_agent(format!("goose-developer/{}", env!("CARGO_PKG_VERSION")))
+                .connect_timeout(std::time::Duration::from_secs(5))
+                .build()
+                .expect("failed to build http client"),
         }
     }
 
@@ -1272,7 +1281,336 @@ impl DeveloperServer {
         ]))
     }
 
-    // Helper method to resolve and validate file paths
+    #[tool(
+        name = "search",
+        description = "Search Sourcegraph (code), GitHub Issues, and Reddit. Best: 2-3 keywords (\"redis timeout\" not \"how to fix redis timeout errors\")."
+    )]
+    pub async fn search(
+        &self,
+        params: Parameters<SearchParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        const SEARCH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(8);
+        const SEARCH_LIMIT: usize = 5;
+
+        let query = params.0.query.trim();
+
+        if query.is_empty() {
+            return Err(ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "Search query cannot be empty".to_string(),
+                None,
+            ));
+        }
+
+        let (sg, gh, rd) = tokio::join!(
+            self.search_sourcegraph(query, SEARCH_TIMEOUT, SEARCH_LIMIT),
+            self.search_github_issues(query, SEARCH_TIMEOUT, SEARCH_LIMIT),
+            self.search_reddit(query, SEARCH_TIMEOUT, SEARCH_LIMIT)
+        );
+
+        let all_failed = sg.is_err() && gh.is_err() && rd.is_err();
+        let sources = [
+            (sg, SearchSource::Sourcegraph, "sourcegraph"),
+            (gh, SearchSource::GitHubIssues, "github"),
+            (rd, SearchSource::Reddit, "reddit"),
+        ];
+
+        let mut results = Vec::new();
+        let mut active_sources = Vec::new();
+        for (result, source, name) in sources {
+            let items = result.unwrap_or_else(|e| {
+                tracing::warn!("{}: {}", name, e);
+                vec![]
+            });
+            if !items.is_empty() {
+                active_sources.push(source);
+            }
+            results.extend(items);
+        }
+
+        let text = if all_failed {
+            "Search unavailable.".to_string()
+        } else if results.is_empty() {
+            "No results found.".to_string()
+        } else {
+            format!(
+                "{}{}",
+                format_search_results(&results),
+                build_fetch_hints(&active_sources)
+            )
+        };
+
+        Ok(CallToolResult::success(vec![
+            Content::text(text).with_audience(vec![Role::Assistant])
+        ]))
+    }
+
+    async fn search_sourcegraph(
+        &self,
+        query: &str,
+        timeout: std::time::Duration,
+        limit: usize,
+    ) -> Result<Vec<SearchResult>, String> {
+        let sg_query = format!(
+            "{} -file:\\.md$ -file:\\.json$ -file:\\.yaml$ -file:\\.yml$ \
+             -file:_test -file:test_ -file:/tests/ -file:__tests__ \
+             -file:vendor/ -file:node_modules/ -file:third_party/ \
+             fork:yes count:{}",
+            query, limit
+        );
+
+        let url = reqwest::Url::parse_with_params(
+            "https://sourcegraph.com/.api/search/stream",
+            &[
+                ("q", sg_query.as_str()),
+                ("v", "V3"),
+                ("t", "literal"),
+                ("display", "100"),
+            ],
+        )
+        .map_err(|e| e.to_string())?;
+
+        let resp = self
+            .http_client
+            .get(url)
+            .timeout(timeout)
+            .send()
+            .await
+            .map_err(|e| e.to_string())?;
+
+        if !resp.status().is_success() {
+            return Err(format!("HTTP {}", resp.status()));
+        }
+
+        let text = resp.text().await.map_err(|e| e.to_string())?;
+
+        let mut results = Vec::new();
+        let mut in_matches = false;
+
+        for line in text.lines() {
+            if line == "event: matches" {
+                in_matches = true;
+                continue;
+            }
+            if line.starts_with("event:") {
+                in_matches = false;
+                continue;
+            }
+            if !in_matches || !line.starts_with("data:") {
+                continue;
+            }
+
+            let json_str = line.strip_prefix("data:").unwrap_or(line).trim();
+            let matches: Vec<serde_json::Value> = match serde_json::from_str(json_str) {
+                Ok(m) => m,
+                Err(_) => continue,
+            };
+
+            for m in matches.iter().take(limit.saturating_sub(results.len())) {
+                let repo = m.get("repository").and_then(|r| r.as_str()).unwrap_or("");
+                let path = m.get("path").and_then(|p| p.as_str()).unwrap_or("");
+                if repo.is_empty() || path.is_empty() {
+                    continue;
+                }
+
+                let repo_clean = repo.strip_prefix("github.com/").unwrap_or(repo);
+                let stars = m.get("repoStars").and_then(|s| s.as_u64()).unwrap_or(0);
+                let meta = if stars > 0 {
+                    format!(" ({}★)", stars)
+                } else {
+                    String::new()
+                };
+
+                let snippet = m
+                    .get("lineMatches")
+                    .and_then(|lm| lm.as_array())
+                    .and_then(|arr| {
+                        arr.iter()
+                            .filter_map(|lm| lm.get("line").and_then(|l| l.as_str()))
+                            .next()
+                            .map(|s| s.trim().to_string())
+                    })
+                    .unwrap_or_default();
+
+                let raw_url = format!(
+                    "https://raw.githubusercontent.com/{}/HEAD/{}",
+                    repo_clean, path
+                );
+
+                results.push(SearchResult {
+                    source: SearchSource::Sourcegraph,
+                    title: format!("{}/{}{}", repo_clean, path, meta),
+                    url: format!("https://github.com/{}/blob/HEAD/{}", repo_clean, path),
+                    snippet: truncate(&snippet, 150),
+                    fetch_url: Some(raw_url),
+                });
+            }
+
+            if results.len() >= limit {
+                break;
+            }
+        }
+        Ok(results)
+    }
+
+    async fn search_github_issues(
+        &self,
+        query: &str,
+        timeout: std::time::Duration,
+        limit: usize,
+    ) -> Result<Vec<SearchResult>, String> {
+        use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
+
+        let gh_query = format!("{} is:issue", query);
+        let encoded_query = utf8_percent_encode(&gh_query, NON_ALPHANUMERIC).to_string();
+        let url = format!(
+            "https://api.github.com/search/issues?q={}&per_page=20",
+            encoded_query
+        );
+
+        let mut req = self
+            .http_client
+            .get(&url)
+            .timeout(timeout)
+            .header("Accept", "application/vnd.github+json");
+
+        if let Ok(token) = std::env::var("GITHUB_TOKEN") {
+            req = req.header("Authorization", format!("Bearer {}", token));
+        }
+
+        let resp = req.send().await.map_err(|e| e.to_string())?;
+        if !resp.status().is_success() {
+            return Err(format!("HTTP {}", resp.status()));
+        }
+
+        let json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+        let mut results = Vec::new();
+
+        if let Some(items) = json.get("items").and_then(|i| i.as_array()) {
+            for item in items {
+                if results.len() >= limit {
+                    break;
+                }
+
+                let title = item.get("title").and_then(|t| t.as_str()).unwrap_or("");
+                if title.is_empty() || is_bot_issue(title) {
+                    continue;
+                }
+
+                let html_url = item.get("html_url").and_then(|u| u.as_str()).unwrap_or("");
+                let state = item.get("state").and_then(|s| s.as_str()).unwrap_or("open");
+                let comments = item.get("comments").and_then(|c| c.as_u64()).unwrap_or(0);
+                let reactions = item
+                    .pointer("/reactions/total_count")
+                    .and_then(|c| c.as_u64())
+                    .unwrap_or(0);
+                let date = item
+                    .get("created_at")
+                    .and_then(|d| d.as_str())
+                    .and_then(|s| s.get(..7))
+                    .unwrap_or("");
+                let repo = item
+                    .get("repository_url")
+                    .and_then(|u| u.as_str())
+                    .and_then(|u| u.strip_prefix("https://api.github.com/repos/"))
+                    .unwrap_or("");
+
+                let mut meta = state.to_string();
+                if reactions > 0 {
+                    meta.push_str(&format!(", {}👍", reactions));
+                }
+                if comments > 0 {
+                    meta.push_str(&format!(", {} comments", comments));
+                }
+                if !date.is_empty() {
+                    meta.push_str(&format!(", {}", date));
+                }
+                if !repo.is_empty() {
+                    meta.push_str(&format!(" [{}]", repo));
+                }
+
+                let body = item.get("body").and_then(|b| b.as_str()).unwrap_or("");
+
+                let api_url = item.get("url").and_then(|u| u.as_str()).map(String::from);
+
+                results.push(SearchResult {
+                    source: SearchSource::GitHubIssues,
+                    title: format!("{} ({})", title, meta),
+                    url: html_url.to_string(),
+                    snippet: truncate(body, 150),
+                    fetch_url: api_url,
+                });
+            }
+        }
+        Ok(results)
+    }
+
+    async fn search_reddit(
+        &self,
+        query: &str,
+        timeout: std::time::Duration,
+        limit: usize,
+    ) -> Result<Vec<SearchResult>, String> {
+        use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
+
+        let subreddits = TECH_SUBREDDITS.join("+");
+        let encoded_query = utf8_percent_encode(query, NON_ALPHANUMERIC).to_string();
+        let url = format!(
+            "https://www.reddit.com/r/{}/search.json?q={}&restrict_sr=1&limit={}&sort=relevance",
+            subreddits, encoded_query, limit
+        );
+
+        let resp = self
+            .http_client
+            .get(&url)
+            .timeout(timeout)
+            .send()
+            .await
+            .map_err(|e| e.to_string())?;
+
+        if !resp.status().is_success() {
+            return Err(format!("HTTP {}", resp.status()));
+        }
+
+        let json: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+        let mut results = Vec::new();
+
+        if let Some(posts) = json.pointer("/data/children").and_then(|c| c.as_array()) {
+            for post in posts.iter().take(limit) {
+                let data = match post.get("data") {
+                    Some(d) => d,
+                    None => continue,
+                };
+
+                let title = data.get("title").and_then(|t| t.as_str()).unwrap_or("");
+                if title.is_empty() {
+                    continue;
+                }
+
+                let subreddit = data.get("subreddit").and_then(|s| s.as_str()).unwrap_or("");
+                let permalink = data.get("permalink").and_then(|p| p.as_str()).unwrap_or("");
+                let score = data.get("score").and_then(|s| s.as_i64()).unwrap_or(0);
+                let num_comments = data
+                    .get("num_comments")
+                    .and_then(|n| n.as_i64())
+                    .unwrap_or(0);
+                let selftext = data.get("selftext").and_then(|s| s.as_str()).unwrap_or("");
+
+                let meta = format!("r/{}, {}↑, {} comments", subreddit, score, num_comments);
+
+                results.push(SearchResult {
+                    source: SearchSource::Reddit,
+                    title: format!("{} ({})", title, meta),
+                    url: format!("https://www.reddit.com{}", permalink),
+                    snippet: truncate(selftext, 150),
+                    fetch_url: Some(format!("https://www.reddit.com{}.json", permalink)),
+                });
+            }
+        }
+
+        Ok(results)
+    }
+
     fn resolve_path(&self, path_str: &str) -> Result<PathBuf, ErrorData> {
         let cwd = std::env::current_dir().expect("should have a current working dir");
         let expanded = expand_path(path_str);
@@ -1446,6 +1784,132 @@ impl DeveloperServer {
 
         Ok((final_output, user_output))
     }
+}
+
+const TECH_SUBREDDITS: &[&str] = &[
+    "rust",
+    "golang",
+    "python",
+    "javascript",
+    "typescript",
+    "programming",
+    "coding",
+    "learnprogramming",
+    "webdev",
+    "frontend",
+    "backend",
+    "devops",
+    "kubernetes",
+    "docker",
+    "machinelearning",
+    "datascience",
+    "linux",
+    "commandline",
+    "vim",
+    "neovim",
+    "opensource",
+    "selfhosted",
+    "node",
+    "reactjs",
+    "django",
+    "flask",
+    "aws",
+    "azure",
+    "googlecloud",
+    "databases",
+    "sql",
+    "mongodb",
+    "redis",
+    "elasticsearch",
+    "netsec",
+    "cybersecurity",
+    "algorithms",
+    "compsci",
+    "cpp",
+    "java",
+    "csharp",
+    "swift",
+    "kotlin",
+    "scala",
+    "haskell",
+    "elixir",
+    "erlang",
+    "clojure",
+];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SearchSource {
+    Sourcegraph,
+    GitHubIssues,
+    Reddit,
+}
+
+#[derive(Debug)]
+struct SearchResult {
+    source: SearchSource,
+    title: String,
+    url: String,
+    snippet: String,
+    fetch_url: Option<String>,
+}
+
+fn is_bot_issue(title: &str) -> bool {
+    let t = title.to_lowercase();
+    ["bump ", "dependabot", "renovate", "chore(deps)"]
+        .iter()
+        .any(|p| t.contains(p))
+}
+
+fn truncate(s: &str, max: usize) -> String {
+    let s = s.trim();
+    if s.chars().count() <= max {
+        return s.to_string();
+    }
+    format!("{}...", s.chars().take(max).collect::<String>().trim_end())
+}
+
+fn format_search_results(results: &[SearchResult]) -> String {
+    let mut lines = Vec::new();
+
+    for r in results {
+        let tag = match r.source {
+            SearchSource::Sourcegraph => "code",
+            SearchSource::GitHubIssues => "issue",
+            SearchSource::Reddit => "reddit",
+        };
+
+        let fetch_hint = r
+            .fetch_url
+            .as_ref()
+            .map(|u| format!("\n  fetch: {}", u))
+            .unwrap_or_default();
+        lines.push(format!(
+            "[{}] {} - {}\n  {}{}",
+            tag, r.title, r.url, r.snippet, fetch_hint
+        ));
+    }
+
+    lines.join("\n\n")
+}
+
+fn build_fetch_hints(sources: &[SearchSource]) -> String {
+    let mut hints = Vec::new();
+
+    if sources.contains(&SearchSource::Sourcegraph) {
+        hints.push("Code: `shell curl -sH 'Accept: text/plain' '<fetch_url>'`");
+    }
+    if sources.contains(&SearchSource::GitHubIssues) {
+        hints.push("Issues: `shell curl -sH 'Accept: application/vnd.github+json' '<fetch_url>'` (use GITHUB_TOKEN if set)");
+    }
+    if sources.contains(&SearchSource::Reddit) {
+        hints.push("Reddit: `shell curl -s '<fetch_url>'` (JSON format)");
+    }
+
+    if hints.is_empty() {
+        return String::new();
+    }
+
+    format!("\n\n---\nTo fetch full content:\n{}", hints.join("\n"))
 }
 
 #[cfg(test)]
