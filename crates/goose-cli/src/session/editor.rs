@@ -14,8 +14,6 @@ fn get_editor_command() -> String {
     if let Ok(Some(editor)) = Config::global().get_goose_prompt_editor() {
         return editor;
     }
-
-    // Fall back to default editor
     "vi".into()
 }
 
@@ -26,8 +24,6 @@ fn create_temp_file(messages: &[&str]) -> Result<NamedTempFile> {
         .prefix("goose_prompt_")
         .suffix(".md")
         .tempfile()?;
-
-    // Write the structure with "Your prompt" first, then conversation history
     let mut content = String::from("# Goose Prompt Editor\n\n");
 
     // Add "Your prompt:" section first
@@ -36,7 +32,6 @@ fn create_temp_file(messages: &[&str]) -> Result<NamedTempFile> {
     // Then add conversation history (newest first)
     if !messages.is_empty() {
         content.push_str("# Recent conversation for context (newest first):\n\n");
-        // Reverse the messages to show newest first
         for message in messages.iter().rev() {
             content.push_str(&format!("{}\n", message));
         }
@@ -130,7 +125,6 @@ pub fn get_editor_input(messages: &[&str]) -> Result<(String, bool)> {
         template_content.push_str("# Your prompt:\n\n");
         if !messages.is_empty() {
             template_content.push_str("# Recent conversation for context (newest first):\n\n");
-            // Reverse the messages to show newest first
             for message in messages.iter().rev() {
                 template_content.push_str(&format!("{}\n", message));
             }
@@ -170,6 +164,7 @@ fn extract_user_input(content: &str) -> String {
 
         // Look for the conversation history heading and stop there if found
         let end_patterns = [
+        let end_patterns = [
             "# Recent conversation for context",
             "# Recent conversation for context (newest first):",
         ];
@@ -180,6 +175,7 @@ fn extract_user_input(content: &str) -> String {
                 end_pos = Some(pos);
                 break;
             }
+        }
         }
 
         let user_input_section = match end_pos {
@@ -222,7 +218,6 @@ This is the hardcoded prompt response
         // Should return just the user input, not include our template
         assert_eq!(result, "This is the hardcoded prompt response");
     }
-
     #[test]
     fn test_extract_user_input_multiline() {
         let content = r#"# Goose Prompt Editor
@@ -239,7 +234,6 @@ with multiple lines.
             "This is the user's actual input\nwith multiple lines."
         );
     }
-
     #[test]
     fn test_extract_user_input_no_marker() {
         let content = "Just plain text without markers";
@@ -264,7 +258,6 @@ This is the user's input
         let result = extract_user_input(content);
         assert_eq!(result, "This is the user's input");
     }
-
     #[test]
     fn test_create_temp_file_with_messages() {
         let messages = vec!["## User: Hello", "## Assistant: Hi there!"];
@@ -286,7 +279,6 @@ This is the user's input
 
         // File is automatically cleaned up when temp_file goes out of scope
     }
-
     #[test]
     fn test_create_temp_file_with_prefix_suffix() {
         // Test using Builder pattern like in tempfile tests
@@ -300,7 +292,6 @@ This is the user's input
         assert!(name.starts_with("goose_test_"));
         assert!(name.ends_with(".md"));
     }
-
     #[test]
     fn test_extract_user_input() {
         let content = r#"# Goose Prompt Editor
@@ -318,7 +309,6 @@ with multiple lines.
             "This is the user's actual input\nwith multiple lines."
         );
     }
-
     #[test]
     fn test_tempfile_cleanup() {
         // Test that temporary files are cleaned up automatically
@@ -335,13 +325,11 @@ with multiple lines.
         // File should be automatically deleted when temp_file goes out of scope
         assert!(!path.exists());
     }
-
     #[test]
     fn test_editor_command_detection() {
         let result = get_editor_command();
         assert!(!result.is_empty());
     }
-
     #[test]
     fn test_message_ordering_newest_first() {
         let messages = vec![
@@ -380,7 +368,6 @@ with multiple lines.
             "Newest message should appear before oldest message"
         );
     }
-
     #[test]
     fn test_symlink_raii_cleanup_on_panic() {
         use std::os::unix::fs;
@@ -432,7 +419,6 @@ with multiple lines.
             "Symlink should be cleaned up even after panic"
         );
     }
-
     #[test]
     fn test_symlink_creation_and_cleanup() {
         use std::os::unix::fs;
