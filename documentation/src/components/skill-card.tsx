@@ -98,12 +98,6 @@ export function SkillCard({ skill }: { skill: Skill }) {
                 )}
               </button>
 
-              {/* Tooltip showing the command */}
-              {!copied && (
-                <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:block bg-zinc-800 text-white text-xs px-2 py-1 rounded shadow-lg whitespace-nowrap z-50 max-w-xs">
-                  <span className="font-mono">{generateInstallCommand(skill.repoUrl, skill.id)}</span>
-                </div>
-              )}
             </div>
 
             {/* View Source link - always show, links to Agent-Skills repo */}
