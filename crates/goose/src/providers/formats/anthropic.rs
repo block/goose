@@ -494,20 +494,7 @@ where
         let mut final_usage: Option<crate::providers::base::ProviderUsage> = None;
         let mut message_id: Option<String> = None;
 
-        // Stream diagnostics for debugging hangs
-        let mut chunk_count = 0u64;
-        let stream_start = std::time::Instant::now();
-        let mut last_chunk_time = stream_start;
-        tracing::info!(target: "stream_diag", "[STREAM] anthropic: starting stream consumption");
-
         while let Some(line_result) = stream.next().await {
-            chunk_count += 1;
-            let now = std::time::Instant::now();
-            let since_last = now.duration_since(last_chunk_time);
-            if since_last.as_secs() >= 5 {
-                tracing::warn!(target: "stream_diag", "[STREAM] anthropic: chunk #{} after {:.1}s delay", chunk_count, since_last.as_secs_f64());
-            }
-            last_chunk_time = now;
             let line = line_result?;
 
             // Skip empty lines and non-data lines
@@ -708,9 +695,6 @@ where
                 }
             }
         }
-
-        let total_duration = stream_start.elapsed();
-        tracing::info!(target: "stream_diag", "[STREAM] anthropic: stream ended after {} chunks in {:.1}s", chunk_count, total_duration.as_secs_f64());
 
         // Yield final usage information if available
         if let Some(usage) = final_usage {
