@@ -10,7 +10,7 @@ use async_stream::try_stream;
 use chrono;
 use futures::Stream;
 use rmcp::model::{
-    object, AnnotateAble, CallToolRequestParam, Content, ErrorCode, ErrorData, RawContent,
+    object, AnnotateAble, CallToolRequestParams, Content, ErrorCode, ErrorData, RawContent,
     ResourceContents, Role, Tool,
 };
 use serde::{Deserialize, Serialize};
@@ -287,10 +287,15 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
         .and_then(|c| c.get(0))
         .and_then(|m| m.get("message"))
     else {
-        return Ok(Message::new(
-            Role::Assistant,
-            chrono::Utc::now().timestamp(),
-            Vec::new(),
+        if let Some(error) = response.get("error") {
+            let error_message = error
+                .get("message")
+                .and_then(|m| m.as_str())
+                .unwrap_or("Unknown error");
+            return Err(anyhow::anyhow!("API error: {}", error_message));
+        }
+        return Err(anyhow::anyhow!(
+            "No message in API response. This may indicate a quota limit or other restriction."
         ));
     };
 
@@ -339,7 +344,8 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                         Ok(params) => {
                             content.push(MessageContent::tool_request(
                                 id,
-                                Ok(CallToolRequestParam {
+                                Ok(CallToolRequestParams {
+                                    meta: None,
                                     task: None,
                                     name: function_name.into(),
                                     arguments: Some(object(params)),
@@ -574,8 +580,8 @@ where
                             Ok(params) => {
                                 MessageContent::tool_request_with_metadata(
                                     id.clone(),
-                                    Ok(CallToolRequestParam {
-                                        task: None,
+                                    Ok(CallToolRequestParams {
+                                        meta: None, task: None,
                                         name: function_name.clone().into(),
                                         arguments: Some(object(params))
                                     }),
@@ -880,7 +886,8 @@ mod tests {
             Message::user().with_text("How are you?"),
             Message::assistant().with_tool_request(
                 "tool1",
-                Ok(CallToolRequestParam {
+                Ok(CallToolRequestParams {
+                    meta: None,
                     task: None,
                     name: "example".into(),
                     arguments: Some(object!({"param1": "value1"})),
@@ -925,7 +932,8 @@ mod tests {
     fn test_format_messages_multiple_content() -> anyhow::Result<()> {
         let mut messages = vec![Message::assistant().with_tool_request(
             "tool1",
-            Ok(CallToolRequestParam {
+            Ok(CallToolRequestParams {
+                meta: None,
                 task: None,
                 name: "example".into(),
                 arguments: Some(object!({"param1": "value1"})),
@@ -1161,11 +1169,67 @@ mod tests {
     }
 
     #[test]
+    fn test_response_to_message_api_error() -> anyhow::Result<()> {
+        // Test that API responses with an "error" field return the error message
+        let response = json!({
+            "error": {
+                "message": "You have exceeded your quota",
+                "type": "insufficient_quota",
+                "code": "quota_exceeded"
+            }
+        });
+
+        let result = response_to_message(&response);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("API error:"));
+        assert!(err.to_string().contains("You have exceeded your quota"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_response_to_message_api_error_unknown() -> anyhow::Result<()> {
+        // Test that API responses with an "error" field but no message return "Unknown error"
+        let response = json!({
+            "error": {
+                "type": "some_error"
+            }
+        });
+
+        let result = response_to_message(&response);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("API error:"));
+        assert!(err.to_string().contains("Unknown error"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_response_to_message_no_choices() -> anyhow::Result<()> {
+        // Test that responses without "choices" return an error
+        let response = json!({
+            "id": "chatcmpl-123",
+            "object": "chat.completion",
+            "created": 1234567890
+        });
+
+        let result = response_to_message(&response);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("No message in API response"));
+
+        Ok(())
+    }
+
+    #[test]
     fn test_format_messages_tool_request_with_none_arguments() -> anyhow::Result<()> {
         // Test that tool calls with None arguments are formatted as "{}" string
         let message = Message::assistant().with_tool_request(
             "tool1",
-            Ok(CallToolRequestParam {
+            Ok(CallToolRequestParams {
+                meta: None,
                 task: None,
                 name: "test_tool".into(),
                 arguments: None, // This is the key case the fix addresses
@@ -1193,7 +1257,8 @@ mod tests {
         // Test that tool calls with Some arguments are properly JSON-serialized
         let message = Message::assistant().with_tool_request(
             "tool1",
-            Ok(CallToolRequestParam {
+            Ok(CallToolRequestParams {
+                meta: None,
                 task: None,
                 name: "test_tool".into(),
                 arguments: Some(object!({"param": "value", "number": 42})),
@@ -1224,7 +1289,8 @@ mod tests {
         // Test that FrontendToolRequest with None arguments are formatted as "{}" string
         let message = Message::assistant().with_frontend_tool_request(
             "frontend_tool1",
-            Ok(CallToolRequestParam {
+            Ok(CallToolRequestParams {
+                meta: None,
                 task: None,
                 name: "frontend_test_tool".into(),
                 arguments: None, // This is the key case the fix addresses
@@ -1252,7 +1318,8 @@ mod tests {
         // Test that FrontendToolRequest with Some arguments are properly JSON-serialized
         let message = Message::assistant().with_frontend_tool_request(
             "frontend_tool1",
-            Ok(CallToolRequestParam {
+            Ok(CallToolRequestParams {
+                meta: None,
                 task: None,
                 name: "frontend_test_tool".into(),
                 arguments: Some(object!({"action": "click", "element": "button"})),

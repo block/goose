@@ -542,7 +542,7 @@ mod tests {
         },
     };
     use async_trait::async_trait;
-    use rmcp::model::{AnnotateAble, CallToolRequestParam, RawContent, Tool};
+    use rmcp::model::{AnnotateAble, CallToolRequestParams, RawContent, Tool};
 
     struct MockProvider {
         message: Message,
@@ -586,7 +586,7 @@ mod tests {
 
         async fn complete_with_model(
             &self,
-            _session_id: &str,
+            _session_id: Option<&str>,
             _model_config: &ModelConfig,
             _system: &str,
             messages: &[Message],
@@ -630,7 +630,8 @@ mod tests {
             Message::user().with_text("read hello.txt"),
             Message::assistant().with_tool_request(
                 "tool_0",
-                Ok(CallToolRequestParam {
+                Ok(CallToolRequestParams {
+                    meta: None,
                     task: None,
                     name: "read_file".into(),
                     arguments: None,
@@ -670,7 +671,8 @@ mod tests {
         for i in 0..10 {
             messages.push(Message::assistant().with_tool_request(
                 format!("tool_{}", i),
-                Ok(CallToolRequestParam {
+                Ok(CallToolRequestParams {
+                    meta: None,
                     task: None,
                     name: "read_file".into(),
                     arguments: None,

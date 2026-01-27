@@ -13,8 +13,8 @@ goose provides several built-in features to help you get support, report issues,
 | Feature | Purpose | Location | Output |
 |---------|---------|----------|---------|
 | **Diagnostics** | Generate troubleshooting data | Chat input toolbar | ZIP file with system info, logs, and session data |
-| **Report a Bug** | Submit bug reports | Settings → Help & feedback | Opens GitHub issue template |
-| **Request a Feature** | Suggest new features | Settings → Help & feedback | Opens GitHub issue template |
+| **Report a Bug** | Submit bug reports | Chat input toolbar OR Settings → App → Help & feedback | Opens GitHub issue template |
+| **Request a Feature** | Suggest new features | Settings → App → Help & feedback | Opens GitHub issue template |
 
 ## Diagnostics System
 
@@ -102,11 +102,10 @@ The bug report feature opens a structured GitHub issue template to help you prov
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
-    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-    2. Click `Settings` in the sidebar
-    3. Scroll down to the `Help & feedback` section
-    4. Click `Report a Bug`
-    5. This opens GitHub in your browser with a pre-filled bug report template
+    1. In an active chat session, look for the <Bug className="inline" size={16} /> icon in the bottom toolbar
+    2. Click the diagnostics button
+    3. Click `File Bug on Github`
+    4. This opens GitHub in your browser with a pre-filled bug report template
   </TabItem>
   <TabItem value="cli" label="goose CLI">
     For CLI users, navigate directly to the GitHub repository:
@@ -127,9 +126,10 @@ The feature request system helps you suggest improvements and new functionality 
   <TabItem value="ui" label="goose Desktop" default>
     1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
     2. Click `Settings` in the sidebar
-    3. Scroll down to the `Help & feedback` section
-    4. Click `Request a Feature`
-    5. This opens GitHub in your browser with a feature request template
+    3. Click the `App` tab
+    4. Scroll down to the `Help & feedback` section
+    5. Click `Request a Feature`
+    6. This opens GitHub in your browser with a feature request template
   </TabItem>
   <TabItem value="cli" label="goose CLI">
     Navigate directly to the GitHub repository:

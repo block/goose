@@ -232,7 +232,7 @@ This is just one example of what's possible. Feel free to modify your GitHub Act
 
 ## Security Considerations
 
-When running goose in a CI/CD enviroment, keep these security practices in mind:
+When running goose in a CI/CD environment, keep these security practices in mind:
 
 1. **Secret Management**
       - Store your sensitive credentials (like API keys) as GitHub Secrets. 
