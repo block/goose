@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
+import { useForm } from '@tanstack/react-form';
 import { X, Save, Loader2, Plus, Trash2 } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { toastSuccess, toastError } from '../../../toasts';
@@ -17,11 +18,21 @@ export default function CreateSubRecipeInline({
   onClose,
   onSubRecipeSaved,
 }: CreateSubRecipeInlineProps) {
+  const form = useForm({
+    defaultValues: {
+      title: '',
+      description: '',
+      instructions: '',
+      prompt: '',
+      activities: [],
+      parameters: [],
+      jsonSchema: '',
+      subRecipes: [],
+    },
+  });
+
   const [name, setName] = useState('');
-  const [title, setTitle] = useState('');
-  const [recipeDescription, setRecipeDescription] = useState('');
-  const [instructions, setInstructions] = useState('');
-  const [description, setDescription] = useState('');
+  const [toolDescription, setToolDescription] = useState('');
   const [sequentialWhenRepeated, setSequentialWhenRepeated] = useState(false);
   const [values, setValues] = useState<Record<string, string>>({});
   const [newValueKey, setNewValueKey] = useState('');
@@ -49,8 +60,15 @@ export default function CreateSubRecipeInline({
     }
   };
 
-  const handleSave = async () => {
-    if (!name.trim() || !title.trim() || !recipeDescription.trim() || !instructions.trim()) {
+  const handleSave = useCallback(async () => {
+    const formValues = form.state.values;
+
+    if (
+      !name.trim() ||
+      !formValues.title.trim() ||
+      !formValues.description.trim() ||
+      !formValues.instructions.trim()
+    ) {
       toastError({
         title: 'Validation Failed',
         msg: 'Name, title, recipe description, and instructions are required.',
@@ -62,9 +80,9 @@ export default function CreateSubRecipeInline({
     try {
       const recipe: Recipe = {
         version: '1.0.0',
-        title: title.trim(),
-        description: recipeDescription.trim(),
-        instructions: instructions.trim(),
+        title: formValues.title.trim(),
+        description: formValues.description.trim(),
+        instructions: formValues.instructions.trim(),
       };
 
       const savedRecipeId = await saveRecipe(recipe, null);
@@ -72,24 +90,22 @@ export default function CreateSubRecipeInline({
       const subRecipe: SubRecipeFormData = {
         name: name.trim(),
         path: `${savedRecipeId}.yaml`,
-        description: description.trim() || undefined,
+        description: toolDescription.trim() || undefined,
         sequential_when_repeated: sequentialWhenRepeated,
         values: Object.keys(values).length > 0 ? values : undefined,
       };
 
       toastSuccess({
-        title: title.trim(),
+        title: formValues.title.trim(),
         msg: 'Subrecipe created successfully',
       });
 
       onSubRecipeSaved(subRecipe);
       onClose();
 
+      form.reset();
       setName('');
-      setTitle('');
-      setRecipeDescription('');
-      setInstructions('');
-      setDescription('');
+      setToolDescription('');
       setSequentialWhenRepeated(false);
       setValues({});
     } catch (error) {
@@ -102,7 +118,7 @@ export default function CreateSubRecipeInline({
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [form, name, toolDescription, sequentialWhenRepeated, values, onSubRecipeSaved, onClose]);
 
   if (!isOpen) return null;
 
@@ -151,58 +167,73 @@ export default function CreateSubRecipeInline({
           </div>
 
           {/* Title Field */}
-          <div>
-            <label
-              htmlFor="subrecipe-title"
-              className="block text-sm font-medium text-text-standard mb-2"
-            >
-              Recipe Title <span className="text-red-500">*</span>
-            </label>
-            <input
-              id="subrecipe-title"
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="e.g., Security Analysis Tool"
-            />
-          </div>
+          <form.Field name="title">
+            {(field) => (
+              <div>
+                <label
+                  htmlFor="subrecipe-title"
+                  className="block text-sm font-medium text-text-standard mb-2"
+                >
+                  Recipe Title <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="subrecipe-title"
+                  type="text"
+                  value={field.state.value}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  onBlur={field.handleBlur}
+                  className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="e.g., Security Analysis Tool"
+                />
+              </div>
+            )}
+          </form.Field>
 
           {/* Recipe Description Field */}
-          <div>
-            <label
-              htmlFor="recipe-description"
-              className="block text-sm font-medium text-text-standard mb-2"
-            >
-              Recipe Description <span className="text-red-500">*</span>
-            </label>
-            <input
-              id="recipe-description"
-              type="text"
-              value={recipeDescription}
-              onChange={(e) => setRecipeDescription(e.target.value)}
-              className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="What this recipe does when executed"
-            />
-          </div>
+          <form.Field name="description">
+            {(field) => (
+              <div>
+                <label
+                  htmlFor="recipe-description"
+                  className="block text-sm font-medium text-text-standard mb-2"
+                >
+                  Recipe Description <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="recipe-description"
+                  type="text"
+                  value={field.state.value}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  onBlur={field.handleBlur}
+                  className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="What this recipe does when executed"
+                />
+              </div>
+            )}
+          </form.Field>
 
           {/* Instructions Field */}
-          <div>
-            <label
-              htmlFor="subrecipe-instructions"
-              className="block text-sm font-medium text-text-standard mb-2"
-            >
-              Instructions <span className="text-red-500">*</span>
-            </label>
-            <textarea
-              id="subrecipe-instructions"
-              value={instructions}
-              onChange={(e) => setInstructions(e.target.value)}
-              className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono text-sm"
-              placeholder="Instructions for the AI when this subrecipe is called..."
-              rows={8}
-            />
-          </div>
+          <form.Field name="instructions">
+            {(field) => (
+              <div>
+                <label
+                  htmlFor="subrecipe-instructions"
+                  className="block text-sm font-medium text-text-standard mb-2"
+                >
+                  Instructions <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  id="subrecipe-instructions"
+                  value={field.state.value}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  onBlur={field.handleBlur}
+                  className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono text-sm"
+                  placeholder="Instructions for the AI when this subrecipe is called..."
+                  rows={8}
+                />
+              </div>
+            )}
+          </form.Field>
 
           {/* Tool Description Field */}
           <div>
@@ -214,8 +245,8 @@ export default function CreateSubRecipeInline({
             </label>
             <textarea
               id="tool-description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              value={toolDescription}
+              onChange={(e) => setToolDescription(e.target.value)}
               className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
               placeholder="Optional description shown when this is called as a tool"
               rows={2}
@@ -316,9 +347,9 @@ export default function CreateSubRecipeInline({
             onClick={handleSave}
             disabled={
               !name.trim() ||
-              !title.trim() ||
-              !recipeDescription.trim() ||
-              !instructions.trim() ||
+              !form.state.values.title.trim() ||
+              !form.state.values.description.trim() ||
+              !form.state.values.instructions.trim() ||
               isSaving
             }
             className="bg-blue-500 hover:bg-blue-600 text-white inline-flex items-center gap-2"
