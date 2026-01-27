@@ -73,6 +73,7 @@ mod tests {
     mod integration_tests {
         use super::*;
         use axum::{body::Body, http::Request};
+        use http::StatusCode;
         use tower::ServiceExt;
 
         #[tokio::test(flavor = "multi_thread")]
