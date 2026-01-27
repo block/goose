@@ -48,10 +48,6 @@ export interface ProviderModelsResult {
   error: string | null;
 }
 
-/**
- * Fetches recommended models for all active providers in parallel.
- * Returns results with models on success, or error message on failure.
- */
 export async function fetchModelsForProviders(
   activeProviders: ProviderDetails[]
 ): Promise<ProviderModelsResult[]> {

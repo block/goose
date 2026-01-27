@@ -205,7 +205,6 @@ export const SwitchModelModal = ({
 
         setLoadingModels(true);
 
-        // Fetching models for all providers (always recommended)
         const results = await fetchModelsForProviders(activeProviders);
 
         // Process results and build grouped options
@@ -216,9 +215,7 @@ export const SwitchModelModal = ({
 
         results.forEach(({ provider: p, models, error }) => {
           if (error) {
-            // Track the error for this provider so we can show it when selected
             errorMap[p.name] = error;
-            // Don't add models to the options, but provider will still be selectable
             return;
           }
 

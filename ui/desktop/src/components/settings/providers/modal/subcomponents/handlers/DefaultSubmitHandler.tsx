@@ -21,23 +21,29 @@ export const providerConfigSubmitHandler = async (
 ) => {
   const parameters = provider.metadata.config_keys || [];
 
-  // Save current config values for rollback on failure
+  // Save current NON-SECRET config values for rollback on failure
+  // We skip secrets because readConfig returns masked values for secrets,
+  // and upserting those masked values would corrupt the actual secret
   const previousConfigValues: Record<string, { value: unknown; isSecret: boolean }> = {};
-  for (const param of parameters) {
-    try {
-      const currentValue = await readConfig({
-        body: { key: param.name, is_secret: param.secret || false },
-      });
-      if (currentValue.data) {
-        previousConfigValues[param.name] = {
-          value: currentValue.data,
-          isSecret: param.secret || false,
-        };
+  const nonSecretParams = parameters.filter((param) => !param.secret);
+
+  await Promise.all(
+    nonSecretParams.map(async (param) => {
+      try {
+        const currentValue = await readConfig({
+          body: { key: param.name, is_secret: false },
+        });
+        if (currentValue.data) {
+          previousConfigValues[param.name] = {
+            value: currentValue.data,
+            isSecret: false,
+          };
+        }
+      } catch {
+        // No previous value exists, that's fine
       }
-    } catch {
-      // No previous value exists, that's fine
-    }
-  }
+    })
+  );
 
   const requiredParams = parameters.filter((param) => param.required);
   if (requiredParams.length === 0 && parameters.length > 0) {
@@ -89,8 +95,6 @@ export const providerConfigSubmitHandler = async (
 
   await Promise.all(upsertPromises);
 
-  // Test the provider configuration by attempting to list models
-  // This validates that the provider is properly configured and reachable
   try {
     await getProviderModels({
       path: { name: provider.name },
