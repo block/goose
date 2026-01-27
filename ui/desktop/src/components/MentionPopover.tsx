@@ -160,8 +160,6 @@ const MentionPopover = forwardRef<
             '.hg',
             'node_modules',
             '__pycache__',
-            '.vscode',
-            '.idea',
             'target',
             'dist',
             'build',
@@ -172,6 +170,17 @@ const MentionPopover = forwardRef<
             'System',
             'Applications',
             '.Trash',
+          ];
+
+          const allowedHiddenDirs = [
+            '.github',
+            '.vscode',
+            '.idea',
+            '.config',
+            '.gitlab',
+            '.circleci',
+            '.azure',
+            '.jenkins',
           ];
 
           // Don't skip as many directories at deeper levels to find more items
@@ -194,8 +203,13 @@ const MentionPopover = forwardRef<
             const fullPath = `${dirPath}/${item}`;
             const itemRelativePath = relativePath ? `${relativePath}/${item}` : item;
 
-            // Skip hidden items and common ignore patterns
-            if (item.startsWith('.') || skipDirsAtDepth.includes(item)) {
+            // Skip items in the skip list
+            if (skipDirsAtDepth.includes(item)) {
+              continue;
+            }
+
+            // Skip hidden items except for allowed hidden directories
+            if (item.startsWith('.') && !allowedHiddenDirs.includes(item)) {
               continue;
             }
 
@@ -539,10 +553,9 @@ const MentionPopover = forwardRef<
                   <div
                     key={item.extra}
                     onClick={() => handleItemClick(index)}
+                    data-selected={index === selectedIndex}
                     className={`flex items-center gap-3 p-2 rounded-md cursor-pointer transition-colors ${
-                      index === selectedIndex
-                        ? 'bg-bgProminent text-textProminentInverse'
-                        : 'hover:bg-bgSubtle'
+                      index === selectedIndex ? 'bg-sidebar-accent' : 'hover:bg-sidebar-accent/50'
                     }`}
                   >
                     <div className="flex-shrink-0 text-textSubtle">
@@ -550,7 +563,7 @@ const MentionPopover = forwardRef<
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm truncate text-textStandard">{item.name}</div>
-                      <div className="text-xs text-textSubtle truncate">{item.extra}</div>
+                      <div className="text-xs truncate text-textSubtle">{item.extra}</div>
                     </div>
                   </div>
                 ))}

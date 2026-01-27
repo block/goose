@@ -4,7 +4,7 @@ use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
 use crate::providers::utils::{convert_image, ImageFormat};
 use anyhow::{anyhow, Result};
-use rmcp::model::{object, CallToolRequestParam, ErrorCode, ErrorData, JsonObject, Role, Tool};
+use rmcp::model::{object, CallToolRequestParams, ErrorCode, ErrorData, JsonObject, Role, Tool};
 use rmcp::object as json_object;
 use serde_json::{json, Value};
 use std::collections::HashSet;
@@ -249,7 +249,9 @@ pub fn response_to_message(response: &Value) -> Result<Message> {
                     .get(INPUT_FIELD)
                     .ok_or_else(|| anyhow!("Missing tool_use input"))?;
 
-                let tool_call = CallToolRequestParam {
+                let tool_call = CallToolRequestParams {
+                    meta: None,
+                    task: None,
                     name: name.into(),
                     arguments: Some(object(input.clone())),
                 };
@@ -436,7 +438,7 @@ pub fn create_request(
             .insert("temperature".to_string(), json!(temp));
     }
 
-    // Add thinking parameters for claude-3-7-sonnet model
+    // Add thinking parameters when CLAUDE_THINKING_ENABLED is set
     let is_thinking_enabled = std::env::var("CLAUDE_THINKING_ENABLED").is_ok();
     if is_thinking_enabled {
         // Minimum budget_tokens is 1024
@@ -612,7 +614,11 @@ where
                                 }
                             };
 
-                            let tool_call = CallToolRequestParam{ name: name.into(), arguments: Some(object(parsed_args)) };
+                            let tool_call = CallToolRequestParams{
+                                meta: None, task: None,
+                                name: name.into(),
+                                arguments: Some(object(parsed_args))
+                            };
 
                             let mut message = Message::new(
                                 rmcp::model::Role::Assistant,
@@ -977,7 +983,9 @@ mod tests {
         let messages = vec![
             Message::assistant().with_tool_request(
                 "tool_1",
-                Ok(CallToolRequestParam {
+                Ok(CallToolRequestParams {
+                    meta: None,
+                    task: None,
                     name: "calculator".into(),
                     arguments: Some(object!({"expression": "2 + 2"})),
                 }),

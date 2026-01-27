@@ -5,7 +5,7 @@ sidebar_label: In-Session Actions
 ---
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import { PanelLeft, Paperclip, Edit2, Send, GripVertical, X, ChevronUp, ChevronDown } from 'lucide-react';
+import { PanelLeft, Paperclip, Edit2, Send, GripVertical, X, ChevronUp, ChevronDown, FolderDot, Puzzle, Bot, Tornado } from 'lucide-react';
 
 goose provides features you can use to manage conversations and share information during sessions.
 
@@ -257,6 +257,25 @@ Speak to goose directly instead of typing your prompts.
     </TabItem>
 </Tabs>
 
+## Spellcheck
+
+Spellcheck is enabled by default in the goose Desktop chat input field.
+
+<Tabs groupId="interface">
+    <TabItem value="ui" label="goose Desktop" default>
+    To disable or re-enable spellcheck:
+        1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+        2. Click `Settings` in the sidebar
+        3. Click `Chat`
+        4. Scroll down to `Enable Spellcheck` and toggle it on or off
+        5. Restart goose for the change to take effect
+        
+    </TabItem>
+    <TabItem value="cli" label="goose CLI">
+        Spellcheck is not available in the goose CLI.
+    </TabItem>
+</Tabs>
+
 ## Share Files in Session
 
 Provide goose with context from your codebase, documents, and other files to get more relevant and accurate assistance.
@@ -288,3 +307,38 @@ Provide goose with context from your codebase, documents, and other files to get
         ```
     </TabItem>
 </Tabs>
+
+## Mid-Session Changes
+
+You can change some settings during a session and they will take effect immediately, rather than requiring you to start a new session. This gives you more control over context and capabilities while you're interacting with goose.
+
+<Tabs groupId="interface">
+  <TabItem value="ui" label="goose Desktop" default>
+
+  Use the toolbar at the bottom of the app to change supported settings mid-session:
+
+  | Setting | Toolbar Item | Persistence* |
+  |---------|--------------|-------------|
+  | **Working Directory** | <FolderDot className="inline" size={16} /> directory switcher | New sessions (after restart) |
+  | [**Enabled Extensions**](/docs/getting-started/using-extensions#change-extensions-mid-session) | <Puzzle className="inline" size={16} /> icon | Current session only |
+  | [**Model**](/docs/getting-started/providers#configure-provider-and-model) | <Bot className="inline" size={16} /> model switcher | New sessions |
+  | [**goose Mode**](/docs/guides/goose-permissions#configuring-goose-mode) | <Tornado className="inline" size={16} /> mode switcher | New sessions |
+
+  </TabItem>
+  <TabItem value="cli" label="goose CLI">
+
+  Use the slash commands to change supported settings mid-session:
+
+  | Setting | Slash Command | Persistence* |
+  |---------|--------------|-------------|
+  | [**Enabled Extensions**](/docs/getting-started/using-extensions#change-extensions-mid-session) | `/extension` or `/builtin` | Current session only |
+  | [**goose Mode**](/docs/guides/goose-permissions#configuring-goose-mode) | `/mode [options]` | New sessions |
+
+  :::info
+  The CLI supports [additional slash commands](/docs/guides/goose-cli-commands#slash-commands) but doesn't support mid-session changes to the working directory or model.
+  :::
+
+  </TabItem>
+</Tabs>
+
+*Persistence indicates whether changes apply to your current session only or carry over to new sessions

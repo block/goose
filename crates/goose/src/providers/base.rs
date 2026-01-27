@@ -108,6 +108,9 @@ pub struct ProviderMetadata {
     pub model_doc_link: String,
     /// Required configuration keys
     pub config_keys: Vec<ConfigKey>,
+    /// Whether this provider allows entering model names not in the fetched list
+    #[serde(default)]
+    pub allows_unlisted_models: bool,
 }
 
 impl ProviderMetadata {
@@ -138,6 +141,7 @@ impl ProviderMetadata {
                 .collect(),
             model_doc_link: model_doc_link.to_string(),
             config_keys,
+            allows_unlisted_models: false,
         }
     }
 
@@ -158,6 +162,7 @@ impl ProviderMetadata {
             known_models: models,
             model_doc_link: model_doc_link.to_string(),
             config_keys,
+            allows_unlisted_models: false,
         }
     }
 
@@ -170,7 +175,14 @@ impl ProviderMetadata {
             known_models: vec![],
             model_doc_link: "".to_string(),
             config_keys: vec![],
+            allows_unlisted_models: false,
         }
+    }
+
+    /// Set allows_unlisted_models flag (builder pattern)
+    pub fn with_unlisted_models(mut self) -> Self {
+        self.allows_unlisted_models = true;
+        self
     }
 }
 
@@ -419,64 +431,36 @@ pub trait Provider: Send + Sync {
     fn get_name(&self) -> &str;
 
     /// Internal implementation of complete. Providers implement this method.
-    /// This method should NOT handle RequestLog - that's done by complete_with_model.
+    /// This method should NOT handle RequestLog - that's done by complete.
+    ///
+    /// # Parameters
+    /// - `session_id`: Use `None` only for configuration or pre-session tasks.
     async fn complete_impl(
         &self,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError>;
 
-    /// Complete a request with automatic request logging.
-    /// This wraps complete_impl with RequestLog for consistent error tracking.
-    /// Callers should use this method; providers should implement complete_impl.
-    async fn complete_with_model(
-        &self,
-        model_config: &ModelConfig,
-        system: &str,
-        messages: &[Message],
-        tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = json!({
-            "model": &model_config.model_name,
-            "system_length": system.len(),
-            "messages_count": messages.len(),
-            "tools_count": tools.len(),
-        });
-
-        let mut log = RequestLog::start(model_config, &payload)?;
-
-        let result = log
-            .run(self.complete_impl(model_config, system, messages, tools))
-            .await;
-
-        if let Ok((ref message, ref provider_usage)) = result {
-            let response_summary = json!({
-                "model": &provider_usage.model,
-                "content_items": message.content.len(),
-            });
-            let _ = log.success(&response_summary, Some(&provider_usage.usage));
-        }
-
-        result
-    }
-
     // Default implementation: use the provider's configured model
     async fn complete(
         &self,
+        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let model_config = self.get_model_config();
-        self.complete_with_model(&model_config, system, messages, tools)
+        self.complete_impl(Some(session_id), &model_config, system, messages, tools)
             .await
     }
 
     // Check if a fast model is configured, otherwise fall back to regular model
     async fn complete_fast(
         &self,
+        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -485,7 +469,7 @@ pub trait Provider: Send + Sync {
         let fast_config = model_config.use_fast_model();
 
         match self
-            .complete_with_model(&fast_config, system, messages, tools)
+            .complete_impl(Some(session_id), &fast_config, system, messages, tools)
             .await
         {
             Ok(result) => Ok(result),
@@ -497,8 +481,14 @@ pub trait Provider: Send + Sync {
                         e,
                         model_config.model_name
                     );
-                    self.complete_with_model(&model_config, system, messages, tools)
-                        .await
+                    self.complete_impl(
+                        Some(session_id),
+                        &model_config,
+                        system,
+                        messages,
+                        tools,
+                    )
+                    .await
                 } else {
                     Err(e)
                 }
@@ -572,7 +562,11 @@ pub trait Provider: Send + Sync {
     }
 
     /// Create embeddings if supported. Default implementation returns an error.
-    async fn create_embeddings(&self, _texts: Vec<String>) -> Result<Vec<Vec<f32>>, ProviderError> {
+    async fn create_embeddings(
+        &self,
+        _session_id: &str,
+        _texts: Vec<String>,
+    ) -> Result<Vec<Vec<f32>>, ProviderError> {
         Err(ProviderError::ExecutionError(
             "This provider does not support embeddings".to_string(),
         ))
@@ -591,6 +585,7 @@ pub trait Provider: Send + Sync {
     /// The default implementation returns NotImplemented.
     fn build_stream_request(
         &self,
+        _session_id: &str,
         _system: &str,
         _messages: &[Message],
         _tools: &[Tool],
@@ -625,11 +620,12 @@ pub trait Provider: Send + Sync {
     /// Callers should use this method.
     async fn stream(
         &self,
+        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let request = self.build_stream_request(system, messages, tools)?;
+        let request = self.build_stream_request(session_id, system, messages, tools)?;
 
         let mut log = RequestLog::start(&self.get_model_config(), &request.payload)?;
 
@@ -674,6 +670,7 @@ pub trait Provider: Send + Sync {
     /// Creates a prompt asking for a concise description in 4 words or less.
     async fn generate_session_name(
         &self,
+        session_id: &str,
         messages: &Conversation,
     ) -> Result<String, ProviderError> {
         let context = self.get_initial_user_messages(messages);
@@ -681,6 +678,7 @@ pub trait Provider: Send + Sync {
         let message = Message::user().with_text(&prompt);
         let result = self
             .complete_fast(
+                session_id,
                 "Reply with only a description in four words or less",
                 &[message],
                 &[],

@@ -169,7 +169,11 @@ impl GithubCopilotProvider {
         })
     }
 
-    async fn post(&self, payload: &mut Value) -> Result<Response, ProviderError> {
+    async fn post(
+        &self,
+        session_id: Option<&str>,
+        payload: &mut Value,
+    ) -> Result<Response, ProviderError> {
         let (endpoint, token) = self.get_api_info().await?;
         let auth = AuthMethod::BearerToken(token);
         let mut headers = self.get_github_headers();
@@ -179,7 +183,7 @@ impl GithubCopilotProvider {
         let api_client = ApiClient::new(endpoint.clone(), auth)?.with_headers(headers)?;
 
         api_client
-            .response_post("chat/completions", payload)
+            .response_post(session_id, "chat/completions", payload)
             .await
             .map_err(|e| e.into())
     }
@@ -411,6 +415,7 @@ impl Provider for GithubCopilotProvider {
     )]
     async fn complete_impl(
         &self,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -429,7 +434,7 @@ impl Provider for GithubCopilotProvider {
         let response = self
             .with_retry(|| async {
                 let mut payload_clone = payload.clone();
-                self.post(&mut payload_clone).await
+                self.post(session_id, &mut payload_clone).await
             })
             .await?;
         let response = handle_response_openai_compat(response).await?;
@@ -448,6 +453,7 @@ impl Provider for GithubCopilotProvider {
 
     fn build_stream_request(
         &self,
+        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -474,7 +480,7 @@ impl Provider for GithubCopilotProvider {
     ) -> Result<reqwest::Response, ProviderError> {
         self.with_retry(|| async {
             let mut payload = request.payload.clone();
-            let resp = self.post(&mut payload).await?;
+            let resp = self.post(None, &mut payload).await?;
             handle_status_openai_compat(resp).await
         })
         .await

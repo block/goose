@@ -13,7 +13,7 @@ use crate::conversation::message::{Message, MessageContent};
 
 use crate::mcp_utils::ToolResult;
 use crate::model::ModelConfig;
-use rmcp::model::{object, CallToolRequestParam, Role, Tool};
+use rmcp::model::{object, CallToolRequestParams, Role, Tool};
 
 // ---------- Capability Flags ----------
 #[derive(Debug)]
@@ -113,8 +113,16 @@ impl VeniceProvider {
         Ok(instance)
     }
 
-    async fn post(&self, path: &str, payload: &Value) -> Result<Value, ProviderError> {
-        let response = self.api_client.response_post(path, payload).await?;
+    async fn post(
+        &self,
+        session_id: Option<&str>,
+        path: &str,
+        payload: &Value,
+    ) -> Result<Value, ProviderError> {
+        let response = self
+            .api_client
+            .response_post(session_id, path, payload)
+            .await?;
 
         let status = response.status();
         tracing::debug!("Venice response status: {}", status);
@@ -222,7 +230,11 @@ impl Provider for VeniceProvider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        let response = self.api_client.response_get(&self.models_path).await?;
+        let response = self
+            .api_client
+            .request(None, &self.models_path)
+            .response_get()
+            .await?;
         let json: serde_json::Value = response.json().await?;
 
         let mut models = json["data"]
@@ -251,6 +263,7 @@ impl Provider for VeniceProvider {
     )]
     async fn complete_impl(
         &self,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -431,7 +444,7 @@ impl Provider for VeniceProvider {
 
         // Send request with retry
         let response = self
-            .with_retry(|| self.post(&self.base_path, &payload))
+            .with_retry(|| self.post(session_id, &self.base_path, &payload))
             .await?;
 
         // Parse the response - response is already a Value from our post method
@@ -460,7 +473,9 @@ impl Provider for VeniceProvider {
                         function["arguments"].clone()
                     };
 
-                    let tool_call = CallToolRequestParam {
+                    let tool_call = CallToolRequestParams {
+                        meta: None,
+                        task: None,
                         name: name.into(),
                         arguments: Some(object(arguments)),
                     };

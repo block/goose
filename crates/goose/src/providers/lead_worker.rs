@@ -342,6 +342,7 @@ impl Provider for LeadWorkerProvider {
 
     async fn complete_impl(
         &self,
+        session_id: Option<&str>,
         _model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -392,7 +393,10 @@ impl Provider for LeadWorkerProvider {
         }
 
         // Make the completion request
-        let result = provider.complete(system, messages, tools).await;
+        let model_config = provider.get_model_config();
+        let result = provider
+            .complete_impl(session_id, &model_config, system, messages, tools)
+            .await;
 
         // For technical failures, try with default model (lead provider) instead
         let final_result = match &result {
@@ -400,7 +404,11 @@ impl Provider for LeadWorkerProvider {
                 tracing::warn!("Technical failure with {} provider, retrying with default model (lead provider)", provider_type);
 
                 // Try with lead provider as the default/fallback for technical failures
-                let default_result = self.lead_provider.complete(system, messages, tools).await;
+                let model_config = self.lead_provider.get_model_config();
+                let default_result = self
+                    .lead_provider
+                    .complete_impl(session_id, &model_config, system, messages, tools)
+                    .await;
 
                 match &default_result {
                     Ok(_) => {
@@ -447,12 +455,20 @@ impl Provider for LeadWorkerProvider {
         self.lead_provider.supports_embeddings() || self.worker_provider.supports_embeddings()
     }
 
-    async fn create_embeddings(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>, ProviderError> {
+    async fn create_embeddings(
+        &self,
+        session_id: &str,
+        texts: Vec<String>,
+    ) -> Result<Vec<Vec<f32>>, ProviderError> {
         // Use the lead provider for embeddings if it supports them, otherwise use worker
         if self.lead_provider.supports_embeddings() {
-            self.lead_provider.create_embeddings(texts).await
+            self.lead_provider
+                .create_embeddings(session_id, texts)
+                .await
         } else if self.worker_provider.supports_embeddings() {
-            self.worker_provider.create_embeddings(texts).await
+            self.worker_provider
+                .create_embeddings(session_id, texts)
+                .await
         } else {
             Err(ProviderError::ExecutionError(
                 "Neither lead nor worker provider supports embeddings".to_string(),
@@ -496,6 +512,7 @@ mod tests {
 
         async fn complete_impl(
             &self,
+            _session_id: Option<&str>,
             _model_config: &ModelConfig,
             _system: &str,
             _messages: &[Message],
@@ -534,7 +551,10 @@ mod tests {
 
         // First three turns should use lead provider
         for i in 0..3 {
-            let (_message, usage) = provider.complete("system", &[], &[]).await.unwrap();
+            let (_message, usage) = provider
+                .complete("test-session-id", "system", &[], &[])
+                .await
+                .unwrap();
             assert_eq!(usage.model, "lead");
             assert_eq!(provider.get_turn_count().await, i + 1);
             assert!(!provider.is_in_fallback_mode().await);
@@ -542,7 +562,10 @@ mod tests {
 
         // Subsequent turns should use worker provider
         for i in 3..6 {
-            let (_message, usage) = provider.complete("system", &[], &[]).await.unwrap();
+            let (_message, usage) = provider
+                .complete("test-session-id", "system", &[], &[])
+                .await
+                .unwrap();
             assert_eq!(usage.model, "worker");
             assert_eq!(provider.get_turn_count().await, i + 1);
             assert!(!provider.is_in_fallback_mode().await);
@@ -554,7 +577,10 @@ mod tests {
         assert_eq!(provider.get_failure_count().await, 0);
         assert!(!provider.is_in_fallback_mode().await);
 
-        let (_message, usage) = provider.complete("system", &[], &[]).await.unwrap();
+        let (_message, usage) = provider
+            .complete("test-session-id", "system", &[], &[])
+            .await
+            .unwrap();
         assert_eq!(usage.model, "lead");
     }
 
@@ -576,21 +602,27 @@ mod tests {
 
         // First two turns use lead (should succeed)
         for _i in 0..2 {
-            let result = provider.complete("system", &[], &[]).await;
+            let result = provider
+                .complete("test-session-id", "system", &[], &[])
+                .await;
             assert!(result.is_ok());
             assert_eq!(result.unwrap().1.model, "lead");
             assert!(!provider.is_in_fallback_mode().await);
         }
 
         // Next turn uses worker (will fail, but should retry with lead and succeed)
-        let result = provider.complete("system", &[], &[]).await;
+        let result = provider
+            .complete("test-session-id", "system", &[], &[])
+            .await;
         assert!(result.is_ok()); // Should succeed because lead provider is used as fallback
         assert_eq!(result.unwrap().1.model, "lead"); // Should be lead provider
         assert_eq!(provider.get_failure_count().await, 0); // No failure tracking for technical failures
         assert!(!provider.is_in_fallback_mode().await); // Not in fallback mode
 
         // Another turn - should still try worker first, then retry with lead
-        let result = provider.complete("system", &[], &[]).await;
+        let result = provider
+            .complete("test-session-id", "system", &[], &[])
+            .await;
         assert!(result.is_ok()); // Should succeed because lead provider is used as fallback
         assert_eq!(result.unwrap().1.model, "lead"); // Should be lead provider
         assert_eq!(provider.get_failure_count().await, 0); // Still no failure tracking
@@ -627,13 +659,17 @@ mod tests {
         }
 
         // Should use lead provider in fallback mode
-        let result = provider.complete("system", &[], &[]).await;
+        let result = provider
+            .complete("test-session-id", "system", &[], &[])
+            .await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap().1.model, "lead");
         assert!(provider.is_in_fallback_mode().await);
 
         // One more fallback turn
-        let result = provider.complete("system", &[], &[]).await;
+        let result = provider
+            .complete("test-session-id", "system", &[], &[])
+            .await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap().1.model, "lead");
         assert!(!provider.is_in_fallback_mode().await); // Should exit fallback mode
@@ -662,6 +698,7 @@ mod tests {
 
         async fn complete_impl(
             &self,
+            _session_id: Option<&str>,
             _model_config: &ModelConfig,
             _system: &str,
             _messages: &[Message],

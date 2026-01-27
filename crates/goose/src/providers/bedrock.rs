@@ -11,6 +11,7 @@ use async_trait::async_trait;
 use aws_sdk_bedrockruntime::config::ProvideCredentials;
 use aws_sdk_bedrockruntime::operation::converse::ConverseError;
 use aws_sdk_bedrockruntime::{types as bedrock, Client};
+use reqwest::header::HeaderValue;
 use rmcp::model::Tool;
 use serde_json::Value;
 
@@ -18,6 +19,7 @@ use serde_json::Value;
 use super::formats::bedrock::{
     from_bedrock_message, from_bedrock_usage, to_bedrock_message, to_bedrock_tool_config,
 };
+use crate::session_context::SESSION_ID_HEADER;
 
 pub const BEDROCK_DOC_LINK: &str =
     "https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html";
@@ -130,6 +132,7 @@ impl BedrockProvider {
 
     async fn converse(
         &self,
+        session_id: Option<&str>,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -151,6 +154,17 @@ impl BedrockProvider {
 
         if !tools.is_empty() {
             request = request.tool_config(to_bedrock_tool_config(tools)?);
+        }
+
+        let mut request = request.customize();
+
+        if let Some(session_id) = session_id.filter(|id| !id.is_empty()) {
+            let session_id = session_id.to_string();
+            request = request.mutate_request(move |req| {
+                if let Ok(value) = HeaderValue::from_str(&session_id) {
+                    req.headers_mut().insert(SESSION_ID_HEADER, value);
+                }
+            });
         }
 
         let response = request
@@ -227,6 +241,7 @@ impl Provider for BedrockProvider {
     )]
     async fn complete_impl(
         &self,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -235,7 +250,7 @@ impl Provider for BedrockProvider {
         let model_name = model_config.model_name.clone();
 
         let (bedrock_message, bedrock_usage) = self
-            .with_retry(|| self.converse(system, messages, tools))
+            .with_retry(|| self.converse(session_id, system, messages, tools))
             .await?;
 
         let usage = bedrock_usage

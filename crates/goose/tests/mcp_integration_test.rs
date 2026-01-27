@@ -1,4 +1,4 @@
-mod common;
+use serde::Deserialize;
 
 use std::collections::HashMap;
 use std::fs::File;
@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::{env, fs};
 
-use rmcp::model::{CallToolRequestParam, CallToolResult, Tool};
+use rmcp::model::{CallToolRequestParams, CallToolResult, Tool};
 use rmcp::object;
 use tokio_util::sync::CancellationToken;
 
@@ -20,6 +20,21 @@ use async_trait::async_trait;
 use goose::conversation::message::Message;
 use goose::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
 use goose::providers::errors::ProviderError;
+use once_cell::sync::Lazy;
+use std::process::Command;
+
+#[derive(Deserialize)]
+struct CargoBuildMessage {
+    reason: String,
+    target: Target,
+    executable: String,
+}
+
+#[derive(Deserialize)]
+struct Target {
+    name: String,
+    kind: Vec<String>,
+}
 
 #[derive(Clone)]
 pub struct MockProvider {
@@ -44,6 +59,7 @@ impl Provider for MockProvider {
 
     async fn complete_impl(
         &self,
+        _session_id: Option<&str>,
         _model_config: &ModelConfig,
         _system: &str,
         _messages: &[Message],
@@ -60,26 +76,64 @@ impl Provider for MockProvider {
     }
 }
 
+fn build_and_get_binary_path() -> PathBuf {
+    let output = Command::new("cargo")
+        .args([
+            "build",
+            "--frozen",
+            "-p",
+            "goose-test",
+            "--bin",
+            "capture",
+            "--message-format=json",
+        ])
+        .output()
+        .expect("failed to build binary");
+
+    if !output.status.success() {
+        panic!("build failed: {}", String::from_utf8_lossy(&output.stderr));
+    }
+
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(serde_json::from_str::<CargoBuildMessage>)
+        .filter_map(Result::ok)
+        .filter(|message| message.reason == "compiler-artifact")
+        .filter_map(|message| {
+            if message.target.name == "capture"
+                && message.target.kind.contains(&String::from("bin"))
+            {
+                Some(PathBuf::from(message.executable))
+            } else {
+                None
+            }
+        })
+        .next()
+        .expect("failed to parse binary path")
+}
+
+static REPLAY_BINARY_PATH: Lazy<PathBuf> = Lazy::new(build_and_get_binary_path);
+
 enum TestMode {
     Record,
     Playback,
 }
 
 #[test_case(
-    vec!["npx", "-y", "@modelcontextprotocol/server-everything"],
+    vec!["npx", "-y", "@modelcontextprotocol/server-everything@2026.1.14"],
     vec![
-        CallToolRequestParam { name: "echo".into(), arguments: Some(object!({"message": "Hello, world!" })) },
-        CallToolRequestParam { name: "add".into(), arguments: Some(object!({"a": 1, "b": 2 })) },
-        CallToolRequestParam { name: "longRunningOperation".into(), arguments: Some(object!({"duration": 1, "steps": 5 })) },
-        CallToolRequestParam { name: "structuredContent".into(), arguments: Some(object!({"location": "11238"})) },
-        CallToolRequestParam { name: "sampleLLM".into(), arguments: Some(object!({"prompt": "Please provide a quote from The Great Gatsby", "maxTokens": 100 })) }
+        CallToolRequestParams { meta: None, task: None, name: "echo".into(), arguments: Some(object!({"message": "Hello, world!" })) },
+        CallToolRequestParams { meta: None, task: None, name: "get-sum".into(), arguments: Some(object!({"a": 1, "b": 2 })) },
+        CallToolRequestParams { meta: None, task: None, name: "trigger-long-running-operation".into(), arguments: Some(object!({"duration": 1, "steps": 5 })) },
+        CallToolRequestParams { meta: None, task: None, name: "get-structured-content".into(), arguments: Some(object!({"location": "New York"})) },
+        CallToolRequestParams { meta: None, task: None, name: "trigger-sampling-request".into(), arguments: Some(object!({"prompt": "Please provide a quote from The Great Gatsby", "maxTokens": 100 })) }
     ],
     vec![]
 )]
 #[test_case(
     vec!["github-mcp-server", "stdio"],
     vec![
-        CallToolRequestParam { name: "get_file_contents".into(), arguments: Some(object!({
+        CallToolRequestParams { meta: None, task: None, name: "get_file_contents".into(), arguments: Some(object!({
             "owner": "block",
             "repo": "goose",
             "path": "README.md",
@@ -91,44 +145,26 @@ enum TestMode {
 #[test_case(
     vec!["uvx", "mcp-server-fetch"],
     vec![
-        CallToolRequestParam { name: "fetch".into(), arguments: Some(object!({
+        CallToolRequestParams { meta: None, task: None, name: "fetch".into(), arguments: Some(object!({
             "url": "https://example.com",
         })) }
     ],
     vec![]
 )]
 #[test_case(
-    vec!["cargo", "run", "--quiet", "-p", "goose-server", "--bin", "goosed", "--", "mcp", "developer"],
+    vec!["uv", "run", "--with", "fastmcp==2.14.4", "fastmcp", "run", "tests/fastmcp_test_server.py"],
     vec![
-        CallToolRequestParam { name: "text_editor".into(), arguments: Some(object!({
-            "command": "view",
-            "path": "/tmp/goose_test/goose.txt"
-        }))},
-        CallToolRequestParam { name: "text_editor".into(), arguments: Some(object!({
-            "command": "str_replace",
-            "path": "/tmp/goose_test/goose.txt",
-            "old_str": "# goose",
-            "new_str": "# goose (modified by test)"
-        }))},
-        // Test shell command to verify file was modified
-        CallToolRequestParam { name: "shell".into(), arguments: Some(object!({
-            "command": "cat /tmp/goose_test/goose.txt"
-        })) },
-        // Test text_editor tool to restore original content
-        CallToolRequestParam { name: "text_editor".into(), arguments: Some(object!({
-            "command": "str_replace",
-            "path": "/tmp/goose_test/goose.txt",
-            "old_str": "# goose (modified by test)",
-            "new_str": "# goose"
-        }))},
-        CallToolRequestParam { name: "list_windows".into(), arguments: Some(object!({})) },
+        CallToolRequestParams { meta: None, task: None, name: "divide".into(), arguments: Some(object!({
+            "dividend": 10,
+            "divisor": 2
+        })) }
     ],
     vec![]
 )]
 #[tokio::test]
 async fn test_replayed_session(
     command: Vec<&str>,
-    tool_calls: Vec<CallToolRequestParam>,
+    tool_calls: Vec<CallToolRequestParams>,
     required_envs: Vec<&str>,
 ) {
     std::env::set_var("GOOSE_MCP_CLIENT_VERSION", "0.0.0");
@@ -161,7 +197,7 @@ async fn test_replayed_session(
         TestMode::Record => "record",
         TestMode::Playback => "playback",
     };
-    let cmd = common::CAPTURE_BINARY.to_string_lossy().to_string();
+    let cmd = REPLAY_BINARY_PATH.to_string_lossy().to_string();
     let mut args = vec!["stdio", mode_arg]
         .into_iter()
         .map(str::to_string)
@@ -203,19 +239,27 @@ async fn test_replayed_session(
     let provider = Arc::new(tokio::sync::Mutex::new(Some(Arc::new(MockProvider {
         model_config: ModelConfig::new("test-model").unwrap(),
     }) as Arc<dyn Provider>)));
-    let extension_manager = ExtensionManager::new(provider);
+    let temp_dir = tempfile::tempdir().unwrap();
+    let session_manager = Arc::new(goose::session::SessionManager::new(
+        temp_dir.path().to_path_buf(),
+    ));
+    let extension_manager = Arc::new(ExtensionManager::new(provider, session_manager));
 
     #[allow(clippy::redundant_closure_call)]
     let result = (async || -> Result<(), Box<dyn std::error::Error>> {
-        extension_manager.add_extension(extension_config).await?;
+        extension_manager
+            .add_extension_with_working_dir(extension_config, None)
+            .await?;
         let mut results = Vec::new();
         for tool_call in tool_calls {
-            let tool_call = CallToolRequestParam {
+            let tool_call = CallToolRequestParams {
+                meta: None,
+                task: None,
                 name: format!("test__{}", tool_call.name).into(),
                 arguments: tool_call.arguments,
             };
             let result = extension_manager
-                .dispatch_tool_call(tool_call, CancellationToken::default())
+                .dispatch_tool_call("test-session-id", tool_call, CancellationToken::default())
                 .await;
 
             let tool_result = result?;

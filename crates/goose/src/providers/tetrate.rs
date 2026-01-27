@@ -65,10 +65,14 @@ impl TetrateProvider {
         })
     }
 
-    async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
+    async fn post(
+        &self,
+        session_id: Option<&str>,
+        payload: &Value,
+    ) -> Result<Value, ProviderError> {
         let response = self
             .api_client
-            .response_post("v1/chat/completions", payload)
+            .response_post(session_id, "v1/chat/completions", payload)
             .await?;
 
         // Handle Google-compatible model responses differently
@@ -160,6 +164,7 @@ impl Provider for TetrateProvider {
     )]
     async fn complete_impl(
         &self,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -178,7 +183,7 @@ impl Provider for TetrateProvider {
         let response = self
             .with_retry(|| async {
                 let payload_clone = payload.clone();
-                self.post(&payload_clone).await
+                self.post(session_id, &payload_clone).await
             })
             .await?;
 
@@ -194,6 +199,7 @@ impl Provider for TetrateProvider {
 
     fn build_stream_request(
         &self,
+        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -218,17 +224,25 @@ impl Provider for TetrateProvider {
         &self,
         request: &StreamRequest,
     ) -> Result<reqwest::Response, ProviderError> {
-        let resp = self
-            .api_client
-            .response_post(&request.url, &request.payload)
-            .await?;
+        let mut api_request = self.api_client.request(None, &request.url);
+
+        for (key, value) in &request.headers {
+            api_request = api_request.header(key.as_str(), value.to_str().unwrap_or(""))?;
+        }
+
+        let resp = api_request.response_post(&request.payload).await?;
         handle_status_openai_compat(resp).await
     }
 
     /// Fetch supported models from Tetrate Agent Router Service API (only models with tool support)
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         // Use the existing api_client which already has authentication configured
-        let response = match self.api_client.response_get("v1/models").await {
+        let response = match self
+            .api_client
+            .request(None, "v1/models")
+            .response_get()
+            .await
+        {
             Ok(response) => response,
             Err(e) => {
                 tracing::warn!("Failed to fetch models from Tetrate Agent Router Service API: {}, falling back to manual model entry", e);

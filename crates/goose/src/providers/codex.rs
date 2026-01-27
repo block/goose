@@ -506,6 +506,7 @@ impl Provider for CodexProvider {
     )]
     async fn complete_impl(
         &self,
+        _session_id: Option<&str>, // CLI has no external session-id flag to propagate.
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],

@@ -110,8 +110,12 @@ impl AnthropicProvider {
         headers
     }
 
-    async fn post(&self, payload: &Value) -> Result<ApiResponse, ProviderError> {
-        let mut request = self.api_client.request("v1/messages");
+    async fn post(
+        &self,
+        session_id: Option<&str>,
+        payload: &Value,
+    ) -> Result<ApiResponse, ProviderError> {
+        let mut request = self.api_client.request(session_id, "v1/messages");
 
         for (key, value) in self.get_conditional_headers() {
             request = request.header(key, value)?;
@@ -192,6 +196,7 @@ impl Provider for AnthropicProvider {
     )]
     async fn complete_impl(
         &self,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -200,7 +205,7 @@ impl Provider for AnthropicProvider {
         let payload = create_request(model_config, system, messages, tools)?;
 
         let response = self
-            .with_retry(|| async { self.post(&payload).await })
+            .with_retry(|| async { self.post(session_id, &payload).await })
             .await?;
 
         let json_response = Self::anthropic_api_call_result(response)?;
@@ -220,7 +225,7 @@ impl Provider for AnthropicProvider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        let response = self.api_client.api_get("v1/models").await?;
+        let response = self.api_client.request(None, "v1/models").api_get().await?;
 
         if response.status != StatusCode::OK {
             return Err(map_http_error_to_provider_error(
@@ -245,6 +250,7 @@ impl Provider for AnthropicProvider {
 
     fn build_stream_request(
         &self,
+        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -268,7 +274,7 @@ impl Provider for AnthropicProvider {
         &self,
         request: &StreamRequest,
     ) -> Result<reqwest::Response, ProviderError> {
-        let mut api_request = self.api_client.request(&request.url);
+        let mut api_request = self.api_client.request(None, &request.url);
 
         for (key, value) in &request.headers {
             api_request = api_request.header(key.as_str(), value.to_str().unwrap_or(""))?;

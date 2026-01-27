@@ -98,14 +98,21 @@ impl AzureProvider {
         })
     }
 
-    async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
+    async fn post(
+        &self,
+        session_id: Option<&str>,
+        payload: &Value,
+    ) -> Result<Value, ProviderError> {
         // Build the path for Azure OpenAI
         let path = format!(
             "openai/deployments/{}/chat/completions?api-version={}",
             self.deployment_name, self.api_version
         );
 
-        let response = self.api_client.response_post(&path, payload).await?;
+        let response = self
+            .api_client
+            .response_post(session_id, &path, payload)
+            .await?;
         handle_response_openai_compat(response).await
     }
 }
@@ -143,6 +150,7 @@ impl Provider for AzureProvider {
     )]
     async fn complete_impl(
         &self,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -159,7 +167,7 @@ impl Provider for AzureProvider {
         let response = self
             .with_retry(|| async {
                 let payload_clone = payload.clone();
-                self.post(&payload_clone).await
+                self.post(session_id, &payload_clone).await
             })
             .await?;
 

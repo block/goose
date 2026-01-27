@@ -10,6 +10,7 @@ thread_local! {
 }
 
 pub async fn inject_moim(
+    session_id: &str,
     conversation: Conversation,
     extension_manager: &ExtensionManager,
     working_dir: &Path,
@@ -18,7 +19,10 @@ pub async fn inject_moim(
         return conversation;
     }
 
-    if let Some(moim) = extension_manager.collect_moim(working_dir).await {
+    if let Some(moim) = extension_manager
+        .collect_moim(session_id, working_dir)
+        .await
+    {
         let mut messages = conversation.messages().clone();
         let idx = messages
             .iter()
@@ -46,12 +50,13 @@ pub async fn inject_moim(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rmcp::model::CallToolRequestParam;
+    use rmcp::model::CallToolRequestParams;
     use std::path::PathBuf;
 
     #[tokio::test]
     async fn test_moim_injection_before_assistant() {
-        let em = ExtensionManager::new_without_provider();
+        let temp_dir = tempfile::tempdir().unwrap();
+        let em = ExtensionManager::new_without_provider(temp_dir.path().to_path_buf());
         let working_dir = PathBuf::from("/test/dir");
 
         let conv = Conversation::new_unvalidated(vec![
@@ -59,7 +64,7 @@ mod tests {
             Message::assistant().with_text("Hi"),
             Message::user().with_text("Bye"),
         ]);
-        let result = inject_moim(conv, &em, &working_dir).await;
+        let result = inject_moim("test-session-id", conv, &em, &working_dir).await;
         let msgs = result.messages();
 
         assert_eq!(msgs.len(), 3);
@@ -79,11 +84,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_moim_injection_no_assistant() {
-        let em = ExtensionManager::new_without_provider();
+        let temp_dir = tempfile::tempdir().unwrap();
+        let em = ExtensionManager::new_without_provider(temp_dir.path().to_path_buf());
         let working_dir = PathBuf::from("/test/dir");
 
         let conv = Conversation::new_unvalidated(vec![Message::user().with_text("Hello")]);
-        let result = inject_moim(conv, &em, &working_dir).await;
+        let result = inject_moim("test-session-id", conv, &em, &working_dir).await;
 
         assert_eq!(result.messages().len(), 1);
 
@@ -100,7 +106,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_moim_with_tool_calls() {
-        let em = ExtensionManager::new_without_provider();
+        let temp_dir = tempfile::tempdir().unwrap();
+        let em = ExtensionManager::new_without_provider(temp_dir.path().to_path_buf());
         let working_dir = PathBuf::from("/test/dir");
 
         let conv = Conversation::new_unvalidated(vec![
@@ -109,7 +116,9 @@ mod tests {
                 .with_text("I'll search for you")
                 .with_tool_request(
                     "search_1",
-                    Ok(CallToolRequestParam {
+                    Ok(CallToolRequestParams {
+                        meta: None,
+                        task: None,
                         name: "search".into(),
                         arguments: None,
                     }),
@@ -127,7 +136,9 @@ mod tests {
                 .with_text("I need to search more")
                 .with_tool_request(
                     "search_2",
-                    Ok(CallToolRequestParam {
+                    Ok(CallToolRequestParams {
+                        meta: None,
+                        task: None,
                         name: "search".into(),
                         arguments: None,
                     }),
@@ -143,7 +154,7 @@ mod tests {
             ),
         ]);
 
-        let result = inject_moim(conv, &em, &working_dir).await;
+        let result = inject_moim("test-session-id", conv, &em, &working_dir).await;
         let msgs = result.messages();
 
         assert_eq!(msgs.len(), 6);

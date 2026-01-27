@@ -66,10 +66,10 @@ impl XaiProvider {
         })
     }
 
-    async fn post(&self, payload: Value) -> Result<Value, ProviderError> {
+    async fn post(&self, session_id: Option<&str>, payload: Value) -> Result<Value, ProviderError> {
         let response = self
             .api_client
-            .response_post("chat/completions", &payload)
+            .response_post(session_id, "chat/completions", &payload)
             .await?;
 
         handle_response_openai_compat(response).await
@@ -107,6 +107,7 @@ impl Provider for XaiProvider {
     )]
     async fn complete_impl(
         &self,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -121,7 +122,9 @@ impl Provider for XaiProvider {
             false,
         )?;
 
-        let response = self.with_retry(|| self.post(payload.clone())).await?;
+        let response = self
+            .with_retry(|| self.post(session_id, payload.clone()))
+            .await?;
 
         let message = response_to_message(&response)?;
         let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
@@ -138,6 +141,7 @@ impl Provider for XaiProvider {
 
     fn build_stream_request(
         &self,
+        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -162,10 +166,13 @@ impl Provider for XaiProvider {
         &self,
         request: &StreamRequest,
     ) -> Result<reqwest::Response, ProviderError> {
-        let resp = self
-            .api_client
-            .response_post(&request.url, &request.payload)
-            .await?;
+        let mut api_request = self.api_client.request(None, &request.url);
+
+        for (key, value) in &request.headers {
+            api_request = api_request.header(key.as_str(), value.to_str().unwrap_or(""))?;
+        }
+
+        let resp = api_request.response_post(&request.payload).await?;
         handle_status_openai_compat(resp).await
     }
 }
