@@ -3,6 +3,7 @@ import { Switch } from '../../ui/switch';
 import { DictationProvider, DictationSettings } from '../../../hooks/useDictationSettings';
 import {
   DICTATION_SETTINGS_KEY,
+  DICTATION_PROVIDER_OPENAI,
   DICTATION_PROVIDER_ELEVENLABS,
   getDefaultDictationSettings,
 } from '../../../hooks/dictationConstants';
@@ -35,7 +36,7 @@ export const VoiceDictationToggle = () => {
         ) {
           loadedSettings = {
             ...loadedSettings,
-            provider: 'openai',
+            provider: DICTATION_PROVIDER_OPENAI,
           };
           localStorage.setItem(DICTATION_SETTINGS_KEY, JSON.stringify(loadedSettings));
         }
@@ -59,7 +60,7 @@ export const VoiceDictationToggle = () => {
     saveSettings({
       ...settings,
       enabled,
-      provider: settings.provider === null ? 'openai' : settings.provider,
+      provider: settings.provider === null ? DICTATION_PROVIDER_OPENAI : settings.provider,
     });
     trackSettingToggled('voice_dictation', enabled);
   };

@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { DictationProvider, DictationSettings } from '../../../hooks/useDictationSettings';
-import { DICTATION_PROVIDER_ELEVENLABS } from '../../../hooks/dictationConstants';
+import {
+  DICTATION_PROVIDER_OPENAI,
+  DICTATION_PROVIDER_ELEVENLABS,
+} from '../../../hooks/dictationConstants';
 import { useConfig } from '../../ConfigContext';
 import { ElevenLabsKeyInput } from './ElevenLabsKeyInput';
 import { ProviderInfo } from './ProviderInfo';
@@ -56,7 +59,7 @@ export const ProviderSelector = ({ settings, onProviderChange }: ProviderSelecto
 
   const getProviderLabel = (provider: DictationProvider): string => {
     switch (provider) {
-      case 'openai':
+      case DICTATION_PROVIDER_OPENAI:
         return 'OpenAI Whisper';
       case DICTATION_PROVIDER_ELEVENLABS:
         return 'ElevenLabs';
@@ -86,7 +89,7 @@ export const ProviderSelector = ({ settings, onProviderChange }: ProviderSelecto
           {showProviderDropdown && (
             <div className="absolute right-0 mt-1 w-max min-w-[250px] max-w-[350px] bg-background-default border border-border-default rounded-md shadow-lg z-50">
               <button
-                onClick={() => handleProviderChange('openai')}
+                onClick={() => handleProviderChange(DICTATION_PROVIDER_OPENAI)}
                 className={`w-full px-3 py-2 text-left text-sm transition-colors hover:bg-background-subtle text-text-default whitespace-nowrap ${!VOICE_DICTATION_ELEVENLABS_ENABLED ? 'first:rounded-t-md last:rounded-b-md' : 'first:rounded-t-md'}`}
               >
                 <span className="flex items-center justify-between gap-2">
@@ -96,7 +99,7 @@ export const ProviderSelector = ({ settings, onProviderChange }: ProviderSelecto
                       <span className="text-xs ml-1 text-text-muted">(not configured)</span>
                     )}
                   </span>
-                  {settings.provider === 'openai' && <span>✓</span>}
+                  {settings.provider === DICTATION_PROVIDER_OPENAI && <span>✓</span>}
                 </span>
               </button>
 
