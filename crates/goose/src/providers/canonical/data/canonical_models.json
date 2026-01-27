@@ -10711,6 +10711,38 @@
     }
   },
   {
+    "id": "openrouter/moonshotai/kimi-k2.5",
+    "name": "Kimi K2.5",
+    "family": "kimi",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2025-01",
+    "release_date": "2026-01-27",
+    "last_updated": "2026-01-27",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "video"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.6,
+      "output": 3.0,
+      "cache_read": 0.1
+    },
+    "limit": {
+      "context": 262144,
+      "output": 262144
+    }
+  },
+  {
     "id": "openrouter/moonshotai/kimi-k2:free",
     "name": "Kimi K2 (free)",
     "family": "kimi",
@@ -13168,6 +13200,37 @@
     }
   },
   {
+    "id": "venice/kimi-k2-5",
+    "name": "Kimi K2.5",
+    "family": "kimi",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2024-04",
+    "release_date": "2026-01-27",
+    "last_updated": "2026-01-27",
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.75,
+      "output": 3.75,
+      "cache_read": 0.125
+    },
+    "limit": {
+      "context": 262144,
+      "output": 65536
+    }
+  },
+  {
     "id": "venice/kimi-k2-thinking",
     "name": "Kimi K2 Thinking",
     "family": "kimi-thinking",
@@ -13191,6 +13254,36 @@
       "input": 0.75,
       "output": 3.2,
       "cache_read": 0.375
+    },
+    "limit": {
+      "context": 262144,
+      "output": 65536
+    }
+  },
+  {
+    "id": "venice/kimi-k2.5",
+    "name": "Kimi K2.5",
+    "family": "kimi",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2024-04",
+    "release_date": "2026-01-27",
+    "last_updated": "2026-01-27",
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.75,
+      "output": 3.75
     },
     "limit": {
       "context": 262144,
@@ -13617,7 +13710,7 @@
     "temperature": true,
     "knowledge": "2025-04",
     "release_date": "2025-12-24",
-    "last_updated": "2026-01-07",
+    "last_updated": "2026-01-26",
     "modalities": {
       "input": [
         "text"
@@ -13629,7 +13722,8 @@
     "open_weights": true,
     "cost": {
       "input": 0.55,
-      "output": 2.65
+      "output": 2.65,
+      "cache_read": 0.11
     },
     "limit": {
       "context": 202752,
