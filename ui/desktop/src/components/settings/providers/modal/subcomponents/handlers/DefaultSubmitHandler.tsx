@@ -101,14 +101,12 @@ export const providerConfigSubmitHandler = async (
       throwOnError: true,
     });
   } catch (error) {
-    // Rollback to previous config values on failure
     const rollbackPromises: Promise<void>[] = [];
     for (const [key, { value, isSecret }] of Object.entries(previousConfigValues)) {
       rollbackPromises.push(upsertFn(key, value, isSecret));
     }
     await Promise.all(rollbackPromises);
 
-    // Re-throw the error so the UI can show it
     throw error;
   }
 };
