@@ -61,9 +61,12 @@ static MODEL_SPECIFIC_LIMITS: Lazy<Vec<(&'static str, usize)>> = Lazy::new(|| {
         // anthropic - all 200k
         ("claude", 200_000),
         // google
-        ("gemini-1.5-flash", 1_000_000),
+        ("gemini-1.5-flash", 1_048_576),
         ("gemini-1", 128_000),
-        ("gemini-2", 1_000_000),
+        ("gemini-2", 1_048_576),
+        ("gemini-3-pro-image", 65_536),
+        ("gemini-3-pro", 1_048_576),
+        ("gemini-3-flash", 1_048_576),
         ("gemma-3-27b", 128_000),
         ("gemma-3-12b", 128_000),
         ("gemma-3-4b", 128_000),

@@ -1008,7 +1008,7 @@ impl Agent {
                 {
                     Ok((compacted_conversation, summarization_usage)) => {
                         session_manager.replace_conversation(&session_config.id, &compacted_conversation).await?;
-                        self.update_session_metrics(&session_config, &summarization_usage, true).await?;
+                        self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &summarization_usage, true).await?;
 
                         yield AgentEvent::HistoryReplaced(compacted_conversation.clone());
 
@@ -1157,7 +1157,7 @@ impl Agent {
                             }
 
                             if let Some(ref usage) = usage {
-                                self.update_session_metrics(&session_config, usage, false).await?;
+                                self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), usage, false).await?;
                             }
 
                             if let Some(response) = response {
@@ -1437,7 +1437,7 @@ impl Agent {
                             {
                                 Ok((compacted_conversation, usage)) => {
                                     session_manager.replace_conversation(&session_config.id, &compacted_conversation).await?;
-                                    self.update_session_metrics(&session_config, &usage, true).await?;
+                                    self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &usage, true).await?;
                                     conversation = compacted_conversation;
                                     did_recovery_compact_this_iteration = true;
                                     yield AgentEvent::HistoryReplaced(conversation.clone());
