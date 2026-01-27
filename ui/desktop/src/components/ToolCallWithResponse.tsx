@@ -180,7 +180,7 @@ export default function ToolCallWithResponse({
     <>
       <div
         className={cn(
-          'w-full text-sm font-sans rounded-lg overflow-hidden border-borderSubtle border bg-background-muted'
+          'w-full text-sm font-sans rounded-lg overflow-hidden border-borderSubtle border'
         )}
       >
         <ToolCallView
