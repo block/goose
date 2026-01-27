@@ -239,16 +239,44 @@ export const useWhisper = ({ onTranscription, onError, onSizeWarning }: UseWhisp
       return;
     }
 
-    try {
-      // Request microphone permission
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          sampleRate: 44100,
-        },
+    const preferredDeviceId = dictationSettings.preferredDeviceId;
+
+    const acquireMicStream = async (): Promise<MediaStream> => {
+      const baseAudioConstraints = {
+        echoCancellation: true as const,
+        noiseSuppression: true as const,
+        autoGainControl: true as const,
+        sampleRate: 44100,
+      };
+
+      if (preferredDeviceId) {
+        try {
+          return await navigator.mediaDevices.getUserMedia({
+            audio: { ...baseAudioConstraints, deviceId: { exact: preferredDeviceId } },
+          });
+        } catch (deviceErr: unknown) {
+          const err = deviceErr as { name?: string };
+          if (err.name === 'NotFoundError' || err.name === 'OverconstrainedError') {
+            console.warn(
+              'Preferred microphone not found, falling back to system default:',
+              preferredDeviceId
+            );
+            return await navigator.mediaDevices.getUserMedia({
+              audio: baseAudioConstraints,
+            });
+          }
+          throw deviceErr;
+        }
+      }
+
+      return await navigator.mediaDevices.getUserMedia({
+        audio: baseAudioConstraints,
       });
+    };
+
+    try {
+      // Request microphone permission (using preferred device if configured)
+      const stream = await acquireMicStream();
       streamRef.current = stream;
 
       // Verify we have valid audio tracks

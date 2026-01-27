@@ -8,6 +8,7 @@ import {
 } from '../../../hooks/dictationConstants';
 import { useConfig } from '../../ConfigContext';
 import { ProviderSelector } from './ProviderSelector';
+import { MicrophoneSelector } from './MicrophoneSelector';
 import { VOICE_DICTATION_ELEVENLABS_ENABLED } from '../../../updates';
 import { trackSettingToggled } from '../../../utils/analytics';
 
@@ -15,6 +16,7 @@ export const VoiceDictationToggle = () => {
   const [settings, setSettings] = useState<DictationSettings>({
     enabled: false,
     provider: null,
+    preferredDeviceId: null,
   });
   const { getProviders } = useConfig();
 
@@ -26,7 +28,8 @@ export const VoiceDictationToggle = () => {
 
       if (savedSettings) {
         const parsed = JSON.parse(savedSettings);
-        loadedSettings = parsed;
+        // Ensure backward compatibility: add preferredDeviceId if missing
+        loadedSettings = { preferredDeviceId: null, ...parsed };
 
         // If ElevenLabs is disabled and user has it selected, reset to OpenAI
         if (
@@ -50,9 +53,9 @@ export const VoiceDictationToggle = () => {
   }, [getProviders]);
 
   const saveSettings = (newSettings: DictationSettings) => {
-    console.log('Saving dictation settings to localStorage:', newSettings);
     setSettings(newSettings);
     localStorage.setItem(DICTATION_SETTINGS_KEY, JSON.stringify(newSettings));
+    window.dispatchEvent(new CustomEvent('dictation-settings-changed'));
   };
 
   const handleToggle = (enabled: boolean) => {
@@ -66,6 +69,10 @@ export const VoiceDictationToggle = () => {
 
   const handleProviderChange = (provider: DictationProvider) => {
     saveSettings({ ...settings, provider });
+  };
+
+  const handleDeviceChange = (deviceId: string | null) => {
+    saveSettings({ ...settings, preferredDeviceId: deviceId });
   };
 
   return (
@@ -83,12 +90,18 @@ export const VoiceDictationToggle = () => {
       </div>
 
       <div
-        className={`overflow-hidden transition-all duration-300 ease-in-out ${
-          settings.enabled ? 'max-h-96 opacity-100 mt-2' : 'max-h-0 opacity-0 mt-0'
+        className={`transition-all duration-300 ease-in-out ${
+          settings.enabled
+            ? 'max-h-[800px] opacity-100 mt-2 overflow-visible'
+            : 'max-h-0 opacity-0 mt-0 overflow-hidden'
         }`}
       >
         <div className="space-y-3 pb-2">
           <ProviderSelector settings={settings} onProviderChange={handleProviderChange} />
+          <MicrophoneSelector
+            selectedDeviceId={settings.preferredDeviceId}
+            onDeviceChange={handleDeviceChange}
+          />
         </div>
       </div>
     </div>
