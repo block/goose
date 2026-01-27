@@ -163,17 +163,23 @@ fn get_canonical_limits_by_id(
 }
 
 fn calculate_new_limits(
-    canonical_input: Option<usize>,
-    canonical_output: Option<i32>,
-    _provider: &str,
-    _model_name: &str,
+    _canonical_input: Option<usize>,
+    _canonical_output: Option<i32>,
+    provider: &str,
+    model_name: &str,
 ) -> (usize, i32) {
-    // New fallback scheme:
-    // 1. Use canonical if available
-    // 2. Otherwise use global defaults
-    let input = canonical_input.unwrap_or(DEFAULT_INPUT_CONTEXT);
-    let output = canonical_output.unwrap_or(DEFAULT_OUTPUT_TOKENS);
-    (input, output)
+    // Actually test what ModelConfig::new() returns!
+    // This is the real code path users will hit
+    match goose::model::ModelConfig::new(model_name, provider) {
+        Ok(config) => (
+            config.context_limit(),
+            config.max_output_tokens(),
+        ),
+        Err(_) => {
+            // If model config creation fails, use defaults
+            (DEFAULT_INPUT_CONTEXT, DEFAULT_OUTPUT_TOKENS)
+        }
+    }
 }
 
 #[tokio::main]
