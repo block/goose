@@ -30,10 +30,11 @@ export async function searchSkills(query: string): Promise<Skill[]> {
   if (!query) return allSkills;
 
   const lowerQuery = query.toLowerCase();
-  return allSkills.filter((skill) =>
-    skill.name?.toLowerCase().includes(lowerQuery) ||
-    skill.description?.toLowerCase().includes(lowerQuery) ||
-    skill.tags?.some((tag) => tag.toLowerCase().includes(lowerQuery))
+  return allSkills.filter(
+    (skill) =>
+      skill.name?.toLowerCase().includes(lowerQuery) ||
+      skill.description?.toLowerCase().includes(lowerQuery) ||
+      skill.tags?.some((tag) => tag.toLowerCase().includes(lowerQuery))
   );
 }
 
@@ -42,9 +43,9 @@ export async function searchSkills(query: string): Promise<Skill[]> {
  */
 export async function loadAllSkills(): Promise<Skill[]> {
   if (skillsCache) return skillsCache;
-  
+
   if (skillsPromise) return skillsPromise;
-  
+
   skillsPromise = fetchSkillsManifest();
   skillsCache = await skillsPromise;
   return skillsCache;
@@ -55,10 +56,10 @@ export async function loadAllSkills(): Promise<Skill[]> {
  */
 export function loadAllSkillsSync(): Skill[] {
   if (skillsCache) return skillsCache;
-  
+
   // Trigger async load
   loadAllSkills();
-  
+
   // Return empty array for now - will be populated on next render
   return [];
 }
@@ -68,21 +69,21 @@ export function loadAllSkillsSync(): Skill[] {
  */
 async function fetchSkillsManifest(): Promise<Skill[]> {
   try {
-    // Fetch the pre-generated manifest
-    const prNumber = process.env.PR_NUMBER;
-    const manifestUrl = prNumber 
-      ? `/goose/pr-preview/pr-${prNumber}/skills-manifest.json`
-      : '/goose/skills-manifest.json';
+    // NOTE: this code runs in the browser (client-side), so avoid process.env.
+    // Use Docusaurus' injected baseUrl when available, fall back to /goose/.
+    const baseUrl = (globalThis as any).__docusaurus?.baseUrl ?? "/goose/";
+    const manifestUrl = `${baseUrl}skills-manifest.json`;
+
     const response = await fetch(manifestUrl);
     if (!response.ok) {
-      console.error('Failed to fetch skills manifest:', response.status);
+      console.error("Failed to fetch skills manifest:", response.status);
       return [];
     }
-    
+
     const manifest = await response.json();
     return manifest.skills || [];
   } catch (error) {
-    console.error('Error loading skills manifest:', error);
+    console.error("Error loading skills manifest:", error);
     return [];
   }
 }
@@ -90,15 +91,18 @@ async function fetchSkillsManifest(): Promise<Skill[]> {
 /**
  * Parse SKILL.md content into frontmatter and markdown content using gray-matter
  */
-export function parseSkillMarkdown(content: string): { frontmatter: Record<string, any>; content: string } {
+export function parseSkillMarkdown(content: string): {
+  frontmatter: Record<string, any>;
+  content: string;
+} {
   try {
     const parsed = matter(content);
     return {
       frontmatter: parsed.data || {},
-      content: parsed.content || ''
+      content: parsed.content || "",
     };
   } catch (error) {
-    console.error('Error parsing skill markdown:', error);
+    console.error("Error parsing skill markdown:", error);
     return { frontmatter: {}, content };
   }
 }
@@ -112,21 +116,30 @@ export function normalizeSkill(
   supportingFiles: string[]
 ): Skill {
   const { frontmatter, content } = parsed;
-  
-  // Determine install method based on source_url
+
   const sourceUrl = frontmatter.source_url || frontmatter.sourceUrl;
+
+  // Repo URL can be provided explicitly, otherwise fall back to sourceUrl
+  const repoUrl = frontmatter.repo_url || frontmatter.repoUrl || sourceUrl;
+
+  // External = anything NOT from block/Agent-Skills
+  const isExternal =
+    !!repoUrl && !String(repoUrl).toLowerCase().includes("github.com/block/agent-skills");
+
   const installMethod = determineInstallMethod(sourceUrl, id);
   const installCommand = generateInstallCommand(sourceUrl, id, installMethod);
-  
+
   return {
     id,
     name: frontmatter.name || id,
-    description: frontmatter.description || 'No description provided.',
+    description: frontmatter.description || "No description provided.",
     author: frontmatter.author,
     version: frontmatter.version,
-    status: (frontmatter.status as SkillStatus) || 'stable',
+    status: (frontmatter.status as SkillStatus) || "stable",
     tags: Array.isArray(frontmatter.tags) ? frontmatter.tags : [],
     sourceUrl,
+    repoUrl,
+    isExternal,
     content,
     hasSupporting: supportingFiles.length > 0,
     supportingFiles,
@@ -136,30 +149,28 @@ export function normalizeSkill(
   };
 }
 
+
 /**
  * Determine the install method based on source URL
  */
 function determineInstallMethod(sourceUrl: string | undefined, skillId: string): SkillInstallMethod {
   if (!sourceUrl) {
-    return 'download';
+    return "download";
   }
-  
-  // If source URL contains a path to a specific skill, use npx-multi
-  // Pattern: https://github.com/owner/repo with --skill needed
+
   // For skills in the goose repo, always use npx-multi since there are multiple skills
-  if (sourceUrl.includes('block/goose')) {
-    return 'npx-multi';
+  if (sourceUrl.includes("block/goose")) {
+    return "npx-multi";
   }
-  
+
   // For external repos that are single-skill repos, use npx-single
-  // This is a heuristic - if the URL is just owner/repo format
   const simpleRepoPattern = /^https:\/\/github\.com\/[^\/]+\/[^\/]+\/?$/;
   if (simpleRepoPattern.test(sourceUrl)) {
-    return 'npx-single';
+    return "npx-single";
   }
-  
+
   // Default to npx-multi for safety
-  return 'npx-multi';
+  return "npx-multi";
 }
 
 /**
@@ -170,22 +181,22 @@ function generateInstallCommand(
   skillId: string,
   method: SkillInstallMethod
 ): string | undefined {
-  if (method === 'download' || !sourceUrl) {
+  if (method === "download" || !sourceUrl) {
     return undefined;
   }
-  
-  if (method === 'npx-single') {
+
+  if (method === "npx-single") {
     // Extract owner/repo from URL
     const match = sourceUrl.match(/github\.com\/([^\/]+\/[^\/]+)/);
     if (match) {
       return `npx skills add ${match[1]}`;
     }
   }
-  
-  if (method === 'npx-multi') {
+
+  if (method === "npx-multi") {
     return `npx skills add ${sourceUrl} --skill ${skillId}`;
   }
-  
+
   return undefined;
 }
 
@@ -202,10 +213,10 @@ function generateViewSourceUrl(skillId: string): string {
 export async function getAllTags(): Promise<string[]> {
   const allSkills = await loadAllSkills();
   const tagSet = new Set<string>();
-  
+
   allSkills.forEach((skill) => {
     skill.tags.forEach((tag) => tagSet.add(tag));
   });
-  
+
   return Array.from(tagSet).sort();
 }
