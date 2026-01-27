@@ -1,5 +1,5 @@
 use crate::mcp_utils::ToolResult;
-use rmcp::model::{CallToolRequestParam, ErrorCode, ErrorData, JsonObject};
+use rmcp::model::{CallToolRequestParams, ErrorCode, ErrorData, JsonObject};
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::borrow::Cow;
@@ -32,7 +32,7 @@ struct ToolCallWithValueArguments {
 }
 
 impl ToolCallWithValueArguments {
-    fn into_call_tool_request_param(self) -> CallToolRequestParam {
+    fn into_call_tool_request_param(self) -> CallToolRequestParams {
         let arguments = match self.arguments {
             serde_json::Value::Object(map) => Some(map),
             serde_json::Value::Null => None,
@@ -42,7 +42,8 @@ impl ToolCallWithValueArguments {
                 Some(map)
             }
         };
-        CallToolRequestParam {
+        CallToolRequestParams {
+            meta: None,
             task: None,
             name: Cow::Owned(self.name),
             arguments,
@@ -50,16 +51,16 @@ impl ToolCallWithValueArguments {
     }
 }
 
-pub fn deserialize<'de, D>(deserializer: D) -> Result<ToolResult<CallToolRequestParam>, D::Error>
+pub fn deserialize<'de, D>(deserializer: D) -> Result<ToolResult<CallToolRequestParams>, D::Error>
 where
     D: Deserializer<'de>,
 {
     #[derive(Deserialize)]
     #[serde(untagged)]
     enum ResultFormat {
-        SuccessWithCallToolRequestParam {
+        SuccessWithCallToolRequestParams {
             status: String,
-            value: CallToolRequestParam,
+            value: CallToolRequestParams,
         },
         SuccessWithToolCallValueArguments {
             status: String,
@@ -74,7 +75,7 @@ where
     let format = ResultFormat::deserialize(deserializer)?;
 
     match format {
-        ResultFormat::SuccessWithCallToolRequestParam { status, value } => {
+        ResultFormat::SuccessWithCallToolRequestParams { status, value } => {
             if status == "success" {
                 Ok(Ok(value))
             } else {

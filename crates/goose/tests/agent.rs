@@ -339,7 +339,7 @@ mod tests {
         use goose::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
         use goose::providers::errors::ProviderError;
         use goose::session::session_manager::SessionType;
-        use rmcp::model::{CallToolRequestParam, Tool};
+        use rmcp::model::{CallToolRequestParams, Tool};
         use rmcp::object;
         use std::path::PathBuf;
 
@@ -360,7 +360,8 @@ mod tests {
                 _messages: &[Message],
                 _tools: &[Tool],
             ) -> Result<(Message, ProviderUsage), ProviderError> {
-                let tool_call = CallToolRequestParam {
+                let tool_call = CallToolRequestParams {
+                    meta: None,
                     task: None,
                     name: "test_tool".into(),
                     arguments: Some(object!({"param": "value"})),
@@ -377,12 +378,14 @@ mod tests {
 
             async fn complete_with_model(
                 &self,
-                session_id: &str,
+                session_id: Option<&str>,
                 _model_config: &ModelConfig,
                 system_prompt: &str,
                 messages: &[Message],
                 tools: &[Tool],
             ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {
+                // Test-only: coerce missing session_id to empty so complete() can be reused.
+                let session_id = session_id.unwrap_or("");
                 self.complete(session_id, system_prompt, messages, tools)
                     .await
             }

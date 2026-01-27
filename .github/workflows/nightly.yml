@@ -111,7 +111,7 @@ jobs:
 
       # Create/update the nightly release
       - name: Release nightly
-        uses: ncipollo/release-action@440c8c1cb0ed28b9f43e4d1d670870f059653174 # pin@v1
+        uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b  # v1.20.0
         with:
           tag: ${{ needs.prepare-version.outputs.version }}
           name: "Nightly ${{ needs.prepare-version.outputs.version }}"
@@ -121,7 +121,7 @@ jobs:
             Goose*.zip
             *.deb
             *.rpm
-            *.flatpak
+            **/*.flatpak
             download_cli.sh
           allowUpdates: true
           omitBody: true

@@ -73,9 +73,7 @@ const PairRouteWrapper = ({
     sessionId: string;
     initialMessage?: UserInput;
   }>;
-  setActiveSessions: (
-    sessions: Array<{ sessionId: string; initialMessage?: UserInput }>
-  ) => void;
+  setActiveSessions: (sessions: Array<{ sessionId: string; initialMessage?: UserInput }>) => void;
 }) => {
   const { extensionsList } = useConfig();
   const location = useLocation();

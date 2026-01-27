@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { DictationProvider, DictationSettings } from '../../../hooks/useDictationSettings';
+import {
+  DICTATION_PROVIDER_OPENAI,
+  DICTATION_PROVIDER_ELEVENLABS,
+} from '../../../hooks/dictationConstants';
 import { useConfig } from '../../ConfigContext';
 import { ElevenLabsKeyInput } from './ElevenLabsKeyInput';
 import { ProviderInfo } from './ProviderInfo';
@@ -55,9 +59,9 @@ export const ProviderSelector = ({ settings, onProviderChange }: ProviderSelecto
 
   const getProviderLabel = (provider: DictationProvider): string => {
     switch (provider) {
-      case 'openai':
+      case DICTATION_PROVIDER_OPENAI:
         return 'OpenAI Whisper';
-      case 'elevenlabs':
+      case DICTATION_PROVIDER_ELEVENLABS:
         return 'ElevenLabs';
       default:
         return 'None (disabled)';
@@ -83,23 +87,31 @@ export const ProviderSelector = ({ settings, onProviderChange }: ProviderSelecto
           </button>
 
           {showProviderDropdown && (
-            <div className="absolute right-0 mt-1 w-48 bg-background-default border border-border-default rounded-md shadow-lg z-10">
+            <div className="absolute right-0 mt-1 w-max min-w-[250px] max-w-[350px] bg-background-default border border-border-default rounded-md shadow-lg z-50">
               <button
-                onClick={() => handleProviderChange('openai')}
-                className={`w-full px-3 py-2 text-left text-sm transition-colors hover:bg-background-subtle text-text-default ${!VOICE_DICTATION_ELEVENLABS_ENABLED ? 'first:rounded-t-md last:rounded-b-md' : 'first:rounded-t-md'}`}
+                onClick={() => handleProviderChange(DICTATION_PROVIDER_OPENAI)}
+                className={`w-full px-3 py-2 text-left text-sm transition-colors hover:bg-background-subtle text-text-default whitespace-nowrap ${!VOICE_DICTATION_ELEVENLABS_ENABLED ? 'first:rounded-t-md last:rounded-b-md' : 'first:rounded-t-md'}`}
               >
-                OpenAI Whisper
-                {!hasOpenAIKey && <span className="text-xs ml-1">(not configured)</span>}
-                {settings.provider === 'openai' && <span className="float-right">✓</span>}
+                <span className="flex items-center justify-between gap-2">
+                  <span>
+                    OpenAI Whisper
+                    {!hasOpenAIKey && (
+                      <span className="text-xs ml-1 text-text-muted">(not configured)</span>
+                    )}
+                  </span>
+                  {settings.provider === DICTATION_PROVIDER_OPENAI && <span>✓</span>}
+                </span>
               </button>
 
               {VOICE_DICTATION_ELEVENLABS_ENABLED && (
                 <button
-                  onClick={() => handleProviderChange('elevenlabs')}
-                  className="w-full px-3 py-2 text-left text-sm hover:bg-background-subtle transition-colors text-text-default last:rounded-b-md"
+                  onClick={() => handleProviderChange(DICTATION_PROVIDER_ELEVENLABS)}
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-background-subtle transition-colors text-text-default last:rounded-b-md whitespace-nowrap"
                 >
-                  ElevenLabs
-                  {settings.provider === 'elevenlabs' && <span className="float-right">✓</span>}
+                  <span className="flex items-center justify-between gap-2">
+                    <span>ElevenLabs</span>
+                    {settings.provider === DICTATION_PROVIDER_ELEVENLABS && <span>✓</span>}
+                  </span>
                 </button>
               )}
             </div>
@@ -107,9 +119,8 @@ export const ProviderSelector = ({ settings, onProviderChange }: ProviderSelecto
         </div>
       </div>
 
-      {VOICE_DICTATION_ELEVENLABS_ENABLED && settings.provider === 'elevenlabs' && (
-        <ElevenLabsKeyInput />
-      )}
+      {VOICE_DICTATION_ELEVENLABS_ENABLED &&
+        settings.provider === DICTATION_PROVIDER_ELEVENLABS && <ElevenLabsKeyInput />}
 
       <ProviderInfo provider={settings.provider} />
     </div>

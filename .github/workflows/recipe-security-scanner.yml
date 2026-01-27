@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@c6295a65d1254861815972266d5933fd6e532bdf # v2.11.1
+        uses: step-security/harden-runner@e3f713f2d8f53843e71c69a996d56f51aa9adfb9  # v2.14.1
         with:
           egress-policy: audit
       
@@ -103,7 +103,7 @@ jobs:
 
       - name: Set up Docker Buildx
         if: steps.find_recipes.outputs.has_recipes == 'true' && steps.recipe_changes.outputs.recipe_files_changed == 'true'
-        uses: docker/setup-buildx-action@1583c0f09d26c58c59d25b0eef29792b7ce99d9a
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3.12.0
 
       - name: Prune Docker caches
         if: steps.find_recipes.outputs.has_recipes == 'true' && steps.recipe_changes.outputs.recipe_files_changed == 'true'

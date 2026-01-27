@@ -260,7 +260,6 @@ async fn spawn_server_in_process(
     let config = GooseAcpConfig {
         provider: Arc::new(provider),
         builtins: builtins.iter().map(|s| s.to_string()).collect(),
-        work_dir: data_root.to_path_buf(),
         data_dir: data_root.to_path_buf(),
         config_dir: data_root.to_path_buf(),
         goose_mode,
