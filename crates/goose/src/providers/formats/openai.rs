@@ -9,7 +9,6 @@ use anyhow::{anyhow, Error};
 use async_stream::try_stream;
 use chrono;
 use futures::Stream;
-use regex;
 use rmcp::model::{
     object, AnnotateAble, CallToolRequestParams, Content, ErrorCode, ErrorData, RawContent,
     ResourceContents, Role, Tool,
@@ -281,103 +280,6 @@ pub fn format_tools(tools: &[Tool]) -> anyhow::Result<Vec<Value>> {
     Ok(result)
 }
 
-/// Process a single tool call and return MessageContent
-fn process_tool_call(id: String, function_name: String, arguments_str: String) -> MessageContent {
-    let arguments_str = if arguments_str.is_empty() {
-        "{}".to_string()
-    } else {
-        arguments_str
-    };
-
-    if !is_valid_function_name(&function_name) {
-        let error = ErrorData {
-            code: ErrorCode::INVALID_REQUEST,
-            message: Cow::from(format!(
-                "The provided function name '{}' had invalid characters, it must match this regex [a-zA-Z0-9_-]+",
-                function_name
-            )),
-            data: None,
-        };
-        MessageContent::tool_request(id, Err(error))
-    } else {
-        match safely_parse_json(&arguments_str) {
-            Ok(params) => MessageContent::tool_request(
-                id,
-                Ok(CallToolRequestParams {
-                    meta: None,
-                    task: None,
-                    name: function_name.into(),
-                    arguments: Some(object(params)),
-                }),
-            ),
-            Err(e) => {
-                let error = ErrorData {
-                    code: ErrorCode::INVALID_PARAMS,
-                    message: Cow::from(format!(
-                        "Could not interpret tool use parameters for id {}: {}. Raw arguments: '{}'",
-                        id, e, arguments_str
-                    )),
-                    data: None,
-                };
-                MessageContent::tool_request(id, Err(error))
-            }
-        }
-    }
-}
-
-/// Process Qwen-format tool calls from text content
-fn process_qwen_tool_calls(text_str: &str) -> Vec<MessageContent> {
-    let mut content = Vec::new();
-
-    if let Some(qwen_tool_calls) = parse_qwen_tool_calls(text_str) {
-        for tool_call in qwen_tool_calls {
-            let id = tool_call["id"].as_str().unwrap_or_default().to_string();
-            let function_name = tool_call["function"]["name"]
-                .as_str()
-                .unwrap_or_default()
-                .to_string();
-            let arguments_str = tool_call["function"]["arguments"]
-                .as_str()
-                .unwrap_or_default()
-                .to_string();
-
-            content.push(process_tool_call(id, function_name, arguments_str));
-        }
-
-        let remaining_text = strip_qwen_tool_calls(text_str);
-        if !remaining_text.is_empty() {
-            content.push(MessageContent::text(&remaining_text));
-        }
-    } else {
-        content.push(MessageContent::text(text_str));
-    }
-
-    content
-}
-
-/// Process standard OpenAI-format tool calls
-fn process_standard_tool_calls(tool_calls: &Value) -> Vec<MessageContent> {
-    let mut content = Vec::new();
-
-    if let Some(tool_calls_array) = tool_calls.as_array() {
-        for tool_call in tool_calls_array {
-            let id = tool_call["id"].as_str().unwrap_or_default().to_string();
-            let function_name = tool_call["function"]["name"]
-                .as_str()
-                .unwrap_or_default()
-                .to_string();
-            let arguments_str = tool_call["function"]["arguments"]
-                .as_str()
-                .unwrap_or_default()
-                .to_string();
-
-            content.push(process_tool_call(id, function_name, arguments_str));
-        }
-    }
-
-    content
-}
-
 /// Convert OpenAI's API response to internal Message format
 pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
     let Some(original) = response
@@ -394,16 +296,72 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
 
     let mut content = Vec::new();
 
-    // Check for Qwen's XML-wrapped tool calls first
     if let Some(text) = original.get("content") {
         if let Some(text_str) = text.as_str() {
-            content.extend(process_qwen_tool_calls(text_str));
+            content.push(MessageContent::text(text_str));
         }
     }
 
-    // Process standard OpenAI tool_calls format
     if let Some(tool_calls) = original.get("tool_calls") {
-        content.extend(process_standard_tool_calls(tool_calls));
+        if let Some(tool_calls_array) = tool_calls.as_array() {
+            for tool_call in tool_calls_array {
+                let id = tool_call["id"].as_str().unwrap_or_default().to_string();
+                let function_name = tool_call["function"]["name"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .to_string();
+
+                // Get the raw arguments string from the LLM.
+                let arguments_str = tool_call["function"]["arguments"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .to_string();
+
+                // If arguments_str is empty, default to an empty JSON object string.
+                let arguments_str = if arguments_str.is_empty() {
+                    "{}".to_string()
+                } else {
+                    arguments_str
+                };
+
+                if !is_valid_function_name(&function_name) {
+                    let error = ErrorData {
+                        code: ErrorCode::INVALID_REQUEST,
+                        message: Cow::from(format!(
+                            "The provided function name '{}' had invalid characters, it must match this regex [a-zA-Z0-9_-]+",
+                            function_name
+                        )),
+                        data: None,
+                    };
+                    content.push(MessageContent::tool_request(id, Err(error)));
+                } else {
+                    match safely_parse_json(&arguments_str) {
+                        Ok(params) => {
+                            content.push(MessageContent::tool_request(
+                                id,
+                                Ok(CallToolRequestParams {
+                                    meta: None,
+                                    task: None,
+                                    name: function_name.into(),
+                                    arguments: Some(object(params)),
+                                }),
+                            ));
+                        }
+                        Err(e) => {
+                            let error = ErrorData {
+                                code: ErrorCode::INVALID_PARAMS,
+                                message: Cow::from(format!(
+                                    "Could not interpret tool use parameters for id {}: {}. Raw arguments: '{}'",
+                                    id, e, arguments_str
+                                )),
+                                data: None,
+                            };
+                            content.push(MessageContent::tool_request(id, Err(error)));
+                        }
+                    }
+                }
+            }
+        }
     }
 
     Ok(Message::new(
@@ -497,92 +455,6 @@ fn ensure_valid_json_schema(schema: &mut Value) {
 
 fn strip_data_prefix(line: &str) -> Option<&str> {
     line.strip_prefix("data: ").map(|s| s.trim())
-}
-
-/// Parse Qwen's <tool_call> XML format and convert to standard tool_calls format.
-///
-/// Qwen models output tool calls wrapped in XML tags like:
-/// <tool_call>
-/// {"name": "tool_name", "arguments": {"param": "value"}}
-/// </tool_call>
-///
-/// This function extracts these and converts them to the standard OpenAI format.
-fn parse_qwen_tool_calls(content: &str) -> Option<Vec<Value>> {
-    if !content.contains("<tool_call>") {
-        return None;
-    }
-
-    let mut tool_calls = Vec::new();
-
-    // Pattern to match <tool_call>...</tool_call> blocks
-    // Using lazy matching (.*?) to handle multiple tool calls
-    let re = match regex::Regex::new(
-        r"(?is)<tool_call>s*
-?(.*?)
-?</tool_call>",
-    ) {
-        Ok(r) => r,
-        Err(e) => {
-            tracing::warn!("Failed to compile Qwen tool call regex: {}", e);
-            return None;
-        }
-    };
-
-    for (idx, capture) in re.captures_iter(content).enumerate() {
-        let json_str = match capture.get(1) {
-            Some(m) => m.as_str().trim(),
-            None => continue,
-        };
-
-        match serde_json::from_str::<Value>(json_str) {
-            Ok(tool_data) => {
-                let name = tool_data
-                    .get("name")
-                    .and_then(|n| n.as_str())
-                    .unwrap_or("")
-                    .to_string();
-
-                let arguments = tool_data.get("arguments").cloned().unwrap_or(json!({}));
-
-                // Generate a unique ID for this tool call
-                let id = format!("qwen_tool_{}", idx);
-
-                let tool_call = json!({
-                    "id": id,
-                    "type": "function",
-                    "function": {
-                        "name": name,
-                        "arguments": serde_json::to_string(&arguments).unwrap_or_else(|_| "{}".to_string())
-                    }
-                });
-
-                tracing::debug!("Parsed Qwen tool call: {:?}", &tool_call);
-                tool_calls.push(tool_call);
-            }
-            Err(e) => {
-                let preview: String = json_str.chars().take(100).collect();
-                tracing::warn!("Failed to parse Qwen tool call JSON '{}': {}", preview, e);
-                continue;
-            }
-        }
-    }
-
-    if tool_calls.is_empty() {
-        None
-    } else {
-        tracing::info!("Extracted {} tool calls from Qwen format", tool_calls.len());
-        Some(tool_calls)
-    }
-}
-
-/// Strip Qwen XML tool call tags from text content
-fn strip_qwen_tool_calls(content: &str) -> String {
-    if !content.contains("<tool_call>") {
-        return content.to_string();
-    }
-
-    let re = regex::Regex::new(r"(?is)<tool_call>.*?</tool_call>").unwrap();
-    re.replace_all(content, "").trim().to_string()
 }
 
 pub fn response_to_streaming_message<S>(
@@ -1711,267 +1583,6 @@ data: [DONE]
         assert_eq!(result.tool_calls.len(), 1, "Expected 1 tool call");
         assert_eq!(result.tool_calls[0], "developer__shell");
         assert_usage_yielded_once(&result, 12376, 79, 12455);
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_parse_qwen_tool_calls_single() -> anyhow::Result<()> {
-        let content = r#"Let me check the file for you.
-<tool_call>
-{"name": "developer__text_editor", "arguments": {"path": "test.rs", "command": "view"}}
-</tool_call>"#;
-
-        let tool_calls = parse_qwen_tool_calls(content).expect("Should parse Qwen tool call");
-
-        assert_eq!(tool_calls.len(), 1);
-        assert_eq!(tool_calls[0]["id"], "qwen_tool_0");
-        assert_eq!(tool_calls[0]["type"], "function");
-        assert_eq!(tool_calls[0]["function"]["name"], "developer__text_editor");
-
-        let args_str = tool_calls[0]["function"]["arguments"].as_str().unwrap();
-        let args: Value = serde_json::from_str(args_str)?;
-        assert_eq!(args["path"], "test.rs");
-        assert_eq!(args["command"], "view");
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_parse_qwen_tool_calls_multiple() -> anyhow::Result<()> {
-        let content = r#"I'll run two commands for you.
-<tool_call>
-{"name": "developer__shell", "arguments": {"command": "ls"}}
-</tool_call>
-Let me also check the status.
-<tool_call>
-{"name": "developer__shell", "arguments": {"command": "git status"}}
-</tool_call>"#;
-
-        let tool_calls =
-            parse_qwen_tool_calls(content).expect("Should parse multiple Qwen tool calls");
-
-        assert_eq!(tool_calls.len(), 2);
-        assert_eq!(tool_calls[0]["id"], "qwen_tool_0");
-        assert_eq!(tool_calls[0]["function"]["name"], "developer__shell");
-        assert_eq!(tool_calls[1]["id"], "qwen_tool_1");
-        assert_eq!(tool_calls[1]["function"]["name"], "developer__shell");
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_parse_qwen_tool_calls_no_tags() {
-        let content = "This is just regular text without any tool calls.";
-        let result = parse_qwen_tool_calls(content);
-        assert!(result.is_none());
-    }
-
-    #[test]
-    fn test_parse_qwen_tool_calls_malformed_json() {
-        let content = r#"<tool_call>
-{"name": "test", "arguments": {invalid json}
-</tool_call>"#;
-
-        let result = parse_qwen_tool_calls(content);
-        assert!(result.is_none());
-    }
-
-    #[test]
-    fn test_parse_qwen_tool_calls_empty_arguments() -> anyhow::Result<()> {
-        let content = r#"<tool_call>
-{"name": "test_tool"}
-</tool_call>"#;
-
-        let tool_calls =
-            parse_qwen_tool_calls(content).expect("Should parse with missing arguments");
-        assert_eq!(tool_calls.len(), 1);
-
-        let args_str = tool_calls[0]["function"]["arguments"].as_str().unwrap();
-        let args: Value = serde_json::from_str(args_str)?;
-        assert_eq!(args, json!({}));
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_strip_qwen_tool_calls() {
-        let content = r#"Let me check the file.
-<tool_call>
-{"name": "test", "arguments": {"x": 1}}
-</tool_call>
-I've executed the command."#;
-
-        let result = strip_qwen_tool_calls(content);
-        assert_eq!(
-            result,
-            "Let me check the file.
-
-I've executed the command."
-        );
-    }
-
-    #[test]
-    fn test_strip_qwen_tool_calls_no_tags() {
-        let content = "Just regular text.";
-        let result = strip_qwen_tool_calls(content);
-        assert_eq!(result, content);
-    }
-
-    #[test]
-    fn test_response_to_message_qwen_format() -> anyhow::Result<()> {
-        let response = json!({
-            "choices": [{
-                "role": "assistant",
-                "message": {
-                    "content": r#"Let me check that file.
-<tool_call>
-{"name": "developer__text_editor", "arguments": {"path": "test.rs", "command": "view"}}
-</tool_call>"#
-                }
-            }]
-        });
-
-        let message = response_to_message(&response)?;
-
-        assert_eq!(message.content.len(), 2);
-
-        if let MessageContent::ToolRequest(request) = &message.content[0] {
-            let tool_call = request.tool_call.as_ref().unwrap();
-            assert_eq!(tool_call.name, "developer__text_editor");
-            assert_eq!(request.id, "qwen_tool_0");
-            if let Some(args) = &tool_call.arguments {
-                assert_eq!(args.get("path").and_then(|v| v.as_str()), Some("test.rs"));
-                assert_eq!(args.get("command").and_then(|v| v.as_str()), Some("view"));
-            } else {
-                panic!("Expected arguments");
-            }
-        } else {
-            panic!("Expected ToolRequest content");
-        }
-
-        if let MessageContent::Text(text) = &message.content[1] {
-            assert_eq!(text.text, "Let me check that file.");
-        } else {
-            panic!("Expected Text content");
-        }
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_response_to_message_qwen_format_multiple_tools() -> anyhow::Result<()> {
-        let response = json!({
-            "choices": [{
-                "role": "assistant",
-                "message": {
-                    "content": r#"Running two commands:
-<tool_call>
-{"name": "developer__shell", "arguments": {"command": "ls"}}
-</tool_call>
-<tool_call>
-{"name": "developer__shell", "arguments": {"command": "pwd"}}
-</tool_call>
-Done!"#
-                }
-            }]
-        });
-
-        let message = response_to_message(&response)?;
-
-        assert_eq!(message.content.len(), 3);
-
-        if let MessageContent::ToolRequest(request) = &message.content[0] {
-            assert_eq!(request.tool_call.as_ref().unwrap().name, "developer__shell");
-            assert_eq!(request.id, "qwen_tool_0");
-        } else {
-            panic!("Expected ToolRequest for first tool");
-        }
-
-        if let MessageContent::ToolRequest(request) = &message.content[1] {
-            assert_eq!(request.tool_call.as_ref().unwrap().name, "developer__shell");
-            assert_eq!(request.id, "qwen_tool_1");
-        } else {
-            panic!("Expected ToolRequest for second tool");
-        }
-
-        if let MessageContent::Text(text) = &message.content[2] {
-            assert!(text.text.contains("Running two commands"));
-            assert!(text.text.contains("Done!"));
-        } else {
-            panic!("Expected Text content");
-        }
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_response_to_message_qwen_format_invalid_function_name() -> anyhow::Result<()> {
-        let response = json!({
-            "choices": [{
-                "role": "assistant",
-                "message": {
-                    "content": r#"<tool_call>
-{"name": "invalid fn name", "arguments": {"x": 1}}
-</tool_call>"#
-                }
-            }]
-        });
-
-        let message = response_to_message(&response)?;
-
-        if let MessageContent::ToolRequest(request) = &message.content[0] {
-            match &request.tool_call {
-                Err(ErrorData {
-                    code: ErrorCode::INVALID_REQUEST,
-                    message: msg,
-                    data: None,
-                }) => {
-                    assert!(msg.contains("invalid characters"));
-                }
-                _ => panic!("Expected INVALID_REQUEST error"),
-            }
-        } else {
-            panic!("Expected ToolRequest content");
-        }
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_response_to_message_qwen_and_standard_formats() -> anyhow::Result<()> {
-        let response = json!({
-            "choices": [{
-                "role": "assistant",
-                "message": {
-                    "content": "Some text",
-                    "tool_calls": [{
-                        "id": "standard_1",
-                        "function": {
-                            "name": "standard_tool",
-                            "arguments": "{\"param\": \"value\"}"
-                        }
-                    }]
-                }
-            }]
-        });
-
-        let message = response_to_message(&response)?;
-
-        assert_eq!(message.content.len(), 2);
-
-        if let MessageContent::Text(text) = &message.content[0] {
-            assert_eq!(text.text, "Some text");
-        } else {
-            panic!("Expected Text content first");
-        }
-
-        if let MessageContent::ToolRequest(request) = &message.content[1] {
-            assert_eq!(request.id, "standard_1");
-            assert_eq!(request.tool_call.as_ref().unwrap().name, "standard_tool");
-        } else {
-            panic!("Expected ToolRequest content");
-        }
 
         Ok(())
     }
