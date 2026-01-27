@@ -5,6 +5,45 @@ import ExtensionModal from './ExtensionModal';
 import { ExtensionFormData } from '../utils';
 
 describe('ExtensionModal', () => {
+  it('does not show unsaved changes dialog when closing without modifications', async () => {
+    const user = userEvent.setup();
+    const mockOnSubmit = vi.fn();
+    const mockOnClose = vi.fn();
+
+    const initialData: ExtensionFormData = {
+      name: 'Existing Extension',
+      description: 'An existing extension',
+      type: 'stdio',
+      cmd: 'npx some-mcp-server',
+      endpoint: '',
+      enabled: true,
+      timeout: 300,
+      envVars: [
+        { key: 'API_KEY', value: '••••••••', isEdited: false },
+        { key: 'OTHER_VAR', value: '••••••••', isEdited: false },
+      ],
+      headers: [],
+    };
+
+    render(
+      <ExtensionModal
+        title="Edit Extension"
+        initialData={initialData}
+        onClose={mockOnClose}
+        onSubmit={mockOnSubmit}
+        submitLabel="Save"
+        modalType="edit"
+      />
+    );
+
+    const cancelButton = screen.getByRole('button', { name: 'Cancel' });
+    await user.click(cancelButton);
+
+    expect(mockOnClose).toHaveBeenCalled();
+
+    expect(screen.queryByText('Unsaved Changes')).not.toBeInTheDocument();
+  });
+
   it('creates a http_streamable extension', async () => {
     const user = userEvent.setup();
     const mockOnSubmit = vi.fn();

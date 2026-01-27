@@ -65,14 +65,6 @@ export default function ExtensionModal({
     // Check if env vars have been removed
     const envVarsRemoved = formData.envVars.length < initialData.envVars.length;
 
-    // Check if any environment variable fields have text entered (even if not marked as edited)
-    const envVarsHaveText = formData.envVars.some(
-      (envVar) =>
-        (envVar.key.trim() !== '' || envVar.value.trim() !== '') &&
-        // Don't count placeholder values for existing secrets
-        envVar.value !== '••••••••'
-    );
-
     // Check if there are pending environment variables or headers being typed
     const hasPendingInput = hasPendingEnvVars || hasPendingHeaders;
 
@@ -82,7 +74,6 @@ export default function ExtensionModal({
       envVarsChanged ||
       envVarsAdded ||
       envVarsRemoved ||
-      envVarsHaveText ||
       hasPendingInput
     );
   };
