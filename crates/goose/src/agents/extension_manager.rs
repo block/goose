@@ -215,6 +215,7 @@ async fn child_process_client(
     timeout: &Option<u64>,
     provider: SharedProvider,
     working_dir: Option<&PathBuf>,
+    session_id: Option<&str>,
 ) -> ExtensionResult<McpClient> {
     #[cfg(unix)]
     command.process_group(0);
@@ -222,6 +223,12 @@ async fn child_process_client(
 
     if let Ok(path) = SearchPaths::builder().path() {
         command.env("PATH", path);
+    }
+
+    // Expose session ID as environment variable for MCP server processes
+    // This enables session-isolated paths (e.g., .goose/$AGENT_SESSION_ID/handoff/)
+    if let Some(id) = session_id {
+        command.env("AGENT_SESSION_ID", id);
     }
 
     // Use explicitly passed working_dir, falling back to GOOSE_WORKING_DIR env var
@@ -497,6 +504,9 @@ impl ExtensionManager {
         let effective_working_dir =
             working_dir.unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
 
+        // Get session_id for AGENT_SESSION_ID env var in child processes
+        let session_id = crate::session_context::current_session_id();
+
         let mut temp_dir = None;
 
         let client: Box<dyn McpClientTrait> = match &config {
@@ -549,6 +559,7 @@ impl ExtensionManager {
                     timeout,
                     self.provider.clone(),
                     Some(&effective_working_dir),
+                    session_id.as_deref(),
                 )
                 .await?;
                 Box::new(client)
@@ -619,6 +630,7 @@ impl ExtensionManager {
                     timeout,
                     self.provider.clone(),
                     Some(&effective_working_dir),
+                    session_id.as_deref(),
                 )
                 .await?;
 
