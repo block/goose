@@ -638,3 +638,29 @@ parameters:
         }
     }
 }
+
+#[test]
+fn test_build_recipe_from_template_invalid_retry_config() {
+    let instructions_and_parameters = r#"
+                "instructions": "Test instructions",
+                "retry": {
+                    "max_retries": 0,
+                    "checks": []
+                }"#;
+    let (_temp_dir, recipe_content, recipe_dir) = setup_recipe_file(instructions_and_parameters);
+
+    let build_recipe_result =
+        build_recipe_from_template(recipe_content, &recipe_dir, Vec::new(), NO_USER_PROMPT);
+    assert!(build_recipe_result.is_err());
+    let err = build_recipe_result.unwrap_err();
+
+    match err {
+        RecipeError::TemplateRendering { source } => {
+            assert_eq!(
+                source.to_string(),
+                "Invalid retry configuration: max_retries must be greater than 0"
+            );
+        }
+        _ => panic!("Expected TemplateRendering error, got: {:?}", err),
+    }
+}
