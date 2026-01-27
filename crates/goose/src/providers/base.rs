@@ -592,11 +592,6 @@ pub trait Provider: Send + Sync {
         prompt
     }
 
-    /// Downcast to concrete type for provider-specific functionality
-    fn as_any(&self) -> &dyn std::any::Any {
-        panic!("as_any not implemented for this provider")
-    }
-
     /// Configure OAuth authentication for this provider
     ///
     /// This method is called when a provider has configuration keys marked with oauth_flow = true.

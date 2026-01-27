@@ -442,10 +442,6 @@ impl Provider for BedrockProvider {
         self.model.clone()
     }
 
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
     #[tracing::instrument(
         skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
@@ -529,13 +525,6 @@ impl Provider for BedrockProvider {
         true // Indicate that this Bedrock provider supports streaming
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::providers::base::{Provider, Usage};
-    use crate::providers::retry::RetryConfig;
-    use std::sync::Arc;
 
     fn create_test_provider(model_name: &str) -> BedrockProvider {
         let config = aws_sdk_bedrockruntime::Config::builder()
@@ -846,4 +835,6 @@ mod tests {
         assert_eq!(info.input_token_cost, Some(3.0));
         assert_eq!(info.output_token_cost, Some(15.0));
     }
+=======
+>>>>>>> parent of c8c3129b55 (Add cost tracking with provider pricing API)
 }
