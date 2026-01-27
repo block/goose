@@ -1074,50 +1074,57 @@ impl SessionStorage {
         Ok(Conversation::new_unvalidated(messages))
     }
 
+    /// Returns true if a message is a "simple" assistant text message that is safe to
+    /// merge with adjacent assistant messages for consolidation purposes. This is
+    /// intentionally provider-agnostic and only inspects internal MessageContent.
+    fn is_simple_assistant_text(message: &Message) -> bool {
+        if message.role != rmcp::model::Role::Assistant {
+            return false;
+        }
+
+        if message.content.len() != 1 {
+            return false;
+        }
+
+        matches!(message.content.first(), Some(MessageContent::Text(_)))
+            && !message.content.iter().any(|c| {
+                matches!(
+                    c,
+                    MessageContent::ToolRequest(_) | MessageContent::ToolResponse(_)
+                )
+            })
+    }
+
     async fn add_message(&self, session_id: &str, message: &Message) -> Result<()> {
         let pool = self.pool().await?;
         let mut tx = pool.begin().await?;
 
-        // Check if we should merge with the last message to prevent fragmentation
-        // This handles streaming responses that create multiple message chunks
-        let should_merge = if message.role == rmcp::model::Role::Assistant {
-            // Only consider merging if this is a simple text-only message
-            let is_simple_text = message.content.len() == 1
-                && matches!(message.content.first(), Some(MessageContent::Text(_)));
+        // Check if we should merge with the last message to prevent fragmentation.
+        // This handles streaming responses that create multiple assistant text chunks.
+        let should_merge = if Self::is_simple_assistant_text(message) {
+            // Get the last message for this session.
+            let last_msg = sqlx::query_as::<_, (String, String)>(
+                "SELECT role, content_json FROM messages WHERE session_id = ? ORDER BY created_timestamp DESC LIMIT 1",
+            )
+            .bind(session_id)
+            .fetch_optional(&mut *tx)
+            .await?;
 
-            if is_simple_text {
-                // Get the last message for this session
-                let last_msg = sqlx::query_as::<_, (String, String)>(
-                    "SELECT role, content_json FROM messages WHERE session_id = ? ORDER BY created_timestamp DESC LIMIT 1"
-                )
-                .bind(session_id)
-                .fetch_optional(&mut *tx)
-                .await?;
-
-                if let Some((last_role, last_content_json)) = last_msg {
-                    // Check if last message is also assistant
-                    if last_role == "assistant" {
-                        if let Ok(last_content) =
-                            serde_json::from_str::<Vec<MessageContent>>(&last_content_json)
-                        {
-                            // Check if last message is also simple text without tool calls
-                            let last_is_simple_text = last_content.len() == 1
-                                && matches!(last_content.first(), Some(MessageContent::Text(_)))
-                                && !last_content.iter().any(|c| {
-                                    matches!(
-                                        c,
-                                        MessageContent::ToolRequest(_)
-                                            | MessageContent::ToolResponse(_)
-                                    )
-                                });
-
-                            last_is_simple_text
-                        } else {
-                            false
-                        }
-                    } else {
-                        false
-                    }
+            if let Some((last_role, last_content_json)) = last_msg {
+                if last_role != "assistant" {
+                    false
+                } else if let Ok(last_content) =
+                    serde_json::from_str::<Vec<MessageContent>>(&last_content_json)
+                {
+                    // Only merge with a prior simple assistant text message (no tools).
+                    last_content.len() == 1
+                        && matches!(last_content.first(), Some(MessageContent::Text(_)))
+                        && !last_content.iter().any(|c| {
+                            matches!(
+                                c,
+                                MessageContent::ToolRequest(_) | MessageContent::ToolResponse(_)
+                            )
+                        })
                 } else {
                     false
                 }
@@ -1813,16 +1820,6 @@ mod tests {
         let session_with_messages = storage.get_session(&session.id, true).await.unwrap();
         let conversation = session_with_messages.conversation.unwrap();
 
-        println!("Total messages: {}", conversation.messages().len());
-        for (i, msg) in conversation.messages().iter().enumerate() {
-            println!(
-                "Message {}: role={:?}, content={}",
-                i,
-                msg.role,
-                msg.as_concat_text()
-            );
-        }
-
         assert_eq!(conversation.messages().len(), 2);
         assert_eq!(conversation.messages()[0].role, Role::User);
         assert_eq!(conversation.messages()[0].as_concat_text(), "Hello");
@@ -1831,6 +1828,130 @@ mod tests {
             conversation.messages()[1].as_concat_text(),
             "This is a streamed response."
         );
+    }
+
+    #[tokio::test]
+    async fn test_message_consolidation_with_mixed_tool_calls() {
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test_consolidation_mixed.db");
+        let storage = Arc::new(SessionStorage::create(&db_path).await.unwrap());
+
+        let session = storage
+            .create_session(
+                PathBuf::from("/tmp/test"),
+                "Mixed consolidation test".to_string(),
+                SessionType::User,
+            )
+            .await
+            .unwrap();
+
+        // User starter message
+        storage
+            .add_message(
+                &session.id,
+                &Message {
+                    id: None,
+                    role: Role::User,
+                    created: chrono::Utc::now().timestamp_millis(),
+                    content: vec![MessageContent::text("Hello")],
+                    metadata: Default::default(),
+                },
+            )
+            .await
+            .unwrap();
+
+        // Assistant streamed text fragments that should be merged
+        storage
+            .add_message(
+                &session.id,
+                &Message {
+                    id: None,
+                    role: Role::Assistant,
+                    created: chrono::Utc::now().timestamp_millis(),
+                    content: vec![MessageContent::text("Part 1 ")],
+                    metadata: Default::default(),
+                },
+            )
+            .await
+            .unwrap();
+
+        storage
+            .add_message(
+                &session.id,
+                &Message {
+                    id: None,
+                    role: Role::Assistant,
+                    created: chrono::Utc::now().timestamp_millis(),
+                    content: vec![MessageContent::text("Part 2 ")],
+                    metadata: Default::default(),
+                },
+            )
+            .await
+            .unwrap();
+
+        // An assistant tool request that must NOT be merged with text
+        let tool_request = MessageContent::tool_request(
+            "tool-1".to_string(),
+            Err(rmcp::model::ErrorData {
+                code: rmcp::model::ErrorCode::INVALID_REQUEST,
+                message: std::borrow::Cow::from("bad"),
+                data: None,
+            }),
+        );
+
+        storage
+            .add_message(
+                &session.id,
+                &Message {
+                    id: None,
+                    role: Role::Assistant,
+                    created: chrono::Utc::now().timestamp_millis(),
+                    content: vec![tool_request],
+                    metadata: Default::default(),
+                },
+            )
+            .await
+            .unwrap();
+
+        // Another text fragment after the tool call; should NOT merge across the tool call
+        storage
+            .add_message(
+                &session.id,
+                &Message {
+                    id: None,
+                    role: Role::Assistant,
+                    created: chrono::Utc::now().timestamp_millis(),
+                    content: vec![MessageContent::text("Part 3")],
+                    metadata: Default::default(),
+                },
+            )
+            .await
+            .unwrap();
+
+        let session_with_messages = storage.get_session(&session.id, true).await.unwrap();
+        let conversation = session_with_messages.conversation.unwrap();
+
+        // Expect: user, merged assistant text (Part 1 + Part 2), tool request, trailing text
+        assert_eq!(conversation.messages().len(), 4);
+        assert_eq!(conversation.messages()[0].role, Role::User);
+        assert_eq!(conversation.messages()[0].as_concat_text(), "Hello");
+
+        assert_eq!(conversation.messages()[1].role, Role::Assistant);
+        assert_eq!(
+            conversation.messages()[1].as_concat_text(),
+            "Part 1 Part 2 "
+        );
+
+        // Third message should be the tool request, unaffected by consolidation
+        assert_eq!(conversation.messages()[2].role, Role::Assistant);
+        assert!(matches!(
+            conversation.messages()[2].content[0],
+            MessageContent::ToolRequest(_)
+        ));
+
+        // Fourth message is the trailing assistant text after the tool call
+        assert_eq!(conversation.messages()[3].role, Role::Assistant);
+        assert_eq!(conversation.messages()[3].as_concat_text(), "Part 3");
     }
 
     #[tokio::test]
@@ -1849,6 +1970,8 @@ mod tests {
             .unwrap();
 
         let mut tx = storage.pool.begin().await.unwrap();
+
+        // First, insert a chain of simple assistant text fragments that should be merged.
         for text in &["Fragment 1 ", "Fragment 2 ", "Fragment 3"] {
             let content = vec![MessageContent::text(*text)];
             sqlx::query(
@@ -1866,18 +1989,76 @@ mod tests {
             .await
             .unwrap();
         }
+
+        // Then insert an assistant tool request message that must not be merged.
+        let tool_request = MessageContent::tool_request(
+            "tool-1".to_string(),
+            Err(rmcp::model::ErrorData {
+                code: rmcp::model::ErrorCode::INVALID_REQUEST,
+                message: std::borrow::Cow::from("bad"),
+                data: None,
+            }),
+        );
+
+        let tool_content = vec![tool_request];
+        sqlx::query(
+            r#"
+            INSERT INTO messages (session_id, role, content_json, created_timestamp, metadata_json)
+            VALUES (?, ?, ?, ?, ?)
+        "#,
+        )
+        .bind(&session.id)
+        .bind("assistant")
+        .bind(serde_json::to_string(&tool_content).unwrap())
+        .bind(chrono::Utc::now().timestamp_millis())
+        .bind("{}")
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        // Finally, insert another assistant text fragment after the tool call which
+        // should remain separate after migration.
+        let trailing_content = vec![MessageContent::text("Trailing")];
+        sqlx::query(
+            r#"
+            INSERT INTO messages (session_id, role, content_json, created_timestamp, metadata_json)
+            VALUES (?, ?, ?, ?, ?)
+        "#,
+        )
+        .bind(&session.id)
+        .bind("assistant")
+        .bind(serde_json::to_string(&trailing_content).unwrap())
+        .bind(chrono::Utc::now().timestamp_millis())
+        .bind("{}")
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
         tx.commit().await.unwrap();
 
         let count = storage.migrate_consolidate_messages().await.unwrap();
+        // We expect exactly two merges (Fragment 2 and Fragment 3 into Fragment 1).
         assert_eq!(count, 2);
 
         let session_after = storage.get_session(&session.id, true).await.unwrap();
         let conversation = session_after.conversation.unwrap();
-        assert_eq!(conversation.messages().len(), 1);
+
+        // After migration we expect three assistant messages:
+        // 1) merged fragments, 2) tool request, 3) trailing text.
+        assert_eq!(conversation.messages().len(), 3);
         assert_eq!(conversation.messages()[0].role, Role::Assistant);
         assert_eq!(
             conversation.messages()[0].as_concat_text(),
             "Fragment 1 Fragment 2 Fragment 3"
         );
+
+        assert_eq!(conversation.messages()[1].role, Role::Assistant);
+        assert!(matches!(
+            conversation.messages()[1].content[0],
+            MessageContent::ToolRequest(_)
+        ));
+
+        assert_eq!(conversation.messages()[2].role, Role::Assistant);
+        assert_eq!(conversation.messages()[2].as_concat_text(), "Trailing");
     }
 }
