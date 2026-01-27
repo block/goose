@@ -14,6 +14,7 @@ use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::action_required_manager::ActionRequiredManager;
 use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
+use crate::agents::rlm_extension::EXTENSION_NAME as RLM_EXTENSION_NAME;
 use crate::agents::extension_manager::{get_parameter_names, normalize, ExtensionManager};
 use crate::agents::extension_manager_extension::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
@@ -24,9 +25,12 @@ use crate::agents::subagent_task_config::TaskConfig;
 use crate::agents::subagent_tool::{
     create_subagent_tool, handle_subagent_tool, SUBAGENT_TOOL_NAME,
 };
+use crate::rlm::context_store::ContextStore;
+use crate::rlm::prompts::generate_context_prompt;
+use crate::rlm::{is_rlm_candidate, RlmConfig};
 use crate::agents::types::{FrontendTool, SessionConfig, SharedProvider, ToolResultReceiver};
 use crate::config::permission::PermissionManager;
-use crate::config::{get_enabled_extensions, Config, GooseMode};
+use crate::config::{get_enabled_extensions, Config, GooseMode, RlmConfigManager};
 use crate::context_mgmt::{
     check_if_compaction_needed, compact_messages, DEFAULT_COMPACTION_THRESHOLD,
 };
@@ -62,6 +66,11 @@ use tracing::{debug, error, info, instrument, warn};
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
 const COMPACTION_THINKING_TEXT: &str = "goose is compacting the conversation...";
+
+/// Get RLM configuration from config file or defaults
+fn get_rlm_config() -> RlmConfig {
+    RlmConfigManager::get()
+}
 
 /// Context needed for the reply function
 pub struct ReplyContext {
@@ -854,6 +863,84 @@ impl Agent {
         }
     }
 
+    /// Check if RLM mode should be enabled for a large context and set it up if needed.
+    ///
+    /// Returns `Ok(Some(modified_message))` if RLM was enabled with the context extracted,
+    /// `Ok(None)` if RLM is not needed, or `Err` if setup failed.
+    async fn maybe_enable_rlm(
+        &self,
+        message_text: &str,
+        session_id: &str,
+    ) -> Result<Option<String>> {
+        let rlm_config = get_rlm_config();
+
+        // Check if the message is large enough to warrant RLM mode
+        if !is_rlm_candidate(message_text, &rlm_config) {
+            return Ok(None);
+        }
+
+        info!(
+            "Large context detected ({} chars > {} threshold). Enabling RLM mode.",
+            message_text.len(),
+            rlm_config.context_threshold
+        );
+
+        // Get the session to access working directory
+        let session = self
+            .config
+            .session_manager
+            .get_session(session_id, false)
+            .await
+            .context("Failed to get session for RLM setup")?;
+
+        // Store the context
+        let context_store = ContextStore::new(session.working_dir.clone());
+        let metadata = context_store
+            .store_context(message_text)
+            .await
+            .context("Failed to store RLM context")?;
+
+        info!(
+            "RLM context stored: {} chars in {} chunks at {:?}",
+            metadata.length, metadata.chunk_count, metadata.path
+        );
+
+        // Check if RLM extension is already loaded
+        let extensions = self.extension_manager.list_extensions().await?;
+        if !extensions.contains(&RLM_EXTENSION_NAME.to_string()) {
+            // Add the RLM extension
+            let rlm_extension = ExtensionConfig::Platform {
+                name: RLM_EXTENSION_NAME.to_string(),
+                description: "RLM tools for processing large contexts via recursive decomposition".to_string(),
+                bundled: Some(true),
+                available_tools: Vec::new(), // Empty means all tools available
+            };
+
+            self.add_extension_with_working_dir(rlm_extension, Some(session.working_dir.clone()))
+                .await
+                .map_err(|e| anyhow!("Failed to add RLM extension: {}", e))?;
+
+            info!("RLM extension enabled for session {}", session_id);
+        }
+
+        // Generate a modified prompt that tells the agent to use RLM tools
+        let context_info = generate_context_prompt(metadata.length, metadata.chunk_count);
+        let modified_message = format!(
+            "[RLM MODE ACTIVATED]\n\n\
+            Your original request has been stored as a large context ({} characters).\n\
+            {}\n\
+            Use the RLM tools (rlm_get_context_metadata, rlm_read_context_slice, rlm_query, etc.) \
+            to process this context and answer the user's question.\n\n\
+            When you have the final answer, call rlm_finalize(answer) to complete.\n\n\
+            Original request (first 500 chars): {}...",
+            metadata.length,
+            context_info,
+            &message_text[..message_text.len().min(500)]
+        );
+
+        Ok(Some(modified_message))
+    }
+
     #[instrument(skip(self, user_message, session_config), fields(user_message))]
     pub async fn reply(
         &self,
@@ -900,8 +987,30 @@ impl Agent {
             }
         }
 
+        // Check if RLM mode should be enabled for large contexts
+        let (effective_message, user_message) = match self
+            .maybe_enable_rlm(&message_text, &session_config.id)
+            .await
+        {
+            Ok(Some(rlm_message)) => {
+                // RLM mode activated - use the modified message for processing
+                // but keep the original for history
+                let rlm_user_message = Message::user().with_text(&rlm_message);
+                (rlm_message, rlm_user_message)
+            }
+            Ok(None) => {
+                // No RLM needed - use original message
+                (message_text.clone(), user_message)
+            }
+            Err(e) => {
+                // RLM setup failed - log warning and continue with original
+                warn!("Failed to enable RLM mode: {}. Continuing with original message.", e);
+                (message_text.clone(), user_message)
+            }
+        };
+
         let command_result = self
-            .execute_command(&message_text, &session_config.id)
+            .execute_command(&effective_message, &session_config.id)
             .await;
 
         match command_result {

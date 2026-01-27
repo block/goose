@@ -2,6 +2,7 @@ use crate::agents::apps_extension;
 use crate::agents::chatrecall_extension;
 use crate::agents::code_execution_extension;
 use crate::agents::extension_manager_extension;
+use crate::agents::rlm_extension;
 use crate::agents::skills_extension;
 use crate::agents::todo_extension;
 use std::collections::HashMap;
@@ -108,6 +109,19 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 default_enabled: false,
                 client_factory: |ctx| {
                     Box::new(code_execution_extension::CodeExecutionClient::new(ctx).unwrap())
+                },
+            },
+        );
+
+        map.insert(
+            rlm_extension::EXTENSION_NAME,
+            PlatformExtensionDef {
+                name: rlm_extension::EXTENSION_NAME,
+                description:
+                    "RLM (Recursive Language Model) tools for processing large contexts",
+                default_enabled: false,
+                client_factory: |ctx| {
+                    Box::new(rlm_extension::RlmClient::new(ctx).unwrap())
                 },
             },
         );
