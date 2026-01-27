@@ -8,9 +8,7 @@ use super::base::{
 };
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
-use super::utils::{
-    get_model, handle_response_openai_compat, handle_status_openai_compat,
-};
+use super::utils::{get_model, handle_response_openai_compat, handle_status_openai_compat};
 use crate::conversation::message::Message;
 
 use crate::model::ModelConfig;

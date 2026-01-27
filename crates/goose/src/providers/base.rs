@@ -341,9 +341,9 @@ impl Usage {
     }
 }
 
+use crate::session_context::SESSION_ID_HEADER;
 use async_trait::async_trait;
 use reqwest::header::HeaderMap;
-use crate::session_context::SESSION_ID_HEADER;
 
 use super::utils::{
     stream_anthropic_raw, stream_google_raw, stream_openai_compat_raw, stream_openai_responses_raw,

@@ -19,7 +19,7 @@ async fn main() -> Result<()> {
 
     // Get a response
     let (response, usage) = provider
-        .complete_with_model(
+        .complete_impl(
             None,
             &provider.get_model_config(),
             "You are a helpful assistant.",

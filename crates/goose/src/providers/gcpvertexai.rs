@@ -624,7 +624,8 @@ impl Provider for GcpVertexAIProvider {
             let fallback_url = self
                 .build_request_url(context.provider(), &known_location, true)
                 .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
-            stream_request = stream_request.with_header("X-Goose-Fallback-URL", fallback_url.as_str())?;
+            stream_request =
+                stream_request.with_header("X-Goose-Fallback-URL", fallback_url.as_str())?;
         }
 
         Ok(stream_request)
