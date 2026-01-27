@@ -444,6 +444,7 @@ impl CliSession {
         loop {
             self.display_context_usage().await?;
 
+            output::run_status_hook("waiting");
             let input = input::get_input(&mut editor)?;
             if matches!(input, InputResult::Exit) {
                 break;
@@ -578,6 +579,7 @@ impl CliSession {
 
                 let _provider = self.agent.provider().await?;
 
+                output::run_status_hook("thinking");
                 output::show_thinking();
                 let start_time = Instant::now();
                 self.process_agent_response(true, CancellationToken::default())

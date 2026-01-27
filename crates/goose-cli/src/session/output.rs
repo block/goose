@@ -160,6 +160,48 @@ pub fn hide_thinking() {
     }
 }
 
+/// Run the status hook command if GOOSE_STATUS_HOOK is set.
+///
+/// The hook command receives the status as its first argument.
+/// Valid statuses: "waiting", "thinking"
+///
+/// Example usage for tmux title:
+///   export GOOSE_STATUS_HOOK='printf "\033]2;goose: $1\033\\"'
+///
+/// The hook runs asynchronously and errors are silently ignored.
+///
+/// Note: We use `std::thread::spawn` rather than `tokio::spawn` here because:
+/// 1. Status changes are infrequent (only twice per user interaction cycle)
+/// 2. The spawned process is short-lived (typically a simple shell command)
+/// 3. Using std::thread keeps this function synchronous, simplifying call sites
+/// 4. This is a standard "fire and forget" pattern for shell command execution
+pub fn run_status_hook(status: &str) {
+    if let Ok(hook) = Config::global().get_param::<String>("GOOSE_STATUS_HOOK") {
+        let status = status.to_string();
+        std::thread::spawn(move || {
+            #[cfg(target_os = "windows")]
+            let result = std::process::Command::new("cmd")
+                .arg("/C")
+                .arg(format!("{} {}", hook, status))
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status();
+
+            #[cfg(not(target_os = "windows"))]
+            let result = std::process::Command::new("sh")
+                .arg("-c")
+                .arg(format!("{} {}", hook, status))
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status();
+
+            let _ = result;
+        });
+    }
+}
+
 pub fn is_showing_thinking() -> bool {
     THINKING.with(|t| t.borrow().is_shown())
 }
@@ -1026,5 +1068,25 @@ mod tests {
             ),
             "/v/l/p/w/m/components/file.txt"
         );
+    }
+
+    #[test]
+    fn test_run_status_hook_no_env_var() {
+        // Ensure GOOSE_STATUS_HOOK is not set
+        env::remove_var("GOOSE_STATUS_HOOK");
+        // Should not panic when env var is not set
+        run_status_hook("waiting");
+        run_status_hook("thinking");
+    }
+
+    #[test]
+    fn test_run_status_hook_with_env_var() {
+        // Set a simple hook that just exits successfully
+        env::set_var("GOOSE_STATUS_HOOK", "true");
+        // Should not panic when env var is set
+        run_status_hook("waiting");
+        run_status_hook("thinking");
+        // Clean up
+        env::remove_var("GOOSE_STATUS_HOOK");
     }
 }
