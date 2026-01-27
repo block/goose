@@ -518,7 +518,8 @@ pub fn maybe_summarize_tool_pair(
 ) -> JoinHandle<Option<(Message, String)>> {
     tokio::spawn(async move {
         if let Some(tool_id) = tool_id_to_summarize(&conversation, cutoff) {
-            match summarize_tool_call(provider.as_ref(), &session_id, &conversation, &tool_id).await {
+            match summarize_tool_call(provider.as_ref(), &session_id, &conversation, &tool_id).await
+            {
                 Ok(summary) => Some((summary, tool_id)),
                 Err(e) => {
                     warn!("Failed to summarize tool pair: {}", e);
