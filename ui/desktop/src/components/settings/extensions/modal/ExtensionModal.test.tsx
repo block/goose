@@ -44,6 +44,123 @@ describe('ExtensionModal', () => {
     expect(screen.queryByText('Unsaved Changes')).not.toBeInTheDocument();
   });
 
+  it('shows unsaved changes dialog when name is modified', async () => {
+    const user = userEvent.setup();
+    const mockOnSubmit = vi.fn();
+    const mockOnClose = vi.fn();
+
+    const initialData: ExtensionFormData = {
+      name: 'Original Name',
+      description: 'An existing extension',
+      type: 'stdio',
+      cmd: 'npx some-mcp-server',
+      endpoint: '',
+      enabled: true,
+      timeout: 300,
+      envVars: [],
+      headers: [],
+    };
+
+    render(
+      <ExtensionModal
+        title="Edit Extension"
+        initialData={initialData}
+        onClose={mockOnClose}
+        onSubmit={mockOnSubmit}
+        submitLabel="Save"
+        modalType="edit"
+      />
+    );
+
+    const nameInput = screen.getByPlaceholderText('Enter extension name...');
+    await user.clear(nameInput);
+    await user.type(nameInput, 'New Name');
+
+    const cancelButton = screen.getByRole('button', { name: 'Cancel' });
+    await user.click(cancelButton);
+
+    expect(screen.getByText('Unsaved Changes')).toBeInTheDocument();
+    expect(mockOnClose).not.toHaveBeenCalled();
+  });
+
+  it('shows unsaved changes dialog when description is modified', async () => {
+    const user = userEvent.setup();
+    const mockOnSubmit = vi.fn();
+    const mockOnClose = vi.fn();
+
+    const initialData: ExtensionFormData = {
+      name: 'Test Extension',
+      description: 'Original description',
+      type: 'stdio',
+      cmd: 'npx some-mcp-server',
+      endpoint: '',
+      enabled: true,
+      timeout: 300,
+      envVars: [],
+      headers: [],
+    };
+
+    render(
+      <ExtensionModal
+        title="Edit Extension"
+        initialData={initialData}
+        onClose={mockOnClose}
+        onSubmit={mockOnSubmit}
+        submitLabel="Save"
+        modalType="edit"
+      />
+    );
+
+    const descriptionInput = screen.getByPlaceholderText('Optional description...');
+    await user.clear(descriptionInput);
+    await user.type(descriptionInput, 'New description');
+
+    const cancelButton = screen.getByRole('button', { name: 'Cancel' });
+    await user.click(cancelButton);
+
+    expect(screen.getByText('Unsaved Changes')).toBeInTheDocument();
+    expect(mockOnClose).not.toHaveBeenCalled();
+  });
+
+  it('shows unsaved changes dialog when timeout is modified', async () => {
+    const user = userEvent.setup();
+    const mockOnSubmit = vi.fn();
+    const mockOnClose = vi.fn();
+
+    const initialData: ExtensionFormData = {
+      name: 'Test Extension',
+      description: 'An extension',
+      type: 'stdio',
+      cmd: 'npx some-mcp-server',
+      endpoint: '',
+      enabled: true,
+      timeout: 300,
+      envVars: [],
+      headers: [],
+    };
+
+    render(
+      <ExtensionModal
+        title="Edit Extension"
+        initialData={initialData}
+        onClose={mockOnClose}
+        onSubmit={mockOnSubmit}
+        submitLabel="Save"
+        modalType="edit"
+      />
+    );
+
+    const timeoutInput = screen.getByDisplayValue('300');
+    await user.clear(timeoutInput);
+    await user.type(timeoutInput, '600');
+
+    const cancelButton = screen.getByRole('button', { name: 'Cancel' });
+    await user.click(cancelButton);
+
+    expect(screen.getByText('Unsaved Changes')).toBeInTheDocument();
+    expect(mockOnClose).not.toHaveBeenCalled();
+  });
+
   it('creates a http_streamable extension', async () => {
     const user = userEvent.setup();
     const mockOnSubmit = vi.fn();

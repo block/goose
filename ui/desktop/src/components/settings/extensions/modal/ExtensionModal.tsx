@@ -47,6 +47,12 @@ export default function ExtensionModal({
 
   // Function to check if form has been modified
   const hasFormChanges = (): boolean => {
+    // Check basic fields
+    const nameChanged = formData.name !== initialData.name;
+    const descriptionChanged = formData.description !== initialData.description;
+    const typeChanged = formData.type !== initialData.type;
+    const timeoutChanged = formData.timeout !== initialData.timeout;
+
     // Check if command/endpoint has changed
     const commandChanged =
       (formData.type === 'stdio' && formData.cmd !== initialData.cmd) ||
@@ -54,23 +60,27 @@ export default function ExtensionModal({
       (formData.type === 'streamable_http' && formData.endpoint !== initialData.endpoint);
 
     // Check if headers have changed
-    const headersChanged = formData.headers.some((header) => header.isEdited === true);
+    const headersEdited = formData.headers.some((header) => header.isEdited === true);
+    const headersAdded = formData.headers.length > initialData.headers.length;
+    const headersRemoved = formData.headers.length < initialData.headers.length;
 
     // Check if any environment variables have been modified
     const envVarsChanged = formData.envVars.some((envVar) => envVar.isEdited === true);
-
-    // Check if new env vars have been added
     const envVarsAdded = formData.envVars.length > initialData.envVars.length;
-
-    // Check if env vars have been removed
     const envVarsRemoved = formData.envVars.length < initialData.envVars.length;
 
     // Check if there are pending environment variables or headers being typed
     const hasPendingInput = hasPendingEnvVars || hasPendingHeaders;
 
     return (
+      nameChanged ||
+      descriptionChanged ||
+      typeChanged ||
+      timeoutChanged ||
       commandChanged ||
-      headersChanged ||
+      headersEdited ||
+      headersAdded ||
+      headersRemoved ||
       envVarsChanged ||
       envVarsAdded ||
       envVarsRemoved ||
