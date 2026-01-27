@@ -10,7 +10,7 @@ use async_stream::try_stream;
 use chrono;
 use futures::Stream;
 use rmcp::model::{
-    object, AnnotateAble, CallToolRequestParam, Content, ErrorCode, ErrorData, RawContent,
+    object, AnnotateAble, CallToolRequestParams, Content, ErrorCode, ErrorData, RawContent,
     ResourceContents, Role, Tool,
 };
 use serde::{Deserialize, Serialize};
@@ -339,7 +339,8 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                         Ok(params) => {
                             content.push(MessageContent::tool_request(
                                 id,
-                                Ok(CallToolRequestParam {
+                                Ok(CallToolRequestParams {
+                                    meta: None,
                                     task: None,
                                     name: function_name.into(),
                                     arguments: Some(object(params)),
@@ -391,6 +392,19 @@ pub fn get_usage(usage: &Value) -> Usage {
         });
 
     Usage::new(input_tokens, output_tokens, total_tokens)
+}
+
+fn extract_usage_with_output_tokens(chunk: &StreamingChunk) -> Option<ProviderUsage> {
+    chunk
+        .usage
+        .as_ref()
+        .and_then(|u| {
+            chunk.model.as_ref().map(|model| ProviderUsage {
+                usage: get_usage(u),
+                model: model.clone(),
+            })
+        })
+        .filter(|u| u.usage.output_tokens.is_some())
 }
 
 /// Validates and fixes tool schemas to ensure they have proper parameter structure.
@@ -475,14 +489,7 @@ where
                 }
             }
 
-            let usage = chunk.usage.as_ref().and_then(|u| {
-                chunk.model.as_ref().map(|model| {
-                    ProviderUsage {
-                        usage: get_usage(u),
-                        model: model.clone(),
-                    }
-                })
-            });
+            let mut usage = extract_usage_with_output_tokens(&chunk);
 
             if chunk.choices.is_empty() {
                 yield (None, usage)
@@ -508,8 +515,13 @@ where
                             }
                             let response_str = response_chunk?;
                             if let Some(line) = strip_data_prefix(&response_str) {
+
                                 let tool_chunk: StreamingChunk = serde_json::from_str(line)
                                     .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line))?;
+
+                                if let Some(chunk_usage) = extract_usage_with_output_tokens(&tool_chunk) {
+                                    usage = Some(chunk_usage);
+                                }
 
                                 if !tool_chunk.choices.is_empty() {
                                     if let Some(details) = &tool_chunk.choices[0].delta.reasoning_details {
@@ -563,8 +575,8 @@ where
                             Ok(params) => {
                                 MessageContent::tool_request_with_metadata(
                                     id.clone(),
-                                    Ok(CallToolRequestParam {
-                                        task: None,
+                                    Ok(CallToolRequestParams {
+                                        meta: None, task: None,
                                         name: function_name.clone().into(),
                                         arguments: Some(object(params))
                                     }),
@@ -869,7 +881,8 @@ mod tests {
             Message::user().with_text("How are you?"),
             Message::assistant().with_tool_request(
                 "tool1",
-                Ok(CallToolRequestParam {
+                Ok(CallToolRequestParams {
+                    meta: None,
                     task: None,
                     name: "example".into(),
                     arguments: Some(object!({"param1": "value1"})),
@@ -914,7 +927,8 @@ mod tests {
     fn test_format_messages_multiple_content() -> anyhow::Result<()> {
         let mut messages = vec![Message::assistant().with_tool_request(
             "tool1",
-            Ok(CallToolRequestParam {
+            Ok(CallToolRequestParams {
+                meta: None,
                 task: None,
                 name: "example".into(),
                 arguments: Some(object!({"param1": "value1"})),
@@ -1154,7 +1168,8 @@ mod tests {
         // Test that tool calls with None arguments are formatted as "{}" string
         let message = Message::assistant().with_tool_request(
             "tool1",
-            Ok(CallToolRequestParam {
+            Ok(CallToolRequestParams {
+                meta: None,
                 task: None,
                 name: "test_tool".into(),
                 arguments: None, // This is the key case the fix addresses
@@ -1182,7 +1197,8 @@ mod tests {
         // Test that tool calls with Some arguments are properly JSON-serialized
         let message = Message::assistant().with_tool_request(
             "tool1",
-            Ok(CallToolRequestParam {
+            Ok(CallToolRequestParams {
+                meta: None,
                 task: None,
                 name: "test_tool".into(),
                 arguments: Some(object!({"param": "value", "number": 42})),
@@ -1213,7 +1229,8 @@ mod tests {
         // Test that FrontendToolRequest with None arguments are formatted as "{}" string
         let message = Message::assistant().with_frontend_tool_request(
             "frontend_tool1",
-            Ok(CallToolRequestParam {
+            Ok(CallToolRequestParams {
+                meta: None,
                 task: None,
                 name: "frontend_test_tool".into(),
                 arguments: None, // This is the key case the fix addresses
@@ -1241,7 +1258,8 @@ mod tests {
         // Test that FrontendToolRequest with Some arguments are properly JSON-serialized
         let message = Message::assistant().with_frontend_tool_request(
             "frontend_tool1",
-            Ok(CallToolRequestParam {
+            Ok(CallToolRequestParams {
+                meta: None,
                 task: None,
                 name: "frontend_test_tool".into(),
                 arguments: Some(object!({"action": "click", "element": "button"})),
@@ -1406,6 +1424,69 @@ mod tests {
         Ok(())
     }
 
+    struct StreamingUsageTestResult {
+        usage_count: usize,
+        usage: Option<ProviderUsage>,
+        tool_calls: Vec<String>,
+        has_text_content: bool,
+    }
+
+    async fn run_streaming_test(response_lines: &str) -> anyhow::Result<StreamingUsageTestResult> {
+        let lines: Vec<String> = response_lines.lines().map(|s| s.to_string()).collect();
+        let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
+        let messages = response_to_streaming_message(response_stream);
+        pin!(messages);
+
+        let mut result = StreamingUsageTestResult {
+            usage_count: 0,
+            usage: None,
+            tool_calls: Vec::new(),
+            has_text_content: false,
+        };
+
+        while let Some(Ok((message, usage))) = messages.next().await {
+            if let Some(u) = usage {
+                result.usage_count += 1;
+                result.usage = Some(u);
+            }
+            if let Some(msg) = message {
+                for content in &msg.content {
+                    match content {
+                        MessageContent::ToolRequest(req) => {
+                            if let Ok(tool_call) = &req.tool_call {
+                                result.tool_calls.push(tool_call.name.to_string());
+                            }
+                        }
+                        MessageContent::Text(text) if !text.text.is_empty() => {
+                            result.has_text_content = true;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        Ok(result)
+    }
+
+    fn assert_usage_yielded_once(
+        result: &StreamingUsageTestResult,
+        expected_input: i32,
+        expected_output: i32,
+        expected_total: i32,
+    ) {
+        assert_eq!(
+            result.usage_count, 1,
+            "Usage should be yielded exactly once, but was yielded {} times",
+            result.usage_count
+        );
+
+        let usage = result.usage.as_ref().expect("Expected usage to be present");
+        assert_eq!(usage.usage.input_tokens, Some(expected_input));
+        assert_eq!(usage.usage.output_tokens, Some(expected_output));
+        assert_eq!(usage.usage.total_tokens, Some(expected_total));
+    }
+
     #[tokio::test]
     async fn test_streamed_multi_tool_response_to_messages() -> anyhow::Result<()> {
         let response_lines = r#"
@@ -1430,29 +1511,79 @@ data: {"model":"us.anthropic.claude-sonnet-4-20250514-v1:0","choices":[{"delta":
 data: [DONE]
 "#;
 
-        let response_stream =
-            tokio_stream::iter(response_lines.lines().map(|line| Ok(line.to_string())));
-        let messages = response_to_streaming_message(response_stream);
-        pin!(messages);
+        let result = run_streaming_test(response_lines).await?;
+        assert_eq!(
+            result.tool_calls.len(),
+            2,
+            "Expected 2 tool calls, got {}",
+            result.tool_calls.len()
+        );
+        assert!(result
+            .tool_calls
+            .iter()
+            .all(|name| name == "developer__shell"));
 
-        while let Some(Ok((message, _usage))) = messages.next().await {
-            if let Some(msg) = message {
-                println!("{:?}", msg);
-                if msg.content.len() == 2 {
-                    if let (MessageContent::ToolRequest(req1), MessageContent::ToolRequest(req2)) =
-                        (&msg.content[0], &msg.content[1])
-                    {
-                        if req1.tool_call.is_ok() && req2.tool_call.is_ok() {
-                            // We expect two tool calls in the response
-                            assert_eq!(req1.tool_call.as_ref().unwrap().name, "developer__shell");
-                            assert_eq!(req2.tool_call.as_ref().unwrap().name, "developer__shell");
-                            return Ok(());
-                        }
-                    }
-                }
-            }
-        }
+        assert_usage_yielded_once(&result, 4982, 122, 5104);
 
-        panic!("Expected tool call message with two calls, but did not see it");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_openrouter_streaming_usage_yielded_once() -> anyhow::Result<()> {
+        let response_lines = r#"
+data: {"id":"gen-1768896871-9HgAQqS1Z72C6gApaidi","provider":"OpenInference","model":"openai/gpt-oss-120b:free","object":"chat.completion.chunk","created":1768896871,"choices":[{"index":0,"delta":{"role":"assistant","content":"","reasoning":null,"reasoning_details":[]},"finish_reason":null,"native_finish_reason":null,"logprobs":null}]}
+data: {"id":"gen-1768896871-9HgAQqS1Z72C6gApaidi","provider":"OpenInference","model":"openai/gpt-oss-120b:free","object":"chat.completion.chunk","created":1768896871,"choices":[{"index":0,"delta":{"role":"assistant","content":"There","reasoning":"","reasoning_details":[]},"finish_reason":null,"native_finish_reason":null,"logprobs":null}]}
+data: {"id":"gen-1768896871-9HgAQqS1Z72C6gApaidi","provider":"OpenInference","model":"openai/gpt-oss-120b:free","object":"chat.completion.chunk","created":1768896871,"choices":[{"index":0,"delta":{"role":"assistant","content":" are","reasoning":null,"reasoning_details":[]},"finish_reason":null,"native_finish_reason":null,"logprobs":null}]}
+data: {"id":"gen-1768896871-9HgAQqS1Z72C6gApaidi","provider":"OpenInference","model":"openai/gpt-oss-120b:free","object":"chat.completion.chunk","created":1768896871,"choices":[{"index":0,"delta":{"role":"assistant","content":" **47**","reasoning":null,"reasoning_details":[]},"finish_reason":null,"native_finish_reason":null,"logprobs":null}]}
+data: {"id":"gen-1768896871-9HgAQqS1Z72C6gApaidi","provider":"OpenInference","model":"openai/gpt-oss-120b:free","object":"chat.completion.chunk","created":1768896871,"choices":[{"index":0,"delta":{"role":"assistant","content":" files.","reasoning":null,"reasoning_details":[]},"finish_reason":null,"native_finish_reason":null,"logprobs":null}]}
+data: {"id":"gen-1768896871-9HgAQqS1Z72C6gApaidi","provider":"OpenInference","model":"openai/gpt-oss-120b:free","object":"chat.completion.chunk","created":1768896871,"choices":[{"index":0,"delta":{"role":"assistant","content":"","reasoning":null,"reasoning_details":[]},"finish_reason":"stop","native_finish_reason":"stop","logprobs":null}]}
+data: {"id":"gen-1768896871-9HgAQqS1Z72C6gApaidi","provider":"OpenInference","model":"openai/gpt-oss-120b:free","object":"chat.completion.chunk","created":1768896871,"choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null,"native_finish_reason":null,"logprobs":null}],"usage":{"prompt_tokens":7007,"completion_tokens":49,"total_tokens":7056}}
+data: [DONE]
+"#;
+
+        let result = run_streaming_test(response_lines).await?;
+
+        assert!(result.has_text_content, "Expected text content in response");
+        assert_usage_yielded_once(&result, 7007, 49, 7056);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_openai_gpt5_streaming_usage_yielded_once() -> anyhow::Result<()> {
+        let response_lines = r#"
+data: {"id":"chatcmpl-Bk9Ye6Y0t9E7bC3DOMxCpW8eJkTKU","object":"chat.completion.chunk","created":1737368310,"model":"gpt-5.2-1106-preview","service_tier":"default","system_fingerprint":"fp_5f325d54e6","choices":[{"index":0,"delta":{"role":"assistant","content":null,"tool_calls":[{"index":0,"id":"call_x4CIvBVfQhYMhyO0T1VEddua","type":"function","function":{"name":"developer__shell","arguments":""}}],"refusal":null},"logprobs":null,"finish_reason":null}],"usage":null}
+data: {"id":"chatcmpl-Bk9Ye6Y0t9E7bC3DOMxCpW8eJkTKU","object":"chat.completion.chunk","created":1737368310,"model":"gpt-5.2-1106-preview","service_tier":"default","system_fingerprint":"fp_5f325d54e6","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"command\":\"ls ~/Desktop | wc -l\"}"}}]},"logprobs":null,"finish_reason":null}],"usage":null}
+data: {"id":"chatcmpl-Bk9Ye6Y0t9E7bC3DOMxCpW8eJkTKU","object":"chat.completion.chunk","created":1737368310,"model":"gpt-5.2-1106-preview","service_tier":"default","system_fingerprint":"fp_5f325d54e6","choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"tool_calls"}],"usage":null}
+data: {"id":"chatcmpl-Bk9Ye6Y0t9E7bC3DOMxCpW8eJkTKU","object":"chat.completion.chunk","created":1737368310,"model":"gpt-5.2-1106-preview","service_tier":"default","system_fingerprint":"fp_5f325d54e6","choices":[],"usage":{"prompt_tokens":8320,"completion_tokens":172,"total_tokens":8492}}
+data: [DONE]
+"#;
+
+        let result = run_streaming_test(response_lines).await?;
+
+        assert_eq!(result.tool_calls.len(), 1, "Expected 1 tool call");
+        assert_eq!(result.tool_calls[0], "developer__shell");
+        assert_usage_yielded_once(&result, 8320, 172, 8492);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_tetrate_claude_streaming_usage_yielded_once() -> anyhow::Result<()> {
+        let response_lines = r#"
+data: {"id":"msg_01BbvMfNhbdm2hmmTbWjaeYt","choices":[{"index":0,"delta":{"role":"assistant"}}],"created":1768898776,"model":"claude-sonnet-4-5-20250929","object":"chat.completion.chunk"}
+data: {"id":"msg_01BbvMfNhbdm2hmmTbWjaeYt","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"toolu_011Yj5pGczhs1597iLXp5XJK","type":"function","function":{"name":"developer__shell","arguments":""}}]}}],"created":1768898776,"model":"claude-sonnet-4-5-20250929","object":"chat.completion.chunk"}
+data: {"id":"msg_01BbvMfNhbdm2hmmTbWjaeYt","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"type":"function","function":{"arguments":"{\"command\": \"find ~/Desktop -type f | wc -l\"}"}}]}}],"created":1768898776,"model":"claude-sonnet-4-5-20250929","object":"chat.completion.chunk"}
+data: {"id":"msg_01BbvMfNhbdm2hmmTbWjaeYt","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}],"created":1768898776,"model":"claude-sonnet-4-5-20250929","object":"chat.completion.chunk","usage":{"completion_tokens":79,"prompt_tokens":12376,"total_tokens":12455}}
+data: [DONE]
+"#;
+
+        let result = run_streaming_test(response_lines).await?;
+
+        assert_eq!(result.tool_calls.len(), 1, "Expected 1 tool call");
+        assert_eq!(result.tool_calls[0], "developer__shell");
+        assert_usage_yielded_once(&result, 12376, 79, 12455);
+
+        Ok(())
     }
 }

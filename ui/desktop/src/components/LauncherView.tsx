@@ -5,11 +5,15 @@ export default function LauncherView() {
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (query.trim()) {
-      window.electron.createChatWindow(query, getInitialWorkingDir());
+      const initialMessage = query;
       setQuery('');
+      window.electron.createChatWindow(initialMessage, getInitialWorkingDir());
+      setTimeout(() => {
+        window.electron.closeWindow();
+      }, 200);
     }
   };
 

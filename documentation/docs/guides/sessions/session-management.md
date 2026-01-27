@@ -18,39 +18,35 @@ In your first session, goose prompts you to [set up an LLM (Large Language Model
 
 <Tabs groupId="interface">
     <TabItem value="ui" label="goose Desktop" default>
-        When you open goose, you'll see the session interface ready for use. Just type&mdash;[or speak](/docs/guides/sessions/in-session-actions#voice-dictation "Learn how to enable voice dictation")&mdash;your questions, requests, or instructions directly into the input field, and goose will immediately get to work. 
-        
-        When you're ready to work on a new task, you can start a new session in the same directory or a different one. This directory is where goose reads and writes files by default.
+        When you open goose, you'll see the session interface ready for use. Just type&mdash;[or speak](/docs/guides/sessions/in-session-actions#voice-dictation "Learn how to enable voice dictation")&mdash;your questions, requests, or instructions directly into the input field, and goose will immediately get to work.
 
-        <Tabs>
-          <TabItem value="same-directory" label="Same Directory" default>
+        You can also start a new session at any time, either in the same goose window or in a new one.
 
-            To start a session in the same goose window:
-            1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-            2. Click `Home` in the sidebar
-            3. Send your first prompt from the chat box
+        <Tabs groupId="window-type">
+            <TabItem value="same-window" label="Same Window" default>
 
-            To start a session in a new goose window:
-            1. Click the <AppWindow className="inline" size={16} /> button in the top-left
-            2. In the new goose window, send your first prompt from the chat box
+                1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+                2. Click `Home` in the sidebar
+                3. Send your first prompt from the chat box
+            </TabItem>
+            <TabItem value="new-window" label="New Window">
 
-          </TabItem>
-          <TabItem value="diff-directory" label="Different Directory">
+                1. Click the <AppWindow className="inline" size={16} /> button in the top-left
+                2. In the new window, send your first prompt from the chat box
 
-            1. Click the <FolderDot className="inline" size={16} /> directory switcher at the bottom of the app
-            2. Navigate to the new directory or create a new folder
-            3. Click `Open` to open a new goose window for the selected directory
-            4. Send your first prompt from the chat box
-
-          </TabItem>
+            </TabItem>
         </Tabs>
+        
+        To change your working directory, click the <FolderDot className="inline" size={16} /> directory switcher at the bottom of the app.
 
         :::tip
         On macOS, you can use the goose dock icon to quickly start sessions:
             - **Drag and drop** a folder onto the goose icon to open a new session in that directory
             - **Right-click** the goose icon and select `New Window` to open a new session in your most recent directory
         :::
-
+        
+        #### Keyboard Shortcuts
+        
         You can also use keyboard shortcuts to start a new session or manage goose windows.
         
         | Action | macOS | Windows/Linux |

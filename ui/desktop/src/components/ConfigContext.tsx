@@ -66,6 +66,10 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
   const [extensionsList, setExtensionsList] = useState<FixedExtensionEntry[]>([]);
   const [extensionWarnings, setExtensionWarnings] = useState<string[]>([]);
 
+  // Ref to access providersList in getProviders without recreating the callback
+  const providersListRef = React.useRef<ProviderDetails[]>(providersList);
+  providersListRef.current = providersList;
+
   const reloadConfig = useCallback(async () => {
     const response = await readAllConfig();
     setConfig(response.data?.config || {});
@@ -168,23 +172,20 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     [addExtension, getExtensions]
   );
 
-  const getProviders = useCallback(
-    async (forceRefresh = false): Promise<ProviderDetails[]> => {
-      if (forceRefresh || providersList.length === 0) {
-        try {
-          const response = await providers();
-          const providersData = response.data || [];
-          setProvidersList(providersData);
-          return providersData;
-        } catch (error) {
-          console.error('Failed to fetch providers:', error);
-          return [];
-        }
+  const getProviders = useCallback(async (forceRefresh = false): Promise<ProviderDetails[]> => {
+    if (forceRefresh || providersListRef.current.length === 0) {
+      try {
+        const response = await providers();
+        const providersData = response.data || [];
+        setProvidersList(providersData);
+        return providersData;
+      } catch (error) {
+        console.error('Failed to fetch providers:', error);
+        return [];
       }
-      return providersList;
-    },
-    [providersList]
-  );
+    }
+    return providersListRef.current;
+  }, []);
 
   const getProviderModels = useCallback(async (providerName: string): Promise<string[]> => {
     try {

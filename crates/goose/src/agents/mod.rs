@@ -1,4 +1,6 @@
 mod agent;
+pub(crate) mod apps_extension;
+mod builtin_skills;
 pub(crate) mod chatrecall_extension;
 pub(crate) mod code_execution_extension;
 pub mod container;

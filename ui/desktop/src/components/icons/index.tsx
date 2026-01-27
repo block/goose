@@ -2,6 +2,7 @@ import ArrowDown from './ArrowDown';
 import ArrowUp from './ArrowUp';
 import Attach from './Attach';
 import Back from './Back';
+import ChatGPT from './ChatGPT';
 import { Bird1 } from './Bird1';
 import { Bird2 } from './Bird2';
 import { Bird3 } from './Bird3';
@@ -59,6 +60,7 @@ export {
   ArrowUp,
   Attach,
   Back,
+  ChatGPT,
   Bird1,
   Bird2,
   Bird3,

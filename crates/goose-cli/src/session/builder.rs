@@ -82,6 +82,8 @@ pub struct SessionBuilderConfig {
     pub session_id: Option<String>,
     /// Whether to resume an existing session
     pub resume: bool,
+    /// Whether to fork an existing session (creates a copy of the original/existing session then resumes the copy)
+    pub fork: bool,
     /// Whether to run without a session file
     pub no_session: bool,
     /// List of stdio extension commands to add
@@ -123,6 +125,7 @@ impl Default for SessionBuilderConfig {
         SessionBuilderConfig {
             session_id: None,
             resume: false,
+            fork: false,
             no_session: false,
             extensions: Vec::new(),
             streamable_http_extensions: Vec::new(),
@@ -667,6 +670,7 @@ mod tests {
         let config = SessionBuilderConfig {
             session_id: None,
             resume: false,
+            fork: false,
             no_session: false,
             extensions: vec!["echo test".to_string()],
             streamable_http_extensions: vec!["http://localhost:8080/mcp".to_string()],
@@ -714,6 +718,7 @@ mod tests {
         assert!(config.scheduled_job_id.is_none());
         assert!(!config.interactive);
         assert!(!config.quiet);
+        assert!(!config.fork);
     }
 
     #[tokio::test]

@@ -91,19 +91,31 @@ impl GoogleProvider {
         })
     }
 
-    async fn post(&self, model_name: &str, payload: &Value) -> Result<Value, ProviderError> {
+    async fn post(
+        &self,
+        session_id: Option<&str>,
+        model_name: &str,
+        payload: &Value,
+    ) -> Result<Value, ProviderError> {
         let path = format!("v1beta/models/{}:generateContent", model_name);
-        let response = self.api_client.response_post(&path, payload).await?;
+        let response = self
+            .api_client
+            .response_post(session_id, &path, payload)
+            .await?;
         handle_response_google_compat(response).await
     }
 
     async fn post_stream(
         &self,
+        session_id: Option<&str>,
         model_name: &str,
         payload: &Value,
     ) -> Result<reqwest::Response, ProviderError> {
         let path = format!("v1beta/models/{}:streamGenerateContent?alt=sse", model_name);
-        let response = self.api_client.response_post(&path, payload).await?;
+        let response = self
+            .api_client
+            .response_post(session_id, &path, payload)
+            .await?;
         handle_status_openai_compat(response).await
     }
 }
@@ -139,6 +151,7 @@ impl Provider for GoogleProvider {
     )]
     async fn complete_with_model(
         &self,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -148,7 +161,10 @@ impl Provider for GoogleProvider {
         let mut log = RequestLog::start(model_config, &payload)?;
 
         let response = self
-            .with_retry(|| async { self.post(&model_config.model_name, &payload).await })
+            .with_retry(|| async {
+                self.post(session_id, &model_config.model_name, &payload)
+                    .await
+            })
             .await?;
 
         let message = response_to_message(unescape_json_values(&response))?;
@@ -163,7 +179,11 @@ impl Provider for GoogleProvider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        let response = self.api_client.response_get("v1beta/models").await?;
+        let response = self
+            .api_client
+            .request(None, "v1beta/models")
+            .response_get()
+            .await?;
         let json: serde_json::Value = response.json().await?;
         let arr = match json.get("models").and_then(|v| v.as_array()) {
             Some(arr) => arr,
@@ -184,6 +204,7 @@ impl Provider for GoogleProvider {
 
     async fn stream(
         &self,
+        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -192,7 +213,10 @@ impl Provider for GoogleProvider {
         let mut log = RequestLog::start(&self.model, &payload)?;
 
         let response = self
-            .with_retry(|| async { self.post_stream(&self.model.model_name, &payload).await })
+            .with_retry(|| async {
+                self.post_stream(Some(session_id), &self.model.model_name, &payload)
+                    .await
+            })
             .await
             .inspect_err(|e| {
                 let _ = log.error(e);

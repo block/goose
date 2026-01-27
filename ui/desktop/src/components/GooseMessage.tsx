@@ -1,15 +1,15 @@
 import { useMemo, useRef } from 'react';
 import ImagePreview from './ImagePreview';
-import { extractImagePaths, removeImagePathsFromText } from '../utils/imageUtils';
 import { formatMessageTimestamp } from '../utils/timeUtils';
 import MarkdownContent from './MarkdownContent';
 import ToolCallWithResponse from './ToolCallWithResponse';
 import {
-  getTextContent,
+  getTextAndImageContent,
   getToolRequests,
   getToolResponses,
   getToolConfirmationContent,
   getElicitationContent,
+  getPendingToolConfirmationIds,
   NotificationEvent,
 } from '../types/message';
 import { Message } from '../api';
@@ -44,28 +44,25 @@ export default function GooseMessage({
 }: GooseMessageProps) {
   const contentRef = useRef<HTMLDivElement | null>(null);
 
-  let textContent = getTextContent(message);
+  let { textContent, imagePaths } = getTextAndImageContent(message);
 
-  const splitChainOfThought = (text: string): { visibleText: string; cotText: string | null } => {
+  const splitChainOfThought = (text: string): { displayText: string; cotText: string | null } => {
     const regex = /<think>([\s\S]*?)<\/think>/i;
     const match = text.match(regex);
     if (!match) {
-      return { visibleText: text, cotText: null };
+      return { displayText: text, cotText: null };
     }
 
     const cotRaw = match[1].trim();
-    const visibleText = text.replace(regex, '').trim();
+    const displayText = text.replace(regex, '').trim();
 
     return {
-      visibleText,
+      displayText,
       cotText: cotRaw || null,
     };
   };
 
-  const { visibleText, cotText } = splitChainOfThought(textContent);
-  const imagePaths = extractImagePaths(visibleText);
-  const displayText =
-    imagePaths.length > 0 ? removeImagePathsFromText(visibleText, imagePaths) : visibleText;
+  const { displayText, cotText } = splitChainOfThought(textContent);
 
   const timestamp = useMemo(() => formatMessageTimestamp(message.created), [message.created]);
   const toolRequests = getToolRequests(message);
@@ -99,6 +96,8 @@ export default function GooseMessage({
     return responseMap;
   }, [messages, messageIndex, toolRequests]);
 
+  const pendingConfirmationIds = getPendingToolConfirmationIds(messages);
+
   return (
     <div className="goose-message flex w-[90%] justify-start min-w-0">
       <div className="flex flex-col w-full min-w-0">
@@ -113,11 +112,13 @@ export default function GooseMessage({
           </details>
         )}
 
-        {displayText && (
+        {(displayText.trim() || imagePaths.length > 0) && (
           <div className="flex flex-col group">
-            <div ref={contentRef} className="w-full">
-              <MarkdownContent content={displayText} />
-            </div>
+            {displayText.trim() && (
+              <div ref={contentRef} className="w-full">
+                <MarkdownContent content={displayText} />
+              </div>
+            )}
 
             {imagePaths.length > 0 && (
               <div className="mt-4">
@@ -157,6 +158,7 @@ export default function GooseMessage({
                       toolResponse={toolResponsesMap.get(toolRequest.id)}
                       notifications={toolCallNotifications.get(toolRequest.id)}
                       isStreamingMessage={isStreaming}
+                      isPendingApproval={pendingConfirmationIds.has(toolRequest.id)}
                       append={append}
                     />
                   </div>

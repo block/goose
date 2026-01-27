@@ -18,7 +18,7 @@ use goose::agents::ExtensionConfig;
 use goose::config::resolve_extensions_for_new_session;
 use goose::config::{Config, GooseMode};
 use goose::model::ModelConfig;
-use goose::prompt_template::render_global_file;
+use goose::prompt_template::render_template;
 use goose::providers::create;
 use goose::recipe::Recipe;
 use goose::recipe_deeplink;
@@ -29,12 +29,11 @@ use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
     config::permission::PermissionLevel,
 };
-use rmcp::model::{CallToolRequestParam, Content};
+use rmcp::model::{CallToolRequestParams, Content};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, warn};
@@ -215,8 +214,7 @@ async fn start_agent(
         }
     }
 
-    let counter = state.session_counter.fetch_add(1, Ordering::SeqCst) + 1;
-    let name = format!("New session {}", counter);
+    let name = "New Chat".to_string();
 
     let manager = state.session_manager();
 
@@ -424,7 +422,7 @@ async fn update_from_session(
         })?;
     let context: HashMap<&str, Value> = HashMap::new();
     let desktop_prompt =
-        render_global_file("desktop_prompt.md", &context).expect("Prompt should render");
+        render_template("desktop_prompt.md", &context).expect("Prompt should render");
     let mut update_prompt = desktop_prompt;
     if let Some(recipe) = session.recipe {
         match build_recipe_with_parameter_values(
@@ -720,7 +718,7 @@ async fn restart_agent_internal(
 
     let context: HashMap<&str, Value> = HashMap::new();
     let desktop_prompt =
-        render_global_file("desktop_prompt.md", &context).expect("Prompt should render");
+        render_template("desktop_prompt.md", &context).expect("Prompt should render");
     let mut update_prompt = desktop_prompt;
 
     if let Some(ref recipe) = session.recipe {
@@ -877,6 +875,7 @@ async fn read_resource(
     let read_result = agent
         .extension_manager
         .read_resource(
+            &payload.session_id,
             &payload.uri,
             &payload.extension_name,
             CancellationToken::default(),
@@ -948,7 +947,8 @@ async fn call_tool(
         _ => None,
     };
 
-    let tool_call = CallToolRequestParam {
+    let tool_call = CallToolRequestParams {
+        meta: None,
         task: None,
         name: payload.name.into(),
         arguments,
@@ -1015,14 +1015,14 @@ async fn list_apps(
     };
 
     let agent = state
-        .get_agent_for_route(session_id)
+        .get_agent_for_route(session_id.clone())
         .await
         .map_err(|status| ErrorResponse {
             message: "Failed to get agent".to_string(),
             status,
         })?;
 
-    let apps = fetch_mcp_apps(&agent.extension_manager)
+    let apps = fetch_mcp_apps(&agent.extension_manager, &session_id)
         .await
         .map_err(|e| ErrorResponse {
             message: format!("Failed to list apps: {}", e.message),
@@ -1030,9 +1030,9 @@ async fn list_apps(
         })?;
 
     if let Some(cache) = cache.as_ref() {
-        let active_extensions: std::collections::HashSet<String> = apps
+        let active_extensions: HashSet<String> = apps
             .iter()
-            .filter_map(|app| app.mcp_server.clone())
+            .flat_map(|app| app.mcp_servers.iter().cloned())
             .collect();
 
         for extension_name in active_extensions {
@@ -1054,6 +1054,122 @@ async fn list_apps(
     Ok(Json(ListAppsResponse { apps }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/agent/export_app/{name}",
+    params(
+        ("name" = String, Path, description = "Name of the app to export")
+    ),
+    responses(
+        (status = 200, description = "App HTML exported successfully", body = String),
+        (status = 404, description = "App not found", body = ErrorResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse),
+    ),
+    security(
+        ("api_key" = [])
+    ),
+    tag = "Agent"
+)]
+async fn export_app(
+    axum::extract::Path(name): axum::extract::Path<String>,
+) -> Result<impl IntoResponse, ErrorResponse> {
+    let cache = McpAppCache::new().map_err(|e| ErrorResponse {
+        message: format!("Failed to access app cache: {}", e),
+        status: StatusCode::INTERNAL_SERVER_ERROR,
+    })?;
+
+    let apps = cache.list_apps().map_err(|e| ErrorResponse {
+        message: format!("Failed to list apps: {}", e),
+        status: StatusCode::INTERNAL_SERVER_ERROR,
+    })?;
+
+    let app = apps
+        .into_iter()
+        .find(|a| a.resource.name == name)
+        .ok_or_else(|| ErrorResponse {
+            message: format!("App '{}' not found", name),
+            status: StatusCode::NOT_FOUND,
+        })?;
+
+    let html = app.to_html().map_err(|e| ErrorResponse {
+        message: format!("Failed to generate HTML: {}", e),
+        status: StatusCode::INTERNAL_SERVER_ERROR,
+    })?;
+
+    Ok(html)
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportAppRequest {
+    pub html: String,
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportAppResponse {
+    pub name: String,
+    pub message: String,
+}
+
+#[utoipa::path(
+    post,
+    path = "/agent/import_app",
+    request_body = ImportAppRequest,
+    responses(
+        (status = 201, description = "App imported successfully", body = ImportAppResponse),
+        (status = 400, description = "Bad request - Invalid HTML", body = ErrorResponse),
+        (status = 500, description = "Internal server error", body = ErrorResponse),
+    ),
+    security(
+        ("api_key" = [])
+    ),
+    tag = "Agent"
+)]
+async fn import_app(
+    Json(body): Json<ImportAppRequest>,
+) -> Result<(StatusCode, Json<ImportAppResponse>), ErrorResponse> {
+    let cache = McpAppCache::new().map_err(|e| ErrorResponse {
+        message: format!("Failed to access app cache: {}", e),
+        status: StatusCode::INTERNAL_SERVER_ERROR,
+    })?;
+
+    let mut app = GooseApp::from_html(&body.html).map_err(|e| ErrorResponse {
+        message: format!("Invalid Goose App HTML: {}", e),
+        status: StatusCode::BAD_REQUEST,
+    })?;
+
+    let original_name = app.resource.name.clone();
+    let mut counter = 1;
+
+    let existing_apps = cache.list_apps().unwrap_or_default();
+    let existing_names: HashSet<String> = existing_apps
+        .iter()
+        .map(|a| a.resource.name.clone())
+        .collect();
+
+    while existing_names.contains(&app.resource.name) {
+        app.resource.name = format!("{}_{}", original_name, counter);
+        app.resource.uri = format!("ui://apps/{}", app.resource.name);
+        counter += 1;
+    }
+
+    app.mcp_servers = vec!["apps".to_string()];
+
+    cache.store_app(&app).map_err(|e| ErrorResponse {
+        message: format!("Failed to store app: {}", e),
+        status: StatusCode::INTERNAL_SERVER_ERROR,
+    })?;
+
+    Ok((
+        StatusCode::CREATED,
+        Json(ImportAppResponse {
+            name: app.resource.name.clone(),
+            message: format!("App '{}' imported successfully", app.resource.name),
+        }),
+    ))
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/agent/start", post(start_agent))
@@ -1064,6 +1180,8 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/agent/read_resource", post(read_resource))
         .route("/agent/call_tool", post(call_tool))
         .route("/agent/list_apps", get(list_apps))
+        .route("/agent/export_app/{name}", get(export_app))
+        .route("/agent/import_app", post(import_app))
         .route("/agent/update_provider", post(update_agent_provider))
         .route("/agent/update_from_session", post(update_from_session))
         .route("/agent/add_extension", post(agent_add_extension))

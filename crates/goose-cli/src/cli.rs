@@ -331,15 +331,37 @@ async fn get_or_create_session_id(
 
     let session_manager = SessionManager::instance();
 
-    let Some(id) = identifier else {
-        return if resume {
+    let resolved_id = if resume {
+        let Some(id) = identifier else {
             let sessions = session_manager.list_sessions().await?;
             let session_id = sessions
                 .first()
                 .map(|s| s.id.clone())
                 .ok_or_else(|| anyhow::anyhow!("No session found to resume"))?;
-            Ok(Some(session_id))
+            return Ok(Some(session_id));
+        };
+
+        if let Some(session_id) = id.session_id {
+            session_id
+        } else if let Some(name) = id.name {
+            let sessions = session_manager.list_sessions().await?;
+            sessions
+                .into_iter()
+                .find(|s| s.name == name || s.id == name)
+                .map(|s| s.id)
+                .ok_or_else(|| anyhow::anyhow!("No session found with name '{}'", name))?
+        } else if let Some(path) = id.path {
+            path.file_stem()
+                .and_then(|s| s.to_str())
+                .map(|s| s.to_string())
+                .ok_or_else(|| {
+                    anyhow::anyhow!("Could not extract session ID from path: {:?}", path)
+                })?
         } else {
+            return Err(anyhow::anyhow!("Invalid identifier"));
+        }
+    } else {
+        let Some(id) = identifier else {
             let session = session_manager
                 .create_session(
                     std::env::current_dir()?,
@@ -347,58 +369,39 @@ async fn get_or_create_session_id(
                     SessionType::User,
                 )
                 .await?;
-            Ok(Some(session.id))
+            return Ok(Some(session.id));
         };
-    };
 
-    if let Some(session_id) = id.session_id {
-        Ok(Some(session_id))
-    } else if let Some(name) = id.name {
-        if resume {
-            let sessions = session_manager.list_sessions().await?;
-            let session_id = sessions
-                .into_iter()
-                .find(|s| s.name == name || s.id == name)
-                .map(|s| s.id)
-                .ok_or_else(|| anyhow::anyhow!("No session found with name '{}'", name))?;
-            Ok(Some(session_id))
-        } else {
-            let session = session_manager
-                .create_session(std::env::current_dir()?, name.clone(), SessionType::User)
-                .await?;
+        if id.session_id.is_some() {
+            return Err(anyhow::anyhow!("Cannot use --session-id without --resume"));
+        }
 
+        let has_user_provided_name = id.name.is_some();
+        let name = id.name.unwrap_or_else(|| "CLI Session".to_string());
+        let session = session_manager
+            .create_session(std::env::current_dir()?, name.clone(), SessionType::User)
+            .await?;
+
+        if has_user_provided_name {
             session_manager
                 .update(&session.id)
                 .user_provided_name(name)
                 .apply()
                 .await?;
-
-            Ok(Some(session.id))
         }
-    } else if let Some(path) = id.path {
-        let session_id = path
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .map(|s| s.to_string())
-            .ok_or_else(|| anyhow::anyhow!("Could not extract session ID from path: {:?}", path))?;
-        Ok(Some(session_id))
-    } else {
-        let session = session_manager
-            .create_session(
-                std::env::current_dir()?,
-                "CLI Session".to_string(),
-                SessionType::User,
-            )
-            .await?;
-        Ok(Some(session.id))
-    }
+
+        return Ok(Some(session.id));
+    };
+
+    Ok(Some(resolved_id))
 }
 
 async fn lookup_session_id(identifier: Identifier) -> Result<String> {
+    let session_manager = SessionManager::instance();
+
     if let Some(session_id) = identifier.session_id {
         Ok(session_id)
     } else if let Some(name) = identifier.name {
-        let session_manager = SessionManager::instance();
         let sessions = session_manager.list_sessions().await?;
         sessions
             .into_iter()
@@ -731,6 +734,15 @@ enum Command {
         )]
         resume: bool,
 
+        /// Fork a previous session (creates new session with copied history)
+        #[arg(
+            long,
+            requires = "resume",
+            help = "Fork a previous session (creates new session with copied history)",
+            long_help = "Create a new session by copying all messages from a previous session. Must be used with --resume. If --name or --session-id is provided, forks that specific session. Otherwise forks the most recently used session."
+        )]
+        fork: bool,
+
         /// Show message history when resuming
         #[arg(
             long,
@@ -1056,6 +1068,7 @@ async fn handle_session_subcommand(command: SessionCommand) -> Result<()> {
 async fn handle_interactive_session(
     identifier: Option<Identifier>,
     resume: bool,
+    fork: bool,
     history: bool,
     session_opts: SessionOptions,
     extension_opts: ExtensionOptions,
@@ -1065,7 +1078,13 @@ async fn handle_interactive_session(
     }
 
     let session_start = std::time::Instant::now();
-    let session_type = if resume { "resumed" } else { "new" };
+    let session_type = if fork {
+        "forked"
+    } else if resume {
+        "resumed"
+    } else {
+        "new"
+    };
 
     tracing::info!(
         counter.goose.session_starts = 1,
@@ -1085,11 +1104,21 @@ async fn handle_interactive_session(
         }
     }
 
-    let session_id = get_or_create_session_id(identifier, resume, false).await?;
+    let mut session_id = get_or_create_session_id(identifier, resume, false).await?;
+
+    if fork {
+        if let Some(id) = session_id {
+            let session_manager = SessionManager::instance();
+            let original = session_manager.get_session(&id, false).await?;
+            let copied = session_manager.copy_session(&id, original.name).await?;
+            session_id = Some(copied.id);
+        }
+    }
 
     let mut session: crate::CliSession = build_session(SessionBuilderConfig {
         session_id,
         resume,
+        fork,
         no_session: false,
         extensions: extension_opts.extensions,
         streamable_http_extensions: extension_opts.streamable_http_extensions,
@@ -1109,7 +1138,7 @@ async fn handle_interactive_session(
     })
     .await;
 
-    if resume && history {
+    if (resume || fork) && history {
         session.render_message_history();
     }
 
@@ -1293,6 +1322,7 @@ async fn handle_run_command(
     let mut session = build_session(SessionBuilderConfig {
         session_id,
         resume: run_behavior.resume,
+        fork: false,
         no_session: run_behavior.no_session,
         extensions: extension_opts.extensions,
         streamable_http_extensions: extension_opts.streamable_http_extensions,
@@ -1418,6 +1448,7 @@ async fn handle_default_session() -> Result<()> {
     let mut session = build_session(SessionBuilderConfig {
         session_id,
         resume: false,
+        fork: false,
         no_session: false,
         extensions: Vec::new(),
         streamable_http_extensions: Vec::new(),
@@ -1470,12 +1501,20 @@ pub async fn cli() -> anyhow::Result<()> {
             command: None,
             identifier,
             resume,
+            fork,
             history,
             session_opts,
             extension_opts,
         }) => {
-            handle_interactive_session(identifier, resume, history, session_opts, extension_opts)
-                .await
+            handle_interactive_session(
+                identifier,
+                resume,
+                fork,
+                history,
+                session_opts,
+                extension_opts,
+            )
+            .await
         }
         Some(Command::Project {}) => {
             handle_project_default()?;

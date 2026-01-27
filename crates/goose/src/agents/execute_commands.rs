@@ -86,8 +86,9 @@ impl Agent {
             .conversation
             .ok_or_else(|| anyhow!("Session has no conversation"))?;
 
-        let (compacted_conversation, _usage) = compact_messages(
+        let (compacted_conversation, usage) = compact_messages(
             self.provider().await?.as_ref(),
+            session_id,
             &conversation,
             true, // is_manual_compact
         )
@@ -95,6 +96,9 @@ impl Agent {
 
         manager
             .replace_conversation(session_id, &compacted_conversation)
+            .await?;
+
+        self.update_session_metrics(session_id, session.schedule_id, &usage, true)
             .await?;
 
         Ok(Some(Message::assistant().with_system_notification(
@@ -128,11 +132,11 @@ impl Agent {
     async fn handle_prompts_command(
         &self,
         params: &[&str],
-        _session_id: &str,
+        session_id: &str,
     ) -> Result<Option<Message>> {
         let extension_filter = params.first().map(|s| s.to_string());
 
-        let prompts = self.list_extension_prompts().await;
+        let prompts = self.list_extension_prompts(session_id).await;
 
         if let Some(filter) = &extension_filter {
             if !prompts.contains_key(filter) {
@@ -182,7 +186,7 @@ impl Agent {
         let is_info = params.get(1).map(|s| *s == "--info").unwrap_or(false);
 
         if is_info {
-            let prompts = self.list_extension_prompts().await;
+            let prompts = self.list_extension_prompts(session_id).await;
             let mut prompt_info = None;
 
             for (extension, prompt_list) in prompts {
@@ -225,7 +229,10 @@ impl Agent {
         let arguments_value = serde_json::to_value(arguments)
             .map_err(|e| anyhow!("Failed to serialize arguments: {}", e))?;
 
-        match self.get_prompt(&prompt_name, arguments_value).await {
+        match self
+            .get_prompt(session_id, &prompt_name, arguments_value)
+            .await
+        {
             Ok(prompt_result) => {
                 for (i, prompt_message) in prompt_result.messages.into_iter().enumerate() {
                     let msg = Message::from(prompt_message);
