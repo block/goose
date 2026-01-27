@@ -1134,14 +1134,14 @@ impl DeveloperServer {
     /// Process an image file from disk.
     ///
     /// The image will be:
-    /// 1. Resized if larger than max width while maintaining aspect ratio
-    /// 2. Converted to PNG format
+    /// 1. Resized to max 1024px on either dimension while maintaining aspect ratio
+    /// 2. Converted to JPEG format (85% quality)
     /// 3. Returned as base64 encoded data
     ///
-    /// This allows processing image files for use in the conversation.
+    /// This allows processing image files for use in the conversation with optimized file sizes.
     #[tool(
         name = "image_processor",
-        description = "Process an image file from disk. Resizes if needed, converts to PNG, and returns as base64 data."
+        description = "Process an image file from disk. Resizes to max 1024px, converts to JPEG (85% quality), and returns as base64 data for optimized LLM consumption."
     )]
     pub async fn image_processor(
         &self,
