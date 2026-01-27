@@ -10,7 +10,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use goose::agents::ExtensionLoadResult;
+use goose::agents::{Container, ExtensionLoadResult};
 use goose::goose_apps::{fetch_mcp_apps, GooseApp, McpAppCache};
 
 use base64::Engine;
@@ -29,7 +29,7 @@ use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
     config::permission::PermissionLevel,
 };
-use rmcp::model::{CallToolRequestParam, Content};
+use rmcp::model::{CallToolRequestParams, Content};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
@@ -103,6 +103,12 @@ pub struct AddExtensionRequest {
 pub struct RemoveExtensionRequest {
     name: String,
     session_id: String,
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct SetContainerRequest {
+    session_id: String,
+    container_id: Option<String>,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -636,6 +642,29 @@ async fn agent_remove_extension(
 
 #[utoipa::path(
     post,
+    path = "/agent/set_container",
+    request_body = SetContainerRequest,
+    responses(
+        (status = 200, description = "Container set successfully"),
+        (status = 401, description = "Unauthorized - invalid secret key"),
+        (status = 424, description = "Agent not initialized"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+async fn set_container(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<SetContainerRequest>,
+) -> Result<StatusCode, ErrorResponse> {
+    let agent = state.get_agent(request.session_id.clone()).await?;
+
+    let container = request.container_id.map(Container::new);
+    agent.set_container(container).await;
+
+    Ok(StatusCode::OK)
+}
+
+#[utoipa::path(
+    post,
     path = "/agent/stop",
     request_body = StopAgentRequest,
     responses(
@@ -918,7 +947,8 @@ async fn call_tool(
         _ => None,
     };
 
-    let tool_call = CallToolRequestParam {
+    let tool_call = CallToolRequestParams {
+        meta: None,
         task: None,
         name: payload.name.into(),
         arguments,
@@ -1156,6 +1186,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/agent/update_from_session", post(update_from_session))
         .route("/agent/add_extension", post(agent_add_extension))
         .route("/agent/remove_extension", post(agent_remove_extension))
+        .route("/agent/set_container", post(set_container))
         .route("/agent/stop", post(stop_agent))
         .with_state(state)
 }

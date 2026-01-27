@@ -72,6 +72,8 @@ jobs:
           cargo test -- --skip scenario_tests::scenarios::tests
           cargo test --jobs 1 scenario_tests::scenarios::tests
         working-directory: crates
+        env:
+          RUST_MIN_STACK: 8388608
 
 
   rust-lint:

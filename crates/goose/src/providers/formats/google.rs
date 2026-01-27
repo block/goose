@@ -4,7 +4,7 @@ use crate::providers::errors::ProviderError;
 use crate::providers::utils::{is_valid_function_name, sanitize_function_name};
 use anyhow::Result;
 use rmcp::model::{
-    object, AnnotateAble, CallToolRequestParam, ErrorCode, ErrorData, RawContent, Role, Tool,
+    object, AnnotateAble, CallToolRequestParams, ErrorCode, ErrorData, RawContent, Role, Tool,
 };
 use serde::Serialize;
 use std::borrow::Cow;
@@ -421,7 +421,8 @@ fn process_response_part_impl(
 
             Some(MessageContent::tool_request_with_metadata(
                 id,
-                Ok(CallToolRequestParam {
+                Ok(CallToolRequestParams {
+                    meta: None,
                     task: None,
                     name: name.to_string().into(),
                     arguments,
@@ -688,7 +689,7 @@ pub fn create_request(
 mod tests {
     use super::*;
     use crate::conversation::message::Message;
-    use rmcp::model::{CallToolRequestParam, CallToolResult};
+    use rmcp::model::{CallToolRequestParams, CallToolResult};
     use rmcp::{model::Content, object};
     use serde_json::json;
 
@@ -696,7 +697,7 @@ mod tests {
         Message::new(role, 0, vec![MessageContent::text(text.to_string())])
     }
 
-    fn set_up_tool_request_message(id: &str, tool_call: CallToolRequestParam) -> Message {
+    fn set_up_tool_request_message(id: &str, tool_call: CallToolRequestParams) -> Message {
         Message::new(
             Role::User,
             0,
@@ -704,7 +705,7 @@ mod tests {
         )
     }
 
-    fn set_up_action_required_message(id: &str, tool_call: CallToolRequestParam) -> Message {
+    fn set_up_action_required_message(id: &str, tool_call: CallToolRequestParams) -> Message {
         Message::new(
             Role::User,
             0,
@@ -770,7 +771,8 @@ mod tests {
         let messages = vec![
             set_up_tool_request_message(
                 "id",
-                CallToolRequestParam {
+                CallToolRequestParams {
+                    meta: None,
                     task: None,
                     name: "tool_name".into(),
                     arguments: Some(object(arguments.clone())),
@@ -778,7 +780,8 @@ mod tests {
             ),
             set_up_action_required_message(
                 "id2",
-                CallToolRequestParam {
+                CallToolRequestParams {
+                    meta: None,
                     task: None,
                     name: "tool_name_2".into(),
                     arguments: Some(object(arguments.clone())),

@@ -27,6 +27,7 @@ use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::recipes::extract_from_cli::extract_recipe_info_from_cli;
 use crate::recipes::recipe::{explain_recipe, render_recipe_as_yaml};
 use crate::session::{build_session, SessionBuilderConfig};
+use goose::agents::Container;
 use goose::session::session_manager::SessionType;
 use goose::session::SessionManager;
 use goose_bench::bench_config::BenchRunConfig;
@@ -101,6 +102,14 @@ pub struct SessionOptions {
         long_help = "Set a limit on how many turns (iterations) the agent can take without asking for user input to continue."
     )]
     pub max_turns: Option<u32>,
+
+    #[arg(
+        long = "container",
+        value_name = "CONTAINER_ID",
+        help = "Docker container ID to run extensions inside",
+        long_help = "Run extensions (stdio and built-in) inside the specified container. The extension must exist in the container. For built-in extensions, goose must be installed inside the container."
+    )]
+    pub container: Option<String>,
 }
 
 /// Extension configuration options shared between Session and Run commands
@@ -1125,6 +1134,7 @@ async fn handle_interactive_session(
         interactive: true,
         quiet: false,
         output_format: "text".to_string(),
+        container: session_opts.container.map(Container::new),
     })
     .await;
 
@@ -1328,6 +1338,7 @@ async fn handle_run_command(
         interactive: run_behavior.interactive,
         quiet: output_opts.quiet,
         output_format: output_opts.output_format,
+        container: session_opts.container.map(Container::new),
     })
     .await;
 
@@ -1453,6 +1464,7 @@ async fn handle_default_session() -> Result<()> {
         interactive: true,
         quiet: false,
         output_format: "text".to_string(),
+        container: None,
     })
     .await;
     session.interactive(None).await

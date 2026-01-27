@@ -8,6 +8,7 @@ use futures::stream::BoxStream;
 use futures::{stream, FutureExt, Stream, StreamExt, TryStreamExt};
 use uuid::Uuid;
 
+use super::container::Container;
 use super::final_output_tool::FinalOutputTool;
 use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
@@ -51,7 +52,7 @@ use crate::tool_monitor::RepetitionInspector;
 use crate::utils::is_token_cancelled;
 use regex::Regex;
 use rmcp::model::{
-    CallToolRequestParam, CallToolResult, Content, ErrorCode, ErrorData, GetPromptResult, Prompt,
+    CallToolRequestParams, CallToolResult, Content, ErrorCode, ErrorData, GetPromptResult, Prompt,
     ServerNotification, Tool,
 };
 use serde_json::Value;
@@ -128,6 +129,7 @@ pub struct Agent {
 
     pub(super) retry_manager: RetryManager,
     pub(super) tool_inspection_manager: ToolInspectionManager,
+    container: Mutex<Option<Container>>,
 }
 
 #[derive(Clone, Debug)]
@@ -212,6 +214,7 @@ impl Agent {
             tool_result_rx: Arc::new(Mutex::new(tool_rx)),
             retry_manager: RetryManager::new(),
             tool_inspection_manager: Self::create_tool_inspection_manager(permission_manager),
+            container: Mutex::new(None),
         }
     }
 
@@ -409,6 +412,15 @@ impl Agent {
         }
     }
 
+    /// When set, all stdio extensions will be started via `docker exec` in the specified container.
+    pub async fn set_container(&self, container: Option<Container>) {
+        *self.container.lock().await = container.clone();
+    }
+
+    pub async fn container(&self) -> Option<Container> {
+        self.container.lock().await.clone()
+    }
+
     /// Check if a tool is a frontend tool
     pub async fn is_frontend_tool(&self, name: &str) -> bool {
         self.frontend_tools.lock().await.contains_key(name)
@@ -455,7 +467,7 @@ impl Agent {
     #[instrument(skip(self, tool_call, request_id), fields(input, output))]
     pub async fn dispatch_tool_call(
         &self,
-        tool_call: CallToolRequestParam,
+        tool_call: CallToolRequestParams,
         request_id: String,
         cancellation_token: Option<CancellationToken>,
         session: &Session,
@@ -740,8 +752,13 @@ impl Agent {
                 }
             }
             _ => {
+                let container = self.container.lock().await;
                 self.extension_manager
-                    .add_extension_with_working_dir(extension.clone(), working_dir)
+                    .add_extension_with_working_dir(
+                        extension.clone(),
+                        working_dir,
+                        container.as_ref(),
+                    )
                     .await?;
             }
         }
@@ -1008,7 +1025,7 @@ impl Agent {
                 {
                     Ok((compacted_conversation, summarization_usage)) => {
                         session_manager.replace_conversation(&session_config.id, &compacted_conversation).await?;
-                        self.update_session_metrics(&session_config, &summarization_usage, true).await?;
+                        self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &summarization_usage, true).await?;
 
                         yield AgentEvent::HistoryReplaced(compacted_conversation.clone());
 
@@ -1157,7 +1174,7 @@ impl Agent {
                             }
 
                             if let Some(ref usage) = usage {
-                                self.update_session_metrics(&session_config, usage, false).await?;
+                                self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), usage, false).await?;
                             }
 
                             if let Some(response) = response {
@@ -1288,7 +1305,7 @@ impl Agent {
                                     let mut combined = stream::select_all(with_id);
                                     let mut all_install_successful = true;
 
-                                    while let Some((request_id, item)) = combined.next().await {
+                                    loop {
                                         if is_token_cancelled(&cancel_token) {
                                             break;
                                         }
@@ -1297,43 +1314,55 @@ impl Agent {
                                             yield AgentEvent::Message(msg);
                                         }
 
-                                        match item {
-                                            ToolStreamItem::Result(output) => {
-                                                let output = call_tool_result::validate(output);
+                                        tokio::select! {
+                                            biased;
 
-                                                // Platform extensions use meta as a way to publish notifications. Ideally we'd
-                                                // send the notifications directly, but the current plumbing doesn't support that
-                                                // well:
-                                                if let Ok(ref call_result) = output {
-                                                    if let Some(ref meta) = call_result.meta {
-                                                        if let Some(notification_data) = meta.0.get("platform_notification") {
-                                                            if let Some(method) = notification_data.get("method").and_then(|v| v.as_str()) {
-                                                                let params = notification_data.get("params").cloned();
-                                                                let custom_notification = rmcp::model::CustomNotification::new(
-                                                                    method.to_string(),
-                                                                    params,
-                                                                );
+                                            tool_item = combined.next() => {
+                                                match tool_item {
+                                                    Some((request_id, item)) => {
+                                                        match item {
+                                                            ToolStreamItem::Result(output) => {
+                                                                let output = call_tool_result::validate(output);
 
-                                                                let server_notification = rmcp::model::ServerNotification::CustomNotification(custom_notification);
-                                                                yield AgentEvent::McpNotification((request_id.clone(), server_notification));
+                                                                if let Ok(ref call_result) = output {
+                                                                    if let Some(ref meta) = call_result.meta {
+                                                                        if let Some(notification_data) = meta.0.get("platform_notification") {
+                                                                            if let Some(method) = notification_data.get("method").and_then(|v| v.as_str()) {
+                                                                                let params = notification_data.get("params").cloned();
+                                                                                let custom_notification = rmcp::model::CustomNotification::new(
+                                                                                    method.to_string(),
+                                                                                    params,
+                                                                                );
+
+                                                                                let server_notification = rmcp::model::ServerNotification::CustomNotification(custom_notification);
+                                                                                yield AgentEvent::McpNotification((request_id.clone(), server_notification));
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+
+                                                                if enable_extension_request_ids.contains(&request_id)
+                                                                    && output.is_err()
+                                                                {
+                                                                    all_install_successful = false;
+                                                                }
+                                                                if let Some(response_msg) = request_to_response_map.get(&request_id) {
+                                                                    let metadata = request_metadata.get(&request_id).and_then(|m| m.as_ref());
+                                                                    let mut response = response_msg.lock().await;
+                                                                    *response = response.clone().with_tool_response_with_metadata(request_id, output, metadata);
+                                                                }
+                                                            }
+                                                            ToolStreamItem::Message(msg) => {
+                                                                yield AgentEvent::McpNotification((request_id, msg));
                                                             }
                                                         }
                                                     }
-                                                }
-
-                                                if enable_extension_request_ids.contains(&request_id)
-                                                    && output.is_err()
-                                                {
-                                                    all_install_successful = false;
-                                                }
-                                                if let Some(response_msg) = request_to_response_map.get(&request_id) {
-                                                    let metadata = request_metadata.get(&request_id).and_then(|m| m.as_ref());
-                                                    let mut response = response_msg.lock().await;
-                                                    *response = response.clone().with_tool_response_with_metadata(request_id, output, metadata);
+                                                    None => break,
                                                 }
                                             }
-                                            ToolStreamItem::Message(msg) => {
-                                                yield AgentEvent::McpNotification((request_id, msg));
+
+                                            _ = tokio::time::sleep(std::time::Duration::from_millis(100)) => {
+                                                // Continue loop to drain elicitation messages
                                             }
                                         }
                                     }
@@ -1425,7 +1454,7 @@ impl Agent {
                             {
                                 Ok((compacted_conversation, usage)) => {
                                     session_manager.replace_conversation(&session_config.id, &compacted_conversation).await?;
-                                    self.update_session_metrics(&session_config, &usage, true).await?;
+                                    self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &usage, true).await?;
                                     conversation = compacted_conversation;
                                     did_recovery_compact_this_iteration = true;
                                     yield AgentEvent::HistoryReplaced(conversation.clone());

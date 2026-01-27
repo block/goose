@@ -192,7 +192,11 @@ impl OpenAiProvider {
         model_name.starts_with("gpt-5-codex") || model_name.starts_with("gpt-5.1-codex")
     }
 
-    async fn post(&self, session_id: &str, payload: &Value) -> Result<Value, ProviderError> {
+    async fn post(
+        &self,
+        session_id: Option<&str>,
+        payload: &Value,
+    ) -> Result<Value, ProviderError> {
         let response = self
             .api_client
             .response_post(session_id, &self.base_path, payload)
@@ -202,7 +206,7 @@ impl OpenAiProvider {
 
     async fn post_responses(
         &self,
-        session_id: &str,
+        session_id: Option<&str>,
         payload: &Value,
     ) -> Result<Value, ProviderError> {
         let response = self
@@ -253,7 +257,7 @@ impl Provider for OpenAiProvider {
     )]
     async fn complete_with_model(
         &self,
-        session_id: &str,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -323,14 +327,12 @@ impl Provider for OpenAiProvider {
         }
     }
 
-    async fn fetch_supported_models(
-        &self,
-        session_id: &str,
-    ) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         let models_path = self.base_path.replace("v1/chat/completions", "v1/models");
         let response = self
             .api_client
-            .response_get(session_id, &models_path)
+            .request(None, &models_path)
+            .response_get()
             .await?;
         let json = handle_response_openai_compat(response).await?;
         if let Some(err_obj) = json.get("error") {
@@ -388,7 +390,7 @@ impl Provider for OpenAiProvider {
                     let payload_clone = payload.clone();
                     let resp = self
                         .api_client
-                        .response_post(session_id, "v1/responses", &payload_clone)
+                        .response_post(Some(session_id), "v1/responses", &payload_clone)
                         .await?;
                     handle_status_openai_compat(resp).await
                 })
@@ -426,7 +428,7 @@ impl Provider for OpenAiProvider {
                 .with_retry(|| async {
                     let resp = self
                         .api_client
-                        .response_post(session_id, &self.base_path, &payload)
+                        .response_post(Some(session_id), &self.base_path, &payload)
                         .await?;
                     handle_status_openai_compat(resp).await
                 })
@@ -479,7 +481,7 @@ impl EmbeddingCapable for OpenAiProvider {
                 let request_value = serde_json::to_value(request_clone)
                     .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
                 self.api_client
-                    .api_post(session_id, "v1/embeddings", &request_value)
+                    .api_post(Some(session_id), "v1/embeddings", &request_value)
                     .await
                     .map_err(|e| ProviderError::ExecutionError(e.to_string()))
             })
