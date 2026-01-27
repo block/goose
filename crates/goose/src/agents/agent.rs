@@ -754,7 +754,11 @@ impl Agent {
             _ => {
                 let container = self.container.lock().await;
                 self.extension_manager
-                    .add_extension_with_working_dir(extension.clone(), working_dir, container.as_ref())
+                    .add_extension_with_working_dir(
+                        extension.clone(),
+                        working_dir,
+                        container.as_ref(),
+                    )
                     .await?;
             }
         }
