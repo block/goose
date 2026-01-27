@@ -179,9 +179,8 @@ impl Provider for XaiProvider {
 
     async fn fetch_supported_models(
         &self,
-        session_id: &str,
     ) -> Result<Option<Vec<String>>, ProviderError> {
-        let response = match self.api_client.response_get(session_id, "models").await {
+        let response = match self.api_client.response_get(None, "models").await {
             Ok(response) => response,
             Err(e) => {
                 tracing::warn!(

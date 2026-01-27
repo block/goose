@@ -528,7 +528,7 @@ async fn check_provider(
         }
     };
 
-    let recommended_models = match provider.fetch_recommended_models(&session_id).await {
+    let recommended_models = match provider.fetch_recommended_models().await {
         Ok(Some(models)) => {
             println!("  ✓ Found {} recommended models", models.len());
             models
