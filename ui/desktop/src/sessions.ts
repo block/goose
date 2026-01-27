@@ -6,8 +6,24 @@ import {
   hasExtensionOverrides,
 } from './store/extensionOverrides';
 import type { FixedExtensionEntry } from './components/ConfigContext';
+import { AppEvents } from './constants/events';
+
+export function shouldShowNewChatTitle(session: Session): boolean {
+  return !session.user_set_name && session.message_count === 0;
+}
 
 export function resumeSession(session: Session, setView: setViewType) {
+  const eventDetail = {
+    sessionId: session.id,
+    initialMessage: undefined,
+  };
+
+  window.dispatchEvent(
+    new CustomEvent(AppEvents.ADD_ACTIVE_SESSION, {
+      detail: eventDetail,
+    })
+  );
+
   setView('pair', {
     disableAnimation: true,
     resumeSessionId: session.id,
@@ -54,14 +70,13 @@ export async function createSession(
     body,
     throwOnError: true,
   });
-
   return newAgent.data;
 }
 
 export async function startNewSession(
-  workingDir: string,
   initialText: string | undefined,
   setView: setViewType,
+  workingDir: string,
   options?: {
     recipeId?: string;
     recipeDeeplink?: string;
@@ -70,11 +85,26 @@ export async function startNewSession(
 ): Promise<Session> {
   const session = await createSession(workingDir, options);
 
+  // Include session data so sidebar can add it immediately (before it has messages)
+  window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED, { detail: { session } }));
+
+  const initialMessage = initialText ? { msg: initialText, images: [] } : undefined;
+
+  const eventDetail = {
+    sessionId: session.id,
+    initialMessage,
+  };
+
+  window.dispatchEvent(
+    new CustomEvent(AppEvents.ADD_ACTIVE_SESSION, {
+      detail: eventDetail,
+    })
+  );
+
   setView('pair', {
     disableAnimation: true,
-    initialMessage: initialText,
+    initialMessage,
     resumeSessionId: session.id,
   });
-
   return session;
 }

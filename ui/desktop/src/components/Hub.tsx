@@ -1,3 +1,4 @@
+import { AppEvents } from '../constants/events';
 /**
  * Hub Component
  *
@@ -28,6 +29,7 @@ import {
 import { getInitialWorkingDir } from '../utils/workingDir';
 import { createSession } from '../sessions';
 import LoadingGoose from './LoadingGoose';
+import { UserInput } from '../types/message';
 
 export default function Hub({
   setView,
@@ -38,11 +40,9 @@ export default function Hub({
   const [workingDir, setWorkingDir] = useState(getInitialWorkingDir());
   const [isCreatingSession, setIsCreatingSession] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    const customEvent = e as unknown as CustomEvent;
-    const combinedTextFromInput = customEvent.detail?.value || '';
-
-    if (combinedTextFromInput.trim() && !isCreatingSession) {
+  const handleSubmit = async (input: UserInput) => {
+    const { msg: userMessage, images } = input;
+    if ((images.length > 0 || userMessage.trim()) && !isCreatingSession) {
       const extensionConfigs = getExtensionConfigsWithOverrides(extensionsList);
       clearExtensionOverrides();
       setIsCreatingSession(true);
@@ -53,17 +53,22 @@ export default function Hub({
           allExtensions: extensionConfigs.length > 0 ? undefined : extensionsList,
         });
 
+        window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
+        window.dispatchEvent(
+          new CustomEvent(AppEvents.ADD_ACTIVE_SESSION, {
+            detail: { sessionId: session.id, initialMessage: { msg: userMessage, images } },
+          })
+        );
+
         setView('pair', {
           disableAnimation: true,
           resumeSessionId: session.id,
-          initialMessage: combinedTextFromInput,
+          initialMessage: { msg: userMessage, images },
         });
       } catch (error) {
         console.error('Failed to create session:', error);
         setIsCreatingSession(false);
       }
-
-      e.preventDefault();
     }
   };
 

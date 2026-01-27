@@ -124,9 +124,9 @@
   --background-info: var(--color-blue-100);
   --background-warning: var(--color-yellow-100);
 
-  --border-default: var(--color-neutral-900);
-  --border-input: var(--color-neutral-800);
-  --border-strong: var(--color-neutral-700);
+  --border-default: var(--color-neutral-800);
+  --border-input: var(--color-neutral-700);
+  --border-strong: var(--color-neutral-600);
   --border-danger: var(--color-red-100);
   --border-success: var(--color-green-100);
   --border-warning: var(--color-yellow-100);
@@ -575,6 +575,46 @@ p > code.bg-inline-code {
 
 .assistant:has(+ .user):not(.in-chain) .goose-message {
   padding-bottom: 24px;
+}
+
+/* Sidebar scrollbar styles */
+.sidebar-scrollbar {
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+}
+
+.dark .sidebar-scrollbar {
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  position: absolute;
+  right: 0;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 8px 0;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+  border: none;
+}
+
+.dark .sidebar-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0, 0, 0, 0.3);
+}
+
+.dark .sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.3);
 }
 
 /* Virtualized list styles */

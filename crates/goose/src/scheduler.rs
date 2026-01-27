@@ -15,7 +15,7 @@ use tokio_util::sync::CancellationToken;
 use crate::agents::AgentEvent;
 use crate::agents::{Agent, SessionConfig};
 use crate::config::paths::Paths;
-use crate::config::Config;
+use crate::config::{resolve_extensions_for_new_session, Config};
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use crate::posthog;
@@ -743,10 +743,9 @@ async fn execute_job(
 
     let agent_provider = create(&provider_name, model_config).await?;
 
-    if let Some(ref extensions) = recipe.extensions {
-        for ext in extensions {
-            agent.add_extension(ext.clone()).await?;
-        }
+    let extensions = resolve_extensions_for_new_session(recipe.extensions.as_deref(), None);
+    for ext in extensions {
+        agent.add_extension(ext.clone()).await?;
     }
 
     let session = agent
@@ -795,13 +794,9 @@ async fn execute_job(
         retry_config: None,
     };
 
-    let session_id = session_config.id.clone();
-    let stream = crate::session_context::with_session_id(Some(session_id.clone()), async {
-        agent
-            .reply(user_message, session_config, Some(cancel_token))
-            .await
-    })
-    .await?;
+    let stream = agent
+        .reply(user_message, session_config, Some(cancel_token))
+        .await?;
 
     use futures::StreamExt;
     let mut stream = std::pin::pin!(stream);

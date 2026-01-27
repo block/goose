@@ -192,18 +192,26 @@ impl OpenAiProvider {
         model_name.starts_with("gpt-5-codex") || model_name.starts_with("gpt-5.1-codex")
     }
 
-    async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
+    async fn post(
+        &self,
+        session_id: Option<&str>,
+        payload: &Value,
+    ) -> Result<Value, ProviderError> {
         let response = self
             .api_client
-            .response_post(&self.base_path, payload)
+            .response_post(session_id, &self.base_path, payload)
             .await?;
         handle_response_openai_compat(response).await
     }
 
-    async fn post_responses(&self, payload: &Value) -> Result<Value, ProviderError> {
+    async fn post_responses(
+        &self,
+        session_id: Option<&str>,
+        payload: &Value,
+    ) -> Result<Value, ProviderError> {
         let response = self
             .api_client
-            .response_post("v1/responses", payload)
+            .response_post(session_id, "v1/responses", payload)
             .await?;
         handle_response_openai_compat(response).await
     }
@@ -249,6 +257,7 @@ impl Provider for OpenAiProvider {
     )]
     async fn complete_with_model(
         &self,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -261,7 +270,7 @@ impl Provider for OpenAiProvider {
             let json_response = self
                 .with_retry(|| async {
                     let payload_clone = payload.clone();
-                    self.post_responses(&payload_clone).await
+                    self.post_responses(session_id, &payload_clone).await
                 })
                 .await
                 .inspect_err(|e| {
@@ -296,7 +305,7 @@ impl Provider for OpenAiProvider {
             let json_response = self
                 .with_retry(|| async {
                     let payload_clone = payload.clone();
-                    self.post(&payload_clone).await
+                    self.post(session_id, &payload_clone).await
                 })
                 .await
                 .inspect_err(|e| {
@@ -320,7 +329,11 @@ impl Provider for OpenAiProvider {
 
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         let models_path = self.base_path.replace("v1/chat/completions", "v1/models");
-        let response = self.api_client.response_get(&models_path).await?;
+        let response = self
+            .api_client
+            .request(None, &models_path)
+            .response_get()
+            .await?;
         let json = handle_response_openai_compat(response).await?;
         if let Some(err_obj) = json.get("error") {
             let msg = err_obj
@@ -345,8 +358,12 @@ impl Provider for OpenAiProvider {
         true
     }
 
-    async fn create_embeddings(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>, ProviderError> {
-        EmbeddingCapable::create_embeddings(self, texts)
+    async fn create_embeddings(
+        &self,
+        session_id: &str,
+        texts: Vec<String>,
+    ) -> Result<Vec<Vec<f32>>, ProviderError> {
+        EmbeddingCapable::create_embeddings(self, session_id, texts)
             .await
             .map_err(|e| ProviderError::ExecutionError(e.to_string()))
     }
@@ -357,6 +374,7 @@ impl Provider for OpenAiProvider {
 
     async fn stream(
         &self,
+        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -372,7 +390,7 @@ impl Provider for OpenAiProvider {
                     let payload_clone = payload.clone();
                     let resp = self
                         .api_client
-                        .response_post("v1/responses", &payload_clone)
+                        .response_post(Some(session_id), "v1/responses", &payload_clone)
                         .await?;
                     handle_status_openai_compat(resp).await
                 })
@@ -410,7 +428,7 @@ impl Provider for OpenAiProvider {
                 .with_retry(|| async {
                     let resp = self
                         .api_client
-                        .response_post(&self.base_path, &payload)
+                        .response_post(Some(session_id), &self.base_path, &payload)
                         .await?;
                     handle_status_openai_compat(resp).await
                 })
@@ -437,7 +455,11 @@ fn parse_custom_headers(s: String) -> HashMap<String, String> {
 
 #[async_trait]
 impl EmbeddingCapable for OpenAiProvider {
-    async fn create_embeddings(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>> {
+    async fn create_embeddings(
+        &self,
+        session_id: &str,
+        texts: Vec<String>,
+    ) -> Result<Vec<Vec<f32>>> {
         if texts.is_empty() {
             return Ok(vec![]);
         }
@@ -459,7 +481,7 @@ impl EmbeddingCapable for OpenAiProvider {
                 let request_value = serde_json::to_value(request_clone)
                     .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
                 self.api_client
-                    .api_post("v1/embeddings", &request_value)
+                    .api_post(Some(session_id), "v1/embeddings", &request_value)
                     .await
                     .map_err(|e| ProviderError::ExecutionError(e.to_string()))
             })

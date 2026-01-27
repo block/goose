@@ -17,7 +17,6 @@ use goose::config::{
     configure_tetrate, Config, ConfigError, ExperimentManager, ExtensionEntry, GooseMode,
     PermissionManager,
 };
-use goose::conversation::message::Message;
 use goose::model::ModelConfig;
 use goose::posthog::{get_telemetry_choice, TELEMETRY_ENABLED_KEY};
 use goose::providers::provider_test::test_provider_configuration;
@@ -436,12 +435,12 @@ fn select_model_from_list(
     provider_meta: &goose::providers::base::ProviderMetadata,
 ) -> anyhow::Result<String> {
     const MAX_MODELS: usize = 10;
+    const UNLISTED_MODEL_KEY: &str = "__unlisted__";
+
     // Smart model selection:
     // If we have more than MAX_MODELS models, show the recommended models with additional search option.
     // Otherwise, show all models without search.
-
     if models.len() > MAX_MODELS {
-        // Get recommended models from provider metadata
         let recommended_models: Vec<String> = provider_meta
             .known_models
             .iter()
@@ -464,12 +463,22 @@ fn select_model_from_list(
                 ),
             );
 
+            if provider_meta.allows_unlisted_models {
+                model_items.push((
+                    UNLISTED_MODEL_KEY.to_string(),
+                    "Enter a model not listed...".to_string(),
+                    "",
+                ));
+            }
+
             let selection = cliclack::select("Select a model:")
                 .items(&model_items)
                 .interact()?;
 
             if selection == "search_all" {
                 Ok(interactive_model_search(models)?)
+            } else if selection == UNLISTED_MODEL_KEY {
+                prompt_unlisted_model(provider_meta)
             } else {
                 Ok(selection)
             }
@@ -477,17 +486,43 @@ fn select_model_from_list(
             Ok(interactive_model_search(models)?)
         }
     } else {
-        // just a few models, show all without search for better UX
-        Ok(cliclack::select("Select a model:")
-            .items(
-                &models
-                    .iter()
-                    .map(|m| (m, m.as_str(), ""))
-                    .collect::<Vec<_>>(),
-            )
-            .interact()?
-            .to_string())
+        let mut model_items: Vec<(String, String, &str)> =
+            models.iter().map(|m| (m.clone(), m.clone(), "")).collect();
+
+        if provider_meta.allows_unlisted_models {
+            model_items.push((
+                UNLISTED_MODEL_KEY.to_string(),
+                "Enter a model not listed...".to_string(),
+                "",
+            ));
+        }
+
+        let selection = cliclack::select("Select a model:")
+            .items(&model_items)
+            .interact()?;
+
+        if selection == UNLISTED_MODEL_KEY {
+            prompt_unlisted_model(provider_meta)
+        } else {
+            Ok(selection)
+        }
     }
+}
+
+fn prompt_unlisted_model(
+    provider_meta: &goose::providers::base::ProviderMetadata,
+) -> anyhow::Result<String> {
+    let model: String = cliclack::input("Enter the model name:")
+        .placeholder(&provider_meta.default_model)
+        .validate(|input: &String| {
+            if input.trim().is_empty() {
+                Err("Please enter a model name")
+            } else {
+                Ok(())
+            }
+        })
+        .interact()?;
+    Ok(model.trim().to_string())
 }
 
 fn try_store_secret(config: &Config, key_name: &str, value: String) -> anyhow::Result<bool> {
@@ -1619,9 +1654,11 @@ pub async fn handle_openrouter_auth() -> anyhow::Result<()> {
 
     match create("openrouter", model_config).await {
         Ok(provider) => {
-            // Simple test request
+            let model_config = provider.get_model_config();
             let test_result = provider
-                .complete(
+                .complete_with_model(
+                    None,
+                    &model_config,
                     "You are goose, an AI assistant.",
                     &[Message::user().with_text("Say 'Configuration test successful!'")],
                     &[],
@@ -1697,13 +1734,7 @@ pub async fn handle_tetrate_auth() -> anyhow::Result<()> {
 
     match create("tetrate", model_config).await {
         Ok(provider) => {
-            let test_result = provider
-                .complete(
-                    "You are goose, an AI assistant.",
-                    &[Message::user().with_text("Say 'Configuration test successful!'")],
-                    &[],
-                )
-                .await;
+            let test_result = provider.fetch_supported_models().await;
 
             match test_result {
                 Ok(_) => {

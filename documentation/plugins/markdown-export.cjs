@@ -1,6 +1,5 @@
 const fs = require('fs');
 const path = require('path');
-const globby = require('globby');
 
 module.exports = function markdownExportPlugin(context, options) {
   const pluginOptions = {
@@ -17,6 +16,8 @@ module.exports = function markdownExportPlugin(context, options) {
       }
 
       console.log('[markdown-export] Starting markdown export...');
+      
+      const { globby } = await import('globby');
       
       const docsDir = path.join(context.siteDir, 'docs');
       const outputDir = path.join(outDir, 'docs');

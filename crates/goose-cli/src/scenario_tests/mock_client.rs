@@ -1,7 +1,7 @@
 //! MockClient is a mock implementation of the McpClientTrait for testing purposes.
 //! add a tool you want to have around and then add the client to the extension router
 
-use goose::agents::mcp_client::{Error, McpClientTrait, McpMeta};
+use goose::agents::mcp_client::{Error, McpClientTrait};
 use rmcp::{
     model::{
         CallToolResult, Content, ErrorData, GetPromptResult, ListPromptsResult,
@@ -44,6 +44,7 @@ impl MockClient {
 impl McpClientTrait for MockClient {
     async fn list_resources(
         &self,
+        _session_id: &str,
         _next_cursor: Option<String>,
         _cancel_token: CancellationToken,
     ) -> Result<ListResourcesResult, Error> {
@@ -60,6 +61,7 @@ impl McpClientTrait for MockClient {
 
     async fn read_resource(
         &self,
+        _session_id: &str,
         _uri: &str,
         _cancel_token: CancellationToken,
     ) -> Result<ReadResourceResult, Error> {
@@ -68,6 +70,7 @@ impl McpClientTrait for MockClient {
 
     async fn list_tools(
         &self,
+        _session_id: &str,
         _: Option<String>,
         _cancel_token: CancellationToken,
     ) -> Result<ListToolsResult, Error> {
@@ -92,9 +95,9 @@ impl McpClientTrait for MockClient {
 
     async fn call_tool(
         &self,
+        _session_id: &str,
         name: &str,
         arguments: Option<serde_json::Map<String, Value>>,
-        _meta: McpMeta,
         _cancel_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         if let Some(handler) = self.handlers.get(name) {
@@ -114,6 +117,7 @@ impl McpClientTrait for MockClient {
 
     async fn list_prompts(
         &self,
+        _session_id: &str,
         _next_cursor: Option<String>,
         _cancel_token: CancellationToken,
     ) -> Result<ListPromptsResult, Error> {
@@ -126,6 +130,7 @@ impl McpClientTrait for MockClient {
 
     async fn get_prompt(
         &self,
+        _session_id: &str,
         _name: &str,
         _arguments: Value,
         _cancel_token: CancellationToken,

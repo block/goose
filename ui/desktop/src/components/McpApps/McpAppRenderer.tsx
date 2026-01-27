@@ -1,3 +1,4 @@
+import { AppEvents } from '../../constants/events';
 /**
  * MCP Apps Renderer
  *
@@ -128,12 +129,22 @@ export default function McpAppRenderer({
           if (!append) {
             throw new Error('Message handler not available in this context');
           }
-          append(content.text);
-          window.dispatchEvent(new CustomEvent('scroll-chat-to-bottom'));
-          return {
-            status: 'success',
-            message: 'Message appended successfully',
-          } satisfies McpMethodResponse['ui/message'];
+
+          if (!Array.isArray(content)) {
+            throw new Error('Invalid message format: content must be an array of ContentBlock');
+          }
+
+          // Extract first text block from content, ignoring other block types
+          const textContent = content.find((block) => block.type === 'text');
+          if (!textContent) {
+            throw new Error('Invalid message format: content must contain a text block');
+          }
+
+          // MCP Apps can send other content block types, but we only append text blocks for now
+
+          append(textContent.text);
+          window.dispatchEvent(new CustomEvent(AppEvents.SCROLL_CHAT_TO_BOTTOM));
+          return {} satisfies McpMethodResponse['ui/message'];
         }
 
         case 'tools/call': {
