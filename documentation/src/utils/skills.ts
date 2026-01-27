@@ -69,7 +69,11 @@ export function loadAllSkillsSync(): Skill[] {
 async function fetchSkillsManifest(): Promise<Skill[]> {
   try {
     // Fetch the pre-generated manifest
-    const response = await fetch('/goose/skills-manifest.json');
+    const prNumber = process.env.PR_NUMBER;
+    const manifestUrl = prNumber 
+      ? `/goose/pr-preview/pr-${prNumber}/skills-manifest.json`
+      : '/goose/skills-manifest.json';
+    const response = await fetch(manifestUrl);
     if (!response.ok) {
       console.error('Failed to fetch skills manifest:', response.status);
       return [];
