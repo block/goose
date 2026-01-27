@@ -33,7 +33,7 @@ export default function SubRecipeModal({
         setName(subRecipe.name);
         setPath(subRecipe.path);
         setDescription(subRecipe.description || '');
-        setSequentialWhenRepeated(subRecipe.sequential_when_repeated || false);
+        setSequentialWhenRepeated(subRecipe.sequential_when_repeated);
         setValues(subRecipe.values || {});
       } else {
         setName('');
