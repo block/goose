@@ -1,4 +1,6 @@
 import type { Skill, SkillStatus, SkillInstallMethod } from "@site/src/pages/skills/types";
+import siteConfig from "@generated/docusaurus.config";
+
 
 // Skills data is loaded from a generated JSON manifest at build time
 // Generated at: documentation/static/skills-manifest.json
@@ -71,11 +73,15 @@ export function loadAllSkillsSync(): Skill[] {
  */
 async function fetchSkillsManifest(): Promise<Skill[]> {
   try {
-    // Works for:
-    // - local dev: http://localhost:3000/goose/skills
-    // - prod:      https://block.github.io/goose/skills
-    // - preview:   https://block.github.io/goose/pr-preview/pr-6752/skills
-    const manifestUrl = new URL("skills-manifest.json", window.location.href).toString();
+    // In Docusaurus, baseUrl changes automatically for PR previews.
+    // Example:
+    //   prod:      /goose/
+    //   PR preview: /goose/pr-preview/pr-6752/
+    const baseUrl = siteConfig.baseUrl.endsWith("/")
+      ? siteConfig.baseUrl
+      : `${siteConfig.baseUrl}/`;
+
+    const manifestUrl = `${baseUrl}skills-manifest.json`;
 
     const response = await fetch(manifestUrl);
     if (!response.ok) {
@@ -90,6 +96,7 @@ async function fetchSkillsManifest(): Promise<Skill[]> {
     return [];
   }
 }
+
 
 /**
  * Normalize raw frontmatter-like data to Skill type
