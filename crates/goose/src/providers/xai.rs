@@ -177,9 +177,7 @@ impl Provider for XaiProvider {
         stream_openai_compat(response, log)
     }
 
-    async fn fetch_supported_models(
-        &self,
-    ) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         let response = match self.api_client.response_get(None, "models").await {
             Ok(response) => response,
             Err(e) => {
