@@ -489,13 +489,7 @@ impl SessionStorage {
             .busy_timeout(std::time::Duration::from_secs(5))
             .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal);
 
-        // Use a single connection for the session database to avoid SQLite write-lock
-        // contention across multiple connections. Writes are still serialized by SQLite,
-        // but this ensures they are queued at the pool level instead of failing with
-        // `database is locked` under concurrent load (especially in tests/CI).
-        SqlitePoolOptions::new()
-            .max_connections(1)
-            .connect_lazy_with(options)
+        SqlitePoolOptions::new().connect_lazy_with(options)
     }
 
     pub fn new(data_dir: PathBuf) -> Self {
