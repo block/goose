@@ -263,7 +263,7 @@ Search allows you to find specific content within sessions or find specific sess
 
     goose Desktop allows you to switch between multiple chat sessions in the same window. You can start a task in one session, switch to another to do some work, and return to the first session when the task is completed. 
 
-    Your most recent sessions are available in the sidebar for quick access:
+    Your most recent sessions (up to 10) are available in the sidebar for quick access:
 
     1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
     2. In the `Chat` section, click any session to switch to it
