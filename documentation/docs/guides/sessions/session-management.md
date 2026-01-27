@@ -26,7 +26,7 @@ In your first session, goose prompts you to [set up an LLM (Large Language Model
         2. Click `Home` or `Chat` in the sidebar
         3. Send your first prompt from the chat box
 
-        goose Desktop supports working with multiple active chat sessions in the same window. Your new sessions are added to the `Chat` section of the sidebar, so you can quickly switch between your 10 most recent sessions. Just click a session to [resume your work in that session](#resume-session).
+        goose Desktop supports working with multiple active chat sessions in the same window. Your new sessions are added to the `Chat` section of the sidebar, so you can quickly switch between your 10 most recent sessions. Just click a session to [continue working](#resume-session) in that session.
         
         To change your working directory, click the <FolderDot className="inline" size={16} /> directory switcher at the bottom of the app.
 
