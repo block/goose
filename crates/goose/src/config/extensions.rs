@@ -1,5 +1,4 @@
 use super::base::Config;
-use crate::agents::extension::PLATFORM_EXTENSIONS;
 use crate::agents::ExtensionConfig;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
@@ -52,52 +51,6 @@ fn get_extensions_map() -> IndexMap<String, ExtensionEntry> {
                 );
             }
         }
-    }
-
-    // Always inject platform extensions (code_execution, todo, skills, etc.)
-    // These are internal agent extensions that should always be available
-    // Migrate existing entries if their fields differ from the canonical definitions
-    let mut needs_save = false;
-    for (name, def) in PLATFORM_EXTENSIONS.iter() {
-        let existing = extensions_map.get(*name);
-        let needs_migration = match existing {
-            None => true,
-            Some(entry) => {
-                if let ExtensionConfig::Platform {
-                    description,
-                    display_name,
-                    ..
-                } = &entry.config
-                {
-                    description != def.description
-                        || display_name.as_deref() != Some(def.display_name)
-                } else {
-                    true
-                }
-            }
-        };
-
-        if needs_migration {
-            let enabled = existing.map(|e| e.enabled).unwrap_or(def.default_enabled);
-            extensions_map.insert(
-                name.to_string(),
-                ExtensionEntry {
-                    config: ExtensionConfig::Platform {
-                        name: def.name.to_string(),
-                        description: def.description.to_string(),
-                        display_name: Some(def.display_name.to_string()),
-                        bundled: Some(true),
-                        available_tools: Vec::new(),
-                    },
-                    enabled,
-                },
-            );
-            needs_save = true;
-        }
-    }
-
-    if needs_save {
-        save_extensions_map(extensions_map.clone());
     }
 
     extensions_map
