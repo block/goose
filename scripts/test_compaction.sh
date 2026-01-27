@@ -22,8 +22,19 @@ GOOSE_BIN="$SCRIPT_DIR/target/release/goose"
 # Timeout for goose commands (default 5 minutes)
 GOOSE_TIMEOUT=${GOOSE_TIMEOUT:-300}
 
-# Log directory for diagnostics
-LOG_DIR="$HOME/.config/goose/logs/cli"
+# Log directory for diagnostics - must match goose's actual log path
+# See crates/goose/src/config/paths.rs and crates/goose/src/logging.rs
+get_log_dir() {
+  local today=$(date +%Y-%m-%d)
+  if [ -n "$GOOSE_PATH_ROOT" ]; then
+    echo "$GOOSE_PATH_ROOT/state/logs/cli/$today"
+  elif [ "$(uname)" = "Darwin" ]; then
+    echo "$HOME/Library/Application Support/Block.goose/logs/cli/$today"
+  else
+    echo "${XDG_STATE_HOME:-$HOME/.local/state}/goose/logs/cli/$today"
+  fi
+}
+LOG_DIR=$(get_log_dir)
 
 # Helper to dump stream diagnostics from logs on timeout
 dump_stream_diagnostics() {
@@ -31,7 +42,7 @@ dump_stream_diagnostics() {
   echo "=== STREAM DIAGNOSTICS (last 50 entries) ==="
   if [ -d "$LOG_DIR" ]; then
     # Find logs from the last 10 minutes and grep for stream_diag
-    find "$LOG_DIR" -name "*.log" -mmin -10 -exec grep -h "stream_diag" {} \; 2>/dev/null | tail -50
+    find "$LOG_DIR" -name "*.log" -mmin -10 -exec grep -h "stream_diag" {} \; 2>/dev/null | tail -200
   else
     echo "No log directory found at $LOG_DIR"
   fi
