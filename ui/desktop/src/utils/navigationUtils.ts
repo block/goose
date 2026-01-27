@@ -1,5 +1,6 @@
 import { NavigateFunction } from 'react-router-dom';
-import { Recipe } from '../api/types.gen';
+import { Recipe } from '../api';
+import { UserInput } from '../types/message';
 
 export type View =
   | 'welcome'
@@ -19,9 +20,7 @@ export type View =
   | 'recipes'
   | 'permission';
 
-// TODO(Douwe): check these for usage, especially key: string for resetChat
 export type ViewOptions = {
-  extensionId?: string;
   showEnvVars?: boolean;
   deepLinkConfig?: unknown;
   sessionDetails?: unknown;
@@ -31,8 +30,7 @@ export type ViewOptions = {
   parentView?: View;
   parentViewOptions?: ViewOptions;
   disableAnimation?: boolean;
-  initialMessage?: string;
-  resetChat?: boolean;
+  initialMessage?: UserInput;
   shareToken?: string;
   resumeSessionId?: string;
   pendingScheduleDeepLink?: string;
@@ -44,9 +42,19 @@ export const createNavigationHandler = (navigate: NavigateFunction) => {
       case 'chat':
         navigate('/', { state: options });
         break;
-      case 'pair':
-        navigate('/pair', { state: options });
+      case 'pair': {
+        // Put resumeSessionId in URL search params (not just state) so that:
+        // 1. The sidebar can read it to highlight the active session
+        // 2. Page refresh preserves which session is active
+        // 3. Browser back/forward navigation works correctly
+        const searchParams = new URLSearchParams();
+        if (options?.resumeSessionId) {
+          searchParams.set('resumeSessionId', options.resumeSessionId);
+        }
+        const url = searchParams.toString() ? `/pair?${searchParams.toString()}` : '/pair';
+        navigate(url, { state: options });
         break;
+      }
       case 'settings':
         navigate('/settings', { state: options });
         break;

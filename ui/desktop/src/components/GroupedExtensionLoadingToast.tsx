@@ -5,6 +5,8 @@ import { Button } from './ui/button';
 import { startNewSession } from '../sessions';
 import { useNavigation } from '../hooks/useNavigation';
 import { formatExtensionErrorMessage } from '../utils/extensionErrorUtils';
+import { getInitialWorkingDir } from '../utils/workingDir';
+import { formatExtensionName } from './settings/extensions/subcomponents/ExtensionList';
 
 export interface ExtensionLoadingStatus {
   name: string;
@@ -91,46 +93,53 @@ export function GroupedExtensionLoadingToast({
           <CollapsibleContent className="overflow-hidden">
             <div className="mt-3 pt-3 border-t border-white/20">
               <div className="space-y-3 max-h-64 overflow-y-auto pr-2 pl-1">
-                {extensions.map((ext) => (
-                  <div key={ext.name} className="flex flex-col gap-2">
-                    <div className="flex items-center gap-3 text-sm">
-                      {getStatusIcon(ext.status)}
-                      <div className="flex-1 min-w-0 truncate">{ext.name}</div>
-                    </div>
-                    {ext.status === 'error' && ext.error && (
-                      <div className="ml-7 flex flex-col gap-2">
-                        <div className="text-xs opacity-75 break-words">
-                          {formatExtensionErrorMessage(ext.error, 'Failed to add extension')}
-                        </div>
-                        {ext.recoverHints && setView ? (
-                          <Button
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              startNewSession(ext.recoverHints, setView);
-                            }}
-                            className="self-start"
-                          >
-                            Ask goose
-                          </Button>
-                        ) : (
-                          <Button
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigator.clipboard.writeText(ext.error!);
-                              setCopiedExtension(ext.name);
-                              setTimeout(() => setCopiedExtension(null), 2000);
-                            }}
-                            className="self-start"
-                          >
-                            {copiedExtension === ext.name ? 'Copied!' : 'Copy error'}
-                          </Button>
-                        )}
+                {extensions.map((ext) => {
+                  const friendlyName = formatExtensionName(ext.name);
+
+                  return (
+                    <div key={ext.name} className="flex flex-col gap-2">
+                      <div className="flex items-center gap-3 text-sm">
+                        {getStatusIcon(ext.status)}
+                        <div className="flex-1 min-w-0 truncate">{friendlyName}</div>
                       </div>
-                    )}
-                  </div>
-                ))}
+                      {ext.status === 'error' && ext.error && (
+                        <div className="ml-7 flex flex-col gap-2">
+                          <div className="text-xs opacity-75 break-words">
+                            {formatExtensionErrorMessage(ext.error, 'Failed to add extension')}
+                          </div>
+                          <div className="flex gap-2">
+                            {ext.recoverHints && setView && (
+                              <Button
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  startNewSession(
+                                    ext.recoverHints,
+                                    setView,
+                                    getInitialWorkingDir()
+                                  );
+                                }}
+                              >
+                                Ask goose
+                              </Button>
+                            )}
+                            <Button
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigator.clipboard.writeText(ext.error!);
+                                setCopiedExtension(ext.name);
+                                setTimeout(() => setCopiedExtension(null), 2000);
+                              }}
+                            >
+                              {copiedExtension === ext.name ? 'Copied!' : 'Copy error'}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </CollapsibleContent>

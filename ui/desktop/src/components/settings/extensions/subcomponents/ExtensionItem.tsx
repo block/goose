@@ -11,7 +11,6 @@ interface ExtensionItemProps {
   onToggle: (extension: FixedExtensionEntry) => Promise<boolean | void> | void;
   onConfigure?: (extension: FixedExtensionEntry) => void;
   isStatic?: boolean; // to not allow users to edit configuration
-  isPendingActivation?: boolean;
 }
 
 export default function ExtensionItem({
@@ -19,7 +18,6 @@ export default function ExtensionItem({
   onToggle,
   onConfigure,
   isStatic,
-  isPendingActivation = false,
 }: ExtensionItemProps) {
   // Add local state to track the visual toggle state
   const [visuallyEnabled, setVisuallyEnabled] = useState(extension.enabled);
@@ -77,30 +75,20 @@ export default function ExtensionItem({
   return (
     <Card
       id={`extension-${kebabCase(extension.name)}`}
-      className="transition-all duration-200 hover:shadow-default hover:cursor-pointer min-h-[120px] overflow-hidden"
-      onClick={() => handleToggle(extension)}
+      className="transition-all duration-200 min-h-[120px] overflow-hidden"
     >
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          {getFriendlyTitle(extension)}
-          {isPendingActivation && (
-            <span
-              className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-300 dark:border-amber-700"
-              title="Extension will be activated when you start a new chat session"
-            >
-              Pending
-            </span>
-          )}
-        </CardTitle>
+        <CardTitle>{getFriendlyTitle(extension)}</CardTitle>
 
-        <CardAction onClick={(e) => e.stopPropagation()}>
+        <CardAction>
           <div className="flex items-center justify-end gap-2">
             {editable && (
               <button
                 className="text-textSubtle hover:text-textStandard"
-                onClick={() => (onConfigure ? onConfigure(extension) : () => {})}
+                aria-label={`Configure ${getFriendlyTitle(extension)} Extension`}
+                onClick={() => onConfigure?.(extension)}
               >
-                <Gear className="h-4 w-4" />
+                <Gear className="w-4 h-4" />
               </button>
             )}
             <Switch
@@ -108,11 +96,12 @@ export default function ExtensionItem({
               onCheckedChange={() => handleToggle(extension)}
               disabled={isToggling}
               variant="mono"
+              aria-label={`Toggle ${getFriendlyTitle(extension)} extension On or Off`}
             />
           </div>
         </CardAction>
       </CardHeader>
-      <CardContent className="px-4 text-sm text-text-muted overflow-hidden break-words">
+      <CardContent className="px-4 overflow-hidden text-sm break-words text-text-muted">
         {renderSubtitle()}
       </CardContent>
     </Card>

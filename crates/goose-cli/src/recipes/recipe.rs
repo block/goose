@@ -97,8 +97,15 @@ pub fn collect_missing_secrets(requirements: &[SecretRequirement]) -> Result<()>
         .unwrap_or_else(|_| String::new());
 
         if !value.trim().is_empty() {
-            config.set_secret(&req.key, &value)?;
-            println!("✅ Secret stored securely for {}", req.extension_name);
+            if let Err(e) = config.set_secret(&req.key, &value) {
+                println!("⚠️  Failed to store secret in secure storage: {}. Secret available for this session only.", e);
+                println!(
+                    "   Consider setting {} as an environment variable for future use.",
+                    req.key
+                );
+            } else {
+                println!("✅ Secret stored securely for {}", req.extension_name);
+            }
         } else {
             println!("⏭️  Skipped {} for {}", req.key, req.extension_name);
         }

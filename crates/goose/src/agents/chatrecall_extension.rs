@@ -1,18 +1,14 @@
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
-use crate::session::SessionManager;
 use anyhow::Result;
 use async_trait::async_trait;
 use indoc::indoc;
 use rmcp::model::{
-    CallToolResult, Content, GetPromptResult, Implementation, InitializeResult, JsonObject,
-    ListPromptsResult, ListResourcesResult, ListToolsResult, ProtocolVersion, ReadResourceResult,
-    ServerCapabilities, ServerNotification, Tool, ToolAnnotations, ToolsCapability,
+    CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
+    ProtocolVersion, ServerCapabilities, Tool, ToolAnnotations, ToolsCapability,
 };
 use schemars::{schema_for, JsonSchema};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 pub static EXTENSION_NAME: &str = "chatrecall";
@@ -47,6 +43,7 @@ impl ChatRecallClient {
         let info = InitializeResult {
             protocol_version: ProtocolVersion::V_2025_03_26,
             capabilities: ServerCapabilities {
+                tasks: None,
                 tools: Some(ToolsCapability {
                     list_changed: Some(false),
                 }),
@@ -80,18 +77,19 @@ impl ChatRecallClient {
     #[allow(clippy::too_many_lines)]
     async fn handle_chatrecall(
         &self,
+        current_session_id: &str,
         arguments: Option<JsonObject>,
     ) -> Result<Vec<Content>, String> {
         let arguments = arguments.ok_or("Missing arguments")?;
 
-        let session_id = arguments
+        let target_session_id = arguments
             .get("session_id")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
 
-        if let Some(sid) = session_id {
+        if let Some(sid) = target_session_id {
             // LOAD MODE: Get session summary (first and last few messages)
-            match SessionManager::get_session(&sid, true).await {
+            match self.context.session_manager.get_session(&sid, true).await {
                 Ok(loaded_session) => {
                     let conversation = loaded_session.conversation.as_ref();
 
@@ -187,16 +185,19 @@ impl ChatRecallClient {
                 .map(|dt| dt.with_timezone(&chrono::Utc));
 
             // Exclude current session from results to avoid self-referential loops
-            let exclude_session_id = self.context.session_id.clone();
+            let exclude_session_id = Some(current_session_id.to_string());
 
-            match SessionManager::search_chat_history(
-                &query,
-                Some(limit),
-                after_date,
-                before_date,
-                exclude_session_id,
-            )
-            .await
+            match self
+                .context
+                .session_manager
+                .search_chat_history(
+                    &query,
+                    Some(limit),
+                    after_date,
+                    before_date,
+                    exclude_session_id,
+                )
+                .await
             {
                 Ok(results) => {
                     let formatted_results = if results.total_matches == 0 {
@@ -278,41 +279,28 @@ impl ChatRecallClient {
 
 #[async_trait]
 impl McpClientTrait for ChatRecallClient {
-    async fn list_resources(
-        &self,
-        _next_cursor: Option<String>,
-        _cancellation_token: CancellationToken,
-    ) -> Result<ListResourcesResult, Error> {
-        Err(Error::TransportClosed)
-    }
-
-    async fn read_resource(
-        &self,
-        _uri: &str,
-        _cancellation_token: CancellationToken,
-    ) -> Result<ReadResourceResult, Error> {
-        Err(Error::TransportClosed)
-    }
-
     async fn list_tools(
         &self,
+        _session_id: &str,
         _next_cursor: Option<String>,
         _cancellation_token: CancellationToken,
     ) -> Result<ListToolsResult, Error> {
         Ok(ListToolsResult {
             tools: Self::get_tools(),
             next_cursor: None,
+            meta: None,
         })
     }
 
     async fn call_tool(
         &self,
+        session_id: &str,
         name: &str,
         arguments: Option<JsonObject>,
         _cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         let content = match name {
-            "chatrecall" => self.handle_chatrecall(arguments).await,
+            "chatrecall" => self.handle_chatrecall(session_id, arguments).await,
             _ => Err(format!("Unknown tool: {}", name)),
         };
 
@@ -323,27 +311,6 @@ impl McpClientTrait for ChatRecallClient {
                 error
             ))])),
         }
-    }
-
-    async fn list_prompts(
-        &self,
-        _next_cursor: Option<String>,
-        _cancellation_token: CancellationToken,
-    ) -> Result<ListPromptsResult, Error> {
-        Err(Error::TransportClosed)
-    }
-
-    async fn get_prompt(
-        &self,
-        _name: &str,
-        _arguments: Value,
-        _cancellation_token: CancellationToken,
-    ) -> Result<GetPromptResult, Error> {
-        Err(Error::TransportClosed)
-    }
-
-    async fn subscribe(&self) -> mpsc::Receiver<ServerNotification> {
-        mpsc::channel(1).1
     }
 
     fn get_info(&self) -> Option<&InitializeResult> {

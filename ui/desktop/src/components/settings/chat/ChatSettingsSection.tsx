@@ -1,9 +1,9 @@
 import { ModeSection } from '../mode/ModeSection';
-import { ToolSelectionStrategySection } from '../tool_selection_strategy/ToolSelectionStrategySection';
 import DictationSection from '../dictation/DictationSection';
 import { SecurityToggle } from '../security/SecurityToggle';
 import { ResponseStylesSection } from '../response_styles/ResponseStylesSection';
 import { GoosehintsSection } from './GoosehintsSection';
+import { SpellcheckToggle } from './SpellcheckToggle';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 
 export default function ChatSettingsSection() {
@@ -38,25 +38,13 @@ export default function ChatSettingsSection() {
       <Card className="pb-2 rounded-lg">
         <CardContent className="px-2">
           <DictationSection />
+          <SpellcheckToggle />
         </CardContent>
       </Card>
 
       <Card className="pb-2 rounded-lg">
         <CardContent className="px-2">
           <GoosehintsSection />
-        </CardContent>
-      </Card>
-
-      <Card className="pb-2 rounded-lg">
-        <CardHeader className="pb-0">
-          <CardTitle className="">Tool Selection Strategy (preview)</CardTitle>
-          <CardDescription>
-            Experimental: configure how Goose selects tools for your requests, useful when there are
-            many tools. Only tested with Claude models currently.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="px-2">
-          <ToolSelectionStrategySection />
         </CardContent>
       </Card>
     </div>

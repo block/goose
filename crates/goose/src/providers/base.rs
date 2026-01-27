@@ -108,6 +108,9 @@ pub struct ProviderMetadata {
     pub model_doc_link: String,
     /// Required configuration keys
     pub config_keys: Vec<ConfigKey>,
+    /// Whether this provider allows entering model names not in the fetched list
+    #[serde(default)]
+    pub allows_unlisted_models: bool,
 }
 
 impl ProviderMetadata {
@@ -138,6 +141,7 @@ impl ProviderMetadata {
                 .collect(),
             model_doc_link: model_doc_link.to_string(),
             config_keys,
+            allows_unlisted_models: false,
         }
     }
 
@@ -158,6 +162,7 @@ impl ProviderMetadata {
             known_models: models,
             model_doc_link: model_doc_link.to_string(),
             config_keys,
+            allows_unlisted_models: false,
         }
     }
 
@@ -170,7 +175,14 @@ impl ProviderMetadata {
             known_models: vec![],
             model_doc_link: "".to_string(),
             config_keys: vec![],
+            allows_unlisted_models: false,
         }
+    }
+
+    /// Set allows_unlisted_models flag (builder pattern)
+    pub fn with_unlisted_models(mut self) -> Self {
+        self.allows_unlisted_models = true;
+        self
     }
 }
 
@@ -338,6 +350,9 @@ pub trait LeadWorkerProviderTrait {
 
     /// Get the currently active model name
     fn get_active_model(&self) -> String;
+
+    /// Get (lead_turns, failure_threshold, fallback_turns)
+    fn get_settings(&self) -> (usize, usize, usize);
 }
 
 /// Base trait for AI providers (OpenAI, Anthropic, etc)
@@ -355,6 +370,7 @@ pub trait Provider: Send + Sync {
     // Providers should override this to implement their actual completion logic
     async fn complete_with_model(
         &self,
+        session_id: &str,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -364,18 +380,20 @@ pub trait Provider: Send + Sync {
     // Default implementation: use the provider's configured model
     async fn complete(
         &self,
+        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let model_config = self.get_model_config();
-        self.complete_with_model(&model_config, system, messages, tools)
+        self.complete_with_model(session_id, &model_config, system, messages, tools)
             .await
     }
 
     // Check if a fast model is configured, otherwise fall back to regular model
     async fn complete_fast(
         &self,
+        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -384,7 +402,7 @@ pub trait Provider: Send + Sync {
         let fast_config = model_config.use_fast_model();
 
         match self
-            .complete_with_model(&fast_config, system, messages, tools)
+            .complete_with_model(session_id, &fast_config, system, messages, tools)
             .await
         {
             Ok(result) => Ok(result),
@@ -396,7 +414,7 @@ pub trait Provider: Send + Sync {
                         e,
                         model_config.model_name
                     );
-                    self.complete_with_model(&model_config, system, messages, tools)
+                    self.complete_with_model(session_id, &model_config, system, messages, tools)
                         .await
                 } else {
                     Err(e)
@@ -412,13 +430,19 @@ pub trait Provider: Send + Sync {
         RetryConfig::default()
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(
+        &self,
+        _session_id: &str,
+    ) -> Result<Option<Vec<String>>, ProviderError> {
         Ok(None)
     }
 
     /// Fetch models filtered by canonical registry and usability
-    async fn fetch_recommended_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        let all_models = match self.fetch_supported_models().await? {
+    async fn fetch_recommended_models(
+        &self,
+        session_id: &str,
+    ) -> Result<Option<Vec<String>>, ProviderError> {
+        let all_models = match self.fetch_supported_models(session_id).await? {
             Some(models) => models,
             None => return Ok(None),
         };
@@ -466,12 +490,16 @@ pub trait Provider: Send + Sync {
         false
     }
 
-    async fn supports_cache_control(&self) -> bool {
+    async fn supports_cache_control(&self, _session_id: &str) -> bool {
         false
     }
 
     /// Create embeddings if supported. Default implementation returns an error.
-    async fn create_embeddings(&self, _texts: Vec<String>) -> Result<Vec<Vec<f32>>, ProviderError> {
+    async fn create_embeddings(
+        &self,
+        _session_id: &str,
+        _texts: Vec<String>,
+    ) -> Result<Vec<Vec<f32>>, ProviderError> {
         Err(ProviderError::ExecutionError(
             "This provider does not support embeddings".to_string(),
         ))
@@ -485,6 +513,7 @@ pub trait Provider: Send + Sync {
 
     async fn stream(
         &self,
+        _session_id: &str,
         _system: &str,
         _messages: &[Message],
         _tools: &[Tool],
@@ -523,6 +552,7 @@ pub trait Provider: Send + Sync {
     /// Creates a prompt asking for a concise description in 4 words or less.
     async fn generate_session_name(
         &self,
+        session_id: &str,
         messages: &Conversation,
     ) -> Result<String, ProviderError> {
         let context = self.get_initial_user_messages(messages);
@@ -530,6 +560,7 @@ pub trait Provider: Send + Sync {
         let message = Message::user().with_text(&prompt);
         let result = self
             .complete_fast(
+                session_id,
                 "Reply with only a description in four words or less",
                 &[message],
                 &[],

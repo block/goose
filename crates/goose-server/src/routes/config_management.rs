@@ -15,7 +15,9 @@ use goose::providers::auto_detect::detect_provider_from_api_key;
 use goose::providers::base::{ProviderMetadata, ProviderType};
 use goose::providers::canonical::maybe_get_canonical_model;
 use goose::providers::create_with_default_model;
+use goose::providers::errors::ProviderError;
 use goose::providers::providers as get_providers;
+use goose::providers::{retry_operation, RetryConfig};
 use goose::{
     agents::execute_commands, agents::ExtensionConfig, config::permission::PermissionLevel,
     slash_commands,
@@ -26,10 +28,13 @@ use serde_json::Value;
 use serde_yaml;
 use std::{collections::HashMap, sync::Arc};
 use utoipa::ToSchema;
+use uuid::Uuid;
 
 #[derive(Serialize, ToSchema)]
 pub struct ExtensionResponse {
     pub extensions: Vec<ExtensionEntry>,
+    #[serde(default)]
+    pub warnings: Vec<String>,
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -205,6 +210,13 @@ fn mask_secret(secret: Value) -> String {
     format!("{}{}", visible, mask)
 }
 
+fn is_valid_provider_name(provider_name: &str) -> bool {
+    !provider_name.is_empty()
+        && provider_name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
 #[utoipa::path(
     post,
     path = "/config/read",
@@ -254,7 +266,11 @@ pub async fn read_config(
 )]
 pub async fn get_extensions() -> Result<Json<ExtensionResponse>, StatusCode> {
     let extensions = goose::config::get_all_extensions();
-    Ok(Json(ExtensionResponse { extensions }))
+    let warnings = goose::config::get_warnings();
+    Ok(Json(ExtensionResponse {
+        extensions,
+        warnings,
+    }))
 }
 
 #[utoipa::path(
@@ -393,13 +409,17 @@ pub async fn get_provider_models(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let models_result = provider.fetch_recommended_models().await;
+    // Config endpoints have no user session; use an ephemeral id for the probe.
+    let session_id = Uuid::new_v4().to_string();
+    let models_result = retry_operation(&RetryConfig::default(), || async {
+        provider.fetch_recommended_models(&session_id).await
+    })
+    .await;
 
     match models_result {
         Ok(Some(models)) => Ok(Json(models)),
         Ok(None) => Ok(Json(Vec::new())),
         Err(provider_error) => {
-            use goose::providers::errors::ProviderError;
             let status_code = match provider_error {
                 // Permanent misconfigurations - client should fix configuration
                 ProviderError::Authentication(_) => StatusCode::BAD_REQUEST,
@@ -547,7 +567,7 @@ pub async fn init_config() -> Result<Json<String>, StatusCode> {
 pub async fn upsert_permissions(
     Json(query): Json<UpsertPermissionsQuery>,
 ) -> Result<Json<String>, StatusCode> {
-    let mut permission_manager = goose::config::PermissionManager::default();
+    let permission_manager = goose::config::PermissionManager::instance();
 
     for tool_permission in &query.tool_permissions {
         permission_manager.update_user_permission(
@@ -572,8 +592,10 @@ pub async fn detect_provider(
     Json(detect_request): Json<DetectProviderRequest>,
 ) -> Result<Json<DetectProviderResponse>, StatusCode> {
     let api_key = detect_request.api_key.trim();
+    // Provider detection runs without a user session; use an ephemeral id.
+    let session_id = Uuid::new_v4().to_string();
 
-    match detect_provider_from_api_key(api_key).await {
+    match detect_provider_from_api_key(&session_id, api_key).await {
         Some((provider_name, models)) => Ok(Json(DetectProviderResponse {
             provider_name,
             models,
@@ -808,6 +830,54 @@ pub async fn set_config_provider(
     Ok(())
 }
 
+#[utoipa::path(
+    post,
+    path = "/config/providers/{name}/oauth",
+    params(
+        ("name" = String, Path, description = "Provider name")
+    ),
+    responses(
+        (status = 200, description = "OAuth configuration completed"),
+        (status = 400, description = "OAuth configuration failed")
+    )
+)]
+pub async fn configure_provider_oauth(
+    Path(provider_name): Path<String>,
+) -> Result<Json<String>, (StatusCode, String)> {
+    use goose::model::ModelConfig;
+    use goose::providers::create;
+
+    if !is_valid_provider_name(&provider_name) {
+        return Err((StatusCode::BAD_REQUEST, "Invalid provider name".to_string()));
+    }
+
+    let temp_model =
+        ModelConfig::new("temp").map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+
+    let provider = create(&provider_name, temp_model).await.map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            format!("Failed to create provider: {}", e),
+        )
+    })?;
+
+    provider.configure_oauth().await.map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            format!("OAuth configuration failed: {}", e),
+        )
+    })?;
+
+    // Mark the provider as configured after successful OAuth
+    let configured_marker = format!("{}_configured", provider_name);
+    let config = goose::config::Config::global();
+    config
+        .set_param(&configured_marker, true)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(Json("OAuth configuration completed".to_string()))
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/config", get(read_all_config))
@@ -836,6 +906,10 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/custom-providers/{id}", get(get_custom_provider))
         .route("/config/check_provider", post(check_provider))
         .route("/config/set_provider", post(set_config_provider))
+        .route(
+            "/config/providers/{name}/oauth",
+            post(configure_provider_oauth),
+        )
         .with_state(state)
 }
 

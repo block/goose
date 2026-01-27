@@ -1,3 +1,4 @@
+import { AppEvents } from '../../../constants/events';
 import { useEffect, useState } from 'react';
 import { all_response_styles, ResponseStyleSelectionItem } from './ResponseStyleSelectionItem';
 
@@ -24,7 +25,7 @@ export const ResponseStylesSection = () => {
     localStorage.setItem('response_style', newStyle);
 
     // Dispatch custom event to notify other components of the change
-    window.dispatchEvent(new CustomEvent('responseStyleChanged'));
+    window.dispatchEvent(new CustomEvent(AppEvents.RESPONSE_STYLE_CHANGED));
   };
 
   return (

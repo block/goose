@@ -1,9 +1,38 @@
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::collections::HashMap;
 use thiserror::Error;
 use utoipa::ToSchema;
 
 const DEFAULT_CONTEXT_LIMIT: usize = 128_000;
+
+#[derive(Debug, Clone, Deserialize)]
+struct PredefinedModel {
+    name: String,
+    #[serde(default)]
+    context_limit: Option<usize>,
+    #[serde(default)]
+    request_params: Option<HashMap<String, Value>>,
+}
+
+fn get_predefined_models() -> Vec<PredefinedModel> {
+    static PREDEFINED_MODELS: Lazy<Vec<PredefinedModel>> =
+        Lazy::new(|| match std::env::var("GOOSE_PREDEFINED_MODELS") {
+            Ok(json_str) => serde_json::from_str(&json_str).unwrap_or_else(|e| {
+                tracing::warn!("Failed to parse GOOSE_PREDEFINED_MODELS: {}", e);
+                Vec::new()
+            }),
+            Err(_) => Vec::new(),
+        });
+    PREDEFINED_MODELS.clone()
+}
+
+fn find_predefined_model(model_name: &str) -> Option<PredefinedModel> {
+    get_predefined_models()
+        .into_iter()
+        .find(|m| m.name == model_name)
+}
 
 #[derive(Error, Debug)]
 pub enum ConfigError {
@@ -18,7 +47,10 @@ pub enum ConfigError {
 static MODEL_SPECIFIC_LIMITS: Lazy<Vec<(&'static str, usize)>> = Lazy::new(|| {
     vec![
         // openai
-        ("gpt-5", 272_000),
+        ("gpt-5.2-codex", 400_000), // auto-compacting context
+        ("gpt-5.2", 400_000),       // auto-compacting context
+        ("gpt-5.1-codex-max", 256_000),
+        ("gpt-5.1-codex-mini", 256_000),
         ("gpt-4-turbo", 128_000),
         ("gpt-4.1", 1_000_000),
         ("gpt-4-1", 1_000_000),
@@ -77,6 +109,9 @@ pub struct ModelConfig {
     pub toolshim: bool,
     pub toolshim_model: Option<String>,
     pub fast_model: Option<String>,
+    /// Provider-specific request parameters (e.g., anthropic_beta headers)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request_params: Option<HashMap<String, Value>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -94,8 +129,28 @@ impl ModelConfig {
         model_name: String,
         context_env_var: Option<&str>,
     ) -> Result<Self, ConfigError> {
-        let context_limit = Self::parse_context_limit(&model_name, None, context_env_var)?;
+        let predefined = find_predefined_model(&model_name);
+
+        let context_limit = if let Some(ref pm) = predefined {
+            if let Some(env_var) = context_env_var {
+                if let Ok(val) = std::env::var(env_var) {
+                    Some(Self::validate_context_limit(&val, env_var)?)
+                } else {
+                    pm.context_limit
+                }
+            } else if let Ok(val) = std::env::var("GOOSE_CONTEXT_LIMIT") {
+                Some(Self::validate_context_limit(&val, "GOOSE_CONTEXT_LIMIT")?)
+            } else {
+                pm.context_limit
+            }
+        } else {
+            Self::parse_context_limit(&model_name, None, context_env_var)?
+        };
+
+        let request_params = predefined.and_then(|pm| pm.request_params);
+
         let temperature = Self::parse_temperature()?;
+        let max_tokens = Self::parse_max_tokens()?;
         let toolshim = Self::parse_toolshim()?;
         let toolshim_model = Self::parse_toolshim_model()?;
 
@@ -103,10 +158,11 @@ impl ModelConfig {
             model_name,
             context_limit,
             temperature,
-            max_tokens: None,
+            max_tokens,
             toolshim,
             toolshim_model,
             fast_model: None,
+            request_params,
         })
     }
 
@@ -181,6 +237,26 @@ impl ModelConfig {
             Ok(Some(temp))
         } else {
             Ok(None)
+        }
+    }
+
+    fn parse_max_tokens() -> Result<Option<i32>, ConfigError> {
+        match crate::config::Config::global().get_param::<i32>("GOOSE_MAX_TOKENS") {
+            Ok(tokens) => {
+                if tokens <= 0 {
+                    return Err(ConfigError::InvalidRange(
+                        "goose_max_tokens".to_string(),
+                        "must be greater than 0".to_string(),
+                    ));
+                }
+                Ok(Some(tokens))
+            }
+            Err(crate::config::ConfigError::NotFound(_)) => Ok(None),
+            Err(e) => Err(ConfigError::InvalidValue(
+                "goose_max_tokens".to_string(),
+                String::new(),
+                e.to_string(),
+            )),
         }
     }
 
@@ -261,6 +337,11 @@ impl ModelConfig {
         self
     }
 
+    pub fn with_request_params(mut self, params: Option<HashMap<String, Value>>) -> Self {
+        self.request_params = params;
+        self
+    }
+
     pub fn use_fast_model(&self) -> Self {
         if let Some(fast_model) = &self.fast_model {
             let mut config = self.clone();
@@ -294,5 +375,74 @@ impl ModelConfig {
     pub fn new_or_fail(model_name: &str) -> ModelConfig {
         ModelConfig::new(model_name)
             .unwrap_or_else(|_| panic!("Failed to create model config for {}", model_name))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_max_tokens_valid() {
+        let _guard = env_lock::lock_env([("GOOSE_MAX_TOKENS", Some("4096"))]);
+        let result = ModelConfig::parse_max_tokens().unwrap();
+        assert_eq!(result, Some(4096));
+    }
+
+    #[test]
+    fn test_parse_max_tokens_not_set() {
+        let _guard = env_lock::lock_env([("GOOSE_MAX_TOKENS", None::<&str>)]);
+        let result = ModelConfig::parse_max_tokens().unwrap();
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_parse_max_tokens_invalid_string() {
+        let _guard = env_lock::lock_env([("GOOSE_MAX_TOKENS", Some("not_a_number"))]);
+        let result = ModelConfig::parse_max_tokens();
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), ConfigError::InvalidValue(..)));
+    }
+
+    #[test]
+    fn test_parse_max_tokens_zero() {
+        let _guard = env_lock::lock_env([("GOOSE_MAX_TOKENS", Some("0"))]);
+        let result = ModelConfig::parse_max_tokens();
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), ConfigError::InvalidRange(..)));
+    }
+
+    #[test]
+    fn test_parse_max_tokens_negative() {
+        let _guard = env_lock::lock_env([("GOOSE_MAX_TOKENS", Some("-100"))]);
+        let result = ModelConfig::parse_max_tokens();
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), ConfigError::InvalidRange(..)));
+    }
+
+    #[test]
+    fn test_model_config_with_max_tokens_env() {
+        let _guard = env_lock::lock_env([
+            ("GOOSE_MAX_TOKENS", Some("8192")),
+            ("GOOSE_TEMPERATURE", None::<&str>),
+            ("GOOSE_CONTEXT_LIMIT", None::<&str>),
+            ("GOOSE_TOOLSHIM", None::<&str>),
+            ("GOOSE_TOOLSHIM_OLLAMA_MODEL", None::<&str>),
+        ]);
+        let config = ModelConfig::new("test-model").unwrap();
+        assert_eq!(config.max_tokens, Some(8192));
+    }
+
+    #[test]
+    fn test_model_config_without_max_tokens_env() {
+        let _guard = env_lock::lock_env([
+            ("GOOSE_MAX_TOKENS", None::<&str>),
+            ("GOOSE_TEMPERATURE", None::<&str>),
+            ("GOOSE_CONTEXT_LIMIT", None::<&str>),
+            ("GOOSE_TOOLSHIM", None::<&str>),
+            ("GOOSE_TOOLSHIM_OLLAMA_MODEL", None::<&str>),
+        ]);
+        let config = ModelConfig::new("test-model").unwrap();
+        assert_eq!(config.max_tokens, None);
     }
 }

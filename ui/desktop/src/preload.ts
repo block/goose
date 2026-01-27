@@ -1,5 +1,6 @@
 import Electron, { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { Recipe } from './recipe';
+import { GooseApp } from './api';
 
 interface NotificationData {
   title: string;
@@ -18,6 +19,21 @@ interface MessageBoxOptions {
 interface MessageBoxResponse {
   response: number;
   checkboxChecked?: boolean;
+}
+
+interface SaveDialogOptions {
+  title?: string;
+  defaultPath?: string;
+  buttonLabel?: string;
+  filters?: Array<{ name: string; extensions: string[] }>;
+  message?: string;
+  nameFieldLabel?: string;
+  showsTagField?: boolean;
+}
+
+interface SaveDialogResponse {
+  canceled: boolean;
+  filePath?: string;
 }
 
 interface FileResponse {
@@ -46,7 +62,7 @@ type ElectronAPI = {
   reactReady: () => void;
   getConfig: () => Record<string, unknown>;
   hideWindow: () => void;
-  directoryChooser: (replace?: boolean) => Promise<Electron.OpenDialogReturnValue>;
+  directoryChooser: () => Promise<Electron.OpenDialogReturnValue>;
   createChatWindow: (
     query?: string,
     dir?: string,
@@ -58,6 +74,7 @@ type ElectronAPI = {
   logInfo: (txt: string) => void;
   showNotification: (data: NotificationData) => void;
   showMessageBox: (options: MessageBoxOptions) => Promise<MessageBoxResponse>;
+  showSaveDialog: (options: SaveDialogOptions) => Promise<SaveDialogResponse>;
   openInChrome: (url: string) => void;
   fetchMetadata: (url: string) => Promise<string>;
   reloadApp: () => void;
@@ -80,6 +97,8 @@ type ElectronAPI = {
   getGoosedHostPort: () => Promise<string | null>;
   setWakelock: (enable: boolean) => Promise<boolean>;
   getWakelockState: () => Promise<boolean>;
+  setSpellcheck: (enable: boolean) => Promise<boolean>;
+  getSpellcheckState: () => Promise<boolean>;
   openNotificationsSettings: () => Promise<boolean>;
   onMouseBackButtonClicked: (callback: () => void) => void;
   offMouseBackButtonClicked: (callback: () => void) => void;
@@ -102,8 +121,6 @@ type ElectronAPI = {
   deleteTempFile: (filePath: string) => void;
   // Function for opening external URLs securely
   openExternal: (url: string) => Promise<void>;
-  // Function to serve temp images
-  getTempImage: (filePath: string) => Promise<string | null>;
   // Update-related functions
   getVersion: () => string;
   checkForUpdates: () => Promise<{ updateInfo: unknown; error: string | null }>;
@@ -118,6 +135,10 @@ type ElectronAPI = {
   hasAcceptedRecipeBefore: (recipe: Recipe) => Promise<boolean>;
   recordRecipeHash: (recipe: Recipe) => Promise<boolean>;
   openDirectoryInExplorer: (directoryPath: string) => Promise<boolean>;
+  launchApp: (app: GooseApp) => Promise<void>;
+  refreshApp: (app: GooseApp) => Promise<void>;
+  closeApp: (appName: string) => Promise<void>;
+  addRecentDir: (dir: string) => Promise<boolean>;
 };
 
 type AppConfigAPI = {
@@ -158,6 +179,7 @@ const electronAPI: ElectronAPI = {
   logInfo: (txt: string) => ipcRenderer.send('logInfo', txt),
   showNotification: (data: NotificationData) => ipcRenderer.send('notify', data),
   showMessageBox: (options: MessageBoxOptions) => ipcRenderer.invoke('show-message-box', options),
+  showSaveDialog: (options: SaveDialogOptions) => ipcRenderer.invoke('show-save-dialog', options),
   openInChrome: (url: string) => ipcRenderer.send('open-in-chrome', url),
   fetchMetadata: (url: string) => ipcRenderer.invoke('fetch-metadata', url),
   reloadApp: () => ipcRenderer.send('reload-app'),
@@ -183,6 +205,8 @@ const electronAPI: ElectronAPI = {
   getGoosedHostPort: () => ipcRenderer.invoke('get-goosed-host-port'),
   setWakelock: (enable: boolean) => ipcRenderer.invoke('set-wakelock', enable),
   getWakelockState: () => ipcRenderer.invoke('get-wakelock-state'),
+  setSpellcheck: (enable: boolean) => ipcRenderer.invoke('set-spellcheck', enable),
+  getSpellcheckState: () => ipcRenderer.invoke('get-spellcheck-state'),
   openNotificationsSettings: () => ipcRenderer.invoke('open-notifications-settings'),
   onMouseBackButtonClicked: (callback: () => void) => {
     // Wrapper that ignores the event parameter.
@@ -220,9 +244,6 @@ const electronAPI: ElectronAPI = {
   openExternal: (url: string): Promise<void> => {
     return ipcRenderer.invoke('open-external', url);
   },
-  getTempImage: (filePath: string): Promise<string | null> => {
-    return ipcRenderer.invoke('get-temp-image', filePath);
-  },
   getVersion: (): string => {
     return config.GOOSE_VERSION || ipcRenderer.sendSync('get-app-version') || '';
   },
@@ -253,6 +274,10 @@ const electronAPI: ElectronAPI = {
   recordRecipeHash: (recipe: Recipe) => ipcRenderer.invoke('record-recipe-hash', recipe),
   openDirectoryInExplorer: (directoryPath: string) =>
     ipcRenderer.invoke('open-directory-in-explorer', directoryPath),
+  launchApp: (app: GooseApp) => ipcRenderer.invoke('launch-app', app),
+  refreshApp: (app: GooseApp) => ipcRenderer.invoke('refresh-app', app),
+  closeApp: (appName: string) => ipcRenderer.invoke('close-app', appName),
+  addRecentDir: (dir: string) => ipcRenderer.invoke('add-recent-dir', dir),
 };
 
 const appConfigAPI: AppConfigAPI = {
