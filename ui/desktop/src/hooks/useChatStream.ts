@@ -97,7 +97,6 @@ async function streamFromResponse(
   let lastBatchUpdate = Date.now();
   let hasPendingUpdate = false;
 
-  // Helper to flush batched updates in reduced motion mode
   const flushBatchedUpdates = () => {
     if (reduceMotion && hasPendingUpdate && latestTokenState) {
       updateTokenState(latestTokenState);
@@ -107,20 +106,16 @@ async function streamFromResponse(
     }
   };
 
-  // Helper to maybe update UI based on reduced motion preference
   const maybeUpdateUI = (tokenState: TokenState, forceImmediate = false) => {
     if (!reduceMotion) {
-      // Normal mode: update immediately
       updateTokenState(tokenState);
       updateMessages(currentMessages);
     } else if (forceImmediate) {
-      // Reduced motion but forced (e.g., user input needed)
       updateTokenState(tokenState);
       updateMessages(currentMessages);
       hasPendingUpdate = false;
       lastBatchUpdate = Date.now();
     } else {
-      // Reduced motion: batch updates
       latestTokenState = tokenState;
       hasPendingUpdate = true;
       const now = Date.now();
