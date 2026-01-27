@@ -368,9 +368,12 @@ pub trait Provider: Send + Sync {
 
     // Internal implementation of complete, used by complete_fast and complete
     // Providers should override this to implement their actual completion logic
+    //
+    /// # Parameters
+    /// - `session_id`: Use `None` only for configuration or pre-session tasks.
     async fn complete_with_model(
         &self,
-        session_id: &str,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -386,7 +389,7 @@ pub trait Provider: Send + Sync {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let model_config = self.get_model_config();
-        self.complete_with_model(session_id, &model_config, system, messages, tools)
+        self.complete_with_model(Some(session_id), &model_config, system, messages, tools)
             .await
     }
 
@@ -402,7 +405,7 @@ pub trait Provider: Send + Sync {
         let fast_config = model_config.use_fast_model();
 
         match self
-            .complete_with_model(session_id, &fast_config, system, messages, tools)
+            .complete_with_model(Some(session_id), &fast_config, system, messages, tools)
             .await
         {
             Ok(result) => Ok(result),
@@ -414,8 +417,14 @@ pub trait Provider: Send + Sync {
                         e,
                         model_config.model_name
                     );
-                    self.complete_with_model(session_id, &model_config, system, messages, tools)
-                        .await
+                    self.complete_with_model(
+                        Some(session_id),
+                        &model_config,
+                        system,
+                        messages,
+                        tools,
+                    )
+                    .await
                 } else {
                     Err(e)
                 }
@@ -430,19 +439,13 @@ pub trait Provider: Send + Sync {
         RetryConfig::default()
     }
 
-    async fn fetch_supported_models(
-        &self,
-        _session_id: &str,
-    ) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         Ok(None)
     }
 
     /// Fetch models filtered by canonical registry and usability
-    async fn fetch_recommended_models(
-        &self,
-        session_id: &str,
-    ) -> Result<Option<Vec<String>>, ProviderError> {
-        let all_models = match self.fetch_supported_models(session_id).await? {
+    async fn fetch_recommended_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+        let all_models = match self.fetch_supported_models().await? {
             Some(models) => models,
             None => return Ok(None),
         };
@@ -515,7 +518,7 @@ pub trait Provider: Send + Sync {
         false
     }
 
-    async fn supports_cache_control(&self, _session_id: &str) -> bool {
+    async fn supports_cache_control(&self) -> bool {
         false
     }
 

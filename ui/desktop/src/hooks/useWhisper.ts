@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { useConfig } from '../components/ConfigContext';
 import { getApiUrl } from '../config';
 import { useDictationSettings } from './useDictationSettings';
-import { DICTATION_PROVIDER_ELEVENLABS } from './dictationConstants';
+import { DICTATION_PROVIDER_OPENAI, DICTATION_PROVIDER_ELEVENLABS } from './dictationConstants';
 import { safeJsonParse } from '../utils/conversionUtils';
 
 interface UseWhisperOptions {
@@ -75,7 +75,7 @@ export const useWhisper = ({ onTranscription, onError, onSizeWarning }: UseWhisp
 
     // Check provider availability
     switch (dictationSettings.provider) {
-      case 'openai':
+      case DICTATION_PROVIDER_OPENAI:
         setCanUseDictation(hasOpenAIKey);
         break;
       case DICTATION_PROVIDER_ELEVENLABS:
@@ -178,7 +178,7 @@ export const useWhisper = ({ onTranscription, onError, onSizeWarning }: UseWhisp
 
         // Choose endpoint based on provider
         switch (dictationSettings.provider) {
-          case 'openai':
+          case DICTATION_PROVIDER_OPENAI:
             endpoint = '/audio/transcribe';
             break;
           case DICTATION_PROVIDER_ELEVENLABS:

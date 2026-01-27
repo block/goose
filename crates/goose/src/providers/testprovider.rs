@@ -121,7 +121,7 @@ impl Provider for TestProvider {
 
     async fn complete_with_model(
         &self,
-        session_id: &str,
+        session_id: Option<&str>,
         _model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -130,7 +130,10 @@ impl Provider for TestProvider {
         let hash = Self::hash_input(messages);
 
         if let Some(inner) = &self.inner {
-            let (message, usage) = inner.complete(session_id, system, messages, tools).await?;
+            let model_config = inner.get_model_config();
+            let (message, usage) = inner
+                .complete_with_model(session_id, &model_config, system, messages, tools)
+                .await?;
 
             let record = TestRecord {
                 input: TestInput {
@@ -203,7 +206,7 @@ mod tests {
 
         async fn complete_with_model(
             &self,
-            _session_id: &str,
+            _session_id: Option<&str>,
             _model_config: &ModelConfig,
             _system: &str,
             _messages: &[Message],
