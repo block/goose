@@ -618,7 +618,7 @@ impl DeveloperServer {
     ) -> Result<CallToolResult, ErrorData> {
         let params = params.0;
 
-        let mut image = if let Some(window_title) = &params.window_title {
+        let image = if let Some(window_title) = &params.window_title {
             // Try to find and capture the specified window
             let windows = Window::all().map_err(|_| {
                 ErrorData::new(
@@ -679,29 +679,8 @@ impl DeveloperServer {
             })?
         };
 
-        // Resize the image to a reasonable width while maintaining aspect ratio
-        let max_width = 768;
-        if image.width() > max_width {
-            let scale = max_width as f32 / image.width() as f32;
-            let new_height = (image.height() as f32 * scale) as u32;
-            image = xcap::image::imageops::resize(
-                &image,
-                max_width,
-                new_height,
-                xcap::image::imageops::FilterType::Lanczos3,
-            );
-        }
-
-        let mut bytes: Vec<u8> = Vec::new();
-        image
-            .write_to(&mut Cursor::new(&mut bytes), xcap::image::ImageFormat::Png)
-            .map_err(|e| {
-                ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Failed to write image buffer {}", e),
-                    None,
-                )
-            })?;
+        let dynamic_image = xcap::image::DynamicImage::ImageRgba8(image);
+        let (bytes, mime_type) = Self::prepare_image_for_llm(dynamic_image)?;
 
         // Convert to base64
         let data = base64::prelude::BASE64_STANDARD.encode(bytes);
@@ -710,7 +689,7 @@ impl DeveloperServer {
         // one text for Assistant, one image with priority 0.0
         Ok(CallToolResult::success(vec![
             Content::text("Screenshot captured").with_audience(vec![Role::Assistant]),
-            Content::image(data, "image/png").with_priority(0.0),
+            Content::image(data, &mime_type).with_priority(0.0),
         ]))
     }
 
@@ -1234,31 +1213,7 @@ impl DeveloperServer {
             )
         })?;
 
-        // Resize if necessary (same logic as screen_capture)
-        let mut processed_image = image;
-        let max_width = 768;
-        if processed_image.width() > max_width {
-            let scale = max_width as f32 / processed_image.width() as f32;
-            let new_height = (processed_image.height() as f32 * scale) as u32;
-            processed_image = xcap::image::DynamicImage::ImageRgba8(xcap::image::imageops::resize(
-                &processed_image,
-                max_width,
-                new_height,
-                xcap::image::imageops::FilterType::Lanczos3,
-            ));
-        }
-
-        // Convert to PNG and encode as base64
-        let mut bytes: Vec<u8> = Vec::new();
-        processed_image
-            .write_to(&mut Cursor::new(&mut bytes), xcap::image::ImageFormat::Png)
-            .map_err(|e| {
-                ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Failed to write image buffer: {}", e),
-                    None,
-                )
-            })?;
+        let (bytes, mime_type) = Self::prepare_image_for_llm(image)?;
 
         let data = base64::prelude::BASE64_STANDARD.encode(bytes);
 
@@ -1268,8 +1223,55 @@ impl DeveloperServer {
                 path.display()
             ))
             .with_audience(vec![Role::Assistant]),
-            Content::image(data, "image/png").with_priority(0.0),
+            Content::image(data, &mime_type).with_priority(0.0),
         ]))
+    }
+
+    fn prepare_image_for_llm(
+        mut image: xcap::image::DynamicImage,
+    ) -> Result<(Vec<u8>, String), ErrorData> {
+        let max_dimension = 1024;
+        let (width, height) = (image.width(), image.height());
+
+        if width > max_dimension || height > max_dimension {
+            let (new_width, new_height) = if width > height {
+                let scale = max_dimension as f32 / width as f32;
+                (max_dimension, (height as f32 * scale) as u32)
+            } else {
+                let scale = max_dimension as f32 / height as f32;
+                ((width as f32 * scale) as u32, max_dimension)
+            };
+
+            image = xcap::image::DynamicImage::ImageRgba8(xcap::image::imageops::resize(
+                &image,
+                new_width,
+                new_height,
+                xcap::image::imageops::FilterType::Lanczos3,
+            ));
+        }
+
+        let rgb_image = image.to_rgb8();
+        let (img_width, img_height) = rgb_image.dimensions();
+
+        let mut bytes: Vec<u8> = Vec::new();
+        let mut cursor = Cursor::new(&mut bytes);
+
+        image::codecs::jpeg::JpegEncoder::new_with_quality(&mut cursor, 85)
+            .encode(
+                rgb_image.as_raw(),
+                img_width,
+                img_height,
+                image::ColorType::Rgb8,
+            )
+            .map_err(|e| {
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Failed to encode image as JPEG: {}", e),
+                    None,
+                )
+            })?;
+
+        Ok((bytes, "image/jpeg".to_string()))
     }
 
     // Helper method to resolve and validate file paths
