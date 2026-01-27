@@ -94,7 +94,7 @@ impl GoogleProvider {
 
     async fn post(
         &self,
-        session_id: &str,
+        session_id: Option<&str>,
         model_name: &str,
         payload: &Value,
     ) -> Result<Value, ProviderError> {
@@ -108,7 +108,7 @@ impl GoogleProvider {
 
     async fn post_stream(
         &self,
-        session_id: &str,
+        session_id: Option<&str>,
         model_name: &str,
         payload: &Value,
     ) -> Result<reqwest::Response, ProviderError> {
@@ -152,7 +152,7 @@ impl Provider for GoogleProvider {
     )]
     async fn complete_with_model(
         &self,
-        session_id: &str,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -179,13 +179,11 @@ impl Provider for GoogleProvider {
         Ok((message, provider_usage))
     }
 
-    async fn fetch_supported_models(
-        &self,
-        session_id: &str,
-    ) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         let response = self
             .api_client
-            .response_get(session_id, "v1beta/models")
+            .request(None, "v1beta/models")
+            .response_get()
             .await?;
         let json: serde_json::Value = response.json().await?;
         let arr = match json.get("models").and_then(|v| v.as_array()) {
@@ -217,7 +215,7 @@ impl Provider for GoogleProvider {
 
         let response = self
             .with_retry(|| async {
-                self.post_stream(session_id, &self.model.model_name, &payload)
+                self.post_stream(Some(session_id), &self.model.model_name, &payload)
                     .await
             })
             .await

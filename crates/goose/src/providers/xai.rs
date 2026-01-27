@@ -69,7 +69,7 @@ impl XaiProvider {
         })
     }
 
-    async fn post(&self, session_id: &str, payload: Value) -> Result<Value, ProviderError> {
+    async fn post(&self, session_id: Option<&str>, payload: Value) -> Result<Value, ProviderError> {
         let response = self
             .api_client
             .response_post(session_id, "chat/completions", &payload)
@@ -110,7 +110,7 @@ impl Provider for XaiProvider {
     )]
     async fn complete_with_model(
         &self,
-        session_id: &str,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -165,7 +165,7 @@ impl Provider for XaiProvider {
             .with_retry(|| async {
                 let resp = self
                     .api_client
-                    .response_post(session_id, "chat/completions", &payload)
+                    .response_post(Some(session_id), "chat/completions", &payload)
                     .await?;
                 handle_status_openai_compat(resp).await
             })
@@ -179,9 +179,8 @@ impl Provider for XaiProvider {
 
     async fn fetch_supported_models(
         &self,
-        session_id: &str,
     ) -> Result<Option<Vec<String>>, ProviderError> {
-        let response = match self.api_client.response_get(session_id, "models").await {
+        let response = match self.api_client.response_get(None, "models").await {
             Ok(response) => response,
             Err(e) => {
                 tracing::warn!(

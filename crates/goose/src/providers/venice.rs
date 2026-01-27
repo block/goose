@@ -112,7 +112,7 @@ impl VeniceProvider {
 
     async fn post(
         &self,
-        session_id: &str,
+        session_id: Option<&str>,
         path: &str,
         payload: &Value,
     ) -> Result<Value, ProviderError> {
@@ -226,13 +226,11 @@ impl Provider for VeniceProvider {
         self.model.clone()
     }
 
-    async fn fetch_supported_models(
-        &self,
-        session_id: &str,
-    ) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         let response = self
             .api_client
-            .response_get(session_id, &self.models_path)
+            .request(None, &self.models_path)
+            .response_get()
             .await?;
         let json: serde_json::Value = response.json().await?;
 
@@ -262,7 +260,7 @@ impl Provider for VeniceProvider {
     )]
     async fn complete_with_model(
         &self,
-        session_id: &str,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],

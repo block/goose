@@ -512,9 +512,7 @@ async fn check_provider(
         }
     };
 
-    // Provider probe runs outside any user session; use an ephemeral id.
-    let session_id = uuid::Uuid::new_v4().to_string();
-    let fetched_models = match provider.fetch_supported_models(&session_id).await {
+    let fetched_models = match provider.fetch_supported_models().await {
         Ok(Some(models)) => {
             println!("  ✓ Fetched {} models", models.len());
             models
@@ -530,7 +528,7 @@ async fn check_provider(
         }
     };
 
-    let recommended_models = match provider.fetch_recommended_models(&session_id).await {
+    let recommended_models = match provider.fetch_recommended_models().await {
         Ok(Some(models)) => {
             println!("  ✓ Found {} recommended models", models.len());
             models

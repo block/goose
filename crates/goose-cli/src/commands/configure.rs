@@ -17,7 +17,6 @@ use goose::config::{
     configure_tetrate, Config, ConfigError, ExperimentManager, ExtensionEntry, GooseMode,
     PermissionManager,
 };
-use goose::conversation::message::Message;
 use goose::model::ModelConfig;
 use goose::posthog::{get_telemetry_choice, TELEMETRY_ENABLED_KEY};
 use goose::providers::provider_test::test_provider_configuration;
@@ -25,7 +24,6 @@ use goose::providers::{create, providers, retry_operation, RetryConfig};
 use goose::session::SessionType;
 use serde_json::Value;
 use std::collections::HashMap;
-use uuid::Uuid;
 
 // useful for light themes where there is no dicernible colour contrast between
 // cursor-selected and cursor-unselected items.
@@ -683,10 +681,8 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
     let models_res = {
         let temp_model_config = ModelConfig::new(&provider_meta.default_model, provider_name)?;
         let temp_provider = create(provider_name, temp_model_config).await?;
-        // Provider setup runs before any user session exists; use an ephemeral id.
-        let session_id = Uuid::new_v4().to_string();
         retry_operation(&RetryConfig::default(), || async {
-            temp_provider.fetch_recommended_models(&session_id).await
+            temp_provider.fetch_recommended_models().await
         })
         .await
     };
@@ -1658,11 +1654,11 @@ pub async fn handle_openrouter_auth() -> anyhow::Result<()> {
 
     match create("openrouter", model_config).await {
         Ok(provider) => {
-            // Config verification runs before any user session exists; use an ephemeral id.
-            let session_id = Uuid::new_v4().to_string();
+            let model_config = provider.get_model_config();
             let test_result = provider
-                .complete(
-                    &session_id,
+                .complete_with_model(
+                    None,
+                    &model_config,
                     "You are goose, an AI assistant.",
                     &[Message::user().with_text("Say 'Configuration test successful!'")],
                     &[],
@@ -1738,16 +1734,7 @@ pub async fn handle_tetrate_auth() -> anyhow::Result<()> {
 
     match create("tetrate", model_config).await {
         Ok(provider) => {
-            // Config verification runs before any user session exists; use an ephemeral id.
-            let session_id = Uuid::new_v4().to_string();
-            let test_result = provider
-                .complete(
-                    &session_id,
-                    "You are goose, an AI assistant.",
-                    &[Message::user().with_text("Say 'Configuration test successful!'")],
-                    &[],
-                )
-                .await;
+            let test_result = provider.fetch_supported_models().await;
 
             match test_result {
                 Ok(_) => {
