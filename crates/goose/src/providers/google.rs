@@ -83,6 +83,9 @@ impl GoogleProvider {
         let api_client =
             ApiClient::new(host, auth)?.with_header("Content-Type", "application/json")?;
 
+        // Set the fast model for compaction and other fast operations
+        let model = model.with_fast(GOOGLE_DEFAULT_FAST_MODEL.to_string());
+
         Ok(Self {
             api_client,
             model,

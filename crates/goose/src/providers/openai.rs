@@ -104,6 +104,9 @@ impl OpenAiProvider {
             api_client = api_client.with_headers(header_map)?;
         }
 
+        // Set the fast model for compaction and other fast operations
+        let model = model.with_fast(OPEN_AI_DEFAULT_FAST_MODEL.to_string());
+
         Ok(Self {
             api_client,
             base_path,

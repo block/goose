@@ -60,6 +60,9 @@ impl OpenRouterProvider {
             .with_header("HTTP-Referer", "https://block.github.io/goose")?
             .with_header("X-Title", "goose")?;
 
+        // Set the fast model for compaction and other fast operations
+        let model = model.with_fast(OPENROUTER_DEFAULT_FAST_MODEL.to_string());
+
         Ok(Self {
             api_client,
             model,

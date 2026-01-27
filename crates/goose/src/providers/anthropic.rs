@@ -67,6 +67,8 @@ impl AnthropicProvider {
         let api_client =
             ApiClient::new(host, auth)?.with_header("anthropic-version", ANTHROPIC_API_VERSION)?;
 
+        // Set the fast model for compaction and other fast operations
+        let model = model.with_fast(ANTHROPIC_DEFAULT_FAST_MODEL.to_string());
 
         Ok(Self {
             api_client,
