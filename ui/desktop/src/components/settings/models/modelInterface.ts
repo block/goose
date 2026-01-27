@@ -1,4 +1,4 @@
-import { ProviderDetails } from '../../../api';
+import { ProviderDetails, getProviderModels } from '../../../api';
 
 export default interface Model {
   id?: number; // Make `id` optional to allow user-defined models
@@ -50,22 +50,21 @@ export interface ProviderModelsResult {
 
 /**
  * Fetches recommended models for all active providers in parallel.
- * Falls back to known_models if fetching fails or returns no models.
+ * Returns results with models on success, or error message on failure.
  */
 export async function fetchModelsForProviders(
-  activeProviders: ProviderDetails[],
-  getProviderModelsFunc: (providerName: string) => Promise<string[]>
+  activeProviders: ProviderDetails[]
 ): Promise<ProviderModelsResult[]> {
   const modelPromises = activeProviders.map(async (p) => {
-    const providerName = p.name;
     try {
-      let models = await getProviderModelsFunc(providerName);
-      if ((!models || models.length === 0) && p.metadata.known_models?.length) {
-        models = p.metadata.known_models.map((m) => m.name);
-      }
+      const response = await getProviderModels({
+        path: { name: p.name },
+        throwOnError: true,
+      });
+      const models = response.data || [];
       return { provider: p, models, error: null };
     } catch (e: unknown) {
-      const errorMessage = `Failed to fetch models for ${providerName}${e instanceof Error ? `: ${e.message}` : ''}`;
+      const errorMessage = `Failed to fetch models for ${p.name}${e instanceof Error ? `: ${e.message}` : ''}`;
       return {
         provider: p,
         models: null,

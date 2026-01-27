@@ -6,7 +6,7 @@ import { Select } from '../../../ui/Select';
 import { Input } from '../../../ui/input';
 import { getPredefinedModelsFromEnv, shouldShowPredefinedModels } from '../predefinedModelsUtils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../ui/dialog';
-import { getProviderModels } from '../../../../api';
+import { fetchModelsForProviders } from '../modelInterface';
 
 interface LeadWorkerSettingsProps {
   isOpen: boolean;
@@ -104,25 +104,7 @@ export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps)
           const providers = await getProviders(false);
           const activeProviders = providers.filter((p) => p.is_configured);
 
-          const results = await Promise.all(
-            activeProviders.map(async (p) => {
-              try {
-                const response = await getProviderModels({
-                  path: { name: p.name },
-                  throwOnError: true,
-                });
-                const models = response.data || [];
-                return { provider: p, models, error: null };
-              } catch (e: unknown) {
-                const errorMessage = `Failed to fetch models for ${p.name}${e instanceof Error ? `: ${e.message}` : ''}`;
-                return {
-                  provider: p,
-                  models: null,
-                  error: errorMessage,
-                };
-              }
-            })
-          );
+          const results = await fetchModelsForProviders(activeProviders);
 
           results.forEach(({ provider: p, models, error }) => {
             if (error) {

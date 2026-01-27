@@ -16,9 +16,9 @@ import { Select } from '../../../ui/Select';
 import { useConfig } from '../../../ConfigContext';
 import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import type { View } from '../../../../utils/navigationUtils';
-import Model, { getProviderMetadata } from '../modelInterface';
+import Model, { getProviderMetadata, fetchModelsForProviders } from '../modelInterface';
 import { getPredefinedModelsFromEnv, shouldShowPredefinedModels } from '../predefinedModelsUtils';
-import { ProviderType, getProviderModels } from '../../../../api';
+import { ProviderType } from '../../../../api';
 import { trackModelChanged } from '../../../../utils/analytics';
 
 const PREFERRED_MODEL_PATTERNS = [
@@ -206,25 +206,7 @@ export const SwitchModelModal = ({
         setLoadingModels(true);
 
         // Fetching models for all providers (always recommended)
-        const results = await Promise.all(
-          activeProviders.map(async (p) => {
-            try {
-              const response = await getProviderModels({
-                path: { name: p.name },
-                throwOnError: true,
-              });
-              const models = response.data || [];
-              return { provider: p, models, error: null };
-            } catch (e: unknown) {
-              const errorMessage = `Failed to fetch models for ${p.name}${e instanceof Error ? `: ${e.message}` : ''}`;
-              return {
-                provider: p,
-                models: null,
-                error: errorMessage,
-              };
-            }
-          })
-        );
+        const results = await fetchModelsForProviders(activeProviders);
 
         // Process results and build grouped options
         const groupedOptions: {
