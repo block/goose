@@ -1,12 +1,7 @@
 import type { Skill, SkillStatus, SkillInstallMethod } from "@site/src/pages/skills/types";
-import matter from "gray-matter";
 
 // Skills data is loaded from a generated JSON manifest at build time
-// The manifest is created by scripts/generate-skills-manifest.js which:
-// 1. Clones the block/Agent-Skills repository
-// 2. Reads SKILL.md files from each skill folder
-// 3. Optionally includes external skills from static/external-skills.json
-// 4. Generates static/skills-manifest.json
+// Generated at: documentation/static/skills-manifest.json
 
 // Cache for loaded skills
 let skillsCache: Skill[] | null = null;
@@ -26,7 +21,6 @@ export function getSkillById(id: string): Skill | null {
  */
 export async function searchSkills(query: string): Promise<Skill[]> {
   const allSkills = await loadAllSkills();
-
   if (!query) return allSkills;
 
   const lowerQuery = query.toLowerCase();
@@ -42,13 +36,20 @@ export async function searchSkills(query: string): Promise<Skill[]> {
  * Load all skills - async version that fetches from manifest
  */
 export async function loadAllSkills(): Promise<Skill[]> {
-  if (skillsCache) return skillsCache;
+  // Never fetch/cache during SSR (prevents "empty list" getting locked in on preview)
+  if (typeof window === "undefined") return [];
 
+  if (skillsCache) return skillsCache;
   if (skillsPromise) return skillsPromise;
 
   skillsPromise = fetchSkillsManifest();
-  skillsCache = await skillsPromise;
-  return skillsCache;
+
+  const skills = await skillsPromise;
+
+  // Only cache if we actually got data (avoid caching [] due to a transient 404)
+  if (skills.length > 0) skillsCache = skills;
+
+  return skills;
 }
 
 /**
@@ -57,10 +58,11 @@ export async function loadAllSkills(): Promise<Skill[]> {
 export function loadAllSkillsSync(): Skill[] {
   if (skillsCache) return skillsCache;
 
-  // Trigger async load
-  loadAllSkills();
+  // Trigger async load on client
+  if (typeof window !== "undefined") {
+    void loadAllSkills();
+  }
 
-  // Return empty array for now - will be populated on next render
   return [];
 }
 
@@ -69,14 +71,15 @@ export function loadAllSkillsSync(): Skill[] {
  */
 async function fetchSkillsManifest(): Promise<Skill[]> {
   try {
-    // NOTE: this code runs in the browser (client-side), so avoid process.env.
-    // Use Docusaurus' injected baseUrl when available, fall back to /goose/.
-    const baseUrl = (globalThis as any).__docusaurus?.baseUrl ?? "/goose/";
-    const manifestUrl = `${baseUrl}skills-manifest.json`;
+    // Works for:
+    // - local dev: http://localhost:3000/goose/skills
+    // - prod:      https://block.github.io/goose/skills
+    // - preview:   https://block.github.io/goose/pr-preview/pr-6752/skills
+    const manifestUrl = new URL("skills-manifest.json", window.location.href).toString();
 
     const response = await fetch(manifestUrl);
     if (!response.ok) {
-      console.error("Failed to fetch skills manifest:", response.status);
+      console.error("Failed to fetch skills manifest:", response.status, manifestUrl);
       return [];
     }
 
@@ -89,26 +92,8 @@ async function fetchSkillsManifest(): Promise<Skill[]> {
 }
 
 /**
- * Parse SKILL.md content into frontmatter and markdown content using gray-matter
- */
-export function parseSkillMarkdown(content: string): {
-  frontmatter: Record<string, any>;
-  content: string;
-} {
-  try {
-    const parsed = matter(content);
-    return {
-      frontmatter: parsed.data || {},
-      content: parsed.content || "",
-    };
-  } catch (error) {
-    console.error("Error parsing skill markdown:", error);
-    return { frontmatter: {}, content };
-  }
-}
-
-/**
- * Normalize raw frontmatter data to Skill type
+ * Normalize raw frontmatter-like data to Skill type
+ * (kept here in case you reuse it elsewhere)
  */
 export function normalizeSkill(
   parsed: { frontmatter: Record<string, any>; content: string },
@@ -118,11 +103,8 @@ export function normalizeSkill(
   const { frontmatter, content } = parsed;
 
   const sourceUrl = frontmatter.source_url || frontmatter.sourceUrl;
-
-  // Repo URL can be provided explicitly, otherwise fall back to sourceUrl
   const repoUrl = frontmatter.repo_url || frontmatter.repoUrl || sourceUrl;
 
-  // External = anything NOT from block/Agent-Skills
   const isExternal =
     !!repoUrl && !String(repoUrl).toLowerCase().includes("github.com/block/agent-skills");
 
@@ -149,27 +131,16 @@ export function normalizeSkill(
   };
 }
 
-
 /**
  * Determine the install method based on source URL
  */
 function determineInstallMethod(sourceUrl: string | undefined, skillId: string): SkillInstallMethod {
-  if (!sourceUrl) {
-    return "download";
-  }
+  if (!sourceUrl) return "download";
+  if (sourceUrl.includes("block/goose")) return "npx-multi";
 
-  // For skills in the goose repo, always use npx-multi since there are multiple skills
-  if (sourceUrl.includes("block/goose")) {
-    return "npx-multi";
-  }
-
-  // For external repos that are single-skill repos, use npx-single
   const simpleRepoPattern = /^https:\/\/github\.com\/[^\/]+\/[^\/]+\/?$/;
-  if (simpleRepoPattern.test(sourceUrl)) {
-    return "npx-single";
-  }
+  if (simpleRepoPattern.test(sourceUrl)) return "npx-single";
 
-  // Default to npx-multi for safety
   return "npx-multi";
 }
 
@@ -181,16 +152,11 @@ function generateInstallCommand(
   skillId: string,
   method: SkillInstallMethod
 ): string | undefined {
-  if (method === "download" || !sourceUrl) {
-    return undefined;
-  }
+  if (method === "download" || !sourceUrl) return undefined;
 
   if (method === "npx-single") {
-    // Extract owner/repo from URL
     const match = sourceUrl.match(/github\.com\/([^\/]+\/[^\/]+)/);
-    if (match) {
-      return `npx skills add ${match[1]}`;
-    }
+    if (match) return `npx skills add ${match[1]}`;
   }
 
   if (method === "npx-multi") {
