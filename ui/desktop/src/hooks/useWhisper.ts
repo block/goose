@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { useConfig } from '../components/ConfigContext';
 import { getApiUrl } from '../config';
 import { useDictationSettings } from './useDictationSettings';
-import { safeJsonParse } from '../utils/conversionUtils';
+import { safeJsonParse, errorMessage } from '../utils/conversionUtils';
 
 interface UseWhisperOptions {
   onTranscription?: (text: string) => void;
@@ -352,8 +352,7 @@ export const useWhisper = ({ onTranscription, onError, onSizeWarning }: UseWhisp
         setIsRecording(true);
       } catch (startError) {
         console.error('Error calling mediaRecorder.start():', startError);
-        const errorMessage = startError instanceof Error ? startError.message : String(startError);
-        throw new Error(`Failed to start recording: ${errorMessage}`);
+        throw new Error(`Failed to start recording: ${errorMessage(startError)}`);
       }
     } catch (error) {
       console.error('Error starting recording:', error);

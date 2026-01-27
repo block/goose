@@ -4,6 +4,7 @@ import Model, { getProviderMetadata } from './settings/models/modelInterface';
 import { ProviderMetadata, setConfigProvider, updateAgentProvider } from '../api';
 import { useConfig } from './ConfigContext';
 import {
+import { errorMessage } from '../../utils/conversionUtils';
   getModelDisplayName,
   getProviderDisplayName,
 } from './settings/models/predefinedModelsUtils';
@@ -80,7 +81,7 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
       toastError({
         title: `${providerName}/${modelName} failed`,
         msg: `${error}`,
-        traceback: error instanceof Error ? error.message : String(error),
+        traceback: errorMessage(error, String)(error),
       });
     }
   }, []);

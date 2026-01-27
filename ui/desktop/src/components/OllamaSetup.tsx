@@ -12,6 +12,7 @@ import {
 //import { initializeSystem } from '../utils/providerUtils';
 import { toastService } from '../toasts';
 import { Ollama } from './icons';
+import { errorMessage } from '../../utils/conversionUtils';
 
 interface OllamaSetupProps {
   onSuccess: () => void;
@@ -120,7 +121,7 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
       console.error('Failed to connect to Ollama:', error);
       toastService.error({
         title: 'Connection Failed',
-        msg: `Failed to connect to Ollama: ${error instanceof Error ? error.message : String(error)}`,
+        msg: `Failed to connect to Ollama: ${errorMessage(error, String)(error)}`,
         traceback: error instanceof Error ? error.stack || '' : '',
       });
       setIsConnecting(false);

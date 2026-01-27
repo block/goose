@@ -18,6 +18,7 @@ import { MainPanelLayout } from '../Layout/MainPanelLayout';
 import { ScrollArea } from '../ui/scroll-area';
 import { formatMessageTimestamp } from '../../utils/timeUtils';
 import { createSharedSession } from '../../sharedSessions';
+import { errorMessage } from '../../utils/conversionUtils';
 import {
   Dialog,
   DialogContent,
@@ -189,7 +190,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
     } catch (error) {
       console.error('Error sharing session:', error);
       toast.error(
-        `Failed to share session: ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Failed to share session: ${errorMessage(error, 'Unknown error')}`
       );
     } finally {
       setIsSharing(false);
@@ -213,7 +214,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
     try {
       resumeSession(session, setView);
     } catch (error) {
-      toast.error(`Could not launch session: ${error instanceof Error ? error.message : error}`);
+      toast.error(`Could not launch session: ${errorMessage(error)}`);
     }
   };
 

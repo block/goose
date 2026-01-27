@@ -8,6 +8,7 @@ import { Button } from "@site/src/components/ui/button";
 import { SidebarFilter, type SidebarFilterGroup } from "@site/src/components/ui/sidebar-filter";
 import { Menu, X } from "lucide-react";
 import Link from '@docusaurus/Link';
+import { errorMessage } from '../../../ui/desktop/src/utils/conversionUtils';
 
 export default function RecipePage() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -58,7 +59,7 @@ export default function RecipePage() {
         const results = await searchRecipes(searchQuery);
         setRecipes(results);
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : "Unknown error";
+        const errorMessage = errorMessage(err, "Unknown error");
         setError(`Failed to load recipes: ${errorMessage}`);
         console.error("Error loading recipes:", err);
       } finally {

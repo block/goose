@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import Layout from "@theme/Layout";
 import Link from "@docusaurus/Link";
 import { Wand2 } from "lucide-react";
+import { errorMessage } from '../../../ui/desktop/src/utils/conversionUtils';
 
 export default function HomePage() {
   const [servers, setServers] = useState<MCPServer[]>([]);
@@ -29,7 +30,7 @@ export default function HomePage() {
         setServers(results);
       } catch (err) {
         const errorMessage =
-          err instanceof Error ? err.message : "Unknown error";
+          errorMessage(err, "Unknown error");
         setError(`Failed to load servers: ${errorMessage}`);
         console.error("Error loading servers:", err);
       } finally {

@@ -9,6 +9,7 @@ import { Button } from "@site/src/components/ui/button";
 import { PillFilter, type PillFilterOption } from "@site/src/components/ui/pill-filter";
 import { SidebarFilter, type SidebarFilterGroup } from "@site/src/components/ui/sidebar-filter";
 import { Menu, X } from 'lucide-react';
+import { errorMessage } from '../../../ui/desktop/src/utils/conversionUtils';
 
 const categoryOptions: PillFilterOption[] = [
   { label: "All", value: "all" },
@@ -73,7 +74,7 @@ export default function HomePage() {
         setPrompts(filteredResults);
       } catch (err) {
         const errorMessage =
-          err instanceof Error ? err.message : "Unknown error";
+          errorMessage(err, "Unknown error");
         setError(`Failed to load prompts: ${errorMessage}`);
         console.error("Error loading prompts:", err);
       } finally {

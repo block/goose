@@ -29,7 +29,7 @@ import { expandTilde } from './utils/pathUtils';
 import log from './utils/logger';
 import { ensureWinShims } from './utils/winShims';
 import { addRecentDir, loadRecentDirs } from './utils/recentDirs';
-import { formatAppName } from './utils/conversionUtils';
+import { formatAppName, errorMessage } from './utils/conversionUtils';
 import {
   EnvToggles,
   loadSettings,
@@ -1138,8 +1138,7 @@ function parseRecipeDeeplink(url: string): RecipeDeeplinkData | undefined {
       try {
         recipeDeeplink = decodeURIComponent(recipeDeeplinkTmp);
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        console.error('[Main] parseRecipeDeeplink - Failed to decode:', errorMessage);
+        console.error('[Main] parseRecipeDeeplink - Failed to decode:', errorMessage(error));
         return undefined;
       }
     }
@@ -1572,7 +1571,7 @@ ipcMain.handle('save-data-url-to-temp', async (_event, dataUrl: string, uniqueId
     return { id: uniqueId, filePath: filePath };
   } catch (error) {
     console.error(`[Main] Failed to save image to temp for ID ${uniqueId}:`, error);
-    return { id: uniqueId, error: error instanceof Error ? error.message : 'Failed to save image' };
+    return { id: uniqueId, error: errorMessage(error, 'Failed to save image') };
   }
 });
 
@@ -1621,7 +1620,7 @@ ipcMain.on('delete-temp-file', async (_event, filePath: string) => {
       // If realpath fails, use the original path validation
       console.log(
         `[Main] realpath failed for ${filePath}, using original path validation:`,
-        realpathError instanceof Error ? realpathError.message : String(realpathError)
+        errorMessage(realpathError)
       );
     }
 

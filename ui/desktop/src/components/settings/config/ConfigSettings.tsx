@@ -9,6 +9,7 @@ import { getUiNames, providerPrefixes } from '../../../utils/configUtils';
 import type { ConfigData, ConfigValue } from '../../../types/config';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import {
+import { errorMessage } from '../../utils/conversionUtils';
   Dialog,
   DialogContent,
   DialogDescription,
@@ -84,7 +85,7 @@ export default function ConfigSettings() {
       toastError({
         title: 'Save Failed',
         msg: `Failed to save "${getUiNames(key)}"`,
-        traceback: error instanceof Error ? error.message : String(error),
+        traceback: errorMessage(error, String)(error),
       });
     } finally {
       setSaving(null);
