@@ -13,9 +13,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2e-6,
-      "completion": 8e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 8e-6
     }
   },
   {
@@ -32,9 +30,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2e-7,
-      "completion": 4e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 4e-7
     }
   },
   {
@@ -70,9 +66,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 8e-7,
-      "completion": 4e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 4e-6
     }
   },
   {
@@ -91,9 +85,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 6e-6,
-      "completion": 0.00003,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 0.00003
     }
   },
   {
@@ -112,9 +104,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 3e-6,
-      "completion": 0.000015,
-      "request": 0.0,
-      "image": 0.0048
+      "completion": 0.000015
     }
   },
   {
@@ -133,9 +123,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 3e-6,
-      "completion": 0.000015,
-      "request": 0.0,
-      "image": 0.0048
+      "completion": 0.000015
     }
   },
   {
@@ -172,9 +160,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 0.000015,
-      "completion": 0.000075,
-      "request": 0.0,
-      "image": 0.024
+      "completion": 0.000075
     }
   },
   {
@@ -193,9 +179,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 0.000015,
-      "completion": 0.000075,
-      "request": 0.0,
-      "image": 0.024
+      "completion": 0.000075
     }
   },
   {
@@ -233,9 +217,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 3e-6,
-      "completion": 0.000015,
-      "request": 0.0,
-      "image": 0.0048
+      "completion": 0.000015
     }
   },
   {
@@ -271,9 +253,7 @@
     "supports_tools": false,
     "pricing": {
       "prompt": 2.5e-6,
-      "completion": 0.00001,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 0.00001
     }
   },
   {
@@ -290,9 +270,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1.5e-7,
-      "completion": 6e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 6e-7
     }
   },
   {
@@ -309,9 +287,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2.5e-6,
-      "completion": 0.00001,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 0.00001
     }
   },
   {
@@ -328,9 +304,7 @@
     "supports_tools": false,
     "pricing": {
       "prompt": 3.75e-8,
-      "completion": 1.5e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 1.5e-7
     }
   },
   {
@@ -347,9 +321,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2.5e-7,
-      "completion": 3.8e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 3.8e-7
     }
   },
   {
@@ -366,9 +338,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 3e-7,
-      "completion": 1.2e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 1.2e-6
     }
   },
   {
@@ -385,9 +355,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 7e-7,
-      "completion": 2.5e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 2.5e-6
     }
   },
   {
@@ -404,9 +372,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 3e-8,
-      "completion": 1.1e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 1.1e-7
     }
   },
   {
@@ -422,9 +388,7 @@
     "supports_tools": false,
     "pricing": {
       "prompt": 2.9e-7,
-      "completion": 2.9e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 2.9e-7
     }
   },
   {
@@ -440,9 +404,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2.1e-7,
-      "completion": 7.9e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 7.9e-7
     }
   },
   {
@@ -459,9 +421,7 @@
     "supports_tools": false,
     "pricing": {
       "prompt": 2.7e-7,
-      "completion": 4.1e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 4.1e-7
     }
   },
   {
@@ -671,9 +631,7 @@
     "supports_tools": false,
     "pricing": {
       "prompt": 6.5e-7,
-      "completion": 6.5e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 6.5e-7
     }
   },
   {
@@ -689,9 +647,7 @@
     "supports_tools": false,
     "pricing": {
       "prompt": 3e-8,
-      "completion": 9e-8,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 9e-8
     }
   },
   {
@@ -709,9 +665,7 @@
     "supports_tools": false,
     "pricing": {
       "prompt": 3e-8,
-      "completion": 1e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 1e-7
     }
   },
   {
@@ -729,9 +683,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 4e-8,
-      "completion": 1.5e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 1.5e-7
     }
   },
   {
@@ -748,9 +700,7 @@
     "supports_tools": false,
     "pricing": {
       "prompt": 1.703012e-8,
-      "completion": 6.81536e-8,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 6.81536e-8
     }
   },
   {
@@ -766,15 +716,14 @@
     "supports_tools": false,
     "pricing": {
       "prompt": 2e-8,
-      "completion": 4e-8,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 4e-8
     }
   },
   {
     "id": "meta-llama/llama-3-70b-instruct",
     "name": "Meta: Llama 3 70B Instruct",
     "context_length": 8192,
+    "max_completion_tokens": 8000,
     "input_modalities": [
       "text"
     ],
@@ -783,10 +732,8 @@
     ],
     "supports_tools": false,
     "pricing": {
-      "prompt": 4e-7,
-      "completion": 4e-7,
-      "request": 0.0,
-      "image": 0.0
+      "prompt": 5.1e-7,
+      "completion": 7.4e-7
     }
   },
   {
@@ -803,9 +750,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 3e-8,
-      "completion": 6e-8,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 6e-8
     }
   },
   {
@@ -822,9 +767,7 @@
     "supports_tools": false,
     "pricing": {
       "prompt": 4e-6,
-      "completion": 4e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 4e-6
     }
   },
   {
@@ -840,9 +783,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 3.5e-6,
-      "completion": 3.5e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 3.5e-6
     }
   },
   {
@@ -858,9 +799,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 4e-7,
-      "completion": 4e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 4e-7
     }
   },
   {
@@ -877,9 +816,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2e-8,
-      "completion": 5e-8,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 5e-8
     }
   },
   {
@@ -897,9 +834,7 @@
     "supports_tools": false,
     "pricing": {
       "prompt": 4.9e-8,
-      "completion": 4.9e-8,
-      "request": 0.0,
-      "image": 0.00007948
+      "completion": 4.9e-8
     }
   },
   {
@@ -915,9 +850,7 @@
     "supports_tools": false,
     "pricing": {
       "prompt": 2.7e-8,
-      "completion": 2e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 2e-7
     }
   },
   {
@@ -934,9 +867,7 @@
     "supports_tools": false,
     "pricing": {
       "prompt": 2e-8,
-      "completion": 2e-8,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 2e-8
     }
   },
   {
@@ -953,9 +884,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1e-7,
-      "completion": 3.2e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 3.2e-7
     }
   },
   {
@@ -973,9 +902,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1.5e-7,
-      "completion": 6e-7,
-      "request": 0.0,
-      "image": 0.0006684
+      "completion": 6e-7
     }
   },
   {
@@ -993,9 +920,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 8e-8,
-      "completion": 3e-7,
-      "request": 0.0,
-      "image": 0.0003342
+      "completion": 3e-7
     }
   },
   {
@@ -1011,9 +936,7 @@
     "supports_tools": false,
     "pricing": {
       "prompt": 2e-7,
-      "completion": 2e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 2e-7
     }
   },
   {
@@ -1029,9 +952,7 @@
     "supports_tools": false,
     "pricing": {
       "prompt": 2e-8,
-      "completion": 6e-8,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 6e-8
     }
   },
   {
@@ -1048,9 +969,7 @@
     "supports_tools": false,
     "pricing": {
       "prompt": 1.8e-7,
-      "completion": 1.8e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 1.8e-7
     }
   },
   {
@@ -1083,9 +1002,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 5e-8,
-      "completion": 2.2e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 2.2e-7
     }
   },
   {
@@ -1183,9 +1100,7 @@
     "supports_tools": false,
     "pricing": {
       "prompt": 2e-7,
-      "completion": 2e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 2e-7
     }
   },
   {
@@ -1252,9 +1167,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2e-8,
-      "completion": 4e-8,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 4e-8
     }
   },
   {
@@ -1287,9 +1200,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 3e-8,
-      "completion": 1.1e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 1.1e-7
     }
   },
   {
@@ -1307,9 +1218,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 3e-8,
-      "completion": 1.1e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 1.1e-7
     }
   },
   {
@@ -1327,9 +1236,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 6e-8,
-      "completion": 1.8e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 1.8e-7
     }
   },
   {
@@ -1394,9 +1301,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 5.4e-7,
-      "completion": 5.4e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 5.4e-7
     }
   },
   {
@@ -1413,9 +1318,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1e-7,
-      "completion": 1e-7,
-      "request": 0.0,
-      "image": 0.0001445
+      "completion": 1e-7
     }
   },
   {
@@ -2094,9 +1997,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 3.9e-8,
-      "completion": 1.9e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 1.9e-7
     }
   },
   {
@@ -2113,9 +2014,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2e-8,
-      "completion": 1e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 1e-7
     }
   },
   {
@@ -2132,9 +2031,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 7.5e-8,
-      "completion": 3e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 3e-7
     }
   },
   {
@@ -2339,9 +2236,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1.2e-7,
-      "completion": 3.9e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 3.9e-7
     }
   },
   {
@@ -2357,9 +2252,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 4e-8,
-      "completion": 1e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 1e-7
     }
   },
   {
@@ -2376,9 +2269,7 @@
     "supports_tools": false,
     "pricing": {
       "prompt": 3e-8,
-      "completion": 1.1e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 1.1e-7
     }
   },
   {
@@ -2395,9 +2286,7 @@
     "supports_tools": false,
     "pricing": {
       "prompt": 2e-7,
-      "completion": 2e-7,
-      "request": 0.0,
-      "image": 0.0001445
+      "completion": 2e-7
     }
   },
   {
@@ -2529,9 +2418,7 @@
     "supports_tools": false,
     "pricing": {
       "prompt": 3e-8,
-      "completion": 9e-8,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 9e-8
     }
   },
   {
@@ -2549,9 +2436,7 @@
     "supports_tools": false,
     "pricing": {
       "prompt": 5e-8,
-      "completion": 2.2e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 2.2e-7
     }
   },
   {
@@ -2569,9 +2454,7 @@
     "supports_tools": false,
     "pricing": {
       "prompt": 1.5e-7,
-      "completion": 6e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 6e-7
     }
   },
   {
@@ -2588,9 +2471,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 5e-8,
-      "completion": 2.2e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 2.2e-7
     }
   },
   {
@@ -2606,9 +2487,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2e-7,
-      "completion": 6e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 6e-7
     }
   },
   {
@@ -2625,9 +2504,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1.1e-7,
-      "completion": 6e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 6e-7
     }
   },
   {
@@ -2644,9 +2521,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 6e-8,
-      "completion": 2.2e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 2.2e-7
     }
   },
   {
@@ -2663,9 +2538,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 8e-8,
-      "completion": 3.3e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 3.3e-7
     }
   },
   {
@@ -2681,9 +2554,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 5.1e-8,
-      "completion": 3.4e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 3.4e-7
     }
   },
   {
@@ -2700,9 +2571,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 8e-8,
-      "completion": 2.4e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 2.4e-7
     }
   },
   {
@@ -2719,9 +2588,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 5e-8,
-      "completion": 2.5e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 2.5e-7
     }
   },
   {
@@ -2738,9 +2605,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2.2e-7,
-      "completion": 9.5e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 9.5e-7
     }
   },
   {
@@ -2757,9 +2622,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 7e-8,
-      "completion": 2.7e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 2.7e-7
     }
   },
   {
@@ -2832,9 +2695,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 9e-8,
-      "completion": 1.1e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 1.1e-6
     }
   },
   {
@@ -2850,9 +2711,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1.5e-7,
-      "completion": 1.2e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 1.2e-6
     }
   },
   {
@@ -2869,9 +2728,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2e-7,
-      "completion": 1.2e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 1.2e-6
     }
   },
   {
@@ -2889,9 +2746,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 4.5e-7,
-      "completion": 3.5e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 3.5e-6
     }
   },
   {
@@ -2908,9 +2763,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1.5e-7,
-      "completion": 6e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 6e-7
     }
   },
   {
@@ -2928,9 +2781,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2e-7,
-      "completion": 1e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 1e-6
     }
   },
   {
@@ -2947,9 +2798,7 @@
     "supports_tools": false,
     "pricing": {
       "prompt": 5e-7,
-      "completion": 1.5e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 1.5e-6
     }
   },
   {
@@ -2967,9 +2816,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 8e-8,
-      "completion": 5e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 5e-7
     }
   },
   {
@@ -3005,9 +2852,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1.5e-7,
-      "completion": 4e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 4e-7
     }
   },
   {
@@ -3023,9 +2868,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 3e-6,
-      "completion": 0.000015,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 0.000015
     }
   },
   {
@@ -3041,9 +2884,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 3e-7,
-      "completion": 5e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 5e-7
     }
   },
   {
@@ -3060,9 +2901,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 3e-6,
-      "completion": 0.000015,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 0.000015
     }
   },
   {
@@ -3080,9 +2919,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2e-7,
-      "completion": 5e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 5e-7
     }
   },
   {
@@ -3100,9 +2937,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2e-7,
-      "completion": 5e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 5e-7
     }
   },
   {
@@ -3119,9 +2954,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2e-7,
-      "completion": 1.5e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 1.5e-6
     }
   }
 ]
