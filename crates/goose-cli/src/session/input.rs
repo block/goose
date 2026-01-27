@@ -69,16 +69,13 @@ pub fn get_input(
     editor: &mut Editor<GooseCompleter, rustyline::history::DefaultHistory>,
     conversation_messages: Option<&Vec<String>>,
 ) -> Result<InputResult> {
-    // Check if editor mode is enabled
     let config = Config::global();
-    if let Some(_editor_cmd) = config.get_goose_prompt_editor().unwrap_or(None) {
-        // Use editor mode
+    if let Ok(Some(editor_cmd)) = config.get_goose_prompt_editor() {
         let messages = extract_recent_messages(conversation_messages);
         let message_refs: Vec<&str> = messages.iter().map(|s| s.as_str()).collect();
         let (message, has_meaningful_content) =
-            crate::session::editor::get_editor_input(&message_refs)?;
+            crate::session::editor::get_editor_input(&editor_cmd, &message_refs)?;
 
-        // If user didn't provide meaningful content, cycle back to regular prompt mode
         if !has_meaningful_content {
             return get_regular_input(editor);
         }
