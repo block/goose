@@ -44,62 +44,6 @@ pub enum ConfigError {
     InvalidRange(String, String),
 }
 
-static MODEL_SPECIFIC_LIMITS: Lazy<Vec<(&'static str, usize)>> = Lazy::new(|| {
-    vec![
-        // openai
-        ("gpt-5.2-codex", 400_000), // auto-compacting context
-        ("gpt-5.2", 400_000),       // auto-compacting context
-        ("gpt-5.1-codex-max", 256_000),
-        ("gpt-5.1-codex-mini", 256_000),
-        ("gpt-4-turbo", 128_000),
-        ("gpt-4.1", 1_000_000),
-        ("gpt-4-1", 1_000_000),
-        ("gpt-4o", 128_000),
-        ("o4-mini", 200_000),
-        ("o3-mini", 200_000),
-        ("o3", 200_000),
-        // anthropic - all 200k
-        ("claude", 200_000),
-        // google
-        ("gemini-1.5-flash", 1_000_000),
-        ("gemini-1", 128_000),
-        ("gemini-2", 1_000_000),
-        ("gemma-3-27b", 128_000),
-        ("gemma-3-12b", 128_000),
-        ("gemma-3-4b", 128_000),
-        ("gemma-3-1b", 32_000),
-        ("gemma3-27b", 128_000),
-        ("gemma3-12b", 128_000),
-        ("gemma3-4b", 128_000),
-        ("gemma3-1b", 32_000),
-        ("gemma-2-27b", 8_192),
-        ("gemma-2-9b", 8_192),
-        ("gemma-2-2b", 8_192),
-        ("gemma2-", 8_192),
-        ("gemma-7b", 8_192),
-        ("gemma-2b", 8_192),
-        ("gemma1", 8_192),
-        ("gemma", 8_192),
-        // facebook
-        ("llama-2-1b", 32_000),
-        ("llama", 128_000),
-        // qwen
-        ("qwen3-coder", 262_144),
-        ("qwen2-7b", 128_000),
-        ("qwen2-14b", 128_000),
-        ("qwen2-32b", 131_072),
-        ("qwen2-70b", 262_144),
-        ("qwen2", 128_000),
-        ("qwen3-32b", 131_072),
-        // xai
-        ("grok-4", 256_000),
-        ("grok-code-fast-1", 256_000),
-        ("grok", 131_072),
-        // other
-        ("kimi-k2", 131_072),
-    ]
-});
-
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ModelConfig {
     pub model_name: String,
@@ -112,12 +56,6 @@ pub struct ModelConfig {
     /// Provider-specific request parameters (e.g., anthropic_beta headers)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub request_params: Option<HashMap<String, Value>>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ModelLimitConfig {
-    pub pattern: String,
-    pub context_limit: usize,
 }
 
 impl ModelConfig {
@@ -175,11 +113,6 @@ impl ModelConfig {
             }
         }
 
-        // Priority 4: Hardcoded limits (handled by parse_context_limit as fallback)
-        if context_limit.is_none() {
-            context_limit = Self::parse_context_limit(&model_name, None, None)?;
-        }
-
         let request_params = predefined.and_then(|pm| pm.request_params);
 
         let temperature = Self::parse_temperature()?;
@@ -196,40 +129,6 @@ impl ModelConfig {
             fast_model: None,
             request_params,
         })
-    }
-
-    fn parse_context_limit(
-        model_name: &str,
-        fast_model: Option<&str>,
-        custom_env_var: Option<&str>,
-    ) -> Result<Option<usize>, ConfigError> {
-        // First check if there's an explicit environment variable override
-        if let Some(env_var) = custom_env_var {
-            if let Ok(val) = std::env::var(env_var) {
-                return Self::validate_context_limit(&val, env_var).map(Some);
-            }
-        }
-        if let Ok(val) = std::env::var("GOOSE_CONTEXT_LIMIT") {
-            return Self::validate_context_limit(&val, "GOOSE_CONTEXT_LIMIT").map(Some);
-        }
-
-        // Get the model's limit
-        let model_limit = Self::get_model_specific_limit(model_name);
-
-        // If there's a fast_model, get its limit and use the minimum
-        if let Some(fast_model_name) = fast_model {
-            let fast_model_limit = Self::get_model_specific_limit(fast_model_name);
-
-            // Return the minimum of both limits (if both exist)
-            match (model_limit, fast_model_limit) {
-                (Some(m), Some(f)) => Ok(Some(m.min(f))),
-                (Some(m), None) => Ok(Some(m)),
-                (None, Some(f)) => Ok(Some(f)),
-                (None, None) => Ok(None),
-            }
-        } else {
-            Ok(model_limit)
-        }
     }
 
     fn validate_context_limit(val: &str, env_var: &str) -> Result<usize, ConfigError> {
@@ -320,23 +219,6 @@ impl ModelConfig {
         }
     }
 
-    fn get_model_specific_limit(model_name: &str) -> Option<usize> {
-        MODEL_SPECIFIC_LIMITS
-            .iter()
-            .find(|(pattern, _)| model_name.contains(pattern))
-            .map(|(_, limit)| *limit)
-    }
-
-    pub fn get_all_model_limits() -> Vec<ModelLimitConfig> {
-        MODEL_SPECIFIC_LIMITS
-            .iter()
-            .map(|(pattern, context_limit)| ModelLimitConfig {
-                pattern: pattern.to_string(),
-                context_limit: *context_limit,
-            })
-            .collect()
-    }
-
     pub fn with_context_limit(mut self, limit: Option<usize>) -> Self {
         if limit.is_some() {
             self.context_limit = limit;
@@ -385,28 +267,7 @@ impl ModelConfig {
     }
 
     pub fn context_limit(&self) -> usize {
-        // Priority 1: Explicit context limit override (includes canonical data if set during init)
-        if let Some(limit) = self.context_limit {
-            if let Some(fast_model) = &self.fast_model {
-                let fast_limit =
-                    Self::get_model_specific_limit(fast_model).unwrap_or(DEFAULT_CONTEXT_LIMIT);
-                return limit.min(fast_limit);
-            }
-            return limit;
-        }
-
-        // Priority 2: Hardcoded model-specific limits (for backwards compatibility)
-        let main_limit =
-            Self::get_model_specific_limit(&self.model_name).unwrap_or(DEFAULT_CONTEXT_LIMIT);
-
-        // If we have a fast_model, also check its limit and use the minimum
-        if let Some(fast_model) = &self.fast_model {
-            let fast_limit =
-                Self::get_model_specific_limit(fast_model).unwrap_or(DEFAULT_CONTEXT_LIMIT);
-            main_limit.min(fast_limit)
-        } else {
-            main_limit
-        }
+        self.context_limit.unwrap_or(DEFAULT_CONTEXT_LIMIT)
     }
 
     /// Get the maximum output tokens for this model

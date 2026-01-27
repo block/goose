@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useModelAndProvider } from '../components/ModelAndProviderContext';
-import { fetchModelPricing } from '../utils/pricing';
+import { fetchCanonicalModelInfo } from '../utils/pricing';
 import { Session } from '../api';
 
 interface UseCostTrackingProps {
@@ -42,7 +42,10 @@ export const useCostTracking = ({
         const prevKey = `${prevProviderRef.current}/${prevModelRef.current}`;
 
         // Get pricing info for the previous model
-        const prevCostInfo = await fetchModelPricing(prevProviderRef.current, prevModelRef.current);
+        const prevCostInfo = await fetchCanonicalModelInfo(
+          prevProviderRef.current,
+          prevModelRef.current
+        );
 
         if (prevCostInfo) {
           const prevInputCost =

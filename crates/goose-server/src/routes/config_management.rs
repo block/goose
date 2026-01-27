@@ -229,13 +229,6 @@ fn is_valid_provider_name(provider_name: &str) -> bool {
 pub async fn read_config(
     Json(query): Json<ConfigKeyQuery>,
 ) -> Result<Json<ConfigValueResponse>, StatusCode> {
-    if query.key == "model-limits" {
-        let limits = ModelConfig::get_all_model_limits();
-        return Ok(Json(ConfigValueResponse::Value(
-            serde_json::to_value(limits).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
-        )));
-    }
-
     let config = Config::global();
 
     let response_value = match config.get(&query.key, query.is_secret) {
@@ -471,62 +464,77 @@ pub async fn get_slash_commands() -> Result<Json<SlashCommandsResponse>, StatusC
 }
 
 #[derive(Serialize, ToSchema)]
-pub struct PricingData {
+pub struct ModelInfoData {
     pub provider: String,
     pub model: String,
-    pub input_token_cost: f64,
-    pub output_token_cost: f64,
+    /// Context window size in tokens
+    pub context_limit: usize,
+    /// Maximum output tokens
+    pub max_output_tokens: Option<usize>,
+    /// Cost per input token in USD
+    pub input_token_cost: Option<f64>,
+    /// Cost per output token in USD
+    pub output_token_cost: Option<f64>,
+    /// Cost per cached read token in USD
+    pub cache_read_token_cost: Option<f64>,
+    /// Cost per cached write token in USD
+    pub cache_write_token_cost: Option<f64>,
     pub currency: String,
-    pub context_length: Option<u32>,
 }
 
 #[derive(Serialize, ToSchema)]
-pub struct PricingResponse {
-    pub pricing: Vec<PricingData>,
+pub struct ModelInfoResponse {
+    pub model_info: Option<ModelInfoData>,
     pub source: String,
 }
 
 #[derive(Deserialize, ToSchema)]
-pub struct PricingQuery {
+pub struct ModelInfoQuery {
     pub provider: String,
     pub model: String,
 }
 
 #[utoipa::path(
     post,
-    path = "/config/pricing",
-    request_body = PricingQuery,
+    path = "/config/canonical-model-info",
+    request_body = ModelInfoQuery,
     responses(
-        (status = 200, description = "Model pricing data retrieved successfully", body = PricingResponse)
+        (status = 200, description = "Model information retrieved successfully", body = ModelInfoResponse),
+        (status = 404, description = "Model not found in canonical registry")
     )
 )]
-pub async fn get_pricing(
-    Json(query): Json<PricingQuery>,
-) -> Result<Json<PricingResponse>, StatusCode> {
-    let canonical_model =
-        maybe_get_canonical_model(&query.provider, &query.model).ok_or(StatusCode::NOT_FOUND)?;
+pub async fn get_canonical_model_info(
+    Json(query): Json<ModelInfoQuery>,
+) -> Result<Json<ModelInfoResponse>, StatusCode> {
+    let canonical_model = maybe_get_canonical_model(&query.provider, &query.model);
 
-    let mut pricing_data = Vec::new();
-
-    if let (Some(input_cost), Some(output_cost)) =
-        (canonical_model.cost.input, canonical_model.cost.output)
-    {
-        pricing_data.push(PricingData {
+    if let Some(canonical_model) = canonical_model {
+        let model_info = ModelInfoData {
             provider: query.provider.clone(),
             model: query.model.clone(),
+            context_limit: canonical_model.limit.context,
+            max_output_tokens: canonical_model.limit.output,
             // Canonical model costs are per million tokens, convert to per-token
-            input_token_cost: input_cost / 1_000_000.0,
-            output_token_cost: output_cost / 1_000_000.0,
+            input_token_cost: canonical_model.cost.input.map(|c| c / 1_000_000.0),
+            output_token_cost: canonical_model.cost.output.map(|c| c / 1_000_000.0),
+            cache_read_token_cost: canonical_model.cost.cache_read.map(|c| c / 1_000_000.0),
+            cache_write_token_cost: canonical_model.cost.cache_write.map(|c| c / 1_000_000.0),
             currency: "$".to_string(),
-            context_length: Some(canonical_model.limit.context as u32),
-        });
-    }
+        };
 
-    Ok(Json(PricingResponse {
-        pricing: pricing_data,
-        source: "canonical".to_string(),
-    }))
+        Ok(Json(ModelInfoResponse {
+            model_info: Some(model_info),
+            source: "canonical".to_string(),
+        }))
+    } else {
+        // Return success with None to indicate model not in canonical registry
+        Ok(Json(ModelInfoResponse {
+            model_info: None,
+            source: "canonical".to_string(),
+        }))
+    }
 }
+
 
 #[utoipa::path(
     post,
@@ -891,7 +899,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/providers/{name}/models", get(get_provider_models))
         .route("/config/detect-provider", post(detect_provider))
         .route("/config/slash_commands", get(get_slash_commands))
-        .route("/config/pricing", post(get_pricing))
+        .route("/config/canonical-model-info", post(get_canonical_model_info))
         .route("/config/init", post(init_config))
         .route("/config/backup", post(backup_config))
         .route("/config/recover", post(recover_config))
@@ -919,28 +927,4 @@ mod tests {
 
     use super::*;
 
-    #[tokio::test]
-    async fn test_read_model_limits() {
-        let mut headers = HeaderMap::new();
-        headers.insert("X-Secret-Key", "test".parse().unwrap());
-
-        let result = read_config(Json(ConfigKeyQuery {
-            key: "model-limits".to_string(),
-            is_secret: false,
-        }))
-        .await;
-
-        assert!(result.is_ok());
-        let response = match result.unwrap().0 {
-            ConfigValueResponse::Value(value) => value,
-            ConfigValueResponse::MaskedValue(_) => panic!("unexpected secret"),
-        };
-
-        let limits: Vec<goose::model::ModelLimitConfig> = serde_json::from_value(response).unwrap();
-        assert!(!limits.is_empty());
-
-        let gpt4_limit = limits.iter().find(|l| l.pattern == "gpt-4o");
-        assert!(gpt4_limit.is_some());
-        assert_eq!(gpt4_limit.unwrap().context_limit, 128_000);
-    }
 }

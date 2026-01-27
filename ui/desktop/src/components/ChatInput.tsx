@@ -43,6 +43,7 @@ import {
 import { getNavigationShortcutText } from '../utils/keyboardShortcuts';
 import { UserInput, ImageData } from '../types/message';
 import { compressImageDataUrl } from '../utils/conversionUtils';
+import { fetchCanonicalModelInfo } from '../utils/canonical';
 
 interface PastedImage {
   id: string;
@@ -59,11 +60,6 @@ const TOOLS_MAX_SUGGESTED = 60; // max number of tools before we show a warning
 
 // Manual compact trigger message - must match backend constant
 const MANUAL_COMPACT_TRIGGER = '/compact';
-
-interface ModelLimit {
-  pattern: string;
-  context_limit: number;
-}
 
 interface ChatInputProps {
   sessionId: string | null;
@@ -143,7 +139,7 @@ export default function ChatInput({
   const dropdownRef: React.RefObject<HTMLDivElement> = useRef<HTMLDivElement>(
     null
   ) as React.RefObject<HTMLDivElement>;
-  const { getProviders, read } = useConfig();
+  const { getProviders } = useConfig();
   const { getCurrentModelAndProvider, currentModel, currentProvider } = useModelAndProvider();
   const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
   const [isTokenLimitLoaded, setIsTokenLimitLoaded] = useState(false);
@@ -355,28 +351,6 @@ export default function ChatInput({
     }
   }, [textAreaRef]);
 
-  // Load model limits from the API
-  const getModelLimits = async () => {
-    try {
-      const response = await read('model-limits', false);
-      if (response) {
-        // The response is already parsed, no need for JSON.parse
-        return response as ModelLimit[];
-      }
-    } catch (err) {
-      console.error('Error fetching model limits:', err);
-    }
-    return [];
-  };
-
-  const findModelLimit = (modelName: string, modelLimits: ModelLimit[]): number | null => {
-    if (!modelName) return null;
-    const matchingLimit = modelLimits.find((limit) =>
-      modelName.toLowerCase().includes(limit.pattern.toLowerCase())
-    );
-    return matchingLimit ? matchingLimit.context_limit : null;
-  };
-
   // Load providers and get current model's token limit
   const loadProviderDetails = async () => {
     try {
@@ -391,7 +365,7 @@ export default function ChatInput({
         return;
       }
 
-      // First, check predefined models from environment (highest priority)
+      // Priority 1: Check predefined models from environment (highest priority - user override)
       const predefinedModels = getPredefinedModelsFromEnv();
       const predefinedModel = predefinedModels.find((m) => m.name === model);
       if (predefinedModel?.context_limit) {
@@ -400,12 +374,18 @@ export default function ChatInput({
         return;
       }
 
-      const providers = await getProviders(true);
+      // Priority 2: Check canonical model info (source of truth)
+      const canonicalInfo = await fetchCanonicalModelInfo(provider, model);
+      if (canonicalInfo?.context_limit) {
+        setTokenLimit(canonicalInfo.context_limit);
+        setIsTokenLimitLoaded(true);
+        return;
+      }
 
-      // Find the provider details for the current provider
+      // Priority 3: Fall back to provider metadata known_models (may be outdated)
+      const providers = await getProviders(true);
       const currentProvider = providers.find((p) => p.name === provider);
       if (currentProvider?.metadata?.known_models) {
-        // Find the model's token limit from the backend response
         const modelConfig = currentProvider.metadata.known_models.find((m) => m.name === model);
         if (modelConfig?.context_limit) {
           setTokenLimit(modelConfig.context_limit);
@@ -414,16 +394,7 @@ export default function ChatInput({
         }
       }
 
-      // Fallback: Use pattern matching logic if no exact model match was found
-      const modelLimit = await getModelLimits();
-      const fallbackLimit = findModelLimit(model as string, modelLimit);
-      if (fallbackLimit !== null) {
-        setTokenLimit(fallbackLimit);
-        setIsTokenLimitLoaded(true);
-        return;
-      }
-
-      // If no match found, use the default model limit
+      // Priority 4: Use default if nothing else found
       setTokenLimit(TOKEN_LIMIT_DEFAULT);
       setIsTokenLimitLoaded(true);
     } catch (err) {
