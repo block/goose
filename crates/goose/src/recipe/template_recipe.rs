@@ -8,7 +8,7 @@ use anyhow::Result;
 use minijinja::{Environment, UndefinedBehavior};
 use regex::Regex;
 
-const CURRENT_TEMPLATE_NAME: &str = "recipe_template";
+const CURRENT_TEMPLATE_NAME: &str = "recipe";
 const OPEN_BRACE: &str = "{{";
 const CLOSE_BRACE: &str = "}}";
 

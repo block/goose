@@ -173,14 +173,14 @@ fn test_build_recipe_from_template_wrong_parameters_in_recipe_file() {
     println!("{}", err);
 
     match err {
-        RecipeError::TemplateRendering { source } => {
+        RecipeError::Invalid { source } => {
             let err_str = source.to_string();
             assert!(err_str.contains("Unnecessary parameter definitions: wrong_param_key."));
             assert!(err_str.contains("Missing definitions for parameters in the recipe file:"));
             assert!(err_str.contains("expected_param1"));
             assert!(err_str.contains("expected_param2"));
         }
-        _ => panic!("Expected TemplateRendering error"),
+        _ => panic!("Expected Invalid error"),
     }
 }
 
@@ -260,10 +260,10 @@ fn test_build_recipe_from_template_optional_parameters_without_default_values_in
     let err = build_recipe_result.unwrap_err();
     println!("{}", err);
     match err {
-        RecipeError::TemplateRendering { source } => {
+        RecipeError::Invalid { source } => {
             assert!(source.to_string().to_lowercase().contains("missing"));
         }
-        _ => panic!("Expected TemplateRendering error"),
+        _ => panic!("Expected Invalid error"),
     }
 }
 
@@ -287,12 +287,12 @@ fn test_build_recipe_from_template_wrong_input_type_in_recipe_file() {
     assert!(build_recipe_result.is_err());
     let err = build_recipe_result.unwrap_err();
     match err {
-        RecipeError::TemplateRendering { source } => {
+        RecipeError::Invalid { source } => {
             let err_msg = source.to_string();
             eprint!("Error: {}", err_msg);
             assert!(err_msg.contains("unknown variant `some_invalid_type`"));
         }
-        _ => panic!("Expected TemplateRendering error, got: {:?}", err),
+        _ => panic!("Expected Invalid error, got: {:?}", err),
     }
 }
 
@@ -322,13 +322,13 @@ fn test_build_recipe_from_template_missing_prompt_and_instructions() {
     println!("{}", err);
 
     match err {
-        RecipeError::TemplateRendering { source } => {
+        RecipeError::Invalid { source } => {
             let err_str = source.to_string();
             assert!(
                 err_str.contains("Recipe must specify at least one of `instructions` or `prompt`.")
             );
         }
-        _ => panic!("Expected TemplateRendering error"),
+        _ => panic!("Expected Invalid error"),
     }
 }
 
@@ -478,12 +478,12 @@ instructions: Absolute instructions"#;
 
         assert!(result.is_err());
         match result {
-            Err(RecipeError::RecipeParsing { source }) => {
+            Err(RecipeError::Invalid { source }) => {
                 let error_msg = source.to_string();
                 assert!(error_msg.contains("Sub-recipe file does not exist"));
                 assert!(error_msg.contains("nonexistent.yaml"));
             }
-            _ => panic!("Expected RecipeError::RecipeParsing"),
+            _ => panic!("Expected RecipeError::Invalid"),
         }
     }
 
@@ -601,10 +601,10 @@ parameters:
         );
 
         assert!(result.is_err());
-        if let Err(RecipeError::TemplateRendering { source }) = result {
+        if let Err(RecipeError::Invalid { source }) = result {
             assert!(source.to_string().contains("Failed to read parameter file"));
         } else {
-            panic!("Expected TemplateRendering error");
+            panic!("Expected Invalid error");
         }
     }
 
@@ -629,12 +629,12 @@ parameters:
         );
 
         assert!(result.is_err());
-        if let Err(RecipeError::TemplateRendering { source }) = result {
+        if let Err(RecipeError::Invalid { source }) = result {
             assert!(source
                 .to_string()
                 .contains("File parameters cannot have default values"));
         } else {
-            panic!("Expected TemplateRendering error for file parameter with default");
+            panic!("Expected Invalid error for file parameter with default");
         }
     }
 }
@@ -655,12 +655,12 @@ fn test_build_recipe_from_template_invalid_retry_config() {
     let err = build_recipe_result.unwrap_err();
 
     match err {
-        RecipeError::TemplateRendering { source } => {
+        RecipeError::Invalid { source } => {
             assert_eq!(
                 source.to_string(),
                 "Invalid retry configuration: max_retries must be greater than 0"
             );
         }
-        _ => panic!("Expected TemplateRendering error, got: {:?}", err),
+        _ => panic!("Expected Invalid error, got: {:?}", err),
     }
 }
