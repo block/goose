@@ -5,8 +5,8 @@ import { Button } from '../../../ui/button';
 import { Select } from '../../../ui/Select';
 import { Input } from '../../../ui/input';
 import { getPredefinedModelsFromEnv, shouldShowPredefinedModels } from '../predefinedModelsUtils';
-import { fetchModelsForProviders } from '../modelInterface';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../ui/dialog';
+import { getProviderModels } from '../../../../api';
 
 interface LeadWorkerSettingsProps {
   isOpen: boolean;
@@ -14,7 +14,7 @@ interface LeadWorkerSettingsProps {
 }
 
 export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps) {
-  const { read, upsert, getProviders, getProviderModels, remove } = useConfig();
+  const { read, upsert, getProviders, remove } = useConfig();
   const { currentModel } = useModelAndProvider();
   const [leadModel, setLeadModel] = useState<string>('');
   const [workerModel, setWorkerModel] = useState<string>('');
@@ -104,7 +104,26 @@ export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps)
           const providers = await getProviders(false);
           const activeProviders = providers.filter((p) => p.is_configured);
 
-          const results = await fetchModelsForProviders(activeProviders, getProviderModels);
+          const results = await Promise.all(
+            activeProviders.map(async (p) => {
+              try {
+                const response = await getProviderModels({
+                  path: { name: p.name },
+                  throwOnError: true,
+                });
+                const models = response.data || [];
+                return { provider: p, models, error: null };
+              } catch (e: unknown) {
+                const errorMessage = `Failed to fetch models for ${p.name}${e instanceof Error ? `: ${e.message}` : ''}`;
+                return {
+                  provider: p,
+                  models: null,
+                  error: errorMessage,
+                };
+              }
+            })
+          );
+
           results.forEach(({ provider: p, models, error }) => {
             if (error) {
               console.error(error);
@@ -139,7 +158,7 @@ export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps)
     };
 
     loadConfig();
-  }, [read, getProviders, getProviderModels, currentModel, isOpen]);
+  }, [read, getProviders, currentModel, isOpen]);
 
   // If current models are not in the list (e.g., previously set to custom), switch to custom mode
   useEffect(() => {

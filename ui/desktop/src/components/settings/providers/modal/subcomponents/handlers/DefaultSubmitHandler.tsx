@@ -1,4 +1,4 @@
-import { checkProvider } from '../../../../../../api';
+import { getProviderModels, readConfig } from '../../../../../../api';
 
 /**
  * Standalone function to submit provider configuration
@@ -20,6 +20,24 @@ export const providerConfigSubmitHandler = async (
   configValues: Record<string, string>
 ) => {
   const parameters = provider.metadata.config_keys || [];
+
+  // Save current config values for rollback on failure
+  const previousConfigValues: Record<string, { value: unknown; isSecret: boolean }> = {};
+  for (const param of parameters) {
+    try {
+      const currentValue = await readConfig({
+        body: { key: param.name, is_secret: param.secret || false },
+      });
+      if (currentValue.data) {
+        previousConfigValues[param.name] = {
+          value: currentValue.data,
+          isSecret: param.secret || false,
+        };
+      }
+    } catch {
+      // No previous value exists, that's fine
+    }
+  }
 
   const requiredParams = parameters.filter((param) => param.required);
   if (requiredParams.length === 0 && parameters.length > 0) {
@@ -70,8 +88,23 @@ export const providerConfigSubmitHandler = async (
   );
 
   await Promise.all(upsertPromises);
-  await checkProvider({
-    body: { provider: provider.name },
-    throwOnError: true,
-  });
+
+  // Test the provider configuration by attempting to list models
+  // This validates that the provider is properly configured and reachable
+  try {
+    await getProviderModels({
+      path: { name: provider.name },
+      throwOnError: true,
+    });
+  } catch (error) {
+    // Rollback to previous config values on failure
+    const rollbackPromises: Promise<void>[] = [];
+    for (const [key, { value, isSecret }] of Object.entries(previousConfigValues)) {
+      rollbackPromises.push(upsertFn(key, value, isSecret));
+    }
+    await Promise.all(rollbackPromises);
+
+    // Re-throw the error so the UI can show it
+    throw error;
+  }
 };
