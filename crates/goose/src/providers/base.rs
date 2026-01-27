@@ -481,14 +481,8 @@ pub trait Provider: Send + Sync {
                         e,
                         model_config.model_name
                     );
-                    self.complete_impl(
-                        Some(session_id),
-                        &model_config,
-                        system,
-                        messages,
-                        tools,
-                    )
-                    .await
+                    self.complete_impl(Some(session_id), &model_config, system, messages, tools)
+                        .await
                 } else {
                     Err(e)
                 }
@@ -580,9 +574,6 @@ pub trait Provider: Send + Sync {
 
     /// Build a streaming request descriptor.
     /// Providers implement this to specify what request to make.
-    /// This is a pure data transformation - no async, no HTTP, no logging.
-    ///
-    /// The default implementation returns NotImplemented.
     fn build_stream_request(
         &self,
         _session_id: &str,
@@ -597,8 +588,6 @@ pub trait Provider: Send + Sync {
 
     /// Execute a streaming request and return the HTTP response.
     /// Providers implement this to handle authentication, retry logic, etc.
-    ///
-    /// The default implementation returns NotImplemented.
     async fn execute_stream_request(
         &self,
         _request: &StreamRequest,
@@ -609,13 +598,6 @@ pub trait Provider: Send + Sync {
     }
 
     /// Stream a request with automatic request logging.
-    /// This orchestrates the streaming flow:
-    /// 1. Calls `build_stream_request` to get the request descriptor
-    /// 2. Creates a RequestLog for the request
-    /// 3. Calls `execute_stream_request` to make the HTTP request
-    /// 4. Parses the response based on the stream format
-    /// 5. Wraps the stream with logging
-    ///
     /// Providers should implement `build_stream_request` and `execute_stream_request`.
     /// Callers should use this method.
     async fn stream(
