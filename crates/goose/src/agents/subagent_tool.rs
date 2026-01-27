@@ -246,12 +246,15 @@ async fn execute_subagent(
     working_dir: PathBuf,
     cancellation_token: Option<CancellationToken>,
 ) -> Result<rmcp::model::CallToolResult, ErrorData> {
-    let session = config
-        .session_manager
+    let session_manager = config.session_manager.clone();
+    let session = task_config
+        .provider
         .create_session(
+            &session_manager,
             working_dir,
             "Subagent task".to_string(),
             crate::session::session_manager::SessionType::SubAgent,
+            None,
         )
         .await
         .map_err(|e| ErrorData {

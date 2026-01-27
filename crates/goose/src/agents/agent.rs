@@ -39,7 +39,7 @@ use crate::mcp_utils::ToolResult;
 use crate::permission::permission_inspector::PermissionInspector;
 use crate::permission::permission_judge::PermissionCheckResult;
 use crate::permission::PermissionConfirmation;
-use crate::providers::base::Provider;
+use crate::providers::base::{PermissionRouting, Provider};
 use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
 use crate::scheduler_trait::SchedulerTrait;
@@ -832,9 +832,33 @@ impl Agent {
         request_id: String,
         confirmation: PermissionConfirmation,
     ) {
+        let provider = { self.provider.lock().await.clone() };
+        let routed = if let Some(provider) = provider.as_ref() {
+            matches!(
+                provider.permission_routing(),
+                PermissionRouting::ActionRequired
+            ) && provider
+                .handle_permission_confirmation(&request_id, &confirmation)
+                .await
+        } else {
+            false
+        };
+
+        if routed {
+            return;
+        }
+
         if let Err(e) = self.confirmation_tx.send((request_id, confirmation)).await {
             error!("Failed to send confirmation: {}", e);
         }
+    }
+
+    pub async fn supports_action_required_permissions(&self) -> bool {
+        let provider = { self.provider.lock().await.clone() };
+        provider
+            .as_ref()
+            .map(|p| matches!(p.permission_routing(), PermissionRouting::ActionRequired))
+            .unwrap_or(false)
     }
 
     #[instrument(skip(self, user_message, session_config), fields(user_message))]

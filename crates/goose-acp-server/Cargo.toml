@@ -1,19 +1,16 @@
 [package]
-name = "goose-acp"
-version.workspace = true
+name = "goose-acp-server"
 edition.workspace = true
+version.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
 description.workspace = true
 
-[lints]
-workspace = true
-
 [dependencies]
 goose = { path = "../goose" }
 rmcp = { workspace = true }
-sacp = "10.1.0"
+sacp = { workspace = true }
 anyhow = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { version = "0.7.15", features = ["compat", "rt"] }
@@ -31,3 +28,8 @@ tempfile = "3"
 test-case = { workspace = true }
 axum = "0.8"
 rmcp = { workspace = true, features = ["transport-streamable-http-server"] }
+goose-acp-provider = { path = "../goose-acp-provider" }
+async-trait = "0.1.89"
+
+[lints]
+workspace = true

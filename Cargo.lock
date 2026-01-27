@@ -2920,6 +2920,7 @@ dependencies = [
  "etcetera 0.11.0",
  "fs2",
  "futures",
+ "goose-acp-provider",
  "goose-mcp",
  "ignore",
  "include_dir",
@@ -2981,15 +2982,41 @@ dependencies = [
 ]
 
 [[package]]
-name = "goose-acp"
+name = "goose-acp-provider"
+version = "1.21.0"
+dependencies = [
+ "anyhow",
+ "env-lock",
+ "etcetera 0.11.0",
+ "flate2",
+ "futures",
+ "reqwest 0.12.28",
+ "sacp",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tar",
+ "tempfile",
+ "test-case",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "wiremock",
+ "zip 0.6.6",
+]
+
+[[package]]
+name = "goose-acp-server"
 version = "1.21.0"
 dependencies = [
  "anyhow",
  "assert-json-diff",
+ "async-trait",
  "axum 0.8.8",
  "fs-err",
  "futures",
  "goose",
+ "goose-acp-provider",
  "regex",
  "rmcp 0.14.0",
  "sacp",
@@ -3045,7 +3072,7 @@ dependencies = [
  "etcetera 0.11.0",
  "futures",
  "goose",
- "goose-acp",
+ "goose-acp-server",
  "goose-bench",
  "goose-mcp",
  "http 1.4.0",

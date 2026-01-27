@@ -9,6 +9,8 @@ use crate::config::base::ConfigValue;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use crate::model::ModelConfig;
+use crate::permission::PermissionConfirmation;
+use crate::session::{Session, SessionManager, SessionType};
 use crate::utils::safe_truncate;
 use rmcp::model::Tool;
 use utoipa::ToSchema;
@@ -34,6 +36,12 @@ pub fn get_current_model() -> Option<String> {
 }
 
 pub static MSG_COUNT_FOR_SESSION_NAME_GENERATION: usize = 3;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PermissionRouting {
+    ActionRequired,
+    Noop,
+}
 
 /// Information about a model's capabilities
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]
@@ -435,6 +443,25 @@ pub trait Provider: Send + Sync {
     /// Get the model config from the provider
     fn get_model_config(&self) -> ModelConfig;
 
+    async fn create_session(
+        &self,
+        session_manager: &SessionManager,
+        working_dir: std::path::PathBuf,
+        name: String,
+        session_type: SessionType,
+        session_id: Option<String>,
+    ) -> Result<Session> {
+        if let Some(id) = session_id {
+            session_manager
+                .create_session_with_id(id, working_dir, name, session_type)
+                .await
+        } else {
+            session_manager
+                .create_session(working_dir, name, session_type)
+                .await
+        }
+    }
+
     fn retry_config(&self) -> RetryConfig {
         RetryConfig::default()
     }
@@ -527,6 +554,18 @@ pub trait Provider: Send + Sync {
     }
 
     fn supports_streaming(&self) -> bool {
+        false
+    }
+
+    fn permission_routing(&self) -> PermissionRouting {
+        PermissionRouting::Noop
+    }
+
+    async fn handle_permission_confirmation(
+        &self,
+        _request_id: &str,
+        _confirmation: &PermissionConfirmation,
+    ) -> bool {
         false
     }
 

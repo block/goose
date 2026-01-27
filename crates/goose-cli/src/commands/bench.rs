@@ -36,6 +36,8 @@ pub async fn agent_generator(
 ) -> BenchAgent {
     let base_session = build_session(SessionBuilderConfig {
         session_id: Some(session_id),
+        session_name: None,
+        user_set_name: false,
         resume: false,
         fork: false,
         no_session: false,

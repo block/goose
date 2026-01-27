@@ -21,6 +21,7 @@ impl SimpleRepoCloneTest {
 
 #[async_trait]
 impl Evaluation for SimpleRepoCloneTest {
+    #[allow(clippy::too_many_lines)]
     async fn run(
         &self,
         agent: &mut BenchAgent,

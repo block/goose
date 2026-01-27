@@ -359,6 +359,11 @@ impl<'a> ApiRequestBuilder<'a> {
     }
 
     pub async fn response_post(self, payload: &Value) -> Result<Response> {
+        tracing::debug!(
+            "LLM_REQUEST: {}",
+            serde_json::to_string(payload).unwrap_or_else(|_| "{}".to_string())
+        );
+
         let request = self.send_request(|url, client| client.post(url)).await?;
         Ok(request.json(payload).send().await?)
     }

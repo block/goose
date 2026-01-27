@@ -16,7 +16,6 @@ path = "src/main.rs"
 
 [dependencies]
 goose = { path = "../goose" }
-goose-acp = { path = "../goose-acp" }
 goose-bench = { path = "../goose-bench" }
 goose-mcp = { path = "../goose-mcp" }
 rmcp = { workspace = true }
@@ -56,6 +55,7 @@ anstream = "0.6.18"
 open = "5.3.2"
 urlencoding = "2.1"
 clap_complete = "4.5.62"
+goose-acp-server = { path = "../goose-acp-server" }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }
