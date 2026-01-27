@@ -91,7 +91,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
   };
 
   return (
-    <div className="flex flex-1 w-full relative animate-fade-in">
+    <div className="flex flex-1 w-full min-h-0 relative animate-fade-in">
       {!shouldHideButtons && (
         <div className={`${headerPadding} absolute top-3 z-100 flex items-center`}>
           <SidebarTrigger
