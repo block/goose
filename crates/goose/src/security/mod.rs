@@ -2,6 +2,7 @@ pub mod classification_client;
 pub mod patterns;
 pub mod scanner;
 pub mod security_inspector;
+pub mod text_normalizer;
 
 use crate::config::Config;
 use crate::conversation::message::{Message, ToolRequest};

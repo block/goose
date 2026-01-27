@@ -267,8 +267,11 @@ impl PromptInjectionScanner {
             ClassifierType::Command => "command injection",
             ClassifierType::Prompt => "prompt injection",
         };
-
-        match classifier.classify(text).await {
+        let result = match classifier_type {
+            ClassifierType::Command => classifier.classify(text).await,
+            ClassifierType::Prompt => classifier.classify_with_normalization(text).await,
+        };
+        match result {
             Ok(conf) => Some(conf),
             Err(e) => {
                 tracing::warn!("{} classifier scan failed: {:#}", type_name, e);
