@@ -203,9 +203,7 @@ export default function McpAppRenderer({
   const handleSizeChanged = useCallback((height: number, width?: number) => {
     const newHeight = Math.max(DEFAULT_IFRAME_HEIGHT, height);
     setIframeHeight(newHeight);
-    if (width !== undefined) {
-      setIframeWidth(width);
-    }
+    setIframeWidth(width ?? null);
   }, []);
 
   const { iframeRef, proxyUrl } = useSandboxBridge({
@@ -268,6 +266,7 @@ export default function McpAppRenderer({
           src={proxyUrl}
           style={{
             width: iframeWidth ? `${iframeWidth}px` : '100%',
+            maxWidth: '100%',
             height: `${iframeHeight}px`,
             border: 'none',
             overflow: 'hidden',
