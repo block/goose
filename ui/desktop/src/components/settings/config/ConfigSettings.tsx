@@ -85,7 +85,7 @@ export default function ConfigSettings() {
       toastError({
         title: 'Save Failed',
         msg: `Failed to save "${getUiNames(key)}"`,
-        traceback: errorMessage(error, String)(error),
+        traceback: errorMessage(error),
       });
     } finally {
       setSaving(null);

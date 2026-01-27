@@ -274,7 +274,7 @@ export default function CreateEditRecipeModal({
       toastError({
         title: 'Save Failed',
         msg: `Failed to save recipe: ${errorMessage(error, 'Unknown error')}`,
-        traceback: errorMessage(error, String)(error),
+        traceback: errorMessage(error),
       });
     } finally {
       setIsSaving(false);
@@ -319,7 +319,7 @@ export default function CreateEditRecipeModal({
       toastError({
         title: 'Save and Run Failed',
         msg: `Failed to save and run recipe: ${errorMessage(error, 'Unknown error')}`,
-        traceback: errorMessage(error, String)(error),
+        traceback: errorMessage(error),
       });
     } finally {
       setIsSaving(false);

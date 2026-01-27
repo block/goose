@@ -81,7 +81,7 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
       toastError({
         title: `${providerName}/${modelName} failed`,
         msg: `${error}`,
-        traceback: errorMessage(error, String)(error),
+        traceback: errorMessage(error),
       });
     }
   }, []);

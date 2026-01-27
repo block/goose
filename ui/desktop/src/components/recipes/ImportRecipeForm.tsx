@@ -140,7 +140,7 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
         toastError({
           title: 'Import Failed',
           msg: `Failed to import recipe: ${errorMessage(error, 'Unknown error')}`,
-          traceback: errorMessage(error, String)(error),
+          traceback: errorMessage(error),
         });
       } finally {
         setImporting(false);

@@ -121,7 +121,7 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
       console.error('Failed to connect to Ollama:', error);
       toastService.error({
         title: 'Connection Failed',
-        msg: `Failed to connect to Ollama: ${errorMessage(error, String)(error)}`,
+        msg: `Failed to connect to Ollama: ${errorMessage(error)}`,
         traceback: error instanceof Error ? error.stack || '' : '',
       });
       setIsConnecting(false);
