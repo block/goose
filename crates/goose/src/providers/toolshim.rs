@@ -39,7 +39,7 @@ use crate::model::ModelConfig;
 use crate::providers::formats::openai::create_request;
 use anyhow::Result;
 use reqwest::Client;
-use rmcp::model::{object, CallToolRequestParams, RawContent, Tool};
+use rmcp::model::{object, CallToolRequestParams, RawContent, Role, Tool};
 use serde_json::{json, Value};
 use std::ops::Deref;
 use std::time::Duration;
@@ -350,6 +350,11 @@ pub fn convert_tool_messages_to_text(messages: &[Message]) -> Conversation {
                                 let text_contents: Vec<String> = result
                                     .content
                                     .iter()
+                                    .filter(|c| {
+                                        c.audience().is_none_or(|audience| {
+                                            audience.contains(&Role::Assistant)
+                                        })
+                                    })
                                     .filter_map(|c| match c.deref() {
                                         RawContent::Text(t) => Some(t.text.clone()),
                                         _ => None,

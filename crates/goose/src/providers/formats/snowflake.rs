@@ -39,6 +39,10 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                         let text = result
                             .content
                             .iter()
+                            .filter(|c| {
+                                c.audience()
+                                    .is_none_or(|audience| audience.contains(&Role::Assistant))
+                            })
                             .filter_map(|c| c.as_text().map(|t| t.text.clone()))
                             .collect::<Vec<_>>()
                             .join("\n");

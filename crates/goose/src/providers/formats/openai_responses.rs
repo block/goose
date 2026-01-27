@@ -314,6 +314,10 @@ fn add_function_call_outputs(input_items: &mut Vec<Value>, messages: &[Message])
                         let text_content: Vec<String> = contents
                             .content
                             .iter()
+                            .filter(|c| {
+                                c.audience()
+                                    .is_none_or(|audience| audience.contains(&Role::Assistant))
+                            })
                             .filter_map(|c| {
                                 if let RawContent::Text(t) = c.deref() {
                                     Some(t.text.clone())

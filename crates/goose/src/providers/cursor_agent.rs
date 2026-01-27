@@ -90,6 +90,10 @@ impl CursorAgentProvider {
                             let content_text = result
                                 .content
                                 .iter()
+                                .filter(|c| {
+                                    c.audience()
+                                        .is_none_or(|audience| audience.contains(&Role::Assistant))
+                                })
                                 .filter_map(|content| match &content.raw {
                                     rmcp::model::RawContent::Text(text_content) => {
                                         Some(text_content.text.as_str())
