@@ -396,8 +396,8 @@ pub async fn get_provider_models(
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    let model_config =
-        ModelConfig::new(&metadata.default_model, &name).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let model_config = ModelConfig::new(&metadata.default_model, &name)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let provider = goose::providers::create(&name, model_config)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -534,7 +534,6 @@ pub async fn get_canonical_model_info(
         }))
     }
 }
-
 
 #[utoipa::path(
     post,
@@ -859,8 +858,8 @@ pub async fn configure_provider_oauth(
         return Err((StatusCode::BAD_REQUEST, "Invalid provider name".to_string()));
     }
 
-    let temp_model =
-        ModelConfig::new("temp", &provider_name).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+    let temp_model = ModelConfig::new("temp", &provider_name)
+        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
     let provider = create(&provider_name, temp_model).await.map_err(|e| {
         (
@@ -899,7 +898,10 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/providers/{name}/models", get(get_provider_models))
         .route("/config/detect-provider", post(detect_provider))
         .route("/config/slash_commands", get(get_slash_commands))
-        .route("/config/canonical-model-info", post(get_canonical_model_info))
+        .route(
+            "/config/canonical-model-info",
+            post(get_canonical_model_info),
+        )
         .route("/config/init", post(init_config))
         .route("/config/backup", post(backup_config))
         .route("/config/recover", post(recover_config))
@@ -926,5 +928,4 @@ mod tests {
     use http::HeaderMap;
 
     use super::*;
-
 }

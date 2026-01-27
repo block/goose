@@ -220,7 +220,10 @@ async fn create_lead_worker_from_env(
     )))
 }
 
-fn create_worker_model_config(default_model: &ModelConfig, provider_name: &str) -> Result<ModelConfig> {
+fn create_worker_model_config(
+    default_model: &ModelConfig,
+    provider_name: &str,
+) -> Result<ModelConfig> {
     let mut worker_config = ModelConfig::new_or_fail(&default_model.model_name, provider_name)
         .with_context_limit(default_model.context_limit)
         .with_temperature(default_model.temperature)

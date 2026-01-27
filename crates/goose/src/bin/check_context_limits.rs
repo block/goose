@@ -9,9 +9,8 @@
 ///   cargo run --bin check_context_limits > before.txt  # Run before changes
 ///   cargo run --bin check_context_limits > after.txt   # Run after changes
 ///   diff before.txt after.txt                          # Compare
-
 use anyhow::{Context, Result};
-use goose::providers::{create_with_named_model, canonical::CanonicalModelRegistry};
+use goose::providers::{canonical::CanonicalModelRegistry, create_with_named_model};
 use std::collections::HashMap;
 
 const DEFAULT_INPUT_CONTEXT: usize = 128_000;
@@ -133,7 +132,9 @@ fn get_current_hardcoded_output(model_name: &str, provider: &str) -> i32 {
         "anthropic" | "aws_bedrock" => {
             if model_name.contains("claude-3-haiku") {
                 4096
-            } else if model_name.contains("claude-opus-4-0") || model_name.contains("claude-opus-4-1") {
+            } else if model_name.contains("claude-opus-4-0")
+                || model_name.contains("claude-opus-4-1")
+            {
                 32000
             } else if model_name.contains("claude") {
                 64000
@@ -141,7 +142,7 @@ fn get_current_hardcoded_output(model_name: &str, provider: &str) -> i32 {
                 DEFAULT_OUTPUT_TOKENS
             }
         }
-        _ => DEFAULT_OUTPUT_TOKENS
+        _ => DEFAULT_OUTPUT_TOKENS,
     }
 }
 
@@ -171,10 +172,7 @@ fn calculate_new_limits(
     // Actually test what ModelConfig::new() returns!
     // This is the real code path users will hit
     match goose::model::ModelConfig::new(model_name, provider) {
-        Ok(config) => (
-            config.context_limit(),
-            config.max_output_tokens(),
-        ),
+        Ok(config) => (config.context_limit(), config.max_output_tokens()),
         Err(_) => {
             // If model config creation fails, use defaults
             (DEFAULT_INPUT_CONTEXT, DEFAULT_OUTPUT_TOKENS)
@@ -188,8 +186,7 @@ async fn main() -> Result<()> {
     println!("CONTEXT LIMITS COMPARISON: Current vs Canonical Models");
     println!("================================================================================\n");
 
-    let registry = CanonicalModelRegistry::bundled()
-        .context("Failed to load canonical models")?;
+    let registry = CanonicalModelRegistry::bundled().context("Failed to load canonical models")?;
 
     // Core providers we have keys for (from build_canonical_models)
     // Note: aws_bedrock is slow to fetch, so skipping for now
@@ -205,7 +202,8 @@ async fn main() -> Result<()> {
 
     for (provider_name, default_model) in providers {
         println!("Fetching models from {}...", provider_name);
-        let models_with_canonical = get_provider_models_with_canonical(provider_name, default_model).await?;
+        let models_with_canonical =
+            get_provider_models_with_canonical(provider_name, default_model).await?;
 
         if models_with_canonical.is_empty() {
             println!("  No models found\n");
@@ -222,18 +220,15 @@ async fn main() -> Result<()> {
             let current_input = get_current_hardcoded_input(&model);
             let current_output = get_current_hardcoded_output(&model, provider_name);
 
-            let (canonical_input, canonical_output) = if let Some(ref canonical_id) = canonical_id_opt {
-                get_canonical_limits_by_id(&registry, canonical_id)
-            } else {
-                (None, None)
-            };
+            let (canonical_input, canonical_output) =
+                if let Some(ref canonical_id) = canonical_id_opt {
+                    get_canonical_limits_by_id(&registry, canonical_id)
+                } else {
+                    (None, None)
+                };
 
-            let (new_input, new_output) = calculate_new_limits(
-                canonical_input,
-                canonical_output,
-                provider_name,
-                &model,
-            );
+            let (new_input, new_output) =
+                calculate_new_limits(canonical_input, canonical_output, provider_name, &model);
 
             let input_differs = current_input != new_input;
             let output_differs = current_output != new_output;
@@ -274,9 +269,21 @@ async fn main() -> Result<()> {
         let total = same + different + missing;
         println!("{}:", provider);
         println!("  Total models:          {}", total);
-        println!("  Same as canonical:     {} ({:.1}%)", same, (*same as f64 / total as f64) * 100.0);
-        println!("  Different:             {} ({:.1}%)", different, (*different as f64 / total as f64) * 100.0);
-        println!("  Missing canonical:     {} ({:.1}%)", missing, (*missing as f64 / total as f64) * 100.0);
+        println!(
+            "  Same as canonical:     {} ({:.1}%)",
+            same,
+            (*same as f64 / total as f64) * 100.0
+        );
+        println!(
+            "  Different:             {} ({:.1}%)",
+            different,
+            (*different as f64 / total as f64) * 100.0
+        );
+        println!(
+            "  Missing canonical:     {} ({:.1}%)",
+            missing,
+            (*missing as f64 / total as f64) * 100.0
+        );
         println!();
     }
 
@@ -301,21 +308,46 @@ async fn main() -> Result<()> {
             if limit.input_differs {
                 println!("  Input context:");
                 println!("    Current:   {:>10}", format_number(limit.current_input));
-                println!("    Canonical: {:>10}",
-                    limit.canonical_input.map(format_number).unwrap_or_else(|| "N/A".to_string()));
-                println!("    New:       {:>10} {}",
+                println!(
+                    "    Canonical: {:>10}",
+                    limit
+                        .canonical_input
+                        .map(format_number)
+                        .unwrap_or_else(|| "N/A".to_string())
+                );
+                println!(
+                    "    New:       {:>10} {}",
                     format_number(limit.new_input),
-                    if limit.new_input > limit.current_input { "↑" } else { "↓" });
+                    if limit.new_input > limit.current_input {
+                        "↑"
+                    } else {
+                        "↓"
+                    }
+                );
             }
 
             if limit.output_differs {
                 println!("  Output tokens:");
-                println!("    Current:   {:>10}", format_number(limit.current_output as usize));
-                println!("    Canonical: {:>10}",
-                    limit.canonical_output.map(|o| format_number(o as usize)).unwrap_or_else(|| "N/A".to_string()));
-                println!("    New:       {:>10} {}",
+                println!(
+                    "    Current:   {:>10}",
+                    format_number(limit.current_output as usize)
+                );
+                println!(
+                    "    Canonical: {:>10}",
+                    limit
+                        .canonical_output
+                        .map(|o| format_number(o as usize))
+                        .unwrap_or_else(|| "N/A".to_string())
+                );
+                println!(
+                    "    New:       {:>10} {}",
                     format_number(limit.new_output as usize),
-                    if limit.new_output > limit.current_output { "↑" } else { "↓" });
+                    if limit.new_output > limit.current_output {
+                        "↑"
+                    } else {
+                        "↓"
+                    }
+                );
             }
 
             println!();
@@ -326,11 +358,15 @@ async fn main() -> Result<()> {
     println!("{}", "=".repeat(80));
     println!("COMPLETE MODEL LISTING");
     println!("{}", "=".repeat(80));
-    println!("{:<20} {:<50} {:>12} {:>12}", "Provider", "Model", "Input", "Output");
+    println!(
+        "{:<20} {:<50} {:>12} {:>12}",
+        "Provider", "Model", "Input", "Output"
+    );
     println!("{}", "-".repeat(96));
 
     for limit in &all_limits {
-        println!("{:<20} {:<50} {:>12} {:>12}",
+        println!(
+            "{:<20} {:<50} {:>12} {:>12}",
             limit.provider,
             limit.model_name,
             format_number(limit.new_input),

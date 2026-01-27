@@ -64,7 +64,6 @@ pub struct OpenAiProvider {
 
 impl OpenAiProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
-
         let config = crate::config::Config::global();
         let secrets = config.get_secrets("OPENAI_API_KEY", &["OPENAI_CUSTOM_HEADERS"])?;
         let api_key = secrets.get("OPENAI_API_KEY").unwrap().clone();

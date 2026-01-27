@@ -90,8 +90,11 @@ impl ModelConfig {
         let mut max_tokens = max_tokens_from_env;
 
         if context_limit.is_none() || max_tokens.is_none() {
-            if let Some(canonical_id) = crate::providers::canonical::get_canonical_id(provider_name, &model_name) {
-                if let Ok(registry) = crate::providers::canonical::CanonicalModelRegistry::bundled() {
+            if let Some(canonical_id) =
+                crate::providers::canonical::get_canonical_id(provider_name, &model_name)
+            {
+                if let Ok(registry) = crate::providers::canonical::CanonicalModelRegistry::bundled()
+                {
                     if let Some((provider, model)) = canonical_id.split_once('/') {
                         if let Some(canonical) = registry.get(provider, model) {
                             if context_limit.is_none() {
