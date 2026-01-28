@@ -1656,7 +1656,7 @@ pub async fn handle_openrouter_auth() -> anyhow::Result<()> {
         Ok(provider) => {
             let model_config = provider.get_model_config();
             let test_result = provider
-                .complete_impl(
+                .complete_with_model(
                     None,
                     &model_config,
                     "You are goose, an AI assistant.",

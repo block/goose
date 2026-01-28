@@ -340,7 +340,7 @@ impl Provider for LeadWorkerProvider {
         self.lead_provider.get_model_config()
     }
 
-    async fn complete_impl(
+    async fn complete_with_model(
         &self,
         session_id: Option<&str>,
         _model_config: &ModelConfig,
@@ -395,7 +395,7 @@ impl Provider for LeadWorkerProvider {
         // Make the completion request
         let model_config = provider.get_model_config();
         let result = provider
-            .complete_impl(session_id, &model_config, system, messages, tools)
+            .complete_with_model(session_id, &model_config, system, messages, tools)
             .await;
 
         // For technical failures, try with default model (lead provider) instead
@@ -407,7 +407,7 @@ impl Provider for LeadWorkerProvider {
                 let model_config = self.lead_provider.get_model_config();
                 let default_result = self
                     .lead_provider
-                    .complete_impl(session_id, &model_config, system, messages, tools)
+                    .complete_with_model(session_id, &model_config, system, messages, tools)
                     .await;
 
                 match &default_result {
@@ -510,7 +510,7 @@ mod tests {
             self.model_config.clone()
         }
 
-        async fn complete_impl(
+        async fn complete_with_model(
             &self,
             _session_id: Option<&str>,
             _model_config: &ModelConfig,
@@ -696,7 +696,7 @@ mod tests {
             self.model_config.clone()
         }
 
-        async fn complete_impl(
+        async fn complete_with_model(
             &self,
             _session_id: Option<&str>,
             _model_config: &ModelConfig,

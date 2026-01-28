@@ -119,7 +119,7 @@ impl Provider for TestProvider {
         &self.name
     }
 
-    async fn complete_impl(
+    async fn complete_with_model(
         &self,
         session_id: Option<&str>,
         _model_config: &ModelConfig,
@@ -132,7 +132,7 @@ impl Provider for TestProvider {
         if let Some(inner) = &self.inner {
             let model_config = inner.get_model_config();
             let (message, usage) = inner
-                .complete_impl(session_id, &model_config, system, messages, tools)
+                .complete_with_model(session_id, &model_config, system, messages, tools)
                 .await?;
 
             let record = TestRecord {
@@ -204,7 +204,7 @@ mod tests {
             "mock-testprovider"
         }
 
-        async fn complete_impl(
+        async fn complete_with_model(
             &self,
             _session_id: Option<&str>,
             _model_config: &ModelConfig,

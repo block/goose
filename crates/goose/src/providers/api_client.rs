@@ -379,16 +379,11 @@ impl<'a> ApiRequestBuilder<'a> {
     {
         let url = self.client.build_url(self.path)?;
         let mut headers = self.headers.clone();
-        // Only manage the session_id header if we have a session_id in the builder.
-        // If session_id is None, preserve any existing session_id header that may have been
-        // added via .header() (e.g., from StreamRequest headers).
-        if self.session_id.is_some() {
-            headers.remove(SESSION_ID_HEADER);
-            if let Some(session_id) = self.session_id {
-                let header_name = HeaderName::from_static(SESSION_ID_HEADER);
-                let header_value = HeaderValue::from_str(session_id)?;
-                headers.insert(header_name, header_value);
-            }
+        headers.remove(SESSION_ID_HEADER);
+        if let Some(session_id) = self.session_id {
+            let header_name = HeaderName::from_static(SESSION_ID_HEADER);
+            let header_value = HeaderValue::from_str(session_id)?;
+            headers.insert(header_name, header_value);
         }
 
         let mut request = request_builder(url, &self.client.client);
@@ -431,8 +426,8 @@ mod tests {
 
     #[test_case(Some("test-session_id-456"), None, Some("test-session_id-456"); "header set")]
     #[test_case(Some("new-session"), Some(("Agent-Session-Id", "old-session")), Some("new-session"); "replaces existing")]
-    #[test_case(None, Some(("Agent-Session-Id", "old-session")), Some("old-session"); "preserves existing on none")]
-    #[test_case(Some(""), Some(("agent-session-id", "old-session")), Some("old-session"); "preserves existing on empty")]
+    #[test_case(None, Some(("Agent-Session-Id", "old-session")), None; "removes existing on none")]
+    #[test_case(Some(""), Some(("agent-session-id", "old-session")), None; "removes existing on empty")]
     fn test_session_id_header(
         session_id: Option<&str>,
         existing_header: Option<(&str, &str)>,

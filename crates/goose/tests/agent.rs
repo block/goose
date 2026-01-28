@@ -353,7 +353,7 @@ mod tests {
 
         #[async_trait]
         impl Provider for MockToolProvider {
-            async fn complete_impl(
+            async fn complete_with_model(
                 &self,
                 _session_id: Option<&str>,
                 _model_config: &ModelConfig,

@@ -433,7 +433,7 @@ mod tests {
             self.model_config.clone()
         }
 
-        async fn complete_impl(
+        async fn complete_with_model(
             &self,
             _session_id: Option<&str>,
             _model_config: &ModelConfig,

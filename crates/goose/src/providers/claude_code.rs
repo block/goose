@@ -415,7 +415,7 @@ impl Provider for ClaudeCodeProvider {
         skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete_impl(
+    async fn complete_with_model(
         &self,
         _session_id: Option<&str>, // create_session == YYYYMMDD_N, but --session-id requires a UUID
         model_config: &ModelConfig,

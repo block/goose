@@ -350,22 +350,14 @@ use super::utils::{
     wrap_stream_with_logging, RequestLog,
 };
 
-/// The format of the streaming response, determining how to parse it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StreamFormat {
-    /// OpenAI-compatible streaming (most providers)
     OpenAiCompat,
-    /// OpenAI Responses API streaming
     OpenAiResponses,
-    /// Anthropic streaming format
     Anthropic,
-    /// Google Gemini streaming format
     Google,
 }
 
-/// A descriptor for a streaming request.
-/// Providers return this from `build_stream_request` to describe what request to make.
-/// The trait's default `stream` method handles execution and logging.
 #[derive(Debug, Clone)]
 pub struct StreamRequest {
     /// The URL path to POST to (relative to the provider's base URL)
@@ -379,8 +371,6 @@ pub struct StreamRequest {
 }
 
 impl StreamRequest {
-    /// Create a new StreamRequest with the given URL, payload, and format.
-    /// Headers default to empty.
     pub fn new(url: impl Into<String>, payload: serde_json::Value, format: StreamFormat) -> Self {
         Self {
             url: url.into(),
@@ -390,7 +380,6 @@ impl StreamRequest {
         }
     }
 
-    /// Add a header to the request.
     pub fn with_header(mut self, name: &str, value: &str) -> Result<Self, ProviderError> {
         let header_name = reqwest::header::HeaderName::from_bytes(name.as_bytes())
             .map_err(|e| ProviderError::RequestFailed(format!("Invalid header name: {}", e)))?;
@@ -400,7 +389,6 @@ impl StreamRequest {
         Ok(self)
     }
 
-    /// Add multiple headers to the request.
     pub fn with_headers(mut self, headers: HeaderMap) -> Self {
         self.headers.extend(headers);
         self
@@ -431,11 +419,7 @@ pub trait Provider: Send + Sync {
     fn get_name(&self) -> &str;
 
     /// Internal implementation of complete. Providers implement this method.
-    /// This method should NOT handle RequestLog - that's done by complete.
-    ///
-    /// # Parameters
-    /// - `session_id`: Use `None` only for configuration or pre-session tasks.
-    async fn complete_impl(
+    async fn complete_with_model(
         &self,
         session_id: Option<&str>,
         model_config: &ModelConfig,
@@ -453,7 +437,7 @@ pub trait Provider: Send + Sync {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let model_config = self.get_model_config();
-        self.complete_impl(Some(session_id), &model_config, system, messages, tools)
+        self.complete_with_model(Some(session_id), &model_config, system, messages, tools)
             .await
     }
 
@@ -469,7 +453,7 @@ pub trait Provider: Send + Sync {
         let fast_config = model_config.use_fast_model();
 
         match self
-            .complete_impl(Some(session_id), &fast_config, system, messages, tools)
+            .complete_with_model(Some(session_id), &fast_config, system, messages, tools)
             .await
         {
             Ok(result) => Ok(result),
@@ -481,8 +465,14 @@ pub trait Provider: Send + Sync {
                         e,
                         model_config.model_name
                     );
-                    self.complete_impl(Some(session_id), &model_config, system, messages, tools)
-                        .await
+                    self.complete_with_model(
+                        Some(session_id),
+                        &model_config,
+                        system,
+                        messages,
+                        tools,
+                    )
+                    .await
                 } else {
                     Err(e)
                 }
@@ -609,7 +599,6 @@ pub trait Provider: Send + Sync {
     ) -> Result<MessageStream, ProviderError> {
         let mut request = self.build_stream_request(session_id, system, messages, tools)?;
 
-        // Add session_id header if provided - this is done centrally so providers don't need to
         if !session_id.is_empty() {
             request = request.with_header(SESSION_ID_HEADER, session_id)?;
         }

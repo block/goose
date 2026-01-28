@@ -174,7 +174,7 @@ impl Provider for LiteLLMProvider {
     }
 
     #[tracing::instrument(skip_all, name = "provider_complete")]
-    async fn complete_impl(
+    async fn complete_with_model(
         &self,
         session_id: Option<&str>,
         model_config: &ModelConfig,

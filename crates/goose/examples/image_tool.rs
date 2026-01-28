@@ -63,7 +63,7 @@ async fn main() -> Result<()> {
             }
         });
         let (response, usage) = provider
-            .complete_impl(
+            .complete_with_model(
                 None,
                 &provider.get_model_config(),
                 "You are a helpful assistant. Please describe any text you see in the image.",

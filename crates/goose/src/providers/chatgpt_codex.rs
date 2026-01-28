@@ -868,7 +868,7 @@ impl Provider for ChatGptCodexProvider {
         skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete_impl(
+    async fn complete_with_model(
         &self,
         session_id: Option<&str>,
         model_config: &ModelConfig,
