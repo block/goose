@@ -111,7 +111,7 @@ Use {{parameter_name}} syntax for any user-provided values.`;
               className={`w-full h-full min-h-[500px] p-3 border rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono text-sm ${
                 error ? 'border-red-500' : 'border-border-subtle'
               }`}
-              placeholder="Detailed instructions for the AI, hidden from the user..."
+              placeholder="Detailed instructions for the AI, hidden from the user"
             />
             {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
           </div>

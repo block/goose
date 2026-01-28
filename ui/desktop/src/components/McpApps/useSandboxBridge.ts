@@ -86,6 +86,21 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
 
           case 'ui/notifications/initialized':
             isGuestInitializedRef.current = true;
+            // Send any pending tool data that arrived before initialization
+            if (toolInput) {
+              sendToSandbox({
+                jsonrpc: '2.0',
+                method: 'ui/notifications/tool-input',
+                params: { arguments: toolInput.arguments },
+              });
+            }
+            if (toolResult) {
+              sendToSandbox({
+                jsonrpc: '2.0',
+                method: 'ui/notifications/tool-result',
+                params: toolResult,
+              });
+            }
             break;
 
           case 'ui/notifications/size-changed': {
@@ -163,7 +178,16 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
         }
       }
     },
-    [resourceHtml, resourceCsp, resolvedTheme, sendToSandbox, onMcpRequest, onSizeChanged]
+    [
+      resourceHtml,
+      resourceCsp,
+      resolvedTheme,
+      sendToSandbox,
+      onMcpRequest,
+      onSizeChanged,
+      toolInput,
+      toolResult,
+    ]
   );
 
   useEffect(() => {

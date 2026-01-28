@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { IoIosCloseCircle, IoIosWarning, IoIosInformationCircle } from 'react-icons/io';
 import { FaPencilAlt, FaSave } from 'react-icons/fa';
 import { cn } from '../../utils';
+import { errorMessage } from '../../utils/conversionUtils';
 import { Alert, AlertType } from './types';
 import { upsertConfig } from '../../api';
 import { useConfig } from '../ConfigContext';
@@ -22,6 +23,17 @@ const alertStyles: Record<AlertType, string> = {
   [AlertType.Error]: 'bg-[#d7040e] text-white',
   [AlertType.Warning]: 'bg-[#cc4b03] text-white',
   [AlertType.Info]: 'dark:bg-white dark:text-black bg-black text-white',
+};
+
+const formatTokenCount = (count: number): string => {
+  if (count >= 1000000) {
+    const millions = count / 1000000;
+    return millions % 1 === 0 ? `${millions.toFixed(0)}M` : `${millions.toFixed(1)}M`;
+  } else if (count >= 1000) {
+    const thousands = count / 1000;
+    return thousands % 1 === 0 ? `${thousands.toFixed(0)}k` : `${thousands.toFixed(1)}k`;
+  }
+  return count.toString();
 };
 
 export const AlertBox = ({ alert, className }: AlertBoxProps) => {
@@ -78,9 +90,7 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
       }
     } catch (error) {
       console.error('Error saving threshold:', error);
-      window.alert(
-        `Failed to save threshold: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
+      window.alert(`Failed to save threshold: ${errorMessage(error, 'Unknown error')}`);
     } finally {
       setIsSaving(false);
     }
@@ -242,18 +252,14 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
           <div className="flex justify-between items-baseline text-[11px]">
             <div className="flex gap-1 items-baseline">
               <span className={'dark:text-black/60 text-white/60'}>
-                {alert.progress!.current >= 1000
-                  ? (alert.progress!.current / 1000).toFixed(1) + 'k'
-                  : alert.progress!.current}
+                {formatTokenCount(alert.progress!.current)}
               </span>
               <span className={'dark:text-black/40 text-white/40'}>
                 {Math.round((alert.progress!.current / alert.progress!.total) * 100)}%
               </span>
             </div>
             <span className={'dark:text-black/60 text-white/60'}>
-              {alert.progress!.total >= 1000
-                ? (alert.progress!.total / 1000).toFixed(0) + 'k'
-                : alert.progress!.total}
+              {formatTokenCount(alert.progress!.total)}
             </span>
           </div>
           {alert.showCompactButton && alert.onCompact && (

@@ -71,8 +71,8 @@ impl OllamaProvider {
                 .map_err(|_| anyhow::anyhow!("Failed to set default port"))?;
         }
 
-        let auth = AuthMethod::Custom(Box::new(NoAuth));
-        let api_client = ApiClient::with_timeout(base_url.to_string(), auth, timeout)?;
+        let api_client =
+            ApiClient::with_timeout(base_url.to_string(), AuthMethod::NoAuth, timeout)?;
 
         Ok(Self {
             api_client,
@@ -108,8 +108,18 @@ impl OllamaProvider {
                 .map_err(|_| anyhow::anyhow!("Failed to set default port"))?;
         }
 
-        let auth = AuthMethod::Custom(Box::new(NoAuth));
-        let api_client = ApiClient::with_timeout(base_url.to_string(), auth, timeout)?;
+        let mut api_client =
+            ApiClient::with_timeout(base_url.to_string(), AuthMethod::NoAuth, timeout)?;
+
+        if let Some(headers) = &config.headers {
+            let mut header_map = reqwest::header::HeaderMap::new();
+            for (key, value) in headers {
+                let header_name = reqwest::header::HeaderName::from_bytes(key.as_bytes())?;
+                let header_value = reqwest::header::HeaderValue::from_str(value)?;
+                header_map.insert(header_name, header_value);
+            }
+            api_client = api_client.with_headers(header_map)?;
+        }
 
         Ok(Self {
             api_client,
@@ -119,21 +129,16 @@ impl OllamaProvider {
         })
     }
 
-    async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
+    async fn post(
+        &self,
+        session_id: Option<&str>,
+        payload: &Value,
+    ) -> Result<Value, ProviderError> {
         let response = self
             .api_client
-            .response_post("v1/chat/completions", payload)
+            .response_post(session_id, "v1/chat/completions", payload)
             .await?;
         handle_response_openai_compat(response).await
-    }
-}
-
-struct NoAuth;
-
-#[async_trait]
-impl super::api_client::AuthProvider for NoAuth {
-    async fn get_auth_header(&self) -> Result<(String, String)> {
-        Ok(("X-No-Auth".to_string(), "true".to_string()))
     }
 }
 
@@ -173,6 +178,7 @@ impl Provider for OllamaProvider {
     )]
     async fn complete_with_model(
         &self,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -199,7 +205,7 @@ impl Provider for OllamaProvider {
         let response = self
             .with_retry(|| async {
                 let payload_clone = payload.clone();
-                self.post(&payload_clone).await
+                self.post(session_id, &payload_clone).await
             })
             .await
             .inspect_err(|e| {
@@ -219,12 +225,14 @@ impl Provider for OllamaProvider {
 
     async fn generate_session_name(
         &self,
+        session_id: &str,
         messages: &Conversation,
     ) -> Result<String, ProviderError> {
         let context = self.get_initial_user_messages(messages);
         let message = Message::user().with_text(self.create_session_name_prompt(&context));
         let result = self
             .complete(
+                session_id,
                 "You are a title generator. Output only the requested title of 4 words or less, with no additional text, reasoning, or explanations.",
                 &[message],
                 &[],
@@ -243,6 +251,7 @@ impl Provider for OllamaProvider {
 
     async fn stream(
         &self,
+        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -269,7 +278,7 @@ impl Provider for OllamaProvider {
             .with_retry(|| async {
                 let resp = self
                     .api_client
-                    .response_post("v1/chat/completions", &payload)
+                    .response_post(Some(session_id), "v1/chat/completions", &payload)
                     .await?;
                 handle_status_openai_compat(resp).await
             })
@@ -283,7 +292,8 @@ impl Provider for OllamaProvider {
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         let response = self
             .api_client
-            .response_get("api/tags")
+            .request(None, "api/tags")
+            .response_get()
             .await
             .map_err(|e| ProviderError::RequestFailed(format!("Failed to fetch models: {}", e)))?;
 

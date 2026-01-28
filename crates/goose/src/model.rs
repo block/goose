@@ -1,9 +1,38 @@
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::collections::HashMap;
 use thiserror::Error;
 use utoipa::ToSchema;
 
 const DEFAULT_CONTEXT_LIMIT: usize = 128_000;
+
+#[derive(Debug, Clone, Deserialize)]
+struct PredefinedModel {
+    name: String,
+    #[serde(default)]
+    context_limit: Option<usize>,
+    #[serde(default)]
+    request_params: Option<HashMap<String, Value>>,
+}
+
+fn get_predefined_models() -> Vec<PredefinedModel> {
+    static PREDEFINED_MODELS: Lazy<Vec<PredefinedModel>> =
+        Lazy::new(|| match std::env::var("GOOSE_PREDEFINED_MODELS") {
+            Ok(json_str) => serde_json::from_str(&json_str).unwrap_or_else(|e| {
+                tracing::warn!("Failed to parse GOOSE_PREDEFINED_MODELS: {}", e);
+                Vec::new()
+            }),
+            Err(_) => Vec::new(),
+        });
+    PREDEFINED_MODELS.clone()
+}
+
+fn find_predefined_model(model_name: &str) -> Option<PredefinedModel> {
+    get_predefined_models()
+        .into_iter()
+        .find(|m| m.name == model_name)
+}
 
 #[derive(Error, Debug)]
 pub enum ConfigError {
@@ -32,9 +61,12 @@ static MODEL_SPECIFIC_LIMITS: Lazy<Vec<(&'static str, usize)>> = Lazy::new(|| {
         // anthropic - all 200k
         ("claude", 200_000),
         // google
-        ("gemini-1.5-flash", 1_000_000),
+        ("gemini-1.5-flash", 1_048_576),
         ("gemini-1", 128_000),
-        ("gemini-2", 1_000_000),
+        ("gemini-2", 1_048_576),
+        ("gemini-3-pro-image", 65_536),
+        ("gemini-3-pro", 1_048_576),
+        ("gemini-3-flash", 1_048_576),
         ("gemma-3-27b", 128_000),
         ("gemma-3-12b", 128_000),
         ("gemma-3-4b", 128_000),
@@ -80,6 +112,9 @@ pub struct ModelConfig {
     pub toolshim: bool,
     pub toolshim_model: Option<String>,
     pub fast_model: Option<String>,
+    /// Provider-specific request parameters (e.g., anthropic_beta headers)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request_params: Option<HashMap<String, Value>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -97,7 +132,26 @@ impl ModelConfig {
         model_name: String,
         context_env_var: Option<&str>,
     ) -> Result<Self, ConfigError> {
-        let context_limit = Self::parse_context_limit(&model_name, None, context_env_var)?;
+        let predefined = find_predefined_model(&model_name);
+
+        let context_limit = if let Some(ref pm) = predefined {
+            if let Some(env_var) = context_env_var {
+                if let Ok(val) = std::env::var(env_var) {
+                    Some(Self::validate_context_limit(&val, env_var)?)
+                } else {
+                    pm.context_limit
+                }
+            } else if let Ok(val) = std::env::var("GOOSE_CONTEXT_LIMIT") {
+                Some(Self::validate_context_limit(&val, "GOOSE_CONTEXT_LIMIT")?)
+            } else {
+                pm.context_limit
+            }
+        } else {
+            Self::parse_context_limit(&model_name, None, context_env_var)?
+        };
+
+        let request_params = predefined.and_then(|pm| pm.request_params);
+
         let temperature = Self::parse_temperature()?;
         let max_tokens = Self::parse_max_tokens()?;
         let toolshim = Self::parse_toolshim()?;
@@ -111,6 +165,7 @@ impl ModelConfig {
             toolshim,
             toolshim_model,
             fast_model: None,
+            request_params,
         })
     }
 
@@ -282,6 +337,11 @@ impl ModelConfig {
 
     pub fn with_fast(mut self, fast_model: String) -> Self {
         self.fast_model = Some(fast_model);
+        self
+    }
+
+    pub fn with_request_params(mut self, params: Option<HashMap<String, Value>>) -> Self {
+        self.request_params = params;
         self
     }
 

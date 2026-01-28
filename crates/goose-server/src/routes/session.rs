@@ -1,7 +1,7 @@
 use crate::routes::errors::ErrorResponse;
 use crate::routes::recipe_utils::{apply_recipe_to_agent, build_recipe_with_parameter_values};
 use crate::state::AppState;
-use axum::extract::State;
+use axum::extract::{DefaultBodyLimit, State};
 use axum::routing::post;
 use axum::{
     extract::Path,
@@ -9,9 +9,11 @@ use axum::{
     routing::{delete, get, put},
     Json, Router,
 };
+use goose::agents::ExtensionConfig;
 use goose::recipe::Recipe;
+use goose::session::extension_data::ExtensionState;
 use goose::session::session_manager::SessionInsights;
-use goose::session::{Session, SessionManager};
+use goose::session::{EnabledExtensionsState, Session};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -49,28 +51,17 @@ pub struct ImportSessionRequest {
     json: String,
 }
 
-#[derive(Debug, Deserialize, ToSchema)]
-#[serde(rename_all = "lowercase")]
-pub enum EditType {
-    Fork,
-    Edit,
-}
-
 #[derive(Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct EditMessageRequest {
-    timestamp: i64,
-    #[serde(default = "default_edit_type")]
-    edit_type: EditType,
-}
-
-fn default_edit_type() -> EditType {
-    EditType::Fork
+pub struct ForkRequest {
+    timestamp: Option<i64>,
+    truncate: bool,
+    copy: bool,
 }
 
 #[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct EditMessageResponse {
+pub struct ForkResponse {
     session_id: String,
 }
 
@@ -89,8 +80,12 @@ const MAX_NAME_LENGTH: usize = 200;
     ),
     tag = "Session Management"
 )]
-async fn list_sessions() -> Result<Json<SessionListResponse>, StatusCode> {
-    let sessions = SessionManager::list_sessions()
+async fn list_sessions(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<SessionListResponse>, StatusCode> {
+    let sessions = state
+        .session_manager()
+        .list_sessions()
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -114,8 +109,13 @@ async fn list_sessions() -> Result<Json<SessionListResponse>, StatusCode> {
     ),
     tag = "Session Management"
 )]
-async fn get_session(Path(session_id): Path<String>) -> Result<Json<Session>, StatusCode> {
-    let session = SessionManager::get_session(&session_id, true)
+async fn get_session(
+    State(state): State<Arc<AppState>>,
+    Path(session_id): Path<String>,
+) -> Result<Json<Session>, StatusCode> {
+    let session = state
+        .session_manager()
+        .get_session(&session_id, true)
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
 
@@ -134,8 +134,12 @@ async fn get_session(Path(session_id): Path<String>) -> Result<Json<Session>, St
     ),
     tag = "Session Management"
 )]
-async fn get_session_insights() -> Result<Json<SessionInsights>, StatusCode> {
-    let insights = SessionManager::get_insights()
+async fn get_session_insights(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<SessionInsights>, StatusCode> {
+    let insights = state
+        .session_manager()
+        .get_insights()
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(insights))
@@ -161,6 +165,7 @@ async fn get_session_insights() -> Result<Json<SessionInsights>, StatusCode> {
     tag = "Session Management"
 )]
 async fn update_session_name(
+    State(state): State<Arc<AppState>>,
     Path(session_id): Path<String>,
     Json(request): Json<UpdateSessionNameRequest>,
 ) -> Result<StatusCode, StatusCode> {
@@ -172,7 +177,9 @@ async fn update_session_name(
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    SessionManager::update_session(&session_id)
+    state
+        .session_manager()
+        .update(&session_id)
         .user_provided_name(name.to_string())
         .apply()
         .await
@@ -205,7 +212,9 @@ async fn update_session_user_recipe_values(
     Path(session_id): Path<String>,
     Json(request): Json<UpdateSessionUserRecipeValuesRequest>,
 ) -> Result<Json<UpdateSessionUserRecipeValuesResponse>, ErrorResponse> {
-    SessionManager::update_session(&session_id)
+    state
+        .session_manager()
+        .update(&session_id)
         .user_recipe_values(Some(request.user_recipe_values))
         .apply()
         .await
@@ -214,7 +223,9 @@ async fn update_session_user_recipe_values(
             status: StatusCode::INTERNAL_SERVER_ERROR,
         })?;
 
-    let session = SessionManager::get_session(&session_id, false)
+    let session = state
+        .session_manager()
+        .get_session(&session_id, false)
         .await
         .map_err(|err| ErrorResponse {
             message: err.to_string(),
@@ -268,8 +279,13 @@ async fn update_session_user_recipe_values(
     ),
     tag = "Session Management"
 )]
-async fn delete_session(Path(session_id): Path<String>) -> Result<StatusCode, StatusCode> {
-    SessionManager::delete_session(&session_id)
+async fn delete_session(
+    State(state): State<Arc<AppState>>,
+    Path(session_id): Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    state
+        .session_manager()
+        .delete_session(&session_id)
         .await
         .map_err(|e| {
             if e.to_string().contains("not found") {
@@ -299,8 +315,13 @@ async fn delete_session(Path(session_id): Path<String>) -> Result<StatusCode, St
     ),
     tag = "Session Management"
 )]
-async fn export_session(Path(session_id): Path<String>) -> Result<Json<String>, StatusCode> {
-    let exported = SessionManager::export_session(&session_id)
+async fn export_session(
+    State(state): State<Arc<AppState>>,
+    Path(session_id): Path<String>,
+) -> Result<Json<String>, StatusCode> {
+    let exported = state
+        .session_manager()
+        .export_session(&session_id)
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
 
@@ -323,9 +344,12 @@ async fn export_session(Path(session_id): Path<String>) -> Result<Json<String>, 
     tag = "Session Management"
 )]
 async fn import_session(
+    State(state): State<Arc<AppState>>,
     Json(request): Json<ImportSessionRequest>,
 ) -> Result<Json<Session>, StatusCode> {
-    let session = SessionManager::import_session(&request.json)
+    let session = state
+        .session_manager()
+        .import_session(&request.json)
         .await
         .map_err(|_| StatusCode::BAD_REQUEST)?;
 
@@ -334,16 +358,16 @@ async fn import_session(
 
 #[utoipa::path(
     post,
-    path = "/sessions/{session_id}/edit_message",
-    request_body = EditMessageRequest,
+    path = "/sessions/{session_id}/fork",
+    request_body = ForkRequest,
     params(
         ("session_id" = String, Path, description = "Unique identifier for the session")
     ),
     responses(
-        (status = 200, description = "Session prepared for editing - frontend should submit the edited message", body = EditMessageResponse),
-        (status = 400, description = "Bad request - Invalid message timestamp"),
+        (status = 200, description = "Session forked successfully", body = ForkResponse),
+        (status = 400, description = "Bad request - truncate=true requires timestamp"),
         (status = 401, description = "Unauthorized - Invalid or missing API key"),
-        (status = 404, description = "Session or message not found"),
+        (status = 404, description = "Session not found"),
         (status = 500, description = "Internal server error")
     ),
     security(
@@ -351,46 +375,116 @@ async fn import_session(
     ),
     tag = "Session Management"
 )]
-async fn edit_message(
+async fn fork_session(
+    State(state): State<Arc<AppState>>,
     Path(session_id): Path<String>,
-    Json(request): Json<EditMessageRequest>,
-) -> Result<Json<EditMessageResponse>, StatusCode> {
-    match request.edit_type {
-        EditType::Fork => {
-            let new_session = SessionManager::copy_session(&session_id, "(edited)".to_string())
-                .await
-                .map_err(|e| {
-                    tracing::error!("Failed to copy session: {}", e);
-                    goose::posthog::emit_error("session_copy_failed", &e.to_string());
-                    StatusCode::INTERNAL_SERVER_ERROR
-                })?;
-
-            SessionManager::truncate_conversation(&new_session.id, request.timestamp)
-                .await
-                .map_err(|e| {
-                    tracing::error!("Failed to truncate conversation: {}", e);
-                    goose::posthog::emit_error("session_truncate_failed", &e.to_string());
-                    StatusCode::INTERNAL_SERVER_ERROR
-                })?;
-
-            Ok(Json(EditMessageResponse {
-                session_id: new_session.id,
-            }))
-        }
-        EditType::Edit => {
-            SessionManager::truncate_conversation(&session_id, request.timestamp)
-                .await
-                .map_err(|e| {
-                    tracing::error!("Failed to truncate conversation: {}", e);
-                    goose::posthog::emit_error("session_truncate_failed", &e.to_string());
-                    StatusCode::INTERNAL_SERVER_ERROR
-                })?;
-
-            Ok(Json(EditMessageResponse {
-                session_id: session_id.clone(),
-            }))
-        }
+    Json(request): Json<ForkRequest>,
+) -> Result<Json<ForkResponse>, ErrorResponse> {
+    if request.truncate && request.timestamp.is_none() {
+        return Err(ErrorResponse {
+            message: "truncate=true requires a timestamp".to_string(),
+            status: StatusCode::BAD_REQUEST,
+        });
     }
+
+    let session_manager = state.session_manager();
+
+    let target_session_id = if request.copy {
+        let original = session_manager
+            .get_session(&session_id, false)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to get session: {}", e);
+                goose::posthog::emit_error("session_get_failed", &e.to_string());
+                ErrorResponse {
+                    message: if e.to_string().contains("not found") {
+                        format!("Session {} not found", session_id)
+                    } else {
+                        format!("Failed to get session: {}", e)
+                    },
+                    status: if e.to_string().contains("not found") {
+                        StatusCode::NOT_FOUND
+                    } else {
+                        StatusCode::INTERNAL_SERVER_ERROR
+                    },
+                }
+            })?;
+
+        let copied = session_manager
+            .copy_session(&session_id, original.name)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to copy session: {}", e);
+                goose::posthog::emit_error("session_copy_failed", &e.to_string());
+                ErrorResponse {
+                    message: format!("Failed to copy session: {}", e),
+                    status: StatusCode::INTERNAL_SERVER_ERROR,
+                }
+            })?;
+
+        copied.id
+    } else {
+        session_id.clone()
+    };
+
+    if request.truncate {
+        session_manager
+            .truncate_conversation(&target_session_id, request.timestamp.unwrap_or(0))
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to truncate conversation: {}", e);
+                goose::posthog::emit_error("session_truncate_failed", &e.to_string());
+                ErrorResponse {
+                    message: format!("Failed to truncate conversation: {}", e),
+                    status: StatusCode::INTERNAL_SERVER_ERROR,
+                }
+            })?;
+    }
+
+    Ok(Json(ForkResponse {
+        session_id: target_session_id,
+    }))
+}
+
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionExtensionsResponse {
+    extensions: Vec<ExtensionConfig>,
+}
+
+#[utoipa::path(
+    get,
+    path = "/sessions/{session_id}/extensions",
+    params(
+        ("session_id" = String, Path, description = "Unique identifier for the session")
+    ),
+    responses(
+        (status = 200, description = "Session extensions retrieved successfully", body = SessionExtensionsResponse),
+        (status = 401, description = "Unauthorized - Invalid or missing API key"),
+        (status = 404, description = "Session not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(
+        ("api_key" = [])
+    ),
+    tag = "Session Management"
+)]
+async fn get_session_extensions(
+    State(state): State<Arc<AppState>>,
+    Path(session_id): Path<String>,
+) -> Result<Json<SessionExtensionsResponse>, StatusCode> {
+    let session = state
+        .session_manager()
+        .get_session(&session_id, false)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    // Try to get session-specific extensions, fall back to global config
+    let extensions = EnabledExtensionsState::from_extension_data(&session.extension_data)
+        .map(|state| state.extensions)
+        .unwrap_or_else(goose::config::get_enabled_extensions);
+
+    Ok(Json(SessionExtensionsResponse { extensions }))
 }
 
 pub fn routes(state: Arc<AppState>) -> Router {
@@ -399,13 +493,20 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/sessions/{session_id}", get(get_session))
         .route("/sessions/{session_id}", delete(delete_session))
         .route("/sessions/{session_id}/export", get(export_session))
-        .route("/sessions/import", post(import_session))
+        .route(
+            "/sessions/import",
+            post(import_session).layer(DefaultBodyLimit::max(25 * 1024 * 1024)),
+        )
         .route("/sessions/insights", get(get_session_insights))
         .route("/sessions/{session_id}/name", put(update_session_name))
         .route(
             "/sessions/{session_id}/user_recipe_values",
             put(update_session_user_recipe_values),
         )
-        .route("/sessions/{session_id}/edit_message", post(edit_message))
+        .route("/sessions/{session_id}/fork", post(fork_session))
+        .route(
+            "/sessions/{session_id}/extensions",
+            get(get_session_extensions),
+        )
         .with_state(state)
 }

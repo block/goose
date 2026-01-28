@@ -10,6 +10,7 @@ import { useEscapeKey } from '../../hooks/useEscapeKey';
 import { getRecipeJsonSchema } from '../../recipe/validation';
 import { saveRecipe } from '../../recipe/recipe_management';
 import { parseRecipe } from '../../api';
+import { errorMessage } from '../../utils/conversionUtils';
 
 interface ImportRecipeFormProps {
   isOpen: boolean;
@@ -138,8 +139,8 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
 
         toastError({
           title: 'Import Failed',
-          msg: `Failed to import recipe: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          traceback: error instanceof Error ? error.message : String(error),
+          msg: `Failed to import recipe: ${errorMessage(error, 'Unknown error')}`,
+          traceback: errorMessage(error),
         });
       } finally {
         setImporting(false);
@@ -167,7 +168,7 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
       } catch (error) {
         toastError({
           title: 'Invalid Deeplink',
-          msg: `The deeplink format is invalid: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          msg: `The deeplink format is invalid: ${errorMessage(error, 'Unknown error')}`,
         });
       }
     }
@@ -183,7 +184,7 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
       } catch (error) {
         toastError({
           title: 'Invalid Recipe File',
-          msg: error instanceof Error ? error.message : 'Unknown error',
+          msg: errorMessage(error, 'Unknown error'),
         });
       }
     }

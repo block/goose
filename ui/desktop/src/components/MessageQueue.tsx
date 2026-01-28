@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { X, Clock, Send, GripVertical, Zap, Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from './ui/button';
+import { ImageData } from '../types/message';
 
-interface QueuedMessage {
+export interface QueuedMessage {
   id: string;
   content: string;
   timestamp: number;
+  images: ImageData[];
 }
 
 interface MessageQueueProps {

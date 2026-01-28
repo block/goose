@@ -93,6 +93,45 @@ module.exports = {
         },
       },
     },
+    {
+      name: '@electron-forge/maker-flatpak',
+      config: {
+        options: {
+          categories: ['Development'],
+          icon: 'src/images/icon.png',
+          homepage: 'https://block.github.io/goose/',
+          runtimeVersion: '25.08',
+          baseVersion: '25.08',
+          bin: 'Goose',
+          modules: [
+            {
+              name: 'libbz2-shim',
+              buildsystem: 'simple',
+              'build-commands': [
+                // Create the lib directory in the app bundle
+                'mkdir -p /app/lib',
+                // Point to the actual library in the 25.08 runtime
+                // We use a wildcard to handle multi-arch paths (x86_64-linux-gnu, etc)
+                'ln -s $(find /usr/lib -name "libbz2.so.1" | head -n 1) /app/lib/libbz2.so.1.0'
+              ]
+            }
+          ],
+          finishArgs: [
+            '--share=ipc',
+            '--socket=x11',
+            '--socket=wayland',
+            '--device=dri',
+            '--share=network',
+            '--filesystem=home',
+            '--talk-name=org.freedesktop.Notifications',
+            '--socket=session-bus',
+            '--socket=system-bus',
+            // This ensures the app looks in our shim folder first
+            '--env=LD_LIBRARY_PATH=/app/lib'
+          ],
+        },
+      },
+    },
   ],
   plugins: [
     {

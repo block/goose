@@ -63,7 +63,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
         with:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
@@ -80,13 +80,13 @@ jobs:
 
       - name: Cache Cargo artifacts (Linux/macOS)
         if: matrix.use-cross
-        uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2
+        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5  # v2.8.2
         with:
           key: ${{ matrix.architecture }}-${{ matrix.target-suffix }}
 
       - name: Cache Cargo artifacts (Windows)
         if: matrix.use-docker
-        uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2
+        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5  # v2.8.2
         with:
           key: ${{ matrix.architecture }}-${{ matrix.target-suffix }}
 
@@ -252,7 +252,7 @@ jobs:
           echo "ARTIFACT=target/${TARGET}/release/goose-${TARGET}.zip" >> $GITHUB_ENV
 
       - name: Upload CLI artifact
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # pin@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
         with:
           name: goose-${{ matrix.architecture }}-${{ matrix.target-suffix }}
           path: ${{ env.ARTIFACT }}

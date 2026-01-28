@@ -4,6 +4,7 @@ import { useConfig } from './ConfigContext';
 import { SetupModal } from './SetupModal';
 import { startOpenRouterSetup } from '../utils/openRouterSetup';
 import { startTetrateSetup } from '../utils/tetrateSetup';
+import { startChatGptCodexSetup } from '../utils/chatgptCodexSetup';
 import WelcomeGooseLogo from './WelcomeGooseLogo';
 import { toastService } from '../toasts';
 import { OllamaSetup } from './OllamaSetup';
@@ -19,7 +20,7 @@ import {
   trackOnboardingSetupFailed,
 } from '../utils/analytics';
 
-import { Goose, OpenRouter, Tetrate } from './icons';
+import { Goose, OpenRouter, Tetrate, ChatGPT } from './icons';
 
 interface ProviderGuardProps {
   didSelectProvider: boolean;
@@ -69,6 +70,14 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
     autoClose?: number;
   } | null>(null);
 
+  const [chatgptCodexSetupState, setChatgptCodexSetupState] = useState<{
+    show: boolean;
+    title: string;
+    message: string;
+    showRetry: boolean;
+    autoClose?: number;
+  } | null>(null);
+
   const handleTetrateSetup = async () => {
     trackOnboardingProviderSelected('tetrate');
     try {
@@ -89,6 +98,34 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
       console.error('Tetrate setup error:', error);
       trackOnboardingSetupFailed('tetrate', 'unexpected_error');
       setTetrateSetupState({
+        show: true,
+        title: 'Setup Error',
+        message: 'An unexpected error occurred during setup.',
+        showRetry: true,
+      });
+    }
+  };
+
+  const handleChatGptCodexSetup = async () => {
+    trackOnboardingProviderSelected('chatgpt_codex');
+    try {
+      const result = await startChatGptCodexSetup();
+      if (result.success) {
+        setSwitchModelProvider('chatgpt_codex');
+        setShowSwitchModelModal(true);
+      } else {
+        trackOnboardingSetupFailed('chatgpt_codex', result.message);
+        setChatgptCodexSetupState({
+          show: true,
+          title: 'Setup Failed',
+          message: result.message,
+          showRetry: true,
+        });
+      }
+    } catch (error) {
+      console.error('ChatGPT Codex setup error:', error);
+      trackOnboardingSetupFailed('chatgpt_codex', 'unexpected_error');
+      setChatgptCodexSetupState({
         show: true,
         title: 'Setup Error',
         message: 'An unexpected error occurred during setup.',
@@ -163,21 +200,26 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
     setShowOllamaSetup(false);
   };
 
-  const handleRetrySetup = (setupType: 'openrouter' | 'tetrate') => {
+  const handleRetrySetup = (setupType: 'openrouter' | 'tetrate' | 'chatgpt_codex') => {
     if (setupType === 'openrouter') {
       setOpenRouterSetupState(null);
       handleOpenRouterSetup();
-    } else {
+    } else if (setupType === 'tetrate') {
       setTetrateSetupState(null);
       handleTetrateSetup();
+    } else {
+      setChatgptCodexSetupState(null);
+      handleChatGptCodexSetup();
     }
   };
 
-  const closeSetupModal = (setupType: 'openrouter' | 'tetrate') => {
+  const closeSetupModal = (setupType: 'openrouter' | 'tetrate' | 'chatgpt_codex') => {
     if (setupType === 'openrouter') {
       setOpenRouterSetupState(null);
-    } else {
+    } else if (setupType === 'tetrate') {
       setTetrateSetupState(null);
+    } else {
+      setChatgptCodexSetupState(null);
     }
   };
 
@@ -274,9 +316,49 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
                 }}
               />
 
+              {/* ChatGPT Subscription Card - Full Width */}
+              <div className="relative w-full mb-4">
+                <div className="absolute -top-2 -right-2 sm:-top-3 sm:-right-3 z-20">
+                  <span className="inline-block px-2 py-1 text-xs font-medium bg-blue-600 text-white rounded-full">
+                    Recommended if you have ChatGPT Plus/Pro
+                  </span>
+                </div>
+
+                <div
+                  onClick={handleChatGptCodexSetup}
+                  className="w-full p-4 sm:p-6 bg-transparent border border-background-hover rounded-xl hover:border-text-muted transition-all duration-200 cursor-pointer group"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <ChatGPT className="w-5 h-5 text-text-standard" />
+                      <span className="font-medium text-text-standard text-sm sm:text-base">
+                        ChatGPT Subscription
+                      </span>
+                    </div>
+                    <div className="text-text-muted group-hover:text-text-standard transition-colors">
+                      <svg
+                        className="w-4 h-4 sm:w-5 sm:h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 5l7 7-7 7"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                  <p className="text-text-muted text-sm sm:text-base">
+                    Use your ChatGPT Plus/Pro subscription for GPT-5 Codex models.
+                  </p>
+                </div>
+              </div>
+
               {/* Tetrate Card - Full Width */}
               <div className="relative w-full mb-4">
-                {/* Recommended pill */}
                 <div className="absolute -top-2 -right-2 sm:-top-3 sm:-right-3 z-20">
                   <span className="inline-block px-2 py-1 text-xs font-medium bg-blue-600 text-white rounded-full">
                     Recommended for new users
@@ -412,6 +494,17 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
             onRetry={() => handleRetrySetup('tetrate')}
             onClose={() => closeSetupModal('tetrate')}
             autoClose={tetrateSetupState.autoClose}
+          />
+        )}
+
+        {chatgptCodexSetupState?.show && (
+          <SetupModal
+            title={chatgptCodexSetupState.title}
+            message={chatgptCodexSetupState.message}
+            showRetry={chatgptCodexSetupState.showRetry}
+            onRetry={() => handleRetrySetup('chatgpt_codex')}
+            onClose={() => closeSetupModal('chatgpt_codex')}
+            autoClose={chatgptCodexSetupState.autoClose}
           />
         )}
 

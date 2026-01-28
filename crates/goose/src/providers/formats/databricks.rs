@@ -1,16 +1,15 @@
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
-use crate::providers::formats::google as gemini_schema;
 use crate::providers::utils::{
     convert_image, detect_image_path, is_valid_function_name, load_image_file, safely_parse_json,
     sanitize_function_name, ImageFormat,
 };
 use anyhow::{anyhow, Error};
 use rmcp::model::{
-    object, AnnotateAble, CallToolRequestParam, Content, ErrorCode, ErrorData, RawContent,
+    object, AnnotateAble, CallToolRequestParams, Content, ErrorCode, ErrorData, RawContent,
     ResourceContents, Role, Tool,
 };
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::{json, Value};
 use std::borrow::Cow;
 
@@ -232,19 +231,35 @@ pub fn format_tools(tools: &[Tool], model_name: &str) -> anyhow::Result<Vec<Valu
             return Err(anyhow!("Duplicate tool name: {}", tool.name));
         }
 
-        let parameters = if is_gemini {
-            gemini_schema::process_map(tool.input_schema.as_ref(), None)
+        let has_properties = tool
+            .input_schema
+            .get("properties")
+            .and_then(|v| v.as_object())
+            .is_some_and(|p| !p.is_empty());
+
+        let function_def = if is_gemini {
+            let mut def = json!({
+                "name": tool.name,
+                "description": tool.description,
+            });
+            if has_properties {
+                def["parametersJsonSchema"] = json!(tool.input_schema);
+            }
+            def
         } else {
-            json!(tool.input_schema)
+            let mut def = json!({
+                "name": tool.name,
+                "description": tool.description,
+            });
+            if has_properties {
+                def["parameters"] = json!(tool.input_schema);
+            }
+            def
         };
 
         result.push(json!({
             "type": "function",
-            "function": {
-                "name": tool.name,
-                "description": tool.description,
-                "parameters": parameters,
-            }
+            "function": function_def,
         }));
     }
 
@@ -340,7 +355,9 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                         Ok(params) => {
                             content.push(MessageContent::tool_request(
                                 id,
-                                Ok(CallToolRequestParam {
+                                Ok(CallToolRequestParams {
+                                    meta: None,
+                                    task: None,
                                     name: function_name.into(),
                                     arguments: Some(object(params)),
                                 }),
@@ -368,43 +385,6 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
         chrono::Utc::now().timestamp(),
         content,
     ))
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct DeltaToolCallFunction {
-    name: Option<String>,
-    arguments: String, // chunk of encoded JSON,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct DeltaToolCall {
-    id: Option<String>,
-    function: DeltaToolCallFunction,
-    index: Option<i32>,
-    r#type: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct Delta {
-    content: Option<String>,
-    role: Option<String>,
-    tool_calls: Option<Vec<DeltaToolCall>>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct StreamingChoice {
-    delta: Delta,
-    index: Option<i32>,
-    finish_reason: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct StreamingChunk {
-    choices: Vec<StreamingChoice>,
-    created: Option<i64>,
-    id: Option<String>,
-    usage: Option<Value>,
-    model: String,
 }
 
 /// Check if the model name indicates a Claude/Anthropic model that supports cache control.
@@ -620,7 +600,6 @@ pub fn create_request(
             .insert("tools".to_string(), json!(tools_spec));
     }
 
-    // Add thinking parameters for Claude 3.7 Sonnet model when requested
     let is_thinking_enabled = std::env::var("CLAUDE_THINKING_ENABLED").is_ok();
     if is_claude_sonnet && is_thinking_enabled {
         // Minimum budget_tokens is 1024
@@ -645,7 +624,6 @@ pub fn create_request(
             }),
         );
 
-        // Temperature is fixed to 2 when using claude 3.7 thinking with Databricks
         payload
             .as_object_mut()
             .unwrap()
@@ -678,6 +656,15 @@ pub fn create_request(
     // Apply cache control for Claude models to enable prompt caching
     if is_claude_model(&model_config.model_name) {
         apply_cache_control_for_claude(&mut payload);
+    }
+
+    // Add request_params to the payload (e.g., anthropic_beta for extended context)
+    if let Some(params) = &model_config.request_params {
+        if let Some(obj) = payload.as_object_mut() {
+            for (key, value) in params {
+                obj.insert(key.clone(), value.clone());
+            }
+        }
     }
 
     Ok(payload)
@@ -740,19 +727,25 @@ mod tests {
             }),
         );
 
-        let spec = format_tools(&[tool.clone()], "gpt-4o")?;
+        let spec = format_tools(std::slice::from_ref(&tool), "gpt-4o")?;
         assert_eq!(
             spec[0]["function"]["parameters"]["$schema"],
             "http://json-schema.org/draft-07/schema#"
         );
 
-        let spec = format_tools(&[tool.clone()], "gemini-2-5-flash")?;
-        assert!(spec[0]["function"]["parameters"].get("$schema").is_none());
-        assert_eq!(spec[0]["function"]["parameters"]["type"], "object");
+        let spec = format_tools(std::slice::from_ref(&tool), "gemini-2-5-flash")?;
+        assert!(spec[0]["function"].get("parametersJsonSchema").is_some());
+        assert_eq!(
+            spec[0]["function"]["parametersJsonSchema"]["type"],
+            "object"
+        );
 
         let spec = format_tools(&[tool], "databricks-gemini-3-pro")?;
-        assert!(spec[0]["function"]["parameters"].get("$schema").is_none());
-        assert_eq!(spec[0]["function"]["parameters"]["type"], "object");
+        assert!(spec[0]["function"].get("parametersJsonSchema").is_some());
+        assert_eq!(
+            spec[0]["function"]["parametersJsonSchema"]["type"],
+            "object"
+        );
 
         Ok(())
     }
@@ -764,7 +757,9 @@ mod tests {
             Message::user().with_text("How are you?"),
             Message::assistant().with_tool_request(
                 "tool1",
-                Ok(CallToolRequestParam {
+                Ok(CallToolRequestParams {
+                    meta: None,
+                    task: None,
                     name: "example".into(),
                     arguments: Some(object!({"param1": "value1"})),
                 }),
@@ -809,7 +804,9 @@ mod tests {
     fn test_format_messages_multiple_content() -> anyhow::Result<()> {
         let mut messages = vec![Message::assistant().with_tool_request(
             "tool1",
-            Ok(CallToolRequestParam {
+            Ok(CallToolRequestParams {
+                meta: None,
+                task: None,
                 name: "example".into(),
                 arguments: Some(object!({"param1": "value1"})),
             }),
@@ -1049,6 +1046,7 @@ mod tests {
             toolshim: false,
             toolshim_model: None,
             fast_model: None,
+            request_params: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         let obj = request.as_object().unwrap();
@@ -1080,6 +1078,7 @@ mod tests {
             toolshim: false,
             toolshim_model: None,
             fast_model: None,
+            request_params: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         assert_eq!(request["reasoning_effort"], "high");
@@ -1185,7 +1184,9 @@ mod tests {
         // Test that tool calls with None arguments are formatted as "{}" string
         let message = Message::assistant().with_tool_request(
             "tool1",
-            Ok(CallToolRequestParam {
+            Ok(CallToolRequestParams {
+                meta: None,
+                task: None,
                 name: "test_tool".into(),
                 arguments: None, // This is the key case the fix addresses
             }),
@@ -1214,7 +1215,9 @@ mod tests {
         // Test that tool calls with Some arguments are properly JSON-serialized
         let message = Message::assistant().with_tool_request(
             "tool1",
-            Ok(CallToolRequestParam {
+            Ok(CallToolRequestParams {
+                meta: None,
+                task: None,
                 name: "test_tool".into(),
                 arguments: Some(object!({"param": "value", "number": 42})),
             }),
@@ -1394,6 +1397,7 @@ mod tests {
             toolshim: false,
             toolshim_model: None,
             fast_model: None,
+            request_params: None,
         };
 
         let messages = vec![
@@ -1445,6 +1449,7 @@ mod tests {
             toolshim: false,
             toolshim_model: None,
             fast_model: None,
+            request_params: None,
         };
 
         let messages = vec![Message::user().with_text("Hello")];

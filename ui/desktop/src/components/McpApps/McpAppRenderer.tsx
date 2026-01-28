@@ -1,3 +1,4 @@
+import { AppEvents } from '../../constants/events';
 /**
  * MCP Apps Renderer
  *
@@ -20,16 +21,25 @@ import {
 import { cn } from '../../utils';
 import { DEFAULT_IFRAME_HEIGHT } from './utils';
 import { readResource, callTool } from '../../api';
+import { errorMessage } from '../../utils/conversionUtils';
 
 interface McpAppRendererProps {
   resourceUri: string;
   extensionName: string;
-  sessionId: string;
+  sessionId?: string | null;
   toolInput?: ToolInput;
   toolInputPartial?: ToolInputPartial;
   toolResult?: ToolResult;
   toolCancelled?: ToolCancelled;
   append?: (text: string) => void;
+  fullscreen?: boolean;
+  cachedHtml?: string;
+}
+
+interface ResourceData {
+  html: string | null;
+  csp: CspMetadata | null;
+  prefersBorder: boolean;
 }
 
 export default function McpAppRenderer({
@@ -41,13 +51,23 @@ export default function McpAppRenderer({
   toolResult,
   toolCancelled,
   append,
+  fullscreen = false,
+  cachedHtml,
 }: McpAppRendererProps) {
-  const [resourceHtml, setResourceHtml] = useState<string | null>(null);
-  const [resourceCsp, setResourceCsp] = useState<CspMetadata | null>(null);
+  const [resource, setResource] = useState<ResourceData>({
+    html: cachedHtml || null,
+    csp: null,
+    prefersBorder: true,
+  });
   const [error, setError] = useState<string | null>(null);
   const [iframeHeight, setIframeHeight] = useState(DEFAULT_IFRAME_HEIGHT);
+  const [iframeWidth, setIframeWidth] = useState<number | null>(null);
 
   useEffect(() => {
+    if (!sessionId) {
+      return;
+    }
+
     const fetchResource = async () => {
       try {
         const response = await readResource({
@@ -60,19 +80,29 @@ export default function McpAppRenderer({
 
         if (response.data) {
           const content = response.data;
+          const meta = content._meta as
+            | { ui?: { csp?: CspMetadata; prefersBorder?: boolean } }
+            | undefined;
 
-          setResourceHtml(content.text);
-
-          const meta = content._meta as { ui?: { csp?: CspMetadata } } | undefined;
-          setResourceCsp(meta?.ui?.csp || null);
+          if (content.text !== cachedHtml) {
+            setResource({
+              html: content.text,
+              csp: meta?.ui?.csp || null,
+              prefersBorder: meta?.ui?.prefersBorder ?? true,
+            });
+          }
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load resource');
+        if (!cachedHtml) {
+          setError(errorMessage(err, 'Failed to load resource'));
+        } else {
+          console.warn('Failed to fetch fresh resource, using cached version:', err);
+        }
       }
     };
 
     fetchResource();
-  }, [resourceUri, extensionName, sessionId]);
+  }, [resourceUri, extensionName, sessionId, cachedHtml]);
 
   const handleMcpRequest = useCallback(
     async (
@@ -80,6 +110,12 @@ export default function McpAppRenderer({
       params: Record<string, unknown> = {},
       _id?: string | number
     ): Promise<unknown> => {
+      // Methods that require a session
+      const requiresSession = ['tools/call', 'resources/read'];
+      if (requiresSession.includes(method) && !sessionId) {
+        throw new Error('Session not initialized for MCP request');
+      }
+
       switch (method) {
         case 'ui/open-link': {
           const { url } = params as McpMethodParams['ui/open-link'];
@@ -95,12 +131,22 @@ export default function McpAppRenderer({
           if (!append) {
             throw new Error('Message handler not available in this context');
           }
-          append(content.text);
-          window.dispatchEvent(new CustomEvent('scroll-chat-to-bottom'));
-          return {
-            status: 'success',
-            message: 'Message appended successfully',
-          } satisfies McpMethodResponse['ui/message'];
+
+          if (!Array.isArray(content)) {
+            throw new Error('Invalid message format: content must be an array of ContentBlock');
+          }
+
+          // Extract first text block from content, ignoring other block types
+          const textContent = content.find((block) => block.type === 'text');
+          if (!textContent) {
+            throw new Error('Invalid message format: content must contain a text block');
+          }
+
+          // MCP Apps can send other content block types, but we only append text blocks for now
+
+          append(textContent.text);
+          window.dispatchEvent(new CustomEvent(AppEvents.SCROLL_CHAT_TO_BOTTOM));
+          return {} satisfies McpMethodResponse['ui/message'];
         }
 
         case 'tools/call': {
@@ -108,7 +154,7 @@ export default function McpAppRenderer({
           const fullToolName = `${extensionName}__${name}`;
           const response = await callTool({
             body: {
-              session_id: sessionId,
+              session_id: sessionId!,
               name: fullToolName,
               arguments: args || {},
             },
@@ -126,7 +172,7 @@ export default function McpAppRenderer({
           const { uri } = params as McpMethodParams['resources/read'];
           const response = await readResource({
             body: {
-              session_id: sessionId,
+              session_id: sessionId!,
               uri,
               extension_name: extensionName,
             },
@@ -155,14 +201,15 @@ export default function McpAppRenderer({
     [append, sessionId, extensionName]
   );
 
-  const handleSizeChanged = useCallback((height: number, _width?: number) => {
+  const handleSizeChanged = useCallback((height: number, width?: number) => {
     const newHeight = Math.max(DEFAULT_IFRAME_HEIGHT, height);
     setIframeHeight(newHeight);
+    setIframeWidth(width ?? null);
   }, []);
 
   const { iframeRef, proxyUrl } = useSandboxBridge({
-    resourceHtml: resourceHtml || '',
-    resourceCsp,
+    resourceHtml: resource.html || '',
+    resourceCsp: resource.csp,
     resourceUri,
     toolInput,
     toolInputPartial,
@@ -174,30 +221,53 @@ export default function McpAppRenderer({
 
   if (error) {
     return (
-      <div className="mt-3 p-4 border border-red-500 rounded-lg bg-red-50 dark:bg-red-900/20">
+      <div className="p-4 border border-red-500 rounded-lg bg-red-50 dark:bg-red-900/20">
         <div className="text-red-700 dark:text-red-300">Failed to load MCP app: {error}</div>
       </div>
     );
   }
 
-  if (!resourceHtml) {
-    return (
-      <div className="mt-3 p-4 border border-borderSubtle rounded-lg bg-bgApp">
-        <div className="flex items-center justify-center" style={{ minHeight: '200px' }}>
-          Loading MCP app...
-        </div>
+  if (fullscreen) {
+    return proxyUrl ? (
+      <iframe
+        ref={iframeRef}
+        src={proxyUrl}
+        style={{
+          width: '100%',
+          height: '100%',
+          border: 'none',
+        }}
+        sandbox="allow-scripts allow-same-origin"
+      />
+    ) : (
+      <div
+        style={{
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        Loading...
       </div>
     );
   }
 
   return (
-    <div className={cn('mt-3 bg-bgApp', 'border border-borderSubtle rounded-lg overflow-hidden')}>
-      {proxyUrl ? (
+    <div
+      className={cn(
+        'bg-bgApp overflow-hidden',
+        resource.prefersBorder ? 'border border-borderSubtle rounded-lg' : 'my-6'
+      )}
+    >
+      {resource.html && proxyUrl ? (
         <iframe
           ref={iframeRef}
           src={proxyUrl}
           style={{
-            width: '100%',
+            width: iframeWidth ? `${iframeWidth}px` : '100%',
+            maxWidth: '100%',
             height: `${iframeHeight}px`,
             border: 'none',
             overflow: 'hidden',
@@ -205,16 +275,8 @@ export default function McpAppRenderer({
           sandbox="allow-scripts allow-same-origin"
         />
       ) : (
-        <div
-          style={{
-            width: '100%',
-            minHeight: '200px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          Loading...
+        <div className="flex items-center justify-center p-4" style={{ minHeight: '200px' }}>
+          Loading MCP app...
         </div>
       )}
     </div>

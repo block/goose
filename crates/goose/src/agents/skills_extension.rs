@@ -1,3 +1,4 @@
+use super::builtin_skills;
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
 use crate::config::paths::Paths;
@@ -5,16 +6,13 @@ use anyhow::Result;
 use async_trait::async_trait;
 use indoc::indoc;
 use rmcp::model::{
-    CallToolResult, Content, GetPromptResult, Implementation, InitializeResult, JsonObject,
-    ListPromptsResult, ListResourcesResult, ListToolsResult, ProtocolVersion, ReadResourceResult,
-    ServerCapabilities, ServerNotification, Tool, ToolAnnotations, ToolsCapability,
+    CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
+    ProtocolVersion, ServerCapabilities, Tool, ToolAnnotations, ToolsCapability,
 };
 use schemars::{schema_for, JsonSchema};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 pub static EXTENSION_NAME: &str = "skills";
@@ -48,6 +46,7 @@ impl SkillsClient {
         let info = InitializeResult {
             protocol_version: ProtocolVersion::V_2025_03_26,
             capabilities: ServerCapabilities {
+                tasks: None,
                 tools: Some(ToolsCapability {
                     list_changed: Some(false),
                 }),
@@ -67,15 +66,36 @@ impl SkillsClient {
             instructions: Some(String::new()),
         };
 
+        let mut skills = Self::load_builtin_skills();
+
         let directories = Self::get_default_skill_directories()
             .into_iter()
             .filter(|d| d.exists())
             .collect::<Vec<_>>();
-        let skills = Self::discover_skills_in_directories(&directories);
+        let fs_skills = Self::discover_skills_in_directories(&directories);
+        skills.extend(fs_skills);
 
         let mut client = Self { info, skills };
         client.info.instructions = Some(client.generate_instructions());
         Ok(client)
+    }
+
+    fn load_builtin_skills() -> HashMap<String, Skill> {
+        let mut skills = HashMap::new();
+        for content in builtin_skills::get_all_builtin_skills() {
+            if let Ok((metadata, body)) = Self::parse_frontmatter(content) {
+                skills.insert(
+                    metadata.name.clone(),
+                    Skill {
+                        metadata,
+                        body,
+                        directory: PathBuf::new(),
+                        supporting_files: vec![],
+                    },
+                );
+            }
+        }
+        skills
     }
 
     fn get_default_skill_directories() -> Vec<PathBuf> {
@@ -263,24 +283,9 @@ impl SkillsClient {
 
 #[async_trait]
 impl McpClientTrait for SkillsClient {
-    async fn list_resources(
-        &self,
-        _next_cursor: Option<String>,
-        _cancellation_token: CancellationToken,
-    ) -> Result<ListResourcesResult, Error> {
-        Err(Error::TransportClosed)
-    }
-
-    async fn read_resource(
-        &self,
-        _uri: &str,
-        _cancellation_token: CancellationToken,
-    ) -> Result<ReadResourceResult, Error> {
-        Err(Error::TransportClosed)
-    }
-
     async fn list_tools(
         &self,
+        _session_id: &str,
         _next_cursor: Option<String>,
         _cancellation_token: CancellationToken,
     ) -> Result<ListToolsResult, Error> {
@@ -298,6 +303,7 @@ impl McpClientTrait for SkillsClient {
 
     async fn call_tool(
         &self,
+        _session_id: &str,
         name: &str,
         arguments: Option<JsonObject>,
         _cancellation_token: CancellationToken,
@@ -314,27 +320,6 @@ impl McpClientTrait for SkillsClient {
                 error
             ))])),
         }
-    }
-
-    async fn list_prompts(
-        &self,
-        _next_cursor: Option<String>,
-        _cancellation_token: CancellationToken,
-    ) -> Result<ListPromptsResult, Error> {
-        Err(Error::TransportClosed)
-    }
-
-    async fn get_prompt(
-        &self,
-        _name: &str,
-        _arguments: Value,
-        _cancellation_token: CancellationToken,
-    ) -> Result<GetPromptResult, Error> {
-        Err(Error::TransportClosed)
-    }
-
-    async fn subscribe(&self) -> mpsc::Receiver<ServerNotification> {
-        mpsc::channel(1).1
     }
 
     fn get_info(&self) -> Option<&InitializeResult> {
@@ -573,6 +558,7 @@ Content from dir3
             info: InitializeResult {
                 protocol_version: ProtocolVersion::V_2025_03_26,
                 capabilities: ServerCapabilities {
+                    tasks: None,
                     tools: Some(ToolsCapability {
                         list_changed: Some(false),
                     }),
@@ -615,6 +601,7 @@ Content from dir3
             info: InitializeResult {
                 protocol_version: ProtocolVersion::V_2025_03_26,
                 capabilities: ServerCapabilities {
+                    tasks: None,
                     tools: Some(ToolsCapability {
                         list_changed: Some(false),
                     }),
@@ -637,7 +624,7 @@ Content from dir3
         };
 
         let result = client
-            .list_tools(None, CancellationToken::new())
+            .list_tools("test-session-id", None, CancellationToken::new())
             .await
             .unwrap();
         assert_eq!(result.tools.len(), 0);
@@ -669,6 +656,7 @@ Content
             info: InitializeResult {
                 protocol_version: ProtocolVersion::V_2025_03_26,
                 capabilities: ServerCapabilities {
+                    tasks: None,
                     tools: Some(ToolsCapability {
                         list_changed: Some(false),
                     }),
@@ -691,7 +679,7 @@ Content
         };
 
         let result = client
-            .list_tools(None, CancellationToken::new())
+            .list_tools("test-session-id", None, CancellationToken::new())
             .await
             .unwrap();
         assert_eq!(result.tools.len(), 1);
@@ -737,6 +725,7 @@ Content
             info: InitializeResult {
                 protocol_version: ProtocolVersion::V_2025_03_26,
                 capabilities: ServerCapabilities {
+                    tasks: None,
                     tools: Some(ToolsCapability {
                         list_changed: Some(false),
                     }),
@@ -864,5 +853,13 @@ Working dir goose content
             .unwrap()
             .body
             .contains("Working dir goose content"));
+    }
+
+    #[test]
+    fn test_builtin_skills_loaded() {
+        let skills = SkillsClient::load_builtin_skills();
+
+        assert!(!skills.is_empty());
+        assert!(skills.contains_key("goose-doc-guide"));
     }
 }

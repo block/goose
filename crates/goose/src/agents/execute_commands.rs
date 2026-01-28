@@ -5,7 +5,6 @@ use anyhow::{anyhow, Result};
 use crate::context_mgmt::compact_messages;
 use crate::conversation::message::{Message, SystemNotificationType};
 use crate::recipe::build_recipe::build_recipe_from_template_with_positional_params;
-use crate::session::SessionManager;
 
 use super::Agent;
 
@@ -81,19 +80,26 @@ impl Agent {
     }
 
     async fn handle_compact_command(&self, session_id: &str) -> Result<Option<Message>> {
-        let session = SessionManager::get_session(session_id, true).await?;
+        let manager = self.config.session_manager.clone();
+        let session = manager.get_session(session_id, true).await?;
         let conversation = session
             .conversation
             .ok_or_else(|| anyhow!("Session has no conversation"))?;
 
-        let (compacted_conversation, _usage) = compact_messages(
+        let (compacted_conversation, usage) = compact_messages(
             self.provider().await?.as_ref(),
+            session_id,
             &conversation,
             true, // is_manual_compact
         )
         .await?;
 
-        SessionManager::replace_conversation(session_id, &compacted_conversation).await?;
+        manager
+            .replace_conversation(session_id, &compacted_conversation)
+            .await?;
+
+        self.update_session_metrics(session_id, session.schedule_id, &usage, true)
+            .await?;
 
         Ok(Some(Message::assistant().with_system_notification(
             SystemNotificationType::InlineMessage,
@@ -104,9 +110,13 @@ impl Agent {
     async fn handle_clear_command(&self, session_id: &str) -> Result<Option<Message>> {
         use crate::conversation::Conversation;
 
-        SessionManager::replace_conversation(session_id, &Conversation::default()).await?;
+        let manager = self.config.session_manager.clone();
+        manager
+            .replace_conversation(session_id, &Conversation::default())
+            .await?;
 
-        SessionManager::update_session(session_id)
+        manager
+            .update(session_id)
             .total_tokens(Some(0))
             .input_tokens(Some(0))
             .output_tokens(Some(0))
@@ -122,11 +132,11 @@ impl Agent {
     async fn handle_prompts_command(
         &self,
         params: &[&str],
-        _session_id: &str,
+        session_id: &str,
     ) -> Result<Option<Message>> {
         let extension_filter = params.first().map(|s| s.to_string());
 
-        let prompts = self.list_extension_prompts().await;
+        let prompts = self.list_extension_prompts(session_id).await;
 
         if let Some(filter) = &extension_filter {
             if !prompts.contains_key(filter) {
@@ -176,7 +186,7 @@ impl Agent {
         let is_info = params.get(1).map(|s| *s == "--info").unwrap_or(false);
 
         if is_info {
-            let prompts = self.list_extension_prompts().await;
+            let prompts = self.list_extension_prompts(session_id).await;
             let mut prompt_info = None;
 
             for (extension, prompt_list) in prompts {
@@ -219,7 +229,10 @@ impl Agent {
         let arguments_value = serde_json::to_value(arguments)
             .map_err(|e| anyhow!("Failed to serialize arguments: {}", e))?;
 
-        match self.get_prompt(&prompt_name, arguments_value).await {
+        match self
+            .get_prompt(session_id, &prompt_name, arguments_value)
+            .await
+        {
             Ok(prompt_result) => {
                 for (i, prompt_message) in prompt_result.messages.into_iter().enumerate() {
                     let msg = Message::from(prompt_message);
@@ -238,10 +251,17 @@ impl Agent {
                         return Ok(Some(Message::assistant().with_text(error_msg)));
                     }
 
-                    SessionManager::add_message(session_id, &msg).await?;
+                    self.config
+                        .session_manager
+                        .clone()
+                        .add_message(session_id, &msg)
+                        .await?;
                 }
 
-                let last_message = SessionManager::get_session(session_id, true)
+                let last_message = self
+                    .config
+                    .session_manager
+                    .get_session(session_id, true)
                     .await?
                     .conversation
                     .ok_or_else(|| anyhow!("No conversation found"))?
@@ -357,6 +377,9 @@ impl Agent {
             }
             Err(e) => return Err(anyhow!("Failed to build recipe: {}", e)),
         };
+
+        self.apply_recipe_components(recipe.sub_recipes.clone(), recipe.response.clone(), true)
+            .await;
 
         let prompt = [recipe.instructions.as_deref(), recipe.prompt.as_deref()]
             .into_iter()

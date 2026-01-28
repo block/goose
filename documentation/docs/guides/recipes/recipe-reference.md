@@ -170,7 +170,6 @@ The `extensions` field allows you to specify which Model Context Protocol (MCP) 
 #### Extension Types
 
 - **`stdio`**: Standard I/O client with command and arguments
-- **`sse`**: Server-sent events client with a URI endpoint  
 - **`builtin`**: Built-in extension that is part of the bundled goose MCP server
 - **`platform`**: Platform extensions that run in the agent process
 - **`streamable_http`**: Streamable HTTP client with URI endpoint
