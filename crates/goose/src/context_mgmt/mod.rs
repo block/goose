@@ -712,10 +712,11 @@ mod tests {
                 Message::assistant()
                     .with_tool_request(
                         call_id,
-                        Ok(CallToolRequestParam {
+                        Ok(CallToolRequestParams {
                             task: None,
                             name: tool_name.to_string().into(),
                             arguments: None,
+                            meta: None,
                         }),
                     )
                     .with_id(call_id),

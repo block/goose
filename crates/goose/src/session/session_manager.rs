@@ -587,6 +587,7 @@ impl SessionStorage {
             r#"
             CREATE TABLE messages (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                message_id TEXT,
                 session_id TEXT NOT NULL REFERENCES sessions(id),
                 role TEXT NOT NULL,
                 content_json TEXT NOT NULL,
@@ -604,6 +605,9 @@ impl SessionStorage {
             .execute(pool)
             .await?;
         sqlx::query("CREATE INDEX idx_messages_timestamp ON messages(timestamp)")
+            .execute(pool)
+            .await?;
+        sqlx::query("CREATE INDEX idx_messages_message_id ON messages(message_id)")
             .execute(pool)
             .await?;
         sqlx::query("CREATE INDEX idx_sessions_updated ON sessions(updated_at DESC)")
