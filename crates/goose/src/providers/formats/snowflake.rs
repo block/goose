@@ -12,8 +12,13 @@ use std::collections::HashSet;
 pub fn format_messages(messages: &[Message]) -> Vec<Value> {
     let mut snowflake_messages = Vec::new();
 
-    // Convert messages to Snowflake format
-    for message in messages.iter().filter(|m| m.is_agent_visible()) {
+    let filtered_messages: Vec<Message> = messages
+        .iter()
+        .filter(|m| m.is_agent_visible())
+        .map(|m| m.agent_visible_content())
+        .collect();
+
+    for message in &filtered_messages {
         let role = match message.role {
             Role::User => "user",
             Role::Assistant => "assistant",
@@ -39,10 +44,6 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                         let text = result
                             .content
                             .iter()
-                            .filter(|c| {
-                                c.audience()
-                                    .is_none_or(|audience| audience.contains(&Role::Assistant))
-                            })
                             .filter_map(|c| c.as_text().map(|t| t.text.clone()))
                             .collect::<Vec<_>>()
                             .join("\n");
