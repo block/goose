@@ -72,8 +72,6 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
             match content {
                 MessageContent::Text(text) => {
                     if !text.text.is_empty() {
-                        // Extracting images from text is an outdated hack that should never
-                        // be randomly applied to assistant messages
                         if message.role == Role::User {
                             if let Some(image_path) = detect_image_path(&text.text) {
                                 if let Ok(image) = load_image_file(image_path) {
@@ -210,16 +208,9 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                 MessageContent::ToolConfirmationRequest(_) => {}
                 MessageContent::ActionRequired(_) => {}
                 MessageContent::Image(image) => {
-                    // Only add images to user messages - many providers don't support images
-                    // in system or assistant messages
                     if message.role == Role::User {
                         content_array.push(convert_image(image, image_format));
                     } else {
-                        tracing::warn!(
-                            "Skipping image in {:?} message - images only supported in user messages",
-                            message.role
-                        );
-                        // Add placeholder text so the model knows there was an image
                         content_array.push(json!({
                             "type": "text",
                             "text": "[Image content removed - not supported in assistant messages]"
