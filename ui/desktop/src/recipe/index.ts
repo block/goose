@@ -76,3 +76,16 @@ export async function generateDeepLink(recipe: Recipe): Promise<string> {
   const encoded = await encodeRecipe(recipe);
   return `goose://recipe?config=${encoded}`;
 }
+
+/**
+ * Strips empty extensions array from a recipe.
+ * This ensures recipes without explicit extensions will use the default enabled extensions
+ * from the user's config in the desktop rather than loading with no extensions.
+ */
+export function stripEmptyExtensions<T extends { extensions?: unknown[] | null }>(recipe: T): T {
+  if (Array.isArray(recipe.extensions) && recipe.extensions.length === 0) {
+    const { extensions: _, ...rest } = recipe;
+    return rest as T;
+  }
+  return recipe;
+}

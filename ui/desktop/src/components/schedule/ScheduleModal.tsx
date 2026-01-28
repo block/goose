@@ -4,7 +4,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { ScheduledJob } from '../../schedule';
 import { CronPicker } from './CronPicker';
-import { Recipe, decodeRecipe } from '../../recipe';
+import { Recipe, decodeRecipe, stripEmptyExtensions } from '../../recipe';
 import { getStorageDirectory } from '../../recipe/recipe_management';
 import ClockIcon from '../../assets/clock-icon.svg';
 import * as yaml from 'yaml';
@@ -80,25 +80,28 @@ async function parseDeepLink(deepLink: string): Promise<Recipe | null> {
 }
 
 function recipeToYaml(recipe: Recipe): string {
+  // Strip empty extensions to ensure scheduled recipes use default enabled extensions
+  const processedRecipe = stripEmptyExtensions(recipe) as Recipe;
+
   const cleanRecipe: CleanRecipe = {
-    title: recipe.title,
-    description: recipe.description,
+    title: processedRecipe.title,
+    description: processedRecipe.description,
   };
 
-  if (recipe.instructions) {
-    cleanRecipe.instructions = recipe.instructions;
+  if (processedRecipe.instructions) {
+    cleanRecipe.instructions = processedRecipe.instructions;
   }
 
-  if (recipe.prompt) {
-    cleanRecipe.prompt = recipe.prompt;
+  if (processedRecipe.prompt) {
+    cleanRecipe.prompt = processedRecipe.prompt;
   }
 
-  if (recipe.activities && recipe.activities.length > 0) {
-    cleanRecipe.activities = recipe.activities;
+  if (processedRecipe.activities && processedRecipe.activities.length > 0) {
+    cleanRecipe.activities = processedRecipe.activities;
   }
 
-  if (recipe.extensions && recipe.extensions.length > 0) {
-    cleanRecipe.extensions = recipe.extensions.map((ext) => {
+  if (processedRecipe.extensions && processedRecipe.extensions.length > 0) {
+    cleanRecipe.extensions = processedRecipe.extensions.map((ext) => {
       const cleanExt: CleanExtension = {
         name: ext.name,
         type: 'builtin',
@@ -178,15 +181,15 @@ function recipeToYaml(recipe: Recipe): string {
     });
   }
 
-  if (recipe.author) {
+  if (processedRecipe.author) {
     cleanRecipe.author = {
-      contact: recipe.author.contact || undefined,
-      metadata: recipe.author.metadata || undefined,
+      contact: processedRecipe.author.contact || undefined,
+      metadata: processedRecipe.author.metadata || undefined,
     };
   }
 
   cleanRecipe.schedule = {
-    window_title: `${recipe.title} - Scheduled`,
+    window_title: `${processedRecipe.title} - Scheduled`,
   };
 
   return yaml.stringify(cleanRecipe);

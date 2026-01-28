@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useForm } from '@tanstack/react-form';
-import { Recipe, generateDeepLink, Parameter } from '../../recipe';
+import { Recipe, generateDeepLink, Parameter, stripEmptyExtensions } from '../../recipe';
 import { Check, ExternalLink, Play, Save, X } from 'lucide-react';
 import { Geese } from '../icons/Geese';
 import Copy from '../icons/Copy';
@@ -132,7 +132,14 @@ export default function CreateEditRecipeModal({
       }
     }
 
-    return {
+    // Strip envs to avoid leaking secrets
+    const extensionsWithoutEnvs = recipeExtensions.map((extension) =>
+      'envs' in extension ? { ...extension, envs: undefined } : extension
+    ) as ExtensionConfig[];
+
+    // Use stripEmptyExtensions to avoid saving empty extensions array
+    // Empty extensions array would prevent default extensions from loading
+    return stripEmptyExtensions({
       ...recipe,
       title,
       description,
@@ -141,11 +148,8 @@ export default function CreateEditRecipeModal({
       prompt: prompt || undefined,
       parameters: formattedParameters,
       response: responseConfig,
-      // Strip envs to avoid leaking secrets
-      extensions: recipeExtensions.map((extension) =>
-        'envs' in extension ? { ...extension, envs: undefined } : extension
-      ) as ExtensionConfig[],
-    };
+      extensions: extensionsWithoutEnvs,
+    }) as Recipe;
   }, [
     recipe,
     title,
