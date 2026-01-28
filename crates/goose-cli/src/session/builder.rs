@@ -30,7 +30,7 @@ fn truncate_with_ellipsis(s: &str, max_len: usize) -> String {
 
 fn parse_cli_flag_extensions(
     extensions: &[String],
-    streamable_http_extensions: &[String],
+    streamable_http_extensions: &[StreamableHttpOptions],
     builtins: &[String],
 ) -> Vec<(String, ExtensionConfig)> {
     let mut extensions_to_load = Vec::new();
@@ -55,9 +55,12 @@ fn parse_cli_flag_extensions(
         }
     }
 
-    for (idx, ext_str) in streamable_http_extensions.iter().enumerate() {
-        let config = CliSession::parse_streamable_http_extension(ext_str);
-        let hint = truncate_with_ellipsis(ext_str, EXTENSION_HINT_MAX_LEN);
+    for (idx, ext_opts) in streamable_http_extensions.iter().enumerate() {
+        let config = CliSession::parse_streamable_http_extension_with_timeout(
+            &ext_opts.url,
+            Some(ext_opts.timeout),
+        );
+        let hint = truncate_with_ellipsis(&ext_opts.url, EXTENSION_HINT_MAX_LEN);
         let label = format!("http #{}({})", idx + 1, hint);
         extensions_to_load.push((label, config));
     }
@@ -92,6 +95,7 @@ pub struct SessionBuilderConfig {
     pub streamable_http_extensions: Vec<StreamableHttpOptions>,
     /// List of builtin extension commands to add
     pub builtins: Vec<String>,
+    pub no_profile: bool,
     /// Recipe for the session
     pub recipe: Option<Recipe>,
     /// Any additional system prompt to append to the default
@@ -130,6 +134,7 @@ impl Default for SessionBuilderConfig {
             extensions: Vec::new(),
             streamable_http_extensions: Vec::new(),
             builtins: Vec::new(),
+            no_profile: false,
             recipe: None,
             additional_system_prompt: None,
             provider: None,
@@ -529,6 +534,8 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             .and_then(|s| EnabledExtensionsState::from_extension_data(&s.extension_data))
             .map(|state| state.extensions)
             .unwrap_or_else(get_enabled_extensions)
+    } else if session_config.no_profile {
+        Vec::new()
     } else {
         resolve_extensions_for_new_session(recipe.and_then(|r| r.extensions.as_deref()), None)
     };
@@ -579,7 +586,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         session_config.output_format.clone(),
     )
     .await;
-
 
     if let Err(e) = session
         .agent
@@ -637,6 +643,7 @@ mod tests {
                 timeout: goose::config::DEFAULT_EXTENSION_TIMEOUT,
             }],
             builtins: vec!["developer".to_string()],
+            no_profile: false,
             recipe: None,
             additional_system_prompt: Some("Test prompt".to_string()),
             provider: None,
