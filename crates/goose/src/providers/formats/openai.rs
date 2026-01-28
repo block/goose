@@ -60,15 +60,16 @@ struct StreamingChunk {
 pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Value> {
     let mut messages_spec = Vec::new();
     for message in messages.iter().filter(|m| m.is_agent_visible()) {
+        let filtered = message.agent_visible_content();
         let mut converted = json!({
-            "role": message.role
+            "role": filtered.role
         });
 
         let mut output = Vec::new();
         let mut content_array = Vec::new();
         let mut text_array = Vec::new();
 
-        for content in &message.content {
+        for content in &filtered.content {
             match content {
                 MessageContent::Text(text) => {
                     if !text.text.is_empty() {
@@ -131,15 +132,9 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                 MessageContent::ToolResponse(response) => {
                     match &response.tool_result {
                         Ok(result) => {
-                            // Send only contents with no audience or with Assistant in the audience
                             let abridged: Vec<_> = result
                                 .content
                                 .iter()
-                                .filter(|content| {
-                                    content
-                                        .audience()
-                                        .is_none_or(|audience| audience.contains(&Role::Assistant))
-                                })
                                 .cloned()
                                 .collect();
 

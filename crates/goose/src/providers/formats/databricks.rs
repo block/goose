@@ -48,7 +48,6 @@ fn format_tool_response(
             let abridged: Vec<_> = call_result
                 .content
                 .iter()
-                .filter(|c| c.audience().is_none_or(|a| a.contains(&Role::Assistant)))
                 .map(|c| c.raw.clone())
                 .collect();
 
@@ -113,9 +112,10 @@ fn format_tool_response(
 fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<DatabricksMessage> {
     let mut result = Vec::new();
     for message in messages.iter().filter(|m| m.is_agent_visible()) {
+        let filtered = message.agent_visible_content();
         let mut converted = DatabricksMessage {
             content: Value::Null,
-            role: match message.role {
+            role: match filtered.role {
                 Role::User => "user".to_string(),
                 Role::Assistant => "assistant".to_string(),
             },
@@ -127,7 +127,7 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
         let mut has_tool_calls = false;
         let mut has_multiple_content = false;
 
-        for content in &message.content {
+        for content in &filtered.content {
             match content {
                 MessageContent::Text(text) => {
                     if !text.text.is_empty() {

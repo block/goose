@@ -285,10 +285,8 @@ impl MessageContent {
                     .cloned()
                     .collect();
 
-                if filtered_content.is_empty() {
-                    return None;
-                }
-
+                // Preserve ToolResponse even when content is empty - some providers
+                // (like Google) need to handle empty tool responses specially
                 Some(MessageContent::ToolResponse(ToolResponse {
                     id: res.id.clone(),
                     tool_result: Ok(CallToolResult {
