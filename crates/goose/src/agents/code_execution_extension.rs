@@ -146,7 +146,7 @@ impl CodeExecutionClient {
             .ok_or("Extension manager not available")?;
 
         let registry = CallbackRegistry::default();
-        for cfg in &code_mode.callbacks {
+        for cfg in code_mode.callbacks() {
             let full_name = format!("{}__{}", &cfg.namespace, &cfg.name);
             let callback = create_tool_callback(session_id.to_string(), full_name, manager.clone());
             registry
@@ -446,12 +446,9 @@ impl CodeModeState {
     fn new(cfgs: Vec<CallbackConfig>) -> Result<Self, String> {
         let hash = Self::hash(&cfgs);
 
-        let mut code_mode = CodeMode::default();
-        for cfg in &cfgs {
-            code_mode
-                .add_callback(cfg)
-                .map_err(|e| format!("Failed to add callback: {e}"))?;
-        }
+        let code_mode = CodeMode::default()
+            .with_callbacks(&cfgs)
+            .map_err(|e| format!("failed adding callback configs to CodeMode: {e}"))?;
 
         Ok(Self { code_mode, hash })
     }
