@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Input } from '../../ui/input';
 import { Button } from '../../ui/button';
 import { useConfig } from '../../ConfigContext';
@@ -7,74 +7,41 @@ import { setElevenLabsKeyCache } from '../../../hooks/useDictationSettings';
 
 export const ElevenLabsKeyInput = () => {
   const [elevenLabsApiKey, setElevenLabsApiKey] = useState('');
-  const [isLoadingKey, setIsLoadingKey] = useState(false);
   const [hasElevenLabsKey, setHasElevenLabsKey] = useState(false);
-  const [validationError, setValidationError] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const { upsert, read, remove } = useConfig();
 
-  const loadKey = useCallback(async () => {
-    setIsLoadingKey(true);
-    try {
+  useEffect(() => {
+    const checkKey = async () => {
       const response = await read(ELEVENLABS_API_KEY, true);
       const hasKey = isSecretKeyConfigured(response);
       setHasElevenLabsKey(hasKey);
       setElevenLabsKeyCache(hasKey);
-    } catch (error) {
-      console.error(error);
-      setElevenLabsKeyCache(false);
-    } finally {
-      setIsLoadingKey(false);
-    }
+    };
+    checkKey();
   }, [read]);
 
-  useEffect(() => {
-    loadKey();
-  }, [loadKey]);
-
-  const handleElevenLabsKeyChange = (key: string) => {
-    setElevenLabsApiKey(key);
-    if (validationError) {
-      setValidationError('');
-    }
-  };
-
   const handleSave = async () => {
-    try {
-      const trimmedKey = elevenLabsApiKey.trim();
+    const trimmedKey = elevenLabsApiKey.trim();
+    if (!trimmedKey) return;
 
-      if (!trimmedKey) {
-        setValidationError('API key is required');
-        return;
-      }
-
-      await upsert(ELEVENLABS_API_KEY, trimmedKey, true);
-      setElevenLabsApiKey('');
-      setValidationError('');
-      setIsEditing(false);
-      await loadKey();
-    } catch (error) {
-      console.error(error);
-      setValidationError('Failed to save API key');
-    }
+    await upsert(ELEVENLABS_API_KEY, trimmedKey, true);
+    setElevenLabsApiKey('');
+    setIsEditing(false);
+    setHasElevenLabsKey(true);
+    setElevenLabsKeyCache(true);
   };
 
   const handleRemove = async () => {
-    try {
-      await remove(ELEVENLABS_API_KEY, true);
-      await loadKey();
-      setElevenLabsApiKey('');
-      setValidationError('');
-      setIsEditing(false);
-    } catch (error) {
-      console.error(error);
-      setValidationError('Failed to remove API key');
-    }
+    await remove(ELEVENLABS_API_KEY, true);
+    setElevenLabsApiKey('');
+    setIsEditing(false);
+    setHasElevenLabsKey(false);
+    setElevenLabsKeyCache(false);
   };
 
   const handleCancel = () => {
     setElevenLabsApiKey('');
-    setValidationError('');
     setIsEditing(false);
   };
 
@@ -89,25 +56,26 @@ export const ElevenLabsKeyInput = () => {
       </div>
 
       {!isEditing ? (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setIsEditing(true)}
-          disabled={isLoadingKey}
-        >
-          {hasElevenLabsKey ? 'Update API Key' : 'Add API Key'}
-        </Button>
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
+            {hasElevenLabsKey ? 'Update API Key' : 'Add API Key'}
+          </Button>
+          {hasElevenLabsKey && (
+            <Button variant="destructive" size="sm" onClick={handleRemove}>
+              Remove API Key
+            </Button>
+          )}
+        </div>
       ) : (
         <div className="space-y-2">
           <Input
             type="password"
             value={elevenLabsApiKey}
-            onChange={(e) => handleElevenLabsKeyChange(e.target.value)}
+            onChange={(e) => setElevenLabsApiKey(e.target.value)}
             placeholder="Enter your ElevenLabs API key"
             className="max-w-md"
             autoFocus
           />
-          {validationError && <p className="text-xs text-red-600 mt-1">{validationError}</p>}
           <div className="flex gap-2">
             <Button size="sm" onClick={handleSave}>
               Save
@@ -115,11 +83,6 @@ export const ElevenLabsKeyInput = () => {
             <Button variant="outline" size="sm" onClick={handleCancel}>
               Cancel
             </Button>
-            {hasElevenLabsKey && (
-              <Button variant="destructive" size="sm" onClick={handleRemove}>
-                Remove
-              </Button>
-            )}
           </div>
         </div>
       )}
