@@ -1204,11 +1204,11 @@ impl ExtensionManager {
         // Some models strip the tool prefix, so auto-add it for known code_execution tools
         let tool_name_str = tool_call.name.to_string();
         let prefixed_name = if !tool_name_str.contains("__") {
-            let code_exec_tools = ["execute_code", "read_module", "search_modules"];
+            let code_exec_tools = ["execute", "list_functions", "get_function_details"];
             if code_exec_tools.contains(&tool_name_str.as_str())
                 && self.extensions.lock().await.contains_key("code_execution")
             {
-                format!("code_execution__{}", tool_name_str)
+                format!("code_execution__{tool_name_str}")
             } else {
                 tool_name_str
             }
