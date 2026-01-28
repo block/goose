@@ -116,6 +116,14 @@ jobs:
           # Run the provider test script (binary already built and downloaded)
           bash scripts/test_providers.sh
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@61cb8a9741eeb8a550a1b8544337180c0fc8476b  # v7.2.0
+
       - name: Run MCP Tests
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -142,14 +150,6 @@ jobs:
           SKIP_BUILD: 1
         run: |
           bash scripts/test_subrecipes.sh
-
-      - name: Set up Python (for error proxy)
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
-        with:
-          python-version: '3.12'
-
-      - name: Install uv (for error proxy)
-        uses: astral-sh/setup-uv@61cb8a9741eeb8a550a1b8544337180c0fc8476b  # v7.2.0
 
       - name: Run Compaction Tests
         env:

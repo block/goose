@@ -55,12 +55,9 @@ fn parse_cli_flag_extensions(
         }
     }
 
-    for (idx, ext_opts) in streamable_http_extensions.iter().enumerate() {
-        let config = CliSession::parse_streamable_http_extension_with_timeout(
-            &ext_opts.url,
-            Some(ext_opts.timeout),
-        );
-        let hint = truncate_with_ellipsis(&ext_opts.url, EXTENSION_HINT_MAX_LEN);
+    for (idx, opts) in streamable_http_extensions.iter().enumerate() {
+        let config = CliSession::parse_streamable_http_extension(&opts.url, opts.timeout);
+        let hint = truncate_with_ellipsis(&opts.url, EXTENSION_HINT_MAX_LEN);
         let label = format!("http #{}({})", idx + 1, hint);
         extensions_to_load.push((label, config));
     }

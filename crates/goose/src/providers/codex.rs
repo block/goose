@@ -10,9 +10,7 @@ use tokio::process::Command;
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::utils::{filter_extensions_from_system_prompt, RequestLog};
-use crate::config::base::{
-    CodexCommand, CodexEnableSkills, CodexReasoningEffort, CodexSkipGitCheck,
-};
+use crate::config::base::{CodexCommand, CodexReasoningEffort, CodexSkipGitCheck};
 use crate::config::search_path::SearchPaths;
 use crate::config::{Config, GooseMode};
 use crate::conversation::message::{Message, MessageContent};
@@ -41,8 +39,6 @@ pub struct CodexProvider {
     name: String,
     /// Reasoning effort level (none, low, medium, high, xhigh)
     reasoning_effort: String,
-    /// Whether to enable skills
-    enable_skills: bool,
     /// Whether to skip git repo check
     skip_git_check: bool,
 }
@@ -72,12 +68,6 @@ impl CodexProvider {
                 "high".to_string()
             };
 
-        // Get enable_skills from config, default to true
-        let enable_skills = config
-            .get_codex_enable_skills()
-            .map(|s| s.to_lowercase() == "true")
-            .unwrap_or(true);
-
         // Get skip_git_check from config, default to false
         let skip_git_check = config
             .get_codex_skip_git_check()
@@ -89,7 +79,6 @@ impl CodexProvider {
             model,
             name: Self::metadata().name,
             reasoning_effort,
-            enable_skills,
             skip_git_check,
         })
     }
@@ -178,7 +167,6 @@ impl CodexProvider {
             println!("Command: {:?}", self.command);
             println!("Model: {}", self.model.model_name);
             println!("Reasoning effort: {}", self.reasoning_effort);
-            println!("Enable skills: {}", self.enable_skills);
             println!("Skip git check: {}", self.skip_git_check);
             println!("Prompt length: {} chars", prompt.len());
             println!("Prompt: {}", prompt);
@@ -202,11 +190,6 @@ impl CodexProvider {
             "model_reasoning_effort=\"{}\"",
             self.reasoning_effort
         ));
-
-        // Enable skills if configured
-        if self.enable_skills {
-            cmd.arg("--enable").arg("skills");
-        }
 
         // JSON output format for structured parsing
         cmd.arg("--json");
@@ -501,7 +484,6 @@ impl Provider for CodexProvider {
             vec![
                 ConfigKey::from_value_type::<CodexCommand>(true, false),
                 ConfigKey::from_value_type::<CodexReasoningEffort>(false, false),
-                ConfigKey::from_value_type::<CodexEnableSkills>(false, false),
                 ConfigKey::from_value_type::<CodexSkipGitCheck>(false, false),
             ],
         )
@@ -541,7 +523,6 @@ impl Provider for CodexProvider {
             "command": self.command,
             "model": model_config.model_name,
             "reasoning_effort": self.reasoning_effort,
-            "enable_skills": self.enable_skills,
             "system_length": system.len(),
             "messages_count": messages.len()
         });
@@ -590,7 +571,6 @@ mod tests {
             model: ModelConfig::new("gpt-5.2-codex").unwrap(),
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
-            enable_skills: true,
             skip_git_check: false,
         };
 
@@ -605,7 +585,6 @@ mod tests {
             model: ModelConfig::new("gpt-5.2-codex").unwrap(),
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
-            enable_skills: true,
             skip_git_check: false,
         };
 
@@ -621,7 +600,6 @@ mod tests {
             model: ModelConfig::new("gpt-5.2-codex").unwrap(),
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
-            enable_skills: true,
             skip_git_check: false,
         };
 
@@ -650,7 +628,6 @@ mod tests {
             model: ModelConfig::new("gpt-5.2-codex").unwrap(),
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
-            enable_skills: true,
             skip_git_check: false,
         };
 
@@ -670,7 +647,6 @@ mod tests {
             model: ModelConfig::new("gpt-5.2-codex").unwrap(),
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
-            enable_skills: true,
             skip_git_check: false,
         };
 
@@ -703,7 +679,6 @@ mod tests {
             model: ModelConfig::new("gpt-5.2-codex").unwrap(),
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
-            enable_skills: true,
             skip_git_check: false,
         };
 
@@ -751,7 +726,6 @@ mod tests {
             model: ModelConfig::new("gpt-5.2-codex").unwrap(),
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
-            enable_skills: true,
             skip_git_check: false,
         };
 
@@ -776,7 +750,6 @@ mod tests {
             model: ModelConfig::new("gpt-5.2-codex").unwrap(),
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
-            enable_skills: true,
             skip_git_check: false,
         };
 
@@ -800,7 +773,6 @@ mod tests {
             model: ModelConfig::new("gpt-5.2-codex").unwrap(),
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
-            enable_skills: true,
             skip_git_check: false,
         };
 
@@ -822,7 +794,6 @@ mod tests {
             model: ModelConfig::new("gpt-5.2-codex").unwrap(),
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
-            enable_skills: true,
             skip_git_check: false,
         };
 
@@ -849,7 +820,6 @@ mod tests {
             model: ModelConfig::new("gpt-5.2-codex").unwrap(),
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
-            enable_skills: true,
             skip_git_check: false,
         };
 
@@ -881,7 +851,6 @@ mod tests {
             model: ModelConfig::new("gpt-5.2-codex").unwrap(),
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
-            enable_skills: true,
             skip_git_check: false,
         };
 
@@ -901,7 +870,7 @@ mod tests {
     #[test]
     fn test_config_keys() {
         let metadata = CodexProvider::metadata();
-        assert_eq!(metadata.config_keys.len(), 4);
+        assert_eq!(metadata.config_keys.len(), 3);
 
         // First key should be CODEX_COMMAND (required)
         assert_eq!(metadata.config_keys[0].name, "CODEX_COMMAND");
@@ -912,13 +881,9 @@ mod tests {
         assert_eq!(metadata.config_keys[1].name, "CODEX_REASONING_EFFORT");
         assert!(!metadata.config_keys[1].required);
 
-        // Third key should be CODEX_ENABLE_SKILLS (optional)
-        assert_eq!(metadata.config_keys[2].name, "CODEX_ENABLE_SKILLS");
+        // Third key should be CODEX_SKIP_GIT_CHECK (optional)
+        assert_eq!(metadata.config_keys[2].name, "CODEX_SKIP_GIT_CHECK");
         assert!(!metadata.config_keys[2].required);
-
-        // Fourth key should be CODEX_SKIP_GIT_CHECK (optional)
-        assert_eq!(metadata.config_keys[3].name, "CODEX_SKIP_GIT_CHECK");
-        assert!(!metadata.config_keys[3].required);
     }
 
     #[test]
@@ -928,7 +893,6 @@ mod tests {
             model: ModelConfig::new("gpt-5.2-codex").unwrap(),
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
-            enable_skills: true,
             skip_git_check: false,
         };
 
@@ -954,7 +918,6 @@ mod tests {
             model: ModelConfig::new("gpt-5.2-codex").unwrap(),
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
-            enable_skills: true,
             skip_git_check: false,
         };
 
