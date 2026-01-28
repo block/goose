@@ -4,9 +4,7 @@ use console::style;
 use goose::agents::{Agent, Container};
 use goose::config::get_enabled_extensions;
 use goose::config::resolve_extensions_for_new_session;
-use goose::config::{
-    extensions::get_extension_by_name, get_all_extensions, Config, ExtensionConfig,
-};
+use goose::config::{get_all_extensions, Config, ExtensionConfig};
 use goose::providers::create;
 use goose::recipe::Recipe;
 use goose::session::session_manager::SessionType;
@@ -330,45 +328,6 @@ async fn load_extensions(
     agent_ptr
 }
 
-fn check_missing_extensions_or_exit(saved_extensions: &[ExtensionConfig], interactive: bool) {
-    let missing: Vec<_> = saved_extensions
-        .iter()
-        .filter(|ext| get_extension_by_name(&ext.name()).is_none())
-        .cloned()
-        .collect();
-
-    if !missing.is_empty() {
-        let names = missing
-            .iter()
-            .map(|e| e.name())
-            .collect::<Vec<_>>()
-            .join(", ");
-
-        if interactive {
-            if !cliclack::confirm(format!(
-                "Extension(s) {} from previous session are no longer available. Restore for this session?",
-                names
-            ))
-            .initial_value(true)
-            .interact()
-            .unwrap_or(false)
-            {
-                println!("{}", style("Resume cancelled.").yellow());
-                process::exit(0);
-            }
-        } else {
-            eprintln!(
-                "{}",
-                style(format!(
-                    "Warning: Extension(s) {} from previous session are no longer available, continuing without them.",
-                    names
-                ))
-                .yellow()
-            );
-        }
-    }
-}
-
 pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     goose::posthog::set_session_context("cli", session_config.resume);
 
@@ -566,10 +525,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             .await
             .ok()
             .and_then(|s| EnabledExtensionsState::from_extension_data(&s.extension_data))
-            .map(|state| {
-                check_missing_extensions_or_exit(&state.extensions, session_config.interactive);
-                state.extensions
-            })
+            .map(|state| state.extensions)
             .unwrap_or_else(get_enabled_extensions)
     } else {
         resolve_extensions_for_new_session(recipe.and_then(|r| r.extensions.as_deref()), None)
