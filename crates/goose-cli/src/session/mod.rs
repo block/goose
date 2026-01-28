@@ -1,5 +1,6 @@
 mod builder;
 mod completion;
+mod editor;
 mod elicitation;
 mod export;
 mod input;
@@ -8,6 +9,7 @@ mod prompt;
 mod task_execution_display;
 mod thinking;
 
+use crate::cli::StreamableHttpOptions;
 use crate::session::task_execution_display::{
     format_task_execution_notification, TASK_EXECUTION_NOTIFICATION_TYPE,
 };
@@ -444,8 +446,21 @@ impl CliSession {
         loop {
             self.display_context_usage().await?;
 
+            // Convert conversation messages to strings for editor mode
+            let conversation_strings: Vec<String> = self
+                .messages
+                .iter()
+                .map(|msg| {
+                    let role = match msg.role {
+                        rmcp::model::Role::User => "User",
+                        rmcp::model::Role::Assistant => "Assistant",
+                    };
+                    format!("## {}: {}", role, msg.as_concat_text())
+                })
+                .collect();
+
             output::run_status_hook("waiting");
-            let input = input::get_input(&mut editor)?;
+            let input = input::get_input(&mut editor, Some(&conversation_strings))?;
             if matches!(input, InputResult::Exit) {
                 break;
             }

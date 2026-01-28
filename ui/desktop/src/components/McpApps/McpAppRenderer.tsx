@@ -21,6 +21,7 @@ import {
 import { cn } from '../../utils';
 import { DEFAULT_IFRAME_HEIGHT } from './utils';
 import { readResource, callTool } from '../../api';
+import { errorMessage } from '../../utils/conversionUtils';
 
 interface McpAppRendererProps {
   resourceUri: string;
@@ -92,7 +93,7 @@ export default function McpAppRenderer({
         }
       } catch (err) {
         if (!cachedHtml) {
-          setError(err instanceof Error ? err.message : 'Failed to load resource');
+          setError(errorMessage(err, 'Failed to load resource'));
         } else {
           console.warn('Failed to fetch fresh resource, using cached version:', err);
         }

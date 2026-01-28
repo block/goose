@@ -16,6 +16,7 @@ import * as fs from 'fs/promises';
 import log from './logger';
 import { githubUpdater } from './githubUpdater';
 import { loadRecentDirs } from './recentDirs';
+import { errorMessage } from './conversionUtils';
 import {
   trackUpdateCheckStarted,
   trackUpdateCheckCompleted,
@@ -99,7 +100,7 @@ export function registerUpdateIpcHandlers() {
       log.error(`=== MANUAL UPDATE CHECK FAILED after ${duration}ms ===`);
       log.error('Error checking for updates:', error);
       log.error('Manual check error details:', {
-        message: error instanceof Error ? error.message : 'Unknown error',
+        message: errorMessage(error, 'Unknown error'),
         stack: error instanceof Error ? error.stack : 'No stack',
         name: error instanceof Error ? error.name : 'Unknown',
         code:
@@ -189,12 +190,12 @@ export function registerUpdateIpcHandlers() {
 
       trackUpdateCheckCompleted('error', currentVersion, {
         usingFallback: false,
-        errorType: error instanceof Error ? error.message : 'unknown',
+        errorType: errorMessage(error, 'unknown'),
       });
 
       return {
         updateInfo: null,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: errorMessage(error, 'Unknown error'),
       };
     }
   });
@@ -246,15 +247,10 @@ export function registerUpdateIpcHandlers() {
       log.error('Error downloading update:', error);
       const version = githubUpdateInfo.latestVersion || lastUpdateState?.latestVersion || 'unknown';
       const method = isUsingGitHubFallback ? 'github-fallback' : 'electron-updater';
-      trackUpdateDownloadCompleted(
-        false,
-        version,
-        method,
-        error instanceof Error ? error.message : 'unknown'
-      );
+      trackUpdateDownloadCompleted(false, version, method, errorMessage(error, 'unknown'));
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: errorMessage(error, 'Unknown error'),
       };
     }
   });
@@ -708,7 +704,7 @@ async function githubAutoDownload(
       false,
       latestVersion,
       'github-fallback',
-      downloadError instanceof Error ? downloadError.message : 'unknown'
+      errorMessage(downloadError, 'unknown')
     );
     log.error(
       `Error during GitHub auto-download${contextLabel ? ` (${contextLabel})` : ''}:`,

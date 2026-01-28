@@ -1,3 +1,4 @@
+use crate::cli::StreamableHttpOptions;
 use crate::session::build_session;
 use crate::session::SessionBuilderConfig;
 use crate::{logging, CliSession};
@@ -34,13 +35,21 @@ pub async fn agent_generator(
     requirements: ExtensionRequirements,
     session_id: String,
 ) -> BenchAgent {
+    let streamable_http_extensions: Vec<StreamableHttpOptions> = requirements
+        .streamable_http
+        .iter()
+        .map(|s| StreamableHttpOptions {
+            url: s.clone(),
+            timeout: goose::config::DEFAULT_EXTENSION_TIMEOUT,
+        })
+        .collect();
     let base_session = build_session(SessionBuilderConfig {
         session_id: Some(session_id),
         resume: false,
         fork: false,
         no_session: false,
         extensions: requirements.external,
-        streamable_http_extensions: requirements.streamable_http,
+        streamable_http_extensions,
         builtins: requirements.builtin,
         recipe: None,
         additional_system_prompt: None,
@@ -53,6 +62,7 @@ pub async fn agent_generator(
         max_turns: None,
         quiet: false,
         output_format: "text".to_string(),
+        container: None,
     })
     .await;
 

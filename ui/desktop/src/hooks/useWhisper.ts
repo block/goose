@@ -2,8 +2,8 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { useConfig } from '../components/ConfigContext';
 import { getApiUrl } from '../config';
 import { useDictationSettings } from './useDictationSettings';
-import { DICTATION_PROVIDER_ELEVENLABS } from './dictationConstants';
-import { safeJsonParse } from '../utils/conversionUtils';
+import { DICTATION_PROVIDER_OPENAI, DICTATION_PROVIDER_ELEVENLABS } from './dictationConstants';
+import { safeJsonParse, errorMessage } from '../utils/conversionUtils';
 
 interface UseWhisperOptions {
   onTranscription?: (text: string) => void;
@@ -75,7 +75,7 @@ export const useWhisper = ({ onTranscription, onError, onSizeWarning }: UseWhisp
 
     // Check provider availability
     switch (dictationSettings.provider) {
-      case 'openai':
+      case DICTATION_PROVIDER_OPENAI:
         setCanUseDictation(hasOpenAIKey);
         break;
       case DICTATION_PROVIDER_ELEVENLABS:
@@ -178,7 +178,7 @@ export const useWhisper = ({ onTranscription, onError, onSizeWarning }: UseWhisp
 
         // Choose endpoint based on provider
         switch (dictationSettings.provider) {
-          case 'openai':
+          case DICTATION_PROVIDER_OPENAI:
             endpoint = '/audio/transcribe';
             break;
           case DICTATION_PROVIDER_ELEVENLABS:
@@ -353,8 +353,7 @@ export const useWhisper = ({ onTranscription, onError, onSizeWarning }: UseWhisp
         setIsRecording(true);
       } catch (startError) {
         console.error('Error calling mediaRecorder.start():', startError);
-        const errorMessage = startError instanceof Error ? startError.message : String(startError);
-        throw new Error(`Failed to start recording: ${errorMessage}`);
+        throw new Error(`Failed to start recording: ${errorMessage(startError)}`);
       }
     } catch (error) {
       console.error('Error starting recording:', error);

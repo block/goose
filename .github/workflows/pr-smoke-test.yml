@@ -149,7 +149,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install uv (for error proxy)
-        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # pin@v6
+        uses: astral-sh/setup-uv@61cb8a9741eeb8a550a1b8544337180c0fc8476b  # v7.2.0
 
       - name: Run Compaction Tests
         env:

@@ -232,13 +232,13 @@ Speak to goose directly instead of typing your prompts.
     To enable voice dictation:
         1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
         2. Click `Settings` in the sidebar
-        3. Click `Chat`
+        3. Click the `Chat` tab
         4. Under `Voice Dictation`, toggle `Enable Voice Dictation` on
         5. Choose between `OpenAI Whisper` or `ElevenLabs` as your dictation provider
         6. Enter your API key for the provider you chose 
 
     To use voice dictation:
-        1. Return to the chat interface (click `Chat` in the sidebar)
+        1. Return to your chat (click your chat session under `Chat` in the sidebar)
         2. Click the microphone on the right of the chat box and begin speaking
         
         The first time you use voice dictation, goose will request access to your microphone. While recording, you'll see a live waveform of your audio in the input field, a timer, and the current size of your recording. Click the microphone button again to finish recording. 
@@ -254,6 +254,25 @@ Speak to goose directly instead of typing your prompts.
   </TabItem>
     <TabItem value="cli" label="goose CLI">
         Voice dictation is not available in the goose CLI. 
+    </TabItem>
+</Tabs>
+
+## Spellcheck
+
+Spellcheck is enabled by default in the goose Desktop chat input field.
+
+<Tabs groupId="interface">
+    <TabItem value="ui" label="goose Desktop" default>
+    To disable or re-enable spellcheck:
+        1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+        2. Click `Settings` in the sidebar
+        3. Click `Chat`
+        4. Scroll down to `Enable Spellcheck` and toggle it on or off
+        5. Restart goose for the change to take effect
+        
+    </TabItem>
+    <TabItem value="cli" label="goose CLI">
+        Spellcheck is not available in the goose CLI.
     </TabItem>
 </Tabs>
 
