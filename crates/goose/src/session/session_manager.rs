@@ -857,26 +857,52 @@ impl SessionStorage {
                 .await?;
             }
             7 => {
-                sqlx::query(
+                let column_exists = sqlx::query_scalar::<_, bool>(
                     r#"
-                    ALTER TABLE messages ADD COLUMN message_id TEXT
-                "#,
+                    SELECT EXISTS (
+                        SELECT 1 FROM pragma_table_info('messages') WHERE name = 'message_id'
+                    )
+                    "#,
                 )
-                .execute(pool)
-                .await?;
+                .fetch_one(pool)
+                .await
+                .unwrap_or(false);
 
-                sqlx::query(
-                    r#"
-                    UPDATE messages
-                    SET message_id = 'msg_' || session_id || '_' || id
-                "#,
-                )
-                .execute(pool)
-                .await?;
-
-                sqlx::query("CREATE INDEX idx_messages_message_id ON messages(message_id)")
+                if !column_exists {
+                    sqlx::query(
+                        r#"
+                        ALTER TABLE messages ADD COLUMN message_id TEXT
+                    "#,
+                    )
                     .execute(pool)
                     .await?;
+
+                    sqlx::query(
+                        r#"
+                        UPDATE messages
+                        SET message_id = 'msg_' || session_id || '_' || id
+                    "#,
+                    )
+                    .execute(pool)
+                    .await?;
+                }
+
+                let index_exists = sqlx::query_scalar::<_, bool>(
+                    r#"
+                    SELECT EXISTS (
+                        SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = 'idx_messages_message_id'
+                    )
+                    "#,
+                )
+                .fetch_one(pool)
+                .await
+                .unwrap_or(false);
+
+                if !index_exists {
+                    sqlx::query("CREATE INDEX idx_messages_message_id ON messages(message_id)")
+                        .execute(pool)
+                        .await?;
+                }
             }
             _ => {
                 anyhow::bail!("Unknown migration version: {}", version);
