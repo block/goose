@@ -108,6 +108,7 @@ jobs:
           HOME: /tmp/goose-home
           GOOSE_DISABLE_KEYRING: 1
           SKIP_BUILD: 1
+          SKIP_PROVIDERS: ${{ vars.SKIP_PROVIDERS || '' }}
         run: |
           # Ensure the HOME directory structure exists
           mkdir -p $HOME/.local/share/goose/sessions
@@ -194,6 +195,7 @@ jobs:
           HOME: /tmp/goose-home
           GOOSE_DISABLE_KEYRING: 1
           SKIP_BUILD: 1
+          SKIP_PROVIDERS: ${{ vars.SKIP_PROVIDERS || '' }}
         run: |
           mkdir -p $HOME/.local/share/goose/sessions
           mkdir -p $HOME/.config/goose
