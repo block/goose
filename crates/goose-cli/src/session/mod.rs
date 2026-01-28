@@ -291,7 +291,7 @@ impl CliSession {
         })
     }
 
-    pub fn parse_streamable_http_extension(extension_url: &str) -> ExtensionConfig {
+    pub fn parse_streamable_http_extension(extension_url: &str, timeout: u64) -> ExtensionConfig {
         ExtensionConfig::StreamableHttp {
             name: String::new(),
             uri: extension_url.to_string(),
@@ -299,7 +299,7 @@ impl CliSession {
             env_keys: Vec::new(),
             headers: HashMap::new(),
             description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
-            timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
+            timeout: Some(timeout),
             bundled: None,
             available_tools: Vec::new(),
         }
@@ -356,7 +356,10 @@ impl CliSession {
     }
 
     pub async fn add_streamable_http_extension(&mut self, extension_url: String) -> Result<()> {
-        let config = Self::parse_streamable_http_extension(&extension_url);
+        let config = Self::parse_streamable_http_extension(
+            &extension_url,
+            goose::config::DEFAULT_EXTENSION_TIMEOUT,
+        );
         self.add_and_persist_extensions(vec![config]).await
     }
 
