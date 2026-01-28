@@ -62,8 +62,8 @@ fn build_outer_csp(
 
     format!(
         "default-src 'none'; \
-         script-src 'self' 'unsafe-inline'{resources}; \
-         script-src-elem 'self' 'unsafe-inline'{resources}; \
+         script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'{resources};\
+         script-src-elem 'self' 'unsafe-inline' 'wasm-unsafe-eval'{resources};\
          style-src 'self' 'unsafe-inline'{resources}; \
          style-src-elem 'self' 'unsafe-inline'{resources}; \
          connect-src 'self'{connections}; \
