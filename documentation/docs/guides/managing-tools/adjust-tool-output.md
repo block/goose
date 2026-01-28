@@ -83,5 +83,17 @@ Next, choose one of the available modes:
     - Shows all tool outputs
     - Example: Shell command outputs
     - Most verbose level
+
+### Toggle Parameter Truncation
+
+During an active session, use the `/r` slash command to toggle whether tool parameters are truncated or shown in full:
+
+```sh
+Context: ●○○○○○○○○○ 5% (9695/200000 tokens)
+( O)> /r
+✓ Full tool output enabled - tool parameters will no longer be truncated
+```
+
+This is useful when you need to see complete file paths, URLs, or command arguments. Type `/r` again to return to truncated output.
  </TabItem>
 </Tabs>

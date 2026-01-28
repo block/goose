@@ -1,8 +1,9 @@
 use anyhow::Result;
 use clap::{Args, CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, Shell as ClapShell};
-use goose::config::{Config, ExtensionConfig};
+use goose::config::Config;
 use goose::posthog::get_telemetry_choice;
+use goose::recipe::Recipe;
 use goose_mcp::mcp_server_runner::{serve, McpCommand};
 use goose_mcp::{
     AutoVisualiserRouter, ComputerControllerServer, DeveloperServer, MemoryServer, TutorialServer,
@@ -25,7 +26,8 @@ use crate::commands::schedule::{
 use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::recipes::extract_from_cli::extract_recipe_info_from_cli;
 use crate::recipes::recipe::{explain_recipe, render_recipe_as_yaml};
-use crate::session::{build_session, SessionBuilderConfig, SessionSettings};
+use crate::session::{build_session, SessionBuilderConfig};
+use goose::agents::Container;
 use goose::session::session_manager::SessionType;
 use goose::session::SessionManager;
 use goose_bench::bench_config::BenchRunConfig;
@@ -100,6 +102,14 @@ pub struct SessionOptions {
         long_help = "Set a limit on how many turns (iterations) the agent can take without asking for user input to continue."
     )]
     pub max_turns: Option<u32>,
+
+    #[arg(
+        long = "container",
+        value_name = "CONTAINER_ID",
+        help = "Docker container ID to run extensions inside",
+        long_help = "Run extensions (stdio and built-in) inside the specified container. The extension must exist in the container. For built-in extensions, goose must be installed inside the container."
+    )]
+    pub container: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -354,15 +364,37 @@ async fn get_or_create_session_id(
 
     let session_manager = SessionManager::instance();
 
-    let Some(id) = identifier else {
-        return if resume {
+    let resolved_id = if resume {
+        let Some(id) = identifier else {
             let sessions = session_manager.list_sessions().await?;
             let session_id = sessions
                 .first()
                 .map(|s| s.id.clone())
                 .ok_or_else(|| anyhow::anyhow!("No session found to resume"))?;
-            Ok(Some(session_id))
+            return Ok(Some(session_id));
+        };
+
+        if let Some(session_id) = id.session_id {
+            session_id
+        } else if let Some(name) = id.name {
+            let sessions = session_manager.list_sessions().await?;
+            sessions
+                .into_iter()
+                .find(|s| s.name == name || s.id == name)
+                .map(|s| s.id)
+                .ok_or_else(|| anyhow::anyhow!("No session found with name '{}'", name))?
+        } else if let Some(path) = id.path {
+            path.file_stem()
+                .and_then(|s| s.to_str())
+                .map(|s| s.to_string())
+                .ok_or_else(|| {
+                    anyhow::anyhow!("Could not extract session ID from path: {:?}", path)
+                })?
         } else {
+            return Err(anyhow::anyhow!("Invalid identifier"));
+        }
+    } else {
+        let Some(id) = identifier else {
             let session = session_manager
                 .create_session(
                     std::env::current_dir()?,
@@ -370,58 +402,39 @@ async fn get_or_create_session_id(
                     SessionType::User,
                 )
                 .await?;
-            Ok(Some(session.id))
+            return Ok(Some(session.id));
         };
-    };
 
-    if let Some(session_id) = id.session_id {
-        Ok(Some(session_id))
-    } else if let Some(name) = id.name {
-        if resume {
-            let sessions = session_manager.list_sessions().await?;
-            let session_id = sessions
-                .into_iter()
-                .find(|s| s.name == name || s.id == name)
-                .map(|s| s.id)
-                .ok_or_else(|| anyhow::anyhow!("No session found with name '{}'", name))?;
-            Ok(Some(session_id))
-        } else {
-            let session = session_manager
-                .create_session(std::env::current_dir()?, name.clone(), SessionType::User)
-                .await?;
+        if id.session_id.is_some() {
+            return Err(anyhow::anyhow!("Cannot use --session-id without --resume"));
+        }
 
+        let has_user_provided_name = id.name.is_some();
+        let name = id.name.unwrap_or_else(|| "CLI Session".to_string());
+        let session = session_manager
+            .create_session(std::env::current_dir()?, name.clone(), SessionType::User)
+            .await?;
+
+        if has_user_provided_name {
             session_manager
                 .update(&session.id)
                 .user_provided_name(name)
                 .apply()
                 .await?;
-
-            Ok(Some(session.id))
         }
-    } else if let Some(path) = id.path {
-        let session_id = path
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .map(|s| s.to_string())
-            .ok_or_else(|| anyhow::anyhow!("Could not extract session ID from path: {:?}", path))?;
-        Ok(Some(session_id))
-    } else {
-        let session = session_manager
-            .create_session(
-                std::env::current_dir()?,
-                "CLI Session".to_string(),
-                SessionType::User,
-            )
-            .await?;
-        Ok(Some(session.id))
-    }
+
+        return Ok(Some(session.id));
+    };
+
+    Ok(Some(resolved_id))
 }
 
 async fn lookup_session_id(identifier: Identifier) -> Result<String> {
+    let session_manager = SessionManager::instance();
+
     if let Some(session_id) = identifier.session_id {
         Ok(session_id)
     } else if let Some(name) = identifier.name {
-        let session_manager = SessionManager::instance();
         let sessions = session_manager.list_sessions().await?;
         sessions
             .into_iter()
@@ -754,6 +767,15 @@ enum Command {
         )]
         resume: bool,
 
+        /// Fork a previous session (creates new session with copied history)
+        #[arg(
+            long,
+            requires = "resume",
+            help = "Fork a previous session (creates new session with copied history)",
+            long_help = "Create a new session by copying all messages from a previous session. Must be used with --resume. If --name or --session-id is provided, forks that specific session. Otherwise forks the most recently used session."
+        )]
+        fork: bool,
+
         /// Show message history when resuming
         #[arg(
             long,
@@ -974,16 +996,7 @@ enum CliProviderVariant {
 #[derive(Debug)]
 pub struct InputConfig {
     pub contents: Option<String>,
-    pub extensions_override: Option<Vec<ExtensionConfig>>,
     pub additional_system_prompt: Option<String>,
-}
-
-#[derive(Debug)]
-pub struct RecipeInfo {
-    pub session_settings: Option<SessionSettings>,
-    pub sub_recipes: Option<Vec<goose::recipe::SubRecipe>>,
-    pub final_output_response: Option<goose::recipe::Response>,
-    pub retry_config: Option<goose::agents::types::RetryConfig>,
 }
 
 fn get_command_name(command: &Option<Command>) -> &'static str {
@@ -1088,6 +1101,7 @@ async fn handle_session_subcommand(command: SessionCommand) -> Result<()> {
 async fn handle_interactive_session(
     identifier: Option<Identifier>,
     resume: bool,
+    fork: bool,
     history: bool,
     session_opts: SessionOptions,
     extension_opts: ExtensionOptions,
@@ -1097,7 +1111,13 @@ async fn handle_interactive_session(
     }
 
     let session_start = std::time::Instant::now();
-    let session_type = if resume { "resumed" } else { "new" };
+    let session_type = if fork {
+        "forked"
+    } else if resume {
+        "resumed"
+    } else {
+        "new"
+    };
 
     tracing::info!(
         counter.goose.session_starts = 1,
@@ -1117,18 +1137,27 @@ async fn handle_interactive_session(
         }
     }
 
-    let session_id = get_or_create_session_id(identifier, resume, false).await?;
+    let mut session_id = get_or_create_session_id(identifier, resume, false).await?;
+
+    if fork {
+        if let Some(id) = session_id {
+            let session_manager = SessionManager::instance();
+            let original = session_manager.get_session(&id, false).await?;
+            let copied = session_manager.copy_session(&id, original.name).await?;
+            session_id = Some(copied.id);
+        }
+    }
 
     let mut session: crate::CliSession = build_session(SessionBuilderConfig {
         session_id,
         resume,
+        fork,
         no_session: false,
         extensions: extension_opts.extensions,
         streamable_http_extensions: extension_opts.streamable_http_extensions,
         builtins: extension_opts.builtins,
-        extensions_override: None,
+        recipe: None,
         additional_system_prompt: None,
-        settings: None,
         provider: None,
         model: None,
         debug: session_opts.debug,
@@ -1137,14 +1166,12 @@ async fn handle_interactive_session(
         scheduled_job_id: None,
         interactive: true,
         quiet: false,
-        sub_recipes: None,
-        final_output_response: None,
-        retry_config: None,
         output_format: "text".to_string(),
+        container: session_opts.container.map(Container::new),
     })
     .await;
 
-    if resume && history {
+    if (resume || fork) && history {
         session.render_message_history();
     }
 
@@ -1196,7 +1223,7 @@ async fn log_session_completion(
 fn parse_run_input(
     input_opts: &InputOptions,
     quiet: bool,
-) -> Result<Option<(InputConfig, Option<RecipeInfo>)>> {
+) -> Result<Option<(InputConfig, Option<Recipe>)>> {
     match (
         &input_opts.instructions,
         &input_opts.input_text,
@@ -1210,7 +1237,6 @@ fn parse_run_input(
             Ok(Some((
                 InputConfig {
                     contents: Some(contents),
-                    extensions_override: None,
                     additional_system_prompt: input_opts.system.clone(),
                 },
                 None,
@@ -1227,7 +1253,6 @@ fn parse_run_input(
             Ok(Some((
                 InputConfig {
                     contents: Some(contents),
-                    extensions_override: None,
                     additional_system_prompt: None,
                 },
                 None,
@@ -1236,7 +1261,6 @@ fn parse_run_input(
         (_, Some(text), _) => Ok(Some((
             InputConfig {
                 contents: Some(text.clone()),
-                extensions_override: None,
                 additional_system_prompt: input_opts.system.clone(),
             },
             None,
@@ -1280,13 +1304,13 @@ fn parse_run_input(
                 "Recipe execution started"
             );
 
-            let (input_config, recipe_info) = extract_recipe_info_from_cli(
+            let (input_config, recipe) = extract_recipe_info_from_cli(
                 recipe_name.clone(),
                 input_opts.params.clone(),
                 input_opts.additional_sub_recipes.clone(),
                 quiet,
             )?;
-            Ok(Some((input_config, Some(recipe_info))))
+            Ok(Some((input_config, Some(recipe))))
         }
         (None, None, None) => {
             eprintln!("Error: Must provide either --instructions (-i), --text (-t), or --recipe. Use -i - for stdin.");
@@ -1310,7 +1334,7 @@ async fn handle_run_command(
 
     let parsed = parse_run_input(&input_opts, output_opts.quiet)?;
 
-    let Some((input_config, recipe_info)) = parsed else {
+    let Some((input_config, recipe)) = parsed else {
         return Ok(());
     };
 
@@ -1331,15 +1355,13 @@ async fn handle_run_command(
     let mut session = build_session(SessionBuilderConfig {
         session_id,
         resume: run_behavior.resume,
+        fork: false,
         no_session: run_behavior.no_session,
         extensions: extension_opts.extensions,
         streamable_http_extensions: extension_opts.streamable_http_extensions,
         builtins: extension_opts.builtins,
-        extensions_override: input_config.extensions_override,
+        recipe: recipe.clone(),
         additional_system_prompt: input_config.additional_system_prompt,
-        settings: recipe_info
-            .as_ref()
-            .and_then(|r| r.session_settings.clone()),
         provider: model_opts.provider,
         model: model_opts.model,
         debug: session_opts.debug,
@@ -1348,12 +1370,8 @@ async fn handle_run_command(
         scheduled_job_id: run_behavior.scheduled_job_id,
         interactive: run_behavior.interactive,
         quiet: output_opts.quiet,
-        sub_recipes: recipe_info.as_ref().and_then(|r| r.sub_recipes.clone()),
-        final_output_response: recipe_info
-            .as_ref()
-            .and_then(|r| r.final_output_response.clone()),
-        retry_config: recipe_info.as_ref().and_then(|r| r.retry_config.clone()),
         output_format: output_opts.output_format,
+        container: session_opts.container.map(Container::new),
     })
     .await;
 
@@ -1361,11 +1379,7 @@ async fn handle_run_command(
         session.interactive(input_config.contents).await
     } else if let Some(contents) = input_config.contents {
         let session_start = std::time::Instant::now();
-        let session_type = if recipe_info.is_some() {
-            "recipe"
-        } else {
-            "run"
-        };
+        let session_type = if recipe.is_some() { "recipe" } else { "run" };
 
         tracing::info!(
             counter.goose.session_starts = 1,
@@ -1467,13 +1481,13 @@ async fn handle_default_session() -> Result<()> {
     let mut session = build_session(SessionBuilderConfig {
         session_id,
         resume: false,
+        fork: false,
         no_session: false,
         extensions: Vec::new(),
         streamable_http_extensions: Vec::new(),
         builtins: Vec::new(),
-        extensions_override: None,
+        recipe: None,
         additional_system_prompt: None,
-        settings: None::<SessionSettings>,
         provider: None,
         model: None,
         debug: false,
@@ -1482,10 +1496,8 @@ async fn handle_default_session() -> Result<()> {
         scheduled_job_id: None,
         interactive: true,
         quiet: false,
-        sub_recipes: None,
-        final_output_response: None,
-        retry_config: None,
         output_format: "text".to_string(),
+        container: None,
     })
     .await;
     session.interactive(None).await
@@ -1522,12 +1534,20 @@ pub async fn cli() -> anyhow::Result<()> {
             command: None,
             identifier,
             resume,
+            fork,
             history,
             session_opts,
             extension_opts,
         }) => {
-            handle_interactive_session(identifier, resume, history, session_opts, extension_opts)
-                .await
+            handle_interactive_session(
+                identifier,
+                resume,
+                fork,
+                history,
+                session_opts,
+                extension_opts,
+            )
+            .await
         }
         Some(Command::Project {}) => {
             handle_project_default()?;

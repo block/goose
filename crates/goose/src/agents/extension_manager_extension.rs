@@ -1,5 +1,5 @@
 use crate::agents::extension::PlatformExtensionContext;
-use crate::agents::mcp_client::{Error, McpClientTrait, McpMeta};
+use crate::agents::mcp_client::{Error, McpClientTrait};
 use crate::config::get_extension_by_name;
 use anyhow::Result;
 use async_trait::async_trait;
@@ -85,6 +85,7 @@ impl ExtensionManagerClient {
         let info = InitializeResult {
             protocol_version: ProtocolVersion::V_2025_03_26,
             capabilities: ServerCapabilities {
+                tasks: None,
                 tools: Some(ToolsCapability {
                     list_changed: Some(false),
                 }),
@@ -112,7 +113,9 @@ impl ExtensionManagerClient {
                 - list_resources: List resources from extensions
                 - read_resource: Read specific resources from extensions
 
-                Use search_available_extensions when you need to find what extensions are available.
+                When you lack the tools needed to complete a task, use search_available_extensions first
+                to discover what extensions can help.
+
                 Use manage_extensions to enable or disable specific extensions by name.
                 Use list_resources and read_resource to work with extension data and resources.
             "#}.to_string()),
@@ -208,7 +211,7 @@ impl ExtensionManagerClient {
         };
 
         extension_manager
-            .add_extension(config)
+            .add_extension_with_working_dir(config, None, None)
             .await
             .map(|_| {
                 vec![Content::text(format!(
@@ -221,6 +224,7 @@ impl ExtensionManagerClient {
 
     async fn handle_list_resources(
         &self,
+        session_id: &str,
         arguments: Option<JsonObject>,
     ) -> Result<Vec<Content>, ExtensionManagerToolError> {
         if let Some(weak_ref) = &self.context.extension_manager {
@@ -230,7 +234,11 @@ impl ExtensionManagerClient {
                     .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
 
                 match extension_manager
-                    .list_resources(params, tokio_util::sync::CancellationToken::default())
+                    .list_resources(
+                        session_id,
+                        params,
+                        tokio_util::sync::CancellationToken::default(),
+                    )
                     .await
                 {
                     Ok(content) => Ok(content),
@@ -248,6 +256,7 @@ impl ExtensionManagerClient {
 
     async fn handle_read_resource(
         &self,
+        session_id: &str,
         arguments: Option<JsonObject>,
     ) -> Result<Vec<Content>, ExtensionManagerToolError> {
         if let Some(weak_ref) = &self.context.extension_manager {
@@ -257,7 +266,11 @@ impl ExtensionManagerClient {
                     .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
 
                 match extension_manager
-                    .read_resource_tool(params, tokio_util::sync::CancellationToken::default())
+                    .read_resource_tool(
+                        session_id,
+                        params,
+                        tokio_util::sync::CancellationToken::default(),
+                    )
                     .await
                 {
                     Ok(content) => Ok(content),
@@ -387,6 +400,7 @@ impl ExtensionManagerClient {
 impl McpClientTrait for ExtensionManagerClient {
     async fn list_resources(
         &self,
+        _session_id: &str,
         _next_cursor: Option<String>,
         _cancellation_token: CancellationToken,
     ) -> Result<ListResourcesResult, Error> {
@@ -395,6 +409,7 @@ impl McpClientTrait for ExtensionManagerClient {
 
     async fn read_resource(
         &self,
+        _session_id: &str,
         _uri: &str,
         _cancellation_token: CancellationToken,
     ) -> Result<ReadResourceResult, Error> {
@@ -404,6 +419,7 @@ impl McpClientTrait for ExtensionManagerClient {
 
     async fn list_tools(
         &self,
+        _session_id: &str,
         _next_cursor: Option<String>,
         _cancellation_token: CancellationToken,
     ) -> Result<ListToolsResult, Error> {
@@ -416,9 +432,9 @@ impl McpClientTrait for ExtensionManagerClient {
 
     async fn call_tool(
         &self,
+        session_id: &str,
         name: &str,
         arguments: Option<JsonObject>,
-        _meta: McpMeta,
         _cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         let result = match name {
@@ -426,8 +442,8 @@ impl McpClientTrait for ExtensionManagerClient {
                 self.handle_search_available_extensions().await
             }
             MANAGE_EXTENSIONS_TOOL_NAME => self.handle_manage_extensions(arguments).await,
-            LIST_RESOURCES_TOOL_NAME => self.handle_list_resources(arguments).await,
-            READ_RESOURCE_TOOL_NAME => self.handle_read_resource(arguments).await,
+            LIST_RESOURCES_TOOL_NAME => self.handle_list_resources(session_id, arguments).await,
+            READ_RESOURCE_TOOL_NAME => self.handle_read_resource(session_id, arguments).await,
             _ => Err(ExtensionManagerToolError::UnknownTool {
                 tool_name: name.to_string(),
             }),
@@ -452,6 +468,7 @@ impl McpClientTrait for ExtensionManagerClient {
 
     async fn list_prompts(
         &self,
+        _session_id: &str,
         _next_cursor: Option<String>,
         _cancellation_token: CancellationToken,
     ) -> Result<ListPromptsResult, Error> {
@@ -460,6 +477,7 @@ impl McpClientTrait for ExtensionManagerClient {
 
     async fn get_prompt(
         &self,
+        _session_id: &str,
         _name: &str,
         _arguments: Value,
         _cancellation_token: CancellationToken,

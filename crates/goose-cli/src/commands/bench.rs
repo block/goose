@@ -46,13 +46,13 @@ pub async fn agent_generator(
     let base_session = build_session(SessionBuilderConfig {
         session_id: Some(session_id),
         resume: false,
+        fork: false,
         no_session: false,
         extensions: requirements.external,
         streamable_http_extensions,
         builtins: requirements.builtin,
-        extensions_override: None,
+        recipe: None,
         additional_system_prompt: None,
-        settings: None,
         provider: None,
         model: None,
         debug: false,
@@ -61,10 +61,8 @@ pub async fn agent_generator(
         scheduled_job_id: None,
         max_turns: None,
         quiet: false,
-        sub_recipes: None,
-        final_output_response: None,
-        retry_config: None,
         output_format: "text".to_string(),
+        container: None,
     })
     .await;
 

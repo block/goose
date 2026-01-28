@@ -1,5 +1,6 @@
 mod builder;
 mod completion;
+mod editor;
 mod elicitation;
 mod export;
 mod input;
@@ -19,7 +20,7 @@ use tokio::signal::ctrl_c;
 use tokio_util::task::AbortOnDropHandle;
 
 pub use self::export::message_to_markdown;
-pub use builder::{build_session, SessionBuilderConfig, SessionSettings};
+pub use builder::{build_session, SessionBuilderConfig};
 use console::Color;
 use goose::agents::AgentEvent;
 use goose::permission::permission_confirmation::PrincipalType;
@@ -194,15 +195,16 @@ pub enum PlannerResponseType {
 /// to the user's message. The response is either a plan or a clarifying
 /// question.
 pub async fn classify_planner_response(
+    session_id: &str,
     message_text: String,
     provider: Arc<dyn Provider>,
 ) -> Result<PlannerResponseType> {
     let prompt = format!("The text below is the output from an AI model which can either provide a plan or list of clarifying questions. Based on the text below, decide if the output is a \"plan\" or \"clarifying questions\".\n---\n{message_text}");
 
-    // Generate the description
     let message = Message::user().with_text(&prompt);
     let (result, _usage) = provider
         .complete(
+            session_id,
             "Reply only with the classification label: \"plan\" or \"clarifying questions\"",
             &[message],
             &[],
@@ -256,12 +258,9 @@ impl CliSession {
         &self.session_id
     }
 
-    /// Add a stdio extension to the session
-    ///
-    /// # Arguments
-    /// * `extension_command` - Full command string including environment variables
-    ///   Format: "ENV1=val1 ENV2=val2 command args..."
-    pub async fn add_extension(&mut self, extension_command: String) -> Result<()> {
+    /// Parse a stdio extension command string into an ExtensionConfig
+    /// Format: "ENV1=val1 ENV2=val2 command args..."
+    pub fn parse_stdio_extension(extension_command: &str) -> Result<ExtensionConfig> {
         let mut parts: Vec<&str> = extension_command.split_whitespace().collect();
         let mut envs = HashMap::new();
 
@@ -280,104 +279,98 @@ impl CliSession {
 
         let cmd = parts.remove(0).to_string();
 
-        let config = ExtensionConfig::Stdio {
+        Ok(ExtensionConfig::Stdio {
             name: String::new(),
             cmd,
             args: parts.iter().map(|s| s.to_string()).collect(),
             envs: Envs::new(envs),
             env_keys: Vec::new(),
             description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
-            // TODO: should set timeout
             timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
             bundled: None,
             available_tools: Vec::new(),
-        };
-
-        self.agent
-            .add_extension(config)
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to start extension: {}", e))?;
-
-        // Invalidate the completion cache when a new extension is added
-        self.invalidate_completion_cache().await;
-
-        Ok(())
+        })
     }
 
-    /// Add a streamable HTTP extension to the session
-    ///
-    /// # Arguments
-    /// * `extension_options` - Options including both URL and timeout
-    ///   See [`crate::cli::StreamableHttpOptions`] for details
-    pub async fn add_streamable_http_extension(
-        &mut self,
-        extension_options: StreamableHttpOptions,
-    ) -> Result<()> {
-        let config = ExtensionConfig::StreamableHttp {
+    pub fn parse_streamable_http_extension(extension_url: &str) -> ExtensionConfig {
+        ExtensionConfig::StreamableHttp {
             name: String::new(),
-            uri: extension_options.url,
+            uri: extension_url.to_string(),
             envs: Envs::new(HashMap::new()),
             env_keys: Vec::new(),
             headers: HashMap::new(),
             description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
-            timeout: Some(extension_options.timeout),
+            timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
             bundled: None,
             available_tools: Vec::new(),
-        };
+        }
+    }
+
+    /// Parse builtin extension names (comma-separated) into ExtensionConfigs
+    pub fn parse_builtin_extensions(builtin_name: &str) -> Vec<ExtensionConfig> {
+        builtin_name
+            .split(',')
+            .map(|name| {
+                let extension_name = name.trim();
+                if PLATFORM_EXTENSIONS.contains_key(extension_name) {
+                    ExtensionConfig::Platform {
+                        name: extension_name.to_string(),
+                        bundled: None,
+                        description: extension_name.to_string(),
+                        available_tools: Vec::new(),
+                    }
+                } else {
+                    ExtensionConfig::Builtin {
+                        name: extension_name.to_string(),
+                        display_name: None,
+                        timeout: None,
+                        bundled: None,
+                        description: extension_name.to_string(),
+                        available_tools: Vec::new(),
+                    }
+                }
+            })
+            .collect()
+    }
+
+    async fn add_and_persist_extensions(&mut self, configs: Vec<ExtensionConfig>) -> Result<()> {
+        for config in configs {
+            self.agent
+                .add_extension(config)
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to start extension: {}", e))?;
+        }
 
         self.agent
-            .add_extension(config)
+            .persist_extension_state(&self.session_id)
             .await
-            .map_err(|e| anyhow::anyhow!("Failed to start extension: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("Failed to save extension state: {}", e))?;
 
-        // Invalidate the completion cache when a new extension is added
         self.invalidate_completion_cache().await;
 
         Ok(())
     }
 
-    /// Add a builtin extension to the session
-    ///
-    /// # Arguments
-    /// * `builtin_name` - Name of the builtin extension(s), comma separated
+    pub async fn add_extension(&mut self, extension_command: String) -> Result<()> {
+        let config = Self::parse_stdio_extension(&extension_command)?;
+        self.add_and_persist_extensions(vec![config]).await
+    }
+
+    pub async fn add_streamable_http_extension(&mut self, extension_url: String) -> Result<()> {
+        let config = Self::parse_streamable_http_extension(&extension_url);
+        self.add_and_persist_extensions(vec![config]).await
+    }
+
     pub async fn add_builtin(&mut self, builtin_name: String) -> Result<()> {
-        for name in builtin_name.split(',') {
-            let extension_name = name.trim();
-
-            let config = if PLATFORM_EXTENSIONS.contains_key(extension_name) {
-                ExtensionConfig::Platform {
-                    name: extension_name.to_string(),
-                    bundled: None,
-                    description: name.to_string(),
-                    available_tools: Vec::new(),
-                }
-            } else {
-                ExtensionConfig::Builtin {
-                    name: extension_name.to_string(),
-                    display_name: None,
-                    timeout: None,
-                    bundled: None,
-                    description: name.to_string(),
-                    available_tools: Vec::new(),
-                }
-            };
-            self.agent
-                .add_extension(config)
-                .await
-                .map_err(|e| anyhow::anyhow!("Failed to start builtin extension: {}", e))?;
-        }
-
-        // Invalidate the completion cache when a new extension is added
-        self.invalidate_completion_cache().await;
-
-        Ok(())
+        let configs = Self::parse_builtin_extensions(&builtin_name);
+        self.add_and_persist_extensions(configs).await
     }
 
     pub async fn list_prompts(
         &mut self,
         extension: Option<String>,
     ) -> Result<HashMap<String, Vec<String>>> {
-        let prompts = self.agent.list_extension_prompts().await;
+        let prompts = self.agent.list_extension_prompts(&self.session_id).await;
 
         // Early validation if filtering by extension
         if let Some(filter) = &extension {
@@ -398,7 +391,7 @@ impl CliSession {
     }
 
     pub async fn get_prompt_info(&mut self, name: &str) -> Result<Option<output::PromptInfo>> {
-        let prompts = self.agent.list_extension_prompts().await;
+        let prompts = self.agent.list_extension_prompts(&self.session_id).await;
 
         // Find which extension has this prompt
         for (extension, prompt_list) in prompts {
@@ -416,7 +409,11 @@ impl CliSession {
     }
 
     pub async fn get_prompt(&mut self, name: &str, arguments: Value) -> Result<Vec<PromptMessage>> {
-        Ok(self.agent.get_prompt(name, arguments).await?.messages)
+        Ok(self
+            .agent
+            .get_prompt(&self.session_id, name, arguments)
+            .await?
+            .messages)
     }
 
     /// Process a single message and get the response
@@ -449,7 +446,20 @@ impl CliSession {
         loop {
             self.display_context_usage().await?;
 
-            let input = input::get_input(&mut editor)?;
+            // Convert conversation messages to strings for editor mode
+            let conversation_strings: Vec<String> = self
+                .messages
+                .iter()
+                .map(|msg| {
+                    let role = match msg.role {
+                        rmcp::model::Role::User => "User",
+                        rmcp::model::Role::Assistant => "Assistant",
+                    };
+                    format!("## {}: {}", role, msg.as_concat_text())
+                })
+                .collect();
+
+            let input = input::get_input(&mut editor, Some(&conversation_strings))?;
             if matches!(input, InputResult::Exit) {
                 break;
             }
@@ -738,7 +748,10 @@ impl CliSession {
         println!("{}", console::style("Generating Recipe").green());
 
         output::show_thinking();
-        let recipe = self.agent.create_recipe(self.messages.clone()).await;
+        let recipe = self
+            .agent
+            .create_recipe(&self.session_id, self.messages.clone())
+            .await;
         output::hide_thinking();
 
         match recipe {
@@ -792,16 +805,24 @@ impl CliSession {
         plan_messages: Conversation,
         reasoner: Arc<dyn Provider>,
     ) -> Result<(), anyhow::Error> {
-        let plan_prompt = self.agent.get_plan_prompt().await?;
+        let plan_prompt = self.agent.get_plan_prompt(&self.session_id).await?;
         output::show_thinking();
         let (plan_response, _usage) = reasoner
-            .complete(&plan_prompt, plan_messages.messages(), &[])
+            .complete(
+                &self.session_id,
+                &plan_prompt,
+                plan_messages.messages(),
+                &[],
+            )
             .await?;
         output::render_message(&plan_response, self.debug);
         output::hide_thinking();
-        let planner_response_type =
-            classify_planner_response(plan_response.as_concat_text(), self.agent.provider().await?)
-                .await?;
+        let planner_response_type = classify_planner_response(
+            &self.session_id,
+            plan_response.as_concat_text(),
+            self.agent.provider().await?,
+        )
+        .await?;
 
         match planner_response_type {
             PlannerResponseType::Plan => {
@@ -1164,7 +1185,7 @@ impl CliSession {
     /// This should be called before the interactive session starts
     pub async fn update_completion_cache(&mut self) -> Result<()> {
         // Get fresh data
-        let prompts = self.agent.list_extension_prompts().await;
+        let prompts = self.agent.list_extension_prompts(&self.session_id).await;
 
         // Update the cache with write lock
         let mut cache = self.completion_cache.write().unwrap();
@@ -1306,6 +1327,7 @@ impl CliSession {
                 Ok(messages) => {
                     let start_len = self.messages.len();
                     let mut valid = true;
+                    let num_messages = messages.len();
                     for (i, prompt_message) in messages.into_iter().enumerate() {
                         let msg = Message::from(prompt_message);
                         // ensure we get a User - Assistant - User type pattern
@@ -1333,6 +1355,17 @@ impl CliSession {
                     }
 
                     if valid {
+                        if num_messages > 1 {
+                            for i in 0..(num_messages - 1) {
+                                let msg = &self.messages.messages()[start_len + i];
+                                self.agent
+                                    .config
+                                    .session_manager
+                                    .add_message(&self.session_id, msg)
+                                    .await?;
+                            }
+                        }
+
                         output::show_thinking();
                         self.process_agent_response(true, CancellationToken::default())
                             .await?;

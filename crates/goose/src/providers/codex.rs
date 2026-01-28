@@ -56,7 +56,7 @@ impl CodexProvider {
         // Get reasoning effort from config, default to "high"
         let reasoning_effort = config
             .get_codex_reasoning_effort()
-            .map(|r| r.to_string())
+            .map(String::from)
             .unwrap_or_else(|_| "high".to_string());
 
         // Validate reasoning effort
@@ -507,6 +507,7 @@ impl Provider for CodexProvider {
     )]
     async fn complete_with_model(
         &self,
+        _session_id: Option<&str>, // CLI has no external session-id flag to propagate.
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],

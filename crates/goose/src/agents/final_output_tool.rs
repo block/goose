@@ -1,7 +1,7 @@
 use crate::agents::tool_execution::ToolCallResult;
 use crate::recipe::Response;
 use indoc::formatdoc;
-use rmcp::model::{CallToolRequestParam, Content, ErrorCode, ErrorData, Tool, ToolAnnotations};
+use rmcp::model::{CallToolRequestParams, Content, ErrorCode, ErrorData, Tool, ToolAnnotations};
 use serde_json::Value;
 use std::borrow::Cow;
 
@@ -116,7 +116,7 @@ impl FinalOutputTool {
         }
     }
 
-    pub async fn execute_tool_call(&mut self, tool_call: CallToolRequestParam) -> ToolCallResult {
+    pub async fn execute_tool_call(&mut self, tool_call: CallToolRequestParams) -> ToolCallResult {
         match tool_call.name.to_string().as_str() {
             FINAL_OUTPUT_TOOL_NAME => {
                 let result = self.validate_json_output(&tool_call.arguments.into()).await;
@@ -157,7 +157,7 @@ impl FinalOutputTool {
 mod tests {
     use super::*;
     use crate::recipe::Response;
-    use rmcp::model::CallToolRequestParam;
+    use rmcp::model::CallToolRequestParams;
     use rmcp::object;
     use serde_json::json;
 
@@ -232,7 +232,9 @@ mod tests {
         };
 
         let mut tool = FinalOutputTool::new(response);
-        let tool_call = CallToolRequestParam {
+        let tool_call = CallToolRequestParams {
+            meta: None,
+            task: None,
             name: FINAL_OUTPUT_TOOL_NAME.into(),
             arguments: Some(object!({
                 "message": "Hello"  // Missing required "count" field
@@ -254,7 +256,9 @@ mod tests {
         };
 
         let mut tool = FinalOutputTool::new(response);
-        let tool_call = CallToolRequestParam {
+        let tool_call = CallToolRequestParams {
+            meta: None,
+            task: None,
             name: FINAL_OUTPUT_TOOL_NAME.into(),
             arguments: Some(object!({
                 "user": {

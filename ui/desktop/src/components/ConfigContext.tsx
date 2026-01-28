@@ -8,8 +8,8 @@ import {
   addExtension as apiAddExtension,
   removeExtension as apiRemoveExtension,
   providers,
-  getProviderModels as apiGetProviderModels,
 } from '../api';
+import { syncBundledExtensions } from './settings/extensions';
 import type {
   ConfigResponse,
   UpsertConfigQuery,
@@ -40,7 +40,6 @@ interface ConfigContextType {
   removeExtension: (name: string) => Promise<void>;
   getProviders: (b: boolean) => Promise<ProviderDetails[]>;
   getExtensions: (b: boolean) => Promise<FixedExtensionEntry[]>;
-  getProviderModels: (providerName: string) => Promise<string[]>;
   disableAllExtensions: () => Promise<void>;
   enableBotExtensions: (extensions: ExtensionConfig[]) => Promise<void>;
 }
@@ -64,6 +63,10 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
   const [providersList, setProvidersList] = useState<ProviderDetails[]>([]);
   const [extensionsList, setExtensionsList] = useState<FixedExtensionEntry[]>([]);
   const [extensionWarnings, setExtensionWarnings] = useState<string[]>([]);
+
+  // Ref to access providersList in getProviders without recreating the callback
+  const providersListRef = React.useRef<ProviderDetails[]>(providersList);
+  providersListRef.current = providersList;
 
   const reloadConfig = useCallback(async () => {
     const response = await readAllConfig();
@@ -167,35 +170,19 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     [addExtension, getExtensions]
   );
 
-  const getProviders = useCallback(
-    async (forceRefresh = false): Promise<ProviderDetails[]> => {
-      if (forceRefresh || providersList.length === 0) {
-        try {
-          const response = await providers();
-          const providersData = response.data || [];
-          setProvidersList(providersData);
-          return providersData;
-        } catch (error) {
-          console.error('Failed to fetch providers:', error);
-          return [];
-        }
+  const getProviders = useCallback(async (forceRefresh = false): Promise<ProviderDetails[]> => {
+    if (forceRefresh || providersListRef.current.length === 0) {
+      try {
+        const response = await providers();
+        const providersData = response.data || [];
+        setProvidersList(providersData);
+        return providersData;
+      } catch (error) {
+        console.error('Failed to fetch providers:', error);
+        return [];
       }
-      return providersList;
-    },
-    [providersList]
-  );
-
-  const getProviderModels = useCallback(async (providerName: string): Promise<string[]> => {
-    try {
-      const response = await apiGetProviderModels({
-        path: { name: providerName },
-        throwOnError: true,
-      });
-      return response.data || [];
-    } catch (error) {
-      console.error(`Failed to fetch models for provider ${providerName}:`, error);
-      return [];
     }
+    return providersListRef.current;
   }, []);
 
   useEffect(() => {
@@ -218,7 +205,32 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
       // Load extensions
       try {
         const extensionsResponse = await apiGetExtensions();
-        setExtensionsList(extensionsResponse.data?.extensions || []);
+        let extensions = extensionsResponse.data?.extensions || [];
+
+        // If no bundled MCP extensions exist, seed config from bundled-extensions.json
+        // This ensures fresh installs get the default extensions (developer, computercontroller, etc.)
+        // Platform extensions (code_execution, todo, etc.) are handled by the backend
+        const hasBundledExtensions = extensions.some(
+          (ext) => ext.type === 'builtin' && 'bundled' in ext && ext.bundled
+        );
+
+        if (!hasBundledExtensions) {
+          console.log('No bundled extensions found, syncing from bundled-extensions.json');
+          const addExtensionForSync = async (
+            name: string,
+            config: ExtensionConfig,
+            enabled: boolean
+          ) => {
+            const query: ExtensionQuery = { name, config, enabled };
+            await apiAddExtension({ body: query });
+          };
+          await syncBundledExtensions(extensions, addExtensionForSync);
+          // Reload extensions after sync
+          const refreshedResponse = await apiGetExtensions();
+          extensions = refreshedResponse.data?.extensions || [];
+        }
+
+        setExtensionsList(extensions);
         setExtensionWarnings(extensionsResponse.data?.warnings || []);
       } catch (error) {
         console.error('Failed to load extensions:', error);
@@ -257,7 +269,6 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
       toggleExtension,
       getProviders,
       getExtensions,
-      getProviderModels,
       disableAllExtensions,
       enableBotExtensions,
     };
@@ -274,7 +285,6 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     toggleExtension,
     getProviders,
     getExtensions,
-    getProviderModels,
     reloadConfig,
   ]);
 

@@ -1,5 +1,7 @@
 import Electron, { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { Recipe } from './recipe';
+import { GooseApp } from './api';
+import type { Settings } from './utils/settings';
 
 interface NotificationData {
   title: string;
@@ -40,12 +42,6 @@ interface FileResponse {
   filePath: string;
   error: string | null;
   found: boolean;
-}
-
-interface SaveDataUrlResponse {
-  id: string;
-  filePath?: string;
-  error?: string;
 }
 
 const config = JSON.parse(process.argv.find((arg) => arg.startsWith('{')) || '{}');
@@ -90,8 +86,8 @@ type ElectronAPI = {
   getMenuBarIconState: () => Promise<boolean>;
   setDockIcon: (show: boolean) => Promise<boolean>;
   getDockIconState: () => Promise<boolean>;
-  getSettings: () => Promise<unknown | null>;
-  saveSettings: (settings: unknown) => Promise<boolean>;
+  getSettings: () => Promise<Settings>;
+  saveSettings: (settings: Settings) => Promise<boolean>;
   getSecretKey: () => Promise<string>;
   getGoosedHostPort: () => Promise<string | null>;
   setWakelock: (enable: boolean) => Promise<boolean>;
@@ -115,13 +111,7 @@ type ElectronAPI = {
     useSystemTheme: boolean;
     theme: string;
   }) => void;
-  // Functions for image pasting
-  saveDataUrlToTemp: (dataUrl: string, uniqueId: string) => Promise<SaveDataUrlResponse>;
-  deleteTempFile: (filePath: string) => void;
-  // Function for opening external URLs securely
   openExternal: (url: string) => Promise<void>;
-  // Function to serve temp images
-  getTempImage: (filePath: string) => Promise<string | null>;
   // Update-related functions
   getVersion: () => string;
   checkForUpdates: () => Promise<{ updateInfo: unknown; error: string | null }>;
@@ -136,6 +126,9 @@ type ElectronAPI = {
   hasAcceptedRecipeBefore: (recipe: Recipe) => Promise<boolean>;
   recordRecipeHash: (recipe: Recipe) => Promise<boolean>;
   openDirectoryInExplorer: (directoryPath: string) => Promise<boolean>;
+  launchApp: (app: GooseApp) => Promise<void>;
+  refreshApp: (app: GooseApp) => Promise<void>;
+  closeApp: (appName: string) => Promise<void>;
   addRecentDir: (dir: string) => Promise<boolean>;
 };
 
@@ -233,17 +226,8 @@ const electronAPI: ElectronAPI = {
   broadcastThemeChange: (themeData: { mode: string; useSystemTheme: boolean; theme: string }) => {
     ipcRenderer.send('broadcast-theme-change', themeData);
   },
-  saveDataUrlToTemp: (dataUrl: string, uniqueId: string): Promise<SaveDataUrlResponse> => {
-    return ipcRenderer.invoke('save-data-url-to-temp', dataUrl, uniqueId);
-  },
-  deleteTempFile: (filePath: string): void => {
-    ipcRenderer.send('delete-temp-file', filePath);
-  },
   openExternal: (url: string): Promise<void> => {
     return ipcRenderer.invoke('open-external', url);
-  },
-  getTempImage: (filePath: string): Promise<string | null> => {
-    return ipcRenderer.invoke('get-temp-image', filePath);
   },
   getVersion: (): string => {
     return config.GOOSE_VERSION || ipcRenderer.sendSync('get-app-version') || '';
@@ -275,6 +259,9 @@ const electronAPI: ElectronAPI = {
   recordRecipeHash: (recipe: Recipe) => ipcRenderer.invoke('record-recipe-hash', recipe),
   openDirectoryInExplorer: (directoryPath: string) =>
     ipcRenderer.invoke('open-directory-in-explorer', directoryPath),
+  launchApp: (app: GooseApp) => ipcRenderer.invoke('launch-app', app),
+  refreshApp: (app: GooseApp) => ipcRenderer.invoke('refresh-app', app),
+  closeApp: (appName: string) => ipcRenderer.invoke('close-app', appName),
   addRecentDir: (dir: string) => ipcRenderer.invoke('add-recent-dir', dir),
 };
 

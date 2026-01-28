@@ -264,6 +264,7 @@ impl Provider for GeminiCliProvider {
     )]
     async fn complete_with_model(
         &self,
+        _session_id: Option<&str>, // CLI has no external session-id flag to propagate.
         _model_config: &ModelConfig,
         system: &str,
         messages: &[Message],

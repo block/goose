@@ -1,12 +1,9 @@
-import { test as base, expect } from '@playwright/test';
-import { _electron as electron } from '@playwright/test';
-import { join } from 'path';
-import { spawn, exec } from 'child_process';
-import { promisify } from 'util';
+import { test as base, expect } from './fixtures';
+import { Page } from '@playwright/test';
 import { showTestName, clearTestName } from './test-overlay';
+import { join } from 'path';
 
 const { runningQuotes } = require('./basic-mcp');
-const execAsync = promisify(exec);
 
 // Define provider interface
 type Provider = {
@@ -28,23 +25,18 @@ const test = base.extend<TestFixtures>({
   provider: [providers[0], { option: true }], // Default to first provider (Databricks)
 });
 
-// Store mainWindow reference
-let mainWindow;
+let mainWindow: Page;
 
-// Add hooks for test name overlay
-// eslint-disable-next-line no-empty-pattern
-test.beforeEach(async ({ }, testInfo) => {
-  if (mainWindow) {
-    // Get a clean test name without the full hierarchy
-    const testName = testInfo.titlePath[testInfo.titlePath.length - 1];
+test.beforeEach(async ({ goosePage }, testInfo) => {
+  mainWindow = goosePage;
 
-    // Get provider name if we're in a provider suite
-    const providerSuite = testInfo.titlePath.find(t => t.startsWith('Provider:'));
-    const providerName = providerSuite ? providerSuite.split(': ')[1] : undefined;
+  const testName = testInfo.titlePath[testInfo.titlePath.length - 1];
 
-    console.log(`Setting overlay for test: "${testName}"${providerName ? ` (Provider: ${providerName})` : ''}`);
-    await showTestName(mainWindow, testName, providerName);
-  }
+  const providerSuite = testInfo.titlePath.find(t => t.startsWith('Provider:'));
+  const providerName = providerSuite ? providerSuite.split(': ')[1] : undefined;
+
+  console.log(`Setting overlay for test: "${testName}"${providerName ? ` (Provider: ${providerName})` : ''}`);
+  await showTestName(mainWindow, testName, providerName);
 });
 
 test.afterEach(async () => {
@@ -116,184 +108,105 @@ async function selectProvider(mainWindow: any, provider: Provider) {
     return; // Provider is already selected, no need to do anything
   }
 
-  // Check if we need to click "configure other providers (advanced)" button
-  const configureAdvancedButton = await mainWindow.waitForSelector('h3:has-text("Other providers")', {
+  // Check if we're on the welcome screen with "Other Providers" section
+  const otherProvidersSection = await mainWindow.waitForSelector('text="Other Providers"', {
     timeout: 3000,
     state: 'visible'
   }).catch(() => null);
 
-  if (configureAdvancedButton) {
-    console.log('Found "configure other providers" button, clicking it...');
-    await configureAdvancedButton.click();
-    await mainWindow.waitForTimeout(1500);
+  if (otherProvidersSection) {
+    console.log('Found "Other Providers" section, clicking "Go to Provider Settings" link...');
+    // Click the "Go to Provider Settings" link (includes arrow →)
+    const providerSettingsLink = await mainWindow.waitForSelector('button:has-text("Go to Provider Settings")', {
+      timeout: 3000,
+      state: 'visible'
+    });
+    await providerSettingsLink.click();
+    await mainWindow.waitForTimeout(1000);
+
+    // We should now be in Settings -> Models tab
+    console.log('Navigated to Provider Settings');
   }
 
-  // We should now be at provider selection
-  await mainWindow.waitForSelector('[data-testid="provider-selection-heading"]');
+  // Now we should be on the "Other providers" page with provider cards
+  console.log(`Looking for ${provider.name} provider card...`);
 
-  // Find and verify the provider card container
-  console.log(`Looking for ${provider.name} card...`);
-  let providerContainer;
+  // Wait for the provider cards to load
+  await mainWindow.waitForTimeout(1000);
+
+  // Find the Launch button within the specific provider card using its data-testid
+  console.log(`Looking for ${provider.name} card with Launch button...`);
+
   try {
-    providerContainer = await mainWindow.waitForSelector(`[data-testid="provider-card-${provider.name.toLowerCase()}"]`);
-    expect(await providerContainer.isVisible()).toBe(true);
+    // Each provider card has data-testid="provider-card-{provider-name-lowercase}"
+    const providerCardTestId = `provider-card-${provider.name.toLowerCase()}`;
+    const launchButton = mainWindow.locator(`[data-testid="${providerCardTestId}"] button:has-text("Launch")`);
+
+    await launchButton.waitFor({ state: 'visible', timeout: 5000 });
+    console.log(`Found Launch button in ${provider.name} card, clicking it...`);
+    await launchButton.click();
+    await mainWindow.waitForTimeout(1000);
+
+    // Wait for "Choose Model" dialog to appear and select a model
+    console.log('Waiting for model selection dialog...');
+    const chooseModelDialog = await mainWindow.waitForSelector('text="Choose Model"', {
+      timeout: 5000,
+      state: 'visible'
+    }).catch(() => null);
+
+    if (chooseModelDialog) {
+      console.log('Model selection dialog appeared, waiting for models to load...');
+
+      // The "Select model" button starts enabled and only disables during loading (UI bug)
+      // So we wait for a fixed timeout to ensure models are loaded
+      await mainWindow.waitForTimeout(5000);
+      console.log('Waited for models to load');
+
+      const confirmButton = await mainWindow.waitForSelector('button:has-text("Select model")', {
+        timeout: 5000,
+        state: 'visible'
+      });
+
+      console.log('Clicking "Select model" button');
+      await confirmButton.click();
+      await mainWindow.waitForTimeout(2000);
+    }
   } catch (error) {
-    console.error(`Provider card not found for ${provider.name}. This could indicate a missing or incorrectly configured provider.`);
+    console.error(`Failed to find or click Launch button in ${provider.name} card:`, error);
     throw error;
   }
 
-  // Find the Launch button within the provider container
-  console.log(`Looking for Launch button in ${provider.name} card...`);
-  const launchButton = await providerContainer.waitForSelector('[data-testid="provider-launch-button"]');
-  expect(await launchButton.isVisible()).toBe(true);
+  // Navigate to home/chat after provider configuration
+  console.log('Navigating to home/chat...');
+  const homeButton = await mainWindow.waitForSelector('[data-testid="sidebar-home-button"]', {
+    timeout: 5000
+  }).catch(() => null);
 
-  // Take screenshot before clicking
-  await mainWindow.screenshot({ path: `test-results/before-${provider.name.toLowerCase()}-click.png` });
-
-  // Click the Launch button
-  await launchButton.click();
+  if (homeButton) {
+    await homeButton.click();
+    await mainWindow.waitForTimeout(1000);
+  }
 
   // Wait for chat interface to appear
-  const chatTextareaAfterClick = await mainWindow.waitForSelector('[data-testid="chat-input"]',
+  const chatTextareaAfterConfig = await mainWindow.waitForSelector('[data-testid="chat-input"]',
     { timeout: 10000 });
-  expect(await chatTextareaAfterClick.isVisible()).toBe(true);
+  expect(await chatTextareaAfterConfig.isVisible()).toBe(true);
 
   // Take screenshot of chat interface
   await mainWindow.screenshot({ path: `test-results/chat-interface-${provider.name.toLowerCase()}.png` });
 }
 
 test.describe('Goose App', () => {
-  let electronApp;
-  let appProcess;
-
-  test.beforeAll(async () => {
-    console.log('Starting Electron app...');
-
-    // Start the electron-forge process
-    appProcess = spawn('npm', ['run', 'start-gui'], {
-      cwd: join(__dirname, '../..'),
-      stdio: 'pipe',
-      shell: true,
-      env: {
-        ...process.env,
-        ELECTRON_IS_DEV: '1',
-        NODE_ENV: 'development',
-        GOOSE_ALLOWLIST_BYPASS: 'true',
-      }
-    });
-
-    // Log process output
-    appProcess.stdout.on('data', (data) => {
-      console.log('App stdout:', data.toString());
-    });
-
-    appProcess.stderr.on('data', (data) => {
-      console.log('App stderr:', data.toString());
-    });
-
-    // Wait a bit for the app to start
-    console.log('Waiting for app to start...');
-    await new Promise(resolve => setTimeout(resolve, 5000));
-
-    // Launch Electron for testing
-    electronApp = await electron.launch({
-      args: ['.vite/build/main.js'],
-      cwd: join(__dirname, '../..'),
-      env: {
-        ...process.env,
-        ELECTRON_IS_DEV: '1',
-        NODE_ENV: 'development',
-      },
-      recordVideo: {
-        dir: 'test-results/videos/',
-        size: { width: 620, height: 680 }
-      }
-    });
-
-    // Get the main window once for all tests
-    mainWindow = await electronApp.firstWindow();
-    await mainWindow.waitForLoadState('domcontentloaded');
-
-    // Try to wait for networkidle, but don't fail if it times out due to MCP activity
-    try {
-      await mainWindow.waitForLoadState('networkidle', { timeout: 10000 });
-    } catch (error) {
-      console.log('NetworkIdle timeout (likely due to MCP activity), continuing with test...');
-    }
-
-    // Wait for React app to be ready by checking for the root element to have content
-    await mainWindow.waitForFunction(() => {
-      const root = document.getElementById('root');
-      return root && root.children.length > 0;
-    });
-
-    // Wait for any animations to complete
-    await mainWindow.waitForTimeout(2000);
-
-    // Take a screenshot to debug what's on the screen
-    await mainWindow.screenshot({ path: 'test-results/initial-load.png' });
-
-    // Debug: print out the page content
-    const content = await mainWindow.content();
-    console.log('Page content:', content);
-  });
-
-  test.afterAll(async () => {
-    console.log('Final cleanup...');
-
-    // Close the test instance
-    if (electronApp) {
-      await electronApp.close().catch(console.error);
-    }
-
-    // Kill any remaining electron processes
-    try {
-      if (process.platform === 'win32') {
-        await execAsync('taskkill /F /IM electron.exe');
-      } else {
-        await execAsync('pkill -f electron || true');
-      }
-    } catch (error) {
-      if (!error.message?.includes('no process found')) {
-        console.error('Error killing electron processes:', error);
-      }
-    }
-
-    // Kill any remaining npm processes from start-gui
-    try {
-      if (process.platform === 'win32') {
-        await execAsync('taskkill /F /IM node.exe');
-      } else {
-        await execAsync('pkill -f "start-gui" || true');
-      }
-    } catch (error) {
-      if (!error.message?.includes('no process found')) {
-        console.error('Error killing npm processes:', error);
-      }
-    }
-
-    // Kill the specific npm process if it's still running
-    try {
-      if (appProcess && appProcess.pid) {
-        process.kill(appProcess.pid);
-      }
-    } catch (error) {
-      if (error.code !== 'ESRCH') {
-        console.error('Error killing npm process:', error);
-      }
-    }
-  });
+  // No need for beforeAll/afterAll - the fixture handles app launch and cleanup!
 
   test.describe('General UI', () => {
     test('dark mode toggle', async () => {
       console.log('Testing dark mode toggle...');
 
-      const chatTextarea = await mainWindow.waitForSelector('[data-testid="chat-input"]', {
-        timeout: 2000
-      }).catch(() => null);
-      if (!chatTextarea) {
-        await selectProvider(mainWindow, providers[0]);
-      }
+      // Assume the app is already configured and wait for chat input
+      await mainWindow.waitForSelector('[data-testid="chat-input"]', {
+        timeout: 10000
+      });
 
       // Navigate to Settings via sidebar
       const settingsButton = await mainWindow.waitForSelector('[data-testid="sidebar-settings-button"]', {
@@ -356,8 +269,8 @@ test.describe('Goose App', () => {
 
   for (const provider of providers) {
     test.describe(`Provider: ${provider.name}`, () => {
-      test.beforeAll(async () => {
-        // Select the provider once before all tests for this provider
+      test.beforeEach(async () => {
+        // Select the provider before each test for this provider
         await selectProvider(mainWindow, provider);
       });
 
@@ -378,19 +291,19 @@ test.describe('Goose App', () => {
           // Send message
           await chatInput.press('Enter');
 
-          // Wait for loading indicator to appear
-          console.log('Waiting for loading indicator...');
-          const loadingGoose = await mainWindow.waitForSelector('[data-testid="loading-indicator"]',
-            { timeout: 2000 });
-          expect(await loadingGoose.isVisible()).toBe(true);
-
-          // Take screenshot of loading state
-          await mainWindow.screenshot({ path: `test-results/${provider.name.toLowerCase()}-loading-state.png` });
-
-          // Wait for loading indicator to disappear
+          // Wait for loading indicator to appear and then disappear
           console.log('Waiting for response...');
-          await mainWindow.waitForSelector('[data-testid="loading-indicator"]',
-            { state: 'hidden', timeout: 30000 });
+          await mainWindow.waitForSelector('[data-testid="loading-indicator"]', {
+            state: 'visible',
+            timeout: 5000
+          });
+          console.log('Loading indicator appeared');
+
+          await mainWindow.waitForSelector('[data-testid="loading-indicator"]', {
+            state: 'hidden',
+            timeout: 30000
+          });
+          console.log('Loading indicator disappeared');
 
           // Get the latest response
           const response = await mainWindow.locator('[data-testid="message-container"]').last();
@@ -433,9 +346,10 @@ test.describe('Goose App', () => {
           // Take screenshot of chat history
           await mainWindow.screenshot({ path: `test-results/${provider.name.toLowerCase()}-chat-history.png` });
 
-          // Test command history (up arrow)
-          await chatInput.press('Control+ArrowUp');
-          const inputValue = await chatInput.inputValue();
+          // Test command history (up arrow) - re-query for the input since the element may have been re-rendered
+          const chatInputForHistory = await mainWindow.waitForSelector('[data-testid="chat-input"]');
+          await chatInputForHistory.press('Control+ArrowUp');
+          const inputValue = await chatInputForHistory.inputValue();
           expect(inputValue).toBe('What is 2+2?');
         });
       });

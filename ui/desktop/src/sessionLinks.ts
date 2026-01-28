@@ -1,5 +1,6 @@
 import { fetchSharedSessionDetails, SharedSessionDetails } from './sharedSessions';
 import { View, ViewOptions } from './utils/navigationUtils';
+import { errorMessage } from './utils/conversionUtils';
 
 /**
  * Handles opening a shared session from a deep link
@@ -61,13 +62,14 @@ export async function openSharedSessionFromDeepLink(
 
     return sessionDetails;
   } catch (error) {
-    const errorMessage = `Failed to open shared session: ${error instanceof Error ? error.message : 'Unknown error'}`;
-    console.error(errorMessage);
+    const errMsg = errorMessage(error, 'Unknown error');
+    const fullErrorMessage = `Failed to open shared session: ${errMsg}`;
+    console.error(fullErrorMessage);
 
     // Navigate to the shared session view with the error instead of throwing
     setView('sharedSession', {
       sessionDetails: null,
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: errMsg,
       shareToken: url.replace('goose://sessions/', ''),
       baseUrl,
     });

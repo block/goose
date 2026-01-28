@@ -5,6 +5,7 @@ use super::{
     azure::AzureProvider,
     base::{Provider, ProviderMetadata},
     bedrock::BedrockProvider,
+    chatgpt_codex::ChatGptCodexProvider,
     claude_code::ClaudeCodeProvider,
     codex::CodexProvider,
     cursor_agent::CursorAgentProvider,
@@ -46,6 +47,10 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
             .register::<AnthropicProvider, _>(|m| Box::pin(AnthropicProvider::from_env(m)), true);
         registry.register::<AzureProvider, _>(|m| Box::pin(AzureProvider::from_env(m)), false);
         registry.register::<BedrockProvider, _>(|m| Box::pin(BedrockProvider::from_env(m)), false);
+        registry.register::<ChatGptCodexProvider, _>(
+            |m| Box::pin(ChatGptCodexProvider::from_env(m)),
+            true,
+        );
         registry
             .register::<ClaudeCodeProvider, _>(|m| Box::pin(ClaudeCodeProvider::from_env(m)), true);
         registry.register::<CodexProvider, _>(|m| Box::pin(CodexProvider::from_env(m)), true);

@@ -8,6 +8,7 @@ use futures::stream::BoxStream;
 use futures::{stream, FutureExt, Stream, StreamExt, TryStreamExt};
 use uuid::Uuid;
 
+use super::container::Container;
 use super::final_output_tool::FinalOutputTool;
 use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
@@ -23,8 +24,7 @@ use crate::agents::subagent_task_config::TaskConfig;
 use crate::agents::subagent_tool::{
     create_subagent_tool, handle_subagent_tool, SUBAGENT_TOOL_NAME,
 };
-use crate::agents::types::SessionConfig;
-use crate::agents::types::{FrontendTool, SharedProvider, ToolResultReceiver};
+use crate::agents::types::{FrontendTool, SessionConfig, SharedProvider, ToolResultReceiver};
 use crate::config::permission::PermissionManager;
 use crate::config::{get_enabled_extensions, Config, GooseMode};
 use crate::context_mgmt::{
@@ -52,7 +52,7 @@ use crate::tool_monitor::RepetitionInspector;
 use crate::utils::is_token_cancelled;
 use regex::Regex;
 use rmcp::model::{
-    CallToolRequestParam, CallToolResult, Content, ErrorCode, ErrorData, GetPromptResult, Prompt,
+    CallToolRequestParams, CallToolResult, Content, ErrorCode, ErrorData, GetPromptResult, Prompt,
     ServerNotification, Tool,
 };
 use serde_json::Value;
@@ -129,6 +129,7 @@ pub struct Agent {
 
     pub(super) retry_manager: RetryManager,
     pub(super) tool_inspection_manager: ToolInspectionManager,
+    container: Mutex<Option<Container>>,
 }
 
 #[derive(Clone, Debug)]
@@ -213,6 +214,7 @@ impl Agent {
             tool_result_rx: Arc::new(Mutex::new(tool_rx)),
             retry_manager: RetryManager::new(),
             tool_inspection_manager: Self::create_tool_inspection_manager(permission_manager),
+            container: Mutex::new(None),
         }
     }
 
@@ -410,6 +412,15 @@ impl Agent {
         }
     }
 
+    /// When set, all stdio extensions will be started via `docker exec` in the specified container.
+    pub async fn set_container(&self, container: Option<Container>) {
+        *self.container.lock().await = container.clone();
+    }
+
+    pub async fn container(&self) -> Option<Container> {
+        self.container.lock().await.clone()
+    }
+
     /// Check if a tool is a frontend tool
     pub async fn is_frontend_tool(&self, name: &str) -> bool {
         self.frontend_tools.lock().await.contains_key(name)
@@ -456,7 +467,7 @@ impl Agent {
     #[instrument(skip(self, tool_call, request_id), fields(input, output))]
     pub async fn dispatch_tool_call(
         &self,
-        tool_call: CallToolRequestParam,
+        tool_call: CallToolRequestParams,
         request_id: String,
         cancellation_token: Option<CancellationToken>,
         session: &Session,
@@ -523,8 +534,16 @@ impl Agent {
             };
 
             let extensions = self.get_extension_configs().await;
+
+            let max_turns_from_recipe = session
+                .recipe
+                .as_ref()
+                .and_then(|r| r.settings.as_ref())
+                .and_then(|s| s.max_turns);
+
             let task_config =
-                TaskConfig::new(provider, &session.id, &session.working_dir, extensions);
+                TaskConfig::new(provider, &session.id, &session.working_dir, extensions)
+                    .with_max_turns(max_turns_from_recipe);
             let sub_recipes = self.sub_recipes.lock().await.clone();
 
             let arguments = tool_call
@@ -634,6 +653,7 @@ impl Agent {
 
     /// Load extensions from session into the agent
     /// Skips extensions that are already loaded
+    /// Uses the session's working_dir for extension initialization
     pub async fn load_extensions_from_session(
         self: &Arc<Self>,
         session: &Session,
@@ -651,11 +671,15 @@ impl Agent {
             }
         };
 
+        // Capture the session's working_dir to pass to extensions
+        let working_dir = session.working_dir.clone();
+
         let extension_futures = enabled_configs
             .into_iter()
             .map(|config| {
                 let config_clone = config.clone();
                 let agent_ref = self.clone();
+                let working_dir_clone = working_dir.clone();
 
                 async move {
                     let name = config_clone.name().to_string();
@@ -674,7 +698,10 @@ impl Agent {
                         };
                     }
 
-                    match agent_ref.add_extension(config_clone).await {
+                    match agent_ref
+                        .add_extension_with_working_dir(config_clone, Some(working_dir_clone))
+                        .await
+                    {
                         Ok(_) => ExtensionLoadResult {
                             name,
                             success: true,
@@ -698,6 +725,14 @@ impl Agent {
     }
 
     pub async fn add_extension(&self, extension: ExtensionConfig) -> ExtensionResult<()> {
+        self.add_extension_with_working_dir(extension, None).await
+    }
+
+    pub async fn add_extension_with_working_dir(
+        &self,
+        extension: ExtensionConfig,
+        working_dir: Option<std::path::PathBuf>,
+    ) -> ExtensionResult<()> {
         match &extension {
             ExtensionConfig::Frontend {
                 tools,
@@ -725,8 +760,13 @@ impl Agent {
                 }
             }
             _ => {
+                let container = self.container.lock().await;
                 self.extension_manager
-                    .add_extension(extension.clone())
+                    .add_extension_with_working_dir(
+                        extension.clone(),
+                        working_dir,
+                        container.as_ref(),
+                    )
                     .await?;
             }
         }
@@ -769,7 +809,7 @@ impl Agent {
     pub async fn list_tools(&self, session_id: &str, extension_name: Option<String>) -> Vec<Tool> {
         let mut prefixed_tools = self
             .extension_manager
-            .get_prefixed_tools(extension_name.clone())
+            .get_prefixed_tools(session_id, extension_name.clone())
             .await
             .unwrap_or_default();
 
@@ -983,10 +1023,17 @@ impl Agent {
                     )
                 );
 
-                match compact_messages(self.provider().await?.as_ref(), &conversation_to_compact, false).await {
+                match compact_messages(
+                    self.provider().await?.as_ref(),
+                    &session_config.id,
+                    &conversation_to_compact,
+                    false,
+                )
+                .await
+                {
                     Ok((compacted_conversation, summarization_usage)) => {
                         session_manager.replace_conversation(&session_config.id, &compacted_conversation).await?;
-                        self.update_session_metrics(&session_config, &summarization_usage, true).await?;
+                        self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &summarization_usage, true).await?;
 
                         yield AgentEvent::HistoryReplaced(compacted_conversation.clone());
 
@@ -1025,7 +1072,7 @@ impl Agent {
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         let context = self
-            .prepare_reply_context(&session_config.id, conversation, &session.working_dir)
+            .prepare_reply_context(&session.id, conversation, session.working_dir.as_path())
             .await?;
         let ReplyContext {
             mut conversation,
@@ -1092,6 +1139,7 @@ impl Agent {
 
                 let mut stream = Self::stream_response_from_provider(
                     self.provider().await?,
+                    &session_config.id,
                     &system_prompt,
                     conversation_with_moim.messages(),
                     &tools,
@@ -1134,7 +1182,7 @@ impl Agent {
                             }
 
                             if let Some(ref usage) = usage {
-                                self.update_session_metrics(&session_config, usage, false).await?;
+                                self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), usage, false).await?;
                             }
 
                             if let Some(response) = response {
@@ -1265,7 +1313,7 @@ impl Agent {
                                     let mut combined = stream::select_all(with_id);
                                     let mut all_install_successful = true;
 
-                                    while let Some((request_id, item)) = combined.next().await {
+                                    loop {
                                         if is_token_cancelled(&cancel_token) {
                                             break;
                                         }
@@ -1274,23 +1322,55 @@ impl Agent {
                                             yield AgentEvent::Message(msg);
                                         }
 
-                                        match item {
-                                            ToolStreamItem::Result(output) => {
-                                                let output = call_tool_result::validate(output);
+                                        tokio::select! {
+                                            biased;
 
-                                                if enable_extension_request_ids.contains(&request_id)
-                                                    && output.is_err()
-                                                {
-                                                    all_install_successful = false;
-                                                }
-                                                if let Some(response_msg) = request_to_response_map.get(&request_id) {
-                                                    let metadata = request_metadata.get(&request_id).and_then(|m| m.as_ref());
-                                                    let mut response = response_msg.lock().await;
-                                                    *response = response.clone().with_tool_response_with_metadata(request_id, output, metadata);
+                                            tool_item = combined.next() => {
+                                                match tool_item {
+                                                    Some((request_id, item)) => {
+                                                        match item {
+                                                            ToolStreamItem::Result(output) => {
+                                                                let output = call_tool_result::validate(output);
+
+                                                                if let Ok(ref call_result) = output {
+                                                                    if let Some(ref meta) = call_result.meta {
+                                                                        if let Some(notification_data) = meta.0.get("platform_notification") {
+                                                                            if let Some(method) = notification_data.get("method").and_then(|v| v.as_str()) {
+                                                                                let params = notification_data.get("params").cloned();
+                                                                                let custom_notification = rmcp::model::CustomNotification::new(
+                                                                                    method.to_string(),
+                                                                                    params,
+                                                                                );
+
+                                                                                let server_notification = rmcp::model::ServerNotification::CustomNotification(custom_notification);
+                                                                                yield AgentEvent::McpNotification((request_id.clone(), server_notification));
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+
+                                                                if enable_extension_request_ids.contains(&request_id)
+                                                                    && output.is_err()
+                                                                {
+                                                                    all_install_successful = false;
+                                                                }
+                                                                if let Some(response_msg) = request_to_response_map.get(&request_id) {
+                                                                    let metadata = request_metadata.get(&request_id).and_then(|m| m.as_ref());
+                                                                    let mut response = response_msg.lock().await;
+                                                                    *response = response.clone().with_tool_response_with_metadata(request_id, output, metadata);
+                                                                }
+                                                            }
+                                                            ToolStreamItem::Message(msg) => {
+                                                                yield AgentEvent::McpNotification((request_id, msg));
+                                                            }
+                                                        }
+                                                    }
+                                                    None => break,
                                                 }
                                             }
-                                            ToolStreamItem::Message(msg) => {
-                                                yield AgentEvent::McpNotification((request_id, msg));
+
+                                            _ = tokio::time::sleep(std::time::Duration::from_millis(100)) => {
+                                                // Continue loop to drain elicitation messages
                                             }
                                         }
                                     }
@@ -1372,10 +1452,17 @@ impl Agent {
                                 )
                             );
 
-                            match compact_messages(self.provider().await?.as_ref(), &conversation, false).await {
+                            match compact_messages(
+                                self.provider().await?.as_ref(),
+                                &session_config.id,
+                                &conversation,
+                                false,
+                            )
+                            .await
+                            {
                                 Ok((compacted_conversation, usage)) => {
                                     session_manager.replace_conversation(&session_config.id, &compacted_conversation).await?;
-                                    self.update_session_metrics(&session_config, &usage, true).await?;
+                                    self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &usage, true).await?;
                                     conversation = compacted_conversation;
                                     did_recovery_compact_this_iteration = true;
                                     yield AgentEvent::HistoryReplaced(conversation.clone());
@@ -1517,18 +1604,23 @@ impl Agent {
         prompt_manager.set_system_prompt_override(template);
     }
 
-    pub async fn list_extension_prompts(&self) -> HashMap<String, Vec<Prompt>> {
+    pub async fn list_extension_prompts(&self, session_id: &str) -> HashMap<String, Vec<Prompt>> {
         self.extension_manager
-            .list_prompts(CancellationToken::default())
+            .list_prompts(session_id, CancellationToken::default())
             .await
             .expect("Failed to list prompts")
     }
 
-    pub async fn get_prompt(&self, name: &str, arguments: Value) -> Result<GetPromptResult> {
+    pub async fn get_prompt(
+        &self,
+        session_id: &str,
+        name: &str,
+        arguments: Value,
+    ) -> Result<GetPromptResult> {
         // First find which extension has this prompt
         let prompts = self
             .extension_manager
-            .list_prompts(CancellationToken::default())
+            .list_prompts(session_id, CancellationToken::default())
             .await
             .map_err(|e| anyhow!("Failed to list prompts: {}", e))?;
 
@@ -1539,7 +1631,13 @@ impl Agent {
         {
             return self
                 .extension_manager
-                .get_prompt(extension, name, arguments, CancellationToken::default())
+                .get_prompt(
+                    session_id,
+                    extension,
+                    name,
+                    arguments,
+                    CancellationToken::default(),
+                )
                 .await
                 .map_err(|e| anyhow!("Failed to get prompt: {}", e));
         }
@@ -1547,8 +1645,11 @@ impl Agent {
         Err(anyhow!("Prompt '{}' not found", name))
     }
 
-    pub async fn get_plan_prompt(&self) -> Result<String> {
-        let tools = self.extension_manager.get_prefixed_tools(None).await?;
+    pub async fn get_plan_prompt(&self, session_id: &str) -> Result<String> {
+        let tools = self
+            .extension_manager
+            .get_prefixed_tools(session_id, None)
+            .await?;
         let tools_info = tools
             .into_iter()
             .map(|tool| {
@@ -1575,13 +1676,19 @@ impl Agent {
         }
     }
 
-    pub async fn create_recipe(&self, mut messages: Conversation) -> Result<Recipe> {
+    pub async fn create_recipe(
+        &self,
+        session_id: &str,
+        mut messages: Conversation,
+    ) -> Result<Recipe> {
         tracing::info!("Starting recipe creation with {} messages", messages.len());
 
         let extensions_info = self.extension_manager.get_extensions_info().await;
         tracing::debug!("Retrieved {} extensions info", extensions_info.len());
-        let (extension_count, tool_count) =
-            self.extension_manager.get_extension_and_tool_counts().await;
+        let (extension_count, tool_count) = self
+            .extension_manager
+            .get_extension_and_tool_counts(session_id)
+            .await;
 
         // Get model name from provider
         let provider = self.provider().await.map_err(|e| {
@@ -1603,7 +1710,7 @@ impl Agent {
         let recipe_prompt = prompt_manager.get_recipe_prompt().await;
         let tools = self
             .extension_manager
-            .get_prefixed_tools(None)
+            .get_prefixed_tools(session_id, None)
             .await
             .map_err(|e| {
                 tracing::error!("Failed to get tools for recipe creation: {}", e);
@@ -1635,7 +1742,7 @@ impl Agent {
                 tracing::error!("{}", error);
                 error
             })?
-            .complete(&system_prompt, messages.messages(), &tools)
+            .complete(session_id, &system_prompt, messages.messages(), &tools)
             .await
             .map_err(|e| {
                 tracing::error!("Provider completion failed during recipe creation: {}", e);
@@ -1734,6 +1841,7 @@ impl Agent {
             goose_provider: Some(provider_name.clone()),
             goose_model: Some(model_name.clone()),
             temperature: Some(model_config.temperature.unwrap_or(0.0)),
+            max_turns: None,
         };
 
         tracing::debug!(
