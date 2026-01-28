@@ -3,6 +3,9 @@
 # dependencies = ["textual>=0.87.0"]
 # ///
 """
+WARNING: entirely vibe coded. use as a throwaway tool
+
+
 Diagnostics Viewer - Browse and inspect Goose diagnostics bundles.
 
 Scans for diagnostics zip files, displays their sessions, and provides
