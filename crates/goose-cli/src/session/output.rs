@@ -162,19 +162,7 @@ pub fn hide_thinking() {
 
 /// Run the status hook command if GOOSE_STATUS_HOOK is set.
 ///
-/// The hook command receives the status as its first argument.
-/// Valid statuses: "waiting", "thinking"
-///
-/// Example usage for tmux title:
-///   export GOOSE_STATUS_HOOK='printf "\033]2;goose: $1\033\\"'
-///
-/// The hook runs asynchronously and errors are silently ignored.
-///
-/// Note: We use `std::thread::spawn` rather than `tokio::spawn` here because:
-/// 1. Status changes are infrequent (only twice per user interaction cycle)
-/// 2. The spawned process is short-lived (typically a simple shell command)
-/// 3. Using std::thread keeps this function synchronous, simplifying call sites
-/// 4. This is a standard "fire and forget" pattern for shell command execution
+/// Example: `export GOOSE_STATUS_HOOK='printf "\033]2;goose: $1\033\\"'`
 pub fn run_status_hook(status: &str) {
     if let Ok(hook) = Config::global().get_param::<String>("GOOSE_STATUS_HOOK") {
         let status = status.to_string();
