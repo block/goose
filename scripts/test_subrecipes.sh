@@ -77,13 +77,13 @@ check_recipe_output() {
   local tmpfile=$1
   local mode=$2
   
-  # Check for unified subagent tool invocation (new format: "─── subagent |")
-  if grep -q "─── subagent" "$tmpfile"; then
-    echo "✓ SUCCESS: Subagent tool invoked"
-    RESULTS+=("✓ Subagent tool invocation ($mode)")
+  # Check for delegate tool invocation (format: "─── delegate | subagent")
+  if grep -q "─── delegate" "$tmpfile"; then
+    echo "✓ SUCCESS: Delegate tool invoked"
+    RESULTS+=("✓ Delegate tool invocation ($mode)")
   else
-    echo "✗ FAILED: No evidence of subagent tool invocation"
-    RESULTS+=("✗ Subagent tool invocation ($mode)")
+    echo "✗ FAILED: No evidence of delegate tool invocation"
+    RESULTS+=("✗ Delegate tool invocation ($mode)")
   fi
   
   # Check that both subrecipes were called (shown as "subrecipe: <name>" in output)

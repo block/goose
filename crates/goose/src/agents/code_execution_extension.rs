@@ -756,6 +756,8 @@ impl McpClientTrait for CodeExecutionClient {
                         - Call: toolName({ param1: value, param2: value })
                         - Result: record_result(value) - call this to return a value from the script
                         - All calls are synchronous, return strings
+                        - To capture output: const r = <expression>; r
+                        - No comments in code
 
                         TOOL_GRAPH: Always provide tool_graph to describe the execution flow for the UI.
                         Each node has: tool (server/name), description (what it does), depends_on (indices of dependencies).
@@ -896,17 +898,22 @@ mod tests {
     use std::sync::Arc;
     use test_case::test_case;
 
-    #[tokio::test]
-    async fn test_execute_code_simple() {
+    fn create_test_context() -> PlatformExtensionContext {
         let temp_dir = tempfile::tempdir().unwrap();
         let session_manager = Arc::new(crate::session::SessionManager::new(
             temp_dir.path().to_path_buf(),
         ));
-        let context = PlatformExtensionContext {
+        PlatformExtensionContext {
             extension_manager: None,
             session_manager,
-        };
-        let client = CodeExecutionClient::new(context).unwrap();
+            sub_recipes: None,
+            goose_mode: crate::config::GooseMode::Auto,
+        }
+    }
+
+    #[tokio::test]
+    async fn test_execute_code_simple() {
+        let client = CodeExecutionClient::new(create_test_context()).unwrap();
 
         let mut args = JsonObject::new();
         args.insert(
@@ -934,15 +941,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_record_result_outputs_valid_json() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let session_manager = Arc::new(crate::session::SessionManager::new(
-            temp_dir.path().to_path_buf(),
-        ));
-        let context = PlatformExtensionContext {
-            extension_manager: None,
-            session_manager,
-        };
-        let client = CodeExecutionClient::new(context).unwrap();
+        let client = CodeExecutionClient::new(create_test_context()).unwrap();
 
         // Nested array in object - this triggers truncation with display() (e.g., "items: Array(3)")
         let mut args = JsonObject::new();
@@ -975,15 +974,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_read_module_not_found() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let session_manager = Arc::new(crate::session::SessionManager::new(
-            temp_dir.path().to_path_buf(),
-        ));
-        let context = PlatformExtensionContext {
-            extension_manager: None,
-            session_manager,
-        };
-        let client = CodeExecutionClient::new(context).unwrap();
+        let client = CodeExecutionClient::new(create_test_context()).unwrap();
 
         let mut args = JsonObject::new();
         args.insert(

@@ -551,6 +551,8 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     )
     .await;
 
+    agent_ptr.ensure_subagent_extension(&session_id).await;
+
     // Determine editor mode
     let edit_mode = config
         .get_param::<String>("EDIT_MODE")

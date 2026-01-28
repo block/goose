@@ -11,7 +11,7 @@ use uuid::Uuid;
 use super::container::Container;
 use super::final_output_tool::FinalOutputTool;
 use super::platform_tools;
-use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
+use super::tool_execution::{DeferredToolCall, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::action_required_manager::ActionRequiredManager;
 use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{get_parameter_names, normalize, ExtensionManager};
@@ -20,13 +20,10 @@ use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_
 use crate::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::retry::{RetryManager, RetryResult};
-use crate::agents::subagent_task_config::TaskConfig;
-use crate::agents::subagent_tool::{
-    create_subagent_tool, handle_subagent_tool, SUBAGENT_TOOL_NAME,
-};
+use crate::agents::subagent_client;
 use crate::agents::types::{FrontendTool, SessionConfig, SharedProvider, ToolResultReceiver};
 use crate::config::permission::PermissionManager;
-use crate::config::{get_enabled_extensions, Config, GooseMode};
+use crate::config::{get_enabled_extensions, is_extension_enabled, Config, GooseMode};
 use crate::context_mgmt::{
     check_if_compaction_needed, compact_messages, DEFAULT_COMPACTION_THRESHOLD,
 };
@@ -117,7 +114,7 @@ pub struct Agent {
     pub config: AgentConfig,
 
     pub extension_manager: Arc<ExtensionManager>,
-    pub(super) sub_recipes: Mutex<HashMap<String, SubRecipe>>,
+    pub(super) sub_recipes: Arc<tokio::sync::RwLock<HashMap<String, SubRecipe>>>,
     pub(super) final_output_tool: Arc<Mutex<Option<FinalOutputTool>>>,
     pub(super) frontend_tools: Mutex<HashMap<String, FrontendTool>>,
     pub(super) frontend_instructions: Mutex<Option<String>>,
@@ -199,11 +196,18 @@ impl Agent {
 
         let session_manager = Arc::clone(&config.session_manager);
         let permission_manager = Arc::clone(&config.permission_manager);
+        let goose_mode = config.goose_mode;
+        let sub_recipes = Arc::new(tokio::sync::RwLock::new(HashMap::new()));
         Self {
             provider: provider.clone(),
             config,
-            extension_manager: Arc::new(ExtensionManager::new(provider.clone(), session_manager)),
-            sub_recipes: Mutex::new(HashMap::new()),
+            extension_manager: Arc::new(ExtensionManager::new(
+                provider.clone(),
+                session_manager,
+                Some(sub_recipes.clone()),
+                goose_mode,
+            )),
+            sub_recipes,
             final_output_tool: Arc::new(Mutex::new(None)),
             frontend_tools: Mutex::new(HashMap::new()),
             frontend_instructions: Mutex::new(None),
@@ -343,10 +347,10 @@ impl Agent {
 
     async fn handle_approved_and_denied_tools(
         &self,
+        session_id: &str,
         permission_check_result: &PermissionCheckResult,
         request_to_response_map: &HashMap<String, Arc<Mutex<Message>>>,
         cancel_token: Option<tokio_util::sync::CancellationToken>,
-        session: &Session,
     ) -> Result<Vec<(String, ToolStream)>> {
         let mut tool_futures: Vec<(String, ToolStream)> = Vec::new();
 
@@ -355,10 +359,10 @@ impl Agent {
             if let Ok(tool_call) = request.tool_call.clone() {
                 let (req_id, tool_result) = self
                     .dispatch_tool_call(
+                        session_id,
                         tool_call,
                         request.id.clone(),
                         cancel_token.clone(),
-                        session,
                     )
                     .await;
 
@@ -439,8 +443,12 @@ impl Agent {
         self.extend_system_prompt(final_output_system_prompt).await;
     }
 
+    pub fn sub_recipes(&self) -> Arc<tokio::sync::RwLock<HashMap<String, SubRecipe>>> {
+        self.sub_recipes.clone()
+    }
+
     pub async fn add_sub_recipes(&self, sub_recipes_to_add: Vec<SubRecipe>) {
-        let mut sub_recipes = self.sub_recipes.lock().await;
+        let mut sub_recipes = self.sub_recipes.write().await;
         for sr in sub_recipes_to_add {
             sub_recipes.insert(sr.name.clone(), sr);
         }
@@ -452,8 +460,8 @@ impl Agent {
         response: Option<Response>,
         include_final_output: bool,
     ) {
-        if let Some(sub_recipes) = sub_recipes {
-            self.add_sub_recipes(sub_recipes).await;
+        if let Some(ref sub_recipes) = sub_recipes {
+            self.add_sub_recipes(sub_recipes.clone()).await;
         }
 
         if include_final_output {
@@ -463,27 +471,45 @@ impl Agent {
         }
     }
 
+    pub async fn ensure_subagent_extension(&self, session_id: &str) {
+        if !self.subagents_enabled(session_id).await {
+            return;
+        }
+
+        if self
+            .extension_manager
+            .is_extension_enabled(subagent_client::EXTENSION_NAME)
+            .await
+        {
+            return;
+        }
+
+        if let Err(e) = self
+            .extension_manager
+            .add_extension_with_working_dir(
+                ExtensionConfig::Platform {
+                    name: subagent_client::EXTENSION_NAME.to_string(),
+                    description: "Delegate tasks to independent subagents".to_string(),
+                    bundled: Some(true),
+                    available_tools: vec![],
+                },
+                None,
+            )
+            .await
+        {
+            warn!("Failed to enable subagent extension: {}", e);
+        }
+    }
+
     /// Dispatch a single tool call to the appropriate client
-    #[instrument(skip(self, tool_call, request_id), fields(input, output))]
+    #[instrument(skip(self, session_id, tool_call, request_id), fields(input, output))]
     pub async fn dispatch_tool_call(
         &self,
+        session_id: &str,
         tool_call: CallToolRequestParams,
         request_id: String,
         cancellation_token: Option<CancellationToken>,
-        session: &Session,
-    ) -> (String, Result<ToolCallResult, ErrorData>) {
-        // Prevent subagents from creating other subagents
-        if session.session_type == SessionType::SubAgent && tool_call.name == SUBAGENT_TOOL_NAME {
-            return (
-                request_id,
-                Err(ErrorData::new(
-                    ErrorCode::INVALID_REQUEST,
-                    "Subagents cannot create other subagents".to_string(),
-                    None,
-                )),
-            );
-        }
-
+    ) -> (String, Result<DeferredToolCall, ErrorData>) {
         if tool_call.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME {
             let arguments = tool_call
                 .arguments
@@ -498,7 +524,7 @@ impl Agent {
                 is_error: Some(false),
                 meta: None,
             });
-            return (request_id, Ok(ToolCallResult::from(wrapped_result)));
+            return (request_id, Ok(DeferredToolCall::from(wrapped_result)));
         }
 
         if tool_call.name == FINAL_OUTPUT_TOOL_NAME {
@@ -518,53 +544,18 @@ impl Agent {
         }
 
         debug!("WAITING_TOOL_START: {}", tool_call.name);
-        let result: ToolCallResult = if tool_call.name == SUBAGENT_TOOL_NAME {
-            let provider = match self.provider().await {
-                Ok(p) => p,
-                Err(_) => {
-                    return (
-                        request_id,
-                        Err(ErrorData::new(
-                            ErrorCode::INTERNAL_ERROR,
-                            "Provider is required".to_string(),
-                            None,
-                        )),
-                    );
-                }
-            };
-
-            let extensions = self.get_extension_configs().await;
-            let task_config =
-                TaskConfig::new(provider, &session.id, &session.working_dir, extensions);
-            let sub_recipes = self.sub_recipes.lock().await.clone();
-
-            let arguments = tool_call
-                .arguments
-                .clone()
-                .map(Value::Object)
-                .unwrap_or(Value::Object(serde_json::Map::new()));
-
-            handle_subagent_tool(
-                &self.config,
-                arguments,
-                task_config,
-                sub_recipes,
-                session.working_dir.clone(),
-                cancellation_token,
-            )
-        } else if self.is_frontend_tool(&tool_call.name).await {
-            // For frontend tools, return an error indicating we need frontend execution
-            ToolCallResult::from(Err(ErrorData::new(
+        // Note: SUBAGENT_TOOL_NAME is now handled as a platform extension, not here
+        let result: DeferredToolCall = if self.is_frontend_tool(&tool_call.name).await {
+            DeferredToolCall::from(Err(ErrorData::new(
                 ErrorCode::INTERNAL_ERROR,
                 "Frontend tool execution required".to_string(),
                 None,
             )))
         } else {
-            // Clone the result to ensure no references to extension_manager are returned
             let result = self
                 .extension_manager
                 .dispatch_tool_call(
-                    &session.id,
+                    session_id,
                     tool_call.clone(),
                     cancellation_token.unwrap_or_default(),
                 )
@@ -578,7 +569,7 @@ impl Agent {
                 let error_data = e.downcast::<ErrorData>().unwrap_or_else(|e| {
                     ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None)
                 });
-                ToolCallResult::from(Err(error_data))
+                DeferredToolCall::from(Err(error_data))
             })
         };
 
@@ -586,7 +577,7 @@ impl Agent {
 
         (
             request_id,
-            Ok(ToolCallResult {
+            Ok(DeferredToolCall {
                 notification_stream: result.notification_stream,
                 result: Box::new(
                     result
@@ -767,6 +758,9 @@ impl Agent {
     }
 
     pub async fn subagents_enabled(&self, session_id: &str) -> bool {
+        if !is_extension_enabled(subagent_client::EXTENSION_NAME) {
+            return false;
+        }
         if self.config.goose_mode != GooseMode::Auto {
             return false;
         }
@@ -805,7 +799,6 @@ impl Agent {
             .await
             .unwrap_or_default();
 
-        let subagents_enabled = self.subagents_enabled(session_id).await;
         if (extension_name.is_none() || extension_name.as_deref() == Some("platform"))
             && self.config.scheduler_service.is_some()
         {
@@ -815,12 +808,6 @@ impl Agent {
         if extension_name.is_none() {
             if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
                 prefixed_tools.push(final_output_tool.tool());
-            }
-
-            if subagents_enabled {
-                let sub_recipes = self.sub_recipes.lock().await;
-                let sub_recipes_vec: Vec<_> = sub_recipes.values().cloned().collect();
-                prefixed_tools.push(create_subagent_tool(&sub_recipes_vec));
             }
         }
 
@@ -1269,20 +1256,20 @@ impl Agent {
                                     }
 
                                     let mut tool_futures = self.handle_approved_and_denied_tools(
+                                        &session_config.id,
                                         &permission_check_result,
                                         &request_to_response_map,
                                         cancel_token.clone(),
-                                        &session,
                                     ).await?;
 
                                     let tool_futures_arc = Arc::new(Mutex::new(tool_futures));
 
                                     let mut tool_approval_stream = self.handle_approval_tool_requests(
+                                        &session_config.id,
                                         &permission_check_result.needs_approval,
                                         tool_futures_arc.clone(),
                                         &request_to_response_map,
                                         cancel_token.clone(),
-                                        &session,
                                         &inspection_results,
                                     );
 

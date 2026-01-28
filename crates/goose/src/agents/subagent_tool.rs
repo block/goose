@@ -11,14 +11,14 @@ use tokio_util::sync::CancellationToken;
 
 use crate::agents::subagent_handler::run_complete_subagent_task;
 use crate::agents::subagent_task_config::TaskConfig;
-use crate::agents::tool_execution::ToolCallResult;
+use crate::agents::tool_execution::DeferredToolCall;
 use crate::agents::AgentConfig;
 use crate::providers;
 use crate::recipe::build_recipe::build_recipe_from_template;
 use crate::recipe::local_recipes::load_local_recipe_file;
 use crate::recipe::{Recipe, SubRecipe};
 
-pub const SUBAGENT_TOOL_NAME: &str = "subagent";
+pub const SUBAGENT_TOOL_NAME: &str = "delegate";
 
 const SUMMARY_INSTRUCTIONS: &str = r#"
 Important: Your parent agent will only receive your final message as a summary of your work.
@@ -182,11 +182,11 @@ pub fn handle_subagent_tool(
     sub_recipes: HashMap<String, SubRecipe>,
     working_dir: PathBuf,
     cancellation_token: Option<CancellationToken>,
-) -> ToolCallResult {
+) -> DeferredToolCall {
     let parsed_params: SubagentParams = match serde_json::from_value(params) {
         Ok(p) => p,
         Err(e) => {
-            return ToolCallResult::from(Err(ErrorData {
+            return DeferredToolCall::from(Err(ErrorData {
                 code: ErrorCode::INVALID_PARAMS,
                 message: Cow::from(format!("Invalid parameters: {}", e)),
                 data: None,
@@ -195,7 +195,7 @@ pub fn handle_subagent_tool(
     };
 
     if parsed_params.instructions.is_none() && parsed_params.subrecipe.is_none() {
-        return ToolCallResult::from(Err(ErrorData {
+        return DeferredToolCall::from(Err(ErrorData {
             code: ErrorCode::INVALID_PARAMS,
             message: Cow::from("Must provide 'instructions' or 'subrecipe' (or both)"),
             data: None,
@@ -203,7 +203,7 @@ pub fn handle_subagent_tool(
     }
 
     if parsed_params.parameters.is_some() && parsed_params.subrecipe.is_none() {
-        return ToolCallResult::from(Err(ErrorData {
+        return DeferredToolCall::from(Err(ErrorData {
             code: ErrorCode::INVALID_PARAMS,
             message: Cow::from("'parameters' can only be used with 'subrecipe'"),
             data: None,
@@ -213,7 +213,7 @@ pub fn handle_subagent_tool(
     let recipe = match build_recipe(&parsed_params, &sub_recipes) {
         Ok(r) => r,
         Err(e) => {
-            return ToolCallResult::from(Err(ErrorData {
+            return DeferredToolCall::from(Err(ErrorData {
                 code: ErrorCode::INVALID_PARAMS,
                 message: Cow::from(e.to_string()),
                 data: None,
@@ -222,7 +222,7 @@ pub fn handle_subagent_tool(
     };
 
     let config = config.clone();
-    ToolCallResult {
+    DeferredToolCall {
         notification_stream: None,
         result: Box::new(
             execute_subagent(
@@ -434,13 +434,13 @@ mod tests {
 
     #[test]
     fn test_tool_name() {
-        assert_eq!(SUBAGENT_TOOL_NAME, "subagent");
+        assert_eq!(SUBAGENT_TOOL_NAME, "delegate");
     }
 
     #[test]
     fn test_create_tool_without_subrecipes() {
         let tool = create_subagent_tool(&[]);
-        assert_eq!(tool.name, "subagent");
+        assert_eq!(tool.name, "delegate");
         assert!(tool.description.as_ref().unwrap().contains("Ad-hoc"));
         assert!(!tool
             .description

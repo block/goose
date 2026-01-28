@@ -285,7 +285,7 @@ fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
             "developer__text_editor" => render_text_editor_request(call, debug),
             "developer__shell" => render_shell_request(call, debug),
             "code_execution__execute_code" => render_execute_code_request(call, debug),
-            "subagent" => render_subagent_request(call, debug),
+            "subagent__delegate" => render_subagent_request(call, debug),
             "todo__write" => render_todo_request(call, debug),
             _ => render_default_request(call, debug),
         },

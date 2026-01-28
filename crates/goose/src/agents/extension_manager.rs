@@ -1,8 +1,8 @@
 use anyhow::Result;
 use axum::http::{HeaderMap, HeaderName};
 use chrono::{DateTime, Utc};
+use futures::future;
 use futures::stream::{FuturesUnordered, StreamExt};
-use futures::{future, FutureExt};
 use rand::{distributions::Alphanumeric, Rng};
 use rmcp::service::{ClientInitializeError, ServiceError};
 use rmcp::transport::streamable_http_client::{
@@ -30,7 +30,7 @@ use super::extension::{
     ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult, PlatformExtensionContext,
     ToolInfo, PLATFORM_EXTENSIONS,
 };
-use super::tool_execution::ToolCallResult;
+use super::tool_execution::DeferredToolCall;
 use super::types::SharedProvider;
 use crate::agents::extension::{Envs, ProcessExit};
 use crate::agents::extension_malware_check;
@@ -446,12 +446,18 @@ impl ExtensionManager {
     pub fn new(
         provider: SharedProvider,
         session_manager: Arc<crate::session::SessionManager>,
+        sub_recipes: Option<
+            Arc<tokio::sync::RwLock<std::collections::HashMap<String, crate::recipe::SubRecipe>>>,
+        >,
+        goose_mode: crate::config::GooseMode,
     ) -> Self {
         Self {
             extensions: Mutex::new(HashMap::new()),
             context: PlatformExtensionContext {
                 extension_manager: None,
                 session_manager,
+                sub_recipes,
+                goose_mode,
             },
             provider,
             tools_cache: Mutex::new(None),
@@ -462,7 +468,12 @@ impl ExtensionManager {
     #[cfg(test)]
     pub fn new_without_provider(data_dir: std::path::PathBuf) -> Self {
         let session_manager = Arc::new(crate::session::SessionManager::new(data_dir));
-        Self::new(Arc::new(Mutex::new(None)), session_manager)
+        Self::new(
+            Arc::new(Mutex::new(None)),
+            session_manager,
+            None,
+            crate::config::GooseMode::Auto,
+        )
     }
 
     pub fn get_context(&self) -> &PlatformExtensionContext {
@@ -1195,7 +1206,7 @@ impl ExtensionManager {
         session_id: &str,
         tool_call: CallToolRequestParams,
         cancellation_token: CancellationToken,
-    ) -> Result<ToolCallResult> {
+    ) -> Result<DeferredToolCall> {
         // Some models strip the tool prefix, so auto-add it for known code_execution tools
         let tool_name_str = tool_call.name.to_string();
         let prefixed_name = if !tool_name_str.contains("__") {
@@ -1250,32 +1261,24 @@ impl ExtensionManager {
         }
 
         let arguments = tool_call.arguments.clone();
-        let client = client.clone();
         let notifications_receiver = client.lock().await.subscribe().await;
-        let session_id = session_id.to_string();
 
-        let fut = async move {
-            tracing::debug!(
-                "dispatch_tool_call fut: calling client.call_tool tool={} session_id={}",
-                tool_name,
-                session_id
-            );
-            let client_guard = client.lock().await;
-            client_guard
-                .call_tool(&session_id, &tool_name, arguments, cancellation_token)
-                .await
-                .map_err(|e| match e {
-                    ServiceError::McpError(error_data) => error_data,
-                    _ => {
-                        ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), e.maybe_to_value())
-                    }
-                })
-        };
+        let mut result = client
+            .lock()
+            .await
+            .call_tool_deferred(session_id, &tool_name, arguments, cancellation_token)
+            .await
+            .map_err(|e| match e {
+                ServiceError::McpError(error_data) => error_data,
+                _ => ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), e.maybe_to_value()),
+            })?;
 
-        Ok(ToolCallResult {
-            result: Box::new(fut.boxed()),
-            notification_stream: Some(Box::new(ReceiverStream::new(notifications_receiver))),
-        })
+        if result.notification_stream.is_none() {
+            result.notification_stream =
+                Some(Box::new(ReceiverStream::new(notifications_receiver)));
+        }
+
+        Ok(result)
     }
 
     pub async fn list_prompts_from_extension(
