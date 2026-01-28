@@ -45,11 +45,7 @@ fn format_tool_response(
 
     match &response.tool_result {
         Ok(call_result) => {
-            let abridged: Vec<_> = call_result
-                .content
-                .iter()
-                .map(|c| c.raw.clone())
-                .collect();
+            let abridged: Vec<_> = call_result.content.iter().map(|c| c.raw.clone()).collect();
 
             let mut tool_content = Vec::new();
             let mut image_messages = Vec::new();

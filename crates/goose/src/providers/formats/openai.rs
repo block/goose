@@ -132,11 +132,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                 MessageContent::ToolResponse(response) => {
                     match &response.tool_result {
                         Ok(result) => {
-                            let abridged: Vec<_> = result
-                                .content
-                                .iter()
-                                .cloned()
-                                .collect();
+                            let abridged: Vec<_> = result.content.to_vec();
 
                             // Process all content, replacing images with placeholder text
                             let mut tool_content = Vec::new();

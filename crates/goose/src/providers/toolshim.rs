@@ -39,7 +39,7 @@ use crate::model::ModelConfig;
 use crate::providers::formats::openai::create_request;
 use anyhow::Result;
 use reqwest::Client;
-use rmcp::model::{object, CallToolRequestParams, RawContent, Role, Tool};
+use rmcp::model::{object, CallToolRequestParams, RawContent, Tool};
 use serde_json::{json, Value};
 use std::ops::Deref;
 use std::time::Duration;
