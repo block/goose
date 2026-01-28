@@ -230,11 +230,18 @@ async fn start_agent(
             }
         })?;
 
-    let recipe_extensions = original_recipe
-        .as_ref()
-        .and_then(|r| r.extensions.as_deref());
-    let extensions_to_use =
-        resolve_extensions_for_new_session(recipe_extensions, extension_overrides);
+    let mut extensions_to_use = resolve_extensions_for_new_session(None, extension_overrides);
+    if let Some(recipe_extensions) = original_recipe.as_ref().and_then(|r| r.extensions.as_ref()) {
+        for recipe_ext in recipe_extensions {
+            let recipe_ext_name = recipe_ext.name();
+            if !extensions_to_use
+                .iter()
+                .any(|e| e.name() == recipe_ext_name)
+            {
+                extensions_to_use.push(recipe_ext.clone());
+            }
+        }
+    }
     let mut extension_data = session.extension_data.clone();
     let extensions_state = EnabledExtensionsState::new(extensions_to_use);
     if let Err(e) = extensions_state.to_extension_data(&mut extension_data) {
