@@ -227,11 +227,7 @@ async function streamFromResponse(
     }
   };
 
-  const maybeUpdateUI = (
-    tokenState: TokenState,
-    chatState: ChatState,
-    forceImmediate = false
-  ) => {
+  const maybeUpdateUI = (tokenState: TokenState, chatState: ChatState, forceImmediate = false) => {
     if (!reduceMotion) {
       dispatch({ type: 'SET_TOKEN_STATE', payload: tokenState });
       dispatch({ type: 'SET_MESSAGES', payload: currentMessages });
