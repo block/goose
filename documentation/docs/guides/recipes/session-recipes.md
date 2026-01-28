@@ -6,7 +6,7 @@ description: "Share a goose session setup (including tools, goals, and instructi
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import { PanelLeft, ChefHat, SquarePen, Link, Clock, Terminal } from 'lucide-react';
+import { PanelLeft, ChefHat, SquarePen, Link, Clock, Terminal, Share2 } from 'lucide-react';
 import RecipeFields from '@site/src/components/RecipeFields';
 
 Sometimes you finish a task in goose and realize, "Hey, this setup could be useful again." Maybe you have curated a great combination of tools, defined a clear goal, and want to preserve that flow. Or maybe you're trying to help someone else replicate what you just did without walking them through it step by step. 
@@ -229,6 +229,10 @@ You can turn your current goose session into a reusable recipe that includes the
          3. Find your recipe in the Recipe Library
          4. Click `Use` next to the recipe you want to open
 
+     **Slash Command:**
+
+         1. Enter a [custom slash command](/docs/guides/context-engineering/slash-commands) in any goose chat session
+
   2. The first time you run a recipe, a warning dialog displays the recipe's title, description, and instructions for you to review. If you trust the recipe content, click `Trust and Execute` to continue. You won't be prompted again for the same recipe unless it changes.
 
   3. If the recipe contains parameters, enter your values in the `Recipe Parameters` dialog and click `Start Recipe`.
@@ -361,6 +365,8 @@ You can turn your current goose session into a reusable recipe that includes the
        goose run --recipe recipe.yaml --params language=Python
        ```
 
+       **Slash Command** - Enter a [custom slash command](/docs/guides/context-engineering/slash-commands) in any goose chat session
+
      </TabItem>
 
      <TabItem value="github" label="GitHub Recipe">
@@ -415,55 +421,6 @@ You can turn your current goose session into a reusable recipe that includes the
 
    </TabItem>
 </Tabs>
-
-## Custom Recipe Commands
-Create shortcuts to quickly run recipes in any goose chat session. Type a custom command like `/daily-report` to instantly apply that recipe's instructions.
-
-<Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-   1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-   2. Click `Recipes` in the sidebar
-   3. Find the recipe you want to edit and click the <Terminal className="inline" size={16} /> button
-   4. In the modal that pops up, type your custom command (without the leading `/`) into the text box
-   5. Click `Save`.
- 
-  Once you assign a custom command, the `Recipes` menu displays that command in purple text under the recipe's creation date. Typing `/` into the goose Desktop chat window shows a popup menu with the available recipe commands.
-
-To run the recipe, type your custom command with a leading slash into any chat session in the desktop app: 
-```
-/run-tests
-```
-
- </TabItem>
-  <TabItem value="cli" label="goose CLI">
-
-  Custom slash commands are configured in your goose [configuration file](/docs/guides/config-files.md). List the command (without the leading `/`) along with the path to the recipe:
-
-```yaml title="~/.config/goose/config.yaml"
-slash_commands:
-  - command: "run-tests"
-    recipe_path: "/path/to/recipe.yaml"
-  - command: "daily-standup"
-    recipe_path: "/Users/me/.local/share/goose/recipes/standup.yaml"
-  ```
-
-  To run the recipe, type your custom command with a leading slash into any goose chat session: 
-  ```sh
-  Context: ●○○○○○○○○○ 5% (9695/200000 tokens)
-  ( O)> /run-tests
-  ```
-   </TabItem>
-</Tabs>
-
-When you run a recipe using a slash command, the recipe's instructions and prompt fields are sent to your model and loaded into the conversation, but not displayed in chat. The model responds using the recipe's context and instructions just as if you opened it directly. 
-
-:::info
-- Custom Recipe commands don't support parameters or arguments.
-- Command names are case-insensitive (`/Bug` and `/bug` are treated as the same command).
-- Commands must be unique and contain no spaces.
-- You cannot use names that conflict with [built-in CLI slash commands](/docs/guides/goose-cli-commands.md#slash-commands) like `/recipe`, `/compact`, or `/help`. 
-- If the recipe file is missing or invalid, the command will be treated as regular text sent to the model. 
-:::
 
 ## Validate Recipe
 
@@ -530,8 +487,29 @@ When someone clicks the link, it will open goose Desktop with your recipe config
 ### Share via Recipe File
 You can share a recipe with Desktop or CLI users by sending the recipe file directly.
 
-- Desktop users can [import the recipe](/docs/guides/recipes/storing-recipes#importing-recipes) (YAML only).
-- CLI users can run a YAML or JSON recipe using `goose run --recipe <FILE>` or open it directly in goose Desktop with `goose recipe open <FILE>`. See the [CLI Commands guide](/docs/guides/goose-cli-commands#recipe) for details.
+<Tabs groupId="interface">
+  <TabItem value="ui" label="goose Desktop" default>
+
+  In goose Desktop, you can export a recipe file or copy its content to share with others.
+
+  1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+  2. Click `Recipes` in the sidebar
+  3. Find the recipe you want to share and click the <Share2 className="inline" size={16} /> button
+  4. Choose a sharing method:
+     - To download the recipe as a `.yaml` file: Choose `Export to File`, select a download location, and click `Save`
+     - To copy the recipe's YAML content to your clipboard: Choose `Copy YAML`
+
+  Other Desktop users can [import the recipe](/docs/guides/recipes/storing-recipes#importing-recipes) to their Recipe Library.
+
+  </TabItem>
+  <TabItem value="cli" label="goose CLI">
+
+  Exporting or copying recipe content is only available through the Desktop, but you can copy local recipe files directly.
+
+  CLI users can run a shared recipe file using `goose run --recipe <FILE>` or open it directly in goose Desktop with `goose recipe open <FILE>`. See the [CLI Commands guide](/docs/guides/goose-cli-commands#recipe) for details.
+
+  </TabItem>
+</Tabs>
 
 ## Schedule Recipe
 <Tabs groupId="interface">

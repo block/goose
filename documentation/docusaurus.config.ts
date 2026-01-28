@@ -66,6 +66,8 @@ const config: Config = {
         },
         blog: {
           showReadingTime: true,
+          readingTime: ({ content, frontMatter, defaultReadingTime }) =>
+            frontMatter.reading_time ?? defaultReadingTime({ content }),
           feedOptions: {
             type: ["rss", "atom"],
             xslt: true,
@@ -510,14 +512,6 @@ const config: Config = {
         ],
         quickQuestions: ["What is goose?"],
       },
-    },
-    announcementBar: {
-      id: 'advent-of-ai',
-      content:
-        '❄️ Level up your AI skills with <a target="_blank" rel="noopener noreferrer" href="https://adventofai.dev">Advent of AI</a> ❄️',
-      backgroundColor: '#20232a',
-      textColor: '#fff',
-      isCloseable: false,
     },
     // announcementBar: {
     //   id: 'goose-grants',

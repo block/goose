@@ -7,12 +7,38 @@ export type NotificationEvent = Extract<MessageEvent, { type: 'Notification' }>;
 // Compaction response message - must match backend constant
 const COMPACTION_THINKING_TEXT = 'goose is compacting the conversation...';
 
-export function createUserMessage(text: string): Message {
+export interface ImageData {
+  data: string; // base64 encoded image data
+  mimeType: string;
+}
+
+export interface UserInput {
+  msg: string;
+  images: ImageData[];
+}
+
+export function createUserMessage(text: string, images?: ImageData[]): Message {
+  const content: Message['content'] = [];
+
+  if (text.trim()) {
+    content.push({ type: 'text', text });
+  }
+
+  if (images && images.length > 0) {
+    images.forEach((img) => {
+      content.push({
+        type: 'image',
+        data: img.data,
+        mimeType: img.mimeType,
+      });
+    });
+  }
+
   return {
     id: generateMessageId(),
     role: 'user',
     created: Math.floor(Date.now() / 1000),
-    content: [{ type: 'text', text }],
+    content,
     metadata: { userVisible: true, agentVisible: true },
   };
 }
@@ -43,13 +69,22 @@ export function generateMessageId(): string {
   return Math.random().toString(36).substring(2, 10);
 }
 
-export function getTextContent(message: Message): string {
-  return message.content
-    .map((content) => {
-      if (content.type === 'text') return content.text;
-      return '';
-    })
-    .join('');
+export function getTextAndImageContent(message: Message): {
+  textContent: string;
+  imagePaths: string[];
+} {
+  let textContent = '';
+  const imagePaths: string[] = [];
+
+  for (const content of message.content) {
+    if (content.type === 'text') {
+      textContent += content.text;
+    } else if (content.type === 'image') {
+      imagePaths.push(`data:${content.mimeType};base64,${content.data}`);
+    }
+  }
+
+  return { textContent, imagePaths };
 }
 
 export function getToolRequests(message: Message): (ToolRequest & { type: 'toolRequest' })[] {
@@ -71,6 +106,39 @@ export function getToolConfirmationContent(
     (content): content is ActionRequired & { type: 'actionRequired' } =>
       content.type === 'actionRequired' && content.data.actionType === 'toolConfirmation'
   );
+}
+
+export function getToolConfirmationId(
+  content: ActionRequired & { type: 'actionRequired' }
+): string | undefined {
+  if (content.data.actionType === 'toolConfirmation') {
+    return content.data.id;
+  }
+  return undefined;
+}
+
+export function getPendingToolConfirmationIds(messages: Message[]): Set<string> {
+  const pendingIds = new Set<string>();
+  const respondedIds = new Set<string>();
+
+  for (const message of messages) {
+    const responses = getToolResponses(message);
+    for (const response of responses) {
+      respondedIds.add(response.id);
+    }
+  }
+
+  for (const message of messages) {
+    const confirmation = getToolConfirmationContent(message);
+    if (confirmation) {
+      const confirmationId = getToolConfirmationId(confirmation);
+      if (confirmationId && !respondedIds.has(confirmationId)) {
+        pendingIds.add(confirmationId);
+      }
+    }
+  }
+
+  return pendingIds;
 }
 
 export function getElicitationContent(

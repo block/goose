@@ -4,10 +4,9 @@ import {
   getDefaultFormData,
   extensionToFormData,
   createExtensionConfig,
-  splitCmdAndArgs,
-  combineCmdAndArgs,
   extractCommand,
   extractExtensionName,
+  splitCmdAndArgs,
   DEFAULT_EXTENSION_TIMEOUT,
 } from './utils';
 import type { FixedExtensionEntry } from '../../ConfigContext';
@@ -75,31 +74,6 @@ describe('Extension Utils', () => {
           { key: 'API_KEY', value: '••••••••', isEdited: false },
           { key: 'SECRET', value: '••••••••', isEdited: false },
         ],
-        headers: [],
-      });
-    });
-
-    it('should convert sse extension to form data', () => {
-      const extension: FixedExtensionEntry = {
-        type: 'sse',
-        name: 'sse-extension',
-        description: 'SSE description',
-        uri: 'http://localhost:8080/events',
-        enabled: false,
-        env_keys: ['TOKEN'],
-      };
-
-      const formData = extensionToFormData(extension);
-
-      expect(formData).toEqual({
-        name: 'sse-extension',
-        description: 'SSE description',
-        type: 'sse',
-        cmd: undefined,
-        endpoint: 'http://localhost:8080/events',
-        enabled: false,
-        timeout: undefined,
-        envVars: [{ key: 'TOKEN', value: '••••••••', isEdited: false }],
         headers: [],
       });
     });
@@ -214,31 +188,6 @@ describe('Extension Utils', () => {
       });
     });
 
-    it('should create sse extension config', () => {
-      const formData = {
-        name: 'test-sse',
-        description: 'Test SSE extension',
-        type: 'sse' as const,
-        cmd: '',
-        endpoint: 'http://localhost:8080/events',
-        enabled: true,
-        timeout: 600,
-        envVars: [{ key: 'TOKEN', value: 'abc123', isEdited: true }],
-        headers: [],
-      };
-
-      const config = createExtensionConfig(formData);
-
-      expect(config).toEqual({
-        type: 'sse',
-        name: 'test-sse',
-        description: 'Test SSE extension',
-        timeout: 600,
-        uri: 'http://localhost:8080/events',
-        env_keys: ['TOKEN'],
-      });
-    });
-
     it('should create streamable_http extension config', () => {
       const formData = {
         name: 'test-http',
@@ -295,38 +244,21 @@ describe('Extension Utils', () => {
   });
 
   describe('splitCmdAndArgs', () => {
-    it('should split command and arguments correctly', () => {
-      expect(splitCmdAndArgs('python script.py --flag value')).toEqual({
-        cmd: 'python',
-        args: ['script.py', '--flag', 'value'],
-      });
-
-      expect(splitCmdAndArgs('node')).toEqual({
-        cmd: 'node',
-        args: [],
-      });
-
-      expect(splitCmdAndArgs('')).toEqual({
-        cmd: '',
-        args: [],
-      });
-
-      expect(splitCmdAndArgs('  multiple   spaces  between  args  ')).toEqual({
-        cmd: 'multiple',
-        args: ['spaces', 'between', 'args'],
-      });
-    });
-  });
-
-  describe('combineCmdAndArgs', () => {
-    it('should combine command and arguments correctly', () => {
-      expect(combineCmdAndArgs('python', ['script.py', '--flag', 'value'])).toBe(
-        'python script.py --flag value'
-      );
-
-      expect(combineCmdAndArgs('node', [])).toBe('node');
-
-      expect(combineCmdAndArgs('', ['arg1', 'arg2'])).toBe(' arg1 arg2');
+    it.each([
+      ['python script.py', { cmd: 'python', args: ['script.py'] }],
+      ['python script.py --flag', { cmd: 'python', args: ['script.py', '--flag'] }],
+      [
+        "java -classpath '/path/with spaces/lib.jar' Main",
+        { cmd: 'java', args: ['-classpath', '/path/with spaces/lib.jar', 'Main'] },
+      ],
+      [
+        'node --max-old-space-size=4096 app.js',
+        { cmd: 'node', args: ['--max-old-space-size=4096', 'app.js'] },
+      ],
+      ['  python   script.py  ', { cmd: 'python', args: ['script.py'] }],
+      ['', { cmd: '', args: [] }],
+    ])('splits %j correctly', (input, expected) => {
+      expect(splitCmdAndArgs(input)).toEqual(expected);
     });
   });
 

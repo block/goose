@@ -15,7 +15,7 @@ use goose::providers::canonical::{
 use goose::providers::{canonical::ModelMapping, create_with_named_model};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::PathBuf;
 
 const OPENROUTER_API_URL: &str = "https://openrouter.ai/api/v1/models";
@@ -63,16 +63,16 @@ struct MappingReport {
 
     /// All mappings: (provider, model) -> canonical model
     /// Stored per provider for backward compatibility
-    all_mappings: HashMap<String, Vec<ModelMapping>>,
+    all_mappings: BTreeMap<String, Vec<ModelMapping>>,
 
     /// Flat list of all mappings for easier comparison (lock file format)
     mapped_models: Vec<MappingEntry>,
 
     /// Total models checked per provider
-    model_counts: HashMap<String, usize>,
+    model_counts: BTreeMap<String, usize>,
 
     /// Canonical models referenced
-    canonical_models_used: HashSet<String>,
+    canonical_models_used: BTreeSet<String>,
 }
 
 impl MappingReport {
@@ -80,10 +80,10 @@ impl MappingReport {
         Self {
             timestamp: chrono::Utc::now().to_rfc3339(),
             unmapped_models: Vec::new(),
-            all_mappings: HashMap::new(),
+            all_mappings: BTreeMap::new(),
             mapped_models: Vec::new(),
-            model_counts: HashMap::new(),
-            canonical_models_used: HashSet::new(),
+            model_counts: BTreeMap::new(),
+            canonical_models_used: BTreeSet::new(),
         }
     }
 
@@ -276,7 +276,25 @@ impl MappingReport {
     }
 
     fn save_to_file(&self, path: &PathBuf) -> Result<()> {
-        let json = serde_json::to_string_pretty(self).context("Failed to serialize report")?;
+        let mut report = self.clone();
+
+        report.unmapped_models.sort_by(|a, b| {
+            a.provider
+                .cmp(&b.provider)
+                .then_with(|| a.model.cmp(&b.model))
+        });
+
+        report.mapped_models.sort_by(|a, b| {
+            a.provider
+                .cmp(&b.provider)
+                .then_with(|| a.model.cmp(&b.model))
+        });
+
+        for mappings in report.all_mappings.values_mut() {
+            mappings.sort_by(|a, b| a.provider_model.cmp(&b.provider_model));
+        }
+
+        let json = serde_json::to_string_pretty(&report).context("Failed to serialize report")?;
         std::fs::write(path, json).context("Failed to write report file")?;
         Ok(())
     }
@@ -289,6 +307,7 @@ impl MappingReport {
     }
 }
 
+#[allow(clippy::too_many_lines)]
 async fn build_canonical_models() -> Result<()> {
     println!("Fetching models from OpenRouter API...");
 
@@ -436,7 +455,7 @@ async fn build_canonical_models() -> Result<()> {
             .and_then(|v| v.as_u64())
             .map(|v| v as usize);
 
-        let input_modalities: Vec<String> = model
+        let mut input_modalities: Vec<String> = model
             .get("architecture")
             .and_then(|arch| arch.get("input_modalities"))
             .and_then(|v| v.as_array())
@@ -447,8 +466,9 @@ async fn build_canonical_models() -> Result<()> {
                     .collect()
             })
             .unwrap_or_else(|| vec!["text".to_string()]);
+        input_modalities.sort();
 
-        let output_modalities: Vec<String> = model
+        let mut output_modalities: Vec<String> = model
             .get("architecture")
             .and_then(|arch| arch.get("output_modalities"))
             .and_then(|v| v.as_array())
@@ -459,6 +479,7 @@ async fn build_canonical_models() -> Result<()> {
                     .collect()
             })
             .unwrap_or_else(|| vec!["text".to_string()]);
+        output_modalities.sort();
 
         let supports_tools = model
             .get("supported_parameters")

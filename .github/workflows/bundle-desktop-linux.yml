@@ -21,7 +21,7 @@ name: "Bundle Desktop (Linux)"
 jobs:
   build-desktop-linux:
     name: Build Desktop (Linux)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-x86-16core-64gb
 
     steps:
       - name: Checkout repository
@@ -76,7 +76,14 @@ jobs:
             rpm \
             fakeroot \
             dpkg-dev \
-            protobuf-compiler
+            protobuf-compiler \
+            flatpak \
+            flatpak-builder \
+            elfutils
+
+      - name: Setup Flatpak Runtimes
+        run: |
+          flatpak remote-add --if-not-exists --user flathub https://dl.flathub.org/repo/flathub.flatpakrepo
 
       - name: Activate hermit and set CARGO_HOME
         run: |
@@ -88,7 +95,7 @@ jobs:
         run: source ./bin/activate-hermit && cargo install cross --git https://github.com/cross-rs/cross
 
       - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2
+        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5  # v2.8.2
         with:
           key: linux
 
@@ -136,14 +143,14 @@ jobs:
         run: |
           source ./bin/activate-hermit
           cd ui/desktop
-          echo "Building Linux packages (.deb and .rpm)..."
+          echo "Building Linux packages (.deb, .rpm, and .flatpak)..."
 
-          # Build both .deb and .rpm packages
+          # Build all configured packages
           npm run make -- --platform=linux --arch=x64
 
           echo "Build completed. Checking output..."
           ls -la out/
-          find out/ -name "*.deb" -o -name "*.rpm" | head -10
+          find out/ -name "*.deb" -o -name "*.rpm" -o -name "*.flatpak" | head -10
 
       - name: List generated files
         run: |
@@ -151,10 +158,10 @@ jobs:
           find ui/desktop/out/ -type f | head -20
           echo ""
           echo "=== Package files specifically ==="
-          find ui/desktop/out/ -name "*.deb" -o -name "*.rpm"
+          find ui/desktop/out/ -name "*.deb" -o -name "*.rpm" -o -name "*.flatpak"
           echo ""
           echo "=== File sizes ==="
-          find ui/desktop/out/ -name "*.deb" -o -name "*.rpm" -exec ls -lh {} \;
+          find ui/desktop/out/ -name "*.deb" -o -name "*.rpm" -o -name "*.flatpak" -exec ls -lh {} \;
 
       - name: Upload .deb package
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -170,6 +177,13 @@ jobs:
           path: ui/desktop/out/make/rpm/x64/*.rpm
           if-no-files-found: error
 
+      - name: Upload .flatpak package
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: Goose-linux-x64-flatpak
+          path: ui/desktop/out/make/flatpak/**/*.flatpak
+          if-no-files-found: error
+
       - name: Upload combined Linux packages
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -177,4 +191,5 @@ jobs:
           path: |
             ui/desktop/out/make/deb/x64/*.deb
             ui/desktop/out/make/rpm/x64/*.rpm
+            ui/desktop/out/make/flatpak/**/*.flatpak
           if-no-files-found: error

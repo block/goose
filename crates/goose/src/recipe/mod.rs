@@ -28,6 +28,16 @@ fn default_version() -> String {
     "1.0.0".to_string()
 }
 
+/// Strips location information (e.g., "at line X column Y") from error messages
+/// to make them more user-friendly for UI display.
+pub fn strip_error_location(error_msg: &str) -> String {
+    error_msg
+        .split(" at line")
+        .next()
+        .unwrap_or_default()
+        .to_string()
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
 pub struct Recipe {
     // Required fields
@@ -268,24 +278,15 @@ impl Recipe {
             Ok(yaml_value) => {
                 if let Some(nested_recipe) = yaml_value.get("recipe") {
                     serde_yaml::from_value(nested_recipe.clone())
-                        .map_err(|e| anyhow::anyhow!("Failed to parse nested recipe: {}", e))?
+                        .map_err(|e| anyhow::anyhow!("{}", strip_error_location(&e.to_string())))?
                 } else {
                     serde_yaml::from_str(content)
-                        .map_err(|e| anyhow::anyhow!("Failed to parse recipe: {}", e))?
+                        .map_err(|e| anyhow::anyhow!("{}", strip_error_location(&e.to_string())))?
                 }
             }
             Err(_) => serde_yaml::from_str(content)
-                .map_err(|e| anyhow::anyhow!("Failed to parse recipe: {}", e))?,
+                .map_err(|e| anyhow::anyhow!("{}", strip_error_location(&e.to_string())))?,
         };
-
-        if let Some(ref retry_config) = recipe.retry {
-            if let Err(validation_error) = retry_config.validate() {
-                return Err(anyhow::anyhow!(
-                    "Invalid retry configuration: {}",
-                    validation_error
-                ));
-            }
-        }
 
         Ok(recipe)
     }
@@ -771,5 +772,53 @@ isGlobal: true"#;
         } else {
             panic!("Expected Stdio extension");
         }
+    }
+
+    #[test]
+    fn test_format_serde_error_removes_location() {
+        let content = r#"{"version": "1.0.0"}"#;
+
+        let result = Recipe::from_content(content);
+        assert!(result.is_err());
+
+        let error_msg = result.unwrap_err().to_string();
+        assert_eq!(error_msg, "missing field `title`");
+    }
+
+    #[test]
+    fn test_format_serde_error_missing_title() {
+        let content = r#"{
+            "version": "1.0.0",
+            "description": "A test recipe",
+            "instructions": "Test instructions"
+        }"#;
+
+        let result = Recipe::from_content(content);
+        assert!(result.is_err());
+
+        let error_msg = result.unwrap_err().to_string();
+        assert_eq!(error_msg, "missing field `title`");
+    }
+
+    #[test]
+    fn test_format_serde_error_invalid_type() {
+        let content = r#"{
+            "version": "1.0.0",
+            "title": "Test",
+            "description": "Test",
+            "instructions": "Test",
+            "settings": {
+                "temperature": "not_a_number"
+            }
+        }"#;
+
+        let result = Recipe::from_content(content);
+        assert!(result.is_err());
+
+        let error_msg = result.unwrap_err().to_string();
+        assert_eq!(
+            error_msg,
+            "settings.temperature: invalid type: string \"not_a_number\", expected f32"
+        );
     }
 }

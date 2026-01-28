@@ -1,4 +1,4 @@
-use anyhow::{Error, Result};
+use anyhow::Result;
 use async_trait::async_trait;
 use serde_json::{json, Value};
 
@@ -7,26 +7,27 @@ use super::base::{ConfigKey, MessageStream, Provider, ProviderMetadata, Provider
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::{
-    get_model, handle_response_google_compat, handle_response_openai_compat,
-    handle_status_openai_compat, is_google_model, stream_openai_compat, RequestLog,
+    get_model, handle_response_openai_compat, handle_status_openai_compat, stream_openai_compat,
+    RequestLog,
 };
 use crate::conversation::message::Message;
 
 use crate::model::ModelConfig;
-use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
+use crate::providers::formats::openai::{create_request, get_usage};
+use crate::providers::formats::openrouter as openrouter_format;
 use rmcp::model::Tool;
 
 pub const OPENROUTER_DEFAULT_MODEL: &str = "anthropic/claude-sonnet-4";
-pub const OPENROUTER_DEFAULT_FAST_MODEL: &str = "google/gemini-flash-2.5";
+pub const OPENROUTER_DEFAULT_FAST_MODEL: &str = "google/gemini-2.5-flash";
 pub const OPENROUTER_MODEL_PREFIX_ANTHROPIC: &str = "anthropic";
 
 // OpenRouter can run many models, we suggest the default
 pub const OPENROUTER_KNOWN_MODELS: &[&str] = &[
+    "x-ai/grok-code-fast-1",
     "anthropic/claude-sonnet-4.5",
     "anthropic/claude-sonnet-4",
     "anthropic/claude-opus-4.1",
     "anthropic/claude-opus-4",
-    "anthropic/claude-3.7-sonnet",
     "google/gemini-2.5-pro",
     "google/gemini-2.5-flash",
     "deepseek/deepseek-r1-0528",
@@ -68,33 +69,21 @@ impl OpenRouterProvider {
         })
     }
 
-    async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
+    async fn post(
+        &self,
+        session_id: Option<&str>,
+        payload: &Value,
+    ) -> Result<Value, ProviderError> {
         let response = self
             .api_client
-            .response_post("api/v1/chat/completions", payload)
+            .response_post(session_id, "api/v1/chat/completions", payload)
             .await?;
 
-        // Handle Google-compatible model responses differently
-        if is_google_model(payload) {
-            return handle_response_google_compat(response).await;
-        }
-
-        // For OpenAI-compatible models, parse the response body to JSON
         let response_body = handle_response_openai_compat(response)
             .await
             .map_err(|e| ProviderError::RequestFailed(format!("Failed to parse response: {e}")))?;
 
-        let _debug = format!(
-            "OpenRouter request with payload: {} and response: {}",
-            serde_json::to_string_pretty(payload).unwrap_or_else(|_| "Invalid JSON".to_string()),
-            serde_json::to_string_pretty(&response_body)
-                .unwrap_or_else(|_| "Invalid JSON".to_string())
-        );
-
-        // OpenRouter can return errors in 200 OK responses, so we have to check for errors explicitly
-        // https://openrouter.ai/docs/api-reference/errors
         if let Some(error_obj) = response_body.get("error") {
-            // If there's an error object, extract the error message and code
             let error_message = error_obj
                 .get("message")
                 .and_then(|m| m.as_str())
@@ -102,14 +91,12 @@ impl OpenRouterProvider {
 
             let error_code = error_obj.get("code").and_then(|c| c.as_u64()).unwrap_or(0);
 
-            // Check for context length errors in the error message
             if error_code == 400 && error_message.contains("maximum context length") {
                 return Err(ProviderError::ContextLengthExceeded(
                     error_message.to_string(),
                 ));
             }
 
-            // Return appropriate error based on the OpenRouter error code
             match error_code {
                 401 | 403 => return Err(ProviderError::Authentication(error_message.to_string())),
                 429 => {
@@ -123,7 +110,6 @@ impl OpenRouterProvider {
             }
         }
 
-        // No error detected, return the response body
         Ok(response_body)
     }
 }
@@ -201,12 +187,17 @@ fn update_request_for_anthropic(original_payload: &Value) -> Value {
     payload
 }
 
+fn is_gemini_model(model_name: &str) -> bool {
+    model_name.starts_with("google/")
+}
+
 async fn create_request_based_on_model(
     provider: &OpenRouterProvider,
+    session_id: Option<&str>,
     system: &str,
     messages: &[Message],
     tools: &[Tool],
-) -> anyhow::Result<Value, Error> {
+) -> Result<Value> {
     let mut payload = create_request(
         &provider.model,
         system,
@@ -216,14 +207,23 @@ async fn create_request_based_on_model(
         false,
     )?;
 
+    if let Some(session_id) = session_id.filter(|id| !id.is_empty()) {
+        if let Some(obj) = payload.as_object_mut() {
+            obj.insert("user".to_string(), Value::String(session_id.to_string()));
+        }
+    }
+
     if provider.supports_cache_control().await {
         payload = update_request_for_anthropic(&payload);
     }
 
-    payload
-        .as_object_mut()
-        .unwrap()
-        .insert("transforms".to_string(), json!(["middle-out"]));
+    if is_gemini_model(&provider.model.model_name) {
+        openrouter_format::add_reasoning_details_to_request(&mut payload, messages);
+    }
+
+    if let Some(obj) = payload.as_object_mut() {
+        obj.insert("transforms".to_string(), json!(["middle-out"]));
+    }
 
     Ok(payload)
 }
@@ -264,29 +264,34 @@ impl Provider for OpenRouterProvider {
     )]
     async fn complete_with_model(
         &self,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = create_request_based_on_model(self, system, messages, tools).await?;
+        let payload =
+            create_request_based_on_model(self, session_id, system, messages, tools).await?;
         let mut log = RequestLog::start(model_config, &payload)?;
 
-        // Make request
         let response = self
             .with_retry(|| async {
                 let payload_clone = payload.clone();
-                self.post(&payload_clone).await
+                self.post(session_id, &payload_clone).await
             })
             .await?;
 
-        // Parse response
-        let message = response_to_message(&response)?;
+        let response_model = get_model(&response);
+        let message = if is_gemini_model(&self.model.model_name) {
+            openrouter_format::response_to_message(&response)?
+        } else {
+            crate::providers::formats::openai::response_to_message(&response)?
+        };
+
         let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
             tracing::debug!("Failed to get usage data");
             Usage::default()
         });
-        let response_model = get_model(&response);
         log.write(&response, Some(&usage))?;
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
@@ -295,7 +300,12 @@ impl Provider for OpenRouterProvider {
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         // Handle request failures gracefully
         // If the request fails, fall back to manual entry
-        let response = match self.api_client.response_get("api/v1/models").await {
+        let response = match self
+            .api_client
+            .request(None, "api/v1/models")
+            .response_get()
+            .await
+        {
             Ok(response) => response,
             Err(e) => {
                 tracing::warn!("Failed to fetch models from OpenRouter API: {}, falling back to manual model entry", e);
@@ -380,6 +390,7 @@ impl Provider for OpenRouterProvider {
 
     async fn stream(
         &self,
+        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -397,10 +408,13 @@ impl Provider for OpenRouterProvider {
             payload = update_request_for_anthropic(&payload);
         }
 
-        payload
-            .as_object_mut()
-            .unwrap()
-            .insert("transforms".to_string(), json!(["middle-out"]));
+        if is_gemini_model(&self.model.model_name) {
+            openrouter_format::add_reasoning_details_to_request(&mut payload, messages);
+        }
+
+        if let Some(obj) = payload.as_object_mut() {
+            obj.insert("transforms".to_string(), json!(["middle-out"]));
+        }
 
         let mut log = RequestLog::start(&self.model, &payload)?;
 
@@ -408,7 +422,7 @@ impl Provider for OpenRouterProvider {
             .with_retry(|| async {
                 let resp = self
                     .api_client
-                    .response_post("api/v1/chat/completions", &payload)
+                    .response_post(Some(session_id), "api/v1/chat/completions", &payload)
                     .await?;
                 handle_status_openai_compat(resp).await
             })

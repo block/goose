@@ -390,4 +390,57 @@ Another very long URL: https://www.example.com/very/long/path/with/many/segments
       expect(markdownContainer).toHaveClass('prose-a:overflow-wrap-anywhere');
     });
   });
+
+  describe('KaTeX Math Rendering - singleDollarTextMath: false', () => {
+    it('treats single dollar signs as plain text', async () => {
+      const content = 'The formula $x_i$ represents the i-th element.';
+
+      const { container } = render(<MarkdownContent content={content} />);
+
+      await waitFor(() => {
+        const katexElements = container.querySelectorAll('.katex');
+        expect(katexElements.length).toBe(0);
+        expect(container).toHaveTextContent('$x_i$');
+      });
+    });
+
+    it('renders double dollar signs as display math', async () => {
+      const content = `Calculate
+
+$$
+x^2 + y^2
+$$
+
+for the result.`;
+
+      const { container } = render(<MarkdownContent content={content} />);
+
+      await waitFor(() => {
+        const katexDisplay = container.querySelector('.katex-display');
+        expect(katexDisplay).toBeInTheDocument();
+      });
+    });
+
+    it('handles shell commands without triggering math mode', async () => {
+      const content = 'Run echo "$FOO_BAR" to see the value.';
+
+      const { container } = render(<MarkdownContent content={content} />);
+
+      await waitFor(() => {
+        const katexElements = container.querySelectorAll('.katex');
+        expect(katexElements.length).toBe(0);
+        expect(container).toHaveTextContent('$FOO_BAR');
+      });
+    });
+
+    it('preserves math in code blocks', async () => {
+      const content = 'The formula `math\nx^2\n` uses inline code.';
+
+      const { container } = render(<MarkdownContent content={content} />);
+
+      await waitFor(() => {
+        expect(container).toHaveTextContent('x^2');
+      });
+    });
+  });
 });

@@ -169,7 +169,7 @@ jobs:
 
       - name: Configure AWS credentials
         if: ${{ inputs.signing }}
-        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4
+        uses: aws-actions/configure-aws-credentials@61815dcd50bd041e203e49132bacad1fd04d2708  # v5.1.1
         with:
           role-to-assume: "${{ secrets.OSX_CODESIGN_ROLE }}"
           aws-region: us-west-2

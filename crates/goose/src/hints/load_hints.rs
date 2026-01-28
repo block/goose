@@ -123,7 +123,7 @@ pub fn load_hint_files(
 mod tests {
     use super::*;
     use ignore::gitignore::GitignoreBuilder;
-    use std::fs::{self};
+    use std::fs;
     use tempfile::TempDir;
 
     fn create_dummy_gitignore() -> Gitignore {

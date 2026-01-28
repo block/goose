@@ -97,7 +97,7 @@ const CodeBlock = memo(function CodeBlock({
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-all',
             overflowWrap: 'break-word',
-            fontFamily: 'var(--font-sans)',
+            fontFamily: 'var(--font-mono)',
             fontSize: '14px',
           },
         }}
@@ -136,7 +136,7 @@ const MarkdownCode = memo(
     return !inline && match ? (
       <CodeBlock language={match[1]}>{String(children).replace(/\n$/, '')}</CodeBlock>
     ) : (
-      <code ref={ref} {...props} className="break-all bg-inline-code whitespace-pre-wrap font-sans">
+      <code ref={ref} {...props} className="break-all bg-inline-code whitespace-pre-wrap font-mono">
         {children}
       </code>
     );
@@ -155,7 +155,6 @@ const MarkdownContent = memo(function MarkdownContent({
       setProcessedContent(processed);
     } catch (error) {
       console.error('Error processing content:', error);
-      // Fallback to original content if processing fails
       setProcessedContent(content);
     }
   }, [content]);
@@ -164,7 +163,7 @@ const MarkdownContent = memo(function MarkdownContent({
     <div
       className={`w-full overflow-x-hidden prose prose-sm text-text-default dark:prose-invert max-w-full word-break font-sans
       prose-pre:p-0 prose-pre:m-0 !p-0
-      prose-code:break-all prose-code:whitespace-pre-wrap prose-code:font-sans
+      prose-code:break-all prose-code:whitespace-pre-wrap prose-code:font-mono
       prose-a:break-all prose-a:overflow-wrap-anywhere
       prose-table:table prose-table:w-full
       prose-blockquote:text-inherit
@@ -180,7 +179,7 @@ const MarkdownContent = memo(function MarkdownContent({
       prose-li:m-0 prose-li:font-sans ${className}`}
     >
       <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkBreaks, remarkMath]}
+        remarkPlugins={[remarkGfm, remarkBreaks, [remarkMath, { singleDollarTextMath: false }]]}
         rehypePlugins={[
           [
             rehypeKatex,

@@ -21,20 +21,20 @@ This tutorial covers how to add the JetBrains extension to integrate with any Je
 <Tabs groupId="ideVersion">
   <TabItem value="later" label="2025.2 and later" default>
 
-    Versions 2025.2 and later have built-in MCP server support and generate a dynamic configuration specific to your IDE instance.
-    
-    The instructions in this tutorial show how to configure the recommended remote SSE extension. See your IDE's documentation for more details (e.g. [MCP Server](https://www.jetbrains.com/help/idea/mcp-server.html) for IntelliJ IDEA).
+    Versions 2025.2 and later have built-in MCP server support and generate a dynamic configuration specific to your IDE instance. See your IDE's documentation for more details (e.g. [MCP Server](https://www.jetbrains.com/help/idea/mcp-server.html) for IntelliJ IDEA).
 
+    <!-- hide until parsing bugs for paths with spaces are fixed in Desktop and CLI
     :::tip TLDR
     <Tabs groupId="interface">
       <TabItem value="ui" label="goose Desktop" default>
-      Use `Add custom extension` in Settings → Extensions to add a `Server-Sent Events (SSE)` extension type with your IDE-specific SSE config.
+      Use `Add custom extension` in Settings → Extensions with the command from `Copy Stdio Config` in your IDE.
       </TabItem>
       <TabItem value="cli" label="goose CLI">
-      Use `goose configure` to add a `Remote Extension (SSE)` extension type with your IDE-specific SSE config.
+      Use `goose configure` with the command from `Copy Stdio Config` in your IDE.
       </TabItem>
     </Tabs>
     :::
+    -->
 
     <br/>
     Configure the extension using your IDE's built-in MCP server support:
@@ -43,11 +43,16 @@ This tutorial covers how to add the JetBrains extension to integrate with any Je
 
        1. Go to `Settings > Tools > MCP Server` in your IDE
        2. If needed, click `Enable MCP Server` to enable the MCP server
-       3. Click `Copy SSE Config`
+       3. Click `Copy Stdio Config`
        4. Click `OK` to save your changes and start the server
-       5. Copy the `url` value from the config
+       5. Copy the `command`, `args`, and `env` values from the config
 
-    2. Add the JetBrains extension to goose, replacing "YOUR_IDE_SPECIFIC_URL" in the instructions with the URL you copied:
+    2. Add the JetBrains extension to goose using the command from the config:
+
+       :::info 
+       If the goose Desktop or goose CLI configuration steps aren't successful, follow the `Config File` steps.
+       :::
+
        <Tabs groupId="interface">
          <TabItem value="ui" label="goose Desktop" default>
            1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
@@ -55,19 +60,56 @@ This tutorial covers how to add the JetBrains extension to integrate with any Je
            3. Click `Add custom extension`
            4. On the `Add custom extension` modal, enter the following:
               - **Extension Name**: JetBrains
-              - **Type**: Server-Sent Events (SSE)
-              - **Endpoint**: YOUR_IDE_SPECIFIC_URL
+              - **Type**: STDIO
+              - **Description**: Integrate goose with any JetBrains IDE
+              - **Command**: Combine the `command` and `args` from your IDE's Stdio config into a single command string
+              - **Environment Variables**: Add `IJ_MCP_SERVER_PORT` with the port value from the `env` section of your copied Stdio config
            5. Click `Add Extension` to save the extension
            6. Navigate to the chat
          </TabItem>
          <TabItem value="cli" label="goose CLI">
-           <CLIExtensionInstructions            
+           <CLIExtensionInstructions
              name="jetbrains"
              description="Integrate goose with any JetBrains IDE"
-             type="sse"
-             url="YOUR_IDE_SPECIFIC_URL"
+             type="stdio"
+             command="YOUR_COMMAND_AND_ARGS_FROM_IDE"
              timeout={300}
+             envVars={[{ key: "IJ_MCP_SERVER_PORT", value: "YOUR_PORT_FROM_IDE" }]}
+             commandNote={
+               <>
+                 Combine <code>command</code> and <code>args</code> into a single string. The port value comes from the <code>env</code> section of your copied Stdio config.
+               </>
+             }
            />
+         </TabItem>
+         <TabItem value="config" label="Config File">
+           1. Open your goose [`config.yaml`](/docs/guides/config-files) file
+           2. In the `extensions` section, add an entry that uses your IDE's Stdio config, for example:
+
+              ```yaml
+              extensions:
+                jetbrains:
+                  enabled: true
+                  type: stdio
+                  name: JetBrains
+                  description: Integrate goose with any JetBrains IDE
+                  cmd: /Applications/IntelliJ IDEA.app/Contents/jbr/Contents/Home/bin/java
+                  args:
+                  - -classpath
+                  - /Applications/IntelliJ IDEA.app/Contents/plugins/mcpserver/lib/mcpserver-frontend.jar:/Applications/IntelliJ IDEA.app/Contents/lib/util-8.jar
+                  - com.intellij.mcpserver.stdio.McpStdioRunnerKt
+                  envs:
+                    IJ_MCP_SERVER_PORT: "63342"
+                  env_keys:
+                  - IJ_MCP_SERVER_PORT
+                  timeout: 300
+                  bundled: null
+                  available_tools: []
+              ```
+
+              Make sure to:
+              - Replace the `cmd` and `args` values in the example to match your JetBrains IDE installation
+              - Update `IJ_MCP_SERVER_PORT` to match your IDE's MCP server port
          </TabItem>
        </Tabs>
   </TabItem>
@@ -158,8 +200,8 @@ Anthropic's Claude 4 Sonnet was used for this task.
   </TabItem>
 </Tabs>
 
-:::tip 
-When using goose to refactor code, it's recommended to commit your code to version control _before_ making changes. This way, you have a clean snapshot to compare against, making it easy to review goose’s modifications, revert if needed, and track improvements.
+:::tip
+When using goose to refactor code, it's recommended to commit your code to version control _before_ making changes. This way, you have a clean snapshot to compare against, making it easy to review goose's modifications, revert if needed, and track improvements.
 :::
 
 ### goose Prompt
@@ -175,7 +217,7 @@ After 2 minutes, goose was done with the upgrade! 🎉
 I'll make several improvements to modernize this codebase to use Java 21 (latest LTS) features. Here are the changes I'll implement:
 
 1. Update the `pom.xml` to use Java 21
-2. Use newer Java features 
+2. Use newer Java features
 
 [... code changes ...]
 
@@ -244,7 +286,6 @@ The codebase is now using the latest Java LTS version (21) and incorporates many
 - Error handling
 - Performance
 ```
-
 
 
 

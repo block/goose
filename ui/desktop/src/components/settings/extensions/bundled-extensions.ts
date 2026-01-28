@@ -10,7 +10,7 @@ type BundledExtension = {
   display_name?: string;
   description: string;
   enabled: boolean;
-  type: 'builtin' | 'stdio' | 'sse';
+  type: 'builtin' | 'stdio' | 'streamable_http';
   cmd?: string;
   args?: string[];
   uri?: string;
@@ -80,7 +80,7 @@ export async function syncBundledExtensions(
             bundled: true,
           };
           break;
-        case 'sse':
+        case 'streamable_http':
           extConfig = {
             type: bundledExt.type,
             name: bundledExt.name,

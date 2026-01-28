@@ -1,0 +1,47 @@
+[
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "Echo: Hello, world!"
+      }
+    ]
+  },
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "The sum of 1 and 2 is 3."
+      }
+    ]
+  },
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "Long running operation completed. Duration: 1 seconds, Steps: 5."
+      }
+    ]
+  },
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"temperature\":33,\"conditions\":\"Cloudy\",\"humidity\":82}"
+      }
+    ],
+    "structuredContent": {
+      "conditions": "Cloudy",
+      "humidity": 82,
+      "temperature": 33
+    }
+  },
+  {
+    "content": [
+      {
+        "type": "text",
+        "text": "LLM sampling result: \n{\n  \"model\": \"mock\",\n  \"stopReason\": \"endTurn\",\n  \"role\": \"assistant\",\n  \"content\": {\n    \"type\": \"text\",\n    \"text\": \"\\\"So we beat on, boats against the current, borne back ceaselessly into the past.\\\" — F. Scott Fitzgerald, The Great Gatsby (1925)\"\n  }\n}"
+      }
+    ]
+  }
+]

@@ -5,15 +5,13 @@ use anyhow::Result;
 use async_trait::async_trait;
 use boa_engine::builtins::promise::PromiseState;
 use boa_engine::module::{MapModuleLoader, Module, SyntheticModuleInitializer};
-use boa_engine::property::Attribute;
 use boa_engine::{js_string, Context, JsNativeError, JsString, JsValue, NativeFunction, Source};
 use indoc::indoc;
 use regex::Regex;
 use rmcp::model::{
-    CallToolRequestParam, CallToolResult, Content, GetPromptResult, Implementation,
-    InitializeResult, JsonObject, ListPromptsResult, ListResourcesResult, ListToolsResult,
-    ProtocolVersion, RawContent, ReadResourceResult, ServerCapabilities, ServerNotification,
-    Tool as McpTool, ToolAnnotations, ToolsCapability,
+    CallToolRequestParams, CallToolResult, Content, Implementation, InitializeResult, JsonObject,
+    ListToolsResult, ProtocolVersion, RawContent, ServerCapabilities, Tool as McpTool,
+    ToolAnnotations, ToolsCapability,
 };
 use schemars::{schema_for, JsonSchema};
 use serde::{Deserialize, Serialize};
@@ -31,10 +29,25 @@ type ToolCallRequest = (
     tokio::sync::oneshot::Sender<Result<String, String>>,
 );
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+struct ToolGraphNode {
+    /// Tool name in format "server/tool" (e.g., "developer/shell")
+    tool: String,
+    /// Brief description of what this call does (e.g., "list files in /src")
+    description: String,
+    /// Indices of nodes this depends on (empty if no dependencies)
+    #[serde(default)]
+    depends_on: Vec<usize>,
+}
+
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 struct ExecuteCodeParams {
     /// JavaScript code with ES6 imports for MCP tools.
     code: String,
+    /// DAG of tool calls showing execution flow. Each node represents a tool call.
+    /// Use depends_on to show data flow (e.g., node 1 uses output from node 0).
+    #[serde(default)]
+    tool_graph: Vec<ToolGraphNode>,
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
@@ -242,8 +255,8 @@ impl ToolInfo {
             .join(", ");
         let desc = self.description.lines().next().unwrap_or("");
         format!(
-            "{}({{ {params} }}): {} - {desc}",
-            self.tool_name, self.return_type
+            "{}[\"{}\"]({{{params}}}): {} - {desc}",
+            self.server_name, self.tool_name, self.return_type
         )
     }
 }
@@ -251,31 +264,49 @@ impl ToolInfo {
 thread_local! {
     static CALL_TX: std::cell::RefCell<Option<mpsc::UnboundedSender<ToolCallRequest>>> =
         const { std::cell::RefCell::new(None) };
+    static RESULT_CELL: std::cell::RefCell<Option<String>> =
+        const { std::cell::RefCell::new(None) };
 }
 
-fn create_server_module(server_tools: &[&ToolInfo], ctx: &mut Context) -> Module {
-    let (export_names, tool_data): (Vec<JsString>, Vec<(String, String)>) = server_tools
+fn create_server_module(
+    server_name: &str,
+    server_tools: &[&ToolInfo],
+    ctx: &mut Context,
+) -> Module {
+    let tool_data: Vec<(String, String)> = server_tools
         .iter()
-        .map(|t| {
-            (
-                js_string!(t.tool_name.as_str()),
-                (t.tool_name.clone(), t.full_name.clone()),
-            )
-        })
-        .unzip();
+        .map(|t| (t.tool_name.clone(), t.full_name.clone()))
+        .collect();
+
+    let mut export_names: Vec<JsString> = server_tools
+        .iter()
+        .map(|t| js_string!(t.tool_name.as_str()))
+        .collect();
+    export_names.push(js_string!(server_name));
+
+    let server_name_owned = server_name.to_string();
 
     Module::synthetic(
         &export_names,
         SyntheticModuleInitializer::from_copy_closure_with_captures(
-            |module, tools, context| {
-                for (tool_name, full_name) in tools {
+            |module, (tools, server_name), context| {
+                let namespace_obj = boa_engine::JsObject::with_null_proto();
+
+                for (tool_name, full_name) in tools.iter() {
                     let func = create_tool_function(full_name.clone());
                     let js_func = func.to_js_function(context.realm());
-                    module.set_export(&js_string!(tool_name.as_str()), js_func.into())?;
+                    module.set_export(&js_string!(tool_name.as_str()), js_func.clone().into())?;
+                    namespace_obj
+                        .set(js_string!(tool_name.as_str()), js_func, false, context)
+                        .map_err(|e| {
+                            JsNativeError::error().with_message(format!("Failed to set prop: {e}"))
+                        })?;
                 }
+                module.set_export(&js_string!(server_name.as_str()), namespace_obj.into())?;
+
                 Ok(())
             },
-            tool_data,
+            (tool_data, server_name_owned),
         ),
         None,
         None,
@@ -329,6 +360,7 @@ fn run_js_module(
     call_tx: mpsc::UnboundedSender<ToolCallRequest>,
 ) -> Result<String, String> {
     CALL_TX.with(|tx| *tx.borrow_mut() = Some(call_tx));
+    RESULT_CELL.with(|cell| *cell.borrow_mut() = None);
 
     let loader = Rc::new(MapModuleLoader::new());
     let mut ctx = Context::builder()
@@ -336,12 +368,21 @@ fn run_js_module(
         .build()
         .map_err(|e| format!("Failed to create JS context: {e}"))?;
 
-    ctx.register_global_property(
-        js_string!("__result__"),
-        JsValue::undefined(),
-        Attribute::WRITABLE,
-    )
-    .map_err(|e| format!("Failed to register __result__: {e}"))?;
+    let record_result = NativeFunction::from_copy_closure(|_this, args, ctx| {
+        let value = args.first().cloned().unwrap_or(JsValue::undefined());
+        let fallback = || value.display().to_string();
+        let result_str = value
+            .to_json(ctx)
+            .ok()
+            .flatten()
+            .map(|v| serde_json::to_string_pretty(&v).unwrap_or_else(|_| fallback()))
+            .unwrap_or_else(fallback);
+        RESULT_CELL.with(|cell| *cell.borrow_mut() = Some(result_str));
+        Ok(value)
+    });
+
+    ctx.register_global_callable(js_string!("record_result"), 1, record_result)
+        .map_err(|e| format!("Failed to register record_result: {e}"))?;
 
     let mut by_server: BTreeMap<&str, Vec<&ToolInfo>> = BTreeMap::new();
     for tool in tools {
@@ -349,39 +390,11 @@ fn run_js_module(
     }
 
     for (server_name, server_tools) in &by_server {
-        let module = create_server_module(server_tools, &mut ctx);
+        let module = create_server_module(server_name, server_tools, &mut ctx);
         loader.insert(*server_name, module);
     }
 
-    let wrapped = {
-        let lines: Vec<&str> = code.trim().lines().collect();
-        let last_idx = lines
-            .iter()
-            .rposition(|l| !l.trim().is_empty() && !l.trim().starts_with("//"))
-            .unwrap_or(0);
-        let last = lines.get(last_idx).map(|s| s.trim()).unwrap_or("");
-
-        const NO_WRAP: &[&str] = &["import ", "export ", "function ", "class "];
-        if last.contains("__result__") || NO_WRAP.iter().any(|p| last.starts_with(p)) {
-            code.to_string()
-        } else {
-            let before = lines[..last_idx].join("\n");
-            let mut result = None;
-            for decl in ["const ", "let ", "var "] {
-                if let Some(rest) = last.strip_prefix(decl) {
-                    if let Some(name) = rest.split('=').next().map(str::trim) {
-                        result = Some(format!("{before}\n{last}\n__result__ = {name};"));
-                    }
-                    break;
-                }
-            }
-            result.unwrap_or_else(|| {
-                format!("{before}\n__result__ = {};", last.trim_end_matches(';'))
-            })
-        }
-    };
-
-    let user_module = Module::parse(Source::from_bytes(&wrapped), None, &mut ctx)
+    let user_module = Module::parse(Source::from_bytes(code), None, &mut ctx)
         .map_err(|e| format!("Parse error: {e}"))?;
     loader.insert("__main__", user_module.clone());
 
@@ -391,11 +404,8 @@ fn run_js_module(
 
     match promise.state() {
         PromiseState::Fulfilled(_) => {
-            let result = ctx
-                .global_object()
-                .get(js_string!("__result__"), &mut ctx)
-                .map_err(|e| format!("Failed to get result: {e}"))?;
-            Ok(result.display().to_string())
+            let result = RESULT_CELL.with(|cell| cell.borrow().clone());
+            Ok(result.unwrap_or_else(|| "undefined".to_string()))
         }
         PromiseState::Rejected(err) => Err(format!("Module error: {}", err.display())),
         PromiseState::Pending => Err("Module evaluation did not complete".to_string()),
@@ -412,6 +422,7 @@ impl CodeExecutionClient {
         let info = InitializeResult {
             protocol_version: ProtocolVersion::V_2025_03_26,
             capabilities: ServerCapabilities {
+                tasks: None,
                 tools: Some(ToolsCapability {
                     list_changed: Some(false),
                 }),
@@ -435,6 +446,8 @@ impl CodeExecutionClient {
                 - WRONG: Multiple execute_code calls, each with one tool
                 - RIGHT: One execute_code call with a script that calls all needed tools
 
+                IMPORTANT: All tool calls are SYNCHRONOUS. Do NOT use async/await.
+
                 Workflow:
                     1. Use the read_module tool to discover tools and signatures
                     2. Write ONE script that imports and calls ALL tools needed for the task
@@ -445,7 +458,7 @@ impl CodeExecutionClient {
         Ok(Self { info, context })
     }
 
-    async fn get_tool_infos(&self) -> Vec<ToolInfo> {
+    async fn get_tool_infos(&self, session_id: &str) -> Vec<ToolInfo> {
         let Some(manager) = self
             .context
             .extension_manager
@@ -455,7 +468,10 @@ impl CodeExecutionClient {
             return Vec::new();
         };
 
-        match manager.get_prefixed_tools_excluding(EXTENSION_NAME).await {
+        match manager
+            .get_prefixed_tools_excluding(session_id, EXTENSION_NAME)
+            .await
+        {
             Ok(tools) if !tools.is_empty() => {
                 tools.iter().filter_map(ToolInfo::from_mcp_tool).collect()
             }
@@ -465,6 +481,7 @@ impl CodeExecutionClient {
 
     async fn handle_execute_code(
         &self,
+        session_id: &str,
         arguments: Option<JsonObject>,
     ) -> Result<Vec<Content>, String> {
         let code = arguments
@@ -474,9 +491,10 @@ impl CodeExecutionClient {
             .ok_or("Missing required parameter: code")?
             .to_string();
 
-        let tools = self.get_tool_infos().await;
+        let tools = self.get_tool_infos(session_id).await;
         let (call_tx, call_rx) = mpsc::unbounded_channel();
         let tool_handler = tokio::spawn(Self::run_tool_handler(
+            session_id.to_string(),
             call_rx,
             self.context.extension_manager.clone(),
         ));
@@ -491,6 +509,7 @@ impl CodeExecutionClient {
 
     async fn handle_read_module(
         &self,
+        session_id: &str,
         arguments: Option<JsonObject>,
     ) -> Result<Vec<Content>, String> {
         let path = arguments
@@ -499,7 +518,7 @@ impl CodeExecutionClient {
             .and_then(|v| v.as_str())
             .ok_or("Missing required parameter: module_path")?;
 
-        let tools = self.get_tool_infos().await;
+        let tools = self.get_tool_infos(session_id).await;
         let parts: Vec<&str> = path.trim_start_matches('/').split('/').collect();
 
         match parts.as_slice() {
@@ -509,11 +528,9 @@ impl CodeExecutionClient {
                 if server_tools.is_empty() {
                     return Err(format!("Module not found: {server}"));
                 }
-                let names: Vec<_> = server_tools.iter().map(|t| t.tool_name.as_str()).collect();
                 let sigs: Vec<_> = server_tools.iter().map(|t| t.to_signature()).collect();
                 Ok(vec![Content::text(format!(
-                    "// import {{ {} }} from \"{server}\";\n\n{}",
-                    names.join(", "),
+                    "// import * as {server} from \"{server}\";\n\n{}",
                     sigs.join("\n")
                 ))])
             }
@@ -523,7 +540,7 @@ impl CodeExecutionClient {
                     .find(|t| t.server_name == *server && t.tool_name == *tool)
                     .ok_or_else(|| format!("Tool not found: {server}/{tool}"))?;
                 Ok(vec![Content::text(format!(
-                    "// import {{ {tool} }} from \"{server}\";\n\n{}\n\n{}",
+                    "// import * as {server} from \"{server}\";\n\n{}\n\n{}",
                     t.to_signature(),
                     t.description
                 ))])
@@ -536,6 +553,7 @@ impl CodeExecutionClient {
 
     async fn handle_search_modules(
         &self,
+        session_id: &str,
         arguments: Option<JsonObject>,
     ) -> Result<Vec<Content>, String> {
         let terms = arguments
@@ -543,12 +561,16 @@ impl CodeExecutionClient {
             .and_then(|a| a.get("terms"))
             .ok_or("Missing required parameter: terms")?;
 
-        let terms_vec = if let Some(s) = terms.as_str() {
-            vec![s.to_string()]
-        } else if let Some(arr) = terms.as_array() {
+        let terms_vec = if let Some(arr) = terms.as_array() {
             arr.iter()
                 .filter_map(|v| v.as_str().map(String::from))
                 .collect()
+        } else if let Some(s) = terms.as_str() {
+            if s.starts_with('[') && s.ends_with(']') {
+                serde_json::from_str::<Vec<String>>(s).unwrap_or_else(|_| vec![s.to_string()])
+            } else {
+                vec![s.to_string()]
+            }
         } else {
             return Err("Parameter 'terms' must be a string or array of strings".to_string());
         };
@@ -563,7 +585,7 @@ impl CodeExecutionClient {
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
 
-        let tools = self.get_tool_infos().await;
+        let tools = self.get_tool_infos(session_id).await;
         Self::handle_search(&tools, &terms_vec, use_regex)
     }
 
@@ -643,18 +665,21 @@ impl CodeExecutionClient {
     }
 
     async fn run_tool_handler(
+        session_id: String,
         mut call_rx: mpsc::UnboundedReceiver<ToolCallRequest>,
         extension_manager: Option<std::sync::Weak<crate::agents::ExtensionManager>>,
     ) {
         while let Some((tool_name, arguments, response_tx)) = call_rx.recv().await {
             let result = match extension_manager.as_ref().and_then(|w| w.upgrade()) {
                 Some(manager) => {
-                    let tool_call = CallToolRequestParam {
+                    let tool_call = CallToolRequestParams {
+                        meta: None,
+                        task: None,
                         name: tool_name.into(),
                         arguments: serde_json::from_str(&arguments).ok(),
                     };
                     match manager
-                        .dispatch_tool_call(tool_call, CancellationToken::new())
+                        .dispatch_tool_call(&session_id, tool_call, CancellationToken::new())
                         .await
                     {
                         Ok(dispatch_result) => match dispatch_result.result.await {
@@ -685,24 +710,10 @@ impl CodeExecutionClient {
 
 #[async_trait]
 impl McpClientTrait for CodeExecutionClient {
-    async fn list_resources(
-        &self,
-        _next_cursor: Option<String>,
-        _cancellation_token: CancellationToken,
-    ) -> Result<ListResourcesResult, Error> {
-        Err(Error::TransportClosed)
-    }
-
-    async fn read_resource(
-        &self,
-        _uri: &str,
-        _cancellation_token: CancellationToken,
-    ) -> Result<ReadResourceResult, Error> {
-        Err(Error::TransportClosed)
-    }
-
+    #[allow(clippy::too_many_lines)]
     async fn list_tools(
         &self,
+        _session_id: &str,
         _next_cursor: Option<String>,
         _cancellation_token: CancellationToken,
     ) -> Result<ListToolsResult, Error> {
@@ -728,6 +739,7 @@ impl McpClientTrait for CodeExecutionClient {
                         import { text_editor } from "developer";
                         const content = text_editor({ path: "/path/to/source.md", command: "view" });
                         text_editor({ path: "/path/to/dest.md", command: "write", file_text: content });
+                        record_result({ copied: true });
                         ```
 
                         EXAMPLE - Multiple operations chained:
@@ -736,15 +748,23 @@ impl McpClientTrait for CodeExecutionClient {
                         const files = shell({ command: "ls -la" });
                         const readme = text_editor({ path: "./README.md", command: "view" });
                         const status = shell({ command: "git status" });
-                        { files, readme, status }
+                        record_result({ files, readme, status });
                         ```
 
                         SYNTAX:
                         - Import: import { tool1, tool2 } from "serverName";
                         - Call: toolName({ param1: value, param2: value })
+                        - Result: record_result(value) - call this to return a value from the script
                         - All calls are synchronous, return strings
-                        - Last expression is the result
-                        - No comments in code
+
+                        TOOL_GRAPH: Always provide tool_graph to describe the execution flow for the UI.
+                        Each node has: tool (server/name), description (what it does), depends_on (indices of dependencies).
+                        Example for chained operations:
+                        [
+                          {"tool": "developer/shell", "description": "list files", "depends_on": []},
+                          {"tool": "developer/text_editor", "description": "read README.md", "depends_on": []},
+                          {"tool": "developer/text_editor", "description": "write output.txt", "depends_on": [0, 1]}
+                        ]
 
                         BEFORE CALLING: Use the read_module tool to check required parameters.
                     "#}
@@ -791,9 +811,11 @@ impl McpClientTrait for CodeExecutionClient {
                         Search for tools by name or description across all available modules.
 
                         USAGE:
-                        - Single term: search_modules with terms="file"
-                        - Multiple terms: search_modules with terms=["git", "shell"]
-                        - Regex patterns: search_modules with terms="sh.*", regex=true
+                        - Single term: terms="github" (just a plain string)
+                        - Multiple terms: terms=["git", "shell"] (a JSON array, NOT a string)
+                        - Regex patterns: terms="sh.*", regex=true
+
+                        IMPORTANT: Do NOT stringify arrays. Use terms=["a","b"] not terms="[\"a\",\"b\"]"
 
                         Returns matching servers and tools with descriptions.
                         Use this when you don't know which module contains the tool you need.
@@ -810,19 +832,21 @@ impl McpClientTrait for CodeExecutionClient {
                 }),
             ],
             next_cursor: None,
+            meta: None,
         })
     }
 
     async fn call_tool(
         &self,
+        session_id: &str,
         name: &str,
         arguments: Option<JsonObject>,
         _cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         let content = match name {
-            "execute_code" => self.handle_execute_code(arguments).await,
-            "read_module" => self.handle_read_module(arguments).await,
-            "search_modules" => self.handle_search_modules(arguments).await,
+            "execute_code" => self.handle_execute_code(session_id, arguments).await,
+            "read_module" => self.handle_read_module(session_id, arguments).await,
+            "search_modules" => self.handle_search_modules(session_id, arguments).await,
             _ => Err(format!("Unknown tool: {name}")),
         };
 
@@ -834,33 +858,12 @@ impl McpClientTrait for CodeExecutionClient {
         }
     }
 
-    async fn list_prompts(
-        &self,
-        _next_cursor: Option<String>,
-        _cancellation_token: CancellationToken,
-    ) -> Result<ListPromptsResult, Error> {
-        Err(Error::TransportClosed)
-    }
-
-    async fn get_prompt(
-        &self,
-        _name: &str,
-        _arguments: Value,
-        _cancellation_token: CancellationToken,
-    ) -> Result<GetPromptResult, Error> {
-        Err(Error::TransportClosed)
-    }
-
-    async fn subscribe(&self) -> mpsc::Receiver<ServerNotification> {
-        mpsc::channel(1).1
-    }
-
     fn get_info(&self) -> Option<&InitializeResult> {
         Some(&self.info)
     }
 
-    async fn get_moim(&self) -> Option<String> {
-        let tools = self.get_tool_infos().await;
+    async fn get_moim(&self, session_id: &str) -> Option<String> {
+        let tools = self.get_tool_infos(session_id).await;
         if tools.is_empty() {
             return None;
         }
@@ -895,18 +898,29 @@ mod tests {
 
     #[tokio::test]
     async fn test_execute_code_simple() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let session_manager = Arc::new(crate::session::SessionManager::new(
+            temp_dir.path().to_path_buf(),
+        ));
         let context = PlatformExtensionContext {
-            session_id: None,
             extension_manager: None,
-            tool_route_manager: None,
+            session_manager,
         };
         let client = CodeExecutionClient::new(context).unwrap();
 
         let mut args = JsonObject::new();
-        args.insert("code".to_string(), Value::String("2 + 2".to_string()));
+        args.insert(
+            "code".to_string(),
+            Value::String("record_result(2 + 2)".to_string()),
+        );
 
         let result = client
-            .call_tool("execute_code", Some(args), CancellationToken::new())
+            .call_tool(
+                "test-session-id",
+                "execute_code",
+                Some(args),
+                CancellationToken::new(),
+            )
             .await
             .unwrap();
 
@@ -919,11 +933,55 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_read_module_not_found() {
+    async fn test_record_result_outputs_valid_json() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let session_manager = Arc::new(crate::session::SessionManager::new(
+            temp_dir.path().to_path_buf(),
+        ));
         let context = PlatformExtensionContext {
-            session_id: None,
             extension_manager: None,
-            tool_route_manager: None,
+            session_manager,
+        };
+        let client = CodeExecutionClient::new(context).unwrap();
+
+        // Nested array in object - this triggers truncation with display() (e.g., "items: Array(3)")
+        let mut args = JsonObject::new();
+        args.insert(
+            "code".to_string(),
+            Value::String("record_result({items: [1, 2, 3], count: 3})".to_string()),
+        );
+
+        let result = client
+            .call_tool(
+                "test-session-id",
+                "execute_code",
+                Some(args),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+
+        assert!(!result.is_error.unwrap_or(false));
+        if let RawContent::Text(text) = &result.content[0].raw {
+            let json_str = text.text.strip_prefix("Result: ").unwrap_or(&text.text);
+            let parsed: serde_json::Value = serde_json::from_str(json_str)
+                .unwrap_or_else(|_| panic!("Output should be valid JSON, got: {}", text.text));
+            assert_eq!(parsed["items"].as_array().unwrap().len(), 3);
+            assert_eq!(parsed["count"], 3);
+        } else {
+            panic!("Expected text content");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_read_module_not_found() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let session_manager = Arc::new(crate::session::SessionManager::new(
+            temp_dir.path().to_path_buf(),
+        ));
+        let context = PlatformExtensionContext {
+            extension_manager: None,
+            session_manager,
         };
         let client = CodeExecutionClient::new(context).unwrap();
 
@@ -933,7 +991,9 @@ mod tests {
             Value::String("nonexistent".to_string()),
         );
 
-        let result = client.handle_read_module(Some(args)).await;
+        let result = client
+            .handle_read_module("test-session-id", Some(args))
+            .await;
         assert!(result.is_err());
     }
 
@@ -1063,21 +1123,21 @@ mod tests {
         "github__get_me",
         serde_json::json!({"type": "object", "properties": {}}),
         None,
-        "get_me({  }): string - Get details of the authenticated user";
+        "github[\"get_me\"]({}): string - Get details of the authenticated user";
         "no params, no output schema"
     )]
     #[test_case(
         "filesystem__read_text_file",
         serde_json::json!({"type": "object", "properties": {"path": {"type": "string"}, "tail": {"type": "number"}, "head": {"type": "number"}}, "required": ["path"]}),
         Some(serde_json::json!({"type": "object", "properties": {"content": {"type": "string"}}, "required": ["content"]})),
-        "read_text_file({ head?: number, path: string, tail?: number }): { content: string } - Read the complete contents of a file";
+        "filesystem[\"read_text_file\"]({head?: number, path: string, tail?: number}): { content: string } - Read the complete contents of a file";
         "optional number params, object output"
     )]
     #[test_case(
         "memory__create_entities",
         serde_json::json!({"type": "object", "properties": {"entities": {"type": "array", "items": {"type": "object", "properties": {"name": {"type": "string"}, "entityType": {"type": "string"}, "observations": {"type": "array", "items": {"type": "string"}}}, "required": ["name", "entityType", "observations"]}}}, "required": ["entities"]}),
         Some(serde_json::json!({"type": "object", "properties": {"entities": {"type": "array", "items": {"type": "object", "properties": {"name": {"type": "string"}, "entityType": {"type": "string"}, "observations": {"type": "array", "items": {"type": "string"}}}, "required": ["name", "entityType", "observations"]}}}, "required": ["entities"]})),
-        "create_entities({ entities: { entityType: string, name: string, observations: string[] }[] }): { entities: { entityType: string, name: string, observations: string[] }[] } - Create multiple new entities";
+        "memory[\"create_entities\"]({entities: { entityType: string, name: string, observations: string[] }[]}): { entities: { entityType: string, name: string, observations: string[] }[] } - Create multiple new entities";
         "nested object array with typed props"
     )]
     #[test_case(
@@ -1087,7 +1147,7 @@ mod tests {
             "state": {"type": "string", "enum": ["read", "done"]}
         }, "required": ["threadID", "state"]}),
         None,
-        "dismiss_notification({ state: \"read\" | \"done\", threadID: string }): string - Dismiss a notification";
+        "github[\"dismiss_notification\"]({state: \"read\" | \"done\", threadID: string}): string - Dismiss a notification";
         "enum param, no output schema"
     )]
     #[test_case(
@@ -1097,8 +1157,19 @@ mod tests {
             "save_as": {"oneOf": [{"const": "text"}, {"const": "json"}, {"const": "binary"}]}
         }, "required": ["url"]}),
         None,
-        "web_scrape({ save_as?: \"text\" | \"json\" | \"binary\", url: string }): string - Scrape content from URL";
+        "computercontroller[\"web_scrape\"]({save_as?: \"text\" | \"json\" | \"binary\", url: string}): string - Scrape content from URL";
         "oneOf const param (schemars), no output schema"
+    )]
+    #[test_case(
+        "kiwitravel__search-flight",
+        serde_json::json!({"type": "object", "properties": {
+            "flyFrom": {"type": "string"},
+            "flyTo": {"type": "string"},
+            "departureDate": {"type": "string"}
+        }, "required": ["flyFrom", "flyTo", "departureDate"]}),
+        None,
+        "kiwitravel[\"search-flight\"]({departureDate: string, flyFrom: string, flyTo: string}): string - Search for flights";
+        "hyphenated tool name uses bracket notation"
     )]
     fn test_mcp_tool_signature(
         name: &str,
@@ -1169,5 +1240,54 @@ mod tests {
     #[test_case("shell({}).content", &[("shell", "plain text")], "undefined"; "plain_text_no_property")]
     fn test_tool_result(code: &str, tools: &[(&str, &str)], expected: &str) {
         assert_eq!(eval_with_tools(code, tools), expected);
+    }
+
+    #[test]
+    fn test_namespace_import_with_synthetic_module() {
+        let tools = vec![ToolInfo {
+            server_name: "testserver".to_string(),
+            tool_name: "get_value".to_string(),
+            full_name: "testserver__get_value".to_string(),
+            description: "Get a value".to_string(),
+            params: vec![],
+            return_type: "string".to_string(),
+        }];
+
+        let (tx, _rx) = mpsc::unbounded_channel();
+
+        let code_named = r#"import { get_value } from "testserver"; typeof get_value"#;
+        let result = run_js_module(code_named, &tools, tx.clone());
+        assert!(
+            result.is_ok(),
+            "Named import should work: {:?}",
+            result.err()
+        );
+
+        let code_namespace =
+            r#"import * as testserver from "testserver"; typeof testserver.get_value"#;
+        let result = run_js_module(code_namespace, &tools, tx.clone());
+        assert!(
+            result.is_ok(),
+            "Namespace import should work: {:?}",
+            result.err()
+        );
+
+        let code_server_named =
+            r#"import { testserver } from "testserver"; typeof testserver.get_value"#;
+        let result = run_js_module(code_server_named, &tools, tx.clone());
+        assert!(
+            result.is_ok(),
+            "Server-named import should work: {:?}",
+            result.err()
+        );
+
+        let code_bracket =
+            r#"import { testserver } from "testserver"; typeof testserver["get_value"]"#;
+        let result = run_js_module(code_bracket, &tools, tx);
+        assert!(
+            result.is_ok(),
+            "Bracket notation should work: {:?}",
+            result.err()
+        );
     }
 }

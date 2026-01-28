@@ -75,13 +75,15 @@ export const SwitchModelModal = ({
   initialProvider,
   titleOverride,
 }: SwitchModelModalProps) => {
-  const { getProviders, getProviderModels, read } = useConfig();
-  const { changeModel } = useModelAndProvider();
+  const { getProviders, read } = useConfig();
+  const { changeModel, currentModel, currentProvider } = useModelAndProvider();
   const [providerOptions, setProviderOptions] = useState<{ value: string; label: string }[]>([]);
   type ModelOption = { value: string; label: string; provider: string; isDisabled?: boolean };
   const [modelOptions, setModelOptions] = useState<{ options: ModelOption[] }[]>([]);
-  const [provider, setProvider] = useState<string | null>(initialProvider || null);
-  const [model, setModel] = useState<string>('');
+  const [provider, setProvider] = useState<string | null>(
+    initialProvider || currentProvider || null
+  );
+  const [model, setModel] = useState<string>(currentModel || '');
   const [isCustomModel, setIsCustomModel] = useState(false);
   const [validationErrors, setValidationErrors] = useState({
     provider: '',
@@ -94,6 +96,7 @@ export const SwitchModelModal = ({
   const [predefinedModels, setPredefinedModels] = useState<Model[]>([]);
   const [loadingModels, setLoadingModels] = useState<boolean>(false);
   const [userClearedModel, setUserClearedModel] = useState(false);
+  const [providerErrors, setProviderErrors] = useState<Record<string, string>>({});
 
   // Validate form data
   const validateForm = useCallback(() => {
@@ -185,7 +188,8 @@ export const SwitchModelModal = ({
     // Load providers for manual model selection
     (async () => {
       try {
-        const providersResponse = await getProviders(false);
+        // Force refresh if initialProvider is set (OAuth flow needs fresh data)
+        const providersResponse = await getProviders(!!initialProvider);
         const activeProviders = providersResponse.filter((provider) => provider.is_configured);
         // Create provider options and add "Use other provider" option
         setProviderOptions([
@@ -201,59 +205,50 @@ export const SwitchModelModal = ({
 
         setLoadingModels(true);
 
-        // Fetching models for all providers (always recommended)
-        const results = await fetchModelsForProviders(activeProviders, getProviderModels);
+        const results = await fetchModelsForProviders(activeProviders);
 
         // Process results and build grouped options
         const groupedOptions: {
           options: { value: string; label: string; provider: string; providerType: ProviderType }[];
         }[] = [];
-        const errors: string[] = [];
+        const errorMap: Record<string, string> = {};
 
         results.forEach(({ provider: p, models, error }) => {
           if (error) {
-            errors.push(error);
-            // Fallback to metadata known_models on error
-            if (p.metadata.known_models && p.metadata.known_models.length > 0) {
-              groupedOptions.push({
-                options: p.metadata.known_models.map(({ name }) => ({
-                  value: name,
-                  label: name,
-                  providerType: p.provider_type,
-                  provider: p.name,
-                })),
-              });
-            }
-          } else if (models && models.length > 0) {
-            groupedOptions.push({
-              options: models.map((m) => ({
-                value: m,
-                label: m,
-                provider: p.name,
-                providerType: p.provider_type,
-              })),
-            });
+            errorMap[p.name] = error;
+            return;
           }
-        });
 
-        // Log errors if any providers failed (don't show to user)
-        if (errors.length > 0) {
-          console.error('Provider model fetch errors:', errors);
-        }
+          const modelList = models || [];
 
-        // Add the "Custom model" option to each provider group
-        groupedOptions.forEach((group) => {
-          const option = group.options[0];
-          const providerName = option?.provider;
-          if (providerName && option?.providerType !== 'Custom') {
-            group.options.push({
+          const options: {
+            value: string;
+            label: string;
+            provider: string;
+            providerType: ProviderType;
+          }[] = modelList.map((m) => ({
+            value: m,
+            label: m,
+            provider: p.name,
+            providerType: p.provider_type,
+          }));
+
+          if (p.metadata.allows_unlisted_models && p.provider_type !== 'Custom') {
+            options.push({
               value: 'custom',
-              label: 'Use custom model',
-              provider: providerName,
-              providerType: option?.providerType,
+              label: 'Enter a model not listed...',
+              provider: p.name,
+              providerType: p.provider_type,
             });
           }
+
+          if (options.length > 0) {
+            groupedOptions.push({ options });
+          }
         });
+
+        // Save provider errors to state
+        setProviderErrors(errorMap);
 
         setModelOptions(groupedOptions);
         setOriginalModelOptions(groupedOptions);
@@ -263,7 +258,7 @@ export const SwitchModelModal = ({
         setLoadingModels(false);
       }
     })();
-  }, [getProviders, getProviderModels, usePredefinedModels, read]);
+  }, [getProviders, usePredefinedModels, read, initialProvider]);
 
   const filteredModelOptions = provider
     ? modelOptions.filter((group) => group.options[0]?.provider === provider)
@@ -291,6 +286,7 @@ export const SwitchModelModal = ({
     if (selectedOption?.value === 'custom') {
       setIsCustomModel(true);
       setModel('');
+      setProvider(selectedOption.provider);
       setUserClearedModel(false);
     } else if (selectedOption === null) {
       // User cleared the selection
@@ -300,6 +296,7 @@ export const SwitchModelModal = ({
     } else {
       setIsCustomModel(false);
       setModel(selectedOption?.value || '');
+      setProvider(selectedOption?.provider || '');
       setUserClearedModel(false);
     }
   };
@@ -454,7 +451,24 @@ export const SwitchModelModal = ({
 
               {provider && (
                 <>
-                  {!isCustomModel ? (
+                  {providerErrors[provider] ? (
+                    /* Show error message when provider failed to connect */
+                    <div className="rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3">
+                      <div className="flex items-start">
+                        <div className="flex-1">
+                          <h3 className="text-sm font-medium text-red-800 dark:text-red-200">
+                            Could not contact provider
+                          </h3>
+                          <div className="mt-1 text-sm text-red-700 dark:text-red-300">
+                            {providerErrors[provider]}
+                          </div>
+                          <div className="mt-2 text-xs text-red-600 dark:text-red-400">
+                            Check your provider configuration in Settings → Providers
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : !isCustomModel ? (
                     <div>
                       <Select
                         options={
@@ -466,10 +480,14 @@ export const SwitchModelModal = ({
                         }
                         onChange={handleModelChange}
                         onInputChange={handleInputChange}
-                        value={model ? { value: model, label: model } : null}
-                        placeholder={
-                          loadingModels ? 'Loading models…' : 'Select a model, type to search'
+                        value={
+                          loadingModels
+                            ? { value: '', label: 'Loading models…', isDisabled: true }
+                            : model
+                              ? { value: model, label: model }
+                              : null
                         }
+                        placeholder="Select a model, type to search"
                         isClearable
                         isDisabled={loadingModels}
                       />

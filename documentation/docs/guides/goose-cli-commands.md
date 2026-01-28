@@ -5,6 +5,9 @@ sidebar_label: CLI Commands
 toc_max_heading_level: 4
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 goose provides a command-line interface (CLI) with several commands for managing sessions, configurations and extensions. This guide covers all available CLI commands and interactive session features.
 
 ## Flag Naming Conventions
@@ -88,6 +91,87 @@ goose update --reconfigure
 
 ---
 
+#### completion
+Generate shell-specific scripts to enable tab completion of goose commands, subcommands, and options. The script is printed to stdout, so you need to redirect it to the appropriate location for your shell and then reload or source your shell configuration.
+
+Once installed, you can:
+- Press Tab to see available commands and subcommands
+- Complete command names and flags automatically
+- Discover options without checking `--help`
+
+**Arguments:**
+- **`<SHELL>`**: The shell to generate completions for. Supported shells: `bash`, `elvish`, `fish`, `powershell`, `zsh`
+
+**Usage:**
+```bash
+# Generate completion script for your shell (outputs to stdout)
+goose completion bash
+goose completion zsh
+goose completion fish
+```
+
+**Installation by Shell:**
+
+<Tabs groupId="shells">
+<TabItem value="zsh" label="Zsh" default>
+
+Add this line to your `~/.zshrc`:
+
+```bash
+eval "$(goose completion zsh)"
+```
+
+Then reload your shell:
+```bash
+source ~/.zshrc
+```
+
+</TabItem>
+<TabItem value="bash" label="Bash">
+
+Add this line to your `~/.bashrc` or `~/.bash_profile`:
+
+```bash
+eval "$(goose completion bash)"
+```
+
+Then reload your shell:
+```bash
+source ~/.bashrc
+```
+
+</TabItem>
+<TabItem value="fish" label="Fish">
+
+```bash
+goose completion fish > ~/.config/fish/completions/goose.fish
+```
+
+Then restart your terminal or run `exec fish`.
+
+</TabItem>
+<TabItem value="powershell" label="PowerShell">
+
+Add this line to your PowerShell profile:
+
+```powershell
+goose completion powershell | Out-String | Invoke-Expression
+```
+
+Then reload your profile:
+```powershell
+. $PROFILE
+```
+
+</TabItem>
+</Tabs>
+
+:::tip Testing
+After installing and reloading your shell, test completion by typing `goose ` and pressing Tab to see available commands, or `goose session --` and Tab to see available options.
+:::
+
+---
+
 ### Session Management
 
 :::info Session Storage Migration
@@ -110,8 +194,7 @@ Start or resume interactive chat sessions.
 
 **Extension Options:**
 - **`--with-extension <command>`**: Add stdio extensions
-- **`--with-remote-extension <url>`**: Add remote extensions over SSE
-- **`--with-streamable-http-extension <url>`**: Add remote extensions over Streaming HTTP
+- **`--with-streamable-http-extension <url>`**: Add remote extensions over Streamable HTTP
 - **`--with-builtin <id>`**: Enable built-in extensions (e.g., 'developer', 'computercontroller')
 
 **Usage:**
@@ -128,13 +211,12 @@ goose session --resume --path ./session.jsonl   # legacy session storage
 # Start with extensions
 goose session --with-extension "npx -y @modelcontextprotocol/server-memory"
 goose session --with-builtin developer
-goose session --with-remote-extension "http://localhost:8080/sse"
+goose session --with-streamable-http-extension "http://localhost:8080/mcp"
 
 # Advanced: Mix multiple extension types
 goose session \
   --with-extension "echo hello" \
-  --with-remote-extension "http://sse.example.com/sse" \
-  --with-streamable-http-extension "http://http.example.com" \
+  --with-streamable-http-extension "http://localhost:8080/mcp" \
   --with-builtin "developer"
 
 # Control session behavior
@@ -303,8 +385,7 @@ Execute commands from an instruction file or stdin. Check out the [full guide](/
 
 **Extension Options:**
 - **`--with-extension <COMMAND>`**: Add stdio extensions (can be used multiple times)
-- **`--with-remote-extension <URL>`**: Add remote extensions over SSE (can be used multiple times)
-- **`--with-streamable-http-extension <URL>`**: Add remote extensions over Streaming HTTP (can be used multiple times)
+- **`--with-streamable-http-extension <URL>`**: Add remote extensions over Streamable HTTP (can be used multiple times)
 - **`--with-builtin <name>`**: Add builtin extensions by name (e.g., 'developer' or multiple: 'developer,github')
 
 **Control Options:**
@@ -314,7 +395,7 @@ Execute commands from an instruction file or stdin. Check out the [full guide](/
 - **`--explain`**: Show a recipe's title, description, and parameters
 - **`--render-recipe`**: Print the rendered recipe instead of running it
 - **`-q, --quiet`**: Quiet mode. Suppress non-response output, printing only the model response to stdout
-- **`--output-format <FORMAT>`**: Output format (`text` or `json`). Default is `text`. Use `json` for automation and scripting
+- **`--output-format <FORMAT>`**: Output format (`text`, `json`, or `stream-json`). Default is `text`. Use JSON structured output for automation and scripting: `json` for results after completion, `stream-json` for events as they occur
 - **`--provider`**: Specify the provider to use for this session (overrides environment variable)
 - **`--model`**: Specify the model to use for this session (overrides environment variable)
 
@@ -517,6 +598,7 @@ Don't expose the web interface to the internet without proper security measures.
 - **`-p, --port <PORT>`**: Port number to run the web server on. Default is `3000`
 - **`--host <HOST>`**: Host to bind the web server to. Default is `127.0.0.1`
 - **`--open`**: Automatically open the browser when the server starts
+- **`--auth-token <TOKEN>`**: Require a password to access the web interface
 
 **Usage:**
 ```bash
@@ -528,6 +610,9 @@ goose web --port 8080
 
 # Start web interface accessible from local network at `http://192.168.1.7:8080`
 goose web --host 192.168.1.7 --port 8080
+
+# Start web interface with authentication required
+goose web --auth-token <TOKEN>
 ```
 
 :::info
@@ -580,6 +665,7 @@ Once you're in an interactive session (via `goose session` or `goose run --inter
 - **`/prompts [--extension <name>]`** - List all available prompts, optionally filtered by extension
 - **`/recipe [filepath]`** - Generate a recipe from the current conversation and save it to the specified filepath (must end with .yaml). If no filepath is provided, it will be saved to ./recipe.yaml
 - **`/compact`** - Compact and summarize the current conversation to reduce context length while preserving key information
+- **`/r`** - Toggle full tool output display (show complete tool parameters without truncation)
 - **`/t`** - Toggle between `light`, `dark`, and `ansi` themes. [More info](#themes).
 - **`/t <name>`** - Set theme directly (light, dark, ansi)
 
@@ -600,7 +686,7 @@ Once you're in an interactive session (via `goose session` or `goose run --inter
 # Clear the current conversation history
 /clear
 ```
-You can also create [custom slash commands for running recipes](/docs/guides/recipes/session-recipes.md#custom-recipe-commands) in goose Desktop or the CLI. 
+You can also create [custom slash commands for running recipes](/docs/guides/context-engineering/slash-commands) in goose Desktop or the CLI. 
 
 ---
 

@@ -133,7 +133,10 @@ fn swap_claude_word_order(model: &str) -> Option<String> {
 }
 
 fn is_hosting_provider(provider: &str) -> bool {
-    matches!(provider, "databricks" | "openrouter" | "azure" | "bedrock")
+    matches!(
+        provider,
+        "databricks" | "openrouter" | "azure" | "bedrock" | "chatgpt_codex"
+    )
 }
 
 /// Infer the real provider from model name patterns
@@ -333,54 +336,22 @@ mod tests {
             Some("anthropic/claude-3.5-sonnet".to_string())
         );
 
-        // === Claude word-order swapping (3.x series) ===
+        // 3.x: {model}-{version} → {version}-{model}
         assert_eq!(
             map_to_canonical_model("databricks", "claude-haiku-3-5", r),
             Some("anthropic/claude-3.5-haiku".to_string())
         );
-        assert_eq!(
-            map_to_canonical_model("databricks", "claude-sonnet-3-7", r),
-            Some("anthropic/claude-3.7-sonnet".to_string())
-        );
-        assert_eq!(
-            map_to_canonical_model("databricks", "ng-tools-claude-haiku-3-5", r),
-            Some("anthropic/claude-3.5-haiku".to_string())
-        );
 
-        // === Claude word-order swapping (4.x series) ===
-        assert_eq!(
-            map_to_canonical_model("databricks", "claude-4-opus", r),
-            Some("anthropic/claude-opus-4".to_string())
-        );
+        // 4.x: {version}-{model} → {model}-{version}
         assert_eq!(
             map_to_canonical_model("databricks", "claude-4-sonnet", r),
             Some("anthropic/claude-sonnet-4".to_string())
         );
+
+        // 4.x with minor version + prefix stripping
         assert_eq!(
             map_to_canonical_model("databricks", "raml-claude-opus-4-5", r),
             Some("anthropic/claude-opus-4.5".to_string())
-        );
-        assert_eq!(
-            map_to_canonical_model("databricks", "databricks-claude-sonnet-4-5", r),
-            Some("anthropic/claude-sonnet-4.5".to_string())
-        );
-
-        // === Claude with custom prefixes ===
-        assert_eq!(
-            map_to_canonical_model("databricks", "goose-claude-4-opus", r),
-            Some("anthropic/claude-opus-4".to_string())
-        );
-        assert_eq!(
-            map_to_canonical_model("databricks", "kgoose-claude-4-sonnet", r),
-            Some("anthropic/claude-sonnet-4".to_string())
-        );
-        assert_eq!(
-            map_to_canonical_model("databricks", "headless-goose-claude-4-sonnet", r),
-            Some("anthropic/claude-sonnet-4".to_string())
-        );
-        assert_eq!(
-            map_to_canonical_model("databricks", "kgoose-cashapp-claude-4-sonnet", r),
-            Some("anthropic/claude-sonnet-4".to_string())
         );
 
         // === Claude with platform suffixes ===

@@ -14,7 +14,6 @@ interface ChatContextType {
   clearRecipe: () => void;
   // Context identification
   contextKey: string; // 'hub' or 'pair-{sessionId}'
-  agentWaitingMessage: string | null;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -24,14 +23,12 @@ interface ChatProviderProps {
   chat: ChatType;
   setChat: (chat: ChatType) => void;
   contextKey?: string; // Optional context key, defaults to 'hub'
-  agentWaitingMessage: string | null;
 }
 
 export const ChatProvider: React.FC<ChatProviderProps> = ({
   children,
   chat,
   setChat,
-  agentWaitingMessage,
   contextKey = 'hub',
 }) => {
   const resetChat = () => {
@@ -39,7 +36,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({
       sessionId: '',
       name: DEFAULT_CHAT_TITLE,
       messages: [],
-      messageHistoryIndex: 0,
       recipe: null,
       recipeParameterValues: null,
     });
@@ -70,7 +66,6 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({
     setRecipe,
     clearRecipe,
     contextKey,
-    agentWaitingMessage,
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

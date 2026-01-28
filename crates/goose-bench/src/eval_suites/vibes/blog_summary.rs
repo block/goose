@@ -76,7 +76,7 @@ impl Evaluation for BlogSummary {
         ExtensionRequirements {
             builtin: vec!["developer".to_string()],
             external: vec!["uvx mcp-server-fetch".to_string()],
-            remote: Vec::new(),
+            streamable_http: Vec::new(),
         }
     }
 }

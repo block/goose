@@ -17,11 +17,11 @@ use goose::config::{
     configure_tetrate, Config, ConfigError, ExperimentManager, ExtensionEntry, GooseMode,
     PermissionManager,
 };
-use goose::conversation::message::Message;
 use goose::model::ModelConfig;
+use goose::posthog::{get_telemetry_choice, TELEMETRY_ENABLED_KEY};
 use goose::providers::provider_test::test_provider_configuration;
-use goose::providers::{create, providers};
-use goose::session::{SessionManager, SessionType};
+use goose::providers::{create, providers, retry_operation, RetryConfig};
+use goose::session::SessionType;
 use serde_json::Value;
 use std::collections::HashMap;
 
@@ -33,219 +33,287 @@ pub async fn handle_configure() -> anyhow::Result<()> {
     let config = Config::global();
 
     if !config.exists() {
-        // First time setup flow
-        println!();
-        println!(
-            "{}",
-            style("Welcome to goose! Let's get you set up with a provider.").dim()
-        );
-        println!(
-            "{}",
-            style("  you can rerun this command later to update your configuration").dim()
-        );
-        println!();
-        cliclack::intro(style(" goose-configure ").on_cyan().black())?;
-
-        // Check if user wants to use OpenRouter login or manual configuration
-        let setup_method = cliclack::select("How would you like to set up your provider?")
-            .item(
-                "openrouter",
-                "OpenRouter Login (Recommended)",
-                "Sign in with OpenRouter to automatically configure models",
-            )
-            .item(
-                "tetrate",
-                "Tetrate Agent Router Service Login",
-                "Sign in with Tetrate Agent Router Service to automatically configure models",
-            )
-            .item(
-                "manual",
-                "Manual Configuration",
-                "Choose a provider and enter credentials manually",
-            )
-            .interact()?;
-
-        match setup_method {
-            "openrouter" => {
-                match handle_openrouter_auth().await {
-                    Ok(_) => {
-                        // OpenRouter auth already handles everything including enabling developer extension
-                    }
-                    Err(e) => {
-                        let _ = config.clear();
-                        println!(
-                            "\n  {} OpenRouter authentication failed: {} \n  Please try again or use manual configuration",
-                            style("Error").red().italic(),
-                            e,
-                        );
-                    }
-                }
-            }
-            "tetrate" => {
-                match handle_tetrate_auth().await {
-                    Ok(_) => {
-                        // Tetrate auth already handles everything including enabling developer extension
-                    }
-                    Err(e) => {
-                        let _ = config.clear();
-                        println!(
-                            "\n  {} Tetrate Agent Router Service authentication failed: {} \n  Please try again or use manual configuration",
-                            style("Error").red().italic(),
-                            e,
-                        );
-                    }
-                }
-            }
-            "manual" => {
-                match configure_provider_dialog().await {
-                    Ok(true) => {
-                        println!(
-                            "\n  {}: Run '{}' again to adjust your config or add extensions",
-                            style("Tip").green().italic(),
-                            style("goose configure").cyan()
-                        );
-                        // Since we are setting up for the first time, we'll also enable the developer system
-                        // This operation is best-effort and errors are ignored
-                        set_extension(ExtensionEntry {
-                            enabled: true,
-                            config: ExtensionConfig::default(),
-                        });
-                    }
-                    Ok(false) => {
-                        let _ = config.clear();
-                        println!(
-                            "\n  {}: We did not save your config, inspect your credentials\n   and run '{}' again to ensure goose can connect",
-                            style("Warning").yellow().italic(),
-                            style("goose configure").cyan()
-                        );
-                    }
-                    Err(e) => {
-                        let _ = config.clear();
-
-                        match e.downcast_ref::<ConfigError>() {
-                            Some(ConfigError::NotFound(key)) => {
-                                println!(
-                                    "\n  {} Required configuration key '{}' not found \n  Please provide this value and run '{}' again",
-                                    style("Error").red().italic(),
-                                    key,
-                                    style("goose configure").cyan()
-                                );
-                            }
-                            Some(ConfigError::KeyringError(msg)) => {
-                                #[cfg(target_os = "macos")]
-                                println!(
-                                    "\n  {} Failed to access secure storage (keyring): {} \n  Please check your system keychain and run '{}' again. \n  If your system is unable to use the keyring, please try setting secret key(s) via environment variables.",
-                                    style("Error").red().italic(),
-                                    msg,
-                                    style("goose configure").cyan()
-                                );
-
-                                #[cfg(target_os = "windows")]
-                                println!(
-                                    "\n  {} Failed to access Windows Credential Manager: {} \n  Please check Windows Credential Manager and run '{}' again. \n  If your system is unable to use the Credential Manager, please try setting secret key(s) via environment variables.",
-                                    style("Error").red().italic(),
-                                    msg,
-                                    style("goose configure").cyan()
-                                );
-
-                                #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-                                println!(
-                                    "\n  {} Failed to access secure storage: {} \n  Please check your system's secure storage and run '{}' again. \n  If your system is unable to use secure storage, please try setting secret key(s) via environment variables.",
-                                    style("Error").red().italic(),
-                                    msg,
-                                    style("goose configure").cyan()
-                                );
-                            }
-                            Some(ConfigError::DeserializeError(msg)) => {
-                                println!(
-                                    "\n  {} Invalid configuration value: {} \n  Please check your input and run '{}' again",
-                                    style("Error").red().italic(),
-                                    msg,
-                                    style("goose configure").cyan()
-                                );
-                            }
-                            Some(ConfigError::FileError(e)) => {
-                                println!(
-                                    "\n  {} Failed to access config file: {} \n  Please check file permissions and run '{}' again",
-                                    style("Error").red().italic(),
-                                    e,
-                                    style("goose configure").cyan()
-                                );
-                            }
-                            Some(ConfigError::DirectoryError(msg)) => {
-                                println!(
-                                    "\n  {} Failed to access config directory: {} \n  Please check directory permissions and run '{}' again",
-                                    style("Error").red().italic(),
-                                    msg,
-                                    style("goose configure").cyan()
-                                );
-                            }
-                            // handle all other nonspecific errors
-                            _ => {
-                                println!(
-                                    "\n  {} {} \n  We did not save your config, inspect your credentials\n   and run '{}' again to ensure goose can connect",
-                                    style("Error").red().italic(),
-                                    e,
-                                    style("goose configure").cyan()
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-            _ => unreachable!(),
-        }
-        Ok(())
+        handle_first_time_setup(config).await
     } else {
-        let config_dir = Paths::config_dir().display().to_string();
+        handle_existing_config().await
+    }
+}
 
-        println!();
-        println!(
-            "{}",
-            style("This will update your existing config files").dim()
-        );
-        println!(
-            "{} {}",
-            style("  if you prefer, you can edit them directly at").dim(),
-            config_dir
-        );
-        println!();
+pub fn configure_telemetry_consent_dialog() -> anyhow::Result<bool> {
+    let config = Config::global();
 
-        cliclack::intro(style(" goose-configure ").on_cyan().black())?;
-        let action = cliclack::select("What would you like to configure?")
-            .item(
-                "providers",
-                "Configure Providers",
-                "Change provider or update credentials",
-            )
-            .item(
-                "custom_providers",
-                "Custom Providers",
-                "Add custom provider with compatible API",
-            )
-            .item("add", "Add Extension", "Connect to a new extension")
-            .item(
-                "toggle",
-                "Toggle Extensions",
-                "Enable or disable connected extensions",
-            )
-            .item("remove", "Remove Extension", "Remove an extension")
-            .item(
-                "settings",
-                "goose settings",
-                "Set the goose mode, Tool Output, Tool Permissions, Experiment, goose recipe github repo and more",
-            )
-            .interact()?;
+    println!();
+    println!("{}", style("Help improve goose").bold());
+    println!();
+    println!(
+        "{}",
+        style("Would you like to help improve goose by sharing anonymous usage data?").dim()
+    );
+    println!(
+        "{}",
+        style("This helps us understand how goose is used and identify areas for improvement.")
+            .dim()
+    );
+    println!();
+    println!("{}", style("What we collect:").dim());
+    println!(
+        "{}",
+        style("  • Operating system, version, and architecture").dim()
+    );
+    println!("{}", style("  • goose version and install method").dim());
+    println!("{}", style("  • Provider and model used").dim());
+    println!(
+        "{}",
+        style("  • Extensions and tool usage counts (names only)").dim()
+    );
+    println!(
+        "{}",
+        style("  • Session metrics (duration, interaction count, token usage)").dim()
+    );
+    println!(
+        "{}",
+        style("  • Error types (e.g., \"rate_limit\", \"auth\" - no details)").dim()
+    );
+    println!();
+    println!(
+        "{}",
+        style("We never collect your conversations, code, tool arguments, error messages,").dim()
+    );
+    println!(
+        "{}",
+        style("or any personal data. You can change this anytime with 'goose configure'.").dim()
+    );
+    println!();
 
-        match action {
-            "toggle" => toggle_extensions_dialog(),
-            "add" => configure_extensions_dialog(),
-            "remove" => remove_extension_dialog(),
-            "settings" => configure_settings_dialog().await,
-            "providers" => configure_provider_dialog().await.map(|_| ()),
-            "custom_providers" => configure_custom_provider_dialog(),
-            _ => unreachable!(),
+    let enabled = cliclack::confirm("Share anonymous usage data to help improve goose?")
+        .initial_value(true)
+        .interact()?;
+
+    config.set_param(TELEMETRY_ENABLED_KEY, enabled)?;
+
+    if enabled {
+        let _ = cliclack::log::success("Thank you for helping improve goose!");
+    } else {
+        let _ = cliclack::log::info("Telemetry disabled. You can enable it anytime in settings.");
+    }
+
+    Ok(enabled)
+}
+
+async fn handle_first_time_setup(config: &Config) -> anyhow::Result<()> {
+    println!();
+    println!("{}", style("Welcome to goose! Let's get you set up.").dim());
+    println!(
+        "{}",
+        style("  you can rerun this command later to update your configuration").dim()
+    );
+    println!();
+
+    configure_telemetry_consent_dialog()?;
+
+    println!();
+    cliclack::intro(style(" goose-configure ").on_cyan().black())?;
+
+    let setup_method = cliclack::select("How would you like to set up your provider?")
+        .item(
+            "openrouter",
+            "OpenRouter Login (Recommended)",
+            "Sign in with OpenRouter to automatically configure models",
+        )
+        .item(
+            "tetrate",
+            "Tetrate Agent Router Service Login",
+            "Sign in with Tetrate Agent Router Service to automatically configure models",
+        )
+        .item(
+            "manual",
+            "Manual Configuration",
+            "Choose a provider and enter credentials manually",
+        )
+        .interact()?;
+
+    match setup_method {
+        "openrouter" => {
+            if let Err(e) = handle_openrouter_auth().await {
+                let _ = config.clear();
+                println!(
+                    "\n  {} OpenRouter authentication failed: {} \n  Please try again or use manual configuration",
+                    style("Error").red().italic(),
+                    e,
+                );
+            }
         }
+        "tetrate" => {
+            if let Err(e) = handle_tetrate_auth().await {
+                let _ = config.clear();
+                println!(
+                    "\n  {} Tetrate Agent Router Service authentication failed: {} \n  Please try again or use manual configuration",
+                    style("Error").red().italic(),
+                    e,
+                );
+            }
+        }
+        "manual" => handle_manual_provider_setup(config).await,
+        _ => unreachable!(),
+    }
+    Ok(())
+}
+
+async fn handle_manual_provider_setup(config: &Config) {
+    match configure_provider_dialog().await {
+        Ok(true) => {
+            println!(
+                "\n  {}: Run '{}' again to adjust your config or add extensions",
+                style("Tip").green().italic(),
+                style("goose configure").cyan()
+            );
+            set_extension(ExtensionEntry {
+                enabled: true,
+                config: ExtensionConfig::default(),
+            });
+        }
+        Ok(false) => {
+            let _ = config.clear();
+            println!(
+                "\n  {}: We did not save your config, inspect your credentials\n   and run '{}' again to ensure goose can connect",
+                style("Warning").yellow().italic(),
+                style("goose configure").cyan()
+            );
+        }
+        Err(e) => {
+            let _ = config.clear();
+            print_manual_config_error(&e);
+        }
+    }
+}
+
+fn print_manual_config_error(e: &anyhow::Error) {
+    match e.downcast_ref::<ConfigError>() {
+        Some(ConfigError::NotFound(key)) => {
+            println!(
+                "\n  {} Required configuration key '{}' not found \n  Please provide this value and run '{}' again",
+                style("Error").red().italic(),
+                key,
+                style("goose configure").cyan()
+            );
+        }
+        Some(ConfigError::KeyringError(msg)) => {
+            print_keyring_error(msg);
+        }
+        Some(ConfigError::DeserializeError(msg)) => {
+            println!(
+                "\n  {} Invalid configuration value: {} \n  Please check your input and run '{}' again",
+                style("Error").red().italic(),
+                msg,
+                style("goose configure").cyan()
+            );
+        }
+        Some(ConfigError::FileError(err)) => {
+            println!(
+                "\n  {} Failed to access config file: {} \n  Please check file permissions and run '{}' again",
+                style("Error").red().italic(),
+                err,
+                style("goose configure").cyan()
+            );
+        }
+        Some(ConfigError::DirectoryError(msg)) => {
+            println!(
+                "\n  {} Failed to access config directory: {} \n  Please check directory permissions and run '{}' again",
+                style("Error").red().italic(),
+                msg,
+                style("goose configure").cyan()
+            );
+        }
+        _ => {
+            println!(
+                "\n  {} {} \n  We did not save your config, inspect your credentials\n   and run '{}' again to ensure goose can connect",
+                style("Error").red().italic(),
+                e,
+                style("goose configure").cyan()
+            );
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn print_keyring_error(msg: &str) {
+    println!(
+        "\n  {} Failed to access secure storage (keyring): {} \n  Please check your system keychain and run '{}' again. \n  If your system is unable to use the keyring, please try setting secret key(s) via environment variables.",
+        style("Error").red().italic(),
+        msg,
+        style("goose configure").cyan()
+    );
+}
+
+#[cfg(target_os = "windows")]
+fn print_keyring_error(msg: &str) {
+    println!(
+        "\n  {} Failed to access Windows Credential Manager: {} \n  Please check Windows Credential Manager and run '{}' again. \n  If your system is unable to use the Credential Manager, please try setting secret key(s) via environment variables.",
+        style("Error").red().italic(),
+        msg,
+        style("goose configure").cyan()
+    );
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn print_keyring_error(msg: &str) {
+    println!(
+        "\n  {} Failed to access secure storage: {} \n  Please check your system's secure storage and run '{}' again. \n  If your system is unable to use secure storage, please try setting secret key(s) via environment variables.",
+        style("Error").red().italic(),
+        msg,
+        style("goose configure").cyan()
+    );
+}
+
+async fn handle_existing_config() -> anyhow::Result<()> {
+    let config_dir = Paths::config_dir().display().to_string();
+
+    println!();
+    println!(
+        "{}",
+        style("This will update your existing config files").dim()
+    );
+    println!(
+        "{} {}",
+        style("  if you prefer, you can edit them directly at").dim(),
+        config_dir
+    );
+    println!();
+
+    cliclack::intro(style(" goose-configure ").on_cyan().black())?;
+    let action = cliclack::select("What would you like to configure?")
+        .item(
+            "providers",
+            "Configure Providers",
+            "Change provider or update credentials",
+        )
+        .item(
+            "custom_providers",
+            "Custom Providers",
+            "Add custom provider with compatible API",
+        )
+        .item("add", "Add Extension", "Connect to a new extension")
+        .item(
+            "toggle",
+            "Toggle Extensions",
+            "Enable or disable connected extensions",
+        )
+        .item("remove", "Remove Extension", "Remove an extension")
+        .item(
+            "settings",
+            "goose settings",
+            "Set the goose mode, Tool Output, Tool Permissions, Experiment, goose recipe github repo and more",
+        )
+        .interact()?;
+
+    match action {
+        "toggle" => toggle_extensions_dialog(),
+        "add" => configure_extensions_dialog(),
+        "remove" => remove_extension_dialog(),
+        "settings" => configure_settings_dialog().await,
+        "providers" => configure_provider_dialog().await.map(|_| ()),
+        "custom_providers" => configure_custom_provider_dialog(),
+        _ => unreachable!(),
     }
 }
 
@@ -367,12 +435,12 @@ fn select_model_from_list(
     provider_meta: &goose::providers::base::ProviderMetadata,
 ) -> anyhow::Result<String> {
     const MAX_MODELS: usize = 10;
+    const UNLISTED_MODEL_KEY: &str = "__unlisted__";
+
     // Smart model selection:
     // If we have more than MAX_MODELS models, show the recommended models with additional search option.
     // Otherwise, show all models without search.
-
     if models.len() > MAX_MODELS {
-        // Get recommended models from provider metadata
         let recommended_models: Vec<String> = provider_meta
             .known_models
             .iter()
@@ -395,12 +463,22 @@ fn select_model_from_list(
                 ),
             );
 
+            if provider_meta.allows_unlisted_models {
+                model_items.push((
+                    UNLISTED_MODEL_KEY.to_string(),
+                    "Enter a model not listed...".to_string(),
+                    "",
+                ));
+            }
+
             let selection = cliclack::select("Select a model:")
                 .items(&model_items)
                 .interact()?;
 
             if selection == "search_all" {
                 Ok(interactive_model_search(models)?)
+            } else if selection == UNLISTED_MODEL_KEY {
+                prompt_unlisted_model(provider_meta)
             } else {
                 Ok(selection)
             }
@@ -408,22 +486,49 @@ fn select_model_from_list(
             Ok(interactive_model_search(models)?)
         }
     } else {
-        // just a few models, show all without search for better UX
-        Ok(cliclack::select("Select a model:")
-            .items(
-                &models
-                    .iter()
-                    .map(|m| (m, m.as_str(), ""))
-                    .collect::<Vec<_>>(),
-            )
-            .interact()?
-            .to_string())
+        let mut model_items: Vec<(String, String, &str)> =
+            models.iter().map(|m| (m.clone(), m.clone(), "")).collect();
+
+        if provider_meta.allows_unlisted_models {
+            model_items.push((
+                UNLISTED_MODEL_KEY.to_string(),
+                "Enter a model not listed...".to_string(),
+                "",
+            ));
+        }
+
+        let selection = cliclack::select("Select a model:")
+            .items(&model_items)
+            .interact()?;
+
+        if selection == UNLISTED_MODEL_KEY {
+            prompt_unlisted_model(provider_meta)
+        } else {
+            Ok(selection)
+        }
     }
+}
+
+fn prompt_unlisted_model(
+    provider_meta: &goose::providers::base::ProviderMetadata,
+) -> anyhow::Result<String> {
+    let model: String = cliclack::input("Enter the model name:")
+        .placeholder(&provider_meta.default_model)
+        .validate(|input: &String| {
+            if input.trim().is_empty() {
+                Err("Please enter a model name")
+            } else {
+                Ok(())
+            }
+        })
+        .interact()?;
+    Ok(model.trim().to_string())
 }
 
 fn try_store_secret(config: &Config, key_name: &str, value: String) -> anyhow::Result<bool> {
     match config.set_secret(key_name, &value) {
         Ok(_) => Ok(true),
+        Err(ConfigError::FallbackToFileStorage) => Ok(true),
         Err(e) => {
             cliclack::outro(style(format!(
                 "Failed to store {} securely: {}. Please ensure your system's secure storage is accessible. Alternatively you can run with GOOSE_DISABLE_KEYRING=true or set the key in your environment variables",
@@ -494,7 +599,6 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
                 }
             }
             None => {
-                // No env var, check config/secret storage
                 let existing: Result<String, _> = if key.secret {
                     config.get_secret(&key.name)
                 } else {
@@ -559,7 +663,9 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
                             };
 
                             if key.secret {
-                                config.set_secret(&key.name, &value)?;
+                                if !try_store_secret(config, &key.name, value)? {
+                                    return Ok(false);
+                                }
                             } else {
                                 config.set_param(&key.name, &value)?;
                             }
@@ -570,13 +676,15 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
         }
     }
 
-    // Attempt to fetch supported models for this provider
     let spin = spinner();
     spin.start("Attempting to fetch supported models...");
     let models_res = {
         let temp_model_config = ModelConfig::new(&provider_meta.default_model)?;
         let temp_provider = create(provider_name, temp_model_config).await?;
-        temp_provider.fetch_recommended_models().await
+        retry_operation(&RetryConfig::default(), || async {
+            temp_provider.fetch_recommended_models().await
+        })
+        .await
     };
     spin.stop(style("Model fetch complete").green());
 
@@ -625,6 +733,10 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
 /// Configure extensions that can be used with goose
 /// Dialog for toggling which extensions are enabled/disabled
 pub fn toggle_extensions_dialog() -> anyhow::Result<()> {
+    for warning in goose::config::get_warnings() {
+        eprintln!("{}", style(format!("Warning: {}", warning)).yellow());
+    }
+
     let extensions = get_all_extensions();
 
     if extensions.is_empty() {
@@ -680,6 +792,249 @@ pub fn toggle_extensions_dialog() -> anyhow::Result<()> {
     Ok(())
 }
 
+fn prompt_extension_timeout() -> anyhow::Result<u64> {
+    Ok(
+        cliclack::input("Please set the timeout for this tool (in secs):")
+            .placeholder(&goose::config::DEFAULT_EXTENSION_TIMEOUT.to_string())
+            .validate(|input: &String| match input.parse::<u64>() {
+                Ok(_) => Ok(()),
+                Err(_) => Err("Please enter a valid timeout"),
+            })
+            .interact()?,
+    )
+}
+
+fn prompt_extension_description() -> anyhow::Result<String> {
+    Ok(cliclack::input("Enter a description for this extension:")
+        .placeholder("Description")
+        .validate(|input: &String| {
+            if input.trim().is_empty() {
+                Err("Please enter a valid description")
+            } else {
+                Ok(())
+            }
+        })
+        .interact()?)
+}
+
+fn prompt_extension_name(placeholder: &str) -> anyhow::Result<String> {
+    let extensions = get_all_extension_names();
+    Ok(
+        cliclack::input("What would you like to call this extension?")
+            .placeholder(placeholder)
+            .validate(move |input: &String| {
+                if input.is_empty() {
+                    Err("Please enter a name")
+                } else if extensions.contains(input) {
+                    Err("An extension with this name already exists")
+                } else {
+                    Ok(())
+                }
+            })
+            .interact()?,
+    )
+}
+
+fn collect_env_vars() -> anyhow::Result<(HashMap<String, String>, Vec<String>)> {
+    let envs = HashMap::new();
+    let mut env_keys = Vec::new();
+    let config = Config::global();
+
+    if !cliclack::confirm("Would you like to add environment variables?").interact()? {
+        return Ok((envs, env_keys));
+    }
+
+    loop {
+        let key: String = cliclack::input("Environment variable name:")
+            .placeholder("API_KEY")
+            .interact()?;
+
+        let value: String = cliclack::password("Environment variable value:")
+            .mask('▪')
+            .interact()?;
+
+        if !try_store_secret(config, &key, value)? {
+            return Err(anyhow::anyhow!("Failed to store secret"));
+        }
+        env_keys.push(key);
+
+        if !cliclack::confirm("Add another environment variable?").interact()? {
+            break;
+        }
+    }
+
+    Ok((envs, env_keys))
+}
+
+fn collect_headers() -> anyhow::Result<HashMap<String, String>> {
+    let mut headers = HashMap::new();
+
+    if !cliclack::confirm("Would you like to add custom headers?").interact()? {
+        return Ok(headers);
+    }
+
+    loop {
+        let key: String = cliclack::input("Header name:")
+            .placeholder("Authorization")
+            .interact()?;
+
+        let value: String = cliclack::input("Header value:")
+            .placeholder("Bearer token123")
+            .interact()?;
+
+        headers.insert(key, value);
+
+        if !cliclack::confirm("Add another header?").interact()? {
+            break;
+        }
+    }
+
+    Ok(headers)
+}
+
+fn configure_builtin_extension() -> anyhow::Result<()> {
+    let extensions = vec![
+        (
+            "autovisualiser",
+            "Auto Visualiser",
+            "Data visualisation and UI generation tools",
+        ),
+        (
+            "computercontroller",
+            "Computer Controller",
+            "controls for webscraping, file caching, and automations",
+        ),
+        (
+            "developer",
+            "Developer Tools",
+            "Code editing and shell access",
+        ),
+        (
+            "memory",
+            "Memory",
+            "Tools to save and retrieve durable memories",
+        ),
+        (
+            "tutorial",
+            "Tutorial",
+            "Access interactive tutorials and guides",
+        ),
+    ];
+
+    let mut select = cliclack::select("Which built-in extension would you like to enable?");
+    for (id, name, desc) in &extensions {
+        select = select.item(id, name, desc);
+    }
+    let extension = select.interact()?.to_string();
+    let timeout = prompt_extension_timeout()?;
+
+    let (display_name, description) = extensions
+        .iter()
+        .find(|(id, _, _)| id == &extension)
+        .map(|(_, name, desc)| (name.to_string(), desc.to_string()))
+        .unwrap_or_else(|| (extension.clone(), extension.clone()));
+
+    set_extension(ExtensionEntry {
+        enabled: true,
+        config: ExtensionConfig::Builtin {
+            name: extension.clone(),
+            display_name: Some(display_name),
+            timeout: Some(timeout),
+            bundled: Some(true),
+            description,
+            available_tools: Vec::new(),
+        },
+    });
+
+    cliclack::outro(format!("Enabled {} extension", style(extension).green()))?;
+    Ok(())
+}
+
+fn configure_stdio_extension() -> anyhow::Result<()> {
+    let name = prompt_extension_name("my-extension")?;
+
+    let command_str: String = cliclack::input("What command should be run?")
+        .placeholder("npx -y @block/gdrive")
+        .validate(|input: &String| {
+            if input.is_empty() {
+                Err("Please enter a command")
+            } else {
+                Ok(())
+            }
+        })
+        .interact()?;
+
+    let timeout = prompt_extension_timeout()?;
+
+    let mut parts = command_str.split_whitespace();
+    let cmd = parts.next().unwrap_or("").to_string();
+    let args: Vec<String> = parts.map(String::from).collect();
+
+    let description = prompt_extension_description()?;
+    let (envs, env_keys) = collect_env_vars()?;
+
+    set_extension(ExtensionEntry {
+        enabled: true,
+        config: ExtensionConfig::Stdio {
+            name: name.clone(),
+            cmd,
+            args,
+            envs: Envs::new(envs),
+            env_keys,
+            description,
+            timeout: Some(timeout),
+            bundled: None,
+            available_tools: Vec::new(),
+        },
+    });
+
+    cliclack::outro(format!("Added {} extension", style(name).green()))?;
+    Ok(())
+}
+
+fn configure_streamable_http_extension() -> anyhow::Result<()> {
+    let name = prompt_extension_name("my-remote-extension")?;
+
+    let uri: String = cliclack::input("What is the Streaming HTTP endpoint URI?")
+        .placeholder("http://localhost:8000/messages")
+        .validate(|input: &String| {
+            if input.is_empty() {
+                Err("Please enter a URI")
+            } else if !(input.starts_with("http://") || input.starts_with("https://")) {
+                Err("URI should start with http:// or https://")
+            } else {
+                Ok(())
+            }
+        })
+        .interact()?;
+
+    let timeout = prompt_extension_timeout()?;
+    let description = prompt_extension_description()?;
+    let headers = collect_headers()?;
+
+    // Original behavior: no env var collection for Streamable HTTP
+    let envs = HashMap::new();
+    let env_keys = Vec::new();
+
+    set_extension(ExtensionEntry {
+        enabled: true,
+        config: ExtensionConfig::StreamableHttp {
+            name: name.clone(),
+            uri,
+            envs: Envs::new(envs),
+            env_keys,
+            headers,
+            description,
+            timeout: Some(timeout),
+            bundled: None,
+            available_tools: Vec::new(),
+        },
+    });
+
+    cliclack::outro(format!("Added {} extension", style(name).green()))?;
+    Ok(())
+}
+
 pub fn configure_extensions_dialog() -> anyhow::Result<()> {
     let extension_type = cliclack::select("What type of extension would you like to add?")
         .item(
@@ -693,408 +1048,28 @@ pub fn configure_extensions_dialog() -> anyhow::Result<()> {
             "Run a local command or script",
         )
         .item(
-            "sse",
-            "Remote Extension (SSE)",
-            "Connect to a remote extension via Server-Sent Events",
-        )
-        .item(
             "streamable_http",
-            "Remote Extension (Streaming HTTP)",
-            "Connect to a remote extension via MCP Streaming HTTP",
+            "Remote Extension (Streamable HTTP)",
+            "Connect to a remote extension via MCP Streamable HTTP",
         )
         .interact()?;
 
     match extension_type {
-        // TODO we'll want a place to collect all these options, maybe just an enum in goose-mcp
-        "built-in" => {
-            let extensions = vec![
-                (
-                    "autovisualiser",
-                    "Auto Visualiser",
-                    "Data visualisation and UI generation tools",
-                ),
-                (
-                    "computercontroller",
-                    "Computer Controller",
-                    "controls for webscraping, file caching, and automations",
-                ),
-                (
-                    "developer",
-                    "Developer Tools",
-                    "Code editing and shell access",
-                ),
-                (
-                    "memory",
-                    "Memory",
-                    "Tools to save and retrieve durable memories",
-                ),
-                (
-                    "tutorial",
-                    "Tutorial",
-                    "Access interactive tutorials and guides",
-                ),
-            ];
-
-            let mut select = cliclack::select("Which built-in extension would you like to enable?");
-            for (id, name, desc) in &extensions {
-                select = select.item(id, name, desc);
-            }
-            let extension = select.interact()?.to_string();
-
-            let timeout: u64 = cliclack::input("Please set the timeout for this tool (in secs):")
-                .placeholder(&goose::config::DEFAULT_EXTENSION_TIMEOUT.to_string())
-                .validate(|input: &String| match input.parse::<u64>() {
-                    Ok(_) => Ok(()),
-                    Err(_) => Err("Please enter a valid timeout"),
-                })
-                .interact()?;
-
-            let (display_name, description) = extensions
-                .iter()
-                .find(|(id, _, _)| id == &extension)
-                .map(|(_, name, desc)| (name.to_string(), desc.to_string()))
-                .unwrap_or_else(|| (extension.clone(), extension.clone()));
-
-            set_extension(ExtensionEntry {
-                enabled: true,
-                config: ExtensionConfig::Builtin {
-                    name: extension.clone(),
-                    display_name: Some(display_name),
-                    timeout: Some(timeout),
-                    bundled: Some(true),
-                    description,
-                    available_tools: Vec::new(),
-                },
-            });
-
-            cliclack::outro(format!("Enabled {} extension", style(extension).green()))?;
-        }
-        "stdio" => {
-            let extensions = get_all_extension_names();
-            let name: String = cliclack::input("What would you like to call this extension?")
-                .placeholder("my-extension")
-                .validate(move |input: &String| {
-                    if input.is_empty() {
-                        Err("Please enter a name")
-                    } else if extensions.contains(input) {
-                        Err("An extension with this name already exists")
-                    } else {
-                        Ok(())
-                    }
-                })
-                .interact()?;
-
-            let command_str: String = cliclack::input("What command should be run?")
-                .placeholder("npx -y @block/gdrive")
-                .validate(|input: &String| {
-                    if input.is_empty() {
-                        Err("Please enter a command")
-                    } else {
-                        Ok(())
-                    }
-                })
-                .interact()?;
-
-            let timeout: u64 = cliclack::input("Please set the timeout for this tool (in secs):")
-                .placeholder(&goose::config::DEFAULT_EXTENSION_TIMEOUT.to_string())
-                .validate(|input: &String| match input.parse::<u64>() {
-                    Ok(_) => Ok(()),
-                    Err(_) => Err("Please enter a valid timeout"),
-                })
-                .interact()?;
-
-            // Split the command string into command and args
-            // TODO: find a way to expose this to the frontend so we dont need to re-write code
-            let mut parts = command_str.split_whitespace();
-            let cmd = parts.next().unwrap_or("").to_string();
-            let args: Vec<String> = parts.map(String::from).collect();
-
-            let description = cliclack::input("Enter a description for this extension:")
-                .placeholder("Description")
-                .validate(|input: &String| match input.parse::<String>() {
-                    Ok(_) => Ok(()),
-                    Err(_) => Err("Please enter a valid description"),
-                })
-                .interact()?;
-
-            let add_env =
-                cliclack::confirm("Would you like to add environment variables?").interact()?;
-
-            let mut envs = HashMap::new();
-            let mut env_keys = Vec::new();
-            let config = Config::global();
-
-            if add_env {
-                loop {
-                    let key: String = cliclack::input("Environment variable name:")
-                        .placeholder("API_KEY")
-                        .interact()?;
-
-                    let value: String = cliclack::password("Environment variable value:")
-                        .mask('▪')
-                        .interact()?;
-
-                    // Try to store in keychain
-                    let keychain_key = key.to_string();
-                    match config.set_secret(&keychain_key, &value) {
-                        Ok(_) => {
-                            // Successfully stored in keychain, add to env_keys
-                            env_keys.push(keychain_key);
-                        }
-                        Err(_) => {
-                            // Failed to store in keychain, store directly in envs
-                            envs.insert(key, value);
-                        }
-                    }
-
-                    if !cliclack::confirm("Add another environment variable?").interact()? {
-                        break;
-                    }
-                }
-            }
-
-            set_extension(ExtensionEntry {
-                enabled: true,
-                config: ExtensionConfig::Stdio {
-                    name: name.clone(),
-                    cmd,
-                    args,
-                    envs: Envs::new(envs),
-                    env_keys,
-                    description,
-                    timeout: Some(timeout),
-                    bundled: None,
-                    available_tools: Vec::new(),
-                },
-            });
-
-            cliclack::outro(format!("Added {} extension", style(name).green()))?;
-        }
-        "sse" => {
-            let extensions = get_all_extension_names();
-            let name: String = cliclack::input("What would you like to call this extension?")
-                .placeholder("my-remote-extension")
-                .validate(move |input: &String| {
-                    if input.is_empty() {
-                        Err("Please enter a name")
-                    } else if extensions.contains(input) {
-                        Err("An extension with this name already exists")
-                    } else {
-                        Ok(())
-                    }
-                })
-                .interact()?;
-
-            let uri: String = cliclack::input("What is the SSE endpoint URI?")
-                .placeholder("http://localhost:8000/events")
-                .validate(|input: &String| {
-                    if input.is_empty() {
-                        Err("Please enter a URI")
-                    } else if !input.starts_with("http") {
-                        Err("URI should start with http:// or https://")
-                    } else {
-                        Ok(())
-                    }
-                })
-                .interact()?;
-
-            let timeout: u64 = cliclack::input("Please set the timeout for this tool (in secs):")
-                .placeholder(&goose::config::DEFAULT_EXTENSION_TIMEOUT.to_string())
-                .validate(|input: &String| match input.parse::<u64>() {
-                    Ok(_) => Ok(()),
-                    Err(_) => Err("Please enter a valid timeout"),
-                })
-                .interact()?;
-
-            let description = cliclack::input("Enter a description for this extension:")
-                .placeholder("Description")
-                .validate(|input: &String| match input.parse::<String>() {
-                    Ok(_) => Ok(()),
-                    Err(_) => Err("Please enter a valid description"),
-                })
-                .interact()?;
-            let add_env =
-                cliclack::confirm("Would you like to add environment variables?").interact()?;
-
-            let mut envs = HashMap::new();
-            let mut env_keys = Vec::new();
-            let config = Config::global();
-
-            if add_env {
-                loop {
-                    let key: String = cliclack::input("Environment variable name:")
-                        .placeholder("API_KEY")
-                        .interact()?;
-
-                    let value: String = cliclack::password("Environment variable value:")
-                        .mask('▪')
-                        .interact()?;
-
-                    // Try to store in keychain
-                    let keychain_key = key.to_string();
-                    match config.set_secret(&keychain_key, &value) {
-                        Ok(_) => {
-                            // Successfully stored in keychain, add to env_keys
-                            env_keys.push(keychain_key);
-                        }
-                        Err(_) => {
-                            // Failed to store in keychain, store directly in envs
-                            envs.insert(key, value);
-                        }
-                    }
-
-                    if !cliclack::confirm("Add another environment variable?").interact()? {
-                        break;
-                    }
-                }
-            }
-
-            set_extension(ExtensionEntry {
-                enabled: true,
-                config: ExtensionConfig::Sse {
-                    name: name.clone(),
-                    uri,
-                    envs: Envs::new(envs),
-                    env_keys,
-                    description,
-                    timeout: Some(timeout),
-                    bundled: None,
-                    available_tools: Vec::new(),
-                },
-            });
-
-            cliclack::outro(format!("Added {} extension", style(name).green()))?;
-        }
-        "streamable_http" => {
-            let extensions = get_all_extension_names();
-            let name: String = cliclack::input("What would you like to call this extension?")
-                .placeholder("my-remote-extension")
-                .validate(move |input: &String| {
-                    if input.is_empty() {
-                        Err("Please enter a name")
-                    } else if extensions.contains(input) {
-                        Err("An extension with this name already exists")
-                    } else {
-                        Ok(())
-                    }
-                })
-                .interact()?;
-
-            let uri: String = cliclack::input("What is the Streaming HTTP endpoint URI?")
-                .placeholder("http://localhost:8000/messages")
-                .validate(|input: &String| {
-                    if input.is_empty() {
-                        Err("Please enter a URI")
-                    } else if !(input.starts_with("http://") || input.starts_with("https://")) {
-                        Err("URI should start with http:// or https://")
-                    } else {
-                        Ok(())
-                    }
-                })
-                .interact()?;
-
-            let timeout: u64 = cliclack::input("Please set the timeout for this tool (in secs):")
-                .placeholder(&goose::config::DEFAULT_EXTENSION_TIMEOUT.to_string())
-                .validate(|input: &String| match input.parse::<u64>() {
-                    Ok(_) => Ok(()),
-                    Err(_) => Err("Please enter a valid timeout"),
-                })
-                .interact()?;
-
-            let description = cliclack::input("Enter a description for this extension:")
-                .placeholder("Description")
-                .validate(|input: &String| {
-                    if input.trim().is_empty() {
-                        Err("Please enter a valid description")
-                    } else {
-                        Ok(())
-                    }
-                })
-                .interact()?;
-
-            let add_headers =
-                cliclack::confirm("Would you like to add custom headers?").interact()?;
-
-            let mut headers = HashMap::new();
-            if add_headers {
-                loop {
-                    let key: String = cliclack::input("Header name:")
-                        .placeholder("Authorization")
-                        .interact()?;
-
-                    let value: String = cliclack::input("Header value:")
-                        .placeholder("Bearer token123")
-                        .interact()?;
-
-                    headers.insert(key, value);
-
-                    if !cliclack::confirm("Add another header?").interact()? {
-                        break;
-                    }
-                }
-            }
-
-            let add_env = false; // No env prompt for Streaming HTTP
-
-            let mut envs = HashMap::new();
-            let mut env_keys = Vec::new();
-            let config = Config::global();
-
-            if add_env {
-                loop {
-                    let key: String = cliclack::input("Environment variable name:")
-                        .placeholder("API_KEY")
-                        .interact()?;
-
-                    let value: String = cliclack::password("Environment variable value:")
-                        .mask('▪')
-                        .interact()?;
-
-                    // Try to store in keychain
-                    let keychain_key = key.to_string();
-                    match config.set_secret(&keychain_key, &Value::String(value.clone())) {
-                        Ok(_) => {
-                            // Successfully stored in keychain, add to env_keys
-                            env_keys.push(keychain_key);
-                        }
-                        Err(_) => {
-                            // Failed to store in keychain, store directly in envs
-                            envs.insert(key, value);
-                        }
-                    }
-
-                    if !cliclack::confirm("Add another environment variable?").interact()? {
-                        break;
-                    }
-                }
-            }
-
-            set_extension(ExtensionEntry {
-                enabled: true,
-                config: ExtensionConfig::StreamableHttp {
-                    name: name.clone(),
-                    uri,
-                    envs: Envs::new(envs),
-                    env_keys,
-                    headers,
-                    description,
-                    timeout: Some(timeout),
-                    bundled: None,
-                    available_tools: Vec::new(),
-                },
-            });
-
-            cliclack::outro(format!("Added {} extension", style(name).green()))?;
-        }
+        "built-in" => configure_builtin_extension()?,
+        "stdio" => configure_stdio_extension()?,
+        "streamable_http" => configure_streamable_http_extension()?,
         _ => unreachable!(),
     };
 
     print_config_file_saved()?;
-
     Ok(())
 }
 
 pub fn remove_extension_dialog() -> anyhow::Result<()> {
+    for warning in goose::config::get_warnings() {
+        eprintln!("{}", style(format!("Warning: {}", warning)).yellow());
+    }
+
     let extensions = get_all_extensions();
 
     // Create a list of extension names and their enabled status
@@ -1141,8 +1116,7 @@ pub fn remove_extension_dialog() -> anyhow::Result<()> {
 
     for name in selected {
         remove_extension(&name_to_key(name));
-        let mut permission_manager = PermissionManager::default();
-        permission_manager.remove_extension(&name_to_key(name));
+        PermissionManager::instance().remove_extension(&name_to_key(name));
         cliclack::outro(format!("Removed {} extension", style(name).green()))?;
     }
 
@@ -1155,9 +1129,9 @@ pub async fn configure_settings_dialog() -> anyhow::Result<()> {
     let setting_type = cliclack::select("What setting would you like to configure?")
         .item("goose_mode", "goose mode", "Configure goose mode")
         .item(
-            "goose_router_strategy",
-            "Router Tool Selection Strategy",
-            "Experimental: configure a strategy for auto selecting tools to use",
+            "telemetry",
+            "Telemetry",
+            "Enable or disable anonymous usage data collection",
         )
         .item(
             "tool_permission",
@@ -1197,8 +1171,8 @@ pub async fn configure_settings_dialog() -> anyhow::Result<()> {
         "goose_mode" => {
             configure_goose_mode_dialog()?;
         }
-        "goose_router_strategy" => {
-            configure_goose_router_strategy_dialog()?;
+        "telemetry" => {
+            configure_telemetry_dialog()?;
         }
         "tool_permission" => {
             configure_tool_permissions_dialog().await.and(Ok(()))?;
@@ -1271,29 +1245,33 @@ pub fn configure_goose_mode_dialog() -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn configure_goose_router_strategy_dialog() -> anyhow::Result<()> {
+pub fn configure_telemetry_dialog() -> anyhow::Result<()> {
     let config = Config::global();
 
-    let enable_router = cliclack::select("Would you like to enable smart tool routing?")
-        .item(
-            true,
-            "Enable Router",
-            "Use LLM-based intelligence to select tools",
-        )
-        .item(
-            false,
-            "Disable Router",
-            "Use the default tool selection strategy",
-        )
+    if std::env::var("GOOSE_TELEMETRY_OFF").is_ok() {
+        let _ = cliclack::log::info("Notice: GOOSE_TELEMETRY_OFF environment variable is set and will override the configuration here.");
+    }
+
+    let current_choice = get_telemetry_choice();
+    let current_status = match current_choice {
+        Some(true) => "Enabled",
+        Some(false) => "Disabled",
+        None => "Not set",
+    };
+
+    let _ = cliclack::log::info(format!("Current telemetry status: {}", current_status));
+
+    let enabled = cliclack::confirm("Share anonymous usage data to help improve goose?")
+        .initial_value(current_choice.unwrap_or(true))
         .interact()?;
 
-    config.set_param("GOOSE_ENABLE_ROUTER", enable_router)?;
-    let msg = if enable_router {
-        "Router enabled - using LLM-based intelligence for tool selection"
+    config.set_param(TELEMETRY_ENABLED_KEY, enabled)?;
+
+    if enabled {
+        cliclack::outro("Telemetry enabled - thank you for helping improve goose!")?;
     } else {
-        "Router disabled - using default tool selection"
-    };
-    cliclack::outro(msg)?;
+        cliclack::outro("Telemetry disabled")?;
+    }
 
     Ok(())
 }
@@ -1452,15 +1430,19 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
         .expect("No model configured. Please set model first");
     let model_config = ModelConfig::new(&model)?;
 
-    let session = SessionManager::create_session(
-        std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
-        "Tool Permission Configuration".to_string(),
-        SessionType::Hidden,
-    )
-    .await?;
-
     let agent = Agent::new();
     let new_provider = create(&provider_name, model_config).await?;
+
+    let session = agent
+        .config
+        .session_manager
+        .create_session(
+            std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
+            "Tool Permission Configuration".to_string(),
+            SessionType::Hidden,
+        )
+        .await?;
+
     agent.update_provider(new_provider, &session.id).await?;
     if let Some(config) = get_extension_by_name(&selected_extension_name) {
         agent
@@ -1482,9 +1464,9 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let mut permission_manager = PermissionManager::default();
+    let permission_manager = PermissionManager::instance();
     let selected_tools = agent
-        .list_tools(Some(selected_extension_name.clone()))
+        .list_tools(&session.id, Some(selected_extension_name.clone()))
         .await
         .into_iter()
         .map(|tool| {
@@ -1672,9 +1654,11 @@ pub async fn handle_openrouter_auth() -> anyhow::Result<()> {
 
     match create("openrouter", model_config).await {
         Ok(provider) => {
-            // Simple test request
+            let model_config = provider.get_model_config();
             let test_result = provider
-                .complete(
+                .complete_with_model(
+                    None,
+                    &model_config,
                     "You are goose, an AI assistant.",
                     &[Message::user().with_text("Say 'Configuration test successful!'")],
                     &[],
@@ -1750,13 +1734,7 @@ pub async fn handle_tetrate_auth() -> anyhow::Result<()> {
 
     match create("tetrate", model_config).await {
         Ok(provider) => {
-            let test_result = provider
-                .complete(
-                    "You are goose, an AI assistant.",
-                    &[Message::user().with_text("Say 'Configuration test successful!'")],
-                    &[],
-                )
-                .await;
+            let test_result = provider.fetch_supported_models().await;
 
             match test_result {
                 Ok(_) => {
@@ -1876,7 +1854,7 @@ fn add_provider() -> anyhow::Result<()> {
         .interact()?;
 
     let api_url: String = cliclack::input("Provider API URL:")
-        .placeholder("https://api.example.com/v1/messages")
+        .placeholder("https://api.example.com/v1")
         .validate(|input: &String| {
             if !input.starts_with("http://") && !input.starts_with("https://") {
                 Err("URL must start with either http:// or https://")

@@ -36,7 +36,7 @@ pub struct EvalMetric {
 pub struct ExtensionRequirements {
     pub builtin: Vec<String>,
     pub external: Vec<String>,
-    pub remote: Vec<String>,
+    pub streamable_http: Vec<String>,
 }
 
 #[async_trait]
@@ -53,7 +53,7 @@ pub trait Evaluation: Send + Sync {
         ExtensionRequirements {
             builtin: Vec::new(),
             external: Vec::new(),
-            remote: Vec::new(),
+            streamable_http: Vec::new(),
         }
     }
 }

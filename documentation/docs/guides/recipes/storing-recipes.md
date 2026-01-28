@@ -91,7 +91,7 @@ When you modify and save a recipe with a new name, a new recipe and new link are
   :::warning Recipe File Format
   goose Desktop accepts `.yaml`, `.yml`, and `.json` files, but **the CLI only supports `.yaml` and `.json`**. For full compatibility across both interfaces, avoid `.yml` extensions.
 
-  All recipe formats follow the same [schema structure](/docs/guides/recipes/recipe-reference#recipe-structure).
+  All recipe formats follow the same [schema structure](/docs/guides/recipes/recipe-reference#core-recipe-schema).
   :::
 
   </TabItem>

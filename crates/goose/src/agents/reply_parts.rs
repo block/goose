@@ -7,6 +7,8 @@ use serde_json::{json, Value};
 use tracing::debug;
 
 use super::super::agents::Agent;
+use crate::agents::code_execution_extension::EXTENSION_NAME as CODE_EXECUTION_EXTENSION;
+use crate::agents::subagent_tool::SUBAGENT_TOOL_NAME;
 use crate::conversation::message::{Message, MessageContent, ToolRequest};
 use crate::conversation::Conversation;
 use crate::providers::base::{stream_from_single_message, MessageStream, Provider, ProviderUsage};
@@ -15,11 +17,6 @@ use crate::providers::toolshim::{
     augment_message_with_tool_calls, convert_tool_messages_to_text,
     modify_system_prompt_for_tool_json, OllamaInterpreter,
 };
-
-use crate::agents::code_execution_extension::EXTENSION_NAME as CODE_EXECUTION_EXTENSION;
-use crate::session::SessionManager;
-#[cfg(test)]
-use crate::session::SessionType;
 use rmcp::model::Tool;
 
 fn coerce_value(s: &str, schema: &Value) -> Value {
@@ -111,18 +108,11 @@ async fn toolshim_postprocess(
 impl Agent {
     pub async fn prepare_tools_and_prompt(
         &self,
+        session_id: &str,
         working_dir: &std::path::Path,
     ) -> Result<(Vec<Tool>, Vec<Tool>, String)> {
-        // Get router enabled status
-        let router_enabled = self.tool_route_manager.is_router_enabled().await;
-
         // Get tools from extension manager
-        let mut tools = self.list_tools_for_router().await;
-
-        // If router is disabled and no tools were returned, fall back to regular tools
-        if !router_enabled && tools.is_empty() {
-            tools = self.list_tools(None).await;
-        }
+        let mut tools = self.list_tools(session_id, None).await;
 
         // Add frontend tools
         let frontend_tools = self.frontend_tools.lock().await;
@@ -136,18 +126,20 @@ impl Agent {
             .await;
         if code_execution_active {
             let code_exec_prefix = format!("{CODE_EXECUTION_EXTENSION}__");
-            tools.retain(|tool| tool.name.starts_with(&code_exec_prefix));
+            tools.retain(|tool| {
+                tool.name.starts_with(&code_exec_prefix) || tool.name == SUBAGENT_TOOL_NAME
+            });
         }
 
-        if !router_enabled {
-            // Stable tool ordering is important for multi session prompt caching.
-            tools.sort_by(|a, b| a.name.cmp(&b.name));
-        }
+        // Stable tool ordering is important for multi session prompt caching.
+        tools.sort_by(|a, b| a.name.cmp(&b.name));
 
         // Prepare system prompt
         let extensions_info = self.extension_manager.get_extensions_info().await;
-        let (extension_count, tool_count) =
-            self.extension_manager.get_extension_and_tool_counts().await;
+        let (extension_count, tool_count) = self
+            .extension_manager
+            .get_extension_and_tool_counts(session_id)
+            .await;
 
         // Get model name from provider
         let provider = self.provider().await?;
@@ -159,10 +151,9 @@ impl Agent {
             .with_extensions(extensions_info.into_iter())
             .with_frontend_instructions(self.frontend_instructions.lock().await.clone())
             .with_extension_and_tool_counts(extension_count, tool_count)
-            .with_router_enabled(router_enabled)
             .with_code_execution_mode(code_execution_active)
             .with_hints(working_dir)
-            .with_enable_subagents(self.subagents_enabled().await)
+            .with_enable_subagents(self.subagents_enabled(session_id).await)
             .build();
 
         // Handle toolshim if enabled
@@ -183,6 +174,7 @@ impl Agent {
     /// Handles toolshim transformations if needed
     pub(crate) async fn stream_response_from_provider(
         provider: Arc<dyn Provider>,
+        session_id: &str,
         system_prompt: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -209,6 +201,7 @@ impl Agent {
             debug!("WAITING_LLM_STREAM_START");
             let result = provider
                 .stream(
+                    session_id,
                     system_prompt.as_str(),
                     messages_for_provider.messages(),
                     &tools,
@@ -220,6 +213,7 @@ impl Agent {
             debug!("WAITING_LLM_START");
             let complete_result = provider
                 .complete(
+                    session_id,
                     system_prompt.as_str(),
                     messages_for_provider.messages(),
                     &tools,
@@ -246,7 +240,9 @@ impl Agent {
         };
 
         Ok(Box::pin(try_stream! {
-            while let Some(Ok((mut message, usage))) = stream.next().await {
+            while let Some(result) = stream.next().await {
+                let (mut message, usage) = result?;
+
                 // Store the model information in the global store
                 if let Some(usage) = usage.as_ref() {
                     crate::providers::base::set_current_model(&usage.model);
@@ -285,6 +281,10 @@ impl Agent {
                             let schema_value = Value::Object(tool.input_schema.as_ref().clone());
                             tool_call.arguments =
                                 coerce_tool_arguments(tool_call.arguments.clone(), &schema_value);
+
+                            if let Some(ref meta) = tool.meta {
+                                coerced_req.tool_meta = serde_json::to_value(meta).ok();
+                            }
                         }
                     }
 
@@ -297,22 +297,29 @@ impl Agent {
 
         // Create a filtered message with frontend tool requests removed
         let mut filtered_content = Vec::new();
+        let mut tool_request_index = 0;
 
-        // Process each content item one by one
         for content in &response.content {
-            let should_include = match content {
-                MessageContent::ToolRequest(req) => {
-                    if let Ok(tool_call) = &req.tool_call {
-                        !self.is_frontend_tool(&tool_call.name).await
-                    } else {
-                        true
+            match content {
+                MessageContent::ToolRequest(_) => {
+                    if tool_request_index < tool_requests.len() {
+                        let coerced_req = &tool_requests[tool_request_index];
+                        tool_request_index += 1;
+
+                        let should_include = if let Ok(tool_call) = &coerced_req.tool_call {
+                            !self.is_frontend_tool(&tool_call.name).await
+                        } else {
+                            true
+                        };
+
+                        if should_include {
+                            filtered_content.push(MessageContent::ToolRequest(coerced_req.clone()));
+                        }
                     }
                 }
-                _ => true,
-            };
-
-            if should_include {
-                filtered_content.push(content.clone());
+                _ => {
+                    filtered_content.push(content.clone());
+                }
             }
         }
 
@@ -345,12 +352,14 @@ impl Agent {
     }
 
     pub(crate) async fn update_session_metrics(
-        session_config: &crate::agents::types::SessionConfig,
+        &self,
+        session_id: &str,
+        schedule_id: Option<String>,
         usage: &ProviderUsage,
         is_compaction_usage: bool,
     ) -> Result<()> {
-        let session_id = session_config.id.as_str();
-        let session = SessionManager::get_session(session_id, false).await?;
+        let manager = self.config.session_manager.clone();
+        let session = manager.get_session(session_id, false).await?;
 
         let accumulate = |a: Option<i32>, b: Option<i32>| -> Option<i32> {
             match (a, b) {
@@ -378,8 +387,9 @@ impl Agent {
             )
         };
 
-        SessionManager::update_session(session_id)
-            .schedule_id(session_config.schedule_id.clone())
+        manager
+            .update(session_id)
+            .schedule_id(schedule_id)
             .total_tokens(current_total)
             .input_tokens(current_input)
             .output_tokens(current_output)
@@ -400,6 +410,7 @@ mod tests {
     use crate::model::ModelConfig;
     use crate::providers::base::{Provider, ProviderUsage, Usage};
     use crate::providers::errors::ProviderError;
+    use crate::session::session_manager::SessionType;
     use async_trait::async_trait;
     use rmcp::object;
 
@@ -424,6 +435,7 @@ mod tests {
 
         async fn complete_with_model(
             &self,
+            _session_id: Option<&str>,
             _model_config: &ModelConfig,
             _system: &str,
             _messages: &[Message],
@@ -437,23 +449,22 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn prepare_tools_sorts_when_router_disabled_and_includes_frontend_and_list_tools(
-    ) -> anyhow::Result<()> {
+    async fn prepare_tools_returns_sorted_tools_including_frontend() -> anyhow::Result<()> {
         let agent = crate::agents::Agent::new();
 
-        let session = SessionManager::create_session(
-            std::path::PathBuf::default(),
-            "test-prepare-tools".to_string(),
-            SessionType::Hidden,
-        )
-        .await?;
+        let session = agent
+            .config
+            .session_manager
+            .create_session(
+                std::env::current_dir().unwrap(),
+                "test-prepare-tools".to_string(),
+                SessionType::Hidden,
+            )
+            .await?;
 
         let model_config = ModelConfig::new("test-model").unwrap();
         let provider = std::sync::Arc::new(MockProvider { model_config });
         agent.update_provider(provider, &session.id).await?;
-
-        // Disable the router to trigger sorting
-        agent.disable_router_for_recipe().await;
 
         // Add unsorted frontend tools
         let frontend_tools = vec![
@@ -481,13 +492,11 @@ mod tests {
             .await
             .unwrap();
 
-        let working_dir = std::env::current_dir()?;
-        let (tools, _toolshim_tools, _system_prompt) =
-            agent.prepare_tools_and_prompt(&working_dir).await?;
+        let (tools, _toolshim_tools, _system_prompt) = agent
+            .prepare_tools_and_prompt(&session.id, session.working_dir.as_path())
+            .await?;
 
-        // Ensure both platform and frontend tools are present
         let names: Vec<String> = tools.iter().map(|t| t.name.clone().into_owned()).collect();
-        assert!(names.iter().any(|n| n.starts_with("platform__")));
         assert!(names.iter().any(|n| n == "frontend__a_tool"));
         assert!(names.iter().any(|n| n == "frontend__z_tool"));
 
@@ -497,5 +506,45 @@ mod tests {
         assert_eq!(names, sorted);
 
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_stream_error_propagation() {
+        use futures::StreamExt;
+
+        type StreamItem = Result<(Option<Message>, Option<ProviderUsage>), ProviderError>;
+        let stream = futures::stream::iter(vec![
+            Ok((Some(Message::assistant().with_text("chunk1")), None)),
+            Ok((Some(Message::assistant().with_text("chunk2")), None)),
+            Err(ProviderError::RequestFailed(
+                "simulated stream error".to_string(),
+            )),
+        ] as Vec<StreamItem>);
+
+        let mut pinned = Box::pin(stream);
+        let mut results = Vec::new();
+        let mut error_seen = false;
+
+        while let Some(result) = pinned.next().await {
+            match result {
+                Ok((message, _usage)) => {
+                    if let Some(msg) = message {
+                        results.push(msg.as_concat_text());
+                    }
+                }
+                Err(_e) => {
+                    error_seen = true;
+                    break;
+                }
+            }
+        }
+
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0], "chunk1");
+        assert_eq!(results[1], "chunk2");
+        assert!(
+            error_seen,
+            "Error should have been propagated, not silently ignored"
+        );
     }
 }

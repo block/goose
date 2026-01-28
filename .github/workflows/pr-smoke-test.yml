@@ -18,8 +18,8 @@ name: Live Provider Tests
 jobs:
   check-fork:
     runs-on: ubuntu-latest
-    # Skip entire workflow for PRs from forks (they don't have access to secrets)
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    # Skip entire workflow for fork PRs and dependabot PRs (they don't have access to secrets)
+    if: github.actor != 'dependabot[bot]' && (github.event_name == 'workflow_dispatch' || github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
     steps:
       - run: echo "Not a fork PR - proceeding with smoke tests"
 
@@ -149,7 +149,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install uv (for error proxy)
-        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # pin@v6
+        uses: astral-sh/setup-uv@61cb8a9741eeb8a550a1b8544337180c0fc8476b  # v7.2.0
 
       - name: Run Compaction Tests
         env:

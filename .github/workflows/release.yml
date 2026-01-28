@@ -100,7 +100,7 @@ jobs:
 
       # Create/update the versioned release
       - name: Release versioned
-        uses: ncipollo/release-action@440c8c1cb0ed28b9f43e4d1d670870f059653174 # pin@v1
+        uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b  # v1.20.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           artifacts: |
@@ -109,6 +109,7 @@ jobs:
             Goose*.zip
             *.deb
             *.rpm
+            **/*.flatpak
             download_cli.sh
           allowUpdates: true
           omitBody: true
@@ -116,7 +117,7 @@ jobs:
 
       # Create/update the stable release
       - name: Release stable
-        uses: ncipollo/release-action@440c8c1cb0ed28b9f43e4d1d670870f059653174 # pin@v1
+        uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b  # v1.20.0
         with:
           tag: stable
           name: Stable
@@ -127,6 +128,7 @@ jobs:
             Goose*.zip
             *.deb
             *.rpm
+            **/*.flatpak
             download_cli.sh
           allowUpdates: true
           omitBody: true
