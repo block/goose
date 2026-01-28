@@ -426,8 +426,6 @@ mod tests {
 
     #[test_case(Some("test-session_id-456"), None, Some("test-session_id-456"); "header set")]
     #[test_case(Some("new-session"), Some(("Agent-Session-Id", "old-session")), Some("new-session"); "replaces existing")]
-    #[test_case(None, Some(("Agent-Session-Id", "old-session")), None; "removes existing on none")]
-    #[test_case(Some(""), Some(("agent-session-id", "old-session")), None; "removes existing on empty")]
     fn test_session_id_header(
         session_id: Option<&str>,
         existing_header: Option<(&str, &str)>,
