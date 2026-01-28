@@ -177,7 +177,7 @@ pub struct ExtensionOptions {
 
     #[arg(
         long = "no-profile",
-        help = "Don't load extensions from your profile, only use CLI-specified extensions"
+        help = "Don't load your default extensions, only use CLI-specified extensions"
     )]
     pub no_profile: bool,
 }

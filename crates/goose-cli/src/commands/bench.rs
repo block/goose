@@ -58,7 +58,7 @@ pub async fn agent_generator(
         model: None,
         debug: false,
         max_tool_repetitions: None,
-        interactive: false,
+        interactive: false, // Benchmarking is non-interactive
         scheduled_job_id: None,
         max_turns: None,
         quiet: false,
