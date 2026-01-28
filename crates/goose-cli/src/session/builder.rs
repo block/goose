@@ -679,6 +679,7 @@ mod tests {
         assert!(config.extensions.is_empty());
         assert!(config.streamable_http_extensions.is_empty());
         assert!(config.builtins.is_empty());
+        assert!(!config.no_profile);
         assert!(config.recipe.is_none());
         assert!(config.additional_system_prompt.is_none());
         assert!(!config.debug);
