@@ -234,21 +234,28 @@ impl BedrockProvider {
         let visible_messages: Vec<&Message> =
             messages.iter().filter(|m| m.is_agent_visible()).collect();
 
-        // Determine which messages should have cache points
-        // AWS Bedrock allows max 4 cache points. Strategy:
-        // - 1 system prompt (always cached if caching enabled)
-        // - 3 messages (tools don't support cache points in Bedrock)
+        // Determine which messages should have cache points.
+        // AWS Bedrock has a strict limit of 4 cache points per request.
+        // Allocation: 1 for system prompt + 3 for messages = 4 total.
+        //
+        // Strategy: Cache the earliest 3 messages (rather than most recent).
+        // Rationale: Prompt caching requires exact prefix matching. By caching
+        // the earliest messages, we create a stable cached prefix that doesn't
+        // shift position across conversation turns, maximizing cache hit rates.
+        // With "most recent 3" strategy, cache points would shift on every turn
+        // (turn 1: msgs[0,1,2], turn 2: msgs[1,2,3], turn 3: msgs[2,3,4]),
+        // causing cache misses and wasting the limited cache budget.
+        //
+        // Note: Tool configuration doesn't support cache points in Bedrock, but
+        // messages containing tool content blocks (ToolRequest/ToolResponse) do.
         let cache_point_indices: Vec<usize> = if enable_caching && !visible_messages.is_empty() {
             let total_messages = visible_messages.len();
-            // Reserve 1 cache point for system, use remaining 3 for messages
             let message_cache_budget = 3;
 
             if total_messages <= message_cache_budget {
-                // Cache all messages if within budget
                 (0..total_messages).collect()
             } else {
-                // Cache only the most recent messages
-                ((total_messages - message_cache_budget)..total_messages).collect()
+                (0..message_cache_budget).collect()
             }
         } else {
             vec![]
@@ -681,7 +688,6 @@ mod tests {
         use chrono::Utc;
         use rmcp::model::Role;
 
-        // Temporarily set the config to enable caching
         std::env::set_var("BEDROCK_ENABLE_CACHING", "true");
 
         let provider = create_mock_provider("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
@@ -693,7 +699,6 @@ mod tests {
             "Caching should be enabled when BEDROCK_ENABLE_CACHING is set"
         );
 
-        // Test with 5 messages - should cache last 3
         let messages: Vec<Message> = (0..5)
             .map(|i| {
                 Message::new(
@@ -719,16 +724,14 @@ mod tests {
             if total_messages <= message_cache_budget {
                 (0..total_messages).collect()
             } else {
-                ((total_messages - message_cache_budget)..total_messages).collect()
+                (0..message_cache_budget).collect()
             }
         } else {
             vec![]
         };
 
-        // With 5 messages and budget of 3, should cache indices 2, 3, 4
-        assert_eq!(cache_point_indices, vec![2, 3, 4]);
+        assert_eq!(cache_point_indices, vec![0, 1, 2]);
 
-        // Clean up
         std::env::remove_var("BEDROCK_ENABLE_CACHING");
 
         Ok(())

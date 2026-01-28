@@ -701,4 +701,138 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn test_cache_points_with_tool_request_messages() -> Result<()> {
+        use chrono::Utc;
+        use rmcp::model::{CallToolRequestParams, Role};
+        use serde_json::json;
+
+        let message = Message::new(
+            Role::Assistant,
+            Utc::now().timestamp(),
+            vec![
+                MessageContent::text("I'll use a tool"),
+                MessageContent::tool_request(
+                    "tool_1".to_string(),
+                    Ok(CallToolRequestParams {
+                        meta: None,
+                        task: None,
+                        name: "test_tool".into(),
+                        arguments: Some(object(json!({"param": "value"}))),
+                    }),
+                ),
+            ],
+        );
+
+        let bedrock_message = to_bedrock_message_with_caching(&message, true)?;
+
+        // Verify cache point is added after all content blocks (text + tool request + cache point)
+        assert_eq!(bedrock_message.content.len(), 3);
+        assert!(matches!(
+            bedrock_message.content[0],
+            bedrock::ContentBlock::Text(_)
+        ));
+        assert!(matches!(
+            bedrock_message.content[1],
+            bedrock::ContentBlock::ToolUse(_)
+        ));
+        assert!(matches!(
+            bedrock_message.content[2],
+            bedrock::ContentBlock::CachePoint(_)
+        ));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_cache_points_with_tool_response_messages() -> Result<()> {
+        use chrono::Utc;
+        use rmcp::model::{CallToolResult, Role};
+
+        let message = Message::new(
+            Role::User,
+            Utc::now().timestamp(),
+            vec![MessageContent::tool_response(
+                "tool_1".to_string(),
+                Ok(CallToolResult {
+                    content: vec![Content::text("Tool result text".to_string())],
+                    structured_content: None,
+                    is_error: Some(false),
+                    meta: None,
+                }),
+            )],
+        );
+
+        let bedrock_message = to_bedrock_message_with_caching(&message, true)?;
+
+        // Verify cache point is added after tool response content
+        assert_eq!(bedrock_message.content.len(), 2);
+        assert!(matches!(
+            bedrock_message.content[0],
+            bedrock::ContentBlock::ToolResult(_)
+        ));
+        assert!(matches!(
+            bedrock_message.content[1],
+            bedrock::ContentBlock::CachePoint(_)
+        ));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_cache_points_with_mixed_tool_content() -> Result<()> {
+        use chrono::Utc;
+        use rmcp::model::{CallToolRequestParams, Role};
+        use serde_json::json;
+
+        let message = Message::new(
+            Role::Assistant,
+            Utc::now().timestamp(),
+            vec![
+                MessageContent::text("Using tools"),
+                MessageContent::tool_request(
+                    "tool_1".to_string(),
+                    Ok(CallToolRequestParams {
+                        meta: None,
+                        task: None,
+                        name: "tool_a".into(),
+                        arguments: Some(object(json!({"key": "val"}))),
+                    }),
+                ),
+                MessageContent::tool_request(
+                    "tool_2".to_string(),
+                    Ok(CallToolRequestParams {
+                        meta: None,
+                        task: None,
+                        name: "tool_b".into(),
+                        arguments: Some(object(json!({"key": "val"}))),
+                    }),
+                ),
+            ],
+        );
+
+        let bedrock_message = to_bedrock_message_with_caching(&message, true)?;
+
+        // Verify cache point is added at the end after all tool requests
+        assert_eq!(bedrock_message.content.len(), 4);
+        assert!(matches!(
+            bedrock_message.content[0],
+            bedrock::ContentBlock::Text(_)
+        ));
+        assert!(matches!(
+            bedrock_message.content[1],
+            bedrock::ContentBlock::ToolUse(_)
+        ));
+        assert!(matches!(
+            bedrock_message.content[2],
+            bedrock::ContentBlock::ToolUse(_)
+        ));
+        assert!(matches!(
+            bedrock_message.content[3],
+            bedrock::ContentBlock::CachePoint(_)
+        ));
+
+        Ok(())
+    }
 }
