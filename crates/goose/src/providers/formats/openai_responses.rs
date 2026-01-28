@@ -307,17 +307,15 @@ fn add_function_calls(input_items: &mut Vec<Value>, messages: &[Message]) {
 
 fn add_function_call_outputs(input_items: &mut Vec<Value>, messages: &[Message]) {
     for message in messages.iter().filter(|m| m.is_agent_visible()) {
-        for content in &message.content {
+        // Filter message content to only include what's visible to the assistant
+        let filtered = message.agent_visible_content();
+        for content in &filtered.content {
             if let MessageContent::ToolResponse(response) = content {
                 match &response.tool_result {
                     Ok(contents) => {
                         let text_content: Vec<String> = contents
                             .content
                             .iter()
-                            .filter(|c| {
-                                c.audience()
-                                    .is_none_or(|audience| audience.contains(&Role::Assistant))
-                            })
                             .filter_map(|c| {
                                 if let RawContent::Text(t) = c.deref() {
                                     Some(t.text.clone())

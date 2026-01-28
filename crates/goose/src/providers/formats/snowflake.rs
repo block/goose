@@ -39,10 +39,6 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                         let text = result
                             .content
                             .iter()
-                            .filter(|c| {
-                                c.audience()
-                                    .is_none_or(|audience| audience.contains(&Role::Assistant))
-                            })
                             .filter_map(|c| c.as_text().map(|t| t.text.clone()))
                             .collect::<Vec<_>>()
                             .join("\n");
@@ -331,7 +327,13 @@ pub fn create_request(
     messages: &[Message],
     tools: &[Tool],
 ) -> Result<Value> {
-    let mut snowflake_messages = format_messages(messages);
+    // Filter messages to only include content visible to the assistant
+    let filtered_messages: Vec<Message> = messages
+        .iter()
+        .map(|m| m.agent_visible_content())
+        .collect();
+
+    let mut snowflake_messages = format_messages(&filtered_messages);
     let system_spec = format_system(system);
 
     // Add system message to the beginning of the messages
