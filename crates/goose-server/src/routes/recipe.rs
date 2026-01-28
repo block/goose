@@ -8,7 +8,7 @@ use axum::routing::get;
 use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
 use goose::recipe::local_recipes;
 use goose::recipe::validate_recipe::validate_recipe_template_from_content;
-use goose::recipe::Recipe;
+use goose::recipe::{strip_error_location, Recipe};
 use goose::{recipe_deeplink, slash_commands};
 
 use serde::{Deserialize, Serialize};
@@ -443,7 +443,7 @@ async fn save_recipe(
     payload: Result<Json<Value>, JsonRejection>,
 ) -> Result<Json<SaveRecipeResponse>, ErrorResponse> {
     let Json(raw_json) = payload.map_err(json_rejection_to_error_response)?;
-    let request = deserialize_save_recipe_request(raw_json)?;
+    let request: SaveRecipeRequest = deserialize_save_recipe_request(raw_json)?;
     let has_security_warnings = request.recipe.check_for_security_warnings();
     if has_security_warnings {
         return Err(ErrorResponse {
@@ -492,7 +492,7 @@ fn deserialize_save_recipe_request(value: Value) -> Result<SaveRecipeRequest, Er
     let result: Result<SaveRecipeRequest, _> = deserialize_with_path(&mut deserializer);
     result.map_err(|err| {
         let path = err.path().to_string();
-        let inner = err.into_inner();
+        let inner = strip_error_location(&err.into_inner().to_string());
         let message = if path.is_empty() {
             format!("Save recipe validation failed: {}", inner)
         } else {

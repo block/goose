@@ -4,7 +4,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
 import log from './logger';
-import { safeJsonParse } from './conversionUtils';
+import { safeJsonParse, errorMessage } from './conversionUtils';
 
 interface GitHubRelease {
   tag_name: string;
@@ -142,7 +142,7 @@ export class GitHubUpdater {
     } catch (error) {
       log.error('GitHubUpdater: Error checking for updates:', error);
       log.error('GitHubUpdater: Error details:', {
-        message: error instanceof Error ? error.message : 'Unknown error',
+        message: errorMessage(error, 'Unknown error'),
         stack: error instanceof Error ? error.stack : 'No stack',
         name: error instanceof Error ? error.name : 'Unknown',
         code:
@@ -152,7 +152,7 @@ export class GitHubUpdater {
       });
       return {
         updateAvailable: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: errorMessage(error, 'Unknown error'),
       };
     }
   }
@@ -271,13 +271,13 @@ export class GitHubUpdater {
       log.error(`=== GitHubUpdater: DOWNLOAD FAILED after ${duration}ms ===`);
       log.error('GitHubUpdater: Error downloading update:', error);
       log.error('GitHubUpdater: Download error details:', {
-        message: error instanceof Error ? error.message : 'Unknown error',
+        message: errorMessage(error, 'Unknown error'),
         stack: error instanceof Error ? error.stack : 'No stack',
         name: error instanceof Error ? error.name : 'Unknown',
       });
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: errorMessage(error, 'Unknown error'),
       };
     }
   }

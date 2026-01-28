@@ -435,7 +435,7 @@ mod tests {
 
         async fn complete_with_model(
             &self,
-            _session_id: &str,
+            _session_id: Option<&str>,
             _model_config: &ModelConfig,
             _system: &str,
             _messages: &[Message],

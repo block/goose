@@ -287,10 +287,15 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
         .and_then(|c| c.get(0))
         .and_then(|m| m.get("message"))
     else {
-        return Ok(Message::new(
-            Role::Assistant,
-            chrono::Utc::now().timestamp(),
-            Vec::new(),
+        if let Some(error) = response.get("error") {
+            let error_message = error
+                .get("message")
+                .and_then(|m| m.as_str())
+                .unwrap_or("Unknown error");
+            return Err(anyhow::anyhow!("API error: {}", error_message));
+        }
+        return Err(anyhow::anyhow!(
+            "No message in API response. This may indicate a quota limit or other restriction."
         ));
     };
 
@@ -1159,6 +1164,61 @@ mod tests {
         } else {
             panic!("Expected ToolRequest content");
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_response_to_message_api_error() -> anyhow::Result<()> {
+        // Test that API responses with an "error" field return the error message
+        let response = json!({
+            "error": {
+                "message": "You have exceeded your quota",
+                "type": "insufficient_quota",
+                "code": "quota_exceeded"
+            }
+        });
+
+        let result = response_to_message(&response);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("API error:"));
+        assert!(err.to_string().contains("You have exceeded your quota"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_response_to_message_api_error_unknown() -> anyhow::Result<()> {
+        // Test that API responses with an "error" field but no message return "Unknown error"
+        let response = json!({
+            "error": {
+                "type": "some_error"
+            }
+        });
+
+        let result = response_to_message(&response);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("API error:"));
+        assert!(err.to_string().contains("Unknown error"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_response_to_message_no_choices() -> anyhow::Result<()> {
+        // Test that responses without "choices" return an error
+        let response = json!({
+            "id": "chatcmpl-123",
+            "object": "chat.completion",
+            "created": 1234567890
+        });
+
+        let result = response_to_message(&response);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("No message in API response"));
 
         Ok(())
     }

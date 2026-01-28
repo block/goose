@@ -356,7 +356,7 @@ impl Provider for CursorAgentProvider {
     )]
     async fn complete_with_model(
         &self,
-        session_id: &str,
+        _session_id: Option<&str>, // CLI has no external session-id flag to propagate.
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],

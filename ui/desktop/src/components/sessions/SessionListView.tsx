@@ -22,6 +22,7 @@ import { SearchView } from '../conversation/SearchView';
 import { SearchHighlighter } from '../../utils/searchHighlighter';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
 import { groupSessionsByDate, type DateGroup } from '../../utils/dateUtils';
+import { errorMessage } from '../../utils/conversionUtils';
 import { Skeleton } from '../ui/skeleton';
 import { toast } from 'react-toastify';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
@@ -99,9 +100,9 @@ const EditSessionModal = React.memo<EditSessionModalProps>(
           toast.success('Session description updated successfully');
         }, 300);
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-        console.error('Failed to update session description:', errorMessage);
-        toast.error(`Failed to update session description: ${errorMessage}`);
+        const errMsg = errorMessage(error, 'Unknown error occurred');
+        console.error('Failed to update session description:', errMsg);
+        toast.error(`Failed to update session description: ${errMsg}`);
         setDescription(session.name);
       } finally {
         setIsUpdating(false);
@@ -450,8 +451,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           await loadSessions();
         } catch (error) {
           console.error('Error duplicating session:', error);
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          toast.error(`Failed to duplicate session: ${errorMessage}`);
+          toast.error(`Failed to duplicate session: ${errorMessage(error, 'Unknown error')}`);
         }
       },
       [loadSessions]
@@ -476,8 +476,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         );
       } catch (error) {
         console.error('Error deleting session:', error);
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        toast.error(`Failed to delete session "${sessionName}": ${errorMessage}`);
+        toast.error(`Failed to delete session "${sessionName}": ${errorMessage(error, 'Unknown error')}`);
       }
       await loadSessions();
     }, [sessionToDelete, loadSessions]);

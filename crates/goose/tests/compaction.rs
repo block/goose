@@ -94,9 +94,10 @@ impl MockCompactionProvider {
 
 #[async_trait]
 impl Provider for MockCompactionProvider {
-    async fn complete(
+    async fn complete_with_model(
         &self,
-        _session_id: &str,
+        _session_id: Option<&str>,
+        _model_config: &ModelConfig,
         system_prompt: &str,
         messages: &[Message],
         _tools: &[Tool],
@@ -163,30 +164,6 @@ impl Provider for MockCompactionProvider {
         );
 
         Ok((message, usage))
-    }
-
-    async fn complete_with_model(
-        &self,
-        session_id: &str,
-        _model_config: &ModelConfig,
-        system_prompt: &str,
-        messages: &[Message],
-        tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        self.complete(session_id, system_prompt, messages, tools)
-            .await
-    }
-
-    async fn complete_fast(
-        &self,
-        session_id: &str,
-        system_prompt: &str,
-        messages: &[Message],
-        tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        // Compaction uses complete_fast, so delegate to complete
-        self.complete(session_id, system_prompt, messages, tools)
-            .await
     }
 
     fn get_model_config(&self) -> ModelConfig {

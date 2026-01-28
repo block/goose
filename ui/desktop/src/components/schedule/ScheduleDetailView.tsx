@@ -22,6 +22,7 @@ import cronstrue from 'cronstrue';
 import { formatToLocalDateWithTimezone } from '../../utils/date';
 import { getSession, Session } from '../../api';
 import { trackScheduleRunNow, getErrorType } from '../../utils/analytics';
+import { errorMessage } from '../../utils/conversionUtils';
 
 interface ScheduleSessionMeta {
   id: string;
@@ -67,7 +68,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
       const data = await getScheduleSessions(sId, 20);
       setSessions(data);
     } catch (err) {
-      setSessionsError(err instanceof Error ? err.message : 'Failed to fetch sessions');
+      setSessionsError(errorMessage(err, 'Failed to fetch sessions'));
     } finally {
       setIsLoadingSessions(false);
     }
@@ -85,7 +86,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
         setScheduleError('Schedule not found');
       }
     } catch (err) {
-      setScheduleError(err instanceof Error ? err.message : 'Failed to fetch schedule');
+      setScheduleError(errorMessage(err, 'Failed to fetch schedule'));
     } finally {
       setIsLoadingSchedule(false);
     }
@@ -112,7 +113,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
       await fetchSessions(scheduleId);
       await fetchSchedule(scheduleId);
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to trigger schedule';
+      const errorMsg = errorMessage(err, 'Failed to trigger schedule');
       trackScheduleRunNow(false, getErrorType(err));
       toastError({
         title: 'Run Schedule Error',
@@ -136,7 +137,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
       }
       await fetchSchedule(scheduleId);
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Operation failed';
+      const errorMsg = errorMessage(err, 'Operation failed');
       toastError({
         title: 'Pause/Unpause Error',
         msg: errorMsg,
@@ -154,7 +155,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
       toastSuccess({ title: 'Job Killed', msg: result.message });
       await fetchSchedule(scheduleId);
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to kill job';
+      const errorMsg = errorMessage(err, 'Failed to kill job');
       toastError({
         title: 'Kill Job Error',
         msg: errorMsg,
@@ -181,7 +182,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
         toastSuccess({ title: 'Job Inspection', msg: 'No detailed information available' });
       }
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to inspect job';
+      const errorMsg = errorMessage(err, 'Failed to inspect job');
       toastError({
         title: 'Inspect Job Error',
         msg: errorMsg,
@@ -200,7 +201,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
       await fetchSchedule(scheduleId);
       setIsModalOpen(false);
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to update schedule';
+      const errorMsg = errorMessage(err, 'Failed to update schedule');
       toastError({
         title: 'Update Schedule Error',
         msg: errorMsg,
@@ -220,7 +221,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
       });
       setSelectedSession(response.data);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to load session';
+      const msg = errorMessage(err, 'Failed to load session');
       setSessionError(msg);
       toastError({ title: 'Failed to load session', msg });
     } finally {

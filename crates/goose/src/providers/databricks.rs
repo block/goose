@@ -206,7 +206,7 @@ impl DatabricksProvider {
 
     async fn post(
         &self,
-        session_id: &str,
+        session_id: Option<&str>,
         payload: Value,
         model_name: Option<&str>,
     ) -> Result<Value, ProviderError> {
@@ -257,7 +257,7 @@ impl Provider for DatabricksProvider {
     )]
     async fn complete_with_model(
         &self,
-        session_id: &str,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -314,7 +314,7 @@ impl Provider for DatabricksProvider {
             .with_retry(|| async {
                 let resp = self
                     .api_client
-                    .response_post(session_id, &path, &payload)
+                    .response_post(Some(session_id), &path, &payload)
                     .await?;
                 if !resp.status().is_success() {
                     let status = resp.status();
@@ -352,13 +352,11 @@ impl Provider for DatabricksProvider {
             .map_err(|e| ProviderError::ExecutionError(e.to_string()))
     }
 
-    async fn fetch_supported_models(
-        &self,
-        session_id: &str,
-    ) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         let response = match self
             .api_client
-            .response_get(session_id, "api/2.0/serving-endpoints")
+            .request(None, "api/2.0/serving-endpoints")
+            .response_get()
             .await
         {
             Ok(resp) => resp,
@@ -434,7 +432,7 @@ impl EmbeddingCapable for DatabricksProvider {
         });
 
         let response = self
-            .with_retry(|| self.post(session_id, request.clone(), None))
+            .with_retry(|| self.post(Some(session_id), request.clone(), None))
             .await?;
 
         let embeddings = response["data"]

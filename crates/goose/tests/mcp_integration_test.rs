@@ -59,7 +59,7 @@ impl Provider for MockProvider {
 
     async fn complete_with_model(
         &self,
-        _session_id: &str,
+        _session_id: Option<&str>,
         _model_config: &ModelConfig,
         _system: &str,
         _messages: &[Message],
@@ -248,7 +248,7 @@ async fn test_replayed_session(
     #[allow(clippy::redundant_closure_call)]
     let result = (async || -> Result<(), Box<dyn std::error::Error>> {
         extension_manager
-            .add_extension_with_working_dir(extension_config, None)
+            .add_extension_with_working_dir(extension_config, None, None)
             .await?;
         let mut results = Vec::new();
         for tool_call in tool_calls {

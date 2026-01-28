@@ -21,6 +21,7 @@ import ScheduleDetailView from './ScheduleDetailView';
 import { toastError, toastSuccess } from '../../toasts';
 import cronstrue from 'cronstrue';
 import { formatToLocalDateWithTimezone } from '../../utils/date';
+import { errorMessage } from '../../utils/conversionUtils';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
 import { ViewOptions } from '../../utils/navigationUtils';
 import { trackScheduleCreated, trackScheduleDeleted, getErrorType } from '../../utils/analytics';
@@ -206,9 +207,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
     } catch (error) {
       console.error('Failed to fetch schedules:', error);
       setApiError(
-        error instanceof Error
-          ? error.message
-          : 'An unknown error occurred while fetching schedules.'
+        errorMessage(error, 'An unknown error occurred while fetching schedules.')
       );
     } finally {
       setIsLoading(false);
@@ -270,7 +269,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
       setEditingSchedule(null);
     } catch (error) {
       console.error('Failed to save schedule:', error);
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error saving schedule.';
+      const errorMsg = errorMessage(error, 'Unknown error saving schedule.');
       setSubmitApiError(errorMsg);
 
       if (!editingSchedule) {
@@ -295,7 +294,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
       await fetchSchedules();
     } catch (error) {
       console.error(`Failed to delete schedule "${id}":`, error);
-      const errorMsg = error instanceof Error ? error.message : `Unknown error deleting "${id}".`;
+      const errorMsg = errorMessage(error, `Unknown error deleting "${id}".`);
       setApiError(errorMsg);
       trackScheduleDeleted(false, getErrorType(error));
     } finally {
@@ -320,7 +319,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
       await fetchSchedules();
     } catch (error) {
       console.error(`Failed to pause schedule "${id}":`, error);
-      const errorMsg = error instanceof Error ? error.message : `Unknown error pausing "${id}".`;
+      const errorMsg = errorMessage(error, `Unknown error pausing "${id}".`);
       setApiError(errorMsg);
       toastError({
         title: 'Pause Schedule Error',
@@ -348,7 +347,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
       await fetchSchedules();
     } catch (error) {
       console.error(`Failed to unpause schedule "${id}":`, error);
-      const errorMsg = error instanceof Error ? error.message : `Unknown error unpausing "${id}".`;
+      const errorMsg = errorMessage(error, `Unknown error unpausing "${id}".`);
       setApiError(errorMsg);
       toastError({
         title: 'Unpause Schedule Error',
@@ -377,7 +376,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
     } catch (error) {
       console.error(`Failed to kill running job "${id}":`, error);
       const errorMsg =
-        error instanceof Error ? error.message : `Unknown error killing job "${id}".`;
+        errorMessage(error, `Unknown error killing job "${id}".`);
       setApiError(errorMsg);
       toastError({
         title: 'Kill Job Error',
@@ -415,7 +414,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
     } catch (error) {
       console.error(`Failed to inspect running job "${id}":`, error);
       const errorMsg =
-        error instanceof Error ? error.message : `Unknown error inspecting job "${id}".`;
+        errorMessage(error, `Unknown error inspecting job "${id}".`);
       setApiError(errorMsg);
       toastError({
         title: 'Inspect Job Error',

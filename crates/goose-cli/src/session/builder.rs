@@ -1,12 +1,10 @@
 use super::output;
 use super::CliSession;
 use console::style;
-use goose::agents::Agent;
+use goose::agents::{Agent, Container};
 use goose::config::get_enabled_extensions;
 use goose::config::resolve_extensions_for_new_session;
-use goose::config::{
-    extensions::get_extension_by_name, get_all_extensions, Config, ExtensionConfig,
-};
+use goose::config::{get_all_extensions, Config, ExtensionConfig};
 use goose::providers::create;
 use goose::recipe::Recipe;
 use goose::session::session_manager::SessionType;
@@ -114,6 +112,8 @@ pub struct SessionBuilderConfig {
     pub quiet: bool,
     /// Output format (text, json)
     pub output_format: String,
+    /// Docker container to run stdio extensions inside
+    pub container: Option<Container>,
 }
 
 /// Manual implementation of Default to ensure proper initialization of output_format
@@ -139,6 +139,7 @@ impl Default for SessionBuilderConfig {
             interactive: false,
             quiet: false,
             output_format: "text".to_string(),
+            container: None,
         }
     }
 }
@@ -327,50 +328,16 @@ async fn load_extensions(
     agent_ptr
 }
 
-fn check_missing_extensions_or_exit(saved_extensions: &[ExtensionConfig], interactive: bool) {
-    let missing: Vec<_> = saved_extensions
-        .iter()
-        .filter(|ext| get_extension_by_name(&ext.name()).is_none())
-        .cloned()
-        .collect();
-
-    if !missing.is_empty() {
-        let names = missing
-            .iter()
-            .map(|e| e.name())
-            .collect::<Vec<_>>()
-            .join(", ");
-
-        if interactive {
-            if !cliclack::confirm(format!(
-                "Extension(s) {} from previous session are no longer available. Restore for this session?",
-                names
-            ))
-            .initial_value(true)
-            .interact()
-            .unwrap_or(false)
-            {
-                println!("{}", style("Resume cancelled.").yellow());
-                process::exit(0);
-            }
-        } else {
-            eprintln!(
-                "{}",
-                style(format!(
-                    "Warning: Extension(s) {} from previous session are no longer available, continuing without them.",
-                    names
-                ))
-                .yellow()
-            );
-        }
-    }
-}
-
 pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     goose::posthog::set_session_context("cli", session_config.resume);
 
     let config = Config::global();
     let agent: Agent = Agent::new();
+
+    if session_config.container.is_some() {
+        agent.set_container(session_config.container.clone()).await;
+    }
+
     let session_manager = agent.config.session_manager.clone();
 
     let (saved_provider, saved_model_config) = if session_config.resume {
@@ -558,10 +525,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             .await
             .ok()
             .and_then(|s| EnabledExtensionsState::from_extension_data(&s.extension_data))
-            .map(|state| {
-                check_missing_extensions_or_exit(&state.extensions, session_config.interactive);
-                state.extensions
-            })
+            .map(|state| state.extensions)
             .unwrap_or_else(get_enabled_extensions)
     } else {
         resolve_extensions_for_new_session(recipe.and_then(|r| r.extensions.as_deref()), None)
@@ -678,6 +642,7 @@ mod tests {
             interactive: true,
             quiet: false,
             output_format: "text".to_string(),
+            container: None,
         };
 
         assert_eq!(config.extensions.len(), 1);
