@@ -6,7 +6,7 @@ use url::Url;
 
 use super::api_client::{ApiClient, AuthMethod, AuthProvider};
 use super::azureauth::{AuthError, AzureAuth};
-use super::base::{AuthModeChoice, ConfigKey, Provider, ProviderMetadata, ProviderUsage};
+use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
 use super::formats::openai_responses::{
     create_responses_request, get_responses_usage, responses_api_to_message, ResponsesApiResponse,
@@ -181,33 +181,10 @@ impl AzureProvider {
 #[async_trait]
 impl Provider for AzureProvider {
     fn metadata() -> ProviderMetadata {
-        let mut auth_type_key =
-            ConfigKey::new("AZURE_OPENAI_AUTH_TYPE", false, false, Some("api_key"));
-        auth_type_key.auth_modes = Some(vec![
-            AuthModeChoice {
-                value: "api_key".to_string(),
-                label: "Key Authentication".to_string(),
-                description: Some(
-                    "Azure OpenAI will use an API key stored securely in Goose configuration."
-                        .to_string(),
-                ),
-                requires_api_key: true,
-            },
-            AuthModeChoice {
-                value: "entra_id".to_string(),
-                label: "Entra ID Authentication".to_string(),
-                description: Some(
-                    "Azure OpenAI will use your Azure Entra ID / default credentials (for example via az login). No API key is required in this mode and any configured API key will be ignored."
-                        .to_string(),
-                ),
-                requires_api_key: false,
-            },
-        ]);
-
         ProviderMetadata::new(
             "azure_openai",
             "Azure OpenAI",
-            "Models through Azure OpenAI Service using either API key or Azure Entra ID (default credential chain) authentication",
+            "Models through Azure OpenAI Service using either API key or Entra ID authentication",
             AZURE_DEFAULT_MODEL,
             AZURE_OPENAI_KNOWN_MODELS.to_vec(),
             AZURE_DOC_URL,
@@ -215,13 +192,13 @@ impl Provider for AzureProvider {
                 ConfigKey::new("AZURE_OPENAI_ENDPOINT", true, false, None),
                 ConfigKey::new(
                     "AZURE_OPENAI_API_VERSION",
-                    true,
+                    false,
                     false,
                     Some(AZURE_DEFAULT_API_VERSION),
                 ),
-                auth_type_key,
+                ConfigKey::new("AZURE_OPENAI_AUTH_TYPE", false, false, Some("api_key")),
                 ConfigKey::new("AZURE_OPENAI_DEPLOYMENT_NAME", false, false, None),
-                ConfigKey::new("AZURE_OPENAI_API_KEY", false, true, Some("")),
+                ConfigKey::new("AZURE_OPENAI_API_KEY", false, true, None),
             ],
         )
     }

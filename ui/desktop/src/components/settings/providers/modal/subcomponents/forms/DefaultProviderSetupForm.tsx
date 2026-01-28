@@ -7,14 +7,9 @@ import {
   useMemo,
   useState,
 } from 'react';
-import type { AuthModeChoice, ConfigKey, ProviderDetails } from '../../../../../../api';
+import type { ConfigKey, ProviderDetails } from '../../../../../../api';
 import { useConfig } from '../../../../../ConfigContext';
-import { Select } from '../../../../../ui/Select';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '../../../../../ui/collapsible';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../../../../ui/collapsible';
 import { Input } from '../../../../../ui/input';
 
 type ValidationErrors = Record<string, string>;
@@ -25,8 +20,6 @@ export interface ConfigInput {
   serverValue?: ConfigValue;
   value?: string;
 }
-
-type ConfigKeyWithAuth = ConfigKey;
 
 interface DefaultProviderSetupFormProps {
   configValues: Record<string, ConfigInput>;
@@ -58,22 +51,12 @@ export default function DefaultProviderSetupForm({
   validationErrors = {},
 }: DefaultProviderSetupFormProps) {
   const parameters = useMemo(
-    () => (provider.metadata.config_keys || []) as ConfigKeyWithAuth[],
+    () => provider.metadata.config_keys || [],
     [provider.metadata.config_keys]
   );
   const [isLoading, setIsLoading] = useState(true);
   const [optionalExpanded, setOptionalExpanded] = useState(false);
   const { read } = useConfig();
-
-  const handleAuthTypeChange = (parameter: ConfigKeyWithAuth, value: string) => {
-    setConfigValues((prev) => ({
-      ...prev,
-      [parameter.name]: {
-        ...(prev[parameter.name] || {}),
-        value,
-      },
-    }));
-  };
 
   const loadConfigValues = useCallback(async () => {
     setIsLoading(true);
@@ -170,46 +153,13 @@ export default function DefaultProviderSetupForm({
     return '';
   }
 
-  const authTypeParameter: ConfigKeyWithAuth | undefined = parameters.find(
-    (p) => p.auth_modes && p.auth_modes.length > 0,
-  );
-
-  const currentAuthMode: AuthModeChoice | undefined =
-    authTypeParameter?.auth_modes && authTypeParameter.auth_modes.length > 0
-      ? (() => {
-          const modes = authTypeParameter.auth_modes as AuthModeChoice[];
-          const entry = configValues[authTypeParameter.name];
-          const currentValue =
-            (entry?.value as string | undefined) ??
-            (typeof entry?.serverValue === 'string'
-              ? (entry.serverValue as string)
-              : authTypeParameter.default ?? modes[0]?.value);
-
-          return modes.find((m) => m.value === currentValue) ?? modes[0];
-        })()
-      : undefined;
-
-  const isApiKeyRequired =
-    !authTypeParameter || !currentAuthMode ? true : currentAuthMode.requires_api_key;
-
-  const renderParametersList = (parameters: ConfigKeyWithAuth[]) => {
+  const renderParametersList = (parameters: ConfigKey[]) => {
     return parameters.map((parameter) => {
-      if (authTypeParameter && parameter.name === authTypeParameter.name) {
-        return null;
-      }
-
-      if (!isApiKeyRequired && parameter.secret) {
-        return null;
-      }
-
       const inputId = `config-${parameter.name}`;
 
       return (
         <div key={parameter.name}>
-          <label
-            className="block text-sm font-medium text-textStandard mb-1"
-            htmlFor={inputId}
-          >
+          <label className="block text-sm font-medium text-textStandard mb-1" htmlFor={inputId}>
             {getFieldLabel(parameter)}
             {parameter.required && <span className="text-red-500 ml-1">*</span>}
           </label>
@@ -259,34 +209,6 @@ export default function DefaultProviderSetupForm({
         </div>
       ) : (
         <div className="space-y-4">
-          {authTypeParameter?.auth_modes?.length &&
-            currentAuthMode && (
-              <div className="space-y-2">
-                <div className="block text-sm font-medium text-textStandard mb-1">
-                  Authentication Type
-                </div>
-                <Select
-                  options={authTypeParameter.auth_modes.map((mode) => ({
-                    value: mode.value,
-                    label: mode.label,
-                  }))}
-                  value={{
-                    value: currentAuthMode.value,
-                    label: currentAuthMode.label,
-                  }}
-                  onChange={(option: unknown) => {
-                    const selectedOption = option as { value: string; label: string } | null;
-                    if (selectedOption) {
-                      handleAuthTypeChange(authTypeParameter, selectedOption.value);
-                    }
-                  }}
-                  isSearchable={false}
-                />
-                {currentAuthMode.description && (
-                  <p className="text-xs text-textSubtle">{currentAuthMode.description}</p>
-                )}
-              </div>
-            )}
           <div>{renderParametersList(aboveFoldParameters)}</div>
           {belowFoldParameters.length > 0 && (
             <Collapsible
