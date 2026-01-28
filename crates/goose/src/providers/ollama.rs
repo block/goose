@@ -71,8 +71,8 @@ impl OllamaProvider {
                 .map_err(|_| anyhow::anyhow!("Failed to set default port"))?;
         }
 
-        let auth = AuthMethod::Custom(Box::new(NoAuth));
-        let api_client = ApiClient::with_timeout(base_url.to_string(), auth, timeout)?;
+        let api_client =
+            ApiClient::with_timeout(base_url.to_string(), AuthMethod::NoAuth, timeout)?;
 
         Ok(Self {
             api_client,
@@ -108,8 +108,8 @@ impl OllamaProvider {
                 .map_err(|_| anyhow::anyhow!("Failed to set default port"))?;
         }
 
-        let auth = AuthMethod::Custom(Box::new(NoAuth));
-        let mut api_client = ApiClient::with_timeout(base_url.to_string(), auth, timeout)?;
+        let mut api_client =
+            ApiClient::with_timeout(base_url.to_string(), AuthMethod::NoAuth, timeout)?;
 
         if let Some(headers) = &config.headers {
             let mut header_map = reqwest::header::HeaderMap::new();
@@ -139,15 +139,6 @@ impl OllamaProvider {
             .response_post(session_id, "v1/chat/completions", payload)
             .await?;
         handle_response_openai_compat(response).await
-    }
-}
-
-struct NoAuth;
-
-#[async_trait]
-impl super::api_client::AuthProvider for NoAuth {
-    async fn get_auth_header(&self) -> Result<(String, String)> {
-        Ok(("X-No-Auth".to_string(), "true".to_string()))
     }
 }
 

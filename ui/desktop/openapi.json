@@ -3480,7 +3480,6 @@
           "name",
           "engine",
           "display_name",
-          "api_key_env",
           "base_url",
           "models"
         ],
@@ -3516,6 +3515,9 @@
           },
           "name": {
             "type": "string"
+          },
+          "requires_auth": {
+            "type": "boolean"
           },
           "supports_streaming": {
             "type": "boolean",
@@ -6697,6 +6699,9 @@
             "items": {
               "type": "string"
             }
+          },
+          "requires_auth": {
+            "type": "boolean"
           },
           "supports_streaming": {
             "type": "boolean",

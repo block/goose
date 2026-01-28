@@ -56,10 +56,7 @@ fn parse_cli_flag_extensions(
     }
 
     for (idx, opts) in streamable_http_extensions.iter().enumerate() {
-        let mut config = CliSession::parse_streamable_http_extension(&opts.url);
-        if let ExtensionConfig::StreamableHttp { timeout, .. } = &mut config {
-            *timeout = Some(opts.timeout);
-        }
+        let config = CliSession::parse_streamable_http_extension(&opts.url, opts.timeout);
         let hint = truncate_with_ellipsis(&opts.url, EXTENSION_HINT_MAX_LEN);
         let label = format!("http #{}({})", idx + 1, hint);
         extensions_to_load.push((label, config));

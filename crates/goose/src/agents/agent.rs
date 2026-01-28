@@ -784,14 +784,6 @@ impl Agent {
         if self.config.goose_mode != GooseMode::Auto {
             return false;
         }
-        if self
-            .provider()
-            .await
-            .map(|provider| provider.get_active_model_name().starts_with("gemini"))
-            .unwrap_or(false)
-        {
-            return false;
-        }
         let context = self.extension_manager.get_context();
         if matches!(
             context
