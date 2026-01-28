@@ -2940,6 +2940,7 @@ dependencies = [
  "opentelemetry-otlp",
  "opentelemetry_sdk",
  "paste",
+ "pem",
  "posthog-rs",
  "rand 0.8.5",
  "regex",

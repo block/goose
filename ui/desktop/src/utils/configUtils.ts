@@ -51,6 +51,22 @@ export const configLabels: Record<string, string> = {
   AZURE_OPENAI_ENDPOINT: 'Azure OpenAI Endpoint',
   AZURE_OPENAI_DEPLOYMENT_NAME: 'Azure OpenAI Deployment Name',
   AZURE_OPENAI_API_VERSION: 'Azure OpenAI API Version',
+  AZURE_OPENAI_TENANT_ID: 'Azure AD Tenant ID',
+  AZURE_OPENAI_CLIENT_ID: 'Azure AD Client ID',
+  AZURE_OPENAI_CLIENT_SECRET: 'Azure AD Client Secret',
+  AZURE_OPENAI_CERTIFICATE_PATH: 'Certificate Path',
+  AZURE_OPENAI_CERTIFICATE: 'Certificate (PEM)',
+  AZURE_OPENAI_USE_MANAGED_IDENTITY: 'Use Managed Identity',
+  AZURE_OPENAI_TOKEN_SCOPE: 'Token Scope',
+
+  // openai with azure entra id
+  OPENAI_AZURE_TENANT_ID: 'Azure AD Tenant ID',
+  OPENAI_AZURE_CLIENT_ID: 'Azure AD Client ID',
+  OPENAI_AZURE_CLIENT_SECRET: 'Azure AD Client Secret',
+  OPENAI_AZURE_CERTIFICATE_PATH: 'Certificate Path',
+  OPENAI_AZURE_CERTIFICATE: 'Certificate (PEM)',
+  OPENAI_AZURE_USE_MANAGED_IDENTITY: 'Use Managed Identity',
+  OPENAI_AZURE_TOKEN_SCOPE: 'Token Scope',
 
   // gcp vertex
   GCP_PROJECT_ID: 'GCP Project ID',
@@ -62,14 +78,14 @@ export const configLabels: Record<string, string> = {
 };
 
 export const providerPrefixes: Record<string, string[]> = {
-  openai: ['OPENAI_'],
+  openai: ['OPENAI_', 'OPENAI_AZURE_'],
   anthropic: ['ANTHROPIC_'],
   google: ['GOOGLE_'],
   groq: ['GROQ_'],
   databricks: ['DATABRICKS_'],
   openrouter: ['OPENROUTER_'],
   ollama: ['OLLAMA_'],
-  azure_openai: ['AZURE_'],
+  azure_openai: ['AZURE_OPENAI_'],
   gcp_vertex_ai: ['GCP_'],
   snowflake: ['SNOWFLAKE_'],
 };

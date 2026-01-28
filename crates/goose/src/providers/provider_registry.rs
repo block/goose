@@ -98,10 +98,11 @@ impl ProviderRegistry {
 
         let mut config_keys = base_metadata.config_keys.clone();
 
-        if let Some(api_key_index) = config_keys
-            .iter()
-            .position(|key| key.required && key.secret)
-        {
+        // Find the primary API key config (the first secret key, typically the API key).
+        // Note: We look for secret keys because API keys should always be marked as secret.
+        // We don't require it to be marked as 'required' since some providers support
+        // alternative auth methods (e.g., OpenAI with Entra ID).
+        if let Some(api_key_index) = config_keys.iter().position(|key| key.secret) {
             config_keys[api_key_index] =
                 super::base::ConfigKey::new(&config.api_key_env, true, true, None);
         }
