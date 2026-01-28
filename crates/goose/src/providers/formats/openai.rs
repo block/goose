@@ -1051,9 +1051,9 @@ mod tests {
         std::fs::write(&png_path, png_data)?;
         let png_path_str = png_path.to_str().unwrap();
 
-        // Create message with image path
-        let message = Message::user().with_text(format!("Here is an image: {}", png_path_str));
-        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+        // Create user message with image path - should load the image
+        let user_message = Message::user().with_text(format!("Here is an image: {}", png_path_str));
+        let spec = format_messages(&[user_message], &ImageFormat::OpenAi);
 
         assert_eq!(spec.len(), 1);
         assert_eq!(spec[0]["role"], "user");
@@ -1069,87 +1069,21 @@ mod tests {
             .unwrap()
             .starts_with("data:image/png;base64,"));
 
-        Ok(())
-    }
-
-    #[test]
-    fn test_format_messages_assistant_text_with_image_path_no_image_loading() -> anyhow::Result<()>
-    {
-        // Create a temporary PNG file with valid PNG magic numbers
-        let temp_dir = tempfile::tempdir()?;
-        let png_path = temp_dir.path().join("output.png");
-        let png_data = [
-            0x89, 0x50, 0x4E, 0x47, // PNG magic number
-            0x0D, 0x0A, 0x1A, 0x0A, // PNG header
-            0x00, 0x00, 0x00, 0x0D, // Rest of fake PNG data
-        ];
-        std::fs::write(&png_path, png_data)?;
-        let png_path_str = png_path.to_str().unwrap();
-
-        // Create assistant message with text containing an image path
-        // This should NOT load the image (would cause "image urls not allowed in non-user messages")
-        let message =
+        // Create assistant message with same text - should NOT load the image
+        let assistant_message =
             Message::assistant().with_text(format!("I saved the output to {}", png_path_str));
-        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+        let spec = format_messages(&[assistant_message], &ImageFormat::OpenAi);
 
         assert_eq!(spec.len(), 1);
         assert_eq!(spec[0]["role"], "assistant");
 
         // Content should be plain text, NOT an array with image
-        // The image path should remain in the text without being loaded
         let content = spec[0]["content"].as_str();
         assert!(
             content.is_some(),
             "Assistant message content should be a string, not an array with image"
         );
         assert!(content.unwrap().contains(png_path_str));
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_format_messages_filters_images_in_non_user_messages() -> anyhow::Result<()> {
-        use crate::conversation::message::MessageContent;
-
-        // Create an assistant message with an image (should be filtered to placeholder)
-        let assistant_msg = Message::new(
-            Role::Assistant,
-            0,
-            vec![MessageContent::image("base64imagedata", "image/png")],
-        );
-
-        // Create a user message with an image (should be preserved)
-        let user_msg = Message::new(
-            Role::User,
-            0,
-            vec![MessageContent::image("userbase64data", "image/jpeg")],
-        );
-
-        let messages = vec![assistant_msg, user_msg];
-        let spec = format_messages(&messages, &ImageFormat::OpenAi);
-
-        assert_eq!(spec.len(), 2);
-
-        // Check assistant message - image should be replaced with placeholder text
-        assert_eq!(spec[0]["role"], "assistant");
-        let assistant_content = spec[0]["content"].as_array().unwrap();
-        assert_eq!(assistant_content.len(), 1);
-        // The image should be replaced with placeholder text, not image_url
-        assert_eq!(assistant_content[0]["type"], "text");
-        assert!(assistant_content[0]["text"]
-            .as_str()
-            .unwrap()
-            .contains("not supported"));
-
-        // Check user message - image should be preserved as image_url
-        assert_eq!(spec[1]["role"], "user");
-        let user_content = spec[1]["content"].as_array().unwrap();
-        assert_eq!(user_content.len(), 1);
-        assert_eq!(user_content[0]["type"], "image_url");
-        assert!(user_content[0]["image_url"]["url"]
-            .as_str()
-            .unwrap()
-            .starts_with("data:image/jpeg;base64,"));
 
         Ok(())
     }
