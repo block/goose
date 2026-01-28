@@ -678,7 +678,7 @@ pub async fn create_custom_provider(
         },
     )?;
 
-    let _ = goose::providers::refresh_custom_providers().await;
+    goose::providers::refresh_custom_providers().await?;
 
     Ok(Json(format!("Custom provider added - ID: {}", config.id())))
 }
@@ -715,7 +715,7 @@ pub async fn get_custom_provider(
 pub async fn remove_custom_provider(Path(id): Path<String>) -> Result<Json<String>, ErrorResponse> {
     goose::config::declarative_providers::remove_custom_provider(&id)?;
 
-    let _ = goose::providers::refresh_custom_providers().await;
+    goose::providers::refresh_custom_providers().await?;
 
     Ok(Json(format!("Removed custom provider: {}", id)))
 }
@@ -748,7 +748,7 @@ pub async fn update_custom_provider(
         },
     )?;
 
-    let _ = goose::providers::refresh_custom_providers().await;
+    goose::providers::refresh_custom_providers().await?;
 
     Ok(Json(format!("Updated custom provider: {}", id)))
 }

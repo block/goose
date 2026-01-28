@@ -105,9 +105,6 @@ async fn create_schedule(
         .add_scheduled_job(job.clone(), true)
         .await
         .map_err(|e| match e {
-            goose::scheduler::SchedulerError::JobNotFound(msg) => {
-                ErrorResponse::not_found(format!("Job not found: {}", msg))
-            }
             goose::scheduler::SchedulerError::CronParseError(msg) => {
                 ErrorResponse::bad_request(format!("Invalid cron expression: {}", msg))
             }

@@ -88,8 +88,13 @@ fn validate_audio_input(
 fn get_openai_config() -> Result<(String, String), ErrorResponse> {
     let config = goose::config::Config::global();
 
-    let api_key: String = config.get_secret("OPENAI_API_KEY").map_err(|e| {
-        ErrorResponse::bad_request(format!("Failed to get OpenAI API key: {:?}", e))
+    let api_key: String = config.get_secret("OPENAI_API_KEY").map_err(|e| match e {
+        goose::config::ConfigError::NotFound(_) => ErrorResponse {
+            message: "OpenAI API key not configured. Please set OPENAI_API_KEY in settings."
+                .to_string(),
+            status: StatusCode::PRECONDITION_FAILED,
+        },
+        _ => ErrorResponse::internal(format!("Failed to get OpenAI API key: {:?}", e)),
     })?;
 
     let openai_host = match config.get("OPENAI_HOST", false) {
