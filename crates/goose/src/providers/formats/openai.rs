@@ -72,8 +72,8 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
             match content {
                 MessageContent::Text(text) => {
                     if !text.text.is_empty() {
-                        // Only detect and load embedded images from text in user messages
-                        // Many providers don't support images in assistant or system messages
+                        // Extracting images from text is an outdated hack that should never
+                        // be randomly applied to assistant messages
                         if message.role == Role::User {
                             if let Some(image_path) = detect_image_path(&text.text) {
                                 if let Ok(image) = load_image_file(image_path) {
