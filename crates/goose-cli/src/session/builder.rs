@@ -580,7 +580,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     )
     .await;
 
-
     if let Err(e) = session
         .agent
         .persist_extension_state(&session_id.clone())
