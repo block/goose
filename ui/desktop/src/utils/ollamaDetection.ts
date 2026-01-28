@@ -1,3 +1,5 @@
+import { errorMessage } from './conversionUtils';
+
 const DEFAULT_OLLAMA_HOST = 'http://127.0.0.1:11434';
 const OLLAMA_DOWNLOAD_URL = 'https://ollama.com/download';
 const PREFERRED_MODEL = 'gpt-oss:20b';
@@ -52,7 +54,7 @@ export async function checkOllamaStatus(): Promise<OllamaStatus> {
     return {
       isRunning: false,
       host: DEFAULT_OLLAMA_HOST,
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: errorMessage(error, 'Unknown error'),
     };
   }
 }

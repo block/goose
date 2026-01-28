@@ -134,7 +134,6 @@ impl DatabricksProvider {
         let api_client =
             ApiClient::with_timeout(host, auth_method, Duration::from_secs(DEFAULT_TIMEOUT_SECS))?;
 
-        // Create the provider without the fast model first
         let mut provider = Self {
             api_client,
             auth,
@@ -143,31 +142,7 @@ impl DatabricksProvider {
             retry_config,
             name: Self::metadata().name,
         };
-
-        // Check if the default fast model exists in the workspace
-        // Generate UUID for this initialization request since no user session exists yet
-        let session_id = uuid::Uuid::new_v4().to_string();
-        let model_with_fast =
-            if let Ok(Some(models)) = provider.fetch_supported_models(&session_id).await {
-                if models.contains(&DATABRICKS_DEFAULT_FAST_MODEL.to_string()) {
-                    tracing::debug!(
-                        "Found {} in Databricks workspace, setting as fast model",
-                        DATABRICKS_DEFAULT_FAST_MODEL
-                    );
-                    model.with_fast(DATABRICKS_DEFAULT_FAST_MODEL.to_string())
-                } else {
-                    tracing::debug!(
-                        "{} not found in Databricks workspace, not setting fast model",
-                        DATABRICKS_DEFAULT_FAST_MODEL
-                    );
-                    model
-                }
-            } else {
-                tracing::debug!("Could not fetch Databricks models, not setting fast model");
-                model
-            };
-
-        provider.model = model_with_fast;
+        provider.model = model.with_fast(DATABRICKS_DEFAULT_FAST_MODEL.to_string());
         Ok(provider)
     }
 
@@ -231,7 +206,7 @@ impl DatabricksProvider {
 
     async fn post(
         &self,
-        session_id: &str,
+        session_id: Option<&str>,
         payload: Value,
         model_name: Option<&str>,
     ) -> Result<Value, ProviderError> {
@@ -282,7 +257,7 @@ impl Provider for DatabricksProvider {
     )]
     async fn complete_with_model(
         &self,
-        session_id: &str,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -339,7 +314,7 @@ impl Provider for DatabricksProvider {
             .with_retry(|| async {
                 let resp = self
                     .api_client
-                    .response_post(session_id, &path, &payload)
+                    .response_post(Some(session_id), &path, &payload)
                     .await?;
                 if !resp.status().is_success() {
                     let status = resp.status();
@@ -377,13 +352,11 @@ impl Provider for DatabricksProvider {
             .map_err(|e| ProviderError::ExecutionError(e.to_string()))
     }
 
-    async fn fetch_supported_models(
-        &self,
-        session_id: &str,
-    ) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         let response = match self
             .api_client
-            .response_get(session_id, "api/2.0/serving-endpoints")
+            .request(None, "api/2.0/serving-endpoints")
+            .response_get()
             .await
         {
             Ok(resp) => resp,
@@ -459,7 +432,7 @@ impl EmbeddingCapable for DatabricksProvider {
         });
 
         let response = self
-            .with_retry(|| self.post(session_id, request.clone(), None))
+            .with_retry(|| self.post(Some(session_id), request.clone(), None))
             .await?;
 
         let embeddings = response["data"]

@@ -91,8 +91,18 @@ impl AnthropicProvider {
             key: api_key,
         };
 
-        let api_client = ApiClient::new(config.base_url, auth)?
+        let mut api_client = ApiClient::new(config.base_url, auth)?
             .with_header("anthropic-version", ANTHROPIC_API_VERSION)?;
+
+        if let Some(headers) = &config.headers {
+            let mut header_map = reqwest::header::HeaderMap::new();
+            for (key, value) in headers {
+                let header_name = reqwest::header::HeaderName::from_bytes(key.as_bytes())?;
+                let header_value = reqwest::header::HeaderValue::from_str(value)?;
+                header_map.insert(header_name, header_value);
+            }
+            api_client = api_client.with_headers(header_map)?;
+        }
 
         Ok(Self {
             api_client,
@@ -116,7 +126,11 @@ impl AnthropicProvider {
         headers
     }
 
-    async fn post(&self, session_id: &str, payload: &Value) -> Result<ApiResponse, ProviderError> {
+    async fn post(
+        &self,
+        session_id: Option<&str>,
+        payload: &Value,
+    ) -> Result<ApiResponse, ProviderError> {
         let mut request = self.api_client.request(session_id, "v1/messages");
 
         for (key, value) in self.get_conditional_headers() {
@@ -198,7 +212,7 @@ impl Provider for AnthropicProvider {
     )]
     async fn complete_with_model(
         &self,
-        session_id: &str,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -228,11 +242,8 @@ impl Provider for AnthropicProvider {
         Ok((message, provider_usage))
     }
 
-    async fn fetch_supported_models(
-        &self,
-        session_id: &str,
-    ) -> Result<Option<Vec<String>>, ProviderError> {
-        let response = self.api_client.api_get(session_id, "v1/models").await?;
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+        let response = self.api_client.request(None, "v1/models").api_get().await?;
 
         if response.status != StatusCode::OK {
             return Err(map_http_error_to_provider_error(
@@ -268,7 +279,7 @@ impl Provider for AnthropicProvider {
             .unwrap()
             .insert("stream".to_string(), Value::Bool(true));
 
-        let mut request = self.api_client.request(session_id, "v1/messages");
+        let mut request = self.api_client.request(Some(session_id), "v1/messages");
         let mut log = RequestLog::start(&self.model, &payload)?;
 
         for (key, value) in self.get_conditional_headers() {

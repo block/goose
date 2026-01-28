@@ -1,5 +1,6 @@
 import { Session } from '../api';
 import { getApiUrl } from '../config';
+import { errorMessage } from './conversionUtils';
 
 /**
  * In-memory cache for session data
@@ -57,10 +58,9 @@ export async function loadSession(sessionId: string, forceRefresh = false): Prom
 
       return session;
     } catch (error) {
-      if (error instanceof Error) {
-        throw new Error(`Error loading session ${sessionId}: ${error.message}`);
-      }
-      throw new Error(`Error loading session ${sessionId}: Unknown error`);
+      throw new Error(
+        `Error loading session ${sessionId}: ${errorMessage(error, 'Unknown error')}`
+      );
     } finally {
       inFlightRequests.delete(sessionId);
     }

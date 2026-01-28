@@ -1,12 +1,12 @@
+use crate::cli::StreamableHttpOptions;
+
 use super::output;
 use super::CliSession;
 use console::style;
-use goose::agents::Agent;
+use goose::agents::{Agent, Container};
 use goose::config::get_enabled_extensions;
 use goose::config::resolve_extensions_for_new_session;
-use goose::config::{
-    extensions::get_extension_by_name, get_all_extensions, Config, ExtensionConfig,
-};
+use goose::config::{get_all_extensions, Config, ExtensionConfig};
 use goose::providers::create;
 use goose::recipe::Recipe;
 use goose::session::session_manager::SessionType;
@@ -30,7 +30,7 @@ fn truncate_with_ellipsis(s: &str, max_len: usize) -> String {
 
 fn parse_cli_flag_extensions(
     extensions: &[String],
-    streamable_http_extensions: &[String],
+    streamable_http_extensions: &[StreamableHttpOptions],
     builtins: &[String],
 ) -> Vec<(String, ExtensionConfig)> {
     let mut extensions_to_load = Vec::new();
@@ -55,9 +55,9 @@ fn parse_cli_flag_extensions(
         }
     }
 
-    for (idx, ext_str) in streamable_http_extensions.iter().enumerate() {
-        let config = CliSession::parse_streamable_http_extension(ext_str);
-        let hint = truncate_with_ellipsis(ext_str, EXTENSION_HINT_MAX_LEN);
+    for (idx, opts) in streamable_http_extensions.iter().enumerate() {
+        let config = CliSession::parse_streamable_http_extension(&opts.url, opts.timeout);
+        let hint = truncate_with_ellipsis(&opts.url, EXTENSION_HINT_MAX_LEN);
         let label = format!("http #{}({})", idx + 1, hint);
         extensions_to_load.push((label, config));
     }
@@ -89,7 +89,7 @@ pub struct SessionBuilderConfig {
     /// List of stdio extension commands to add
     pub extensions: Vec<String>,
     /// List of streamable HTTP extension commands to add
-    pub streamable_http_extensions: Vec<String>,
+    pub streamable_http_extensions: Vec<StreamableHttpOptions>,
     /// List of builtin extension commands to add
     pub builtins: Vec<String>,
     /// Recipe for the session
@@ -114,6 +114,8 @@ pub struct SessionBuilderConfig {
     pub quiet: bool,
     /// Output format (text, json)
     pub output_format: String,
+    /// Docker container to run stdio extensions inside
+    pub container: Option<Container>,
 }
 
 /// Manual implementation of Default to ensure proper initialization of output_format
@@ -139,6 +141,7 @@ impl Default for SessionBuilderConfig {
             interactive: false,
             quiet: false,
             output_format: "text".to_string(),
+            container: None,
         }
     }
 }
@@ -327,50 +330,16 @@ async fn load_extensions(
     agent_ptr
 }
 
-fn check_missing_extensions_or_exit(saved_extensions: &[ExtensionConfig], interactive: bool) {
-    let missing: Vec<_> = saved_extensions
-        .iter()
-        .filter(|ext| get_extension_by_name(&ext.name()).is_none())
-        .cloned()
-        .collect();
-
-    if !missing.is_empty() {
-        let names = missing
-            .iter()
-            .map(|e| e.name())
-            .collect::<Vec<_>>()
-            .join(", ");
-
-        if interactive {
-            if !cliclack::confirm(format!(
-                "Extension(s) {} from previous session are no longer available. Restore for this session?",
-                names
-            ))
-            .initial_value(true)
-            .interact()
-            .unwrap_or(false)
-            {
-                println!("{}", style("Resume cancelled.").yellow());
-                process::exit(0);
-            }
-        } else {
-            eprintln!(
-                "{}",
-                style(format!(
-                    "Warning: Extension(s) {} from previous session are no longer available, continuing without them.",
-                    names
-                ))
-                .yellow()
-            );
-        }
-    }
-}
-
 pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     goose::posthog::set_session_context("cli", session_config.resume);
 
     let config = Config::global();
     let agent: Agent = Agent::new();
+
+    if session_config.container.is_some() {
+        agent.set_container(session_config.container.clone()).await;
+    }
+
     let session_manager = agent.config.session_manager.clone();
 
     let (saved_provider, saved_model_config) = if session_config.resume {
@@ -558,10 +527,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             .await
             .ok()
             .and_then(|s| EnabledExtensionsState::from_extension_data(&s.extension_data))
-            .map(|state| {
-                check_missing_extensions_or_exit(&state.extensions, session_config.interactive);
-                state.extensions
-            })
+            .map(|state| state.extensions)
             .unwrap_or_else(get_enabled_extensions)
     } else {
         resolve_extensions_for_new_session(recipe.and_then(|r| r.extensions.as_deref()), None)
@@ -665,7 +631,10 @@ mod tests {
             fork: false,
             no_session: false,
             extensions: vec!["echo test".to_string()],
-            streamable_http_extensions: vec!["http://localhost:8080/mcp".to_string()],
+            streamable_http_extensions: vec![StreamableHttpOptions {
+                url: "http://localhost:8080/mcp".to_string(),
+                timeout: goose::config::DEFAULT_EXTENSION_TIMEOUT,
+            }],
             builtins: vec!["developer".to_string()],
             recipe: None,
             additional_system_prompt: Some("Test prompt".to_string()),
@@ -678,6 +647,7 @@ mod tests {
             interactive: true,
             quiet: false,
             output_format: "text".to_string(),
+            container: None,
         };
 
         assert_eq!(config.extensions.len(), 1);

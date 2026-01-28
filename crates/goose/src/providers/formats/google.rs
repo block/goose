@@ -4,7 +4,7 @@ use crate::providers::errors::ProviderError;
 use crate::providers::utils::{is_valid_function_name, sanitize_function_name};
 use anyhow::Result;
 use rmcp::model::{
-    object, AnnotateAble, CallToolRequestParam, ErrorCode, ErrorData, RawContent, Role, Tool,
+    object, AnnotateAble, CallToolRequestParams, ErrorCode, ErrorData, RawContent, Role, Tool,
 };
 use serde::Serialize;
 use std::borrow::Cow;
@@ -227,115 +227,19 @@ pub fn format_tools(tools: &[Tool]) -> Vec<Value> {
             let mut parameters = Map::new();
             parameters.insert("name".to_string(), json!(tool.name));
             parameters.insert("description".to_string(), json!(tool.description));
-            let tool_input_schema = &tool.input_schema;
 
-            if tool_input_schema
+            // Use parametersJsonSchema which supports full JSON Schema including $ref/$defs
+            if tool
+                .input_schema
                 .get("properties")
                 .and_then(|v| v.as_object())
                 .is_some_and(|p| !p.is_empty())
             {
-                parameters.insert(
-                    "parameters".to_string(),
-                    process_map(tool_input_schema, None),
-                );
+                parameters.insert("parametersJsonSchema".to_string(), json!(tool.input_schema));
             }
             json!(parameters)
         })
         .collect()
-}
-
-pub fn get_accepted_keys(parent_key: Option<&str>) -> Vec<&str> {
-    match parent_key {
-        Some("properties") => vec![
-            "anyOf",
-            "allOf",
-            "type",
-            "description",
-            "nullable",
-            "enum",
-            "properties",
-            "required",
-            "items",
-        ],
-        Some("items") => vec!["type", "properties", "items", "required"],
-        _ => vec!["type", "properties", "required", "anyOf", "allOf"],
-    }
-}
-
-pub fn process_value(value: &Value, parent_key: Option<&str>) -> Value {
-    match value {
-        Value::Object(map) => process_map(map, parent_key),
-        Value::Array(arr) if parent_key == Some("type") => arr
-            .iter()
-            .find(|v| v.as_str() != Some("null"))
-            .cloned()
-            .unwrap_or_else(|| json!("string")),
-        _ => value.clone(),
-    }
-}
-
-/// Process a JSON map to filter out unsupported attributes, mirroring the logic
-/// from the official Google Gemini CLI.
-/// See: https://github.com/google-gemini/gemini-cli/blob/8a6509ffeba271a8e7ccb83066a9a31a5d72a647/packages/core/src/tools/tool-registry.ts#L356
-pub fn process_map(map: &Map<String, Value>, parent_key: Option<&str>) -> Value {
-    let accepted_keys = get_accepted_keys(parent_key);
-
-    let filtered_map: Map<String, Value> = map
-        .iter()
-        .filter_map(|(key, value)| {
-            if !accepted_keys.contains(&key.as_str()) {
-                return None;
-            }
-
-            let processed_value = match key.as_str() {
-                "properties" => {
-                    if let Some(nested_map) = value.as_object() {
-                        let processed_properties: Map<String, Value> = nested_map
-                            .iter()
-                            .map(|(prop_key, prop_value)| {
-                                if let Some(prop_obj) = prop_value.as_object() {
-                                    (prop_key.clone(), process_map(prop_obj, Some("properties")))
-                                } else {
-                                    (prop_key.clone(), prop_value.clone())
-                                }
-                            })
-                            .collect();
-                        Value::Object(processed_properties)
-                    } else {
-                        value.clone()
-                    }
-                }
-                "items" => {
-                    if let Some(items_map) = value.as_object() {
-                        process_map(items_map, Some("items"))
-                    } else {
-                        value.clone()
-                    }
-                }
-                "anyOf" | "allOf" => {
-                    if let Some(arr) = value.as_array() {
-                        let processed_arr: Vec<Value> = arr
-                            .iter()
-                            .map(|item| {
-                                item.as_object().map_or_else(
-                                    || item.clone(),
-                                    |obj| process_map(obj, parent_key),
-                                )
-                            })
-                            .collect();
-                        Value::Array(processed_arr)
-                    } else {
-                        value.clone()
-                    }
-                }
-                _ => process_value(value, Some(key.as_str())),
-            };
-
-            Some((key.clone(), processed_value))
-        })
-        .collect();
-
-    Value::Object(filtered_map)
 }
 
 #[derive(Clone, Copy)]
@@ -348,12 +252,13 @@ pub fn process_response_part(
     part: &Value,
     last_signature: &mut Option<String>,
 ) -> Option<MessageContent> {
-    // Gemini 2.5 models include thoughtSignature on the first streaming chunk
-    process_response_part_impl(
-        part,
-        last_signature,
-        SignedTextHandling::SignedTextAsRegularText,
-    )
+    let has_signature = part.get(THOUGHT_SIGNATURE_KEY).is_some();
+    let handling = if has_signature {
+        SignedTextHandling::SignedTextAsThinking
+    } else {
+        SignedTextHandling::SignedTextAsRegularText
+    };
+    process_response_part_impl(part, last_signature, handling)
 }
 
 fn process_response_part_non_streaming(
@@ -421,7 +326,8 @@ fn process_response_part_impl(
 
             Some(MessageContent::tool_request_with_metadata(
                 id,
-                Ok(CallToolRequestParam {
+                Ok(CallToolRequestParams {
+                    meta: None,
                     task: None,
                     name: name.to_string().into(),
                     arguments,
@@ -688,7 +594,7 @@ pub fn create_request(
 mod tests {
     use super::*;
     use crate::conversation::message::Message;
-    use rmcp::model::{CallToolRequestParam, CallToolResult};
+    use rmcp::model::{CallToolRequestParams, CallToolResult};
     use rmcp::{model::Content, object};
     use serde_json::json;
 
@@ -696,7 +602,7 @@ mod tests {
         Message::new(role, 0, vec![MessageContent::text(text.to_string())])
     }
 
-    fn set_up_tool_request_message(id: &str, tool_call: CallToolRequestParam) -> Message {
+    fn set_up_tool_request_message(id: &str, tool_call: CallToolRequestParams) -> Message {
         Message::new(
             Role::User,
             0,
@@ -704,7 +610,7 @@ mod tests {
         )
     }
 
-    fn set_up_action_required_message(id: &str, tool_call: CallToolRequestParam) -> Message {
+    fn set_up_action_required_message(id: &str, tool_call: CallToolRequestParams) -> Message {
         Message::new(
             Role::User,
             0,
@@ -770,7 +676,8 @@ mod tests {
         let messages = vec![
             set_up_tool_request_message(
                 "id",
-                CallToolRequestParam {
+                CallToolRequestParams {
+                    meta: None,
                     task: None,
                     name: "tool_name".into(),
                     arguments: Some(object(arguments.clone())),
@@ -778,7 +685,8 @@ mod tests {
             ),
             set_up_action_required_message(
                 "id2",
-                CallToolRequestParam {
+                CallToolRequestParams {
+                    meta: None,
                     task: None,
                     name: "tool_name_2".into(),
                     arguments: Some(object(arguments.clone())),
@@ -840,211 +748,23 @@ mod tests {
 
     #[test]
     fn test_tools_to_google_spec_with_valid_tools() {
-        let params1 = object!({
+        let params = object!({
             "properties": {
                 "param1": {
                     "type": "string",
-                    "description": "A parameter",
-                    "field_does_not_accept": ["value1", "value2"]
+                    "description": "A parameter"
                 }
             }
         });
-        let params2 = object!({
-            "properties": {
-                "param2": {
-                    "type": "string",
-                    "description": "B parameter",
-                }
-            }
-        });
-        let params3 = object!({
-            "properties": {
-                "body": {
-                    "description": "Review comment text",
-                    "type": "string"
-                },
-                "comments": {
-                    "description": "Line-specific comments array of objects to place comments on pull request changes. Requires path and body. For line comments use line or position. For multi-line comments use start_line and line with optional side parameters.",
-                    "type": "array",
-                    "items": {
-                        "additionalProperties": false,
-                        "properties": {
-                            "body": {
-                                "description": "comment body",
-                                "type": "string"
-                            },
-                            "line": {
-                                "anyOf": [
-                                    { "type": "number" },
-                                    { "type": "null" }
-                                ],
-                                "description": "line number in the file to comment on. For multi-line comments, the end of the line range"
-                            },
-                            "path": {
-                                "description": "path to the file",
-                                "type": "string"
-                            },
-                            "position": {
-                                "anyOf": [
-                                    { "type": "number" },
-                                    { "type": "null" }
-                                ],
-                                "description": "position of the comment in the diff"
-                            },
-                            "side": {
-                                "anyOf": [
-                                    { "type": "string" },
-                                    { "type": "null" }
-                                ],
-                                "description": "The side of the diff on which the line resides. For multi-line comments, this is the side for the end of the line range. (LEFT or RIGHT)"
-                            },
-                            "start_line": {
-                                "anyOf": [
-                                    { "type": "number" },
-                                    { "type": "null" }
-                                ],
-                                "description": "The first line of the range to which the comment refers. Required for multi-line comments."
-                            },
-                            "start_side": {
-                                "anyOf": [
-                                    { "type": "string" },
-                                    { "type": "null" }
-                                ],
-                                "description": "The side of the diff on which the start line resides for multi-line comments. (LEFT or RIGHT)"
-                            }
-                        },
-                        "required": ["path", "body", "position", "line", "side", "start_line", "start_side"],
-                        "type": "object"
-                    }
-                },
-                "commitId": {
-                    "description": "SHA of commit to review",
-                    "type": "string"
-                },
-                "event": {
-                    "description": "Review action to perform",
-                    "enum": ["APPROVE", "REQUEST_CHANGES", "COMMENT"],
-                    "type": "string"
-                },
-                "owner": {
-                    "description": "Repository owner",
-                    "type": "string"
-                },
-                "pullNumber": {
-                    "description": "Pull request number",
-                    "type": "number"
-                }
-            }
-        });
-        let tools = vec![
-            Tool::new("tool1", "description1", params1),
-            Tool::new("tool2", "description2", params2),
-            Tool::new("tool3", "description3", params3),
-        ];
+        let tools = vec![Tool::new("tool1", "description1", params.clone())];
         let result = format_tools(&tools);
-        assert_eq!(result.len(), 3);
+
+        assert_eq!(result.len(), 1);
         assert_eq!(result[0]["name"], "tool1");
         assert_eq!(result[0]["description"], "description1");
-        assert_eq!(
-            result[0]["parameters"]["properties"],
-            json!({"param1": json!({
-                "type": "string",
-                "description": "A parameter"
-            })})
-        );
-        assert_eq!(result[1]["name"], "tool2");
-        assert_eq!(result[1]["description"], "description2");
-        assert_eq!(
-            result[1]["parameters"]["properties"],
-            json!({"param2": json!({
-                "type": "string",
-                "description": "B parameter"
-            })})
-        );
-
-        assert_eq!(result[2]["name"], "tool3");
-        assert_eq!(
-            result[2]["parameters"]["properties"],
-            json!(
-
-            {
-                        "body": {
-                            "description": "Review comment text",
-                            "type": "string"
-                        },
-                        "comments": {
-                            "description": "Line-specific comments array of objects to place comments on pull request changes. Requires path and body. For line comments use line or position. For multi-line comments use start_line and line with optional side parameters.",
-                            "type": "array",
-                            "items": {
-                                "properties": {
-                                    "body": {
-                                        "description": "comment body",
-                                        "type": "string"
-                                    },
-                                    "line": {
-                                        "anyOf": [
-                                            { "type": "number" },
-                                            { "type": "null" }
-                                        ],
-                                        "description": "line number in the file to comment on. For multi-line comments, the end of the line range"
-                                    },
-                                    "path": {
-                                        "description": "path to the file",
-                                        "type": "string"
-                                    },
-                                    "position": {
-                                        "anyOf": [
-                                            { "type": "number" },
-                                            { "type": "null" }
-                                        ],
-                                        "description": "position of the comment in the diff"
-                                    },
-                                    "side": {
-                                        "anyOf": [
-                                            { "type": "string" },
-                                            { "type": "null" }
-                                        ],
-                                        "description": "The side of the diff on which the line resides. For multi-line comments, this is the side for the end of the line range. (LEFT or RIGHT)"
-                                    },
-                                    "start_line": {
-                                        "anyOf": [
-                                            { "type": "number" },
-                                            { "type": "null" }
-                                        ],
-                                        "description": "The first line of the range to which the comment refers. Required for multi-line comments."
-                                    },
-                                    "start_side": {
-                                        "anyOf": [
-                                            { "type": "string" },
-                                            { "type": "null" }
-                                        ],
-                                        "description": "The side of the diff on which the start line resides for multi-line comments. (LEFT or RIGHT)"
-                                    }
-                                },
-                                "required": ["path", "body", "position", "line", "side", "start_line", "start_side"],
-                                "type": "object"
-                            }
-                        },
-                        "commitId": {
-                            "description": "SHA of commit to review",
-                            "type": "string"
-                        },
-                        "event": {
-                            "description": "Review action to perform",
-                            "enum": ["APPROVE", "REQUEST_CHANGES", "COMMENT"],
-                            "type": "string"
-                        },
-                        "owner": {
-                            "description": "Repository owner",
-                            "type": "string"
-                        },
-                        "pullNumber": {
-                            "description": "Pull request number",
-                            "type": "number"
-                        }
-                    }
-                    )
-        );
+        assert!(result[0].get("parametersJsonSchema").is_some());
+        assert!(result[0].get("parameters").is_none());
+        assert_eq!(result[0]["parametersJsonSchema"], json!(params));
     }
 
     #[test]
@@ -1060,7 +780,7 @@ mod tests {
         assert_eq!(result.len(), 1);
         assert_eq!(result[0]["name"], "tool1");
         assert_eq!(result[0]["description"], "description1");
-        assert!(result[0]["parameters"].get("properties").is_none());
+        assert!(result[0].get("parametersJsonSchema").is_none());
     }
 
     #[test]
@@ -1184,35 +904,22 @@ mod tests {
     }
 
     #[test]
-    fn test_tools_with_nullable_types_converted_to_single_type() {
-        // Test that type arrays like ["string", "null"] are converted to single types
+    fn test_tools_uses_parameters_json_schema() {
         let params = object!({
             "properties": {
-                "nullable_field": {
+                "field": {
                     "type": ["string", "null"],
-                    "description": "A nullable string field"
-                },
-                "regular_field": {
-                    "type": "number",
-                    "description": "A regular number field"
+                    "description": "A field"
                 }
             }
         });
-        let tools = vec![Tool::new("test_tool", "test description", params)];
+        let tools = vec![Tool::new("test_tool", "test description", params.clone())];
         let result = format_tools(&tools);
 
         assert_eq!(result.len(), 1);
         assert_eq!(result[0]["name"], "test_tool");
-
-        // Verify that the type array was converted to a single string type
-        let nullable_field = &result[0]["parameters"]["properties"]["nullable_field"];
-        assert_eq!(nullable_field["type"], "string");
-        assert_eq!(nullable_field["description"], "A nullable string field");
-
-        // Verify that regular types are unchanged
-        let regular_field = &result[0]["parameters"]["properties"]["regular_field"];
-        assert_eq!(regular_field["type"], "number");
-        assert_eq!(regular_field["description"], "A regular number field");
+        assert!(result[0].get("parametersJsonSchema").is_some());
+        assert_eq!(result[0]["parametersJsonSchema"], json!(params));
     }
 
     fn google_response(parts: Vec<Value>) -> Value {
@@ -1410,17 +1117,26 @@ mod tests {
         let mut message_stream = std::pin::pin!(response_to_streaming_message(stream));
 
         let mut text_parts = Vec::new();
+        let mut thinking_parts = Vec::new();
 
         while let Some(result) = message_stream.next().await {
             let (message, _usage) = result.unwrap();
             if let Some(msg) = message {
-                if let Some(MessageContent::Text(text)) = msg.content.first() {
-                    text_parts.push(text.text.clone());
+                match msg.content.first() {
+                    Some(MessageContent::Text(text)) => {
+                        text_parts.push(text.text.clone());
+                    }
+                    Some(MessageContent::Thinking(thinking)) => {
+                        thinking_parts.push(thinking.thinking.clone());
+                        assert_eq!(thinking.signature, "sig123");
+                    }
+                    _ => {}
                 }
             }
         }
 
-        assert_eq!(text_parts, vec!["Begin", " middle", " end"]);
+        assert_eq!(thinking_parts, vec!["Begin"]);
+        assert_eq!(text_parts, vec![" middle", " end"]);
     }
 
     #[tokio::test]
@@ -1508,5 +1224,33 @@ data: [DONE]"#;
 
         // Only "Complete" should be captured, stream should stop at [DONE]
         assert_eq!(text_parts, vec!["Complete"]);
+    }
+
+    #[test]
+    fn test_format_tools_uses_parameters_json_schema() {
+        let tool = Tool::new(
+            "test_tool",
+            "Test tool with $ref",
+            object!({
+                "type": "object",
+                "$defs": {
+                    "MyType": { "type": "string", "description": "A custom type" }
+                },
+                "properties": {
+                    "field": { "$ref": "#/$defs/MyType" }
+                }
+            }),
+        );
+
+        let result = format_tools(&[tool]);
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0]["name"], "test_tool");
+        assert!(result[0].get("parametersJsonSchema").is_some());
+        assert!(result[0].get("parameters").is_none());
+
+        let schema = &result[0]["parametersJsonSchema"];
+        assert_eq!(schema["properties"]["field"]["$ref"], "#/$defs/MyType");
+        assert!(schema.get("$defs").is_some());
     }
 }
