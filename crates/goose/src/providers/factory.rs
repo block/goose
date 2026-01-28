@@ -131,11 +131,15 @@ async fn get_from_registry(name: &str) -> Result<ProviderEntry> {
 }
 
 pub async fn create(name: &str, model: ModelConfig) -> Result<Arc<dyn Provider>> {
-    let config = crate::config::Config::global();
-
-    if let Ok(lead_model_name) = config.get_param::<String>("GOOSE_LEAD_MODEL") {
-        tracing::info!("Creating lead/worker provider from environment variables");
-        return create_lead_worker_from_env(name, &model, &lead_model_name).await;
+    // IMPORTANT: gate lead/worker behavior on the *current* environment, not on
+    // cached configuration. Config::global() may be initialized once per process,
+    // so using it to decide whether lead/worker mode is enabled can leak state
+    // between calls/tests. The env_lock-based tests rely on reading the live env.
+    if let Ok(lead_model_name) = std::env::var("GOOSE_LEAD_MODEL") {
+        if !lead_model_name.trim().is_empty() {
+            tracing::info!("Creating lead/worker provider from environment variables");
+            return create_lead_worker_from_env(name, &model, &lead_model_name).await;
+        }
     }
 
     let constructor = get_from_registry(name).await?.constructor.clone();
