@@ -50,7 +50,6 @@ pub struct GooseAcpAgent {
 pub struct GooseAcpConfig {
     pub provider: Arc<dyn goose::providers::base::Provider>,
     pub builtins: Vec<String>,
-    pub work_dir: std::path::PathBuf,
     pub data_dir: std::path::PathBuf,
     pub config_dir: std::path::PathBuf,
     pub goose_mode: goose::config::GooseMode,
@@ -309,7 +308,6 @@ impl GooseAcpAgent {
         Self::with_config(GooseAcpConfig {
             provider,
             builtins,
-            work_dir: std::env::current_dir().unwrap_or_default(),
             data_dir: Paths::data_dir(),
             config_dir: Paths::config_dir(),
             goose_mode,
@@ -690,7 +688,7 @@ impl GooseAcpAgent {
         let manager = self.agent.config.session_manager.clone();
         let goose_session = manager
             .create_session(
-                std::env::current_dir().unwrap_or_default(),
+                args.cwd.clone(),
                 "ACP Session".to_string(), // just an initial name - may be replaced by maybe_update_name
                 SessionType::User,
             )

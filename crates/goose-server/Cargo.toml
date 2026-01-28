@@ -17,7 +17,7 @@ rmcp = { workspace = true }
 axum = { version = "0.8.1", features = ["ws", "macros"] }
 tokio = { workspace = true }
 chrono = "0.4"
-tower-http = { version = "0.5", features = ["cors"] }
+tower-http = { workspace = true, features = ["cors"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { workspace = true, features = ["preserve_order"] }
 futures = { workspace = true }
@@ -28,17 +28,17 @@ tokio-stream = "0.1"
 anyhow = { workspace = true }
 bytes = "1.5"
 http = "1.0"
-base64 = "0.21"
+base64 = { workspace = true }
 config = { version = "0.15.13", features = ["toml"] }
 thiserror = "1.0"
 clap = { version = "4.4", features = ["derive"] }
 serde_yaml = "0.9.34"
 utoipa = { version = "4.1", features = ["axum_extras", "chrono"] }
-reqwest = { version = "0.12.9", features = ["json", "rustls-tls", "blocking", "multipart"], default-features = false }
+reqwest = { workspace = true, features = ["json", "rustls-tls", "blocking", "multipart"], default-features = false }
 tokio-util = "0.7.15"
 serde_path_to_error = "0.1.20"
 tokio-tungstenite = { version = "0.28.0", features = ["rustls-tls-native-roots"] }
-url = "2.5.7"
+url = { workspace = true }
 rand = "0.9.2"
 hex = "0.4.3"
 socket2 = "0.6.1"
@@ -58,8 +58,6 @@ name = "generate_schema"
 path = "src/bin/generate_schema.rs"
 
 [dev-dependencies]
-tower = "0.5"
-async-trait = "0.1.89"
-tempfile = "3.15.0"
+tower = { workspace = true }
 env-lock = { workspace = true }
 wiremock = { workspace = true }

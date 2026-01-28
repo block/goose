@@ -169,7 +169,11 @@ impl GithubCopilotProvider {
         })
     }
 
-    async fn post(&self, session_id: &str, payload: &mut Value) -> Result<Response, ProviderError> {
+    async fn post(
+        &self,
+        session_id: Option<&str>,
+        payload: &mut Value,
+    ) -> Result<Response, ProviderError> {
         let (endpoint, token) = self.get_api_info().await?;
         let auth = AuthMethod::BearerToken(token);
         let mut headers = self.get_github_headers();
@@ -411,7 +415,7 @@ impl Provider for GithubCopilotProvider {
     )]
     async fn complete_with_model(
         &self,
-        session_id: &str,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -469,7 +473,7 @@ impl Provider for GithubCopilotProvider {
         let response = self
             .with_retry(|| async {
                 let mut payload_clone = payload.clone();
-                let resp = self.post(session_id, &mut payload_clone).await?;
+                let resp = self.post(Some(session_id), &mut payload_clone).await?;
                 handle_status_openai_compat(resp).await
             })
             .await
@@ -480,10 +484,7 @@ impl Provider for GithubCopilotProvider {
         stream_openai_compat(response, log)
     }
 
-    async fn fetch_supported_models(
-        &self,
-        _session_id: &str,
-    ) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         let (endpoint, token) = self.get_api_info().await?;
         let url = format!("{}/models", endpoint);
 

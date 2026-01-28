@@ -67,23 +67,27 @@ impl OpenAiProvider {
         let model = model.with_fast(OPEN_AI_DEFAULT_FAST_MODEL.to_string());
 
         let config = crate::config::Config::global();
-        let secrets = config.get_secrets("OPENAI_API_KEY", &["OPENAI_CUSTOM_HEADERS"])?;
-        let api_key = secrets.get("OPENAI_API_KEY").unwrap().clone();
         let host: String = config
             .get_param("OPENAI_HOST")
             .unwrap_or_else(|_| "https://api.openai.com".to_string());
+
+        let api_key: Option<String> = config.get_secret("OPENAI_API_KEY").ok();
+        let custom_headers: Option<HashMap<String, String>> = config
+            .get_secret::<String>("OPENAI_CUSTOM_HEADERS")
+            .ok()
+            .map(parse_custom_headers);
+
         let base_path: String = config
             .get_param("OPENAI_BASE_PATH")
             .unwrap_or_else(|_| "v1/chat/completions".to_string());
         let organization: Option<String> = config.get_param("OPENAI_ORGANIZATION").ok();
         let project: Option<String> = config.get_param("OPENAI_PROJECT").ok();
-        let custom_headers: Option<HashMap<String, String>> = secrets
-            .get("OPENAI_CUSTOM_HEADERS")
-            .cloned()
-            .map(parse_custom_headers);
         let timeout_secs: u64 = config.get_param("OPENAI_TIMEOUT").unwrap_or(600);
 
-        let auth = AuthMethod::BearerToken(api_key);
+        let auth = match api_key {
+            Some(key) if !key.is_empty() => AuthMethod::BearerToken(key),
+            _ => AuthMethod::NoAuth,
+        };
         let mut api_client =
             ApiClient::with_timeout(host, auth, std::time::Duration::from_secs(timeout_secs))?;
 
@@ -136,9 +140,12 @@ impl OpenAiProvider {
         config: DeclarativeProviderConfig,
     ) -> Result<Self> {
         let global_config = crate::config::Config::global();
-        let api_key: String = global_config
-            .get_secret(&config.api_key_env)
-            .map_err(|_e| anyhow::anyhow!("Missing API key: {}", config.api_key_env))?;
+
+        let api_key: Option<String> = if config.requires_auth && !config.api_key_env.is_empty() {
+            global_config.get_secret(&config.api_key_env).ok()
+        } else {
+            None
+        };
 
         let url = url::Url::parse(&config.base_url)
             .map_err(|e| anyhow::anyhow!("Invalid base URL '{}': {}", config.base_url, e))?;
@@ -161,7 +168,11 @@ impl OpenAiProvider {
         };
 
         let timeout_secs = config.timeout_seconds.unwrap_or(600);
-        let auth = AuthMethod::BearerToken(api_key);
+
+        let auth = match api_key {
+            Some(key) if !key.is_empty() => AuthMethod::BearerToken(key),
+            _ => AuthMethod::NoAuth,
+        };
         let mut api_client =
             ApiClient::with_timeout(host, auth, std::time::Duration::from_secs(timeout_secs))?;
 
@@ -192,7 +203,11 @@ impl OpenAiProvider {
         model_name.starts_with("gpt-5-codex") || model_name.starts_with("gpt-5.1-codex")
     }
 
-    async fn post(&self, session_id: &str, payload: &Value) -> Result<Value, ProviderError> {
+    async fn post(
+        &self,
+        session_id: Option<&str>,
+        payload: &Value,
+    ) -> Result<Value, ProviderError> {
         let response = self
             .api_client
             .response_post(session_id, &self.base_path, payload)
@@ -202,7 +217,7 @@ impl OpenAiProvider {
 
     async fn post_responses(
         &self,
-        session_id: &str,
+        session_id: Option<&str>,
         payload: &Value,
     ) -> Result<Value, ProviderError> {
         let response = self
@@ -228,7 +243,7 @@ impl Provider for OpenAiProvider {
             models,
             OPEN_AI_DOC_URL,
             vec![
-                ConfigKey::new("OPENAI_API_KEY", true, true, None),
+                ConfigKey::new("OPENAI_API_KEY", false, true, None),
                 ConfigKey::new("OPENAI_HOST", true, false, Some("https://api.openai.com")),
                 ConfigKey::new("OPENAI_BASE_PATH", true, false, Some("v1/chat/completions")),
                 ConfigKey::new("OPENAI_ORGANIZATION", false, false, None),
@@ -253,7 +268,7 @@ impl Provider for OpenAiProvider {
     )]
     async fn complete_with_model(
         &self,
-        session_id: &str,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -323,14 +338,12 @@ impl Provider for OpenAiProvider {
         }
     }
 
-    async fn fetch_supported_models(
-        &self,
-        session_id: &str,
-    ) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         let models_path = self.base_path.replace("v1/chat/completions", "v1/models");
         let response = self
             .api_client
-            .response_get(session_id, &models_path)
+            .request(None, &models_path)
+            .response_get()
             .await?;
         let json = handle_response_openai_compat(response).await?;
         if let Some(err_obj) = json.get("error") {
@@ -388,7 +401,7 @@ impl Provider for OpenAiProvider {
                     let payload_clone = payload.clone();
                     let resp = self
                         .api_client
-                        .response_post(session_id, "v1/responses", &payload_clone)
+                        .response_post(Some(session_id), "v1/responses", &payload_clone)
                         .await?;
                     handle_status_openai_compat(resp).await
                 })
@@ -426,7 +439,7 @@ impl Provider for OpenAiProvider {
                 .with_retry(|| async {
                     let resp = self
                         .api_client
-                        .response_post(session_id, &self.base_path, &payload)
+                        .response_post(Some(session_id), &self.base_path, &payload)
                         .await?;
                     handle_status_openai_compat(resp).await
                 })
@@ -479,7 +492,7 @@ impl EmbeddingCapable for OpenAiProvider {
                 let request_value = serde_json::to_value(request_clone)
                     .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
                 self.api_client
-                    .api_post(session_id, "v1/embeddings", &request_value)
+                    .api_post(Some(session_id), "v1/embeddings", &request_value)
                     .await
                     .map_err(|e| ProviderError::ExecutionError(e.to_string()))
             })

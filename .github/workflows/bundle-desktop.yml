@@ -72,7 +72,7 @@ jobs:
         run: df -h
 
       - name: Checkout code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
         with:
           # Only pass ref if it's explicitly set, otherwise let checkout action use its default behavior
           ref: ${{ inputs.ref != '' && inputs.ref || '' }}
@@ -133,7 +133,7 @@ jobs:
           cp target/release/goosed ui/desktop/src/bin/goosed
 
       - name: Cache npm dependencies
-        uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # pin@v3
+        uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7  # v5.0.2
         with:
           path: |
             ui/desktop/node_modules
@@ -169,7 +169,7 @@ jobs:
 
       - name: Configure AWS credentials
         if: ${{ inputs.signing }}
-        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4
+        uses: aws-actions/configure-aws-credentials@61815dcd50bd041e203e49132bacad1fd04d2708  # v5.1.1
         with:
           role-to-assume: "${{ secrets.OSX_CODESIGN_ROLE }}"
           aws-region: us-west-2
@@ -251,7 +251,7 @@ jobs:
 
       - name: Upload Desktop artifact
         id: upload-app-bundle
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # pin@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
         with:
           name: Goose-darwin-arm64
           path: ui/desktop/out/Goose-darwin-arm64/Goose.zip

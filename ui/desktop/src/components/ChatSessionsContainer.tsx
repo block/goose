@@ -1,10 +1,14 @@
 import { useSearchParams } from 'react-router-dom';
 import BaseChat from './BaseChat';
 import { ChatType } from '../types/chat';
+import { UserInput } from '../types/message';
 
 interface ChatSessionsContainerProps {
   setChat: (chat: ChatType) => void;
-  activeSessions: Array<{ sessionId: string; initialMessage?: string }>;
+  activeSessions: Array<{
+    sessionId: string;
+    initialMessage?: UserInput;
+  }>;
 }
 
 /**
@@ -19,17 +23,18 @@ export default function ChatSessionsContainer({
   const [searchParams] = useSearchParams();
   const currentSessionId = searchParams.get('resumeSessionId') ?? undefined;
 
-  if (!currentSessionId) {
+  // Always render active sessions to keep SSE connections alive, even when not on /pair route
+  if (!currentSessionId && activeSessions.length === 0) {
     return null;
   }
 
-  const isActiveSession = activeSessions.some((s) => s.sessionId === currentSessionId);
+  // Build the list of sessions to render
+  let sessionsToRender = activeSessions;
 
-  // If the current session isn't in active sessions, we need to render it anyway
-  // (handles page refresh case)
-  const sessionsToRender = isActiveSession
-    ? activeSessions
-    : [...activeSessions, { sessionId: currentSessionId }];
+  // If we have a currentSessionId that's not in activeSessions, add it (handles page refresh)
+  if (currentSessionId && !activeSessions.some((s) => s.sessionId === currentSessionId)) {
+    sessionsToRender = [...activeSessions, { sessionId: currentSessionId }];
+  }
 
   return (
     <div className="relative w-full h-full">

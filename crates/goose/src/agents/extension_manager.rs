@@ -25,6 +25,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, warn};
 
+use super::container::Container;
 use super::extension::{
     ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult, PlatformExtensionContext,
     ToolInfo, PLATFORM_EXTENSIONS,
@@ -41,7 +42,7 @@ use crate::oauth::oauth_flow;
 use crate::prompt_template;
 use crate::subprocess::configure_command_no_window;
 use rmcp::model::{
-    CallToolRequestParam, Content, ErrorCode, ErrorData, GetPromptResult, Prompt, Resource,
+    CallToolRequestParams, Content, ErrorCode, ErrorData, GetPromptResult, Prompt, Resource,
     ResourceContents, ServerInfo, Tool,
 };
 use rmcp::transport::auth::AuthClient;
@@ -216,6 +217,7 @@ async fn child_process_client(
     timeout: &Option<u64>,
     provider: SharedProvider,
     working_dir: Option<&PathBuf>,
+    docker_container: Option<String>,
 ) -> ExtensionResult<McpClient> {
     #[cfg(unix)]
     command.process_group(0);
@@ -259,10 +261,11 @@ async fn child_process_client(
         Ok::<String, std::io::Error>(String::from_utf8_lossy(&all_stderr).into())
     });
 
-    let client_result = McpClient::connect(
+    let client_result = McpClient::connect_with_container(
         transport,
         Duration::from_secs(timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT)),
         provider,
+        docker_container,
     )
     .await;
 
@@ -467,6 +470,10 @@ impl ExtensionManager {
         &self.context
     }
 
+    pub fn get_provider(&self) -> &SharedProvider {
+        &self.provider
+    }
+
     pub async fn supports_resources(&self) -> bool {
         self.extensions
             .lock()
@@ -482,6 +489,7 @@ impl ExtensionManager {
         self: &Arc<Self>,
         config: ExtensionConfig,
         working_dir: Option<PathBuf>,
+        container: Option<&Container>,
     ) -> ExtensionResult<()> {
         let config_name = config.key().to_string();
         let sanitized_name = normalize(&config_name);
@@ -535,17 +543,35 @@ impl ExtensionManager {
                 // Check for malicious packages before launching the process
                 extension_malware_check::deny_if_malicious_cmd_args(cmd, args).await?;
 
-                let cmd = resolve_command(cmd);
-
-                let command = Command::new(cmd).configure(|command| {
-                    command.args(args).envs(all_envs);
-                });
+                let command = if let Some(container) = container {
+                    let container_id = container.id();
+                    tracing::info!(
+                        container = %container_id,
+                        cmd = %cmd,
+                        "Starting stdio extension inside Docker container"
+                    );
+                    Command::new("docker").configure(|command| {
+                        command.arg("exec").arg("-i");
+                        for (key, value) in &all_envs {
+                            command.arg("-e").arg(format!("{}={}", key, value));
+                        }
+                        command.arg(container_id);
+                        command.arg(cmd);
+                        command.args(args);
+                    })
+                } else {
+                    let cmd = resolve_command(cmd);
+                    Command::new(cmd).configure(|command| {
+                        command.args(args).envs(all_envs);
+                    })
+                };
 
                 let client = child_process_client(
                     command,
                     timeout,
                     self.provider.clone(),
                     Some(&effective_working_dir),
+                    container.map(|c| c.id().to_string()),
                 )
                 .await?;
                 Box::new(client)
@@ -553,31 +579,65 @@ impl ExtensionManager {
             ExtensionConfig::Builtin { name, timeout, .. } => {
                 let timeout_duration = Duration::from_secs(timeout.unwrap_or(300));
                 let builtin_extensions = get_builtin_extensions();
-                let spawn_fn = builtin_extensions.get(name.as_str()).ok_or_else(|| {
-                    ExtensionError::ConfigError(format!("Unknown builtin extension: {}", name))
-                })?;
 
-                // Set GOOSE_WORKING_DIR in the current process for builtin extensions
-                // since they run in-process and read from std::env::var
-                if effective_working_dir.exists() && effective_working_dir.is_dir() {
-                    std::env::set_var("GOOSE_WORKING_DIR", &effective_working_dir);
-                    tracing::info!(
-                        "Set GOOSE_WORKING_DIR for builtin extension: {:?}",
-                        effective_working_dir
-                    );
+                if !builtin_extensions.contains_key(name.as_str()) {
+                    return Err(ExtensionError::ConfigError(format!(
+                        "Unknown builtin extension: {}",
+                        name
+                    )));
                 }
 
-                let (server_read, client_write) = tokio::io::duplex(65536);
-                let (client_read, server_write) = tokio::io::duplex(65536);
-                spawn_fn(server_read, server_write);
-                Box::new(
-                    McpClient::connect(
-                        (client_read, client_write),
-                        timeout_duration,
+                if let Some(container) = container {
+                    let container_id = container.id();
+                    tracing::info!(
+                        container = %container_id,
+                        builtin = %name,
+                        "Starting builtin extension inside Docker container"
+                    );
+                    let command = Command::new("docker").configure(|command| {
+                        command
+                            .arg("exec")
+                            .arg("-i")
+                            .arg(container_id)
+                            .arg("goose")
+                            .arg("mcp")
+                            .arg(name);
+                    });
+
+                    let client = child_process_client(
+                        command,
+                        timeout,
                         self.provider.clone(),
+                        Some(&effective_working_dir),
+                        Some(container_id.to_string()),
                     )
-                    .await?,
-                )
+                    .await?;
+                    Box::new(client)
+                } else {
+                    let spawn_fn = builtin_extensions.get(name.as_str()).unwrap();
+
+                    // Set GOOSE_WORKING_DIR in the current process for builtin extensions
+                    // since they run in-process and read from std::env::var
+                    if effective_working_dir.exists() && effective_working_dir.is_dir() {
+                        std::env::set_var("GOOSE_WORKING_DIR", &effective_working_dir);
+                        tracing::info!(
+                            "Set GOOSE_WORKING_DIR for builtin extension: {:?}",
+                            effective_working_dir
+                        );
+                    }
+
+                    let (server_read, client_write) = tokio::io::duplex(65536);
+                    let (client_read, server_write) = tokio::io::duplex(65536);
+                    spawn_fn(server_read, server_write);
+                    Box::new(
+                        McpClient::connect(
+                            (client_read, client_write),
+                            timeout_duration,
+                            self.provider.clone(),
+                        )
+                        .await?,
+                    )
+                }
             }
             ExtensionConfig::Platform { name, .. } => {
                 let normalized_key = normalize(name);
@@ -615,6 +675,7 @@ impl ExtensionManager {
                     timeout,
                     self.provider.clone(),
                     Some(&effective_working_dir),
+                    container.map(|c| c.id().to_string()),
                 )
                 .await?;
 
@@ -654,10 +715,11 @@ impl ExtensionManager {
         info: Option<ServerInfo>,
         temp_dir: Option<TempDir>,
     ) {
+        let normalized = normalize(&name);
         self.extensions
             .lock()
             .await
-            .insert(name, Extension::new(config, client, info, temp_dir));
+            .insert(normalized, Extension::new(config, client, info, temp_dir));
         self.invalidate_tools_cache_and_bump_version().await;
     }
 
@@ -702,7 +764,8 @@ impl ExtensionManager {
     }
 
     pub async fn is_extension_enabled(&self, name: &str) -> bool {
-        self.extensions.lock().await.contains_key(name)
+        let normalized = normalize(name);
+        self.extensions.lock().await.contains_key(&normalized)
     }
 
     pub async fn get_extension_configs(&self) -> Vec<ExtensionConfig> {
@@ -739,18 +802,21 @@ impl ExtensionManager {
         extension_name: Option<&str>,
         exclude: Option<&str>,
     ) -> Vec<Tool> {
+        let extension_name_normalized = extension_name.map(normalize);
+        let exclude_normalized = exclude.map(normalize);
+
         tools
             .iter()
             .filter(|tool| {
                 let tool_prefix = tool.name.as_ref().split("__").next().unwrap_or("");
 
-                if let Some(excluded) = exclude {
+                if let Some(ref excluded) = exclude_normalized {
                     if tool_prefix == excluded {
                         return false;
                     }
                 }
 
-                if let Some(name_filter) = extension_name {
+                if let Some(ref name_filter) = extension_name_normalized {
                     tool_prefix == name_filter
                 } else {
                     true
@@ -1134,7 +1200,7 @@ impl ExtensionManager {
     pub async fn dispatch_tool_call(
         &self,
         session_id: &str,
-        tool_call: CallToolRequestParam,
+        tool_call: CallToolRequestParams,
         cancellation_token: CancellationToken,
     ) -> Result<ToolCallResult> {
         // Some models strip the tool prefix, so auto-add it for known code_execution tools
@@ -1380,10 +1446,11 @@ impl ExtensionManager {
     }
 
     async fn get_server_client(&self, name: impl Into<String>) -> Option<McpClientBox> {
+        let normalized = normalize(&name.into());
         self.extensions
             .lock()
             .await
-            .get(&name.into())
+            .get(&normalized)
             .map(|ext| ext.get_client())
     }
 
@@ -1664,7 +1731,8 @@ mod tests {
             .await;
 
         // verify a normal tool call
-        let tool_call = CallToolRequestParam {
+        let tool_call = CallToolRequestParams {
+            meta: None,
             task: None,
             name: "test_client__tool".to_string().into(),
             arguments: Some(object!({})),
@@ -1675,7 +1743,8 @@ mod tests {
             .await;
         assert!(result.is_ok());
 
-        let tool_call = CallToolRequestParam {
+        let tool_call = CallToolRequestParams {
+            meta: None,
             task: None,
             name: "test_client__test__tool".to_string().into(),
             arguments: Some(object!({})),
@@ -1687,7 +1756,8 @@ mod tests {
         assert!(result.is_ok());
 
         // verify a multiple underscores dispatch
-        let tool_call = CallToolRequestParam {
+        let tool_call = CallToolRequestParams {
+            meta: None,
             task: None,
             name: "__cli__ent____tool".to_string().into(),
             arguments: Some(object!({})),
@@ -1699,7 +1769,8 @@ mod tests {
         assert!(result.is_ok());
 
         // Test unicode in tool name, "client 🚀" should become "client_"
-        let tool_call = CallToolRequestParam {
+        let tool_call = CallToolRequestParams {
+            meta: None,
             task: None,
             name: "client___tool".to_string().into(),
             arguments: Some(object!({})),
@@ -1710,7 +1781,8 @@ mod tests {
             .await;
         assert!(result.is_ok());
 
-        let tool_call = CallToolRequestParam {
+        let tool_call = CallToolRequestParams {
+            meta: None,
             task: None,
             name: "client___test__tool".to_string().into(),
             arguments: Some(object!({})),
@@ -1722,7 +1794,8 @@ mod tests {
         assert!(result.is_ok());
 
         // this should error out, specifically for an ToolError::ExecutionError
-        let invalid_tool_call = CallToolRequestParam {
+        let invalid_tool_call = CallToolRequestParams {
+            meta: None,
             task: None,
             name: "client___tools".to_string().into(),
             arguments: Some(object!({})),
@@ -1748,7 +1821,8 @@ mod tests {
 
         // this should error out, specifically with an ToolError::NotFound
         // this client doesn't exist
-        let invalid_tool_call = CallToolRequestParam {
+        let invalid_tool_call = CallToolRequestParams {
+            meta: None,
             task: None,
             name: "_client__tools".to_string().into(),
             arguments: Some(object!({})),
@@ -1849,7 +1923,8 @@ mod tests {
             .await;
 
         // Try to call an unavailable tool
-        let unavailable_tool_call = CallToolRequestParam {
+        let unavailable_tool_call = CallToolRequestParams {
+            meta: None,
             task: None,
             name: "test_extension__tool".to_string().into(),
             arguments: Some(object!({})),
@@ -1873,7 +1948,8 @@ mod tests {
         }
 
         // Try to call an available tool - should succeed
-        let available_tool_call = CallToolRequestParam {
+        let available_tool_call = CallToolRequestParams {
+            meta: None,
             task: None,
             name: "test_extension__available_tool".to_string().into(),
             arguments: Some(object!({})),

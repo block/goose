@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.20.0"
+    "version": "1.21.0"
   },
   "paths": {
     "/action-required/tool-confirmation": {
@@ -126,6 +126,117 @@
             "description": "Internal server error"
           }
         }
+      }
+    },
+    "/agent/export_app/{name}": {
+      "get": {
+        "tags": [
+          "Agent"
+        ],
+        "operationId": "export_app",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Name of the app to export",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "App HTML exported successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "App not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/agent/import_app": {
+      "post": {
+        "tags": [
+          "Agent"
+        ],
+        "operationId": "import_app",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportAppRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "App imported successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportAppResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - Invalid HTML",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
       }
     },
     "/agent/list_apps": {
@@ -1210,6 +1321,33 @@
           },
           "500": {
             "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/config/providers/{name}/oauth": {
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "configure_provider_oauth",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Provider name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OAuth configuration completed"
+          },
+          "400": {
+            "description": "OAuth configuration failed"
           }
         }
       }
@@ -2472,64 +2610,6 @@
         ]
       }
     },
-    "/sessions/{session_id}/edit_message": {
-      "post": {
-        "tags": [
-          "Session Management"
-        ],
-        "operationId": "edit_message",
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "description": "Unique identifier for the session",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/EditMessageRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Session prepared for editing - frontend should submit the edited message",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EditMessageResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request - Invalid message timestamp"
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing API key"
-          },
-          "404": {
-            "description": "Session or message not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
     "/sessions/{session_id}/export": {
       "get": {
         "tags": [
@@ -2602,6 +2682,64 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/sessions/{session_id}/fork": {
+      "post": {
+        "tags": [
+          "Session Management"
+        ],
+        "operationId": "fork_session",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Unique identifier for the session",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Session forked successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForkResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - truncate=true requires timestamp"
           },
           "401": {
             "description": "Unauthorized - Invalid or missing API key"
@@ -3342,7 +3480,6 @@
           "name",
           "engine",
           "display_name",
-          "api_key_env",
           "base_url",
           "models"
         ],
@@ -3378,6 +3515,9 @@
           },
           "name": {
             "type": "string"
+          },
+          "requires_auth": {
+            "type": "boolean"
           },
           "supports_streaming": {
             "type": "boolean",
@@ -3452,39 +3592,6 @@
             "type": "string"
           }
         }
-      },
-      "EditMessageRequest": {
-        "type": "object",
-        "required": [
-          "timestamp"
-        ],
-        "properties": {
-          "editType": {
-            "$ref": "#/components/schemas/EditType"
-          },
-          "timestamp": {
-            "type": "integer",
-            "format": "int64"
-          }
-        }
-      },
-      "EditMessageResponse": {
-        "type": "object",
-        "required": [
-          "sessionId"
-        ],
-        "properties": {
-          "sessionId": {
-            "type": "string"
-          }
-        }
-      },
-      "EditType": {
-        "type": "string",
-        "enum": [
-          "fork",
-          "edit"
-        ]
       },
       "EmbeddedResource": {
         "type": "object",
@@ -3961,6 +4068,37 @@
           }
         }
       },
+      "ForkRequest": {
+        "type": "object",
+        "required": [
+          "truncate",
+          "copy"
+        ],
+        "properties": {
+          "copy": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "truncate": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ForkResponse": {
+        "type": "object",
+        "required": [
+          "sessionId"
+        ],
+        "properties": {
+          "sessionId": {
+            "type": "string"
+          }
+        }
+      },
       "FrontendToolRequest": {
         "type": "object",
         "required": [
@@ -4007,14 +4145,19 @@
           {
             "type": "object",
             "properties": {
-              "mcpServer": {
+              "mcpServers": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "prd": {
                 "type": "string",
                 "nullable": true
               }
             }
           }
-        ],
-        "description": "A Goose App combining MCP resource data with Goose-specific metadata"
+        ]
       },
       "Icon": {
         "type": "object",
@@ -4061,6 +4204,32 @@
             "type": "string"
           },
           "mimeType": {
+            "type": "string"
+          }
+        }
+      },
+      "ImportAppRequest": {
+        "type": "object",
+        "required": [
+          "html"
+        ],
+        "properties": {
+          "html": {
+            "type": "string"
+          }
+        }
+      },
+      "ImportAppResponse": {
+        "type": "object",
+        "required": [
+          "name",
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "name": {
             "type": "string"
           }
         }
@@ -5920,6 +6089,11 @@
             "type": "string",
             "nullable": true
           },
+          "max_turns": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0
+          },
           "temperature": {
             "type": "number",
             "format": "float",
@@ -6122,6 +6296,9 @@
           "msg"
         ],
         "properties": {
+          "data": {
+            "nullable": true
+          },
           "msg": {
             "type": "string"
           },
@@ -6522,6 +6699,9 @@
             "items": {
               "type": "string"
             }
+          },
+          "requires_auth": {
+            "type": "boolean"
           },
           "supports_streaming": {
             "type": "boolean",

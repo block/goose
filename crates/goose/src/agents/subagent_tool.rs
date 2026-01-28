@@ -51,6 +51,7 @@ pub struct SubagentSettings {
     pub provider: Option<String>,
     pub model: Option<String>,
     pub temperature: Option<f32>,
+    pub max_turns: Option<usize>,
 }
 
 pub fn create_subagent_tool(sub_recipes: &[SubRecipe]) -> Tool {
@@ -82,9 +83,10 @@ pub fn create_subagent_tool(sub_recipes: &[SubRecipe]) -> Tool {
                 "properties": {
                     "provider": {"type": "string", "description": "Override LLM provider"},
                     "model": {"type": "string", "description": "Override model"},
-                    "temperature": {"type": "number", "description": "Override temperature"}
+                    "temperature": {"type": "number", "description": "Override temperature"},
+                    "max_turns": {"type": "number", "description": "Override max turns"}
                 },
-                "description": "Override model/provider settings."
+                "description": "Override model/provider/settings."
             },
             "summary": {
                 "type": "boolean",
@@ -392,6 +394,10 @@ async fn apply_settings_overrides(
     params: &SubagentParams,
 ) -> Result<TaskConfig> {
     if let Some(settings) = &params.settings {
+        if let Some(max_turns) = settings.max_turns {
+            task_config.max_turns = Some(max_turns);
+        }
+
         if settings.provider.is_some() || settings.model.is_some() || settings.temperature.is_some()
         {
             let provider_name = settings

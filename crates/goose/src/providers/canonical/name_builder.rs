@@ -133,7 +133,10 @@ fn swap_claude_word_order(model: &str) -> Option<String> {
 }
 
 fn is_hosting_provider(provider: &str) -> bool {
-    matches!(provider, "databricks" | "openrouter" | "azure" | "bedrock")
+    matches!(
+        provider,
+        "databricks" | "openrouter" | "azure" | "bedrock" | "chatgpt_codex"
+    )
 }
 
 /// Infer the real provider from model name patterns

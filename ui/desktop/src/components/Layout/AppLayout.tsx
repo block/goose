@@ -7,9 +7,13 @@ import { Button } from '../ui/button';
 import { Sidebar, SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from '../ui/sidebar';
 import ChatSessionsContainer from '../ChatSessionsContainer';
 import { useChatContext } from '../../contexts/ChatContext';
+import { UserInput } from '../../types/message';
 
 interface AppLayoutContentProps {
-  activeSessions: Array<{ sessionId: string; initialMessage?: string }>;
+  activeSessions: Array<{
+    sessionId: string;
+    initialMessage?: UserInput;
+  }>;
 }
 
 const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) => {
@@ -112,21 +116,22 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
         />
       </Sidebar>
       <SidebarInset>
-        {isOnPairRoute ? (
-          <>
-            <Outlet />
-            <ChatSessionsContainer setChat={setChat} activeSessions={activeSessions} />
-          </>
-        ) : (
-          <Outlet />
-        )}
+        <Outlet />
+        {/* Always render ChatSessionsContainer to keep SSE connections alive.
+            When navigating away from /pair */}
+        <div className={isOnPairRoute ? 'contents' : 'hidden'}>
+          <ChatSessionsContainer setChat={setChat} activeSessions={activeSessions} />
+        </div>
       </SidebarInset>
     </div>
   );
 };
 
 interface AppLayoutProps {
-  activeSessions: Array<{ sessionId: string; initialMessage?: string }>;
+  activeSessions: Array<{
+    sessionId: string;
+    initialMessage?: UserInput;
+  }>;
 }
 
 export const AppLayout: React.FC<AppLayoutProps> = ({ activeSessions }) => {

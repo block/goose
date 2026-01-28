@@ -50,7 +50,7 @@ pub async fn inject_moim(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rmcp::model::CallToolRequestParam;
+    use rmcp::model::CallToolRequestParams;
     use std::path::PathBuf;
 
     #[tokio::test]
@@ -116,7 +116,8 @@ mod tests {
                 .with_text("I'll search for you")
                 .with_tool_request(
                     "search_1",
-                    Ok(CallToolRequestParam {
+                    Ok(CallToolRequestParams {
+                        meta: None,
                         task: None,
                         name: "search".into(),
                         arguments: None,
@@ -135,7 +136,8 @@ mod tests {
                 .with_text("I need to search more")
                 .with_tool_request(
                     "search_2",
-                    Ok(CallToolRequestParam {
+                    Ok(CallToolRequestParams {
+                        meta: None,
                         task: None,
                         name: "search".into(),
                         arguments: None,

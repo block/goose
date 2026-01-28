@@ -50,7 +50,7 @@ jobs:
           echo "Repository: ${REPOSITORY}"
 
       - name: Run command action
-        uses: github/command@319d5236cc34ed2cb72a47c058a363db0b628ebe # pin@v1.3.0
+        uses: github/command@3442f3fa1efe01bdb024b157083c337902d17372  # v2.0.3
         id: command
         with:
           command: ".bundle"
@@ -62,7 +62,7 @@ jobs:
       - name: Get PR info
         id: get_pr_info
         if: ${{ steps.command.outputs.continue == 'true' || github.event_name == 'workflow_dispatch' }}
-        uses: actions/github-script@v7
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd  # v8
         with:
           script: |
             let prNumber;
@@ -121,13 +121,13 @@ jobs:
 
     steps:
       - name: Download ARM64 artifact
-        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # pin@v4
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7.0.0
         with:
           name: Goose-darwin-arm64
           path: arm64-dist
 
       - name: Comment on PR with ARM64 download link
-        uses: peter-evans/create-or-update-comment@71345be0265236311c031f5c7866368bd1eff043 # pin@v4
+        uses: peter-evans/create-or-update-comment@e8674b075228eee787fea43ef493e45ece1004c9  # v5.0.0
         with:
           issue-number: ${{ needs.trigger-on-command.outputs.pr_number }}
           body: |

@@ -1,5 +1,6 @@
 mod builder;
 mod completion;
+mod editor;
 mod elicitation;
 mod export;
 mod input;
@@ -8,6 +9,7 @@ mod prompt;
 mod task_execution_display;
 mod thinking;
 
+use crate::cli::StreamableHttpOptions;
 use crate::session::task_execution_display::{
     format_task_execution_notification, TASK_EXECUTION_NOTIFICATION_TYPE,
 };
@@ -444,7 +446,20 @@ impl CliSession {
         loop {
             self.display_context_usage().await?;
 
-            let input = input::get_input(&mut editor)?;
+            // Convert conversation messages to strings for editor mode
+            let conversation_strings: Vec<String> = self
+                .messages
+                .iter()
+                .map(|msg| {
+                    let role = match msg.role {
+                        rmcp::model::Role::User => "User",
+                        rmcp::model::Role::Assistant => "Assistant",
+                    };
+                    format!("## {}: {}", role, msg.as_concat_text())
+                })
+                .collect();
+
+            let input = input::get_input(&mut editor, Some(&conversation_strings))?;
             if matches!(input, InputResult::Exit) {
                 break;
             }
@@ -1580,7 +1595,7 @@ fn format_logging_notification(
                         let min_priority = config
                             .get_param::<f32>("GOOSE_CLI_MIN_PRIORITY")
                             .ok()
-                            .unwrap_or(0.5);
+                            .unwrap_or(output::DEFAULT_MIN_PRIORITY);
 
                         if min_priority > 0.1 && !debug {
                             if let Some(response_content) = msg.strip_prefix("Responded: ") {
@@ -1640,11 +1655,19 @@ fn display_log_notification(
                 std::io::stdout().flush().unwrap();
             }
         } else if ntype == "shell_output" {
-            if interactive {
-                let _ = progress_bars.hide();
-            }
-            if !is_json_mode {
-                println!("{}", formatted_message);
+            let config = Config::global();
+            let min_priority = config
+                .get_param::<f32>("GOOSE_CLI_MIN_PRIORITY")
+                .ok()
+                .unwrap_or(output::DEFAULT_MIN_PRIORITY);
+
+            if min_priority < 0.1 {
+                if interactive {
+                    let _ = progress_bars.hide();
+                }
+                if !is_json_mode {
+                    println!("{}", formatted_message);
+                }
             }
         }
     } else if output::is_showing_thinking() {

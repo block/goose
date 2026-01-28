@@ -39,7 +39,7 @@ jobs:
       head_sha: ${{ steps.set_head_sha.outputs.head_sha || github.sha }}
     steps:
       - name: Run command action
-        uses: github/command@319d5236cc34ed2cb72a47c058a363db0b628ebe # pin@v1.3.0
+        uses: github/command@3442f3fa1efe01bdb024b157083c337902d17372  # v2.0.3
         id: command
         with:
           command: ".bundle-windows"
@@ -48,7 +48,7 @@ jobs:
           allowed_contexts: pull_request
 
       - name: Checkout code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
         
       - name: Get PR head SHA with gh
         id: set_head_sha
@@ -80,13 +80,13 @@ jobs:
 
     steps:
       - name: Download Windows artifact
-        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # pin@v4
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7.0.0
         with:
           name: Goose-win32-x64
           path: windows-dist
 
       - name: Comment on PR with Windows download link
-        uses: peter-evans/create-or-update-comment@71345be0265236311c031f5c7866368bd1eff043 # pin@v4
+        uses: peter-evans/create-or-update-comment@e8674b075228eee787fea43ef493e45ece1004c9  # v5.0.0
         with:
           issue-number: ${{ needs.trigger-on-command.outputs.pr_number }}
           body: |

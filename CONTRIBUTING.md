@@ -41,8 +41,8 @@ If you use Goose, Copilot, Claude, or other AI tools to help with your PRs:
 
 ## Prerequisites
 
-goose includes rust binaries alongside an electron app for the GUI. To work
-on the rust backend, you will need to [install rust and cargo][rustup]. To work
+goose includes Rust binaries alongside an electron app for the GUI. To work
+on the Rust backend, you will need to [install Rust and cargo][rustup]. To work
 on the App, you will also need to [install node and npm][nvm] - we recommend through nvm.
 
 We provide a shortcut to standard commands using [just][just] in our `justfile`.
@@ -62,10 +62,12 @@ sudo apt install libxcb1-dev      # libxcb1-dev is the development package for t
 
 ### Rust
 
-First, activate the hermit environment and compile goose:
+First let's compile goose and try it out
+Since goose requires Hermit for managing dependencies, let's activate hermit.
 
 ```
-source bin/activate-hermit
+cd goose
+source ./bin/activate-hermit
 cargo build
 ```
 
@@ -289,10 +291,12 @@ This project follows the [Conventional Commits](https://www.conventionalcommits.
 
 ## Developer Certificate of Origin
 
-This project requires a [Developer Certificate of Origin](https://en.wikipedia.org/wiki/Developer_Certificate_of_Origin) sign-offs on all commits. This is a statement indicating that you are allowed to make the contribution and that the project has the right to distribute it under its license. When you are ready to commit, use the `--signoff` flag to attach the sign-off to your commit.
+This project requires a [Developer Certificate of Origin](https://en.wikipedia.org/wiki/Developer_Certificate_of_Origin) sign-offs on all commits. This is a statement indicating that you are allowed to make the contribution and that the project has the right to distribute it under its license. When you are ready to commit, use the `--signoff` or `-s` flag to attach the sign-off to your commit.
 
 ```
 git commit --signoff ...
+# OR
+git commit -s ...
 ```
 
 ## Other Ways to Contribute
