@@ -17,7 +17,6 @@ use goose::providers::base::{ProviderMetadata, ProviderType};
 use goose::providers::canonical::maybe_get_canonical_model;
 use goose::providers::create_with_default_model;
 use goose::providers::providers as get_providers;
-use goose::providers::{retry_operation, RetryConfig};
 use goose::{
     agents::execute_commands, agents::ExtensionConfig, config::permission::PermissionLevel,
     slash_commands,
@@ -93,6 +92,12 @@ pub struct UpdateCustomProviderRequest {
     pub models: Vec<String>,
     pub supports_streaming: Option<bool>,
     pub headers: Option<std::collections::HashMap<String, String>>,
+    #[serde(default = "default_requires_auth")]
+    pub requires_auth: bool,
+}
+
+fn default_requires_auth() -> bool {
+    true
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -397,10 +402,7 @@ pub async fn get_provider_models(
     let model_config = ModelConfig::new(&metadata.default_model)?;
     let provider = goose::providers::create(&name, model_config).await?;
 
-    let models_result = retry_operation(&RetryConfig::default(), || async {
-        provider.fetch_recommended_models().await
-    })
-    .await;
+    let models_result = provider.fetch_recommended_models().await;
 
     match models_result {
         Ok(Some(models)) => Ok(Json(models)),
@@ -664,13 +666,16 @@ pub async fn create_custom_provider(
     Json(request): Json<UpdateCustomProviderRequest>,
 ) -> Result<Json<String>, ErrorResponse> {
     let config = goose::config::declarative_providers::create_custom_provider(
-        &request.engine,
-        request.display_name,
-        request.api_url,
-        request.api_key,
-        request.models,
-        request.supports_streaming,
-        request.headers,
+        goose::config::declarative_providers::CreateCustomProviderParams {
+            engine: request.engine,
+            display_name: request.display_name,
+            api_url: request.api_url,
+            api_key: request.api_key,
+            models: request.models,
+            supports_streaming: request.supports_streaming,
+            headers: request.headers,
+            requires_auth: request.requires_auth,
+        },
     )?;
 
     let _ = goose::providers::refresh_custom_providers().await;
@@ -730,13 +735,17 @@ pub async fn update_custom_provider(
     Json(request): Json<UpdateCustomProviderRequest>,
 ) -> Result<Json<String>, ErrorResponse> {
     goose::config::declarative_providers::update_custom_provider(
-        &id,
-        &request.engine,
-        request.display_name,
-        request.api_url,
-        request.api_key,
-        request.models,
-        request.supports_streaming,
+        goose::config::declarative_providers::UpdateCustomProviderParams {
+            id: id.clone(),
+            engine: request.engine,
+            display_name: request.display_name,
+            api_url: request.api_url,
+            api_key: request.api_key,
+            models: request.models,
+            supports_streaming: request.supports_streaming,
+            headers: request.headers,
+            requires_auth: request.requires_auth,
+        },
     )?;
 
     let _ = goose::providers::refresh_custom_providers().await;

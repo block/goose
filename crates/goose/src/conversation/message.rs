@@ -1,4 +1,6 @@
+use crate::conversation::tool_result_serde;
 use crate::mcp_utils::ToolResult;
+use crate::utils::sanitize_unicode_tags;
 use chrono::Utc;
 use rmcp::model::{
     AnnotateAble, CallToolRequestParams, CallToolResult, Content, ImageContent, JsonObject,
@@ -9,9 +11,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashSet;
 use std::fmt;
 use utoipa::ToSchema;
-
-use crate::conversation::tool_result_serde;
-use crate::utils::sanitize_unicode_tags;
+use uuid::Uuid;
 
 #[derive(ToSchema)]
 pub enum ToolCallResult<T> {
@@ -717,6 +717,10 @@ impl Message {
     pub fn with_id<S: Into<String>>(mut self, id: S) -> Self {
         self.id = Some(id.into());
         self
+    }
+
+    pub fn with_generated_id(self) -> Self {
+        self.with_id(format!("msg_{}", Uuid::new_v4()))
     }
 
     /// Add any MessageContent to the message

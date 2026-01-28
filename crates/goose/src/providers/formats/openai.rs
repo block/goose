@@ -72,10 +72,14 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
             match content {
                 MessageContent::Text(text) => {
                     if !text.text.is_empty() {
-                        if let Some(image_path) = detect_image_path(&text.text) {
-                            if let Ok(image) = load_image_file(image_path) {
-                                content_array.push(json!({"type": "text", "text": text.text}));
-                                content_array.push(convert_image(&image, image_format));
+                        if message.role == Role::User {
+                            if let Some(image_path) = detect_image_path(&text.text) {
+                                if let Ok(image) = load_image_file(image_path) {
+                                    content_array.push(json!({"type": "text", "text": text.text}));
+                                    content_array.push(convert_image(&image, image_format));
+                                } else {
+                                    text_array.push(text.text.clone());
+                                }
                             } else {
                                 text_array.push(text.text.clone());
                             }
@@ -204,7 +208,14 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                 MessageContent::ToolConfirmationRequest(_) => {}
                 MessageContent::ActionRequired(_) => {}
                 MessageContent::Image(image) => {
-                    content_array.push(convert_image(image, image_format));
+                    if message.role == Role::User {
+                        content_array.push(convert_image(image, image_format));
+                    } else {
+                        content_array.push(json!({
+                            "type": "text",
+                            "text": "[Image content removed - not supported in assistant messages]"
+                        }));
+                    }
                 }
                 MessageContent::FrontendToolRequest(request) => match &request.tool_call {
                     Ok(tool_call) => {
@@ -287,10 +298,15 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
         .and_then(|c| c.get(0))
         .and_then(|m| m.get("message"))
     else {
-        return Ok(Message::new(
-            Role::Assistant,
-            chrono::Utc::now().timestamp(),
-            Vec::new(),
+        if let Some(error) = response.get("error") {
+            let error_message = error
+                .get("message")
+                .and_then(|m| m.as_str())
+                .unwrap_or("Unknown error");
+            return Err(anyhow::anyhow!("API error: {}", error_message));
+        }
+        return Err(anyhow::anyhow!(
+            "No message in API response. This may indicate a quota limit or other restriction."
         ));
     };
 
@@ -1026,9 +1042,9 @@ mod tests {
         std::fs::write(&png_path, png_data)?;
         let png_path_str = png_path.to_str().unwrap();
 
-        // Create message with image path
-        let message = Message::user().with_text(format!("Here is an image: {}", png_path_str));
-        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+        // Create user message with image path - should load the image
+        let user_message = Message::user().with_text(format!("Here is an image: {}", png_path_str));
+        let spec = format_messages(&[user_message], &ImageFormat::OpenAi);
 
         assert_eq!(spec.len(), 1);
         assert_eq!(spec[0]["role"], "user");
@@ -1043,6 +1059,22 @@ mod tests {
             .as_str()
             .unwrap()
             .starts_with("data:image/png;base64,"));
+
+        // Create assistant message with same text - should NOT load the image
+        let assistant_message =
+            Message::assistant().with_text(format!("I saved the output to {}", png_path_str));
+        let spec = format_messages(&[assistant_message], &ImageFormat::OpenAi);
+
+        assert_eq!(spec.len(), 1);
+        assert_eq!(spec[0]["role"], "assistant");
+
+        // Content should be plain text, NOT an array with image
+        let content = spec[0]["content"].as_str();
+        assert!(
+            content.is_some(),
+            "Assistant message content should be a string, not an array with image"
+        );
+        assert!(content.unwrap().contains(png_path_str));
 
         Ok(())
     }
@@ -1159,6 +1191,61 @@ mod tests {
         } else {
             panic!("Expected ToolRequest content");
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_response_to_message_api_error() -> anyhow::Result<()> {
+        // Test that API responses with an "error" field return the error message
+        let response = json!({
+            "error": {
+                "message": "You have exceeded your quota",
+                "type": "insufficient_quota",
+                "code": "quota_exceeded"
+            }
+        });
+
+        let result = response_to_message(&response);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("API error:"));
+        assert!(err.to_string().contains("You have exceeded your quota"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_response_to_message_api_error_unknown() -> anyhow::Result<()> {
+        // Test that API responses with an "error" field but no message return "Unknown error"
+        let response = json!({
+            "error": {
+                "type": "some_error"
+            }
+        });
+
+        let result = response_to_message(&response);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("API error:"));
+        assert!(err.to_string().contains("Unknown error"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_response_to_message_no_choices() -> anyhow::Result<()> {
+        // Test that responses without "choices" return an error
+        let response = json!({
+            "id": "chatcmpl-123",
+            "object": "chat.completion",
+            "created": 1234567890
+        });
+
+        let result = response_to_message(&response);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("No message in API response"));
 
         Ok(())
     }
