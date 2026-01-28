@@ -9,7 +9,6 @@ mod prompt;
 mod task_execution_display;
 mod thinking;
 
-use crate::cli::StreamableHttpOptions;
 use crate::session::task_execution_display::{
     format_task_execution_notification, TASK_EXECUTION_NOTIFICATION_TYPE,
 };
