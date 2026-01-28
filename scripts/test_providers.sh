@@ -204,44 +204,119 @@ is_allowed_failure() {
   return 1
 }
 
+# Create temp directory for results
+RESULTS_DIR=$(mktemp -d)
+trap "rm -rf $RESULTS_DIR" EXIT
+
+# Maximum parallel jobs (default: number of CPU cores, or override with MAX_PARALLEL)
+MAX_PARALLEL=${MAX_PARALLEL:-$(sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 8)}
+echo "Running tests with up to $MAX_PARALLEL parallel jobs"
+echo ""
+
+# Function to run a single test
+run_test() {
+  local provider="$1"
+  local model="$2"
+  local result_file="$3"
+  local output_file="$4"
+
+  local testdir=$(mktemp -d)
+  echo "hello" > "$testdir/hello.txt"
+
+  # Run the test and capture output
+  (
+    export GOOSE_PROVIDER="$provider"
+    export GOOSE_MODEL="$model"
+    cd "$testdir" && "$SCRIPT_DIR/target/release/goose" run --text "Immediately use the shell tool to run 'ls'. Do not ask for confirmation." --with-builtin "$BUILTINS" 2>&1
+  ) > "$output_file" 2>&1
+
+  # Check result
+  if grep -qE "$SUCCESS_PATTERN" "$output_file"; then
+    echo "success" > "$result_file"
+  else
+    echo "failure" > "$result_file"
+  fi
+
+  rm -rf "$testdir"
+}
+
+# Build list of all provider/model combinations
+JOBS=()
+job_index=0
+for provider_config in "${PROVIDERS[@]}"; do
+  PROVIDER="${provider_config%% -> *}"
+  MODELS_STR="${provider_config#* -> }"
+  IFS='|' read -ra MODELS <<< "$MODELS_STR"
+  for MODEL in "${MODELS[@]}"; do
+    JOBS+=("$PROVIDER|$MODEL|$job_index")
+    ((job_index++))
+  done
+done
+
+total_jobs=${#JOBS[@]}
+echo "Starting $total_jobs tests..."
+echo ""
+
+# Run tests in parallel
+running_jobs=0
+for job in "${JOBS[@]}"; do
+  IFS='|' read -r provider model idx <<< "$job"
+
+  result_file="$RESULTS_DIR/result_$idx"
+  output_file="$RESULTS_DIR/output_$idx"
+  meta_file="$RESULTS_DIR/meta_$idx"
+  echo "$provider|$model" > "$meta_file"
+
+  # Run test in background
+  run_test "$provider" "$model" "$result_file" "$output_file" &
+  ((running_jobs++))
+
+  # Wait if we've hit the parallel limit
+  if [ $running_jobs -ge $MAX_PARALLEL ]; then
+    wait -n 2>/dev/null || wait
+    ((running_jobs--))
+  fi
+done
+
+# Wait for all remaining jobs
+wait
+
+echo ""
+echo "=== Test Results ==="
+echo ""
+
+# Collect results
 RESULTS=()
 HARD_FAILURES=()
 
-for provider_config in "${PROVIDERS[@]}"; do
-  # Split on " -> " to get provider and models
-  PROVIDER="${provider_config%% -> *}"
-  MODELS_STR="${provider_config#* -> }"
-  # Split models on "|"
-  IFS='|' read -ra MODELS <<< "$MODELS_STR"
-  for MODEL in "${MODELS[@]}"; do
-    export GOOSE_PROVIDER="$PROVIDER"
-    export GOOSE_MODEL="$MODEL"
-    TESTDIR=$(mktemp -d)
-    echo "hello" > "$TESTDIR/hello.txt"
-    echo "Provider: ${PROVIDER}"
-    echo "Model: ${MODEL}"
-    echo ""
-    TMPFILE=$(mktemp)
-    (cd "$TESTDIR" && "$SCRIPT_DIR/target/release/goose" run --text "Immediately use the shell tool to run 'ls'. Do not ask for confirmation." --with-builtin "$BUILTINS" 2>&1) | tee "$TMPFILE"
-    echo ""
-    if grep -qE "$SUCCESS_PATTERN" "$TMPFILE"; then
-      echo "✓ SUCCESS: Test passed - $SUCCESS_MSG"
-      RESULTS+=("✓ ${PROVIDER}: ${MODEL}")
+for job in "${JOBS[@]}"; do
+  IFS='|' read -r provider model idx <<< "$job"
+
+  result_file="$RESULTS_DIR/result_$idx"
+  output_file="$RESULTS_DIR/output_$idx"
+
+  echo "Provider: $provider"
+  echo "Model: $model"
+  echo ""
+  cat "$output_file"
+  echo ""
+
+  if [ -f "$result_file" ] && [ "$(cat "$result_file")" = "success" ]; then
+    echo "✓ SUCCESS: Test passed - $SUCCESS_MSG"
+    RESULTS+=("✓ ${provider}: ${model}")
+  else
+    if is_allowed_failure "$provider" "$model"; then
+      echo "⚠ FLAKY: Test failed but model is in allowed failures list - $FAILURE_MSG"
+      RESULTS+=("⚠ ${provider}: ${model} (flaky)")
     else
-      if is_allowed_failure "$PROVIDER" "$MODEL"; then
-        echo "⚠ FLAKY: Test failed but model is in allowed failures list - $FAILURE_MSG"
-        RESULTS+=("⚠ ${PROVIDER}: ${MODEL} (flaky)")
-      else
-        echo "✗ FAILED: Test failed - $FAILURE_MSG"
-        RESULTS+=("✗ ${PROVIDER}: ${MODEL}")
-        HARD_FAILURES+=("${PROVIDER}: ${MODEL}")
-      fi
+      echo "✗ FAILED: Test failed - $FAILURE_MSG"
+      RESULTS+=("✗ ${provider}: ${model}")
+      HARD_FAILURES+=("${provider}: ${model}")
     fi
-    rm "$TMPFILE"
-    rm -rf "$TESTDIR"
-    echo "---"
-  done
+  fi
+  echo "---"
 done
+
 echo ""
 echo "=== Test Summary ==="
 for result in "${RESULTS[@]}"; do
