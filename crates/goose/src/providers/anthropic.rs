@@ -94,7 +94,6 @@ impl AnthropicProvider {
         let mut api_client = ApiClient::new(config.base_url, auth)?
             .with_header("anthropic-version", ANTHROPIC_API_VERSION)?;
 
-        // Add custom headers if present
         if let Some(headers) = &config.headers {
             let mut header_map = reqwest::header::HeaderMap::new();
             for (key, value) in headers {
