@@ -19,12 +19,6 @@ import { isUIResource } from '@mcp-ui/client';
 import { CallToolResponse, Content, EmbeddedResource } from '../api';
 import McpAppRenderer from './McpApps/McpAppRenderer';
 
-interface ToolGraphNode {
-  tool: string;
-  description: string;
-  depends_on: number[];
-}
-
 type UiMeta = {
   ui?: {
     resourceUri?: string;
@@ -545,16 +539,11 @@ function ToolCallView({
       case 'computer_control':
         return `poking around...`;
 
-      case 'execute_code': {
-        const toolGraph = args.tool_graph as unknown as ToolGraphNode[] | undefined;
-        if (toolGraph && Array.isArray(toolGraph) && toolGraph.length > 0) {
-          if (toolGraph.length === 1) {
-            return `${toolGraph[0].description}`;
-          }
-          if (toolGraph.length === 2) {
-            return `${toolGraph[0].tool}, ${toolGraph[1].tool}`;
-          }
-          return `${toolGraph.length} tools used`;
+      case 'execute': {
+        const code = args.code as unknown as string | undefined;
+        if (code && typeof code === 'string' && code.length > 0) {
+          const lines = code.split('\n').length;
+          return `${lines} lines of code executed`;
         }
         return 'executing code';
       }
@@ -640,18 +629,14 @@ function ToolCallView({
     >
       {(() => {
         const toolName = toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2);
-        const toolGraph = toolCall.arguments?.tool_graph as unknown as ToolGraphNode[] | undefined;
         const code = toolCall.arguments?.code as unknown as string | undefined;
-        const hasToolGraph =
-          toolName === 'execute_code' &&
-          toolGraph &&
-          Array.isArray(toolGraph) &&
-          toolGraph.length > 0;
+        const hasCode =
+          toolName === 'execute' && code && typeof code === 'string' && code.length > 0;
 
-        if (hasToolGraph) {
+        if (hasCode) {
           return (
             <div className="border-t border-borderSubtle">
-              <ToolGraphView toolGraph={toolGraph} code={code} />
+              <ToolCodeView code={code} />
             </div>
           );
         }
@@ -724,41 +709,23 @@ function ToolDetailsView({ toolCall, isStartExpanded }: ToolDetailsViewProps) {
   );
 }
 
-interface ToolGraphViewProps {
-  toolGraph: ToolGraphNode[];
-  code?: string;
+interface ToolCodeViewProps {
+  code: string;
 }
 
-function ToolGraphView({ toolGraph, code }: ToolGraphViewProps) {
-  const renderGraph = () => {
-    if (toolGraph.length === 0) return null;
-
-    const lines: string[] = [];
-
-    toolGraph.forEach((node, index) => {
-      const deps =
-        node.depends_on.length > 0 ? ` (uses ${node.depends_on.map((d) => d + 1).join(', ')})` : '';
-      lines.push(`${index + 1}. ${node.tool}: ${node.description}${deps}`);
-    });
-
-    return lines.join('\n');
-  };
-
+function ToolCodeView({ code }: ToolCodeViewProps) {
   return (
     <div className="px-4 py-2">
-      <pre className="font-mono text-xs text-textSubtle whitespace-pre-wrap">{renderGraph()}</pre>
-      {code && (
-        <div className="border-t border-borderSubtle -mx-4 mt-2">
-          <ToolCallExpandable
-            label={<span className="pl-4 font-sans text-sm">Code</span>}
-            isStartExpanded={false}
-          >
-            <pre className="font-mono text-xs text-textSubtle whitespace-pre-wrap overflow-x-auto px-4 py-2">
-              {code}
-            </pre>
-          </ToolCallExpandable>
-        </div>
-      )}
+      <div className="border-t border-borderSubtle -mx-4 mt-2">
+        <ToolCallExpandable
+          label={<span className="pl-4 font-sans text-sm">Code</span>}
+          isStartExpanded={false}
+        >
+          <pre className="font-mono text-xs text-textSubtle whitespace-pre-wrap overflow-x-auto px-4 py-2">
+            {code}
+          </pre>
+        </ToolCallExpandable>
+      </div>
     </div>
   );
 }
