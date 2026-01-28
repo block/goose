@@ -19,6 +19,12 @@ import { isUIResource } from '@mcp-ui/client';
 import { CallToolResponse, Content, EmbeddedResource } from '../api';
 import McpAppRenderer from './McpApps/McpAppRenderer';
 
+interface ToolGraphNode {
+  tool: string;
+  description: string;
+  depends_on: number[];
+}
+
 type UiMeta = {
   ui?: {
     resourceUri?: string;
@@ -540,10 +546,15 @@ function ToolCallView({
         return `poking around...`;
 
       case 'execute': {
-        const code = args.code as unknown as string | undefined;
-        if (code && typeof code === 'string' && code.length > 0) {
-          const lines = code.split('\n').length;
-          return `${lines} lines of code executed`;
+        const toolGraph = args.tool_graph as unknown as ToolGraphNode[] | undefined;
+        if (toolGraph && Array.isArray(toolGraph) && toolGraph.length > 0) {
+          if (toolGraph.length === 1) {
+            return `${toolGraph[0].description}`;
+          }
+          if (toolGraph.length === 2) {
+            return `${toolGraph[0].tool}, ${toolGraph[1].tool}`;
+          }
+          return `${toolGraph.length} tools used`;
         }
         return 'executing code';
       }
@@ -628,15 +639,16 @@ function ToolCallView({
       }
     >
       {(() => {
-        const toolName = toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2);
         const code = toolCall.arguments?.code as unknown as string | undefined;
-        const hasCode =
-          toolName === 'execute' && code && typeof code === 'string' && code.length > 0;
+        const toolGraph = toolCall.arguments?.tool_graph as unknown as ToolGraphNode[] | undefined;
 
-        if (hasCode) {
+        if (
+          toolCall.name === 'code_execution__execute' &&
+          (typeof code === 'string' || Array.isArray(toolGraph))
+        ) {
           return (
             <div className="border-t border-borderSubtle">
-              <ToolCodeView code={code} />
+              <CodeModeView toolGraph={toolGraph} code={code} />
             </div>
           );
         }
@@ -677,7 +689,7 @@ function ToolCallView({
         <>
           {toolResults.map((result, index) => (
             <div key={index} className={cn('border-t border-borderSubtle')}>
-              <ToolResultView result={result} isStartExpanded={false} />
+              <ToolResultView toolCall={toolCall} result={result} isStartExpanded={false} />
             </div>
           ))}
         </>
@@ -709,33 +721,59 @@ function ToolDetailsView({ toolCall, isStartExpanded }: ToolDetailsViewProps) {
   );
 }
 
-interface ToolCodeViewProps {
-  code: string;
+interface CodeModeViewProps {
+  toolGraph?: ToolGraphNode[];
+  code?: string;
 }
 
-function ToolCodeView({ code }: ToolCodeViewProps) {
+function CodeModeView({ toolGraph, code }: CodeModeViewProps) {
+  const renderGraph = () => {
+    const graph = toolGraph ?? [];
+    if (graph.length === 0) return null;
+
+    const lines: string[] = [];
+
+    graph.forEach((node, index) => {
+      const deps =
+        node.depends_on.length > 0 ? ` (uses ${node.depends_on.map((d) => d + 1).join(', ')})` : '';
+      lines.push(`${index + 1}. ${node.tool}: ${node.description}${deps}`);
+    });
+
+    return lines.join('\n');
+  };
+
   return (
     <div className="px-4 py-2">
-      <div className="border-t border-borderSubtle -mx-4 mt-2">
-        <ToolCallExpandable
-          label={<span className="pl-4 font-sans text-sm">Code</span>}
-          isStartExpanded={false}
-        >
-          <pre className="font-mono text-xs text-textSubtle whitespace-pre-wrap overflow-x-auto px-4 py-2">
-            {code}
-          </pre>
-        </ToolCallExpandable>
-      </div>
+      {toolGraph && (
+        <pre className="font-mono text-xs text-textSubtle whitespace-pre-wrap">{renderGraph()}</pre>
+      )}
+      {code && (
+        <div className="border-t border-borderSubtle -mx-4 mt-2">
+          <ToolCallExpandable
+            label={<span className="pl-4 font-sans text-sm">Code</span>}
+            isStartExpanded={false}
+          >
+            <MarkdownContent
+              content={'```typescript\n' + code + '\n```'}
+              className="whitespace-pre-wrap max-w-full overflow-x-auto"
+            />
+          </ToolCallExpandable>
+        </div>
+      )}
     </div>
   );
 }
 
 interface ToolResultViewProps {
+  toolCall: {
+    name: string;
+    arguments: Record<string, unknown>;
+  };
   result: Content;
   isStartExpanded: boolean;
 }
 
-function ToolResultView({ result, isStartExpanded }: ToolResultViewProps) {
+function ToolResultView({ toolCall, result, isStartExpanded }: ToolResultViewProps) {
   const hasText = (c: Content): c is Content & { text: string } =>
     'text' in c && typeof (c as Record<string, unknown>).text === 'string';
 
@@ -747,6 +785,18 @@ function ToolResultView({ result, isStartExpanded }: ToolResultViewProps) {
 
   const hasResource = (c: Content): c is Content & { resource: unknown } => 'resource' in c;
 
+  const wrapMarkdown = (text: string): string => {
+    if (
+      ['code_execution__list_functions', 'code_execution__get_function_details'].includes(
+        toolCall.name
+      )
+    ) {
+      return '```typescript\n' + text + '\n```';
+    } else {
+      return text;
+    }
+  };
+
   return (
     <ToolCallExpandable
       label={<span className="pl-4 py-1 font-sans text-sm">Output</span>}
@@ -755,7 +805,7 @@ function ToolResultView({ result, isStartExpanded }: ToolResultViewProps) {
       <div className="pl-4 pr-4 py-4">
         {hasText(result) && (
           <MarkdownContent
-            content={result.text}
+            content={wrapMarkdown(result.text)}
             className="whitespace-pre-wrap max-w-full overflow-x-auto"
           />
         )}

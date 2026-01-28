@@ -11,6 +11,7 @@ use rmcp::model::{
     ToolAnnotations, ToolsCapability,
 };
 use schemars::{schema_for, JsonSchema};
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::hash_map::DefaultHasher;
 use std::future::Future;
@@ -26,6 +27,27 @@ pub struct CodeExecutionClient {
     info: InitializeResult,
     context: PlatformExtensionContext,
     state: RwLock<Option<CodeModeState>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+struct ToolGraphNode {
+    /// Tool name in format "server/tool" (e.g., "developer/shell")
+    tool: String,
+    /// Brief description of what this call does (e.g., "list files in /src")
+    description: String,
+    /// Indices of nodes this depends on (empty if no dependencies)
+    #[serde(default)]
+    depends_on: Vec<usize>,
+}
+
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct ExecuteWithToolGraph {
+    #[serde(flatten)]
+    input: ExecuteInput,
+    /// DAG of tool calls showing execution flow. Each node represents a tool call.
+    /// Use depends_on to show data flow (e.g., node 1 uses output from node 0).
+    #[serde(default)]
+    tool_graph: Vec<ToolGraphNode>,
 }
 
 impl CodeExecutionClient {
@@ -61,7 +83,8 @@ impl CodeExecutionClient {
 
                 Workflow:
                     1. Use the list_functions and get_function_details tools to discover tools and signatures
-                    2. Write ONE script that imports and calls ALL tools needed for the task
+                    2. Write ONE script that calls ALL tools needed for the task, no need to import anything,
+                       all the namespaces returned by list_functions and get_function_details will be available
                     3. Chain results: use output from one tool as input to the next
                     4. Only return and console.log data you need, tools could have very large responses.
             "#}.to_string()),
@@ -189,7 +212,7 @@ impl CodeExecutionClient {
         session_id: &str,
         arguments: Option<JsonObject>,
     ) -> Result<Vec<Content>, String> {
-        let input: ExecuteInput = arguments
+        let args: ExecuteWithToolGraph = arguments
             .map(|args| serde_json::from_value(Value::Object(args)))
             .transpose()
             .map_err(|e| format!("Failed to parse arguments: {e}"))?
@@ -197,7 +220,7 @@ impl CodeExecutionClient {
 
         let code_mode = self.get_code_mode(session_id).await?;
         let registry = self.build_callback_registry(session_id, &code_mode)?;
-        let code = input.code.clone();
+        let code = args.input.code.clone();
 
         // Deno runtime is not Send, so we need to run it in a blocking task
         // with its own tokio runtime
@@ -348,6 +371,15 @@ impl McpClientTrait for CodeExecutionClient {
                         }
                         ```
 
+                        TOOL_GRAPH: Always provide tool_graph to describe the execution flow for the UI.
+                        Each node has: tool (Namespace.functionName), description (what it does), depends_on (indices of dependencies).
+                        Example for chained operations:
+                        [
+                          {"tool": "Developer.shell", "description": "list files", "depends_on": []},
+                          {"tool": "Developer.textEditor", "description": "read README.md", "depends_on": []},
+                          {"tool": "Developer.textEditor", "description": "write output.txt", "depends_on": [0, 1]}
+                        ]
+
                         KEY RULES:
                         - Code MUST define an async function named `run()`
                         - All function calls are async - use `await`
@@ -369,7 +401,7 @@ impl McpClientTrait for CodeExecutionClient {
                         BEFORE CALLING: Use list_functions or get_function_details to check available functions and their parameters.
                     "#}
                     .to_string(),
-                    schema::<ExecuteInput>(),
+                    schema::<ExecuteWithToolGraph>(),
                 )
                 .annotate(ToolAnnotations {
                     title: Some("Execute TypeScript".to_string()),
