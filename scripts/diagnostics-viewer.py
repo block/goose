@@ -12,7 +12,6 @@ Scans for diagnostics zip files, displays their sessions, and provides
 an interactive viewer for examining session data, logs, and other files.
 """
 import json
-import re
 import sys
 import zipfile
 from pathlib import Path
@@ -22,7 +21,6 @@ from textual.app import App, ComposeResult
 from textual.widgets import Header, Footer, Static, Tree, ListView, ListItem, Label, Input
 from textual.containers import Horizontal, Vertical, VerticalScroll, Container
 from textual.binding import Binding
-from textual.reactive import reactive
 from textual.message import Message
 from textual.screen import ModalScreen
 
@@ -105,10 +103,11 @@ class JsonTreeView(Tree):
                         child.allow_expand = False  # Don't show expand icon initially
                     else:
                         node.add_leaf(f"[cyan]{key}[/cyan]: [green]\"{value}\"[/green]")
+                elif isinstance(value, bool):
+                    # Check bool before int/float since bool is a subclass of int
+                    node.add_leaf(f"[cyan]{key}[/cyan]: [magenta]{str(value).lower()}[/magenta]")
                 elif isinstance(value, (int, float)):
                     node.add_leaf(f"[cyan]{key}[/cyan]: [yellow]{value}[/yellow]")
-                elif isinstance(value, bool):
-                    node.add_leaf(f"[cyan]{key}[/cyan]: [magenta]{str(value).lower()}[/magenta]")
                 elif value is None:
                     node.add_leaf(f"[cyan]{key}[/cyan]: [dim]null[/dim]")
                 else:
@@ -130,10 +129,11 @@ class JsonTreeView(Tree):
                         child.allow_expand = False  # Don't show expand icon initially
                     else:
                         node.add_leaf(f"[yellow]{i}[/yellow]: [green]\"{item}\"[/green]")
+                elif isinstance(item, bool):
+                    # Check bool before int/float since bool is a subclass of int
+                    node.add_leaf(f"[yellow]{i}[/yellow]: [magenta]{str(item).lower()}[/magenta]")
                 elif isinstance(item, (int, float)):
                     node.add_leaf(f"[yellow]{i}[/yellow]: [yellow]{item}[/yellow]")
-                elif isinstance(item, bool):
-                    node.add_leaf(f"[yellow]{i}[/yellow]: [magenta]{str(item).lower()}[/magenta]")
                 elif item is None:
                     node.add_leaf(f"[yellow]{i}[/yellow]: [dim]null[/dim]")
                 else:
@@ -226,13 +226,18 @@ class DiagnosticsSession:
             return []
 
     def read_file(self, filename: str) -> Optional[str]:
-        """Read a file from the zip."""
+        """Read a file from the zip.
+
+        Returns:
+            File content as string, or None if file cannot be read.
+        """
         try:
             with zipfile.ZipFile(self.zip_path, 'r') as zf:
                 with zf.open(filename) as f:
                     return f.read().decode('utf-8', errors='replace')
-        except Exception as e:
-            return f"Error reading file: {e}"
+        except Exception:
+            # File not found or cannot be read
+            return None
 
 
 class FileContentPane(Vertical):
@@ -295,7 +300,7 @@ class FileViewer(Vertical):
 
         content = session.read_file(filename)
         if content is None:
-            self._show_plain(filename, "File not found")
+            self._show_plain(filename, f"[red]Error: Could not read file '{filename}'[/red]")
             return
 
         # Check if this is a JSONL file
@@ -321,12 +326,14 @@ class FileViewer(Vertical):
             try:
                 request_data = json.loads(lines[0])
             except json.JSONDecodeError:
+                # Skip malformed request line; diagnostics may be truncated or corrupted
                 pass
 
         for i in range(1, len(lines)):
             try:
                 responses.append(json.loads(lines[i]))
             except json.JSONDecodeError:
+                # Skip individual malformed response lines; show only valid JSON entries
                 pass
 
         # Show content
@@ -379,11 +386,15 @@ class FileViewer(Vertical):
             # Try to focus a tree if present
             tree = self.query_one(JsonTreeView)
             tree.focus()
-        except:
+        except Exception:
+            # No JsonTreeView present (e.g., showing plain text), which is fine
             pass
 
     def action_search(self):
-        """Show search overlay."""
+        """Show search overlay.
+
+        TODO: Implement actual search functionality - currently just shows UI.
+        """
         overlay = self.query_one(SearchOverlay)
         overlay.display = not overlay.display
         if overlay.display:
