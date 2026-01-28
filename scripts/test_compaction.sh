@@ -102,7 +102,7 @@ echo ""
 OUTPUT=$(mktemp)
 
 echo "Step 1: Creating session with initial messages..."
-(cd "$TESTDIR" && "$GOOSE_BIN" run --text "describe Melbourne Australia in 100 words" 2>&1) | tee "$OUTPUT"
+(cd "$TESTDIR" && "$GOOSE_BIN" run --text "list files and read hello.txt" 2>&1) | tee "$OUTPUT"
 
 if ! command -v jq &> /dev/null; then
   echo "✗ FAILED: jq is required for this test"
