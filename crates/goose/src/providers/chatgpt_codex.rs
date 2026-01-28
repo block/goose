@@ -79,7 +79,8 @@ fn build_input_items(messages: &[Message]) -> Result<Vec<Value>> {
     let mut items = Vec::new();
 
     for message in messages.iter().filter(|m| m.is_agent_visible()) {
-        let role = match message.role {
+        let filtered = message.agent_visible_content();
+        let role = match filtered.role {
             Role::User => Some("user"),
             Role::Assistant => Some("assistant"),
         };
@@ -95,7 +96,7 @@ fn build_input_items(messages: &[Message]) -> Result<Vec<Value>> {
             }
         };
 
-        for content in &message.content {
+        for content in &filtered.content {
             match content {
                 MessageContent::Text(text) => {
                     if !text.text.is_empty() {
@@ -129,10 +130,6 @@ fn build_input_items(messages: &[Message]) -> Result<Vec<Value>> {
                             let text_content: Vec<String> = contents
                                 .content
                                 .iter()
-                                .filter(|c| {
-                                    c.audience()
-                                        .is_none_or(|audience| audience.contains(&Role::Assistant))
-                                })
                                 .filter_map(|c| {
                                     if let RawContent::Text(t) = c.deref() {
                                         Some(t.text.clone())
