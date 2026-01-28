@@ -68,6 +68,7 @@ The Codex provider integrates with OpenAI's [Codex CLI tool](https://developers.
 **Features:**
 - Uses OpenAI's GPT-5 series models (gpt-5.2-codex, gpt-5.2, gpt-5.1-codex-max, gpt-5.1-codex-mini)
 - Configurable reasoning effort levels (low, medium, high)
+- Optional skills support for enhanced capabilities
 - JSON output parsing for structured responses
 - Automatic filtering of goose extensions from system prompts
 
@@ -310,6 +311,7 @@ The following models are recognized and passed to the Claude CLI via the `--mode
 | `GOOSE_MODEL` | Model to use (only known models are passed to CLI) | `gpt-5.2-codex` |
 | `CODEX_COMMAND` | Path to the Codex CLI command | `codex` |
 | `CODEX_REASONING_EFFORT` | Reasoning effort level: `low`, `medium`, or `high` | `high` |
+| `CODEX_ENABLE_SKILLS` | Enable Codex skills: `true` or `false` | `true` |
 | `CODEX_SKIP_GIT_CHECK` | Skip git repository requirement: `true` or `false` | `false` |
 
 **Known Models:**
