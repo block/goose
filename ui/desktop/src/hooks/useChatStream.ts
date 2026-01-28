@@ -195,6 +195,12 @@ function pushMessage(currentMessages: Message[], incomingMsg: Message): Message[
   }
 }
 
+function prefersReducedMotion(): boolean {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+const REDUCED_MOTION_BATCH_INTERVAL = 1000;
+
 async function streamFromResponse(
   stream: AsyncIterable<MessageEvent>,
   initialMessages: Message[],
@@ -203,6 +209,49 @@ async function streamFromResponse(
   sessionId: string
 ): Promise<void> {
   let currentMessages = initialMessages;
+  const reduceMotion = prefersReducedMotion();
+  let latestTokenState: TokenState | null = null;
+  let latestChatState: ChatState = ChatState.Streaming;
+  let lastBatchUpdate = Date.now();
+  let hasPendingUpdate = false;
+
+  const flushBatchedUpdates = () => {
+    if (reduceMotion && hasPendingUpdate) {
+      if (latestTokenState) {
+        dispatch({ type: 'SET_TOKEN_STATE', payload: latestTokenState });
+      }
+      dispatch({ type: 'SET_MESSAGES', payload: currentMessages });
+      dispatch({ type: 'SET_CHAT_STATE', payload: latestChatState });
+      hasPendingUpdate = false;
+      lastBatchUpdate = Date.now();
+    }
+  };
+
+  const maybeUpdateUI = (
+    tokenState: TokenState,
+    chatState: ChatState,
+    forceImmediate = false
+  ) => {
+    if (!reduceMotion) {
+      dispatch({ type: 'SET_TOKEN_STATE', payload: tokenState });
+      dispatch({ type: 'SET_MESSAGES', payload: currentMessages });
+      dispatch({ type: 'SET_CHAT_STATE', payload: chatState });
+    } else if (forceImmediate) {
+      dispatch({ type: 'SET_TOKEN_STATE', payload: tokenState });
+      dispatch({ type: 'SET_MESSAGES', payload: currentMessages });
+      dispatch({ type: 'SET_CHAT_STATE', payload: chatState });
+      hasPendingUpdate = false;
+      lastBatchUpdate = Date.now();
+    } else {
+      latestTokenState = tokenState;
+      latestChatState = chatState;
+      hasPendingUpdate = true;
+      const now = Date.now();
+      if (now - lastBatchUpdate >= REDUCED_MOTION_BATCH_INTERVAL) {
+        flushBatchedUpdates();
+      }
+    }
+  };
 
   try {
     for await (const event of stream) {
@@ -221,24 +270,23 @@ async function streamFromResponse(
           );
 
           if (hasToolConfirmation || hasElicitation) {
-            dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.WaitingForUserInput });
+            maybeUpdateUI(event.token_state, ChatState.WaitingForUserInput, true);
           } else if (getCompactingMessage(msg)) {
-            dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Compacting });
+            maybeUpdateUI(event.token_state, ChatState.Compacting);
           } else if (getThinkingMessage(msg)) {
-            dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Thinking });
+            maybeUpdateUI(event.token_state, ChatState.Thinking);
           } else {
-            dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Streaming });
+            maybeUpdateUI(event.token_state, ChatState.Streaming);
           }
-
-          dispatch({ type: 'SET_TOKEN_STATE', payload: event.token_state });
-          dispatch({ type: 'SET_MESSAGES', payload: currentMessages });
           break;
         }
         case 'Error': {
+          flushBatchedUpdates();
           onFinish('Stream error: ' + event.error);
           return;
         }
         case 'Finish': {
+          flushBatchedUpdates();
           onFinish();
           return;
         }
@@ -247,7 +295,11 @@ async function streamFromResponse(
         }
         case 'UpdateConversation': {
           currentMessages = event.conversation;
-          dispatch({ type: 'SET_MESSAGES', payload: event.conversation });
+          if (!reduceMotion) {
+            dispatch({ type: 'SET_MESSAGES', payload: event.conversation });
+          } else {
+            hasPendingUpdate = true;
+          }
           break;
         }
         case 'Notification': {
@@ -260,8 +312,10 @@ async function streamFromResponse(
       }
     }
 
+    flushBatchedUpdates();
     onFinish();
   } catch (error) {
+    flushBatchedUpdates();
     if (error instanceof Error && error.name !== 'AbortError') {
       onFinish('Stream error: ' + errorMessage(error));
     }

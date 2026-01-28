@@ -33,12 +33,19 @@ pub struct DeclarativeProviderConfig {
     pub engine: ProviderEngine,
     pub display_name: String,
     pub description: Option<String>,
+    #[serde(default)]
     pub api_key_env: String,
     pub base_url: String,
     pub models: Vec<ModelInfo>,
     pub headers: Option<HashMap<String, String>>,
     pub timeout_seconds: Option<u64>,
     pub supports_streaming: Option<bool>,
+    #[serde(default = "default_requires_auth")]
+    pub requires_auth: bool,
+}
+
+fn default_requires_auth() -> bool {
+    true
 }
 
 impl DeclarativeProviderConfig {
@@ -85,42 +92,68 @@ pub fn generate_api_key_name(id: &str) -> String {
     format!("{}_API_KEY", id.to_uppercase())
 }
 
+#[derive(Debug, Clone)]
+pub struct CreateCustomProviderParams {
+    pub engine: String,
+    pub display_name: String,
+    pub api_url: String,
+    pub api_key: String,
+    pub models: Vec<String>,
+    pub supports_streaming: Option<bool>,
+    pub headers: Option<HashMap<String, String>>,
+    pub requires_auth: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct UpdateCustomProviderParams {
+    pub id: String,
+    pub engine: String,
+    pub display_name: String,
+    pub api_url: String,
+    pub api_key: String,
+    pub models: Vec<String>,
+    pub supports_streaming: Option<bool>,
+    pub headers: Option<HashMap<String, String>>,
+    pub requires_auth: bool,
+}
+
 pub fn create_custom_provider(
-    engine: &str,
-    display_name: String,
-    api_url: String,
-    api_key: String,
-    models: Vec<String>,
-    supports_streaming: Option<bool>,
-    headers: Option<HashMap<String, String>>,
+    params: CreateCustomProviderParams,
 ) -> Result<DeclarativeProviderConfig> {
-    let id = generate_id(&display_name);
-    let api_key_name = generate_api_key_name(&id);
+    let id = generate_id(&params.display_name);
 
-    let config = Config::global();
-    config.set_secret(&api_key_name, &api_key)?;
+    let api_key_env = if params.requires_auth {
+        let api_key_name = generate_api_key_name(&id);
+        let config = Config::global();
+        config.set_secret(&api_key_name, &params.api_key)?;
+        api_key_name
+    } else {
+        String::new()
+    };
 
-    let model_infos: Vec<ModelInfo> = models
+    let model_infos: Vec<ModelInfo> = params
+        .models
         .into_iter()
         .map(|name| ModelInfo::new(name, 128000))
         .collect();
 
     let provider_config = DeclarativeProviderConfig {
         name: id.clone(),
-        engine: match engine {
+        engine: match params.engine.as_str() {
             "openai_compatible" => ProviderEngine::OpenAI,
             "anthropic_compatible" => ProviderEngine::Anthropic,
             "ollama_compatible" => ProviderEngine::Ollama,
-            _ => return Err(anyhow::anyhow!("Invalid provider type: {}", engine)),
+            _ => return Err(anyhow::anyhow!("Invalid provider type: {}", params.engine)),
         },
-        display_name: display_name.clone(),
-        description: Some(format!("Custom {} provider", display_name)),
-        api_key_env: api_key_name,
-        base_url: api_url,
+        display_name: params.display_name.clone(),
+        description: Some(format!("Custom {} provider", params.display_name)),
+        api_key_env,
+        base_url: params.api_url,
         models: model_infos,
-        headers,
+        headers: params.headers,
         timeout_seconds: None,
-        supports_streaming,
+        supports_streaming: params.supports_streaming,
+        requires_auth: params.requires_auth,
     };
 
     let custom_providers_dir = custom_providers_dir();
@@ -133,49 +166,54 @@ pub fn create_custom_provider(
     Ok(provider_config)
 }
 
-pub fn update_custom_provider(
-    id: &str,
-    provider_type: &str,
-    display_name: String,
-    api_url: String,
-    api_key: String,
-    models: Vec<String>,
-    supports_streaming: Option<bool>,
-) -> Result<()> {
-    let loaded_provider = load_provider(id)?;
+pub fn update_custom_provider(params: UpdateCustomProviderParams) -> Result<()> {
+    let loaded_provider = load_provider(&params.id)?;
     let existing_config = loaded_provider.config;
     let editable = loaded_provider.is_editable;
 
     let config = Config::global();
-    if !api_key.is_empty() {
-        config.set_secret(&existing_config.api_key_env, &api_key)?;
-    }
+
+    let api_key_env = if params.requires_auth {
+        let api_key_name = if existing_config.api_key_env.is_empty() {
+            generate_api_key_name(&params.id)
+        } else {
+            existing_config.api_key_env.clone()
+        };
+        if !params.api_key.is_empty() {
+            config.set_secret(&api_key_name, &params.api_key)?;
+        }
+        api_key_name
+    } else {
+        String::new()
+    };
 
     if editable {
-        let model_infos: Vec<ModelInfo> = models
+        let model_infos: Vec<ModelInfo> = params
+            .models
             .into_iter()
             .map(|name| ModelInfo::new(name, 128000))
             .collect();
 
         let updated_config = DeclarativeProviderConfig {
-            name: id.to_string(),
-            engine: match provider_type {
+            name: params.id.clone(),
+            engine: match params.engine.as_str() {
                 "openai_compatible" => ProviderEngine::OpenAI,
                 "anthropic_compatible" => ProviderEngine::Anthropic,
                 "ollama_compatible" => ProviderEngine::Ollama,
-                _ => return Err(anyhow::anyhow!("Invalid provider type: {}", provider_type)),
+                _ => return Err(anyhow::anyhow!("Invalid provider type: {}", params.engine)),
             },
-            display_name,
+            display_name: params.display_name,
             description: existing_config.description,
-            api_key_env: existing_config.api_key_env,
-            base_url: api_url,
+            api_key_env,
+            base_url: params.api_url,
             models: model_infos,
-            headers: existing_config.headers,
+            headers: params.headers.or(existing_config.headers),
             timeout_seconds: existing_config.timeout_seconds,
-            supports_streaming,
+            supports_streaming: params.supports_streaming,
+            requires_auth: params.requires_auth,
         };
 
-        let file_path = custom_providers_dir().join(format!("{}.json", id));
+        let file_path = custom_providers_dir().join(format!("{}.json", updated_config.name));
         let json_content = serde_json::to_string_pretty(&updated_config)?;
         std::fs::write(file_path, json_content)?;
     }
