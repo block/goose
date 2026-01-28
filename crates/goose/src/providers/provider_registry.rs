@@ -98,12 +98,14 @@ impl ProviderRegistry {
 
         let mut config_keys = base_metadata.config_keys.clone();
 
-        if let Some(api_key_index) = config_keys
-            .iter()
-            .position(|key| key.required && key.secret)
-        {
-            config_keys[api_key_index] =
-                super::base::ConfigKey::new(&config.api_key_env, true, true, None);
+        if let Some(api_key_index) = config_keys.iter().position(|key| key.secret) {
+            if !config.requires_auth {
+                config_keys.remove(api_key_index);
+            } else if !config.api_key_env.is_empty() {
+                let api_key_required = provider_type == ProviderType::Declarative;
+                config_keys[api_key_index] =
+                    super::base::ConfigKey::new(&config.api_key_env, api_key_required, true, None);
+            }
         }
 
         let custom_metadata = ProviderMetadata {
@@ -114,6 +116,7 @@ impl ProviderRegistry {
             known_models,
             model_doc_link: base_metadata.model_doc_link,
             config_keys,
+            allows_unlisted_models: false,
         };
 
         self.entries.insert(

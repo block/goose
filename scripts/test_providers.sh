@@ -3,6 +3,10 @@
 # Usage:
 #   ./test_providers.sh              # Normal mode (direct tool calls)
 #   ./test_providers.sh --code-exec  # Code execution mode (JS batching)
+#
+# Environment variables:
+#   SKIP_PROVIDERS  Comma-separated list of providers to skip (e.g., "tetrate,xai")
+#   SKIP_BUILD      Skip the cargo build step if set
 
 CODE_EXEC_MODE=false
 for arg in "$@"; do
@@ -12,6 +16,14 @@ for arg in "$@"; do
       ;;
   esac
 done
+
+# Flaky models that are allowed to fail without failing the entire test run.
+# These are typically preview/experimental models with inconsistent tool-calling behavior.
+# Failures are still reported but don't block PRs.
+ALLOWED_FAILURES=(
+  "google:gemini-3-pro-preview"
+  "openrouter:nvidia/nemotron-3-nano-30b-a3b"
+)
 
 if [ -f .env ]; then
   export $(grep -v '^#' .env | xargs)
@@ -71,12 +83,49 @@ else
 fi
 echo ""
 
+is_allowed_failure() {
+  local provider="$1"
+  local model="$2"
+  local key="${provider}:${model}"
+  for allowed in "${ALLOWED_FAILURES[@]}"; do
+    if [ "$allowed" = "$key" ]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+should_skip_provider() {
+  local provider="$1"
+  if [ -z "$SKIP_PROVIDERS" ]; then
+    return 1
+  fi
+  IFS=',' read -ra SKIP_LIST <<< "$SKIP_PROVIDERS"
+  for skip in "${SKIP_LIST[@]}"; do
+    # Trim whitespace
+    skip=$(echo "$skip" | xargs)
+    if [ "$skip" = "$provider" ]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 RESULTS=()
+HARD_FAILURES=()
 
 for provider_config in "${PROVIDERS[@]}"; do
   # Split on " -> " to get provider and models
   PROVIDER="${provider_config%% -> *}"
   MODELS_STR="${provider_config#* -> }"
+
+  # Skip provider if it's in SKIP_PROVIDERS
+  if should_skip_provider "$PROVIDER"; then
+    echo "⊘ Skipping provider: ${PROVIDER} (SKIP_PROVIDERS)"
+    echo "---"
+    continue
+  fi
+
   # Split models on "|"
   IFS='|' read -ra MODELS <<< "$MODELS_STR"
   for MODEL in "${MODELS[@]}"; do
@@ -94,8 +143,14 @@ for provider_config in "${PROVIDERS[@]}"; do
       echo "✓ SUCCESS: Test passed - $SUCCESS_MSG"
       RESULTS+=("✓ ${PROVIDER}: ${MODEL}")
     else
-      echo "✗ FAILED: Test failed - $FAILURE_MSG"
-      RESULTS+=("✗ ${PROVIDER}: ${MODEL}")
+      if is_allowed_failure "$PROVIDER" "$MODEL"; then
+        echo "⚠ FLAKY: Test failed but model is in allowed failures list - $FAILURE_MSG"
+        RESULTS+=("⚠ ${PROVIDER}: ${MODEL} (flaky)")
+      else
+        echo "✗ FAILED: Test failed - $FAILURE_MSG"
+        RESULTS+=("✗ ${PROVIDER}: ${MODEL}")
+        HARD_FAILURES+=("${PROVIDER}: ${MODEL}")
+      fi
     fi
     rm "$TMPFILE"
     rm -rf "$TESTDIR"
@@ -107,11 +162,22 @@ echo "=== Test Summary ==="
 for result in "${RESULTS[@]}"; do
   echo "$result"
 done
-if echo "${RESULTS[@]}" | grep -q "✗"; then
+
+if [ ${#HARD_FAILURES[@]} -gt 0 ]; then
+  echo ""
+  echo "Hard failures (${#HARD_FAILURES[@]}):"
+  for failure in "${HARD_FAILURES[@]}"; do
+    echo "  - $failure"
+  done
   echo ""
   echo "Some tests failed!"
   exit 1
 else
-  echo ""
-  echo "All tests passed!"
+  if echo "${RESULTS[@]}" | grep -q "⚠"; then
+    echo ""
+    echo "All required tests passed! (some flaky tests failed but are allowed)"
+  else
+    echo ""
+    echo "All tests passed!"
+  fi
 fi

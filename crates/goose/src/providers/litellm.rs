@@ -47,7 +47,7 @@ impl LiteLLMProvider {
         let timeout_secs: u64 = config.get_param("LITELLM_TIMEOUT").unwrap_or(600);
 
         let auth = if api_key.is_empty() {
-            AuthMethod::Custom(Box::new(NoAuth))
+            AuthMethod::NoAuth
         } else {
             AuthMethod::BearerToken(api_key)
         };
@@ -74,7 +74,11 @@ impl LiteLLMProvider {
     }
 
     async fn fetch_models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
-        let response = self.api_client.response_get("model/info").await?;
+        let response = self
+            .api_client
+            .request(None, "model/info")
+            .response_get()
+            .await?;
 
         if !response.status().is_success() {
             return Err(ProviderError::RequestFailed(format!(
@@ -112,23 +116,16 @@ impl LiteLLMProvider {
         Ok(models)
     }
 
-    async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
+    async fn post(
+        &self,
+        session_id: Option<&str>,
+        payload: &Value,
+    ) -> Result<Value, ProviderError> {
         let response = self
             .api_client
-            .response_post(&self.base_path, payload)
+            .response_post(session_id, &self.base_path, payload)
             .await?;
         handle_response_openai_compat(response).await
-    }
-}
-
-// No authentication provider for LiteLLM when API key is not provided
-struct NoAuth;
-
-#[async_trait]
-impl super::api_client::AuthProvider for NoAuth {
-    async fn get_auth_header(&self) -> Result<(String, String)> {
-        // Return a dummy header that won't be used
-        Ok(("X-No-Auth".to_string(), "true".to_string()))
     }
 }
 
@@ -168,6 +165,7 @@ impl Provider for LiteLLMProvider {
     #[tracing::instrument(skip_all, name = "provider_complete")]
     async fn complete_with_model(
         &self,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -189,7 +187,7 @@ impl Provider for LiteLLMProvider {
         let response = self
             .with_retry(|| async {
                 let payload_clone = payload.clone();
-                self.post(&payload_clone).await
+                self.post(session_id, &payload_clone).await
             })
             .await?;
 
@@ -231,7 +229,11 @@ impl Provider for LiteLLMProvider {
 
 #[async_trait]
 impl EmbeddingCapable for LiteLLMProvider {
-    async fn create_embeddings(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>, anyhow::Error> {
+    async fn create_embeddings(
+        &self,
+        session_id: &str,
+        texts: Vec<String>,
+    ) -> Result<Vec<Vec<f32>>, anyhow::Error> {
         let embedding_model = std::env::var("GOOSE_EMBEDDING_MODEL")
             .unwrap_or_else(|_| "text-embedding-3-small".to_string());
 
@@ -243,7 +245,7 @@ impl EmbeddingCapable for LiteLLMProvider {
 
         let response = self
             .api_client
-            .response_post("v1/embeddings", &payload)
+            .response_post(Some(session_id), "v1/embeddings", &payload)
             .await?;
         let response_text = response.text().await?;
         let response_json: Value = serde_json::from_str(&response_text)?;

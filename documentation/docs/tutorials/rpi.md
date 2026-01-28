@@ -10,7 +10,7 @@ import planDoc from '../../static/files/thoughts/plans/2025-12-23-remove-tool-se
 
 Most people use AI agents by jumping straight to execution: "refactor this code", "remove this feature", "add this new feature". While sometimes this works well, especially for smaller changes or codebases, it often falls apart on complex changes. 
 
-**RPI (Research, Plan, Implement)** is a mental model that proposes a different way of working with AI agents. This approach trades speed for clarity, predictability, and correctness.
+**[RPI (Research, Plan, Implement)](https://github.com/humanlayer/advanced-context-engineering-for-coding-agents/blob/main/ace-fca.md)**, introduced by HumanLayer, proposes a different way of working with AI agents. This approach trades speed for clarity, predictability, and correctness.
 
 This tutorial walks through how RPI works via a real demonstration. By the end, you should be able to run this same workflow on your own codebase.
 
@@ -193,17 +193,19 @@ The **[RPI Create Plan](https://raw.githubusercontent.com/block/goose/refs/heads
 
 Then it did three key things:
 
-1. Asked clarifying questions
-For example:
+1. **Asked clarifying questions**
+
+    For example:
     - Full removal vs deprecation?
     - How should config cleanup behave?
     - Should OpenAPI artifacts be regenerated?
     - Where do related tests live?
 
-2. Presented design options
+2. **Presented design options**
+    
     Where there were multiple reasonable approaches, goose laid them out and asked me to choose.
 
-3. Produced a phased implementation plan
+3. **Produced a phased implementation plan**
 
 
 The output was a detailed plan:

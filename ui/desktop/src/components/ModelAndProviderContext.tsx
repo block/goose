@@ -3,15 +3,13 @@ import { toastError, toastSuccess } from '../toasts';
 import Model, { getProviderMetadata } from './settings/models/modelInterface';
 import { ProviderMetadata, setConfigProvider, updateAgentProvider } from '../api';
 import { useConfig } from './ConfigContext';
+import { errorMessage } from '../utils/conversionUtils';
 import {
   getModelDisplayName,
   getProviderDisplayName,
 } from './settings/models/predefinedModelsUtils';
 
-// titles
 export const UNKNOWN_PROVIDER_TITLE = 'Provider name lookup';
-
-// errors
 export const UNKNOWN_PROVIDER_MSG = 'Unknown provider in config -- please inspect your config.yaml';
 
 // success
@@ -53,6 +51,8 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
             session_id: sessionId,
             provider: providerName,
             model: modelName,
+            context_limit: model.context_limit,
+            request_params: model.request_params,
           },
         });
       }
@@ -78,7 +78,7 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
       toastError({
         title: `${providerName}/${modelName} failed`,
         msg: `${error}`,
-        traceback: error instanceof Error ? error.message : String(error),
+        traceback: errorMessage(error),
       });
     }
   }, []);

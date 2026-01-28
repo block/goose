@@ -163,10 +163,17 @@ impl AzureProvider {
     /// POST /openai/responses?api-version=...
     ///
     /// The deployment name is passed via the `model` field in the request body.
-    async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
+    async fn post(
+        &self,
+        session_id: Option<&str>,
+        payload: &Value,
+    ) -> Result<Value, ProviderError> {
         let path = format!("openai/responses?api-version={}", self.api_version);
 
-        let response = self.api_client.response_post(&path, payload).await?;
+        let response = self
+            .api_client
+            .response_post(session_id, &path, payload)
+            .await?;
         handle_response_openai_compat(response).await
     }
 }
@@ -233,6 +240,7 @@ impl Provider for AzureProvider {
     )]
     async fn complete_with_model(
         &self,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -267,7 +275,7 @@ impl Provider for AzureProvider {
         let json_response = self
             .with_retry(|| async {
                 let payload_clone = payload.clone();
-                self.post(&payload_clone).await
+                self.post(session_id, &payload_clone).await
             })
             .await?;
 

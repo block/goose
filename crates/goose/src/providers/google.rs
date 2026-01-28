@@ -1,16 +1,28 @@
 use super::api_client::{ApiClient, AuthMethod};
+use super::base::MessageStream;
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
-use super::utils::{handle_response_google_compat, unescape_json_values, RequestLog};
+use super::utils::{
+    handle_response_google_compat, handle_status_openai_compat, unescape_json_values, RequestLog,
+};
 use crate::conversation::message::Message;
 
 use crate::model::ModelConfig;
 use crate::providers::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
-use crate::providers::formats::google::{create_request, get_usage, response_to_message};
+use crate::providers::formats::google::{
+    create_request, get_usage, response_to_message, response_to_streaming_message,
+};
 use anyhow::Result;
+use async_stream::try_stream;
 use async_trait::async_trait;
+use futures::TryStreamExt;
 use rmcp::model::Tool;
 use serde_json::Value;
+use std::io;
+use tokio::pin;
+use tokio_stream::StreamExt;
+use tokio_util::codec::{FramedRead, LinesCodec};
+use tokio_util::io::StreamReader;
 
 pub const GOOGLE_API_HOST: &str = "https://generativelanguage.googleapis.com";
 pub const GOOGLE_DEFAULT_MODEL: &str = "gemini-2.5-pro";
@@ -79,10 +91,32 @@ impl GoogleProvider {
         })
     }
 
-    async fn post(&self, model_name: &str, payload: &Value) -> Result<Value, ProviderError> {
+    async fn post(
+        &self,
+        session_id: Option<&str>,
+        model_name: &str,
+        payload: &Value,
+    ) -> Result<Value, ProviderError> {
         let path = format!("v1beta/models/{}:generateContent", model_name);
-        let response = self.api_client.response_post(&path, payload).await?;
+        let response = self
+            .api_client
+            .response_post(session_id, &path, payload)
+            .await?;
         handle_response_google_compat(response).await
+    }
+
+    async fn post_stream(
+        &self,
+        session_id: Option<&str>,
+        model_name: &str,
+        payload: &Value,
+    ) -> Result<reqwest::Response, ProviderError> {
+        let path = format!("v1beta/models/{}:streamGenerateContent?alt=sse", model_name);
+        let response = self
+            .api_client
+            .response_post(session_id, &path, payload)
+            .await?;
+        handle_status_openai_compat(response).await
     }
 }
 
@@ -117,6 +151,7 @@ impl Provider for GoogleProvider {
     )]
     async fn complete_with_model(
         &self,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -127,8 +162,8 @@ impl Provider for GoogleProvider {
 
         let response = self
             .with_retry(|| async {
-                let payload_clone = payload.clone();
-                self.post(&model_config.model_name, &payload_clone).await
+                self.post(session_id, &model_config.model_name, &payload)
+                    .await
             })
             .await?;
 
@@ -144,7 +179,11 @@ impl Provider for GoogleProvider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        let response = self.api_client.response_get("v1beta/models").await?;
+        let response = self
+            .api_client
+            .request(None, "v1beta/models")
+            .response_get()
+            .await?;
         let json: serde_json::Value = response.json().await?;
         let arr = match json.get("models").and_then(|v| v.as_array()) {
             Some(arr) => arr,
@@ -157,5 +196,50 @@ impl Provider for GoogleProvider {
             .collect();
         models.sort();
         Ok(Some(models))
+    }
+
+    fn supports_streaming(&self) -> bool {
+        true
+    }
+
+    async fn stream(
+        &self,
+        session_id: &str,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+    ) -> Result<MessageStream, ProviderError> {
+        let payload = create_request(&self.model, system, messages, tools)?;
+        let mut log = RequestLog::start(&self.model, &payload)?;
+
+        let response = self
+            .with_retry(|| async {
+                self.post_stream(Some(session_id), &self.model.model_name, &payload)
+                    .await
+            })
+            .await
+            .inspect_err(|e| {
+                let _ = log.error(e);
+            })?;
+
+        let stream = response.bytes_stream().map_err(io::Error::other);
+
+        Ok(Box::pin(try_stream! {
+            let stream_reader = StreamReader::new(stream);
+            let framed = FramedRead::new(stream_reader, LinesCodec::new())
+                .map_err(anyhow::Error::from);
+
+            let message_stream = response_to_streaming_message(framed);
+            pin!(message_stream);
+            while let Some(message) = message_stream.next().await {
+                let (message, usage) = message.map_err(|e|
+                    ProviderError::RequestFailed(format!("Stream decode error: {}", e))
+                )?;
+                if message.is_some() || usage.is_some() {
+                    log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
+                }
+                yield (message, usage);
+            }
+        }))
     }
 }

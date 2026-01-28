@@ -1,3 +1,5 @@
+import { parse, quote } from 'shell-quote';
+
 // Default extension timeout in seconds
 // TODO: keep in sync with rust better
 
@@ -103,7 +105,7 @@ export function extensionToFormData(extension: FixedExtensionEntry): ExtensionFo
       extension.type === 'platform'
         ? 'stdio'
         : extension.type,
-    cmd: extension.type === 'stdio' ? combineCmdAndArgs(extension.cmd, extension.args) : undefined,
+    cmd: extension.type === 'stdio' ? quote([extension.cmd, ...extension.args]) : undefined,
     endpoint:
       extension.type === 'streamable_http' || extension.type === 'sse'
         ? (extension.uri ?? undefined)
@@ -168,18 +170,8 @@ export function createExtensionConfig(formData: ExtensionFormData): ExtensionCon
 }
 
 export function splitCmdAndArgs(str: string): { cmd: string; args: string[] } {
-  const words = str.trim().split(/\s+/);
-  const cmd = words[0] || '';
-  const args = words.slice(1);
-
-  return {
-    cmd,
-    args,
-  };
-}
-
-export function combineCmdAndArgs(cmd: string, args: string[]): string {
-  return [cmd, ...args].join(' ');
+  const parts = parse(str.trim()).filter((p): p is string => typeof p === 'string');
+  return { cmd: parts[0] || '', args: parts.slice(1) };
 }
 
 export function extractCommand(link: string): string {

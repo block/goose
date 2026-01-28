@@ -17,6 +17,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '../../ui/dialog';
+import { errorMessage } from '../../../utils/conversionUtils';
 
 export default function ConfigSettings() {
   const { config, upsert } = useConfig();
@@ -84,7 +85,7 @@ export default function ConfigSettings() {
       toastError({
         title: 'Save Failed',
         msg: `Failed to save "${getUiNames(key)}"`,
-        traceback: error instanceof Error ? error.message : String(error),
+        traceback: errorMessage(error),
       });
     } finally {
       setSaving(null);

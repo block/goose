@@ -9,6 +9,7 @@ import { Button } from "@site/src/components/ui/button";
 import { getRecipeById } from "@site/src/utils/recipes";
 import type { Recipe } from "@site/src/components/recipe-card";
 import toast from "react-hot-toast";
+import ReactMarkdown from "react-markdown";
 
 const colorMap: { [key: string]: string } = {
   "GitHub MCP": "bg-yellow-100 text-yellow-800 border-yellow-200",
@@ -148,12 +149,30 @@ export default function RecipeDetailPage(): JSX.Element {
             </h1>
             <p className="text-textSubtle dark:text-zinc-400 text-lg mb-6">{recipe.description}</p>
 
-            {/* Activities */}
-            {recipe.activities?.length > 0 && (
+            {/* Message Activities - rendered as info box */}
+            {recipe.activities?.some(a => a.startsWith('message:')) && (
+              <div className="mb-6 border-t border-borderSubtle dark:border-zinc-700 pt-6">
+                <Admonition type="info">
+                  {recipe.activities
+                    .filter(a => a.startsWith('message:'))
+                    .map((activity, index) => {
+                      const messageContent = activity.replace(/^message:\s*/, '');
+                      return (
+                        <div key={index} className="prose prose-sm dark:prose-invert max-w-none [&_p]:my-2 [&_ul]:my-2 [&_li]:my-1">
+                          <ReactMarkdown>{messageContent}</ReactMarkdown>
+                        </div>
+                      );
+                    })}
+                </Admonition>
+              </div>
+            )}
+
+            {/* Regular Activities - rendered as pills */}
+            {recipe.activities?.filter(a => !a.startsWith('message:')).length > 0 && (
               <div className="mb-6 border-t border-borderSubtle dark:border-zinc-700 pt-6">
                 <h2 className="text-2xl font-medium mb-2 text-textProminent dark:text-white">Activities</h2>
                 <div className="flex flex-wrap gap-2">
-                  {recipe.activities.map((activity, index) => (
+                  {recipe.activities.filter(a => !a.startsWith('message:')).map((activity, index) => (
                     <span
                       key={index}
                       className="bg-surfaceHighlight dark:bg-zinc-900 border border-border dark:border-zinc-700 rounded-full px-3 py-1 text-sm text-textProminent dark:text-zinc-300"

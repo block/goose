@@ -17,7 +17,6 @@ use goose::providers::canonical::maybe_get_canonical_model;
 use goose::providers::create_with_default_model;
 use goose::providers::errors::ProviderError;
 use goose::providers::providers as get_providers;
-use goose::providers::{retry_operation, RetryConfig};
 use goose::{
     agents::execute_commands, agents::ExtensionConfig, config::permission::PermissionLevel,
     slash_commands,
@@ -94,6 +93,12 @@ pub struct UpdateCustomProviderRequest {
     pub models: Vec<String>,
     pub supports_streaming: Option<bool>,
     pub headers: Option<std::collections::HashMap<String, String>>,
+    #[serde(default = "default_requires_auth")]
+    pub requires_auth: bool,
+}
+
+fn default_requires_auth() -> bool {
+    true
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -207,6 +212,13 @@ fn mask_secret(secret: Value) -> String {
     let mask = "*".repeat(chars.len() - show_len);
 
     format!("{}{}", visible, mask)
+}
+
+fn is_valid_provider_name(provider_name: &str) -> bool {
+    !provider_name.is_empty()
+        && provider_name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
 #[utoipa::path(
@@ -401,10 +413,7 @@ pub async fn get_provider_models(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let models_result = retry_operation(&RetryConfig::default(), || async {
-        provider.fetch_recommended_models().await
-    })
-    .await;
+    let models_result = provider.fetch_recommended_models().await;
 
     match models_result {
         Ok(Some(models)) => Ok(Json(models)),
@@ -557,7 +566,7 @@ pub async fn init_config() -> Result<Json<String>, StatusCode> {
 pub async fn upsert_permissions(
     Json(query): Json<UpsertPermissionsQuery>,
 ) -> Result<Json<String>, StatusCode> {
-    let mut permission_manager = goose::config::PermissionManager::default();
+    let permission_manager = goose::config::PermissionManager::instance();
 
     for tool_permission in &query.tool_permissions {
         permission_manager.update_user_permission(
@@ -696,13 +705,16 @@ pub async fn create_custom_provider(
     Json(request): Json<UpdateCustomProviderRequest>,
 ) -> Result<Json<String>, StatusCode> {
     let config = goose::config::declarative_providers::create_custom_provider(
-        &request.engine,
-        request.display_name,
-        request.api_url,
-        request.api_key,
-        request.models,
-        request.supports_streaming,
-        request.headers,
+        goose::config::declarative_providers::CreateCustomProviderParams {
+            engine: request.engine,
+            display_name: request.display_name,
+            api_url: request.api_url,
+            api_key: request.api_key,
+            models: request.models,
+            supports_streaming: request.supports_streaming,
+            headers: request.headers,
+            requires_auth: request.requires_auth,
+        },
     )
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -766,13 +778,17 @@ pub async fn update_custom_provider(
     Json(request): Json<UpdateCustomProviderRequest>,
 ) -> Result<Json<String>, StatusCode> {
     goose::config::declarative_providers::update_custom_provider(
-        &id,
-        &request.engine,
-        request.display_name,
-        request.api_url,
-        request.api_key,
-        request.models,
-        request.supports_streaming,
+        goose::config::declarative_providers::UpdateCustomProviderParams {
+            id: id.clone(),
+            engine: request.engine,
+            display_name: request.display_name,
+            api_url: request.api_url,
+            api_key: request.api_key,
+            models: request.models,
+            supports_streaming: request.supports_streaming,
+            headers: request.headers,
+            requires_auth: request.requires_auth,
+        },
     )
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -818,6 +834,54 @@ pub async fn set_config_provider(
     Ok(())
 }
 
+#[utoipa::path(
+    post,
+    path = "/config/providers/{name}/oauth",
+    params(
+        ("name" = String, Path, description = "Provider name")
+    ),
+    responses(
+        (status = 200, description = "OAuth configuration completed"),
+        (status = 400, description = "OAuth configuration failed")
+    )
+)]
+pub async fn configure_provider_oauth(
+    Path(provider_name): Path<String>,
+) -> Result<Json<String>, (StatusCode, String)> {
+    use goose::model::ModelConfig;
+    use goose::providers::create;
+
+    if !is_valid_provider_name(&provider_name) {
+        return Err((StatusCode::BAD_REQUEST, "Invalid provider name".to_string()));
+    }
+
+    let temp_model =
+        ModelConfig::new("temp").map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+
+    let provider = create(&provider_name, temp_model).await.map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            format!("Failed to create provider: {}", e),
+        )
+    })?;
+
+    provider.configure_oauth().await.map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            format!("OAuth configuration failed: {}", e),
+        )
+    })?;
+
+    // Mark the provider as configured after successful OAuth
+    let configured_marker = format!("{}_configured", provider_name);
+    let config = goose::config::Config::global();
+    config
+        .set_param(&configured_marker, true)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(Json("OAuth configuration completed".to_string()))
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/config", get(read_all_config))
@@ -846,6 +910,10 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/custom-providers/{id}", get(get_custom_provider))
         .route("/config/check_provider", post(check_provider))
         .route("/config/set_provider", post(set_config_provider))
+        .route(
+            "/config/providers/{name}/oauth",
+            post(configure_provider_oauth),
+        )
         .with_state(state)
 }
 

@@ -38,6 +38,7 @@ import { CronPicker } from '../schedule/CronPicker';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { SearchView } from '../conversation/SearchView';
 import cronstrue from 'cronstrue';
+import { getInitialWorkingDir } from '../../utils/workingDir';
 import {
   trackRecipeDeleted,
   trackRecipeStarted,
@@ -55,6 +56,8 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from '../ui/dropdown-menu';
+import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
+import { errorMessage } from '../../utils/conversionUtils';
 
 export default function RecipesView() {
   const setView = useNavigation();
@@ -128,7 +131,7 @@ export default function RecipesView() {
       const recipeManifestResponses = await listSavedRecipes();
       setSavedRecipes(recipeManifestResponses);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load recipes');
+      setError(errorMessage(err, 'Failed to load recipes'));
       console.error('Failed to load saved recipes:', err);
     } finally {
       setLoading(false);
@@ -139,7 +142,7 @@ export default function RecipesView() {
     try {
       const newAgent = await startAgent({
         body: {
-          working_dir: window.appConfig.get('GOOSE_WORKING_DIR') as string,
+          working_dir: getInitialWorkingDir(),
           recipe,
         },
         throwOnError: true,
@@ -152,7 +155,7 @@ export default function RecipesView() {
       });
     } catch (error) {
       console.error('Failed to load recipe:', error);
-      const errorMsg = error instanceof Error ? error.message : 'Failed to load recipe';
+      const errorMsg = errorMessage(error, 'Failed to load recipe');
       trackRecipeStarted(false, getErrorType(error), false);
       setError(errorMsg);
     }
@@ -162,7 +165,7 @@ export default function RecipesView() {
     try {
       window.electron.createChatWindow(
         undefined,
-        window.appConfig.get('GOOSE_WORKING_DIR') as string,
+        getInitialWorkingDir(),
         undefined,
         undefined,
         'pair',
@@ -199,7 +202,7 @@ export default function RecipesView() {
       });
     } catch (err) {
       console.error('Failed to delete recipe:', err);
-      const errorMsg = err instanceof Error ? err.message : 'Failed to delete recipe';
+      const errorMsg = errorMessage(err, 'Failed to delete recipe');
       trackRecipeDeleted(false, getErrorType(err));
       setError(errorMsg);
     }
@@ -339,7 +342,7 @@ export default function RecipesView() {
       await loadSavedRecipes();
     } catch (error) {
       console.error('Failed to save schedule:', error);
-      const errorMsg = error instanceof Error ? error.message : 'Failed to save schedule';
+      const errorMsg = errorMessage(error, 'Failed to save schedule');
       trackRecipeScheduled(false, action, getErrorType(error));
       setError(errorMsg);
     }
@@ -367,7 +370,7 @@ export default function RecipesView() {
       await loadSavedRecipes();
     } catch (error) {
       console.error('Failed to remove schedule:', error);
-      const errorMsg = error instanceof Error ? error.message : 'Failed to remove schedule';
+      const errorMsg = errorMessage(error, 'Failed to remove schedule');
       trackRecipeScheduled(false, 'remove', getErrorType(error));
       setError(errorMsg);
     }
@@ -407,7 +410,7 @@ export default function RecipesView() {
       await loadSavedRecipes();
     } catch (error) {
       console.error('Failed to save slash command:', error);
-      const errorMsg = error instanceof Error ? error.message : 'Failed to save slash command';
+      const errorMsg = errorMessage(error, 'Failed to save slash command');
       trackRecipeSlashCommandSet(false, action, getErrorType(error));
       setError(errorMsg);
     }
@@ -435,7 +438,7 @@ export default function RecipesView() {
       await loadSavedRecipes();
     } catch (error) {
       console.error('Failed to remove slash command:', error);
-      const errorMsg = error instanceof Error ? error.message : 'Failed to remove slash command';
+      const errorMsg = errorMessage(error, 'Failed to remove slash command');
       trackRecipeSlashCommandSet(false, 'remove', getErrorType(error));
       setError(errorMsg);
     }
@@ -694,7 +697,7 @@ export default function RecipesView() {
               </div>
               <p className="text-sm text-text-muted mb-1">
                 View and manage your saved recipes to quickly start new sessions with predefined
-                configurations. ⌘F/Ctrl+F to search.
+                configurations. {getSearchShortcutText()} to search.
               </p>
             </div>
           </div>
