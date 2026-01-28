@@ -418,9 +418,7 @@ export function AppInner() {
       window.electron.reactReady();
     } catch (error) {
       console.error('Error sending reactReady:', error);
-      setFatalError(
-        `React ready notification failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
+      setFatalError(`React ready notification failed: ${errorMessage(error, 'Unknown error')}`);
     }
   }, []);
 
@@ -445,7 +443,7 @@ export function AppInner() {
         const shareToken = link.replace('goose://sessions/', '');
         const options = {
           sessionDetails: null,
-          error: error instanceof Error ? error.message : 'Unknown error',
+          error: errorMessage(error, 'Unknown error'),
           shareToken,
         };
         navigate('/shared-session', { state: options });

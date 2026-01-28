@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import McpAppRenderer from '../McpApps/McpAppRenderer';
 import { startAgent, resumeAgent, listApps, stopAgent } from '../../api';
 import { formatAppName } from '../../utils/conversionUtils';
+import { errorMessage } from '../../utils/conversionUtils';
 
 export default function StandaloneAppView() {
   const [searchParams] = useSearchParams();
@@ -78,7 +79,7 @@ export default function StandaloneAppView() {
       } catch (err) {
         console.error('Failed to initialize session:', err);
         if (!cachedHtml) {
-          setError(err instanceof Error ? err.message : 'Failed to initialize session');
+          setError(errorMessage(err, 'Failed to initialize session'));
           setLoading(false);
         }
       }

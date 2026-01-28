@@ -27,6 +27,7 @@ use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::recipes::extract_from_cli::extract_recipe_info_from_cli;
 use crate::recipes::recipe::{explain_recipe, render_recipe_as_yaml};
 use crate::session::{build_session, SessionBuilderConfig};
+use goose::agents::Container;
 use goose::session::session_manager::SessionType;
 use goose::session::SessionManager;
 use goose_bench::bench_config::BenchRunConfig;
@@ -101,6 +102,46 @@ pub struct SessionOptions {
         long_help = "Set a limit on how many turns (iterations) the agent can take without asking for user input to continue."
     )]
     pub max_turns: Option<u32>,
+
+    #[arg(
+        long = "container",
+        value_name = "CONTAINER_ID",
+        help = "Docker container ID to run extensions inside",
+        long_help = "Run extensions (stdio and built-in) inside the specified container. The extension must exist in the container. For built-in extensions, goose must be installed inside the container."
+    )]
+    pub container: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct StreamableHttpOptions {
+    pub url: String,
+    pub timeout: u64,
+}
+
+fn parse_streamable_http_extension(input: &str) -> Result<StreamableHttpOptions, String> {
+    let mut input_iter = input.split_whitespace();
+    let (mut url, mut timeout) = (String::new(), goose::config::DEFAULT_EXTENSION_TIMEOUT);
+
+    if let Some(url_str) = input_iter.next() {
+        url.push_str(url_str);
+    }
+
+    for kv_pair in input_iter {
+        if !kv_pair.contains('=') {
+            continue;
+        }
+
+        let (key, value) = kv_pair.split_once('=').unwrap();
+
+        // We Can have more keys here for setting other properties
+        if key == "timeout" {
+            if let Ok(seconds) = value.parse::<u64>() {
+                timeout = seconds;
+            }
+        }
+    }
+
+    Ok(StreamableHttpOptions { url, timeout })
 }
 
 /// Extension configuration options shared between Session and Run commands
@@ -119,10 +160,11 @@ pub struct ExtensionOptions {
         long = "with-streamable-http-extension",
         value_name = "URL",
         help = "Add streamable HTTP extensions (can be specified multiple times)",
-        long_help = "Add streamable HTTP extensions from a URL. Can be specified multiple times. Format: 'url...'",
-        action = clap::ArgAction::Append
+        long_help = "Add streamable HTTP extensions from a URL. Can be specified multiple times. Format: 'url...' or 'url... timeout=100' to set up timeout other than default",
+        action = clap::ArgAction::Append,
+        value_parser = parse_streamable_http_extension
     )]
-    pub streamable_http_extensions: Vec<String>,
+    pub streamable_http_extensions: Vec<StreamableHttpOptions>,
 
     #[arg(
         long = "with-builtin",
@@ -1125,6 +1167,7 @@ async fn handle_interactive_session(
         interactive: true,
         quiet: false,
         output_format: "text".to_string(),
+        container: session_opts.container.map(Container::new),
     })
     .await;
 
@@ -1328,6 +1371,7 @@ async fn handle_run_command(
         interactive: run_behavior.interactive,
         quiet: output_opts.quiet,
         output_format: output_opts.output_format,
+        container: session_opts.container.map(Container::new),
     })
     .await;
 
@@ -1453,6 +1497,7 @@ async fn handle_default_session() -> Result<()> {
         interactive: true,
         quiet: false,
         output_format: "text".to_string(),
+        container: None,
     })
     .await;
     session.interactive(None).await

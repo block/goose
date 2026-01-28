@@ -1,6 +1,5 @@
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
-use crate::providers::formats::google as gemini_schema;
 use crate::providers::utils::{
     convert_image, detect_image_path, is_valid_function_name, load_image_file, safely_parse_json,
     sanitize_function_name, ImageFormat,
@@ -45,12 +44,7 @@ fn format_tool_response(
 
     match &response.tool_result {
         Ok(call_result) => {
-            let abridged: Vec<_> = call_result
-                .content
-                .iter()
-                .filter(|c| c.audience().is_none_or(|a| a.contains(&Role::Assistant)))
-                .map(|c| c.raw.clone())
-                .collect();
+            let abridged: Vec<_> = call_result.content.iter().map(|c| c.raw.clone()).collect();
 
             let mut tool_content = Vec::new();
             let mut image_messages = Vec::new();
@@ -113,9 +107,10 @@ fn format_tool_response(
 fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<DatabricksMessage> {
     let mut result = Vec::new();
     for message in messages.iter().filter(|m| m.is_agent_visible()) {
+        let filtered = message.agent_visible_content();
         let mut converted = DatabricksMessage {
             content: Value::Null,
-            role: match message.role {
+            role: match filtered.role {
                 Role::User => "user".to_string(),
                 Role::Assistant => "assistant".to_string(),
             },
@@ -127,7 +122,7 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
         let mut has_tool_calls = false;
         let mut has_multiple_content = false;
 
-        for content in &message.content {
+        for content in &filtered.content {
             match content {
                 MessageContent::Text(text) => {
                     if !text.text.is_empty() {
@@ -232,19 +227,35 @@ pub fn format_tools(tools: &[Tool], model_name: &str) -> anyhow::Result<Vec<Valu
             return Err(anyhow!("Duplicate tool name: {}", tool.name));
         }
 
-        let parameters = if is_gemini {
-            gemini_schema::process_map(tool.input_schema.as_ref(), None)
+        let has_properties = tool
+            .input_schema
+            .get("properties")
+            .and_then(|v| v.as_object())
+            .is_some_and(|p| !p.is_empty());
+
+        let function_def = if is_gemini {
+            let mut def = json!({
+                "name": tool.name,
+                "description": tool.description,
+            });
+            if has_properties {
+                def["parametersJsonSchema"] = json!(tool.input_schema);
+            }
+            def
         } else {
-            json!(tool.input_schema)
+            let mut def = json!({
+                "name": tool.name,
+                "description": tool.description,
+            });
+            if has_properties {
+                def["parameters"] = json!(tool.input_schema);
+            }
+            def
         };
 
         result.push(json!({
             "type": "function",
-            "function": {
-                "name": tool.name,
-                "description": tool.description,
-                "parameters": parameters,
-            }
+            "function": function_def,
         }));
     }
 
@@ -719,12 +730,18 @@ mod tests {
         );
 
         let spec = format_tools(std::slice::from_ref(&tool), "gemini-2-5-flash")?;
-        assert!(spec[0]["function"]["parameters"].get("$schema").is_none());
-        assert_eq!(spec[0]["function"]["parameters"]["type"], "object");
+        assert!(spec[0]["function"].get("parametersJsonSchema").is_some());
+        assert_eq!(
+            spec[0]["function"]["parametersJsonSchema"]["type"],
+            "object"
+        );
 
         let spec = format_tools(&[tool], "databricks-gemini-3-pro")?;
-        assert!(spec[0]["function"]["parameters"].get("$schema").is_none());
-        assert_eq!(spec[0]["function"]["parameters"]["type"], "object");
+        assert!(spec[0]["function"].get("parametersJsonSchema").is_some());
+        assert_eq!(
+            spec[0]["function"]["parametersJsonSchema"]["type"],
+            "object"
+        );
 
         Ok(())
     }

@@ -128,7 +128,7 @@
     "@vitest/coverage-v8": "^4.0.17",
     "@vitest/ui": "^4.0.17",
     "autoprefixer": "^10.4.23",
-    "electron": "^39.2.7",
+    "electron": "^39.3.0",
     "electron-devtools-installer": "^4.0.0",
     "eslint": "^9.39.2",
     "eslint-plugin-react": "^7.37.5",

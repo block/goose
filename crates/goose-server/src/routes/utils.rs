@@ -96,9 +96,20 @@ pub fn check_provider_configured(metadata: &ProviderMetadata, provider_type: Pro
 
     if provider_type == ProviderType::Custom || provider_type == ProviderType::Declarative {
         if let Ok(loaded_provider) = load_provider(metadata.name.as_str()) {
-            return config
-                .get_secret::<String>(&loaded_provider.config.api_key_env)
-                .is_ok();
+            if !loaded_provider.config.requires_auth {
+                return true;
+            }
+
+            if !loaded_provider.config.api_key_env.is_empty() {
+                let api_key_result =
+                    config.get_secret::<String>(&loaded_provider.config.api_key_env);
+                if api_key_result.is_ok() {
+                    return true;
+                }
+            }
+
+            // Custom providers with config files are intentionally created
+            return provider_type == ProviderType::Custom;
         }
     }
 
