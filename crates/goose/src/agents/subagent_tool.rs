@@ -12,11 +12,11 @@ use tokio_util::sync::CancellationToken;
 use crate::agents::subagent_handler::run_complete_subagent_task;
 use crate::agents::subagent_task_config::TaskConfig;
 use crate::agents::tool_execution::ToolCallResult;
+use crate::agents::AgentConfig;
 use crate::providers;
 use crate::recipe::build_recipe::build_recipe_from_template;
 use crate::recipe::local_recipes::load_local_recipe_file;
 use crate::recipe::{Recipe, SubRecipe};
-use crate::session::SessionManager;
 
 pub const SUBAGENT_TOOL_NAME: &str = "subagent";
 
@@ -51,6 +51,7 @@ pub struct SubagentSettings {
     pub provider: Option<String>,
     pub model: Option<String>,
     pub temperature: Option<f32>,
+    pub max_turns: Option<usize>,
 }
 
 pub fn create_subagent_tool(sub_recipes: &[SubRecipe]) -> Tool {
@@ -82,9 +83,10 @@ pub fn create_subagent_tool(sub_recipes: &[SubRecipe]) -> Tool {
                 "properties": {
                     "provider": {"type": "string", "description": "Override LLM provider"},
                     "model": {"type": "string", "description": "Override model"},
-                    "temperature": {"type": "number", "description": "Override temperature"}
+                    "temperature": {"type": "number", "description": "Override temperature"},
+                    "max_turns": {"type": "number", "description": "Override max turns"}
                 },
-                "description": "Override model/provider settings."
+                "description": "Override model/provider/settings."
             },
             "summary": {
                 "type": "boolean",
@@ -176,6 +178,7 @@ fn get_subrecipe_params_description(sub_recipe: &SubRecipe) -> String {
 /// (e.g., "[run sequentially, not in parallel]") but not enforced. The LLM controls
 /// sequencing by making sequential vs parallel tool calls.
 pub fn handle_subagent_tool(
+    config: &AgentConfig,
     params: Value,
     task_config: TaskConfig,
     sub_recipes: HashMap<String, SubRecipe>,
@@ -220,10 +223,12 @@ pub fn handle_subagent_tool(
         }
     };
 
+    let config = config.clone();
     ToolCallResult {
         notification_stream: None,
         result: Box::new(
             execute_subagent(
+                config,
                 recipe,
                 task_config,
                 parsed_params,
@@ -236,23 +241,26 @@ pub fn handle_subagent_tool(
 }
 
 async fn execute_subagent(
+    config: AgentConfig,
     recipe: Recipe,
     task_config: TaskConfig,
     params: SubagentParams,
     working_dir: PathBuf,
     cancellation_token: Option<CancellationToken>,
 ) -> Result<rmcp::model::CallToolResult, ErrorData> {
-    let session = SessionManager::create_session(
-        working_dir,
-        "Subagent task".to_string(),
-        crate::session::session_manager::SessionType::SubAgent,
-    )
-    .await
-    .map_err(|e| ErrorData {
-        code: ErrorCode::INTERNAL_ERROR,
-        message: Cow::from(format!("Failed to create session: {}", e)),
-        data: None,
-    })?;
+    let session = config
+        .session_manager
+        .create_session(
+            working_dir,
+            "Subagent task".to_string(),
+            crate::session::session_manager::SessionType::SubAgent,
+        )
+        .await
+        .map_err(|e| ErrorData {
+            code: ErrorCode::INTERNAL_ERROR,
+            message: Cow::from(format!("Failed to create session: {}", e)),
+            data: None,
+        })?;
 
     let task_config = apply_settings_overrides(task_config, &params)
         .await
@@ -263,6 +271,7 @@ async fn execute_subagent(
         })?;
 
     let result = run_complete_subagent_task(
+        config,
         recipe,
         task_config,
         params.summary,
@@ -385,6 +394,10 @@ async fn apply_settings_overrides(
     params: &SubagentParams,
 ) -> Result<TaskConfig> {
     if let Some(settings) = &params.settings {
+        if let Some(max_turns) = settings.max_turns {
+            task_config.max_turns = Some(max_turns);
+        }
+
         if settings.provider.is_some() || settings.model.is_some() || settings.temperature.is_some()
         {
             let provider_name = settings

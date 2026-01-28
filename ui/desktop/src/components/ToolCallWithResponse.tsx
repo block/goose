@@ -1,3 +1,4 @@
+import { AppEvents } from '../constants/events';
 import { ToolIconWithStatus, ToolCallStatus } from './ToolCallStatusIndicator';
 import { getToolCallIcon } from '../utils/toolIconMapping';
 import React, { useEffect, useRef, useState, useMemo } from 'react';
@@ -55,6 +56,7 @@ interface ToolCallWithResponseProps {
   toolResponse?: ToolResponseMessageContent;
   notifications?: NotificationEvent[];
   isStreamingMessage?: boolean;
+  isPendingApproval: boolean;
   append?: (value: string) => void;
 }
 
@@ -96,20 +98,22 @@ function McpAppWrapper({
     }
   }
 
-  const extensionName =
-    requestWithMeta.toolCall.status === 'success'
-      ? requestWithMeta.toolCall.value.name.split('__')[0]
-      : '';
+  // Tool names are formatted as "{extension_name}__{tool_name}".
+  // Extension names can contain underscores (special chars like parentheses are normalized to "_"),
+  // so we must use lastIndexOf to find the delimiter.
+  // e.g., "my_server(local)" -> "my_server_local_" -> "my_server_local___get_time"
+  const toolCallName =
+    requestWithMeta.toolCall.status === 'success' ? requestWithMeta.toolCall.value.name : '';
+  const delimiterIndex = toolCallName.lastIndexOf('__');
+  const extensionName = delimiterIndex === -1 ? '' : toolCallName.substring(0, delimiterIndex);
 
   const toolArguments =
     requestWithMeta.toolCall.status === 'success'
       ? requestWithMeta.toolCall.value.arguments
       : undefined;
 
-  // Memoize toolInput to prevent unnecessary re-renders
   const toolInput = useMemo(() => ({ arguments: toolArguments || {} }), [toolArguments]);
 
-  // Memoize toolResult to prevent unnecessary re-renders
   const toolResult = useMemo(() => {
     if (!toolResponse) return undefined;
     const resultWithMeta = toolResponse.toolResult as ToolResultWithMeta;
@@ -149,6 +153,7 @@ export default function ToolCallWithResponse({
   toolResponse,
   notifications,
   isStreamingMessage,
+  isPendingApproval,
   append,
 }: ToolCallWithResponseProps) {
   // Handle both the wrapped ToolResult format and the unwrapped format
@@ -169,11 +174,13 @@ export default function ToolCallWithResponse({
     requestWithMeta._meta?.ui?.resourceUri || resultWithMeta?.value?._meta?.ui?.resourceUri
   );
 
+  const shouldShowMcpContent = !isPendingApproval;
+
   return (
     <>
       <div
         className={cn(
-          'w-full text-sm font-sans rounded-lg overflow-hidden border-borderSubtle border bg-background-muted'
+          'w-full text-sm font-sans rounded-lg overflow-hidden border-borderSubtle border'
         )}
       >
         <ToolCallView
@@ -187,7 +194,8 @@ export default function ToolCallWithResponse({
         />
       </div>
       {/* MCP UI — Inline */}
-      {!hasMcpAppResourceURI &&
+      {shouldShowMcpContent &&
+        !hasMcpAppResourceURI &&
         toolResponse?.toolResult &&
         getToolResultContent(toolResponse.toolResult).map((content, index) => {
           const resourceContent = isEmbeddedResource(content)
@@ -210,7 +218,8 @@ export default function ToolCallWithResponse({
           }
         })}
 
-      {hasMcpAppResourceURI && sessionId && (
+      {/* MCP App */}
+      {shouldShowMcpContent && hasMcpAppResourceURI && sessionId && (
         <McpAppWrapper
           toolRequest={toolRequest}
           toolResponse={toolResponse}
@@ -340,11 +349,11 @@ function ToolCallView({
 
     window.addEventListener('storage', handleStorageChange);
 
-    window.addEventListener('responseStyleChanged', handleStorageChange);
+    window.addEventListener(AppEvents.RESPONSE_STYLE_CHANGED, handleStorageChange);
 
     return () => {
       window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('responseStyleChanged', handleStorageChange);
+      window.removeEventListener(AppEvents.RESPONSE_STYLE_CHANGED, handleStorageChange);
     };
   }, []);
 

@@ -1,15 +1,16 @@
 use anyhow::Result;
 use clap::{Args, CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, Shell as ClapShell};
-use goose::config::{Config, ExtensionConfig};
+use goose::config::Config;
+use goose::posthog::get_telemetry_choice;
+use goose::recipe::Recipe;
 use goose_mcp::mcp_server_runner::{serve, McpCommand};
 use goose_mcp::{
     AutoVisualiserRouter, ComputerControllerServer, DeveloperServer, MemoryServer, TutorialServer,
 };
 
-use crate::commands::acp::run_acp_agent;
 use crate::commands::bench::agent_generator;
-use crate::commands::configure::handle_configure;
+use crate::commands::configure::{configure_telemetry_consent_dialog, handle_configure};
 use crate::commands::info::handle_info;
 use crate::commands::project::{handle_project_default, handle_projects_interactive};
 use crate::commands::recipe::{handle_deeplink, handle_list, handle_open, handle_validate};
@@ -25,7 +26,8 @@ use crate::commands::schedule::{
 use crate::commands::session::{handle_session_list, handle_session_remove};
 use crate::recipes::extract_from_cli::extract_recipe_info_from_cli;
 use crate::recipes::recipe::{explain_recipe, render_recipe_as_yaml};
-use crate::session::{build_session, SessionBuilderConfig, SessionSettings};
+use crate::session::{build_session, SessionBuilderConfig};
+use goose::agents::Container;
 use goose::session::session_manager::SessionType;
 use goose::session::SessionManager;
 use goose_bench::bench_config::BenchRunConfig;
@@ -100,6 +102,46 @@ pub struct SessionOptions {
         long_help = "Set a limit on how many turns (iterations) the agent can take without asking for user input to continue."
     )]
     pub max_turns: Option<u32>,
+
+    #[arg(
+        long = "container",
+        value_name = "CONTAINER_ID",
+        help = "Docker container ID to run extensions inside",
+        long_help = "Run extensions (stdio and built-in) inside the specified container. The extension must exist in the container. For built-in extensions, goose must be installed inside the container."
+    )]
+    pub container: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct StreamableHttpOptions {
+    pub url: String,
+    pub timeout: u64,
+}
+
+fn parse_streamable_http_extension(input: &str) -> Result<StreamableHttpOptions, String> {
+    let mut input_iter = input.split_whitespace();
+    let (mut url, mut timeout) = (String::new(), goose::config::DEFAULT_EXTENSION_TIMEOUT);
+
+    if let Some(url_str) = input_iter.next() {
+        url.push_str(url_str);
+    }
+
+    for kv_pair in input_iter {
+        if !kv_pair.contains('=') {
+            continue;
+        }
+
+        let (key, value) = kv_pair.split_once('=').unwrap();
+
+        // We Can have more keys here for setting other properties
+        if key == "timeout" {
+            if let Ok(seconds) = value.parse::<u64>() {
+                timeout = seconds;
+            }
+        }
+    }
+
+    Ok(StreamableHttpOptions { url, timeout })
 }
 
 /// Extension configuration options shared between Session and Run commands
@@ -118,10 +160,11 @@ pub struct ExtensionOptions {
         long = "with-streamable-http-extension",
         value_name = "URL",
         help = "Add streamable HTTP extensions (can be specified multiple times)",
-        long_help = "Add streamable HTTP extensions from a URL. Can be specified multiple times. Format: 'url...'",
-        action = clap::ArgAction::Append
+        long_help = "Add streamable HTTP extensions from a URL. Can be specified multiple times. Format: 'url...' or 'url... timeout=100' to set up timeout other than default",
+        action = clap::ArgAction::Append,
+        value_parser = parse_streamable_http_extension
     )]
-    pub streamable_http_extensions: Vec<String>,
+    pub streamable_http_extensions: Vec<StreamableHttpOptions>,
 
     #[arg(
         long = "with-builtin",
@@ -319,74 +362,80 @@ async fn get_or_create_session_id(
         return Ok(None);
     }
 
-    let Some(id) = identifier else {
-        return if resume {
-            let sessions = SessionManager::list_sessions().await?;
+    let session_manager = SessionManager::instance();
+
+    let resolved_id = if resume {
+        let Some(id) = identifier else {
+            let sessions = session_manager.list_sessions().await?;
             let session_id = sessions
                 .first()
                 .map(|s| s.id.clone())
                 .ok_or_else(|| anyhow::anyhow!("No session found to resume"))?;
-            Ok(Some(session_id))
-        } else {
-            let session = SessionManager::create_session(
-                std::env::current_dir()?,
-                "CLI Session".to_string(),
-                SessionType::User,
-            )
-            .await?;
-            Ok(Some(session.id))
+            return Ok(Some(session_id));
         };
-    };
 
-    if let Some(session_id) = id.session_id {
-        Ok(Some(session_id))
-    } else if let Some(name) = id.name {
-        if resume {
-            let sessions = SessionManager::list_sessions().await?;
-            let session_id = sessions
+        if let Some(session_id) = id.session_id {
+            session_id
+        } else if let Some(name) = id.name {
+            let sessions = session_manager.list_sessions().await?;
+            sessions
                 .into_iter()
                 .find(|s| s.name == name || s.id == name)
                 .map(|s| s.id)
-                .ok_or_else(|| anyhow::anyhow!("No session found with name '{}'", name))?;
-            Ok(Some(session_id))
+                .ok_or_else(|| anyhow::anyhow!("No session found with name '{}'", name))?
+        } else if let Some(path) = id.path {
+            path.file_stem()
+                .and_then(|s| s.to_str())
+                .map(|s| s.to_string())
+                .ok_or_else(|| {
+                    anyhow::anyhow!("Could not extract session ID from path: {:?}", path)
+                })?
         } else {
-            let session = SessionManager::create_session(
-                std::env::current_dir()?,
-                name.clone(),
-                SessionType::User,
-            )
+            return Err(anyhow::anyhow!("Invalid identifier"));
+        }
+    } else {
+        let Some(id) = identifier else {
+            let session = session_manager
+                .create_session(
+                    std::env::current_dir()?,
+                    "CLI Session".to_string(),
+                    SessionType::User,
+                )
+                .await?;
+            return Ok(Some(session.id));
+        };
+
+        if id.session_id.is_some() {
+            return Err(anyhow::anyhow!("Cannot use --session-id without --resume"));
+        }
+
+        let has_user_provided_name = id.name.is_some();
+        let name = id.name.unwrap_or_else(|| "CLI Session".to_string());
+        let session = session_manager
+            .create_session(std::env::current_dir()?, name.clone(), SessionType::User)
             .await?;
 
-            SessionManager::update_session(&session.id)
+        if has_user_provided_name {
+            session_manager
+                .update(&session.id)
                 .user_provided_name(name)
                 .apply()
                 .await?;
-
-            Ok(Some(session.id))
         }
-    } else if let Some(path) = id.path {
-        let session_id = path
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .map(|s| s.to_string())
-            .ok_or_else(|| anyhow::anyhow!("Could not extract session ID from path: {:?}", path))?;
-        Ok(Some(session_id))
-    } else {
-        let session = SessionManager::create_session(
-            std::env::current_dir()?,
-            "CLI Session".to_string(),
-            SessionType::User,
-        )
-        .await?;
-        Ok(Some(session.id))
-    }
+
+        return Ok(Some(session.id));
+    };
+
+    Ok(Some(resolved_id))
 }
 
 async fn lookup_session_id(identifier: Identifier) -> Result<String> {
+    let session_manager = SessionManager::instance();
+
     if let Some(session_id) = identifier.session_id {
         Ok(session_id)
     } else if let Some(name) = identifier.name {
-        let sessions = SessionManager::list_sessions().await?;
+        let sessions = session_manager.list_sessions().await?;
         sessions
             .into_iter()
             .find(|s| s.name == name || s.id == name)
@@ -718,6 +767,15 @@ enum Command {
         )]
         resume: bool,
 
+        /// Fork a previous session (creates new session with copied history)
+        #[arg(
+            long,
+            requires = "resume",
+            help = "Fork a previous session (creates new session with copied history)",
+            long_help = "Create a new session by copying all messages from a previous session. Must be used with --resume. If --name or --session-id is provided, forks that specific session. Otherwise forks the most recently used session."
+        )]
+        fork: bool,
+
         /// Show message history when resuming
         #[arg(
             long,
@@ -831,6 +889,13 @@ enum Command {
         /// Authentication token for both Basic Auth (password) and Bearer token
         #[arg(long, help = "Authentication token to secure the web interface")]
         auth_token: Option<String>,
+
+        /// Allow running without authentication when exposed on the network (unsafe)
+        #[arg(
+            long,
+            help = "Skip auth requirement when exposed on the network (unsafe)"
+        )]
+        no_auth: bool,
     },
 
     /// Terminal-integrated session (one session per terminal)
@@ -854,6 +919,9 @@ enum Command {
     Completion {
         #[arg(value_enum)]
         shell: ClapShell,
+
+        #[arg(long, default_value = "goose", help = "Provide a custom binary name")]
+        bin_name: String,
     },
 }
 
@@ -928,16 +996,7 @@ enum CliProviderVariant {
 #[derive(Debug)]
 pub struct InputConfig {
     pub contents: Option<String>,
-    pub extensions_override: Option<Vec<ExtensionConfig>>,
     pub additional_system_prompt: Option<String>,
-}
-
-#[derive(Debug)]
-pub struct RecipeInfo {
-    pub session_settings: Option<SessionSettings>,
-    pub sub_recipes: Option<Vec<goose::recipe::SubRecipe>>,
-    pub final_output_response: Option<goose::recipe::Response>,
-    pub retry_config: Option<goose::agents::types::RetryConfig>,
 }
 
 fn get_command_name(command: &Option<Command>) -> &'static str {
@@ -997,10 +1056,15 @@ async fn handle_session_subcommand(command: SessionCommand) -> Result<()> {
             output,
             format,
         } => {
+            let session_manager = SessionManager::instance();
             let session_identifier = if let Some(id) = identifier {
                 lookup_session_id(id).await?
             } else {
-                match crate::commands::session::prompt_interactive_session_selection().await {
+                match crate::commands::session::prompt_interactive_session_selection(
+                    &session_manager,
+                )
+                .await
+                {
                     Ok(id) => id,
                     Err(e) => {
                         eprintln!("Error: {}", e);
@@ -1012,10 +1076,15 @@ async fn handle_session_subcommand(command: SessionCommand) -> Result<()> {
                 .await?;
         }
         SessionCommand::Diagnostics { identifier, output } => {
+            let session_manager = SessionManager::instance();
             let session_id = if let Some(id) = identifier {
                 lookup_session_id(id).await?
             } else {
-                match crate::commands::session::prompt_interactive_session_selection().await {
+                match crate::commands::session::prompt_interactive_session_selection(
+                    &session_manager,
+                )
+                .await
+                {
                     Ok(id) => id,
                     Err(e) => {
                         eprintln!("Error: {}", e);
@@ -1032,12 +1101,23 @@ async fn handle_session_subcommand(command: SessionCommand) -> Result<()> {
 async fn handle_interactive_session(
     identifier: Option<Identifier>,
     resume: bool,
+    fork: bool,
     history: bool,
     session_opts: SessionOptions,
     extension_opts: ExtensionOptions,
 ) -> Result<()> {
+    if get_telemetry_choice().is_none() {
+        configure_telemetry_consent_dialog()?;
+    }
+
     let session_start = std::time::Instant::now();
-    let session_type = if resume { "resumed" } else { "new" };
+    let session_type = if fork {
+        "forked"
+    } else if resume {
+        "resumed"
+    } else {
+        "new"
+    };
 
     tracing::info!(
         counter.goose.session_starts = 1,
@@ -1057,18 +1137,27 @@ async fn handle_interactive_session(
         }
     }
 
-    let session_id = get_or_create_session_id(identifier, resume, false).await?;
+    let mut session_id = get_or_create_session_id(identifier, resume, false).await?;
+
+    if fork {
+        if let Some(id) = session_id {
+            let session_manager = SessionManager::instance();
+            let original = session_manager.get_session(&id, false).await?;
+            let copied = session_manager.copy_session(&id, original.name).await?;
+            session_id = Some(copied.id);
+        }
+    }
 
     let mut session: crate::CliSession = build_session(SessionBuilderConfig {
         session_id,
         resume,
+        fork,
         no_session: false,
         extensions: extension_opts.extensions,
         streamable_http_extensions: extension_opts.streamable_http_extensions,
         builtins: extension_opts.builtins,
-        extensions_override: None,
+        recipe: None,
         additional_system_prompt: None,
-        settings: None,
         provider: None,
         model: None,
         debug: session_opts.debug,
@@ -1077,14 +1166,12 @@ async fn handle_interactive_session(
         scheduled_job_id: None,
         interactive: true,
         quiet: false,
-        sub_recipes: None,
-        final_output_response: None,
-        retry_config: None,
         output_format: "text".to_string(),
+        container: session_opts.container.map(Container::new),
     })
     .await;
 
-    if resume && history {
+    if (resume || fork) && history {
         session.render_message_history();
     }
 
@@ -1136,7 +1223,7 @@ async fn log_session_completion(
 fn parse_run_input(
     input_opts: &InputOptions,
     quiet: bool,
-) -> Result<Option<(InputConfig, Option<RecipeInfo>)>> {
+) -> Result<Option<(InputConfig, Option<Recipe>)>> {
     match (
         &input_opts.instructions,
         &input_opts.input_text,
@@ -1150,7 +1237,6 @@ fn parse_run_input(
             Ok(Some((
                 InputConfig {
                     contents: Some(contents),
-                    extensions_override: None,
                     additional_system_prompt: input_opts.system.clone(),
                 },
                 None,
@@ -1167,7 +1253,6 @@ fn parse_run_input(
             Ok(Some((
                 InputConfig {
                     contents: Some(contents),
-                    extensions_override: None,
                     additional_system_prompt: None,
                 },
                 None,
@@ -1176,7 +1261,6 @@ fn parse_run_input(
         (_, Some(text), _) => Ok(Some((
             InputConfig {
                 contents: Some(text.clone()),
-                extensions_override: None,
                 additional_system_prompt: input_opts.system.clone(),
             },
             None,
@@ -1220,13 +1304,13 @@ fn parse_run_input(
                 "Recipe execution started"
             );
 
-            let (input_config, recipe_info) = extract_recipe_info_from_cli(
+            let (input_config, recipe) = extract_recipe_info_from_cli(
                 recipe_name.clone(),
                 input_opts.params.clone(),
                 input_opts.additional_sub_recipes.clone(),
                 quiet,
             )?;
-            Ok(Some((input_config, Some(recipe_info))))
+            Ok(Some((input_config, Some(recipe))))
         }
         (None, None, None) => {
             eprintln!("Error: Must provide either --instructions (-i), --text (-t), or --recipe. Use -i - for stdin.");
@@ -1244,9 +1328,13 @@ async fn handle_run_command(
     output_opts: OutputOptions,
     model_opts: ModelOptions,
 ) -> Result<()> {
+    if run_behavior.interactive && get_telemetry_choice().is_none() {
+        configure_telemetry_consent_dialog()?;
+    }
+
     let parsed = parse_run_input(&input_opts, output_opts.quiet)?;
 
-    let Some((input_config, recipe_info)) = parsed else {
+    let Some((input_config, recipe)) = parsed else {
         return Ok(());
     };
 
@@ -1267,15 +1355,13 @@ async fn handle_run_command(
     let mut session = build_session(SessionBuilderConfig {
         session_id,
         resume: run_behavior.resume,
+        fork: false,
         no_session: run_behavior.no_session,
         extensions: extension_opts.extensions,
         streamable_http_extensions: extension_opts.streamable_http_extensions,
         builtins: extension_opts.builtins,
-        extensions_override: input_config.extensions_override,
+        recipe: recipe.clone(),
         additional_system_prompt: input_config.additional_system_prompt,
-        settings: recipe_info
-            .as_ref()
-            .and_then(|r| r.session_settings.clone()),
         provider: model_opts.provider,
         model: model_opts.model,
         debug: session_opts.debug,
@@ -1284,12 +1370,8 @@ async fn handle_run_command(
         scheduled_job_id: run_behavior.scheduled_job_id,
         interactive: run_behavior.interactive,
         quiet: output_opts.quiet,
-        sub_recipes: recipe_info.as_ref().and_then(|r| r.sub_recipes.clone()),
-        final_output_response: recipe_info
-            .as_ref()
-            .and_then(|r| r.final_output_response.clone()),
-        retry_config: recipe_info.as_ref().and_then(|r| r.retry_config.clone()),
         output_format: output_opts.output_format,
+        container: session_opts.container.map(Container::new),
     })
     .await;
 
@@ -1297,11 +1379,7 @@ async fn handle_run_command(
         session.interactive(input_config.contents).await
     } else if let Some(contents) = input_config.contents {
         let session_start = std::time::Instant::now();
-        let session_type = if recipe_info.is_some() {
-            "recipe"
-        } else {
-            "run"
-        };
+        let session_type = if recipe.is_some() { "recipe" } else { "run" };
 
         tracing::info!(
             counter.goose.session_starts = 1,
@@ -1394,18 +1472,22 @@ async fn handle_default_session() -> Result<()> {
         return handle_configure().await;
     }
 
+    if get_telemetry_choice().is_none() {
+        configure_telemetry_consent_dialog()?;
+    }
+
     let session_id = get_or_create_session_id(None, false, false).await?;
 
     let mut session = build_session(SessionBuilderConfig {
         session_id,
         resume: false,
+        fork: false,
         no_session: false,
         extensions: Vec::new(),
         streamable_http_extensions: Vec::new(),
         builtins: Vec::new(),
-        extensions_override: None,
+        recipe: None,
         additional_system_prompt: None,
-        settings: None::<SessionSettings>,
         provider: None,
         model: None,
         debug: false,
@@ -1414,10 +1496,8 @@ async fn handle_default_session() -> Result<()> {
         scheduled_job_id: None,
         interactive: true,
         quiet: false,
-        sub_recipes: None,
-        final_output_response: None,
-        retry_config: None,
         output_format: "text".to_string(),
+        container: None,
     })
     .await;
     session.interactive(None).await
@@ -1438,16 +1518,15 @@ pub async fn cli() -> anyhow::Result<()> {
     );
 
     match cli.command {
-        Some(Command::Completion { shell }) => {
+        Some(Command::Completion { shell, bin_name }) => {
             let mut cmd = Cli::command();
-            let bin_name = cmd.get_name().to_string();
             generate(shell, &mut cmd, bin_name, &mut std::io::stdout());
             Ok(())
         }
         Some(Command::Configure {}) => handle_configure().await,
         Some(Command::Info { verbose }) => handle_info(verbose),
         Some(Command::Mcp { server }) => handle_mcp_command(server).await,
-        Some(Command::Acp { builtins }) => run_acp_agent(builtins).await,
+        Some(Command::Acp { builtins }) => goose_acp::server::run(builtins).await,
         Some(Command::Session {
             command: Some(cmd), ..
         }) => handle_session_subcommand(cmd).await,
@@ -1455,12 +1534,20 @@ pub async fn cli() -> anyhow::Result<()> {
             command: None,
             identifier,
             resume,
+            fork,
             history,
             session_opts,
             extension_opts,
         }) => {
-            handle_interactive_session(identifier, resume, history, session_opts, extension_opts)
-                .await
+            handle_interactive_session(
+                identifier,
+                resume,
+                fork,
+                history,
+                session_opts,
+                extension_opts,
+            )
+            .await
         }
         Some(Command::Project {}) => {
             handle_project_default()?;
@@ -1505,7 +1592,8 @@ pub async fn cli() -> anyhow::Result<()> {
             host,
             open,
             auth_token,
-        }) => crate::commands::web::handle_web(port, host, open, auth_token).await,
+            no_auth,
+        }) => crate::commands::web::handle_web(port, host, open, auth_token, no_auth).await,
         Some(Command::Term { command }) => handle_term_subcommand(command).await,
         None => handle_default_session().await,
     }

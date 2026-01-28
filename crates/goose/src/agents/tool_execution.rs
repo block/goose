@@ -91,7 +91,8 @@ impl Agent {
                                 counter.goose.prompt_injection_user_decisions = 1,
                                 decision = ?confirmation.permission,
                                 finding_id = %finding_id,
-                                "User security decision"
+                                tool_request_id = %request.id,
+                                "Prompt injection detection: user decision on command injection finding"
                             );
                         }
 
@@ -130,6 +131,12 @@ impl Agent {
                                     }),
                                     request.metadata.as_ref(),
                                 );
+                            }
+
+                            if confirmation.permission == Permission::AlwaysDeny {
+                                self.tool_inspection_manager
+                                    .update_permission_manager(&tool_call.name, PermissionLevel::NeverAllow)
+                                    .await;
                             }
                         }
                         break; // Exit the loop once the matching `req_id` is found

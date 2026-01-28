@@ -8,7 +8,7 @@ use goose::conversation::message::{
 use goose::providers::canonical::maybe_get_canonical_model;
 use goose::utils::safe_truncate;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use rmcp::model::{CallToolRequestParam, JsonObject, PromptArgument};
+use rmcp::model::{CallToolRequestParams, JsonObject, PromptArgument};
 use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -63,6 +63,7 @@ thread_local! {
                     .unwrap_or(Theme::Ansi)
             )
     );
+    static SHOW_FULL_TOOL_OUTPUT: RefCell<bool> = const { RefCell::new(false) };
 }
 
 pub fn set_theme(theme: Theme) {
@@ -86,6 +87,18 @@ pub fn set_theme(theme: Theme) {
 
 pub fn get_theme() -> Theme {
     CURRENT_THEME.with(|t| *t.borrow())
+}
+
+pub fn toggle_full_tool_output() -> bool {
+    SHOW_FULL_TOOL_OUTPUT.with(|s| {
+        let mut val = s.borrow_mut();
+        *val = !*val;
+        *val
+    })
+}
+
+pub fn get_show_full_tool_output() -> bool {
+    SHOW_FULL_TOOL_OUTPUT.with(|s| *s.borrow())
 }
 
 // Simple wrapper around spinner to manage its state
@@ -411,7 +424,7 @@ pub fn render_builtin_error(names: &str, error: &str) {
     println!();
 }
 
-fn render_text_editor_request(call: &CallToolRequestParam, debug: bool) {
+fn render_text_editor_request(call: &CallToolRequestParams, debug: bool) {
     print_tool_header(call);
 
     // Print path first with special formatting
@@ -440,13 +453,13 @@ fn render_text_editor_request(call: &CallToolRequestParam, debug: bool) {
     println!();
 }
 
-fn render_shell_request(call: &CallToolRequestParam, debug: bool) {
+fn render_shell_request(call: &CallToolRequestParams, debug: bool) {
     print_tool_header(call);
     print_params(&call.arguments, 0, debug);
     println!();
 }
 
-fn render_execute_code_request(call: &CallToolRequestParam, debug: bool) {
+fn render_execute_code_request(call: &CallToolRequestParams, debug: bool) {
     let tool_graph = call
         .arguments
         .as_ref()
@@ -501,7 +514,7 @@ fn render_execute_code_request(call: &CallToolRequestParam, debug: bool) {
     println!();
 }
 
-fn render_subagent_request(call: &CallToolRequestParam, debug: bool) {
+fn render_subagent_request(call: &CallToolRequestParams, debug: bool) {
     print_tool_header(call);
 
     if let Some(args) = &call.arguments {
@@ -542,7 +555,7 @@ fn render_subagent_request(call: &CallToolRequestParam, debug: bool) {
     println!();
 }
 
-fn render_todo_request(call: &CallToolRequestParam, _debug: bool) {
+fn render_todo_request(call: &CallToolRequestParams, _debug: bool) {
     print_tool_header(call);
 
     if let Some(args) = &call.arguments {
@@ -553,7 +566,7 @@ fn render_todo_request(call: &CallToolRequestParam, _debug: bool) {
     println!();
 }
 
-fn render_default_request(call: &CallToolRequestParam, debug: bool) {
+fn render_default_request(call: &CallToolRequestParams, debug: bool) {
     print_tool_header(call);
     print_params(&call.arguments, 0, debug);
     println!();
@@ -561,7 +574,7 @@ fn render_default_request(call: &CallToolRequestParam, debug: bool) {
 
 // Helper functions
 
-fn print_tool_header(call: &CallToolRequestParam) {
+fn print_tool_header(call: &CallToolRequestParams) {
     let parts: Vec<_> = call.name.rsplit("__").collect();
     let tool_header = format!(
         "─── {} | {} ──────────────────────────",
@@ -612,8 +625,9 @@ fn print_value(value: &Value, debug: bool, reserve_width: usize) {
     let max_width = Term::stdout()
         .size_checked()
         .map(|(_h, w)| (w as usize).saturating_sub(reserve_width));
+    let show_full = get_show_full_tool_output();
     let formatted = match value {
-        Value::String(s) => match (max_width, debug) {
+        Value::String(s) => match (max_width, debug || show_full) {
             (Some(w), false) if s.len() > w => style(safe_truncate(s, w)),
             _ => style(s.to_string()),
         }
@@ -988,6 +1002,19 @@ mod tests {
         } else {
             env::remove_var("HOME");
         }
+    }
+
+    #[test]
+    fn test_toggle_full_tool_output() {
+        let initial = get_show_full_tool_output();
+
+        let after_first_toggle = toggle_full_tool_output();
+        assert_eq!(after_first_toggle, !initial);
+        assert_eq!(get_show_full_tool_output(), after_first_toggle);
+
+        let after_second_toggle = toggle_full_tool_output();
+        assert_eq!(after_second_toggle, initial);
+        assert_eq!(get_show_full_tool_output(), initial);
     }
 
     #[test]

@@ -17,7 +17,7 @@ In this tutorial, you will build an MCP App using JavaScript and Node.js. The ap
 
 :::info Prerequisites
 - Node.js 18+ installed
-- goose Desktop application
+- goose Desktop 1.19.1+ installed
 :::
 
 ---
@@ -61,6 +61,9 @@ Update your `package.json` to use ES modules by adding `"type": "module"`:
 ## Step 2: Create the MCP Server
 
 Create `server.js` - this is the MCP server that loads and serves your HTML:
+
+<details>
+<summary>server.js</summary>
 
 ```javascript
 #!/usr/bin/env node
@@ -126,7 +129,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       ],
       // This metadata tells goose to render the MCP App
       _meta: {
-        "ui/resourceUri": "ui://mcp-app-demo/main",
+        ui: {
+          resourceUri: "ui://mcp-app-demo/main",
+        },
       },
     };
   }
@@ -164,6 +169,8 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
               csp: {
                 connectDomains: [],
                 resourceDomains: [],
+                frameDomains: [],
+                baseUriDomains: [],
               },
               prefersBorder: true,
             },
@@ -185,6 +192,8 @@ async function main() {
 
 main().catch(console.error);
 ```
+
+</details>
 
 ---
 
@@ -525,6 +534,60 @@ Try:
 
 Your server returns a `ui://` resource URI, goose fetches the HTML and renders it in an iframe. The app communicates back via `postMessage`—requesting theme info, sending messages to chat, or resizing itself.
 
-MCP Apps run sandboxed with CSP restrictions. See the [MCP Apps Specification](https://github.com/modelcontextprotocol/ext-apps) for details on security and the full protocol.
+MCP Apps run in a sandboxed iframe with strict Content Security Policy restrictions.
+
+### Content Security Policy Configuration
+
+By default, apps can only load resources from their own origin. If your app needs to interact with external domains—such as loading resources from a CDN, making API calls, or embedding maps—you can configure which domains are allowed through the `csp` object in the resource's `_meta.ui` section.
+
+```javascript
+_meta: {
+  ui: {
+    csp: {
+      connectDomains: [],      // Domains for fetch/XHR requests
+      resourceDomains: [],     // Domains for scripts, styles, images, fonts, media
+      frameDomains: [],        // Origins allowed for nested iframes
+      baseUriDomains: [],      // Additional allowed base URIs
+    },
+  },
+}
+```
+
+| Option | CSP Directive | Purpose | Default |
+|--------|---------------|---------|---------|
+| `connectDomains` | `connect-src` | Domains your app can make network requests to | Same-origin only |
+| `resourceDomains` | `script-src`, `style-src`, `img-src`, `font-src`, `media-src` | Domains for loading external resources | Same-origin only |
+| `frameDomains` | `frame-src` | Origins allowed for nested `<iframe>` elements | `'none'` (no iframes) |
+| `baseUriDomains` | `base-uri` | Additional domains allowed for `<base>` element | `'self'` only |
+
+<details>
+<summary>Examples</summary>
+
+**Embedding a map:**
+
+```javascript
+csp: {
+  frameDomains: ['https://www.openstreetmap.org'],
+  resourceDomains: ['https://tile.openstreetmap.org'],
+}
+```
+
+**Loading resources from a CDN:**
+
+```javascript
+csp: {
+  resourceDomains: ['https://cdn.jsdelivr.net', 'https://unpkg.com'],
+  connectDomains: ['https://api.example.com'],
+}
+```
+
+</details>
+
+See the [MCP Apps Specification](https://github.com/modelcontextprotocol/ext-apps) for details on security and the full protocol.
+
+:::warning Security Consideration
+Only add domains you trust. Each domain you add expands what external content can be loaded or embedded in your app. Keep the list minimal and specific to reduce security risks.
+:::
+
 
 

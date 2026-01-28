@@ -72,6 +72,8 @@ jobs:
           cargo test -- --skip scenario_tests::scenarios::tests
           cargo test --jobs 1 scenario_tests::scenarios::tests
         working-directory: crates
+        env:
+          RUST_MIN_STACK: 8388608
 
 
   rust-lint:
@@ -105,6 +107,11 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pin@v4
 
       - uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - name: Install Dependencies
+        run: |
+          sudo apt update -y
+          sudo apt install -y libdbus-1-dev libxcb1-dev
 
       - name: Cache Cargo artifacts
         uses: Swatinem/rust-cache@v2

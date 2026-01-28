@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
+use goose::config::GooseMode;
 use goose::conversation::message::{Message, ToolRequest};
 use goose::tool_inspection::{
     InspectionAction, InspectionResult, ToolInspectionManager, ToolInspector,
@@ -26,6 +27,7 @@ impl ToolInspector for MockInspectorOk {
         &self,
         _tool_requests: &[ToolRequest],
         _messages: &[Message],
+        _goose_mode: GooseMode,
     ) -> Result<Vec<InspectionResult>> {
         Ok(self.results.clone())
     }
@@ -43,6 +45,7 @@ impl ToolInspector for MockInspectorErr {
         &self,
         _tool_requests: &[ToolRequest],
         _messages: &[Message],
+        _goose_mode: GooseMode,
     ) -> Result<Vec<InspectionResult>> {
         Err(anyhow!("simulated failure"))
     }
@@ -83,7 +86,7 @@ async fn test_inspect_tools_aggregates_and_handles_errors() {
 
     // Act
     let results = manager
-        .inspect_tools(&tool_requests, &messages)
+        .inspect_tools(&tool_requests, &messages, GooseMode::Approve)
         .await
         .expect("inspect_tools should not fail when one inspector errors");
 

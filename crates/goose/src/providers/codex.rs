@@ -31,7 +31,7 @@ pub const CODEX_KNOWN_MODELS: &[&str] = &[
 pub const CODEX_DOC_URL: &str = "https://developers.openai.com/codex/cli";
 
 /// Valid reasoning effort levels for Codex
-pub const CODEX_REASONING_LEVELS: &[&str] = &["low", "medium", "high"];
+pub const CODEX_REASONING_LEVELS: &[&str] = &["none", "low", "medium", "high", "xhigh"];
 
 #[derive(Debug, serde::Serialize)]
 pub struct CodexProvider {
@@ -39,7 +39,7 @@ pub struct CodexProvider {
     model: ModelConfig,
     #[serde(skip)]
     name: String,
-    /// Reasoning effort level (low, medium, high)
+    /// Reasoning effort level (none, low, medium, high, xhigh)
     reasoning_effort: String,
     /// Whether to enable skills
     enable_skills: bool,
@@ -56,19 +56,21 @@ impl CodexProvider {
         // Get reasoning effort from config, default to "high"
         let reasoning_effort = config
             .get_codex_reasoning_effort()
-            .map(|r| r.to_string())
+            .map(String::from)
             .unwrap_or_else(|_| "high".to_string());
 
         // Validate reasoning effort
-        let reasoning_effort = if CODEX_REASONING_LEVELS.contains(&reasoning_effort.as_str()) {
-            reasoning_effort
-        } else {
-            tracing::warn!(
-                "Invalid CODEX_REASONING_EFFORT '{}', using 'high'",
+        let reasoning_effort =
+            if Self::supports_reasoning_effort(&model.model_name, &reasoning_effort) {
                 reasoning_effort
-            );
-            "high".to_string()
-        };
+            } else {
+                tracing::warn!(
+                    "Invalid CODEX_REASONING_EFFORT '{}' for model '{}', using 'high'",
+                    reasoning_effort,
+                    model.model_name
+                );
+                "high".to_string()
+            };
 
         // Get enable_skills from config, default to true
         let enable_skills = config
@@ -90,6 +92,18 @@ impl CodexProvider {
             enable_skills,
             skip_git_check,
         })
+    }
+
+    fn supports_reasoning_effort(model_name: &str, reasoning_effort: &str) -> bool {
+        if !CODEX_REASONING_LEVELS.contains(&reasoning_effort) {
+            return false;
+        }
+
+        if reasoning_effort == "none" && model_name.contains("codex") {
+            return false;
+        }
+
+        true
     }
 
     /// Convert goose messages to a simple text prompt format
@@ -507,6 +521,7 @@ impl Provider for CodexProvider {
     )]
     async fn complete_with_model(
         &self,
+        _session_id: Option<&str>, // CLI has no external session-id flag to propagate.
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -699,10 +714,26 @@ mod tests {
 
     #[test]
     fn test_reasoning_level_validation() {
+        assert!(CODEX_REASONING_LEVELS.contains(&"none"));
         assert!(CODEX_REASONING_LEVELS.contains(&"low"));
         assert!(CODEX_REASONING_LEVELS.contains(&"medium"));
         assert!(CODEX_REASONING_LEVELS.contains(&"high"));
+        assert!(CODEX_REASONING_LEVELS.contains(&"xhigh"));
+        assert!(!CODEX_REASONING_LEVELS.contains(&"minimal"));
         assert!(!CODEX_REASONING_LEVELS.contains(&"invalid"));
+    }
+
+    #[test]
+    fn test_reasoning_effort_support_by_model() {
+        assert!(CodexProvider::supports_reasoning_effort("gpt-5.2", "none"));
+        assert!(!CodexProvider::supports_reasoning_effort(
+            "gpt-5.2-codex",
+            "none"
+        ));
+        assert!(CodexProvider::supports_reasoning_effort(
+            "gpt-5.2-codex",
+            "xhigh"
+        ));
     }
 
     #[test]

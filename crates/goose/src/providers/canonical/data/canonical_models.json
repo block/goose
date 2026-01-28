@@ -43,8 +43,8 @@
     "context_length": 200000,
     "max_completion_tokens": 4096,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -52,9 +52,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2.5e-7,
-      "completion": 1.25e-6,
-      "request": 0.0,
-      "image": 0.0004
+      "completion": 1.25e-6
     }
   },
   {
@@ -63,8 +61,8 @@
     "context_length": 200000,
     "max_completion_tokens": 8192,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -83,9 +81,9 @@
     "context_length": 200000,
     "max_completion_tokens": 8192,
     "input_modalities": [
-      "text",
+      "file",
       "image",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -104,9 +102,9 @@
     "context_length": 200000,
     "max_completion_tokens": 64000,
     "input_modalities": [
-      "text",
+      "file",
       "image",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -125,9 +123,9 @@
     "context_length": 200000,
     "max_completion_tokens": 64000,
     "input_modalities": [
-      "text",
+      "file",
       "image",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -155,9 +153,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1e-6,
-      "completion": 5e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 5e-6
     }
   },
   {
@@ -166,9 +162,9 @@
     "context_length": 200000,
     "max_completion_tokens": 32000,
     "input_modalities": [
+      "file",
       "image",
-      "text",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -185,10 +181,11 @@
     "id": "anthropic/claude-opus-4.1",
     "name": "Anthropic: Claude Opus 4.1",
     "context_length": 200000,
+    "max_completion_tokens": 32000,
     "input_modalities": [
+      "file",
       "image",
-      "text",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -205,7 +202,7 @@
     "id": "anthropic/claude-opus-4.5",
     "name": "Anthropic: Claude Opus 4.5",
     "context_length": 200000,
-    "max_completion_tokens": 32000,
+    "max_completion_tokens": 64000,
     "input_modalities": [
       "file",
       "image",
@@ -217,9 +214,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 5e-6,
-      "completion": 0.000025,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 0.000025
     }
   },
   {
@@ -228,9 +223,9 @@
     "context_length": 1000000,
     "max_completion_tokens": 64000,
     "input_modalities": [
+      "file",
       "image",
-      "text",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -249,9 +244,9 @@
     "context_length": 1000000,
     "max_completion_tokens": 64000,
     "input_modalities": [
-      "text",
+      "file",
       "image",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -259,9 +254,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 3e-6,
-      "completion": 0.000015,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 0.000015
     }
   },
   {
@@ -379,28 +372,10 @@
     }
   },
   {
-    "id": "deepseek/deepseek-prover",
-    "name": "DeepSeek: DeepSeek Prover V2",
-    "context_length": 163840,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": false,
-    "pricing": {
-      "prompt": 5e-7,
-      "completion": 2.18e-6,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
     "id": "deepseek/deepseek-r1",
     "name": "DeepSeek: R1",
-    "context_length": 163840,
-    "max_completion_tokens": 163840,
+    "context_length": 64000,
+    "max_completion_tokens": 16000,
     "input_modalities": [
       "text"
     ],
@@ -410,26 +385,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 7e-7,
-      "completion": 2.4e-6,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "deepseek/deepseek-r1-0528-qwen3-8b",
-    "name": "DeepSeek: DeepSeek R1 0528 Qwen3 8B",
-    "context_length": 128000,
-    "max_completion_tokens": 32000,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": false,
-    "pricing": {
-      "prompt": 6e-8,
-      "completion": 9e-8,
+      "completion": 2.5e-6,
       "request": 0.0,
       "image": 0.0
     }
@@ -454,28 +410,9 @@
     }
   },
   {
-    "id": "deepseek/deepseek-r1-distill-qwen-14b",
-    "name": "DeepSeek: R1 Distill Qwen 14B",
-    "context_length": 32768,
-    "max_completion_tokens": 16384,
-    "input_modalities": [
-      "text"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": false,
-    "pricing": {
-      "prompt": 1.5e-7,
-      "completion": 1.5e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
     "id": "deepseek/deepseek-r1-distill-qwen-32b",
     "name": "DeepSeek: R1 Distill Qwen 32B",
-    "context_length": 131072,
+    "context_length": 32768,
     "input_modalities": [
       "text"
     ],
@@ -484,8 +421,8 @@
     ],
     "supports_tools": false,
     "pricing": {
-      "prompt": 2.7e-7,
-      "completion": 2.7e-7,
+      "prompt": 2.9e-7,
+      "completion": 2.9e-7,
       "request": 0.0,
       "image": 0.0
     }
@@ -533,10 +470,10 @@
     "context_length": 1048576,
     "max_completion_tokens": 8192,
     "input_modalities": [
-      "text",
-      "image",
-      "file",
       "audio",
+      "file",
+      "image",
+      "text",
       "video"
     ],
     "output_modalities": [
@@ -556,10 +493,10 @@
     "context_length": 1048576,
     "max_completion_tokens": 8192,
     "input_modalities": [
-      "text",
-      "image",
-      "file",
       "audio",
+      "file",
+      "image",
+      "text",
       "video"
     ],
     "output_modalities": [
@@ -579,10 +516,10 @@
     "context_length": 1048576,
     "max_completion_tokens": 65535,
     "input_modalities": [
+      "audio",
       "file",
       "image",
       "text",
-      "audio",
       "video"
     ],
     "output_modalities": [
@@ -623,10 +560,10 @@
     "context_length": 1048576,
     "max_completion_tokens": 65535,
     "input_modalities": [
-      "text",
-      "image",
-      "file",
       "audio",
+      "file",
+      "image",
+      "text",
       "video"
     ],
     "output_modalities": [
@@ -646,10 +583,10 @@
     "context_length": 1048576,
     "max_completion_tokens": 65536,
     "input_modalities": [
-      "text",
-      "image",
-      "file",
       "audio",
+      "file",
+      "image",
+      "text",
       "video"
     ],
     "output_modalities": [
@@ -669,10 +606,10 @@
     "context_length": 1048576,
     "max_completion_tokens": 65535,
     "input_modalities": [
-      "text",
-      "image",
-      "file",
       "audio",
+      "file",
+      "image",
+      "text",
       "video"
     ],
     "output_modalities": [
@@ -692,10 +629,10 @@
     "context_length": 1048576,
     "max_completion_tokens": 65536,
     "input_modalities": [
-      "text",
-      "image",
-      "file",
       "audio",
+      "file",
+      "image",
+      "text",
       "video"
     ],
     "output_modalities": [
@@ -772,8 +709,8 @@
     "context_length": 131072,
     "max_completion_tokens": 131072,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -789,18 +726,19 @@
   {
     "id": "google/gemma-3-27b-it",
     "name": "Google: Gemma 3 27B",
-    "context_length": 131072,
+    "context_length": 96000,
+    "max_completion_tokens": 96000,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
     ],
     "supports_tools": true,
     "pricing": {
-      "prompt": 3.6e-8,
-      "completion": 6.4e-8,
+      "prompt": 4e-8,
+      "completion": 1.5e-7,
       "request": 0.0,
       "image": 0.0
     }
@@ -810,8 +748,8 @@
     "name": "Google: Gemma 3 4B",
     "context_length": 96000,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -846,16 +784,15 @@
     "id": "meta-llama/llama-3-70b-instruct",
     "name": "Meta: Llama 3 70B Instruct",
     "context_length": 8192,
-    "max_completion_tokens": 16384,
     "input_modalities": [
       "text"
     ],
     "output_modalities": [
       "text"
     ],
-    "supports_tools": true,
+    "supports_tools": false,
     "pricing": {
-      "prompt": 3e-7,
+      "prompt": 4e-7,
       "completion": 4e-7,
       "request": 0.0,
       "image": 0.0
@@ -960,8 +897,8 @@
     "context_length": 131072,
     "max_completion_tokens": 16384,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1003,32 +940,12 @@
     "output_modalities": [
       "text"
     ],
-    "supports_tools": true,
+    "supports_tools": false,
     "pricing": {
       "prompt": 2e-8,
       "completion": 2e-8,
       "request": 0.0,
       "image": 0.0
-    }
-  },
-  {
-    "id": "meta-llama/llama-3.2-90b-vision-instruct",
-    "name": "Meta: Llama 3.2 90B Vision Instruct",
-    "context_length": 32768,
-    "max_completion_tokens": 16384,
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": false,
-    "pricing": {
-      "prompt": 3.5e-7,
-      "completion": 4e-7,
-      "request": 0.0,
-      "image": 0.0005058
     }
   },
   {
@@ -1056,8 +973,8 @@
     "context_length": 1048576,
     "max_completion_tokens": 16384,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1076,8 +993,8 @@
     "context_length": 327680,
     "max_completion_tokens": 16384,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1158,9 +1075,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 3e-7,
-      "completion": 9e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 9e-7
     }
   },
   {
@@ -1195,15 +1110,13 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 4e-7,
-      "completion": 2e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 2e-6
     }
   },
   {
     "id": "mistralai/devstral-small",
     "name": "Mistral: Devstral Small 1.1",
-    "context_length": 128000,
+    "context_length": 131072,
     "input_modalities": [
       "text"
     ],
@@ -1212,10 +1125,8 @@
     ],
     "supports_tools": true,
     "pricing": {
-      "prompt": 7e-8,
-      "completion": 2.8e-7,
-      "request": 0.0,
-      "image": 0.0
+      "prompt": 1e-7,
+      "completion": 3e-7
     }
   },
   {
@@ -1223,8 +1134,8 @@
     "name": "Mistral: Ministral 3 14B 2512",
     "context_length": 262144,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1232,9 +1143,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2e-7,
-      "completion": 2e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 2e-7
     }
   },
   {
@@ -1250,9 +1159,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 4e-8,
-      "completion": 4e-8,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 4e-8
     }
   },
   {
@@ -1268,26 +1175,24 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1e-7,
-      "completion": 1e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 1e-7
     }
   },
   {
     "id": "mistralai/mistral-7b-instruct",
     "name": "Mistral: Mistral 7B Instruct",
     "context_length": 32768,
-    "max_completion_tokens": 16384,
+    "max_completion_tokens": 4096,
     "input_modalities": [
       "text"
     ],
     "output_modalities": [
       "text"
     ],
-    "supports_tools": true,
+    "supports_tools": false,
     "pricing": {
-      "prompt": 2.8e-8,
-      "completion": 5.4e-8,
+      "prompt": 2e-7,
+      "completion": 2e-7,
       "request": 0.0,
       "image": 0.0
     }
@@ -1305,9 +1210,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2e-6,
-      "completion": 6e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 6e-6
     }
   },
   {
@@ -1315,8 +1218,8 @@
     "name": "Mistral: Mistral Medium 3",
     "context_length": 131072,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1324,9 +1227,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 4e-7,
-      "completion": 2e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 2e-6
     }
   },
   {
@@ -1334,8 +1235,8 @@
     "name": "Mistral: Mistral Medium 3.1",
     "context_length": 131072,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1343,9 +1244,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 4e-7,
-      "completion": 2e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 2e-6
     }
   },
   {
@@ -1380,9 +1279,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2e-7,
-      "completion": 6e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 6e-7
     }
   },
   {
@@ -1410,8 +1307,8 @@
     "context_length": 131072,
     "max_completion_tokens": 131072,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1457,9 +1354,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1e-7,
-      "completion": 3e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 3e-7
     }
   },
   {
@@ -1475,9 +1370,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2.5e-7,
-      "completion": 2.5e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 2.5e-7
     }
   },
   {
@@ -1493,9 +1386,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2e-6,
-      "completion": 6e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 6e-6
     }
   },
   {
@@ -1522,8 +1413,8 @@
     "name": "Mistral: Pixtral 12B",
     "context_length": 32768,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1541,65 +1432,6 @@
     "name": "Mistral: Pixtral Large 2411",
     "context_length": 131072,
     "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
-    "pricing": {
-      "prompt": 2e-6,
-      "completion": 6e-6,
-      "request": 0.0,
-      "image": 0.002888
-    }
-  },
-  {
-    "id": "mistralai/voxtral-small-24b",
-    "name": "Mistral: Voxtral Small 24B 2507",
-    "context_length": 32000,
-    "input_modalities": [
-      "text",
-      "audio"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": true,
-    "pricing": {
-      "prompt": 1e-7,
-      "completion": 3e-7,
-      "request": 0.0,
-      "image": 0.0
-    }
-  },
-  {
-    "id": "openai/chatgpt-4o",
-    "name": "OpenAI: ChatGPT-4o",
-    "context_length": 128000,
-    "max_completion_tokens": 16384,
-    "input_modalities": [
-      "text",
-      "image"
-    ],
-    "output_modalities": [
-      "text"
-    ],
-    "supports_tools": false,
-    "pricing": {
-      "prompt": 5e-6,
-      "completion": 0.000015,
-      "request": 0.0,
-      "image": 0.007225
-    }
-  },
-  {
-    "id": "openai/codex-mini",
-    "name": "OpenAI: Codex Mini",
-    "context_length": 200000,
-    "max_completion_tokens": 100000,
-    "input_modalities": [
       "image",
       "text"
     ],
@@ -1608,10 +1440,43 @@
     ],
     "supports_tools": true,
     "pricing": {
-      "prompt": 1.5e-6,
-      "completion": 6e-6,
-      "request": 0.0,
-      "image": 0.0
+      "prompt": 2e-6,
+      "completion": 6e-6
+    }
+  },
+  {
+    "id": "mistralai/voxtral-small-24b",
+    "name": "Mistral: Voxtral Small 24B 2507",
+    "context_length": 32000,
+    "input_modalities": [
+      "audio",
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 1e-7,
+      "completion": 3e-7
+    }
+  },
+  {
+    "id": "openai/chatgpt-4o",
+    "name": "OpenAI: ChatGPT-4o",
+    "context_length": 128000,
+    "max_completion_tokens": 16384,
+    "input_modalities": [
+      "image",
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": false,
+    "pricing": {
+      "prompt": 5e-6,
+      "completion": 0.000015
     }
   },
   {
@@ -1628,9 +1493,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 5e-7,
-      "completion": 1.5e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 1.5e-6
     }
   },
   {
@@ -1647,9 +1510,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 3e-6,
-      "completion": 4e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 4e-6
     }
   },
   {
@@ -1666,9 +1527,7 @@
     "supports_tools": false,
     "pricing": {
       "prompt": 1.5e-6,
-      "completion": 2e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 2e-6
     }
   },
   {
@@ -1685,9 +1544,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 0.00003,
-      "completion": 0.00006,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 0.00006
     }
   },
   {
@@ -1696,8 +1553,8 @@
     "context_length": 128000,
     "max_completion_tokens": 4096,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1705,9 +1562,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 0.00001,
-      "completion": 0.00003,
-      "request": 0.0,
-      "image": 0.01445
+      "completion": 0.00003
     }
   },
   {
@@ -1716,9 +1571,9 @@
     "context_length": 1047576,
     "max_completion_tokens": 32768,
     "input_modalities": [
+      "file",
       "image",
-      "text",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1726,9 +1581,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2e-6,
-      "completion": 8e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 8e-6
     }
   },
   {
@@ -1737,9 +1590,9 @@
     "context_length": 1047576,
     "max_completion_tokens": 32768,
     "input_modalities": [
+      "file",
       "image",
-      "text",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1747,9 +1600,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 4e-7,
-      "completion": 1.6e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 1.6e-6
     }
   },
   {
@@ -1758,9 +1609,9 @@
     "context_length": 1047576,
     "max_completion_tokens": 32768,
     "input_modalities": [
+      "file",
       "image",
-      "text",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1768,9 +1619,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1e-7,
-      "completion": 4e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 4e-7
     }
   },
   {
@@ -1779,9 +1628,9 @@
     "context_length": 128000,
     "max_completion_tokens": 16384,
     "input_modalities": [
-      "text",
+      "file",
       "image",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1789,9 +1638,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2.5e-6,
-      "completion": 0.00001,
-      "request": 0.0,
-      "image": 0.003613
+      "completion": 0.00001
     }
   },
   {
@@ -1804,14 +1651,13 @@
       "text"
     ],
     "output_modalities": [
+      "audio",
       "text"
     ],
     "supports_tools": true,
     "pricing": {
       "prompt": 2.5e-6,
-      "completion": 0.00001,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 0.00001
     }
   },
   {
@@ -1820,9 +1666,9 @@
     "context_length": 128000,
     "max_completion_tokens": 16384,
     "input_modalities": [
-      "text",
+      "file",
       "image",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1830,9 +1676,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1.5e-7,
-      "completion": 6e-7,
-      "request": 0.0,
-      "image": 0.000217
+      "completion": 6e-7
     }
   },
   {
@@ -1849,9 +1693,7 @@
     "supports_tools": false,
     "pricing": {
       "prompt": 1.5e-7,
-      "completion": 6e-7,
-      "request": 0.0275,
-      "image": 0.000217
+      "completion": 6e-7
     }
   },
   {
@@ -1868,9 +1710,7 @@
     "supports_tools": false,
     "pricing": {
       "prompt": 2.5e-6,
-      "completion": 0.00001,
-      "request": 0.035,
-      "image": 0.003613
+      "completion": 0.00001
     }
   },
   {
@@ -1879,9 +1719,9 @@
     "context_length": 128000,
     "max_completion_tokens": 64000,
     "input_modalities": [
-      "text",
+      "file",
       "image",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1889,9 +1729,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 6e-6,
-      "completion": 0.000018,
-      "request": 0.0,
-      "image": 0.007225
+      "completion": 0.000018
     }
   },
   {
@@ -1900,9 +1738,9 @@
     "context_length": 400000,
     "max_completion_tokens": 128000,
     "input_modalities": [
-      "text",
+      "file",
       "image",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1910,9 +1748,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1.25e-6,
-      "completion": 0.00001,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 0.00001
     }
   },
   {
@@ -1931,9 +1767,7 @@
     "supports_tools": false,
     "pricing": {
       "prompt": 1.25e-6,
-      "completion": 0.00001,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 0.00001
     }
   },
   {
@@ -1942,8 +1776,8 @@
     "context_length": 400000,
     "max_completion_tokens": 128000,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -1951,9 +1785,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1.25e-6,
-      "completion": 0.00001,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 0.00001
     }
   },
   {
@@ -1962,9 +1794,9 @@
     "context_length": 400000,
     "max_completion_tokens": 128000,
     "input_modalities": [
+      "file",
       "image",
-      "text",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "image",
@@ -1973,9 +1805,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 0.00001,
-      "completion": 0.00001,
-      "request": 0.0,
-      "image": 0.00001
+      "completion": 0.00001
     }
   },
   {
@@ -1995,9 +1825,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2.5e-6,
-      "completion": 2e-6,
-      "request": 0.0,
-      "image": 2.5e-6
+      "completion": 2e-6
     }
   },
   {
@@ -2006,9 +1834,9 @@
     "context_length": 400000,
     "max_completion_tokens": 128000,
     "input_modalities": [
-      "text",
+      "file",
       "image",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2016,9 +1844,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2.5e-7,
-      "completion": 2e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 2e-6
     }
   },
   {
@@ -2027,9 +1853,9 @@
     "context_length": 400000,
     "max_completion_tokens": 128000,
     "input_modalities": [
-      "text",
+      "file",
       "image",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2037,9 +1863,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 5e-8,
-      "completion": 4e-7,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 4e-7
     }
   },
   {
@@ -2048,9 +1872,9 @@
     "context_length": 400000,
     "max_completion_tokens": 128000,
     "input_modalities": [
+      "file",
       "image",
-      "text",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2058,9 +1882,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 0.000015,
-      "completion": 0.00012,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 0.00012
     }
   },
   {
@@ -2069,9 +1891,9 @@
     "context_length": 400000,
     "max_completion_tokens": 128000,
     "input_modalities": [
+      "file",
       "image",
-      "text",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2079,9 +1901,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1.25e-6,
-      "completion": 0.00001,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 0.00001
     }
   },
   {
@@ -2100,9 +1920,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1.25e-6,
-      "completion": 0.00001,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 0.00001
     }
   },
   {
@@ -2111,8 +1929,8 @@
     "context_length": 400000,
     "max_completion_tokens": 128000,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2120,9 +1938,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1.25e-6,
-      "completion": 0.00001,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 0.00001
     }
   },
   {
@@ -2131,8 +1947,8 @@
     "context_length": 400000,
     "max_completion_tokens": 128000,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2140,9 +1956,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1.25e-6,
-      "completion": 0.00001,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 0.00001
     }
   },
   {
@@ -2160,9 +1974,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2.5e-7,
-      "completion": 2e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 2e-6
     }
   },
   {
@@ -2181,9 +1993,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1.75e-6,
-      "completion": 0.000014,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 0.000014
     }
   },
   {
@@ -2191,6 +2001,43 @@
     "name": "OpenAI: GPT-5.2 Chat",
     "context_length": 128000,
     "max_completion_tokens": 16384,
+    "input_modalities": [
+      "file",
+      "image",
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 1.75e-6,
+      "completion": 0.000014
+    }
+  },
+  {
+    "id": "openai/gpt-5.2-codex",
+    "name": "OpenAI: GPT-5.2-Codex",
+    "context_length": 400000,
+    "max_completion_tokens": 128000,
+    "input_modalities": [
+      "image",
+      "text"
+    ],
+    "output_modalities": [
+      "text"
+    ],
+    "supports_tools": true,
+    "pricing": {
+      "prompt": 1.75e-6,
+      "completion": 0.000014
+    }
+  },
+  {
+    "id": "openai/gpt-5.2-codex",
+    "name": "OpenAI: GPT-5.2-Codex",
+    "context_length": 400000,
+    "max_completion_tokens": 128000,
     "input_modalities": [
       "file",
       "image",
@@ -2213,9 +2060,9 @@
     "context_length": 400000,
     "max_completion_tokens": 128000,
     "input_modalities": [
+      "file",
       "image",
-      "text",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2223,9 +2070,45 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 0.000021,
-      "completion": 0.000168,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 0.000168
+    }
+  },
+  {
+    "id": "openai/gpt-audio",
+    "name": "OpenAI: GPT Audio",
+    "context_length": 128000,
+    "max_completion_tokens": 16384,
+    "input_modalities": [
+      "audio",
+      "text"
+    ],
+    "output_modalities": [
+      "audio",
+      "text"
+    ],
+    "supports_tools": false,
+    "pricing": {
+      "prompt": 2.5e-6,
+      "completion": 0.00001
+    }
+  },
+  {
+    "id": "openai/gpt-audio-mini",
+    "name": "OpenAI: GPT Audio Mini",
+    "context_length": 128000,
+    "max_completion_tokens": 16384,
+    "input_modalities": [
+      "audio",
+      "text"
+    ],
+    "output_modalities": [
+      "audio",
+      "text"
+    ],
+    "supports_tools": false,
+    "pricing": {
+      "prompt": 6e-7,
+      "completion": 2.4e-6
     }
   },
   {
@@ -2240,8 +2123,8 @@
     ],
     "supports_tools": true,
     "pricing": {
-      "prompt": 2e-8,
-      "completion": 1e-7,
+      "prompt": 3.9e-8,
+      "completion": 1.9e-7,
       "request": 0.0,
       "image": 0.0
     }
@@ -2250,6 +2133,7 @@
     "id": "openai/gpt-oss-20b",
     "name": "OpenAI: gpt-oss-20b",
     "context_length": 131072,
+    "max_completion_tokens": 131072,
     "input_modalities": [
       "text"
     ],
@@ -2258,8 +2142,8 @@
     ],
     "supports_tools": true,
     "pricing": {
-      "prompt": 1.6e-8,
-      "completion": 6e-8,
+      "prompt": 2e-8,
+      "completion": 1e-7,
       "request": 0.0,
       "image": 0.0
     }
@@ -2289,9 +2173,9 @@
     "context_length": 200000,
     "max_completion_tokens": 100000,
     "input_modalities": [
-      "text",
+      "file",
       "image",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2299,9 +2183,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 0.000015,
-      "completion": 0.00006,
-      "request": 0.0,
-      "image": 0.021675
+      "completion": 0.00006
     }
   },
   {
@@ -2310,9 +2192,9 @@
     "context_length": 200000,
     "max_completion_tokens": 100000,
     "input_modalities": [
-      "text",
+      "file",
       "image",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2320,9 +2202,7 @@
     "supports_tools": false,
     "pricing": {
       "prompt": 0.00015,
-      "completion": 0.0006,
-      "request": 0.0,
-      "image": 0.21675
+      "completion": 0.0006
     }
   },
   {
@@ -2331,9 +2211,9 @@
     "context_length": 200000,
     "max_completion_tokens": 100000,
     "input_modalities": [
+      "file",
       "image",
-      "text",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2341,9 +2221,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2e-6,
-      "completion": 8e-6,
-      "request": 0.0,
-      "image": 0.00153
+      "completion": 8e-6
     }
   },
   {
@@ -2352,9 +2230,9 @@
     "context_length": 200000,
     "max_completion_tokens": 100000,
     "input_modalities": [
+      "file",
       "image",
-      "text",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2362,9 +2240,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 0.00001,
-      "completion": 0.00004,
-      "request": 0.0,
-      "image": 0.00765
+      "completion": 0.00004
     }
   },
   {
@@ -2373,8 +2249,8 @@
     "context_length": 200000,
     "max_completion_tokens": 100000,
     "input_modalities": [
-      "text",
-      "file"
+      "file",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2382,9 +2258,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1.1e-6,
-      "completion": 4.4e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 4.4e-6
     }
   },
   {
@@ -2393,8 +2267,8 @@
     "context_length": 200000,
     "max_completion_tokens": 100000,
     "input_modalities": [
-      "text",
-      "file"
+      "file",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2402,9 +2276,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1.1e-6,
-      "completion": 4.4e-6,
-      "request": 0.0,
-      "image": 0.0
+      "completion": 4.4e-6
     }
   },
   {
@@ -2413,9 +2285,9 @@
     "context_length": 200000,
     "max_completion_tokens": 100000,
     "input_modalities": [
-      "text",
       "file",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2423,9 +2295,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 0.00002,
-      "completion": 0.00008,
-      "request": 0.0,
-      "image": 0.0153
+      "completion": 0.00008
     }
   },
   {
@@ -2434,9 +2304,9 @@
     "context_length": 200000,
     "max_completion_tokens": 100000,
     "input_modalities": [
+      "file",
       "image",
-      "text",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2444,9 +2314,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1.1e-6,
-      "completion": 4.4e-6,
-      "request": 0.0,
-      "image": 0.0008415
+      "completion": 4.4e-6
     }
   },
   {
@@ -2465,9 +2333,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 2e-6,
-      "completion": 8e-6,
-      "request": 0.0,
-      "image": 0.00153
+      "completion": 8e-6
     }
   },
   {
@@ -2476,9 +2342,9 @@
     "context_length": 200000,
     "max_completion_tokens": 100000,
     "input_modalities": [
+      "file",
       "image",
-      "text",
-      "file"
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2486,9 +2352,7 @@
     "supports_tools": true,
     "pricing": {
       "prompt": 1.1e-6,
-      "completion": 4.4e-6,
-      "request": 0.0,
-      "image": 0.0008415
+      "completion": 4.4e-6
     }
   },
   {
@@ -2520,7 +2384,7 @@
     "output_modalities": [
       "text"
     ],
-    "supports_tools": false,
+    "supports_tools": true,
     "pricing": {
       "prompt": 4e-8,
       "completion": 1e-7,
@@ -2552,8 +2416,8 @@
     "name": "Qwen: Qwen2.5-VL 7B Instruct",
     "context_length": 32768,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2648,8 +2512,8 @@
     "context_length": 131072,
     "max_completion_tokens": 8192,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2668,8 +2532,8 @@
     "context_length": 7500,
     "max_completion_tokens": 1500,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2706,8 +2570,8 @@
     "context_length": 16384,
     "max_completion_tokens": 16384,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2726,8 +2590,8 @@
     "context_length": 32768,
     "max_completion_tokens": 32768,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -2763,7 +2627,6 @@
     "id": "qwen/qwen3-235b-a22b",
     "name": "Qwen: Qwen3 235B A22B",
     "context_length": 40960,
-    "max_completion_tokens": 40960,
     "input_modalities": [
       "text"
     ],
@@ -2772,8 +2635,8 @@
     ],
     "supports_tools": true,
     "pricing": {
-      "prompt": 1.8e-7,
-      "completion": 5.4e-7,
+      "prompt": 2e-7,
+      "completion": 6e-7,
       "request": 0.0,
       "image": 0.0
     }
@@ -2875,8 +2738,8 @@
   {
     "id": "qwen/qwen3-8b",
     "name": "Qwen: Qwen3 8B",
-    "context_length": 128000,
-    "max_completion_tokens": 20000,
+    "context_length": 32000,
+    "max_completion_tokens": 8192,
     "input_modalities": [
       "text"
     ],
@@ -2885,8 +2748,8 @@
     ],
     "supports_tools": true,
     "pricing": {
-      "prompt": 3.5e-8,
-      "completion": 1.38e-7,
+      "prompt": 5e-8,
+      "completion": 2.5e-7,
       "request": 0.0,
       "image": 0.0
     }
@@ -2998,8 +2861,8 @@
     ],
     "supports_tools": true,
     "pricing": {
-      "prompt": 6e-8,
-      "completion": 6e-7,
+      "prompt": 9e-8,
+      "completion": 1.1e-6,
       "request": 0.0,
       "image": 0.0
     }
@@ -3007,8 +2870,7 @@
   {
     "id": "qwen/qwen3-next-80b-a3b-thinking",
     "name": "Qwen: Qwen3 Next 80B A3B Thinking",
-    "context_length": 262144,
-    "max_completion_tokens": 262144,
+    "context_length": 128000,
     "input_modalities": [
       "text"
     ],
@@ -3028,16 +2890,16 @@
     "name": "Qwen: Qwen3 VL 235B A22B Instruct",
     "context_length": 262144,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
     ],
     "supports_tools": true,
     "pricing": {
-      "prompt": 1.2e-7,
-      "completion": 5.6e-7,
+      "prompt": 2e-7,
+      "completion": 1.2e-6,
       "request": 0.0,
       "image": 0.0
     }
@@ -3048,8 +2910,8 @@
     "context_length": 262144,
     "max_completion_tokens": 262144,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -3067,8 +2929,8 @@
     "name": "Qwen: Qwen3 VL 30B A3B Instruct",
     "context_length": 262144,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -3087,8 +2949,8 @@
     "context_length": 131072,
     "max_completion_tokens": 32768,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -3106,8 +2968,8 @@
     "name": "Qwen: Qwen3 VL 32B Instruct",
     "context_length": 262144,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -3239,8 +3101,8 @@
     "context_length": 2000000,
     "max_completion_tokens": 30000,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"
@@ -3259,8 +3121,8 @@
     "context_length": 2000000,
     "max_completion_tokens": 30000,
     "input_modalities": [
-      "text",
-      "image"
+      "image",
+      "text"
     ],
     "output_modalities": [
       "text"

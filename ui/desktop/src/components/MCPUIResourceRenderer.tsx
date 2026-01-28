@@ -1,3 +1,4 @@
+import { AppEvents } from '../constants/events';
 import {
   UIResourceRenderer,
   UIActionResultIntent,
@@ -11,6 +12,7 @@ import { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import { EmbeddedResource } from '../api';
 import { useTheme } from '../contexts/ThemeContext';
+import { errorMessage } from '../utils/conversionUtils';
 
 interface MCPUIResourceRendererProps {
   content: EmbeddedResource & { type: 'resource' };
@@ -142,7 +144,7 @@ export default function MCPUIResourceRenderer({
       if (appendPromptToChat) {
         try {
           appendPromptToChat(prompt);
-          window.dispatchEvent(new CustomEvent('scroll-chat-to-bottom'));
+          window.dispatchEvent(new CustomEvent(AppEvents.SCROLL_CHAT_TO_BOTTOM));
           return {
             status: 'success' as const,
             message: 'Prompt sent to chat successfully',
@@ -153,7 +155,7 @@ export default function MCPUIResourceRenderer({
             error: {
               code: UIActionErrorCode.PROMPT_FAILED,
               message: 'Failed to send prompt to chat',
-              details: error instanceof Error ? error.message : error,
+              details: errorMessage(error),
             },
           };
         }
@@ -217,7 +219,7 @@ export default function MCPUIResourceRenderer({
             error: {
               code: UIActionErrorCode.NAVIGATION_FAILED,
               message: `Unexpected error opening URL: ${url}`,
-              details: error instanceof Error ? error.message : error,
+              details: errorMessage(error),
             },
           };
         }

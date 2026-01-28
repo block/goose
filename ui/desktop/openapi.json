@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.19.0"
+    "version": "1.21.0"
   },
   "paths": {
     "/action-required/tool-confirmation": {
@@ -128,6 +128,173 @@
         }
       }
     },
+    "/agent/export_app/{name}": {
+      "get": {
+        "tags": [
+          "Agent"
+        ],
+        "operationId": "export_app",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Name of the app to export",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "App HTML exported successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "App not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/agent/import_app": {
+      "post": {
+        "tags": [
+          "Agent"
+        ],
+        "operationId": "import_app",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportAppRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "App imported successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportAppResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - Invalid HTML",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/agent/list_apps": {
+      "get": {
+        "tags": [
+          "Agent"
+        ],
+        "operationId": "list_apps",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of apps retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListAppsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/agent/read_resource": {
       "post": {
         "tags": [
@@ -209,6 +376,45 @@
         }
       }
     },
+    "/agent/restart": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "restart_agent",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestartAgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Agent restarted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestartAgentResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/agent/resume": {
       "post": {
         "tags": [
@@ -231,7 +437,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Session"
+                  "$ref": "#/components/schemas/ResumeAgentResponse"
                 }
               }
             }
@@ -297,6 +503,45 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/agent/stop": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "stop_agent",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StopAgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Agent stopped successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "500": {
+            "description": "Internal server error"
           }
         }
       }
@@ -411,6 +656,41 @@
           },
           "424": {
             "description": "Agent not initialized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/agent/update_working_dir": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "update_working_dir",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWorkingDirRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Working directory updated and agent restarted successfully"
+          },
+          "400": {
+            "description": "Bad request - invalid directory path"
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "404": {
+            "description": "Session not found"
           },
           "500": {
             "description": "Internal server error"
@@ -845,6 +1125,140 @@
         }
       }
     },
+    "/config/prompts": {
+      "get": {
+        "tags": [
+          "super::routes::prompts"
+        ],
+        "operationId": "get_prompts",
+        "responses": {
+          "200": {
+            "description": "List of all available prompts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptsListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/config/prompts/{name}": {
+      "get": {
+        "tags": [
+          "super::routes::prompts"
+        ],
+        "operationId": "get_prompt",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Prompt template name (e.g., system.md)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Prompt content retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptContentResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Prompt not found"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "super::routes::prompts"
+        ],
+        "operationId": "save_prompt",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Prompt template name (e.g., system.md)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavePromptRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Prompt saved successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Prompt not found"
+          },
+          "500": {
+            "description": "Failed to save prompt"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "super::routes::prompts"
+        ],
+        "operationId": "reset_prompt",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Prompt template name (e.g., system.md)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Prompt reset to default successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Prompt not found"
+          },
+          "500": {
+            "description": "Failed to reset prompt"
+          }
+        }
+      }
+    },
     "/config/providers": {
       "get": {
         "tags": [
@@ -907,6 +1321,33 @@
           },
           "500": {
             "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/config/providers/{name}/oauth": {
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "configure_provider_oauth",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Provider name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OAuth configuration completed"
+          },
+          "400": {
+            "description": "OAuth configuration failed"
           }
         }
       }
@@ -2169,64 +2610,6 @@
         ]
       }
     },
-    "/sessions/{session_id}/edit_message": {
-      "post": {
-        "tags": [
-          "Session Management"
-        ],
-        "operationId": "edit_message",
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "description": "Unique identifier for the session",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/EditMessageRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Session prepared for editing - frontend should submit the edited message",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EditMessageResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request - Invalid message timestamp"
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing API key"
-          },
-          "404": {
-            "description": "Session or message not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
     "/sessions/{session_id}/export": {
       "get": {
         "tags": [
@@ -2254,6 +2637,109 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/sessions/{session_id}/extensions": {
+      "get": {
+        "tags": [
+          "Session Management"
+        ],
+        "operationId": "get_session_extensions",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Unique identifier for the session",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session extensions retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionExtensionsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "404": {
+            "description": "Session not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/sessions/{session_id}/fork": {
+      "post": {
+        "tags": [
+          "Session Management"
+        ],
+        "operationId": "fork_session",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Unique identifier for the session",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Session forked successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForkResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - truncate=true requires timestamp"
           },
           "401": {
             "description": "Unauthorized - Invalid or missing API key"
@@ -2405,6 +2891,26 @@
               "text/plain": {
                 "schema": {
                   "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/system_info": {
+      "get": {
+        "tags": [
+          "super::routes::status"
+        ],
+        "operationId": "system_info",
+        "responses": {
+          "200": {
+            "description": "System information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemInfo"
                 }
               }
             }
@@ -3085,39 +3591,6 @@
           }
         }
       },
-      "EditMessageRequest": {
-        "type": "object",
-        "required": [
-          "timestamp"
-        ],
-        "properties": {
-          "editType": {
-            "$ref": "#/components/schemas/EditType"
-          },
-          "timestamp": {
-            "type": "integer",
-            "format": "int64"
-          }
-        }
-      },
-      "EditMessageResponse": {
-        "type": "object",
-        "required": [
-          "sessionId"
-        ],
-        "properties": {
-          "sessionId": {
-            "type": "string"
-          }
-        }
-      },
-      "EditType": {
-        "type": "string",
-        "enum": [
-          "fork",
-          "edit"
-        ]
-      },
       "EmbeddedResource": {
         "type": "object",
         "required": [
@@ -3535,6 +4008,25 @@
           }
         ]
       },
+      "ExtensionLoadResult": {
+        "type": "object",
+        "required": [
+          "name",
+          "success"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          }
+        }
+      },
       "ExtensionQuery": {
         "type": "object",
         "required": [
@@ -3574,6 +4066,37 @@
           }
         }
       },
+      "ForkRequest": {
+        "type": "object",
+        "required": [
+          "truncate",
+          "copy"
+        ],
+        "properties": {
+          "copy": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "truncate": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ForkResponse": {
+        "type": "object",
+        "required": [
+          "sessionId"
+        ],
+        "properties": {
+          "sessionId": {
+            "type": "string"
+          }
+        }
+      },
       "FrontendToolRequest": {
         "type": "object",
         "required": [
@@ -3603,6 +4126,36 @@
             "type": "string"
           }
         }
+      },
+      "GooseApp": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/McpAppResource"
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/WindowProps"
+              }
+            ],
+            "nullable": true
+          },
+          {
+            "type": "object",
+            "properties": {
+              "mcpServers": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "prd": {
+                "type": "string",
+                "nullable": true
+              }
+            }
+          }
+        ]
       },
       "Icon": {
         "type": "object",
@@ -3653,6 +4206,32 @@
           }
         }
       },
+      "ImportAppRequest": {
+        "type": "object",
+        "required": [
+          "html"
+        ],
+        "properties": {
+          "html": {
+            "type": "string"
+          }
+        }
+      },
+      "ImportAppResponse": {
+        "type": "object",
+        "required": [
+          "name",
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "ImportSessionRequest": {
         "type": "object",
         "required": [
@@ -3694,6 +4273,29 @@
         "properties": {
           "message": {
             "type": "string"
+          }
+        }
+      },
+      "ListAppsRequest": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ListAppsResponse": {
+        "type": "object",
+        "required": [
+          "apps"
+        ],
+        "properties": {
+          "apps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GooseApp"
+            }
           }
         }
       },
@@ -4223,6 +4825,12 @@
           "model_name": {
             "type": "string"
           },
+          "request_params": {
+            "type": "object",
+            "description": "Provider-specific request parameters (e.g., anthropic_beta headers)",
+            "additionalProperties": {},
+            "nullable": true
+          },
           "temperature": {
             "type": "number",
             "format": "float",
@@ -4384,6 +4992,43 @@
           "Tool"
         ]
       },
+      "PromptContentResponse": {
+        "type": "object",
+        "required": [
+          "name",
+          "content",
+          "default_content",
+          "is_customized"
+        ],
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "default_content": {
+            "type": "string"
+          },
+          "is_customized": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "PromptsListResponse": {
+        "type": "object",
+        "required": [
+          "prompts"
+        ],
+        "properties": {
+          "prompts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Template"
+            }
+          }
+        }
+      },
       "ProviderDetails": {
         "type": "object",
         "required": [
@@ -4428,6 +5073,10 @@
           "config_keys"
         ],
         "properties": {
+          "allows_unlisted_models": {
+            "type": "boolean",
+            "description": "Whether this provider allows entering model names not in the fetched list"
+          },
           "config_keys": {
             "type": "array",
             "items": {
@@ -4920,6 +5569,31 @@
           }
         }
       },
+      "RestartAgentRequest": {
+        "type": "object",
+        "required": [
+          "session_id"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
+          }
+        }
+      },
+      "RestartAgentResponse": {
+        "type": "object",
+        "required": [
+          "extension_results"
+        ],
+        "properties": {
+          "extension_results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExtensionLoadResult"
+            }
+          }
+        }
+      },
       "ResumeAgentRequest": {
         "type": "object",
         "required": [
@@ -4932,6 +5606,24 @@
           },
           "session_id": {
             "type": "string"
+          }
+        }
+      },
+      "ResumeAgentResponse": {
+        "type": "object",
+        "required": [
+          "session"
+        ],
+        "properties": {
+          "extension_results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExtensionLoadResult"
+            },
+            "nullable": true
+          },
+          "session": {
+            "$ref": "#/components/schemas/Session"
           }
         }
       },
@@ -4994,6 +5686,17 @@
         ],
         "properties": {
           "session_id": {
+            "type": "string"
+          }
+        }
+      },
+      "SavePromptRequest": {
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "properties": {
+          "content": {
             "type": "string"
           }
         }
@@ -5275,6 +5978,20 @@
           }
         }
       },
+      "SessionExtensionsResponse": {
+        "type": "object",
+        "required": [
+          "extensions"
+        ],
+        "properties": {
+          "extensions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExtensionConfig"
+            }
+          }
+        }
+      },
       "SessionInsights": {
         "type": "object",
         "required": [
@@ -5370,6 +6087,11 @@
             "type": "string",
             "nullable": true
           },
+          "max_turns": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0
+          },
           "temperature": {
             "type": "number",
             "format": "float",
@@ -5431,6 +6153,13 @@
           "working_dir"
         ],
         "properties": {
+          "extension_overrides": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExtensionConfig"
+            },
+            "nullable": true
+          },
           "recipe": {
             "allOf": [
               {
@@ -5448,6 +6177,17 @@
             "nullable": true
           },
           "working_dir": {
+            "type": "string"
+          }
+        }
+      },
+      "StopAgentRequest": {
+        "type": "object",
+        "required": [
+          "session_id"
+        ],
+        "properties": {
+          "session_id": {
             "type": "string"
           }
         }
@@ -5509,6 +6249,44 @@
           "propertyName": "type"
         }
       },
+      "SystemInfo": {
+        "type": "object",
+        "required": [
+          "app_version",
+          "os",
+          "os_version",
+          "architecture",
+          "enabled_extensions"
+        ],
+        "properties": {
+          "app_version": {
+            "type": "string"
+          },
+          "architecture": {
+            "type": "string"
+          },
+          "enabled_extensions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "model": {
+            "type": "string",
+            "nullable": true
+          },
+          "os": {
+            "type": "string"
+          },
+          "os_version": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
       "SystemNotificationContent": {
         "type": "object",
         "required": [
@@ -5516,6 +6294,9 @@
           "msg"
         ],
         "properties": {
+          "data": {
+            "nullable": true
+          },
           "msg": {
             "type": "string"
           },
@@ -5543,6 +6324,34 @@
           "properties": {
             "type": "object",
             "additionalProperties": {}
+          }
+        }
+      },
+      "Template": {
+        "type": "object",
+        "description": "Information about a template including its content and customization status",
+        "required": [
+          "name",
+          "description",
+          "default_content",
+          "is_customized"
+        ],
+        "properties": {
+          "default_content": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "is_customized": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "user_content": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -5913,12 +6722,22 @@
           "session_id"
         ],
         "properties": {
+          "context_limit": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0
+          },
           "model": {
             "type": "string",
             "nullable": true
           },
           "provider": {
             "type": "string"
+          },
+          "request_params": {
+            "type": "object",
+            "additionalProperties": {},
+            "nullable": true
           },
           "session_id": {
             "type": "string"
@@ -5974,6 +6793,21 @@
           }
         }
       },
+      "UpdateWorkingDirRequest": {
+        "type": "object",
+        "required": [
+          "session_id",
+          "working_dir"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
+          },
+          "working_dir": {
+            "type": "string"
+          }
+        }
+      },
       "UpsertConfigQuery": {
         "type": "object",
         "required": [
@@ -6002,6 +6836,29 @@
             "items": {
               "$ref": "#/components/schemas/ToolPermission"
             }
+          }
+        }
+      },
+      "WindowProps": {
+        "type": "object",
+        "required": [
+          "width",
+          "height",
+          "resizable"
+        ],
+        "properties": {
+          "height": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "resizable": {
+            "type": "boolean"
+          },
+          "width": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
           }
         }
       }

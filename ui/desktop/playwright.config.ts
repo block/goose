@@ -20,7 +20,7 @@ const config: PlaywrightTestConfig = {
     screenshot: 'only-on-failure'
   },
   outputDir: 'test-results',
-  preserveOutput: 'failures-only'
+  preserveOutput: 'always'
 };
 
 export default config;

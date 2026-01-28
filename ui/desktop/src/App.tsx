@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { IpcRendererEvent } from 'electron';
 import {
   HashRouter,
@@ -20,14 +20,19 @@ import { createSession } from './sessions';
 
 import { ChatType } from './types/chat';
 import Hub from './components/Hub';
-import Pair, { PairRouteState } from './components/Pair';
+import { UserInput } from './types/message';
+
+interface PairRouteState {
+  resumeSessionId?: string;
+  initialMessage?: UserInput;
+}
 import SettingsView, { SettingsViewOptions } from './components/settings/SettingsView';
 import SessionsView from './components/sessions/SessionsView';
 import SharedSessionView from './components/sessions/SharedSessionView';
 import SchedulesView from './components/schedule/SchedulesView';
 import ProviderSettings from './components/settings/providers/ProviderSettingsPage';
 import { AppLayout } from './components/Layout/AppLayout';
-import { ChatProvider } from './contexts/ChatContext';
+import { ChatProvider, DEFAULT_CHAT_TITLE } from './contexts/ChatContext';
 import LauncherView from './components/LauncherView';
 
 import 'react-toastify/dist/ReactToastify.css';
@@ -38,12 +43,17 @@ import PermissionSettingsView from './components/settings/permission/PermissionS
 
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
 import RecipesView from './components/recipes/RecipesView';
+import AppsView from './components/apps/AppsView';
+import StandaloneAppView from './components/apps/StandaloneAppView';
 import { View, ViewOptions } from './utils/navigationUtils';
 
 import { useNavigation } from './hooks/useNavigation';
 import { errorMessage } from './utils/conversionUtils';
+import { getInitialWorkingDir } from './utils/workingDir';
 import { usePageViewTracking } from './hooks/useAnalytics';
 import { trackOnboardingCompleted, trackErrorWithContext } from './utils/analytics';
+import { AppEvents } from './constants/events';
+import { registerPlatformEventHandlers } from './utils/platform_events';
 
 function PageViewTracker() {
   usePageViewTracking();
@@ -53,82 +63,63 @@ function PageViewTracker() {
 // Route Components
 const HubRouteWrapper = () => {
   const setView = useNavigation();
-
   return <Hub setView={setView} />;
 };
 
 const PairRouteWrapper = ({
-  chat,
-  setChat,
-  activeSessionId,
-  setActiveSessionId,
+  activeSessions,
 }: {
-  chat: ChatType;
-  setChat: (chat: ChatType) => void;
-  activeSessionId: string | null;
-  setActiveSessionId: (id: string | null) => void;
+  activeSessions: Array<{
+    sessionId: string;
+    initialMessage?: UserInput;
+  }>;
+  setActiveSessions: (sessions: Array<{ sessionId: string; initialMessage?: UserInput }>) => void;
 }) => {
+  const { extensionsList } = useConfig();
   const location = useLocation();
   const routeState =
     (location.state as PairRouteState) || (window.history.state as PairRouteState) || {};
   const [searchParams, setSearchParams] = useSearchParams();
-
-  // Capture initialMessage in local state to survive route state being cleared by setSearchParams
-  const [capturedInitialMessage, setCapturedInitialMessage] = useState<string | undefined>(
-    undefined
-  );
-  const [lastSessionId, setLastSessionId] = useState<string | undefined>(undefined);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
 
   const resumeSessionId = searchParams.get('resumeSessionId') ?? undefined;
   const recipeId = searchParams.get('recipeId') ?? undefined;
   const recipeDeeplinkFromConfig = window.appConfig?.get('recipeDeeplink') as string | undefined;
+  const initialMessage = routeState.initialMessage;
 
-  // Determine which session ID to use:
-  // 1. From route state (when navigating from Hub with a new session)
-  // 2. From URL params (when resuming a session or after refresh)
-  // 3. From active session state (when navigating back from other routes)
-  // 4. From the existing chat state
-  const sessionId =
-    routeState.resumeSessionId || resumeSessionId || activeSessionId || chat.sessionId;
-
-  // Use route state if available, otherwise use captured state
-  const initialMessage = routeState.initialMessage || capturedInitialMessage;
-
+  // Create session if we have an initialMessage, recipeId, or recipeDeeplink but no sessionId
   useEffect(() => {
-    if (routeState.initialMessage) {
-      setCapturedInitialMessage(routeState.initialMessage);
-    }
-  }, [routeState.initialMessage]);
-
-  useEffect(() => {
-    // Create a new session if we have an initialMessage, recipeId, or recipeDeeplink from config but no sessionId
     if (
       (initialMessage || recipeId || recipeDeeplinkFromConfig) &&
-      !sessionId &&
+      !resumeSessionId &&
       !isCreatingSession
     ) {
-      console.log(
-        '[PairRouteWrapper] Creating new session for initialMessage, recipeId, or recipeDeeplink from config'
-      );
       setIsCreatingSession(true);
 
       (async () => {
         try {
-          const newSession = await createSession({
+          const newSession = await createSession(getInitialWorkingDir(), {
             recipeId,
             recipeDeeplink: recipeDeeplinkFromConfig,
+            allExtensions: extensionsList,
           });
+
+          window.dispatchEvent(
+            new CustomEvent(AppEvents.ADD_ACTIVE_SESSION, {
+              detail: {
+                sessionId: newSession.id,
+                initialMessage,
+              },
+            })
+          );
 
           setSearchParams((prev) => {
             prev.set('resumeSessionId', newSession.id);
-            // Remove recipeId from URL after session is created
             prev.delete('recipeId');
             return prev;
           });
-          setActiveSessionId(newSession.id);
         } catch (error) {
-          console.error('[PairRouteWrapper] Failed to create session:', error);
+          console.error('Failed to create session:', error);
           trackErrorWithContext(error, {
             component: 'PairRouteWrapper',
             action: 'create_session',
@@ -139,46 +130,33 @@ const PairRouteWrapper = ({
         }
       })();
     }
+    // Note: isCreatingSession is intentionally NOT in the dependency array
+    // It's only used as a guard to prevent concurrent session creation
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     initialMessage,
     recipeId,
     recipeDeeplinkFromConfig,
-    sessionId,
-    isCreatingSession,
+    resumeSessionId,
     setSearchParams,
-    setActiveSessionId,
+    extensionsList,
   ]);
 
-  // Clear captured initialMessage when sessionId actually changes to a different session
+  // Add resumed session to active sessions if not already there
   useEffect(() => {
-    if (sessionId !== lastSessionId) {
-      setLastSessionId(sessionId);
-      if (!routeState.initialMessage) {
-        setCapturedInitialMessage(undefined);
-      }
+    if (resumeSessionId && !activeSessions.some((s) => s.sessionId === resumeSessionId)) {
+      window.dispatchEvent(
+        new CustomEvent(AppEvents.ADD_ACTIVE_SESSION, {
+          detail: {
+            sessionId: resumeSessionId,
+            initialMessage: initialMessage,
+          },
+        })
+      );
     }
-  }, [sessionId, lastSessionId, routeState.initialMessage]);
+  }, [resumeSessionId, activeSessions, initialMessage]);
 
-  // Update URL with session ID when on /pair route (for refresh support)
-  useEffect(() => {
-    if (sessionId && sessionId !== resumeSessionId) {
-      setSearchParams((prev) => {
-        prev.set('resumeSessionId', sessionId);
-        return prev;
-      });
-    }
-  }, [sessionId, resumeSessionId, setSearchParams]);
-
-  // Update active session state when session ID changes
-  useEffect(() => {
-    if (sessionId && sessionId !== activeSessionId) {
-      setActiveSessionId(sessionId);
-    }
-  }, [sessionId, activeSessionId, setActiveSessionId]);
-
-  return (
-    <Pair key={sessionId} setChat={setChat} sessionId={sessionId} initialMessage={initialMessage} />
-  );
+  return null;
 };
 
 const SettingsRoute = () => {
@@ -372,13 +350,65 @@ export function AppInner() {
 
   const [chat, setChat] = useState<ChatType>({
     sessionId: '',
-    name: 'Pair Chat',
+    name: DEFAULT_CHAT_TITLE,
     messages: [],
     recipe: null,
   });
 
-  // Store the active session ID for navigation persistence
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const MAX_ACTIVE_SESSIONS = 10;
+
+  const [activeSessions, setActiveSessions] = useState<
+    Array<{ sessionId: string; initialMessage?: UserInput }>
+  >([]);
+
+  useEffect(() => {
+    const handleAddActiveSession = (event: Event) => {
+      const { sessionId, initialMessage } = (
+        event as CustomEvent<{
+          sessionId: string;
+          initialMessage?: UserInput;
+        }>
+      ).detail;
+
+      setActiveSessions((prev) => {
+        const existingIndex = prev.findIndex((s) => s.sessionId === sessionId);
+
+        if (existingIndex !== -1) {
+          // Session exists - move to end of LRU list (most recently used)
+          const existing = prev[existingIndex];
+          return [...prev.slice(0, existingIndex), ...prev.slice(existingIndex + 1), existing];
+        }
+
+        // New session - add to end with LRU eviction if needed
+        const newSession = { sessionId, initialMessage };
+        const updated = [...prev, newSession];
+        if (updated.length > MAX_ACTIVE_SESSIONS) {
+          return updated.slice(updated.length - MAX_ACTIVE_SESSIONS);
+        }
+        return updated;
+      });
+    };
+
+    const handleClearInitialMessage = (event: Event) => {
+      const { sessionId } = (event as CustomEvent<{ sessionId: string }>).detail;
+
+      setActiveSessions((prev) => {
+        return prev.map((session) => {
+          if (session.sessionId === sessionId) {
+            return { ...session, initialMessage: undefined };
+          }
+          return session;
+        });
+      });
+    };
+
+    window.addEventListener(AppEvents.ADD_ACTIVE_SESSION, handleAddActiveSession);
+    window.addEventListener(AppEvents.CLEAR_INITIAL_MESSAGE, handleClearInitialMessage);
+    return () => {
+      window.removeEventListener(AppEvents.ADD_ACTIVE_SESSION, handleAddActiveSession);
+      window.removeEventListener(AppEvents.CLEAR_INITIAL_MESSAGE, handleClearInitialMessage);
+    };
+  }, []);
 
   const { addExtension } = useConfig();
 
@@ -388,9 +418,7 @@ export function AppInner() {
       window.electron.reactReady();
     } catch (error) {
       console.error('Error sending reactReady:', error);
-      setFatalError(
-        `React ready notification failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
+      setFatalError(`React ready notification failed: ${errorMessage(error, 'Unknown error')}`);
     }
   }, []);
 
@@ -415,7 +443,7 @@ export function AppInner() {
         const shareToken = link.replace('goose://sessions/', '');
         const options = {
           sessionDetails: null,
-          error: error instanceof Error ? error.message : 'Unknown error',
+          error: errorMessage(error, 'Unknown error'),
           shareToken,
         };
         navigate('/shared-session', { state: options });
@@ -436,9 +464,7 @@ export function AppInner() {
       if ((isMac ? event.metaKey : event.ctrlKey) && event.key === 'n') {
         event.preventDefault();
         try {
-          const workingDir = window.appConfig?.get('GOOSE_WORKING_DIR');
-          console.log(`Creating new chat window with working dir: ${workingDir}`);
-          window.electron.createChatWindow(undefined, workingDir as string);
+          window.electron.createChatWindow(undefined, getInitialWorkingDir());
         } catch (error) {
           console.error('Error creating new window:', error);
         }
@@ -527,6 +553,16 @@ export function AppInner() {
   }, [navigate]);
 
   useEffect(() => {
+    const handleNewChat = (_event: IpcRendererEvent, ..._args: unknown[]) => {
+      console.log('Received new-chat event from keyboard shortcut');
+      window.dispatchEvent(new CustomEvent(AppEvents.TRIGGER_NEW_CHAT));
+    };
+
+    window.electron.on('new-chat', handleNewChat);
+    return () => window.electron.off('new-chat', handleNewChat);
+  }, []);
+
+  useEffect(() => {
     const handleFocusInput = (_event: IpcRendererEvent, ..._args: unknown[]) => {
       const inputField = document.querySelector('input[type="text"], textarea') as HTMLInputElement;
       if (inputField) {
@@ -540,12 +576,31 @@ export function AppInner() {
   }, []);
 
   // Handle initial message from launcher
+  const isProcessingRef = useRef(false);
+
   useEffect(() => {
-    const handleSetInitialMessage = (_event: IpcRendererEvent, ...args: unknown[]) => {
+    const handleSetInitialMessage = async (_event: IpcRendererEvent, ...args: unknown[]) => {
       const initialMessage = args[0] as string;
-      if (initialMessage) {
-        console.log('Received initial message from launcher:', initialMessage);
-        navigate('/pair', { state: { initialMessage } });
+      console.log(
+        '[App] Received set-initial-message event:',
+        initialMessage,
+        'isProcessing:',
+        isProcessingRef.current
+      );
+
+      if (initialMessage && !isProcessingRef.current) {
+        isProcessingRef.current = true;
+        console.log('[App] Processing initial message from launcher:', initialMessage);
+        navigate('/pair', {
+          state: {
+            initialMessage,
+          },
+        });
+        setTimeout(() => {
+          isProcessingRef.current = false;
+        }, 1000);
+      } else if (initialMessage) {
+        console.log('[App] Ignoring duplicate initial message (already processing)');
       }
     };
     window.electron.on('set-initial-message', handleSetInitialMessage);
@@ -553,6 +608,11 @@ export function AppInner() {
       window.electron.off('set-initial-message', handleSetInitialMessage);
     };
   }, [navigate]);
+
+  // Register platform event handlers for app lifecycle management
+  useEffect(() => {
+    return registerPlatformEventHandlers();
+  }, []);
 
   if (fatalError) {
     return <ErrorUI error={errorMessage(fatalError)} />;
@@ -579,60 +639,62 @@ export function AppInner() {
       <ExtensionInstallModal addExtension={addExtension} setView={setView} />
       <div className="relative w-screen h-screen overflow-hidden bg-background-muted flex flex-col">
         <div className="titlebar-drag-region" />
-        <Routes>
-          <Route path="launcher" element={<LauncherView />} />
-          <Route
-            path="welcome"
-            element={<WelcomeRoute onSelectProvider={() => setDidSelectProvider(true)} />}
-          />
-          <Route path="configure-providers" element={<ConfigureProvidersRoute />} />
-          <Route
-            path="/"
-            element={
-              <ProviderGuard didSelectProvider={didSelectProvider}>
-                <ChatProvider chat={chat} setChat={setChat} contextKey="hub">
-                  <AppLayout />
-                </ChatProvider>
-              </ProviderGuard>
-            }
-          >
-            <Route index element={<HubRouteWrapper />} />
+        <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+          <Routes>
+            <Route path="launcher" element={<LauncherView />} />
             <Route
-              path="pair"
-              element={
-                <PairRouteWrapper
-                  chat={chat}
-                  setChat={setChat}
-                  activeSessionId={activeSessionId}
-                  setActiveSessionId={setActiveSessionId}
-                />
-              }
+              path="welcome"
+              element={<WelcomeRoute onSelectProvider={() => setDidSelectProvider(true)} />}
             />
-            <Route path="settings" element={<SettingsRoute />} />
+            <Route path="configure-providers" element={<ConfigureProvidersRoute />} />
+            <Route path="standalone-app" element={<StandaloneAppView />} />
             <Route
-              path="extensions"
+              path="/"
               element={
-                <ChatProvider chat={chat} setChat={setChat} contextKey="extensions">
-                  <ExtensionsRoute />
-                </ChatProvider>
+                <ProviderGuard didSelectProvider={didSelectProvider}>
+                  <ChatProvider chat={chat} setChat={setChat} contextKey="hub">
+                    <AppLayout activeSessions={activeSessions} />
+                  </ChatProvider>
+                </ProviderGuard>
               }
-            />
-            <Route path="sessions" element={<SessionsRoute />} />
-            <Route path="schedules" element={<SchedulesRoute />} />
-            <Route path="recipes" element={<RecipesRoute />} />
-            <Route
-              path="shared-session"
-              element={
-                <SharedSessionRouteWrapper
-                  isLoadingSharedSession={isLoadingSharedSession}
-                  setIsLoadingSharedSession={setIsLoadingSharedSession}
-                  sharedSessionError={sharedSessionError}
-                />
-              }
-            />
-            <Route path="permission" element={<PermissionRoute />} />
-          </Route>
-        </Routes>
+            >
+              <Route index element={<HubRouteWrapper />} />
+              <Route
+                path="pair"
+                element={
+                  <PairRouteWrapper
+                    activeSessions={activeSessions}
+                    setActiveSessions={setActiveSessions}
+                  />
+                }
+              />
+              <Route path="settings" element={<SettingsRoute />} />
+              <Route
+                path="extensions"
+                element={
+                  <ChatProvider chat={chat} setChat={setChat} contextKey="extensions">
+                    <ExtensionsRoute />
+                  </ChatProvider>
+                }
+              />
+              <Route path="apps" element={<AppsView />} />
+              <Route path="sessions" element={<SessionsRoute />} />
+              <Route path="schedules" element={<SchedulesRoute />} />
+              <Route path="recipes" element={<RecipesRoute />} />
+              <Route
+                path="shared-session"
+                element={
+                  <SharedSessionRouteWrapper
+                    isLoadingSharedSession={isLoadingSharedSession}
+                    setIsLoadingSharedSession={setIsLoadingSharedSession}
+                    sharedSessionError={sharedSessionError}
+                  />
+                }
+              />
+              <Route path="permission" element={<PermissionRoute />} />
+            </Route>
+          </Routes>
+        </div>
       </div>
     </>
   );

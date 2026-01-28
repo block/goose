@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import ImagePreview from './ImagePreview';
-import { extractImagePaths, removeImagePathsFromText } from '../utils/imageUtils';
 import MarkdownContent from './MarkdownContent';
-import { getTextContent } from '../types/message';
+import { getTextAndImageContent } from '../types/message';
 import { Message } from '../api';
 import MessageCopyLink from './MessageCopyLink';
 import { formatMessageTimestamp } from '../utils/timeUtils';
@@ -19,38 +18,25 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState('');
-  const [hasBeenEdited, setHasBeenEdited] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Extract text content from the message
-  const textContent = getTextContent(message);
-
-  // Extract image paths from the message
-  const imagePaths = extractImagePaths(textContent);
-
-  // Remove image paths from text for display - memoized for performance
-  const displayText = useMemo(
-    () => removeImagePathsFromText(textContent, imagePaths),
-    [textContent, imagePaths]
-  );
-
-  // Memoize the timestamp
-  const timestamp = useMemo(() => formatMessageTimestamp(message.created), [message.created]);
+  const { textContent, imagePaths } = getTextAndImageContent(message);
+  const timestamp = formatMessageTimestamp(message.created);
 
   // Effect to handle message content changes and ensure persistence
   useEffect(() => {
     // If we're not editing, update the edit content to match the current message
     if (!isEditing) {
-      setEditContent(displayText);
+      setEditContent(textContent);
     }
-  }, [message.content, displayText, message.id, isEditing]);
+  }, [message.content, textContent, message.id, isEditing]);
 
   // Initialize edit mode with current message content
   const initializeEditMode = useCallback(() => {
-    setEditContent(displayText);
+    setEditContent(textContent);
     setError(null);
-    window.electron.logInfo(`Entering edit mode with content: ${displayText}`);
-  }, [displayText]);
+    window.electron.logInfo(`Entering edit mode with content: ${textContent}`);
+  }, [textContent]);
 
   // Handle edit button click
   const handleEditClick = useCallback(() => {
@@ -94,25 +80,24 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
 
       setIsEditing(false);
 
-      if (editContent.trim() === displayText.trim()) {
+      if (editContent.trim() === textContent.trim()) {
         return;
       }
 
       if (onMessageUpdate && message.id) {
         onMessageUpdate(message.id, editContent, editType);
-        setHasBeenEdited(true);
       }
     },
-    [editContent, displayText, onMessageUpdate, message.id]
+    [editContent, textContent, onMessageUpdate, message.id]
   );
 
   // Handle cancel action
   const handleCancel = useCallback(() => {
     window.electron.logInfo('Cancel clicked - reverting to original content');
     setIsEditing(false);
-    setEditContent(displayText); // Reset to original content
+    setEditContent(textContent); // Reset to original content
     setError(null);
-  }, [displayText]);
+  }, [textContent]);
 
   // Handle keyboard events for accessibility
   const handleKeyDown = useCallback(
@@ -209,20 +194,21 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
           <div className="message flex justify-end w-full">
             <div className="flex-col max-w-[85%] w-fit">
               <div className="flex flex-col group">
-                <div className="flex bg-background-accent text-text-on-accent rounded-xl py-2.5 px-4">
-                  <div ref={contentRef}>
-                    <MarkdownContent
-                      content={displayText}
-                      className="text-text-on-accent prose-a:text-text-on-accent prose-headings:text-text-on-accent prose-strong:text-text-on-accent prose-em:text-text-on-accent user-message"
-                    />
+                {textContent.trim() && (
+                  <div className="flex bg-background-accent text-text-on-accent rounded-xl py-2.5 px-4">
+                    <div ref={contentRef}>
+                      <MarkdownContent
+                        content={textContent}
+                        className="text-text-on-accent prose-a:text-text-on-accent prose-headings:text-text-on-accent prose-strong:text-text-on-accent prose-em:text-text-on-accent user-message"
+                      />
+                    </div>
                   </div>
-                </div>
+                )}
 
-                {/* Render images if any */}
                 {imagePaths.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-2">
                     {imagePaths.map((imagePath, index) => (
-                      <ImagePreview key={index} src={imagePath} alt={`Pasted image ${index + 1}`} />
+                      <ImagePreview key={index} src={imagePath} />
                     ))}
                   </div>
                 )}
@@ -241,25 +227,18 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
                         }
                       }}
                       className="flex items-center gap-1 text-xs text-text-subtle hover:cursor-pointer hover:text-text-prominent transition-all duration-200 opacity-0 group-hover:opacity-100 -translate-y-4 group-hover:translate-y-0 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50 rounded"
-                      aria-label={`Edit message: ${displayText.substring(0, 50)}${displayText.length > 50 ? '...' : ''}`}
+                      aria-label={`Edit message: ${textContent.substring(0, 50)}${textContent.length > 50 ? '...' : ''}`}
                       aria-expanded={isEditing}
                       title="Edit message"
                     >
                       <Edit className="h-3 w-3" />
                       <span>Edit</span>
                     </button>
-                    <MessageCopyLink text={displayText} contentRef={contentRef} />
+                    <MessageCopyLink text={textContent} contentRef={contentRef} />
                   </div>
                 </div>
               </div>
             </div>
-          </div>
-        )}
-
-        {/* Edited indicator */}
-        {hasBeenEdited && !isEditing && (
-          <div className="text-xs text-text-subtle mt-1 text-right transition-opacity duration-200">
-            Edited
           </div>
         )}
       </div>
