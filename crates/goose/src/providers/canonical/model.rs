@@ -1,18 +1,38 @@
 use serde::{Deserialize, Serialize};
 
-/// Modalities supported by a model (mirrors models.dev structure)
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct Modalities {
-    /// Input modalities (e.g., ["text", "image", "pdf"])
-    #[serde(default)]
-    pub input: Vec<String>,
-
-    /// Output modalities (e.g., ["text"])
-    #[serde(default)]
-    pub output: Vec<String>,
+/// Modality types for model input/output
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Modality {
+    Text,
+    Image,
+    Audio,
+    Video,
+    Pdf,
 }
 
-/// Pricing/cost information for a model
+fn deserialize_modalities<'de, D>(deserializer: D) -> Result<Vec<Modality>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let strings: Vec<String> = Vec::deserialize(deserializer)?;
+    Ok(strings
+        .into_iter()
+        .filter_map(|s| serde_json::from_value(serde_json::Value::String(s)).ok())
+        .collect())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct Modalities {
+    /// Input modalities (e.g., [Text, Image, Pdf])
+    #[serde(default, deserialize_with = "deserialize_modalities")]
+    pub input: Vec<Modality>,
+
+    /// Output modalities (e.g., [Text])
+    #[serde(default, deserialize_with = "deserialize_modalities")]
+    pub output: Vec<Modality>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Pricing {
     /// Cost in USD per million input tokens
@@ -32,7 +52,6 @@ pub struct Pricing {
     pub cache_write: Option<f64>,
 }
 
-/// Token limits for a model
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Limit {
     /// Maximum context window size in tokens
@@ -43,7 +62,6 @@ pub struct Limit {
     pub output: Option<usize>,
 }
 
-/// Canonical representation of a model (mirrors models.dev API structure)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CanonicalModel {
     /// Model identifier (e.g., "anthropic/claude-3-5-sonnet")

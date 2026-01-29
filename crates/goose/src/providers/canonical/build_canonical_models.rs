@@ -10,7 +10,7 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 use goose::providers::canonical::{
-    canonical_name, CanonicalModel, CanonicalModelRegistry, Limit, Modalities, Pricing,
+    canonical_name, CanonicalModel, CanonicalModelRegistry, Limit, Modalities, Modality, Pricing,
 };
 use goose::providers::{canonical::ModelMapping, create_with_named_model};
 use serde::{Deserialize, Serialize};
@@ -419,10 +419,10 @@ async fn build_canonical_models() -> Result<()> {
                         .map(|arr| {
                             arr.iter()
                                 .filter_map(|v| v.as_str())
-                                .map(|s| s.to_string())
+                                .filter_map(|s| serde_json::from_value(serde_json::Value::String(s.to_string())).ok())
                                 .collect()
                         })
-                        .unwrap_or_else(|| vec!["text".to_string()]),
+                        .unwrap_or_else(|| vec![Modality::Text]),
                     output: model_data
                         .get("modalities")
                         .and_then(|m| m.get("output"))
@@ -430,10 +430,10 @@ async fn build_canonical_models() -> Result<()> {
                         .map(|arr| {
                             arr.iter()
                                 .filter_map(|v| v.as_str())
-                                .map(|s| s.to_string())
+                                .filter_map(|s| serde_json::from_value(serde_json::Value::String(s.to_string())).ok())
                                 .collect()
                         })
-                        .unwrap_or_else(|| vec!["text".to_string()]),
+                        .unwrap_or_else(|| vec![Modality::Text]),
                 };
 
                 let open_weights = model_data.get("open_weights").and_then(|v| v.as_bool());

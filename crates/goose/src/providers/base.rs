@@ -468,7 +468,7 @@ pub trait Provider: Send + Sync {
                 if !canonical_model
                     .modalities
                     .input
-                    .contains(&"text".to_string())
+                    .contains(&crate::providers::canonical::Modality::Text)
                 {
                     return None;
                 }
