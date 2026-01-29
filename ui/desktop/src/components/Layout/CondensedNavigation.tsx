@@ -70,11 +70,12 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
     preferences,
     updatePreferences,
     isCondensedIconOnly,
+    isChatExpanded,
+    setIsChatExpanded,
   } = useNavigationContext();
 
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
   const [dragOverItem, setDragOverItem] = useState<string | null>(null);
-  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [chatPopoverOpen, setChatPopoverOpen] = useState(false);
 
   // Stats for tags
@@ -343,16 +344,8 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
     [navigate, effectiveNavigationMode, setIsNavExpanded]
   );
 
-  const toggleExpanded = (itemId: string) => {
-    setExpandedItems((prev) => {
-      const next = new Set(prev);
-      if (next.has(itemId)) {
-        next.delete(itemId);
-      } else {
-        next.add(itemId);
-      }
-      return next;
-    });
+  const toggleChatExpanded = () => {
+    setIsChatExpanded(!isChatExpanded);
   };
 
   const isActive = (path: string) => location.pathname === path;
@@ -456,7 +449,6 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
         const isDragging = draggedItem === item.id;
         const isDragOver = dragOverItem === item.id;
         const isChatItem = item.id === 'chat';
-        const isItemExpanded = expandedItems.has(item.id);
 
         return (
           <motion.div
@@ -625,7 +617,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
                   <motion.button
                     onClick={() => {
                       if (isChatItem && isVertical && !isCondensedIconOnly) {
-                        toggleExpanded(item.id);
+                        toggleChatExpanded();
                       } else {
                         handleNavClick(item.path);
                       }
@@ -696,7 +688,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
                     {/* Expand indicator for chat item (vertical only, not icon-only) - after count */}
                     {!isCondensedIconOnly && isChatItem && isVertical && (
                       <div className="flex-shrink-0">
-                        {isItemExpanded ? (
+                        {isChatExpanded ? (
                           <ChevronDown className="w-3 h-3 text-text-muted" />
                         ) : (
                           <ChevronRight className="w-3 h-3 text-text-muted" />
@@ -706,7 +698,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
                   </motion.button>
 
                   {/* New Chat button - appears outside nav panel for chat item in vertical mode, hidden when menu is expanded */}
-                  {isChatItem && isVertical && !isCondensedIconOnly && !isItemExpanded && (
+                  {isChatItem && isVertical && !isCondensedIconOnly && !isChatExpanded && (
                     <motion.button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -731,7 +723,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
 
               {/* Recent sessions dropdown (vertical only, not icon-only mode) */}
               <AnimatePresence>
-                {isChatItem && isItemExpanded && isVertical && !isCondensedIconOnly && (
+                {isChatItem && isChatExpanded && isVertical && !isCondensedIconOnly && (
                   <motion.div
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: 'auto', opacity: 1 }}
