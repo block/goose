@@ -162,9 +162,6 @@ pub fn hide_thinking() {
     }
 }
 
-/// Run the status hook command if GOOSE_STATUS_HOOK is set.
-///
-/// Example: `export GOOSE_STATUS_HOOK='printf "\033]2;goose: $1\033\\"'`
 pub fn run_status_hook(status: &str) {
     if let Ok(hook) = Config::global().get_param::<String>("GOOSE_STATUS_HOOK") {
         let status = status.to_string();
