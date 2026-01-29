@@ -61,10 +61,7 @@ impl AnthropicProvider {
             .get_param("ANTHROPIC_HOST")
             .unwrap_or_else(|_| "https://api.anthropic.com".to_string());
 
-        let auth = AuthMethod::ApiKey {
-            header_name: "x-api-key".to_string(),
-            key: api_key,
-        };
+        let auth = AuthMethod::BearerToken(api_key);
 
         let api_client =
             ApiClient::new(host, auth)?.with_header("anthropic-version", ANTHROPIC_API_VERSION)?;
