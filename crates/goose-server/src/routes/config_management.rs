@@ -1,6 +1,7 @@
 use crate::routes::errors::ErrorResponse;
 use crate::routes::utils::check_provider_configured;
 use crate::state::AppState;
+use axum::http::StatusCode;
 use axum::routing::put;
 use axum::{
     extract::Path,
@@ -227,12 +228,6 @@ fn is_valid_provider_name(provider_name: &str) -> bool {
 pub async fn read_config(
     Json(query): Json<ConfigKeyQuery>,
 ) -> Result<Json<ConfigValueResponse>, ErrorResponse> {
-    if query.key == "model-limits" {
-        let limits = ModelConfig::get_all_model_limits();
-        return Ok(Json(ConfigValueResponse::Value(
-            serde_json::to_value(limits)?
-        )));
-    }
     let config = Config::global();
 
     let response_value = match config.get(&query.key, query.is_secret) {

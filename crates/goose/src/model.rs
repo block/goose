@@ -90,21 +90,14 @@ impl ModelConfig {
         let mut max_tokens = max_tokens_from_env;
 
         if context_limit.is_none() || max_tokens.is_none() {
-            if let Some(canonical_id) =
-                crate::providers::canonical::get_canonical_id(provider_name, &model_name)
+            if let Some(canonical) =
+                crate::providers::canonical::maybe_get_canonical_model(provider_name, &model_name)
             {
-                if let Ok(registry) = crate::providers::canonical::CanonicalModelRegistry::bundled()
-                {
-                    if let Some((provider, model)) = canonical_id.split_once('/') {
-                        if let Some(canonical) = registry.get(provider, model) {
-                            if context_limit.is_none() {
-                                context_limit = Some(canonical.limit.context);
-                            }
-                            if max_tokens.is_none() {
-                                max_tokens = canonical.limit.output.map(|o| o as i32);
-                            }
-                        }
-                    }
+                if context_limit.is_none() {
+                    context_limit = Some(canonical.limit.context);
+                }
+                if max_tokens.is_none() {
+                    max_tokens = canonical.limit.output.map(|o| o as i32);
                 }
             }
         }

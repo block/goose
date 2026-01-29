@@ -33,10 +33,3 @@ pub fn maybe_get_canonical_model(provider: &str, model: &str) -> Option<Canonica
         None
     }
 }
-
-/// Helper function to get canonical model ID for a provider's model
-/// Returns the canonical ID (e.g., "anthropic/claude-3-5-sonnet") if found
-pub fn get_canonical_id(provider: &str, model: &str) -> Option<String> {
-    let registry = CanonicalModelRegistry::bundled().ok()?;
-    map_to_canonical_model(provider, model, registry)
-}
