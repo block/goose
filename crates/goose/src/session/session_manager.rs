@@ -783,10 +783,7 @@ impl SessionStorage {
     }
 
     #[allow(clippy::too_many_lines)]
-    async fn apply_migration(
-        tx: &mut sqlx::Transaction<'_, Sqlite>,
-        version: i32,
-    ) -> Result<()> {
+    async fn apply_migration(tx: &mut sqlx::Transaction<'_, Sqlite>, version: i32) -> Result<()> {
         match version {
             1 => {
                 sqlx::query(
