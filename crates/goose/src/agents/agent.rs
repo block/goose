@@ -734,13 +734,18 @@ impl Agent {
         extension: ExtensionConfig,
         session_id: &str,
     ) -> ExtensionResult<()> {
-        let working_dir = self
+        let session = self
             .config
             .session_manager
             .get_session(session_id, false)
             .await
-            .map(|s| s.working_dir)
-            .ok();
+            .map_err(|e| {
+                crate::agents::extension::ExtensionError::SetupError(format!(
+                    "Failed to get session '{}': {}",
+                    session_id, e
+                ))
+            })?;
+        let working_dir = Some(session.working_dir);
 
         match &extension {
             ExtensionConfig::Frontend {
