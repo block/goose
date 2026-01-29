@@ -56,17 +56,6 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
         );
 
         map.insert(
-            apps_extension::EXTENSION_NAME,
-            PlatformExtensionDef {
-                name: apps_extension::EXTENSION_NAME,
-                description:
-                    "Create and manage custom Goose apps through chat. Apps are HTML/CSS/JavaScript and run in sandboxed windows.",
-                default_enabled: true,
-                client_factory: |ctx| Box::new(apps_extension::AppsManagerClient::new(ctx).unwrap()),
-            },
-        );
-
-        map.insert(
             chatrecall_extension::EXTENSION_NAME,
             PlatformExtensionDef {
                 name: chatrecall_extension::EXTENSION_NAME,
