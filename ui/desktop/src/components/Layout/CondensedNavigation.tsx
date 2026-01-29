@@ -17,8 +17,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigationContext } from './NavigationContext';
 import { cn } from '../../utils';
-import { listSessions, getSessionInsights } from '../../api';
-import { useConfig } from '../ConfigContext';
+import { listSessions } from '../../api';
 import { useChatContext } from '../../contexts/ChatContext';
 import { useNavigation } from '../../hooks/useNavigation';
 import { startNewSession, resumeSession, shouldShowNewChatTitle } from '../../sessions';
@@ -27,7 +26,6 @@ import { useSidebarSessionStatus } from '../../hooks/useSidebarSessionStatus';
 import { SessionIndicators } from '../SessionIndicators';
 import { AppEvents } from '../../constants/events';
 import type { Session } from '../../api';
-import type { UserInput } from '../../types/message';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,23 +43,13 @@ interface NavItem {
   hasSubItems?: boolean;
 }
 
-interface ActiveSession {
-  sessionId: string;
-  initialMessage?: UserInput;
-}
-
 interface CondensedNavigationProps {
   className?: string;
-  activeSessions?: ActiveSession[];
 }
 
-export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
-  className,
-  activeSessions = [],
-}) => {
+export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ className }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { extensionsList } = useConfig();
   const {
     isNavExpanded,
     setIsNavExpanded,
@@ -78,10 +66,10 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
   const [dragOverItem, setDragOverItem] = useState<string | null>(null);
   const [chatPopoverOpen, setChatPopoverOpen] = useState(false);
 
-  // Stats for tags
-  const [todayChatsCount, setTodayChatsCount] = useState(0);
-  const [totalSessions, setTotalSessions] = useState(0);
   const [recentSessions, setRecentSessions] = useState<Session[]>([]);
+
+  // Ref for focusing navigation when opened
+  const navContainerRef = useRef<HTMLDivElement>(null);
 
   // Track session for /pair navigation
   const [searchParams] = useSearchParams();
@@ -90,10 +78,15 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
   // Use sidebar session status hook for streaming/unread indicators
   const { getSessionStatus, clearUnread } = useSidebarSessionStatus(activeSessionId);
 
-  // Fetch stats when expanded
+  // Fetch sessions when expanded and focus navigation
   useEffect(() => {
     if (isNavExpanded) {
       fetchNavigationData();
+      // Focus the navigation container for keyboard navigation
+      // Use a small delay to ensure the element is rendered
+      requestAnimationFrame(() => {
+        navContainerRef.current?.focus();
+      });
     }
   }, [isNavExpanded]);
 
@@ -101,30 +94,11 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
     try {
       const sessionsResponse = await listSessions({ throwOnError: false });
       if (sessionsResponse.data) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        let todayCount = 0;
-        sessionsResponse.data.sessions.forEach((session) => {
-          const sessionDate = new Date(session.created_at);
-          sessionDate.setHours(0, 0, 0, 0);
-          if (sessionDate.getTime() === today.getTime()) {
-            todayCount++;
-          }
-        });
-
-        setTodayChatsCount(todayCount);
-
         // Get the 10 most recent sessions
         const sorted = [...sessionsResponse.data.sessions]
           .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
           .slice(0, 10);
         setRecentSessions(sorted);
-      }
-
-      const insightsResponse = await getSessionInsights({ throwOnError: false });
-      if (insightsResponse.data) {
-        setTotalSessions(insightsResponse.data.totalSessions || 0);
       }
     } catch (error) {
       console.error('Failed to fetch navigation data:', error);
@@ -192,7 +166,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
     };
   }, []);
 
-  // Build nav items with dynamic tags
+  // Build nav items
   const getNavItems = (): NavItem[] => [
     { id: 'home', path: '/', label: 'Home', icon: Home },
     {
@@ -200,8 +174,6 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
       path: '/pair',
       label: 'Chat',
       icon: MessageSquare,
-      getTag: () =>
-        activeSessions.length > 0 ? `${activeSessions.length} active` : `${todayChatsCount}`,
       hasSubItems: true, // Always has sub-items for recent sessions
     },
     {
@@ -209,7 +181,6 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
       path: '/sessions',
       label: 'History',
       icon: History,
-      getTag: () => `${totalSessions}`,
     },
     { id: 'recipes', path: '/recipes', label: 'Recipes', icon: FileText },
     { id: 'scheduler', path: '/schedules', label: 'Scheduler', icon: Clock },
@@ -218,11 +189,6 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
       path: '/extensions',
       label: 'Extensions',
       icon: Puzzle,
-      getTag: () => {
-        if (!extensionsList || !Array.isArray(extensionsList)) return '0/0';
-        const enabled = extensionsList.filter((ext) => ext.enabled).length;
-        return `${enabled}/${extensionsList.length}`;
-      },
     },
     { id: 'settings', path: '/settings', label: 'Settings', icon: Settings },
   ];
@@ -410,12 +376,14 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
 
   const navContent = (
     <motion.div
+      ref={navContainerRef}
+      tabIndex={-1}
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ type: 'spring', stiffness: 350, damping: 25 }}
       className={cn(
-        'bg-app',
+        'bg-app outline-none',
         isOverlayMode && 'rounded-xl backdrop-blur-md shadow-lg p-2',
         isVertical ? 'flex flex-col gap-[2px] h-full' : 'flex flex-row items-stretch gap-[2px]',
         // Add 2px padding on the edge facing the content for vertical
@@ -574,7 +542,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
                       })}
 
                       {/* Show All button */}
-                      {totalSessions > 10 && (
+                      {recentSessions.length > 0 && (
                         <>
                           <DropdownMenuSeparator className="my-1" />
                           <DropdownMenuItem
@@ -582,7 +550,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
                             className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer text-text-muted"
                           >
                             <History className="w-4 h-4 flex-shrink-0" />
-                            <span>Show All ({totalSessions})</span>
+                            <span>Show All</span>
                           </DropdownMenuItem>
                         </>
                       )}
@@ -781,7 +749,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
                       })}
 
                       {/* Show All button */}
-                      {totalSessions > 10 && (
+                      {recentSessions.length > 0 && (
                         <button
                           onClick={() => handleNavClick('/sessions')}
                           className={cn(
@@ -791,7 +759,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({
                           )}
                         >
                           <History className="w-3 h-3 flex-shrink-0" />
-                          <span>Show All ({totalSessions})</span>
+                          <span>Show All</span>
                         </button>
                       )}
                     </div>

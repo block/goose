@@ -45,9 +45,9 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
   // Render the appropriate navigation component based on style
   const renderNavigation = () => {
     if (effectiveNavigationStyle === 'expanded') {
-      return <ExpandedNavigation activeSessions={activeSessions} />;
+      return <ExpandedNavigation />;
     }
-    return <CondensedNavigation activeSessions={activeSessions} />;
+    return <CondensedNavigation />;
   };
 
   // Determine flex direction based on navigation position (for push mode)

@@ -4,6 +4,7 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useRef,
   ReactNode,
 } from 'react';
 
@@ -183,6 +184,22 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({ children
     setIsChatExpandedState(expanded);
     localStorage.setItem('navigation_chat_expanded', String(expanded));
   }, []);
+
+  const isNavExpandedRef = useRef(isNavExpanded);
+  useEffect(() => {
+    isNavExpandedRef.current = isNavExpanded;
+  }, [isNavExpanded]);
+
+  useEffect(() => {
+    const handleToggleNavigation = () => {
+      setIsNavExpanded(!isNavExpandedRef.current);
+    };
+
+    window.electron.on('toggle-navigation', handleToggleNavigation);
+    return () => {
+      window.electron.off('toggle-navigation', handleToggleNavigation);
+    };
+  }, [setIsNavExpanded]);
 
   // Listen for external changes (e.g., from settings in another window)
   useEffect(() => {

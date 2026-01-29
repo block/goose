@@ -14,8 +14,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigationContext } from './NavigationContext';
 import { cn } from '../../utils';
-import { listSessions, getSessionInsights } from '../../api';
-import { useConfig } from '../ConfigContext';
+import { listSessions } from '../../api';
 import { useChatContext } from '../../contexts/ChatContext';
 import { useNavigation } from '../../hooks/useNavigation';
 import { startNewSession, resumeSession, shouldShowNewChatTitle } from '../../sessions';
@@ -24,7 +23,6 @@ import { useSidebarSessionStatus } from '../../hooks/useSidebarSessionStatus';
 import { SessionIndicators } from '../SessionIndicators';
 import { AppEvents } from '../../constants/events';
 import type { Session } from '../../api';
-import type { UserInput } from '../../types/message';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,23 +41,13 @@ interface NavItem {
   hasSubItems?: boolean;
 }
 
-interface ActiveSession {
-  sessionId: string;
-  initialMessage?: UserInput;
-}
-
 interface ExpandedNavigationProps {
   className?: string;
-  activeSessions?: ActiveSession[];
 }
 
-export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({
-  className,
-  activeSessions = [],
-}) => {
+export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ className }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { extensionsList } = useConfig();
   const {
     isNavExpanded,
     setIsNavExpanded,
@@ -79,25 +67,7 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({
   const [isClosing, setIsClosing] = useState(false);
   const prevIsNavExpandedRef = useRef(isNavExpanded);
   const gridRef = useRef<HTMLDivElement>(null);
-
-  // Stats for tags
-  const [currentTime, setCurrentTime] = useState('');
-  const [todayChatsCount, setTodayChatsCount] = useState(0);
-  const [totalSessions, setTotalSessions] = useState(0);
-  const [recipesCount] = useState(0); // TODO: Fetch actual recipes count
-
-  // Update time
-  useEffect(() => {
-    const updateTime = () => {
-      const now = new Date();
-      setCurrentTime(
-        now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
-      );
-    };
-    updateTime();
-    const interval = setInterval(updateTime, 1000);
-    return () => clearInterval(interval);
-  }, []);
+  const navContainerRef = useRef<HTMLDivElement>(null);
 
   // Ref to track sessions for new chat logic without causing re-renders
   const sessionsRef = useRef<Session[]>([]);
@@ -110,20 +80,6 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({
     try {
       const sessionsResponse = await listSessions({ throwOnError: false });
       if (sessionsResponse.data) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        let todayCount = 0;
-        sessionsResponse.data.sessions.forEach((session) => {
-          const sessionDate = new Date(session.created_at);
-          sessionDate.setHours(0, 0, 0, 0);
-          if (sessionDate.getTime() === today.getTime()) {
-            todayCount++;
-          }
-        });
-
-        setTodayChatsCount(todayCount);
-
         // Store sessions for new chat logic
         sessionsRef.current = sessionsResponse.data.sessions;
 
@@ -133,20 +89,20 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({
           .slice(0, 10);
         setRecentSessions(sortedSessions);
       }
-
-      const insightsResponse = await getSessionInsights({ throwOnError: false });
-      if (insightsResponse.data) {
-        setTotalSessions(insightsResponse.data.totalSessions || 0);
-      }
     } catch (error) {
       console.error('Failed to fetch navigation data:', error);
     }
   };
 
-  // Fetch stats when expanded
+  // Fetch stats when expanded and focus navigation
   useEffect(() => {
     if (isNavExpanded) {
       fetchNavigationData();
+      // Focus the navigation container for keyboard navigation
+      // Use a small delay to ensure the element is rendered
+      requestAnimationFrame(() => {
+        navContainerRef.current?.focus();
+      });
     }
   }, [isNavExpanded]);
 
@@ -220,39 +176,32 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({
     };
   }, [isNavExpanded, navigationPosition]);
 
-  // Build nav items with dynamic tags
+  // Build nav items
   const getNavItems = (): NavItem[] => [
     {
       id: 'home',
       path: '/',
       label: 'Home',
       icon: Home,
-      getTag: () => currentTime,
     },
     {
       id: 'chat',
       path: '/pair',
       label: 'Chat',
       icon: MessageSquare,
-      getTag: () =>
-        activeSessions.length > 0 ? `${activeSessions.length} active` : `${todayChatsCount} today`,
-      tagAlign: 'right',
-      hasSubItems: activeSessions.length > 0,
+      hasSubItems: true,
     },
     {
       id: 'history',
       path: '/sessions',
       label: 'History',
       icon: History,
-      getTag: () => `${totalSessions}`,
-      tagAlign: 'right',
     },
     {
       id: 'recipes',
       path: '/recipes',
       label: 'Recipes',
       icon: FileText,
-      getTag: () => `${recipesCount}`,
     },
     {
       id: 'scheduler',
@@ -265,11 +214,6 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({
       path: '/extensions',
       label: 'Extensions',
       icon: Puzzle,
-      getTag: () => {
-        if (!extensionsList || !Array.isArray(extensionsList)) return '0/0';
-        const enabled = extensionsList.filter((ext) => ext.enabled).length;
-        return `${enabled}/${extensionsList.length}`;
-      },
     },
     {
       id: 'settings',
@@ -517,12 +461,14 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({
 
   const navContent = (
     <motion.div
+      ref={navContainerRef}
+      tabIndex={-1}
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ type: 'spring', stiffness: 350, damping: 25 }}
       className={cn(
-        'bg-app h-full overflow-hidden',
+        'bg-app h-full overflow-hidden outline-none',
         isOverlayMode && 'backdrop-blur-md shadow-2xl rounded-lg p-4',
         // Add 2px padding on the edge facing the content (push mode only)
         !isOverlayMode && navigationPosition === 'top' && 'pb-[2px]',
@@ -704,7 +650,7 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({
                       })}
 
                       {/* Show All button */}
-                      {totalSessions > 10 && (
+                      {recentSessions.length > 0 && (
                         <>
                           <DropdownMenuSeparator className="my-1" />
                           <DropdownMenuItem
@@ -712,7 +658,7 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({
                             className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer text-text-muted"
                           >
                             <History className="w-4 h-4 flex-shrink-0" />
-                            <span>Show All ({totalSessions})</span>
+                            <span>Show All</span>
                           </DropdownMenuItem>
                         </>
                       )}

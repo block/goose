@@ -74,6 +74,12 @@ const shortcutConfigs: ShortcutConfig[] = [
     description: 'Toggle window always on top',
     category: 'window',
   },
+  {
+    key: 'toggleNavigation',
+    label: 'Toggle Navigation',
+    description: 'Show or hide the navigation menu',
+    category: 'application',
+  },
 ];
 
 const needsRestart = new Set<keyof KeyboardShortcuts>([
@@ -123,7 +129,7 @@ export default function KeyboardShortcutsSection() {
 
   const loadShortcuts = useCallback(async () => {
     const settings = await window.electron.getSettings();
-    setShortcuts(settings.keyboardShortcuts || defaultKeyboardShortcuts);
+    setShortcuts({ ...defaultKeyboardShortcuts, ...settings.keyboardShortcuts });
   }, []);
 
   useEffect(() => {
