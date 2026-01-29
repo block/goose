@@ -314,8 +314,9 @@ impl CliSession {
                 if PLATFORM_EXTENSIONS.contains_key(extension_name) {
                     ExtensionConfig::Platform {
                         name: extension_name.to_string(),
-                        bundled: None,
                         description: extension_name.to_string(),
+                        display_name: None,
+                        bundled: None,
                         available_tools: Vec::new(),
                     }
                 } else {
@@ -461,6 +462,7 @@ impl CliSession {
                 })
                 .collect();
 
+            output::run_status_hook("waiting");
             let input = input::get_input(&mut editor, Some(&conversation_strings))?;
             if matches!(input, InputResult::Exit) {
                 break;
@@ -595,6 +597,7 @@ impl CliSession {
 
                 let _provider = self.agent.provider().await?;
 
+                output::run_status_hook("thinking");
                 output::show_thinking();
                 let start_time = Instant::now();
                 self.process_agent_response(true, CancellationToken::default())

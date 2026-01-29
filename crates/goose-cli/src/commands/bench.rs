@@ -51,6 +51,7 @@ pub async fn agent_generator(
         extensions: requirements.external,
         streamable_http_extensions,
         builtins: requirements.builtin,
+        no_profile: true,
         recipe: None,
         additional_system_prompt: None,
         provider: None,

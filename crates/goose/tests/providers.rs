@@ -247,10 +247,10 @@ impl ProviderTester {
         dbg!(&result);
         println!("===================");
 
-        if self.name.to_lowercase() == "ollama" {
+        if self.name.to_lowercase() == "ollama" || self.name.to_lowercase() == "openrouter" {
             assert!(
                 result.is_ok(),
-                "Expected to succeed because of default truncation"
+                "Expected to succeed because of default truncation or large context window"
             );
             return Ok(());
         }

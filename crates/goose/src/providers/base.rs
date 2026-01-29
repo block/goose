@@ -42,9 +42,9 @@ pub struct ModelInfo {
     pub name: String,
     /// The maximum context length this model supports
     pub context_limit: usize,
-    /// Cost per token for input (optional)
+    /// Cost per token for input in USD (optional)
     pub input_token_cost: Option<f64>,
-    /// Cost per token for output (optional)
+    /// Cost per token for output in USD (optional)
     pub output_token_cost: Option<f64>,
     /// Currency for the costs (default: "$")
     pub currency: Option<String>,
@@ -456,15 +456,40 @@ pub trait Provider: Send + Sync {
 
         let provider_name = self.get_name();
 
-        let recommended_models: Vec<String> = all_models
+        // Get all text-capable models with their release dates
+        let mut models_with_dates: Vec<(String, Option<String>)> = all_models
             .iter()
-            .filter(|model| {
-                map_to_canonical_model(provider_name, model, registry)
-                    .and_then(|canonical_id| registry.get(&canonical_id))
-                    .map(|m| m.input_modalities.contains(&"text".to_string()))
-                    .unwrap_or(false)
+            .filter_map(|model| {
+                let canonical_id = map_to_canonical_model(provider_name, model, registry)?;
+
+                let (provider, model_name) = canonical_id.split_once('/')?;
+                let canonical_model = registry.get(provider, model_name)?;
+
+                if !canonical_model
+                    .modalities
+                    .input
+                    .contains(&crate::providers::canonical::Modality::Text)
+                {
+                    return None;
+                }
+
+                let release_date = canonical_model.release_date.clone();
+
+                Some((model.clone(), release_date))
             })
-            .cloned()
+            .collect();
+
+        // Sort by release date (most recent first), then alphabetically for models without dates
+        models_with_dates.sort_by(|a, b| match (&a.1, &b.1) {
+            (Some(date_a), Some(date_b)) => date_b.cmp(date_a),
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (None, None) => a.0.cmp(&b.0),
+        });
+
+        let recommended_models: Vec<String> = models_with_dates
+            .into_iter()
+            .map(|(name, _)| name)
             .collect();
 
         if recommended_models.is_empty() {

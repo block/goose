@@ -255,8 +255,9 @@ async fn add_builtins(agent: &Agent, builtins: Vec<String>) {
         let config = if PLATFORM_EXTENSIONS.contains_key(builtin.as_str()) {
             ExtensionConfig::Platform {
                 name: builtin.clone(),
-                bundled: None,
                 description: builtin.clone(),
+                display_name: None,
+                bundled: None,
                 available_tools: Vec::new(),
             }
         } else {
