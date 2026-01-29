@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { errorMessage } from '../../utils/conversionUtils';
 import { Card, CardContent, CardDescription } from '../ui/card';
 import { Greeting } from '../common/Greeting';
 import { useNavigate } from 'react-router-dom';
@@ -34,7 +35,7 @@ export function SessionInsights() {
         setError(null);
       } catch (error) {
         console.error('Failed to load insights:', error);
-        setError(error instanceof Error ? error.message : 'Failed to load insights');
+        setError(errorMessage(error, 'Failed to load insights'));
         setInsights({
           totalSessions: 0,
           totalTokens: 0,

@@ -14,6 +14,7 @@ use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::RequestLog;
 use crate::conversation::message::{Message, MessageContent};
+use crate::session_context::SESSION_ID_HEADER;
 
 use crate::model::ModelConfig;
 use chrono::Utc;
@@ -154,17 +155,27 @@ impl SageMakerTgiProvider {
         Ok(request)
     }
 
-    async fn invoke_endpoint(&self, payload: Value) -> Result<Value, ProviderError> {
+    async fn invoke_endpoint(
+        &self,
+        session_id: Option<&str>,
+        payload: Value,
+    ) -> Result<Value, ProviderError> {
         let body = serde_json::to_string(&payload).map_err(|e| {
             ProviderError::RequestFailed(format!("Failed to serialize request: {}", e))
         })?;
 
-        let response = self
+        let mut request = self
             .sagemaker_client
             .invoke_endpoint()
             .endpoint_name(&self.endpoint_name)
             .content_type("application/json")
-            .body(body.into_bytes().into())
+            .body(body.into_bytes().into());
+
+        if let Some(session_id) = session_id.filter(|id| !id.is_empty()) {
+            request = request.custom_attributes(format!("{SESSION_ID_HEADER}={session_id}"));
+        }
+
+        let response = request
             .send()
             .await
             .map_err(|e| ProviderError::RequestFailed(format!("SageMaker invoke failed: {}", e)))?;
@@ -289,7 +300,7 @@ impl Provider for SageMakerTgiProvider {
     )]
     async fn complete_with_model(
         &self,
-        _session_id: &str,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -302,7 +313,7 @@ impl Provider for SageMakerTgiProvider {
         })?;
 
         let response = self
-            .with_retry(|| self.invoke_endpoint(request_payload.clone()))
+            .with_retry(|| self.invoke_endpoint(session_id, request_payload.clone()))
             .await?;
 
         let message = self.parse_tgi_response(response)?;

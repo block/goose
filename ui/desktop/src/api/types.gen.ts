@@ -154,7 +154,7 @@ export type CspMetadata = {
 };
 
 export type DeclarativeProviderConfig = {
-    api_key_env: string;
+    api_key_env?: string;
     base_url: string;
     description?: string | null;
     display_name: string;
@@ -164,6 +164,7 @@ export type DeclarativeProviderConfig = {
     } | null;
     models: Array<ModelInfo>;
     name: string;
+    requires_auth?: boolean;
     supports_streaming?: boolean | null;
     timeout_seconds?: number | null;
 };
@@ -987,6 +988,7 @@ export type SetSlashCommandRequest = {
 export type Settings = {
     goose_model?: string | null;
     goose_provider?: string | null;
+    max_turns?: number | null;
     temperature?: number | null;
 };
 
@@ -1203,6 +1205,7 @@ export type UpdateCustomProviderRequest = {
         [key: string]: string;
     } | null;
     models: Array<string>;
+    requires_auth?: boolean;
     supports_streaming?: boolean | null;
 };
 

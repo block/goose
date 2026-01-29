@@ -64,7 +64,7 @@ impl CursorAgentProvider {
         full_prompt.push_str("\n\n");
 
         // Add conversation history
-        for message in messages.iter().filter(|m| m.is_agent_visible()) {
+        for message in messages {
             let role_prefix = match message.role {
                 Role::User => "Human: ",
                 Role::Assistant => "Assistant: ",
@@ -352,7 +352,7 @@ impl Provider for CursorAgentProvider {
     )]
     async fn complete_with_model(
         &self,
-        session_id: &str,
+        _session_id: Option<&str>, // CLI has no external session-id flag to propagate.
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],

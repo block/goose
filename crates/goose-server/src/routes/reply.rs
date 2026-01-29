@@ -1,7 +1,10 @@
+use crate::routes::errors::ErrorResponse;
 use crate::state::AppState;
+#[cfg(test)]
+use axum::http::StatusCode;
 use axum::{
     extract::{DefaultBodyLimit, State},
-    http::{self, StatusCode},
+    http::{self},
     response::IntoResponse,
     routing::post,
     Json, Router,
@@ -202,7 +205,7 @@ async fn stream_event(
 pub async fn reply(
     State(state): State<Arc<AppState>>,
     Json(request): Json<ChatRequest>,
-) -> Result<SseResponse, StatusCode> {
+) -> Result<SseResponse, ErrorResponse> {
     let session_start = std::time::Instant::now();
 
     tracing::info!(

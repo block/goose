@@ -63,7 +63,11 @@ impl TetrateProvider {
         })
     }
 
-    async fn post(&self, session_id: &str, payload: &Value) -> Result<Value, ProviderError> {
+    async fn post(
+        &self,
+        session_id: Option<&str>,
+        payload: &Value,
+    ) -> Result<Value, ProviderError> {
         let response = self
             .api_client
             .response_post(session_id, "v1/chat/completions", payload)
@@ -158,7 +162,7 @@ impl Provider for TetrateProvider {
     )]
     async fn complete_with_model(
         &self,
-        session_id: &str,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -215,7 +219,7 @@ impl Provider for TetrateProvider {
             .with_retry(|| async {
                 let resp = self
                     .api_client
-                    .response_post(session_id, "v1/chat/completions", &payload)
+                    .response_post(Some(session_id), "v1/chat/completions", &payload)
                     .await?;
                 handle_status_openai_compat(resp).await
             })
@@ -228,12 +232,14 @@ impl Provider for TetrateProvider {
     }
 
     /// Fetch supported models from Tetrate Agent Router Service API (only models with tool support)
-    async fn fetch_supported_models(
-        &self,
-        session_id: &str,
-    ) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         // Use the existing api_client which already has authentication configured
-        let response = match self.api_client.response_get(session_id, "v1/models").await {
+        let response = match self
+            .api_client
+            .request(None, "v1/models")
+            .response_get()
+            .await
+        {
             Ok(response) => response,
             Err(e) => {
                 tracing::warn!("Failed to fetch models from Tetrate Agent Router Service API: {}, falling back to manual model entry", e);
@@ -265,9 +271,13 @@ impl Provider for TetrateProvider {
 
         // The response format from /v1/models is expected to be OpenAI-compatible
         // It should have a "data" field with an array of model objects
-        let data = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
-            ProviderError::UsageError("Missing data field in JSON response".into())
-        })?;
+        let data = match json.get("data").and_then(|v| v.as_array()) {
+            Some(data) => data,
+            None => {
+                tracing::warn!("Tetrate Agent Router Service API response missing 'data' field, falling back to manual model entry");
+                return Ok(None);
+            }
+        };
 
         let mut models: Vec<String> = data
             .iter()
@@ -277,18 +287,26 @@ impl Provider for TetrateProvider {
 
                 // Check if the model supports computer_use (which indicates tool/function support)
                 // The Tetrate API uses "supports_computer_use" instead of "supported_parameters"
-                let supports_computer_use = model
-                    .get("supports_computer_use")
-                    .and_then(|v| v.as_bool())
-                    .unwrap_or(false);
+                let supported_params =
+                    match model.get("supported_parameters").and_then(|v| v.as_array()) {
+                        Some(params) => params,
+                        None => {
+                            tracing::debug!(
+                                "Model '{}' missing supported_parameters field, skipping",
+                                id
+                            );
+                            return None;
+                        }
+                    };
 
-                if supports_computer_use {
+                let has_tool_support = supported_params
+                    .iter()
+                    .any(|param| param.as_str() == Some("tools"));
+
+                if has_tool_support {
                     Some(id.to_string())
                 } else {
-                    tracing::debug!(
-                        "Model '{}' does not support computer_use (tool support), skipping",
-                        id
-                    );
+                    tracing::debug!("Model '{}' does not support tools, skipping", id);
                     None
                 }
             })

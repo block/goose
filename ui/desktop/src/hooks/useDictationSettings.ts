@@ -3,12 +3,16 @@ import { useConfig } from '../components/ConfigContext';
 import {
   DICTATION_SETTINGS_KEY,
   ELEVENLABS_API_KEY,
+  DICTATION_PROVIDER_OPENAI,
   DICTATION_PROVIDER_ELEVENLABS,
   getDefaultDictationSettings,
   isSecretKeyConfigured,
 } from './dictationConstants';
 
-export type DictationProvider = 'openai' | typeof DICTATION_PROVIDER_ELEVENLABS | null;
+export type DictationProvider =
+  | typeof DICTATION_PROVIDER_OPENAI
+  | typeof DICTATION_PROVIDER_ELEVENLABS
+  | null;
 
 export interface DictationSettings {
   enabled: boolean;
@@ -28,7 +32,6 @@ export const useDictationSettings = () => {
 
   useEffect(() => {
     const loadSettings = async () => {
-      // Load settings from localStorage
       const saved = localStorage.getItem(DICTATION_SETTINGS_KEY);
 
       let currentSettings: DictationSettings;

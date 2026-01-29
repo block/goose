@@ -44,6 +44,7 @@ pub fn validate_recipe_template_from_content(
     let (recipe, _) = parse_recipe_content(recipe_content, recipe_dir)?;
 
     validate_prompt_or_instructions(&recipe)?;
+    validate_retry_config(&recipe)?;
     if let Some(response) = &recipe.response {
         if let Some(json_schema) = &response.json_schema {
             validate_json_schema(json_schema)?;
@@ -51,6 +52,18 @@ pub fn validate_recipe_template_from_content(
     }
 
     Ok(recipe)
+}
+
+fn validate_retry_config(recipe: &Recipe) -> Result<()> {
+    if let Some(ref retry_config) = recipe.retry {
+        if let Err(validation_error) = retry_config.validate() {
+            return Err(anyhow::anyhow!(
+                "Invalid retry configuration: {}",
+                validation_error
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn validate_prompt_or_instructions(recipe: &Recipe) -> Result<()> {

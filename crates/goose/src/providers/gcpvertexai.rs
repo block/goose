@@ -25,6 +25,7 @@ use crate::providers::formats::gcpvertexai::{
 use crate::providers::gcpauth::GcpAuth;
 use crate::providers::retry::RetryConfig;
 use crate::providers::utils::RequestLog;
+use crate::session_context::SESSION_ID_HEADER;
 use rmcp::model::Tool;
 
 /// Base URL for GCP Vertex AI documentation
@@ -262,6 +263,7 @@ impl GcpVertexAIProvider {
 
     async fn send_request_with_retry(
         &self,
+        session_id: Option<&str>,
         url: Url,
         payload: &Value,
     ) -> Result<reqwest::Response, ProviderError> {
@@ -285,11 +287,17 @@ impl GcpVertexAIProvider {
                 .await
                 .map_err(|e| ProviderError::Authentication(e.to_string()))?;
 
-            let response = self
+            let mut request = self
                 .client
                 .post(url.clone())
                 .json(payload)
-                .header("Authorization", auth_header)
+                .header("Authorization", auth_header);
+
+            if let Some(session_id) = session_id.filter(|id| !id.is_empty()) {
+                request = request.header(SESSION_ID_HEADER, session_id);
+            }
+
+            let response = request
                 .send()
                 .await
                 .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
@@ -348,6 +356,7 @@ impl GcpVertexAIProvider {
 
     async fn post_with_location(
         &self,
+        session_id: Option<&str>,
         payload: &Value,
         context: &RequestContext,
         location: &str,
@@ -356,7 +365,9 @@ impl GcpVertexAIProvider {
             .build_request_url(context.provider(), location, false)
             .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
 
-        let response = self.send_request_with_retry(url, payload).await?;
+        let response = self
+            .send_request_with_retry(session_id, url, payload)
+            .await?;
 
         response
             .json::<Value>()
@@ -366,11 +377,12 @@ impl GcpVertexAIProvider {
 
     async fn post(
         &self,
+        session_id: Option<&str>,
         payload: &Value,
         context: &RequestContext,
     ) -> Result<Value, ProviderError> {
         let result = self
-            .post_with_location(payload, context, &self.location)
+            .post_with_location(session_id, payload, context, &self.location)
             .await;
 
         if self.location == context.model.known_location().to_string() || result.is_ok() {
@@ -387,7 +399,7 @@ impl GcpVertexAIProvider {
                     "Trying known location {known_location} for {model_name} instead of {configured_location}: {msg}"
                 );
 
-                self.post_with_location(payload, context, &known_location)
+                self.post_with_location(session_id, payload, context, &known_location)
                     .await
             }
             _ => result,
@@ -396,6 +408,7 @@ impl GcpVertexAIProvider {
 
     async fn post_stream_with_location(
         &self,
+        session_id: Option<&str>,
         payload: &Value,
         context: &RequestContext,
         location: &str,
@@ -404,16 +417,17 @@ impl GcpVertexAIProvider {
             .build_request_url(context.provider(), location, true)
             .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
 
-        self.send_request_with_retry(url, payload).await
+        self.send_request_with_retry(session_id, url, payload).await
     }
 
     async fn post_stream(
         &self,
+        session_id: Option<&str>,
         payload: &Value,
         context: &RequestContext,
     ) -> Result<reqwest::Response, ProviderError> {
         let result = self
-            .post_stream_with_location(payload, context, &self.location)
+            .post_stream_with_location(session_id, payload, context, &self.location)
             .await;
 
         if self.location == context.model.known_location().to_string() || result.is_ok() {
@@ -430,7 +444,7 @@ impl GcpVertexAIProvider {
                     "Trying known location {known_location} for {model_name} instead of {configured_location}: {msg}"
                 );
 
-                self.post_stream_with_location(payload, context, &known_location)
+                self.post_stream_with_location(session_id, payload, context, &known_location)
                     .await
             }
             _ => result,
@@ -593,7 +607,7 @@ impl Provider for GcpVertexAIProvider {
     )]
     async fn complete_with_model(
         &self,
-        _session_id: &str,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -603,7 +617,7 @@ impl Provider for GcpVertexAIProvider {
         let (request, context) = create_request(model_config, system, messages, tools)?;
 
         // Send request and process response
-        let response = self.post(&request, &context).await?;
+        let response = self.post(session_id, &request, &context).await?;
         let usage = get_usage(&response, &context)?;
 
         let mut log = RequestLog::start(model_config, &request)?;
@@ -627,7 +641,7 @@ impl Provider for GcpVertexAIProvider {
 
     async fn stream(
         &self,
-        _session_id: &str,
+        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -644,7 +658,7 @@ impl Provider for GcpVertexAIProvider {
         let mut log = RequestLog::start(&model_config, &request)?;
 
         let response = self
-            .post_stream(&request, &context)
+            .post_stream(Some(session_id), &request, &context)
             .await
             .inspect_err(|e| {
                 let _ = log.error(e);
@@ -672,10 +686,7 @@ impl Provider for GcpVertexAIProvider {
         }))
     }
 
-    async fn fetch_supported_models(
-        &self,
-        _session_id: &str,
-    ) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         let models: Vec<String> = KNOWN_MODELS.iter().map(|s| s.to_string()).collect();
         let filtered = self.filter_by_org_policy(models).await;
         Ok(Some(filtered))

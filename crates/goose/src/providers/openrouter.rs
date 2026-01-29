@@ -69,7 +69,11 @@ impl OpenRouterProvider {
         })
     }
 
-    async fn post(&self, session_id: &str, payload: &Value) -> Result<Value, ProviderError> {
+    async fn post(
+        &self,
+        session_id: Option<&str>,
+        payload: &Value,
+    ) -> Result<Value, ProviderError> {
         let response = self
             .api_client
             .response_post(session_id, "api/v1/chat/completions", payload)
@@ -189,7 +193,7 @@ fn is_gemini_model(model_name: &str) -> bool {
 
 async fn create_request_based_on_model(
     provider: &OpenRouterProvider,
-    session_id: &str,
+    session_id: Option<&str>,
     system: &str,
     messages: &[Message],
     tools: &[Tool],
@@ -203,7 +207,13 @@ async fn create_request_based_on_model(
         false,
     )?;
 
-    if provider.supports_cache_control(session_id).await {
+    if let Some(session_id) = session_id.filter(|id| !id.is_empty()) {
+        if let Some(obj) = payload.as_object_mut() {
+            obj.insert("user".to_string(), Value::String(session_id.to_string()));
+        }
+    }
+
+    if provider.supports_cache_control().await {
         payload = update_request_for_anthropic(&payload);
     }
 
@@ -238,6 +248,7 @@ impl Provider for OpenRouterProvider {
                 ),
             ],
         )
+        .with_unlisted_models()
     }
 
     fn get_name(&self) -> &str {
@@ -254,7 +265,7 @@ impl Provider for OpenRouterProvider {
     )]
     async fn complete_with_model(
         &self,
-        session_id: &str,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -287,15 +298,13 @@ impl Provider for OpenRouterProvider {
     }
 
     /// Fetch supported models from OpenRouter API (only models with tool support)
-    async fn fetch_supported_models(
-        &self,
-        session_id: &str,
-    ) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         // Handle request failures gracefully
         // If the request fails, fall back to manual entry
         let response = match self
             .api_client
-            .response_get(session_id, "api/v1/models")
+            .request(None, "api/v1/models")
+            .response_get()
             .await
         {
             Ok(response) => response,
@@ -370,7 +379,7 @@ impl Provider for OpenRouterProvider {
         Ok(Some(models))
     }
 
-    async fn supports_cache_control(&self, _session_id: &str) -> bool {
+    async fn supports_cache_control(&self) -> bool {
         self.model
             .model_name
             .starts_with(OPENROUTER_MODEL_PREFIX_ANTHROPIC)
@@ -396,7 +405,7 @@ impl Provider for OpenRouterProvider {
             true,
         )?;
 
-        if self.supports_cache_control(session_id).await {
+        if self.supports_cache_control().await {
             payload = update_request_for_anthropic(&payload);
         }
 
@@ -414,7 +423,7 @@ impl Provider for OpenRouterProvider {
             .with_retry(|| async {
                 let resp = self
                     .api_client
-                    .response_post(session_id, "api/v1/chat/completions", &payload)
+                    .response_post(Some(session_id), "api/v1/chat/completions", &payload)
                     .await?;
                 handle_status_openai_compat(resp).await
             })

@@ -21,6 +21,7 @@ import {
 import { cn } from '../../utils';
 import { DEFAULT_IFRAME_HEIGHT } from './utils';
 import { readResource, callTool } from '../../api';
+import { errorMessage } from '../../utils/conversionUtils';
 
 interface McpAppRendererProps {
   resourceUri: string;
@@ -60,6 +61,7 @@ export default function McpAppRenderer({
   });
   const [error, setError] = useState<string | null>(null);
   const [iframeHeight, setIframeHeight] = useState(DEFAULT_IFRAME_HEIGHT);
+  const [iframeWidth, setIframeWidth] = useState<number | null>(null);
 
   useEffect(() => {
     if (!sessionId) {
@@ -92,7 +94,7 @@ export default function McpAppRenderer({
         }
       } catch (err) {
         if (!cachedHtml) {
-          setError(err instanceof Error ? err.message : 'Failed to load resource');
+          setError(errorMessage(err, 'Failed to load resource'));
         } else {
           console.warn('Failed to fetch fresh resource, using cached version:', err);
         }
@@ -199,9 +201,10 @@ export default function McpAppRenderer({
     [append, sessionId, extensionName]
   );
 
-  const handleSizeChanged = useCallback((height: number, _width?: number) => {
+  const handleSizeChanged = useCallback((height: number, width?: number) => {
     const newHeight = Math.max(DEFAULT_IFRAME_HEIGHT, height);
     setIframeHeight(newHeight);
+    setIframeWidth(width ?? null);
   }, []);
 
   const { iframeRef, proxyUrl } = useSandboxBridge({
@@ -263,7 +266,8 @@ export default function McpAppRenderer({
           ref={iframeRef}
           src={proxyUrl}
           style={{
-            width: '100%',
+            width: iframeWidth ? `${iframeWidth}px` : '100%',
+            maxWidth: '100%',
             height: `${iframeHeight}px`,
             border: 'none',
             overflow: 'hidden',
