@@ -463,10 +463,10 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
     <motion.div
       ref={navContainerRef}
       tabIndex={-1}
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.95 }}
-      transition={{ type: 'spring', stiffness: 350, damping: 25 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.15 }}
       className={cn(
         'bg-app h-full overflow-hidden outline-none',
         isOverlayMode && 'backdrop-blur-md shadow-2xl rounded-lg p-4',
@@ -522,17 +522,13 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
                     onDragOver={(e) => handleDragOver(e as unknown as React.DragEvent, item.id)}
                     onDrop={(e) => handleDrop(e as unknown as React.DragEvent, item.id)}
                     onDragEnd={handleDragEnd}
-                    initial={{ opacity: 0, y: 20, scale: 0.9 }}
+                    initial={{ opacity: 0 }}
                     animate={{
                       opacity: tilesReady ? (isDragging ? 0.5 : 1) : 0,
-                      y: tilesReady ? 0 : 20,
-                      scale: tilesReady ? (isDragging ? 0.95 : 1) : 0.9,
                     }}
                     transition={{
-                      type: 'spring',
-                      stiffness: 350,
-                      damping: 25,
-                      delay: tilesReady ? index * 0.05 : 0,
+                      duration: 0.15,
+                      delay: tilesReady ? index * 0.03 : 0,
                     }}
                     className={cn(
                       'relative cursor-move group',
@@ -677,17 +673,13 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
                 onDragOver={(e) => handleDragOver(e as unknown as React.DragEvent, item.id)}
                 onDrop={(e) => handleDrop(e as unknown as React.DragEvent, item.id)}
                 onDragEnd={handleDragEnd}
-                initial={{ opacity: 0, y: 20, scale: 0.9 }}
+                initial={{ opacity: 0 }}
                 animate={{
                   opacity: tilesReady ? (isDragging ? 0.5 : 1) : 0,
-                  y: tilesReady ? 0 : 20,
-                  scale: tilesReady ? (isDragging ? 0.95 : 1) : 0.9,
                 }}
                 transition={{
-                  type: 'spring',
-                  stiffness: 350,
-                  damping: 25,
-                  delay: tilesReady ? index * 0.05 : 0,
+                  duration: 0.15,
+                  delay: tilesReady ? index * 0.03 : 0,
                 }}
                 className={cn(
                   'relative cursor-move group',

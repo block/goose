@@ -1,6 +1,6 @@
 import React from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Goose } from '../icons/Goose';
 import { Button } from '../ui/button';
 import ChatSessionsContainer from '../ChatSessionsContainer';
@@ -124,57 +124,51 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
       {/* Main content with navigation */}
       <div className={cn('flex flex-1 w-full h-full min-h-0 p-[2px]', getLayoutClass())}>
         {/* Push mode navigation (inline) with animation */}
-        <AnimatePresence mode="wait">
-          {effectiveNavigationMode === 'push' && isNavExpanded && (
-            <motion.div
-              key="push-nav"
-              initial={{
-                width: isHorizontalNav ? '100%' : 0,
-                height: isHorizontalNav ? 0 : '100%',
-                opacity: 0,
-                minWidth: 0,
-              }}
-              animate={{
-                width: isHorizontalNav
-                  ? '100%'
-                  : effectiveNavigationStyle === 'expanded'
+        {effectiveNavigationMode === 'push' && (
+          <motion.div
+            key="push-nav"
+            initial={false}
+            animate={{
+              width: isHorizontalNav
+                ? '100%'
+                : isNavExpanded
+                  ? effectiveNavigationStyle === 'expanded'
                     ? '30%'
-                    : 'auto',
-                height: isHorizontalNav ? 'auto' : '100%',
-                opacity: 1,
-                minWidth: !isHorizontalNav && effectiveNavigationStyle === 'expanded' ? 200 : 0,
-              }}
-              exit={{
-                width: isHorizontalNav ? '100%' : 0,
-                height: isHorizontalNav ? 0 : '100%',
-                opacity: 0,
-                minWidth: 0,
-              }}
-              transition={{
-                type: 'spring',
-                stiffness: 300,
-                damping: 30,
-                opacity: { duration: 0.15 },
-              }}
-              style={{
-                // For expanded left/right, use percentage width that scales with window
-                maxWidth:
-                  !isHorizontalNav && effectiveNavigationStyle === 'expanded' ? '400px' : undefined,
-                // Ensure full height for left/right positions
-                height: !isHorizontalNav ? '100%' : undefined,
-              }}
-              className={cn(
-                'flex-shrink-0',
-                // Only hide overflow for expanded style (needs it for animations)
-                // Condensed style needs overflow-visible for floating new chat button
-                effectiveNavigationStyle === 'expanded' ? 'overflow-hidden' : 'overflow-visible',
-                isHorizontalNav ? 'w-full' : 'h-full'
-              )}
-            >
-              {renderNavigation()}
-            </motion.div>
-          )}
-        </AnimatePresence>
+                    : 200
+                  : 0,
+              height: isHorizontalNav
+                ? isNavExpanded
+                  ? effectiveNavigationStyle === 'expanded'
+                    ? 180
+                    : 46
+                  : 0
+                : '100%',
+            }}
+            transition={{
+              type: 'spring',
+              stiffness: 400,
+              damping: 40,
+            }}
+            style={{
+              maxWidth:
+                !isHorizontalNav && effectiveNavigationStyle === 'expanded' ? '400px' : undefined,
+              minWidth:
+                !isHorizontalNav && effectiveNavigationStyle === 'condensed' && isNavExpanded
+                  ? 200
+                  : undefined,
+              minHeight:
+                isHorizontalNav && isNavExpanded
+                  ? effectiveNavigationStyle === 'expanded'
+                    ? 180
+                    : 46
+                  : undefined,
+              height: !isHorizontalNav ? '100%' : undefined,
+            }}
+            className={cn('flex-shrink-0 overflow-hidden', isHorizontalNav ? 'w-full' : 'h-full')}
+          >
+            {renderNavigation()}
+          </motion.div>
+        )}
 
         {/* Main content */}
         {mainContent}
