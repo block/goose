@@ -30,9 +30,9 @@ export default function SkillsPage() {
     value: tag
   }));
 
-  // Build source filter options (External only - official is the default)
+  // Build source filter options (Community only - official is the default)
   const sourceOptions = [
-    { label: "External", value: "external" }
+    { label: "Community", value: "community" }
   ];
 
   const sidebarFilterGroups: SidebarFilterGroup[] = [
@@ -76,9 +76,9 @@ export default function SkillsPage() {
           return skill.tags?.some((tag) => values.includes(tag)) ?? false;
         }
         if (group === "Source") {
-          // Use isExternal field from manifest (true if not from Agent-Skills repo)
-          const isExternal = skill.isExternal ?? false;
-          if (values.includes("external")) return isExternal;
+          // Use isCommunity field from manifest (true if author is not "goose")
+          const isCommunity = skill.isCommunity ?? false;
+          if (values.includes("community")) return isCommunity;
           return true;
         }
         return true;

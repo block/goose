@@ -1,4 +1,4 @@
-import type { Skill, SkillStatus, SkillInstallMethod } from "@site/src/pages/skills/types";
+import type { Skill, SkillStatus, SkillInstallMethod, SupportingFilesType } from "@site/src/pages/skills/types";
 import siteConfig from "@generated/docusaurus.config";
 
 
@@ -111,31 +111,82 @@ export function normalizeSkill(
 
   const sourceUrl = frontmatter.source_url || frontmatter.sourceUrl;
   const repoUrl = frontmatter.repo_url || frontmatter.repoUrl || sourceUrl;
-
-  const isExternal =
-    !!repoUrl && !String(repoUrl).toLowerCase().includes("github.com/block/agent-skills");
+  const author = frontmatter.author;
+  const isCommunity = !!author && author.toLowerCase() !== "goose";
 
   const installMethod = determineInstallMethod(sourceUrl, id);
   const installCommand = generateInstallCommand(sourceUrl, id, installMethod);
+  const supportingFilesType = determineSupportingFilesType(supportingFiles);
 
   return {
     id,
     name: frontmatter.name || id,
     description: frontmatter.description || "No description provided.",
-    author: frontmatter.author,
+    author,
     version: frontmatter.version,
     status: (frontmatter.status as SkillStatus) || "stable",
     tags: Array.isArray(frontmatter.tags) ? frontmatter.tags : [],
     sourceUrl,
     repoUrl,
-    isExternal,
+    isCommunity,
     content,
     hasSupporting: supportingFiles.length > 0,
     supportingFiles,
+    supportingFilesType,
     installMethod,
     installCommand,
     viewSourceUrl: generateViewSourceUrl(id),
   };
+}
+
+/**
+ * Determine the supporting files type based on file contents
+ */
+function determineSupportingFilesType(supportingFiles: string[]): SupportingFilesType {
+  if (supportingFiles.length === 0) {
+    return 'none';
+  }
+
+  // Executable file extensions
+  const executableExtensions = ['.sh', '.bash', '.zsh', '.ps1', '.bat', '.cmd', '.py', '.rb', '.js', '.mjs', '.ts'];
+  
+  // Template-like patterns
+  const templatePatterns = [
+    /\.template\./i,
+    /\.tmpl\./i,
+    /\.tpl\./i,
+    /template\./i,
+    /\.example\./i,
+    /\.sample\./i,
+    /\.skeleton\./i,
+    /\.stub\./i,
+    /\.j2$/i,
+    /\.jinja2?$/i,
+    /\.mustache$/i,
+    /\.hbs$/i,
+    /\.handlebars$/i,
+    /\.ejs$/i,
+    /\.erb$/i,
+  ];
+
+  const hasExecutable = supportingFiles.some(file => {
+    const ext = file.substring(file.lastIndexOf('.')).toLowerCase();
+    return executableExtensions.includes(ext);
+  });
+
+  if (hasExecutable) {
+    return 'scripts';
+  }
+
+  const hasTemplates = supportingFiles.some(file => {
+    return templatePatterns.some(pattern => pattern.test(file));
+  });
+
+  if (hasTemplates) {
+    return 'templates';
+  }
+
+  return 'multi-file';
 }
 
 /**

@@ -136,6 +136,57 @@ function getSupportingFiles(skillDir) {
 }
 
 /**
+ * Determine the supporting files type based on file contents
+ * Returns: 'scripts' | 'templates' | 'multi-file' | 'none'
+ */
+function determineSupportingFilesType(supportingFiles) {
+  if (supportingFiles.length === 0) {
+    return 'none';
+  }
+
+  // Executable file extensions
+  const executableExtensions = ['.sh', '.bash', '.zsh', '.ps1', '.bat', '.cmd', '.py', '.rb', '.js', '.mjs', '.ts'];
+  
+  // Template-like patterns (file names or extensions)
+  const templatePatterns = [
+    /\.template\./i,
+    /\.tmpl\./i,
+    /\.tpl\./i,
+    /template\./i,
+    /\.example\./i,
+    /\.sample\./i,
+    /\.skeleton\./i,
+    /\.stub\./i,
+    /\.j2$/i,
+    /\.jinja2?$/i,
+    /\.mustache$/i,
+    /\.hbs$/i,
+    /\.handlebars$/i,
+    /\.ejs$/i,
+    /\.erb$/i,
+  ];
+
+  const hasExecutable = supportingFiles.some(file => {
+    const ext = path.extname(file).toLowerCase();
+    return executableExtensions.includes(ext);
+  });
+
+  if (hasExecutable) {
+    return 'scripts';
+  }
+
+  const hasTemplates = supportingFiles.some(file => {
+    return templatePatterns.some(pattern => pattern.test(file));
+  });
+
+  if (hasTemplates) {
+    return 'templates';
+  }
+
+  return 'multi-file';
+}
+
+/**
  * Check if a directory contains a SKILL.md file (i.e., is a skill folder)
  */
 function isSkillDirectory(dirPath) {
@@ -175,25 +226,29 @@ function processOfficialSkills() {
       const content = parsed.content || '';
       
       const supportingFiles = getSupportingFiles(skillDir);
-      const isExternal = false;
       const sourceUrl = frontmatter.source_url || frontmatter.sourceUrl;
+      const author = frontmatter.author;
+      const isCommunity = author && author.toLowerCase() !== 'goose';
+      
+      const supportingFilesType = determineSupportingFilesType(supportingFiles);
       
       const skill = {
         id: skillId,
         name: frontmatter.name || skillId,
         description: frontmatter.description || 'No description provided.',
-        author: frontmatter.author,
+        author,
         version: frontmatter.version,
         tags: Array.isArray(frontmatter.tags) ? frontmatter.tags : [],
         sourceUrl, // Optional external source if skill references another repo
         content,
         hasSupporting: supportingFiles.length > 0,
         supportingFiles,
-        installMethod: determineInstallMethod(isExternal, sourceUrl),
-        installCommand: generateInstallCommand(skillId, isExternal, sourceUrl),
-        viewSourceUrl: generateViewSourceUrl(skillId, isExternal, sourceUrl),
+        supportingFilesType,
+        installMethod: determineInstallMethod(false, sourceUrl),
+        installCommand: generateInstallCommand(skillId, false, sourceUrl),
+        viewSourceUrl: generateViewSourceUrl(skillId, false, sourceUrl),
         repoUrl: AGENT_SKILLS_REPO_URL,
-        isExternal: false,
+        isCommunity,
       };
       
       skills.push(skill);
@@ -224,24 +279,26 @@ function processExternalSkills() {
     for (const extSkill of externalSkills) {
       const skillId = extSkill.id;
       const sourceUrl = extSkill.sourceUrl || extSkill.source_url;
-      const isExternal = true;
+      const author = extSkill.author;
+      const isCommunity = author && author.toLowerCase() !== 'goose';
       
       const skill = {
         id: skillId,
         name: extSkill.name || skillId,
         description: extSkill.description || 'No description provided.',
-        author: extSkill.author,
+        author,
         version: extSkill.version,
         tags: Array.isArray(extSkill.tags) ? extSkill.tags : [],
         sourceUrl,
         content: extSkill.content || '', // External skills may not have content
         hasSupporting: false,
         supportingFiles: [],
-        installMethod: determineInstallMethod(isExternal, sourceUrl),
-        installCommand: generateInstallCommand(skillId, isExternal, sourceUrl),
-        viewSourceUrl: generateViewSourceUrl(skillId, isExternal, sourceUrl),
+        supportingFilesType: 'none',
+        installMethod: determineInstallMethod(true, sourceUrl),
+        installCommand: generateInstallCommand(skillId, true, sourceUrl),
+        viewSourceUrl: generateViewSourceUrl(skillId, true, sourceUrl),
         repoUrl: sourceUrl,
-        isExternal: true,
+        isCommunity,
       };
       
       skills.push(skill);

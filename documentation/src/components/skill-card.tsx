@@ -36,9 +36,9 @@ export function SkillCard({ skill }: { skill: Skill }) {
                 {skill.name}
               </h3>
               <div className="flex gap-2 flex-shrink-0">
-                {skill.isExternal && (
-                  <span className="inline-flex items-center h-6 px-2 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-xs font-medium border border-blue-200 dark:border-blue-800">
-                    External
+                {skill.isCommunity && (
+                  <span className="inline-flex items-center h-6 px-2 rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 text-xs font-medium border border-yellow-200 dark:border-yellow-800">
+                    Community
                   </span>
                 )}
                 {skill.version && (
@@ -69,9 +69,19 @@ export function SkillCard({ skill }: { skill: Skill }) {
             )}
 
             {/* Supporting files indicator */}
-            {skill.hasSupporting && (
+            {skill.supportingFilesType === 'scripts' && (
               <div className="text-xs text-zinc-500 dark:text-zinc-500">
-                📁 Includes supporting files
+                ⚙️ Runs scripts
+              </div>
+            )}
+            {skill.supportingFilesType === 'templates' && (
+              <div className="text-xs text-zinc-500 dark:text-zinc-500">
+                📄 Includes templates
+              </div>
+            )}
+            {skill.supportingFilesType === 'multi-file' && (
+              <div className="text-xs text-zinc-500 dark:text-zinc-500">
+                📁 Multi-file skill
               </div>
             )}
           </div>

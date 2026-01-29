@@ -138,9 +138,9 @@ export default function SkillDetailPage(): JSX.Element {
                 {skill.name}
               </h1>
               <div className="flex gap-2 flex-shrink-0">
-                {skill.isExternal && (
-                  <span className="inline-flex items-center h-7 px-3 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-sm font-medium border border-blue-200 dark:border-blue-800">
-                    External
+                {skill.isCommunity && (
+                  <span className="inline-flex items-center h-7 px-3 rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 text-sm font-medium border border-yellow-200 dark:border-yellow-800">
+                    Community
                   </span>
                 )}
                 {skill.version && (

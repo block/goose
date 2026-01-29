@@ -16,6 +16,15 @@ export type SkillStatus = 'experimental' | 'stable';
 export type SkillInstallMethod = 'npx-single' | 'npx-multi' | 'download';
 
 /**
+ * Supporting files type - indicates what kind of extra files the skill includes
+ * - 'scripts': Contains executable files (.sh, .py, .js, etc.)
+ * - 'templates': Contains template files (.template., .example., etc.)
+ * - 'multi-file': Contains other supporting files
+ * - 'none': No supporting files
+ */
+export type SupportingFilesType = 'scripts' | 'templates' | 'multi-file' | 'none';
+
+/**
  * Skill type definition
  */
 export type Skill = {
@@ -30,11 +39,12 @@ export type Skill = {
   content: string;               // Markdown content after frontmatter
   hasSupporting: boolean;        // Computed: has files beyond SKILL.md
   supportingFiles: string[];     // Computed: list of supporting file paths
+  supportingFilesType: SupportingFilesType; // Computed: type of supporting files
   installMethod: SkillInstallMethod; // Computed based on source
   installCommand?: string;       // Computed: npx command
   viewSourceUrl: string;         // Computed: GitHub link to skill source
   repoUrl: string;               // Repository URL (Agent-Skills for official, sourceUrl for external)
-  isExternal: boolean;           // True if skill is from external repo (not Agent-Skills)
+  isCommunity: boolean;          // True if author is not "goose" (community-contributed)
 };
 
 /**
@@ -87,7 +97,7 @@ type SkillInstallMethod = 'npx-single' | 'npx-multi' | 'download';`}
   installCommand?: string;       // Computed: npx command
   viewSourceUrl: string;         // Computed: GitHub link to skill source
   repoUrl: string;               // Repository URL (Agent-Skills for official, sourceUrl for external)
-  isExternal: boolean;           // True if skill is from external repo (not Agent-Skills)
+  isCommunity: boolean;          // True if author is not "goose" (community-contributed)
 };`}
         </CodeBlock>
 
