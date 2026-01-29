@@ -1,4 +1,3 @@
-use crate::agents::apps_extension;
 use crate::agents::chatrecall_extension;
 use crate::agents::code_execution_extension;
 use crate::agents::extension_manager_extension;
@@ -52,17 +51,6 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                     "Enable a todo list for goose so it can keep track of what it is doing",
                 default_enabled: true,
                 client_factory: |ctx| Box::new(todo_extension::TodoClient::new(ctx).unwrap()),
-            },
-        );
-
-        map.insert(
-            apps_extension::EXTENSION_NAME,
-            PlatformExtensionDef {
-                name: apps_extension::EXTENSION_NAME,
-                description:
-                    "Create and manage custom Goose apps through chat. Apps are HTML/CSS/JavaScript and run in sandboxed windows.",
-                default_enabled: true,
-                client_factory: |ctx| Box::new(apps_extension::AppsManagerClient::new(ctx).unwrap()),
             },
         );
 
