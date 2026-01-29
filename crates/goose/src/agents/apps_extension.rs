@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
 use crate::config::paths::Paths;
@@ -632,6 +634,7 @@ impl McpClientTrait for AppsManagerClient {
     }
 }
 
+#[allow(dead_code)]
 fn schema<T: JsonSchema>() -> JsonObject {
     let mut obj = serde_json::to_value(schema_for!(T))
         .map(|v| v.as_object().unwrap().clone())
@@ -642,6 +645,7 @@ fn schema<T: JsonSchema>() -> JsonObject {
     obj
 }
 
+#[allow(dead_code)]
 fn extract_string(args: &JsonObject, key: &str) -> Result<String, String> {
     args.get(key)
         .and_then(|v| v.as_str())
@@ -649,6 +653,7 @@ fn extract_string(args: &JsonObject, key: &str) -> Result<String, String> {
         .ok_or_else(|| format!("Missing or invalid '{}'", key))
 }
 
+#[allow(dead_code)]
 fn extract_tool_response<T: serde::de::DeserializeOwned>(
     response: &Message,
     tool_name: &str,
