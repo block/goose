@@ -40,6 +40,9 @@ export default function CreateEditRecipeModal({
         jsonSchema: recipe.response?.json_schema
           ? JSON.stringify(recipe.response.json_schema, null, 2)
           : '',
+        model: recipe.settings?.goose_model ?? undefined,
+        provider: recipe.settings?.goose_provider ?? undefined,
+        extensions: recipe.extensions || undefined,
       };
     }
     return {
@@ -50,6 +53,9 @@ export default function CreateEditRecipeModal({
       activities: [],
       parameters: [],
       jsonSchema: '',
+      model: undefined,
+      provider: undefined,
+      extensions: undefined,
     };
   }, [recipe]);
 
@@ -65,6 +71,9 @@ export default function CreateEditRecipeModal({
   const [activities, setActivities] = useState(form.state.values.activities);
   const [parameters, setParameters] = useState(form.state.values.parameters);
   const [jsonSchema, setJsonSchema] = useState(form.state.values.jsonSchema);
+  const [model, setModel] = useState(form.state.values.model);
+  const [provider, setProvider] = useState(form.state.values.provider);
+  const [extensions, setExtensions] = useState(form.state.values.extensions);
 
   // Subscribe to form changes to update local state
   useEffect(() => {
@@ -76,14 +85,13 @@ export default function CreateEditRecipeModal({
       setActivities(form.state.values.activities);
       setParameters(form.state.values.parameters);
       setJsonSchema(form.state.values.jsonSchema);
+      setModel(form.state.values.model);
+      setProvider(form.state.values.provider);
+      setExtensions(form.state.values.extensions);
     });
   }, [form]);
   const [copied, setCopied] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-
-  const [recipeExtensions] = useState<ExtensionConfig[] | undefined>(() => {
-    return recipe?.extensions ?? undefined;
-  });
 
   // Reset form when recipe changes
   useEffect(() => {
@@ -128,9 +136,17 @@ export default function CreateEditRecipeModal({
       }
     }
 
-    const extensions = recipeExtensions?.map((extension) =>
+    const cleanedExtensions = extensions?.map((extension) =>
       'envs' in extension ? { ...extension, envs: undefined } : extension
     ) as ExtensionConfig[] | undefined;
+
+    const settings =
+      model || provider
+        ? {
+            goose_model: model || null,
+            goose_provider: provider || null,
+          }
+        : undefined;
 
     return {
       ...recipe,
@@ -141,7 +157,8 @@ export default function CreateEditRecipeModal({
       prompt: prompt || undefined,
       parameters: formattedParameters,
       response: responseConfig,
-      extensions,
+      extensions: cleanedExtensions,
+      settings,
     };
   }, [
     recipe,
@@ -152,7 +169,9 @@ export default function CreateEditRecipeModal({
     prompt,
     parameters,
     jsonSchema,
-    recipeExtensions,
+    model,
+    provider,
+    extensions,
   ]);
 
   const requiredFieldsAreFilled = () => {
@@ -224,7 +243,9 @@ export default function CreateEditRecipeModal({
     activities,
     parameters,
     jsonSchema,
-    recipeExtensions,
+    model,
+    provider,
+    extensions,
     getCurrentRecipe,
   ]);
 
