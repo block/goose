@@ -252,6 +252,13 @@ describe('Extension Utils', () => {
         { cmd: 'java', args: ['-classpath', '/path/with spaces/lib.jar', 'Main'] },
       ],
       [
+        '"/Applications/IntelliJ IDEA.app/Contents/jbr/Contents/Home/bin/java" -classpath "/path/with spaces/lib.jar" Main',
+        {
+          cmd: '/Applications/IntelliJ IDEA.app/Contents/jbr/Contents/Home/bin/java',
+          args: ['-classpath', '/path/with spaces/lib.jar', 'Main'],
+        },
+      ],
+      [
         'node --max-old-space-size=4096 app.js',
         { cmd: 'node', args: ['--max-old-space-size=4096', 'app.js'] },
       ],

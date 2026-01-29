@@ -1,5 +1,4 @@
 use super::base::Config;
-use crate::agents::extension::PLATFORM_EXTENSIONS;
 use crate::agents::ExtensionConfig;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
@@ -54,24 +53,6 @@ fn get_extensions_map() -> IndexMap<String, ExtensionEntry> {
         }
     }
 
-    // Always inject platform extensions (code_execution, todo, skills, etc.)
-    // These are internal agent extensions that should always be available
-    for (name, def) in PLATFORM_EXTENSIONS.iter() {
-        if !extensions_map.contains_key(*name) {
-            extensions_map.insert(
-                name.to_string(),
-                ExtensionEntry {
-                    config: ExtensionConfig::Platform {
-                        name: def.name.to_string(),
-                        description: def.description.to_string(),
-                        bundled: Some(true),
-                        available_tools: Vec::new(),
-                    },
-                    enabled: def.default_enabled,
-                },
-            );
-        }
-    }
     extensions_map
 }
 

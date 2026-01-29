@@ -287,9 +287,9 @@ export GOOSE_EDITOR_HOST="http://localhost:8000/v1"
 export GOOSE_EDITOR_MODEL="your-model"
 ```
 
-## Security Configuration
+## Security and Privacy
 
-These variables control security related features.
+These variables control security features, credential storage, and anonymous usage data collection.
 
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
@@ -300,6 +300,7 @@ These variables control security related features.
 | `SECURITY_PROMPT_CLASSIFIER_ENABLED` | Enable ML-based prompt injection detection for advanced threat identification | true/false | false |
 | `SECURITY_PROMPT_CLASSIFIER_ENDPOINT` | Classification endpoint URL for ML-based prompt injection detection | URL (e.g., "https://api.example.com/classify") | Unset |
 | `SECURITY_PROMPT_CLASSIFIER_TOKEN` | Authentication token for `SECURITY_PROMPT_CLASSIFIER_ENDPOINT` | String | Unset |
+| `GOOSE_TELEMETRY_ENABLED` | Enable or disable [anonymous usage data collection](/docs/guides/usage-data) | true/false | false |
 
 **Examples**
 
@@ -316,6 +317,10 @@ export SECURITY_PROMPT_ENABLED=true
 export SECURITY_PROMPT_CLASSIFIER_ENABLED=true
 export SECURITY_PROMPT_CLASSIFIER_ENDPOINT="https://your-endpoint.com/classify"
 export SECURITY_PROMPT_CLASSIFIER_TOKEN="your-auth-token"
+
+# Control anonymous usage data collection
+export GOOSE_TELEMETRY_ENABLED=false  # Disable telemetry
+export GOOSE_TELEMETRY_ENABLED=true   # Enable telemetry
 ```
 
 :::tip
@@ -513,9 +518,8 @@ When deploying goose in enterprise environments, administrators might need to co
 - [Advanced Provider Configuration](#advanced-provider-configuration) - Point to internal LLM endpoints (e.g., Databricks, custom deployments)
 - [Model Context Limit Overrides](#model-context-limit-overrides) - Configure context limits for LiteLLM proxies and custom models
 
-**Security and Access Control** - Manage which extensions can run and how secrets are stored:
-
-- [Security Configuration](#security-configuration) - Control extension loading (`GOOSE_ALLOWLIST`) and secrets management (`GOOSE_DISABLE_KEYRING`)
+**Security and Privacy** - Control security and privacy features:
+- [Security and Privacy](#security-and-privacy) - Manage security and privacy settings such as extension loading, secrets storage, and usage data collection
 
 **Compliance and Monitoring** - Track usage and export telemetry for auditing:
 

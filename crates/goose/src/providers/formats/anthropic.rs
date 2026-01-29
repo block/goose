@@ -34,13 +34,7 @@ const DATA_FIELD: &str = "data";
 pub fn format_messages(messages: &[Message]) -> Vec<Value> {
     let mut anthropic_messages = Vec::new();
 
-    let filtered_messages: Vec<Message> = messages
-        .iter()
-        .filter(|m| m.is_agent_visible())
-        .map(|m| m.agent_visible_content())
-        .collect();
-
-    for message in &filtered_messages {
+    for message in messages {
         let role = match message.role {
             Role::User => USER_ROLE,
             Role::Assistant => ASSISTANT_ROLE,

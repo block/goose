@@ -1318,32 +1318,20 @@ impl DeveloperServer {
             .map(|strategy| strategy.config_dir().join(".gooseignore"))
             .ok();
 
-        let mut has_local_ignore = local_ignore_path.is_file();
+        let has_local_ignore = local_ignore_path.is_file();
         let has_global_ignore = global_ignore_path
             .as_ref()
             .map(|p| p.is_file())
             .unwrap_or(false);
 
+        // If no ignore file exists, apply default patterns in memory without writing to disk
         if !has_local_ignore && !has_global_ignore {
-            match std::fs::write(&local_ignore_path, DEFAULT_GOOSEIGNORE_CONTENT) {
-                Ok(_) => {
-                    has_local_ignore = true;
+            for pattern in DEFAULT_GOOSEIGNORE_CONTENT.lines() {
+                let trimmed = pattern.trim();
+                if trimmed.is_empty() || trimmed.starts_with('#') {
+                    continue;
                 }
-                Err(err) => {
-                    tracing::warn!(
-                        "Failed to create default .gooseignore at {}: {}",
-                        local_ignore_path.display(),
-                        err
-                    );
-
-                    for pattern in DEFAULT_GOOSEIGNORE_CONTENT.lines() {
-                        let trimmed = pattern.trim();
-                        if trimmed.is_empty() || trimmed.starts_with('#') {
-                            continue;
-                        }
-                        let _ = builder.add_line(None, trimmed);
-                    }
-                }
+                let _ = builder.add_line(None, trimmed);
             }
         }
 
@@ -3281,15 +3269,14 @@ mod tests {
         // Don't create any ignore files
         let server = create_test_server();
 
+        // Verify that .gooseignore is NOT created on disk (patterns applied in memory only)
         let gooseignore_path = temp_dir.path().join(".gooseignore");
         assert!(
-            gooseignore_path.exists(),
-            ".gooseignore should be created by default"
+            !gooseignore_path.exists(),
+            ".gooseignore should NOT be created on disk"
         );
-        let default_contents = fs::read_to_string(gooseignore_path).unwrap();
-        assert_eq!(default_contents, DEFAULT_GOOSEIGNORE_CONTENT);
 
-        // Default patterns should be used
+        // Default patterns should still be applied in memory
         assert!(
             server.is_ignored(Path::new(".env")),
             ".env should be ignored by default patterns"

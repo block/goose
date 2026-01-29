@@ -59,17 +59,16 @@ struct StreamingChunk {
 
 pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Value> {
     let mut messages_spec = Vec::new();
-    for message in messages.iter().filter(|m| m.is_agent_visible()) {
-        let filtered = message.agent_visible_content();
+    for message in messages {
         let mut converted = json!({
-            "role": filtered.role
+            "role": message.role
         });
 
         let mut output = Vec::new();
         let mut content_array = Vec::new();
         let mut text_array = Vec::new();
 
-        for content in &filtered.content {
+        for content in &message.content {
             match content {
                 MessageContent::Text(text) => {
                     if !text.text.is_empty() {
@@ -136,13 +135,11 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                 MessageContent::ToolResponse(response) => {
                     match &response.tool_result {
                         Ok(result) => {
-                            let abridged: Vec<_> = result.content.to_vec();
-
                             // Process all content, replacing images with placeholder text
                             let mut tool_content = Vec::new();
                             let mut image_messages = Vec::new();
 
-                            for content in abridged {
+                            for content in result.content.iter() {
                                 match content.deref() {
                                     RawContent::Image(image) => {
                                         // Add placeholder text in the tool response
@@ -164,7 +161,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                                         tool_content.push(Content::text(text));
                                     }
                                     _ => {
-                                        tool_content.push(content);
+                                        tool_content.push(content.clone());
                                     }
                                 }
                             }

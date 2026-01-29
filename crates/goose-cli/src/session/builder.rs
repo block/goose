@@ -92,6 +92,7 @@ pub struct SessionBuilderConfig {
     pub streamable_http_extensions: Vec<StreamableHttpOptions>,
     /// List of builtin extension commands to add
     pub builtins: Vec<String>,
+    pub no_profile: bool,
     /// Recipe for the session
     pub recipe: Option<Recipe>,
     /// Any additional system prompt to append to the default
@@ -130,6 +131,7 @@ impl Default for SessionBuilderConfig {
             extensions: Vec::new(),
             streamable_http_extensions: Vec::new(),
             builtins: Vec::new(),
+            no_profile: false,
             recipe: None,
             additional_system_prompt: None,
             provider: None,
@@ -529,6 +531,8 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             .and_then(|s| EnabledExtensionsState::from_extension_data(&s.extension_data))
             .map(|state| state.extensions)
             .unwrap_or_else(get_enabled_extensions)
+    } else if session_config.no_profile {
+        Vec::new()
     } else {
         resolve_extensions_for_new_session(recipe.and_then(|r| r.extensions.as_deref()), None)
     };
@@ -636,6 +640,7 @@ mod tests {
                 timeout: goose::config::DEFAULT_EXTENSION_TIMEOUT,
             }],
             builtins: vec!["developer".to_string()],
+            no_profile: false,
             recipe: None,
             additional_system_prompt: Some("Test prompt".to_string()),
             provider: None,
@@ -671,6 +676,7 @@ mod tests {
         assert!(config.extensions.is_empty());
         assert!(config.streamable_http_extensions.is_empty());
         assert!(config.builtins.is_empty());
+        assert!(!config.no_profile);
         assert!(config.recipe.is_none());
         assert!(config.additional_system_prompt.is_none());
         assert!(!config.debug);

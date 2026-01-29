@@ -321,11 +321,10 @@ pub fn convert_tool_messages_to_text(messages: &[Message]) -> Conversation {
     let converted_messages: Vec<Message> = messages
         .iter()
         .map(|message| {
-            let filtered = message.agent_visible_content();
             let mut new_content = Vec::new();
             let mut has_tool_content = false;
 
-            for content in &filtered.content {
+            for content in &message.content {
                 match content {
                     MessageContent::ToolRequest(req) => {
                         has_tool_content = true;
@@ -370,9 +369,9 @@ pub fn convert_tool_messages_to_text(messages: &[Message]) -> Conversation {
             }
 
             if has_tool_content {
-                Message::new(filtered.role.clone(), filtered.created, new_content)
+                Message::new(message.role.clone(), message.created, new_content)
             } else {
-                filtered
+                message.clone()
             }
         })
         .collect();
