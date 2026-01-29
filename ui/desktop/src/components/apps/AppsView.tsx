@@ -35,7 +35,8 @@ export default function AppsView() {
           throwOnError: true,
         });
         const cachedApps = response.data?.apps || [];
-        setApps(cachedApps);
+        // Only show standalone Goose Apps (apps with GooseApp metadata)
+        setApps(cachedApps.filter((a) => a.isGooseApp));
       } catch (err) {
         console.warn('Failed to load cached apps:', err);
       } finally {
@@ -57,7 +58,8 @@ export default function AppsView() {
           query: { session_id: sessionId },
         });
         const freshApps = response.data?.apps || [];
-        setApps(freshApps);
+        // Only show standalone Goose Apps (apps with GooseApp metadata)
+        setApps(freshApps.filter((a) => a.isGooseApp));
         setError(null);
       } catch (err) {
         console.warn('Failed to refresh apps:', err);
@@ -89,7 +91,7 @@ export default function AppsView() {
             query: { session_id: eventSessionId },
           }).then((response) => {
             if (response.data?.apps) {
-              setApps(response.data.apps);
+              setApps(response.data.apps.filter((a) => a.isGooseApp));
             }
           });
         }
@@ -110,7 +112,8 @@ export default function AppsView() {
         query: { session_id: sessionId },
       });
       const fetchedApps = response.data?.apps || [];
-      setApps(fetchedApps);
+      // Only show standalone Goose Apps (apps with GooseApp metadata)
+      setApps(fetchedApps.filter((a) => a.isGooseApp));
       setError(null);
     } catch (err) {
       // Only set error if we don't have apps to show
@@ -175,7 +178,9 @@ export default function AppsView() {
       const response = await listApps({
         throwOnError: true,
       });
-      setApps(response.data?.apps || []);
+      const cachedApps = response.data?.apps || [];
+      // Only show standalone Goose Apps (apps with GooseApp metadata)
+      setApps(cachedApps.filter((a) => a.isGooseApp));
       setError(null);
     } catch (err) {
       console.error('Failed to import app:', err);
