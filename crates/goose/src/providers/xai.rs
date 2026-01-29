@@ -178,46 +178,32 @@ impl Provider for XaiProvider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        let response = match self.api_client.response_get(None, "models").await {
-            Ok(response) => response,
-            Err(e) => {
-                tracing::warn!(
-                    "Failed to fetch models from XAI API: {}, falling back to known models",
-                    e
-                );
-                let models: Vec<String> = XAI_KNOWN_MODELS.iter().map(|s| s.to_string()).collect();
-                return Ok(Some(models));
-            }
-        };
+        let response = self.api_client.response_get(None, "models").await?;
+        let json = handle_response_openai_compat(response).await?;
 
-        let json = match handle_response_openai_compat(response).await {
-            Ok(json) => json,
-            Err(e) => {
-                tracing::warn!(
-                    "Failed to parse XAI models response: {}, falling back to known models",
-                    e
-                );
-                let models: Vec<String> = XAI_KNOWN_MODELS.iter().map(|s| s.to_string()).collect();
-                return Ok(Some(models));
-            }
-        };
-
-        if let Some(data) = json.get("data").and_then(|v| v.as_array()) {
-            let models: Vec<String> = data
-                .iter()
-                .filter_map(|m| {
-                    m.get("id")
-                        .and_then(|id| id.as_str())
-                        .map(|s| s.to_string())
-                })
-                .collect();
-            if !models.is_empty() {
-                return Ok(Some(models));
-            }
+        if let Some(err_obj) = json.get("error") {
+            let msg = err_obj
+                .get("message")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown error");
+            return Err(ProviderError::Authentication(msg.to_string()));
         }
 
-        // Fallback to known models if API doesn't return what we expect
-        let models: Vec<String> = XAI_KNOWN_MODELS.iter().map(|s| s.to_string()).collect();
-        Ok(Some(models))
+        let data = json.get("data").and_then(|v| v.as_array());
+        match data {
+            Some(arr) => {
+                let mut models: Vec<String> = arr
+                    .iter()
+                    .filter_map(|m| {
+                        m.get("id")
+                            .and_then(|id| id.as_str())
+                            .map(|s| s.to_string())
+                    })
+                    .collect();
+                models.sort();
+                Ok(Some(models))
+            }
+            None => Ok(None),
+        }
     }
 }
