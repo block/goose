@@ -742,6 +742,34 @@ impl SessionStorage {
             info!("All migrations complete");
         }
 
+        Self::repair_schema(pool).await?;
+
+        Ok(())
+    }
+
+    async fn repair_schema(pool: &Pool<Sqlite>) -> Result<()> {
+        let has_message_id = sqlx::query_scalar::<_, i32>(
+            "SELECT COUNT(*) FROM pragma_table_info('messages') WHERE name = 'message_id'",
+        )
+        .fetch_one(pool)
+        .await?
+            > 0;
+
+        if !has_message_id {
+            info!("Repairing schema: adding missing message_id column");
+            sqlx::query("ALTER TABLE messages ADD COLUMN message_id TEXT")
+                .execute(pool)
+                .await?;
+
+            sqlx::query("UPDATE messages SET message_id = 'msg_' || session_id || '_' || id")
+                .execute(pool)
+                .await?;
+
+            sqlx::query("CREATE INDEX IF NOT EXISTS idx_messages_message_id ON messages(message_id)")
+                .execute(pool)
+                .await?;
+        }
+
         Ok(())
     }
 
@@ -857,26 +885,35 @@ impl SessionStorage {
                 .await?;
             }
             7 => {
-                sqlx::query(
-                    r#"
-                    ALTER TABLE messages ADD COLUMN message_id TEXT
-                "#,
+                let has_message_id = sqlx::query_scalar::<_, i32>(
+                    "SELECT COUNT(*) FROM pragma_table_info('messages') WHERE name = 'message_id'",
                 )
-                .execute(pool)
-                .await?;
+                .fetch_one(pool)
+                .await?
+                    > 0;
 
-                sqlx::query(
-                    r#"
-                    UPDATE messages
-                    SET message_id = 'msg_' || session_id || '_' || id
-                "#,
-                )
-                .execute(pool)
-                .await?;
-
-                sqlx::query("CREATE INDEX idx_messages_message_id ON messages(message_id)")
+                if !has_message_id {
+                    sqlx::query(
+                        r#"
+                        ALTER TABLE messages ADD COLUMN message_id TEXT
+                    "#,
+                    )
                     .execute(pool)
                     .await?;
+
+                    sqlx::query(
+                        r#"
+                        UPDATE messages
+                        SET message_id = 'msg_' || session_id || '_' || id
+                    "#,
+                    )
+                    .execute(pool)
+                    .await?;
+
+                    sqlx::query("CREATE INDEX idx_messages_message_id ON messages(message_id)")
+                        .execute(pool)
+                        .await?;
+                }
             }
             _ => {
                 anyhow::bail!("Unknown migration version: {}", version);
