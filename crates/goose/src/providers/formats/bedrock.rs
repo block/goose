@@ -18,12 +18,10 @@ use super::super::base::Usage;
 use crate::conversation::message::{Message, MessageContent};
 
 pub fn to_bedrock_message(message: &Message) -> Result<bedrock::Message> {
-    let filtered = message.agent_visible_content();
-
     bedrock::Message::builder()
-        .role(to_bedrock_role(&filtered.role))
+        .role(to_bedrock_role(&message.role))
         .set_content(Some(
-            filtered
+            message
                 .content
                 .iter()
                 .map(to_bedrock_message_content)

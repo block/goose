@@ -306,9 +306,8 @@ fn add_function_calls(input_items: &mut Vec<Value>, messages: &[Message]) {
 }
 
 fn add_function_call_outputs(input_items: &mut Vec<Value>, messages: &[Message]) {
-    for message in messages.iter().filter(|m| m.is_agent_visible()) {
-        let filtered = message.agent_visible_content();
-        for content in &filtered.content {
+    for message in messages {
+        for content in &message.content {
             if let MessageContent::ToolResponse(response) = content {
                 match &response.tool_result {
                     Ok(contents) => {

@@ -78,9 +78,8 @@ static CHATGPT_CODEX_AUTH_STATE: LazyLock<Arc<ChatGptCodexAuthState>> =
 fn build_input_items(messages: &[Message]) -> Result<Vec<Value>> {
     let mut items = Vec::new();
 
-    for message in messages.iter().filter(|m| m.is_agent_visible()) {
-        let filtered = message.agent_visible_content();
-        let role = match filtered.role {
+    for message in messages {
+        let role = match message.role {
             Role::User => Some("user"),
             Role::Assistant => Some("assistant"),
         };
@@ -96,7 +95,7 @@ fn build_input_items(messages: &[Message]) -> Result<Vec<Value>> {
             }
         };
 
-        for content in &filtered.content {
+        for content in &message.content {
             match content {
                 MessageContent::Text(text) => {
                     if !text.text.is_empty() {

@@ -182,11 +182,17 @@ impl Agent {
     ) -> Result<MessageStream, ProviderError> {
         let config = provider.get_model_config();
 
+        let filtered_messages: Vec<Message> = messages
+            .iter()
+            .filter(|m| m.is_agent_visible())
+            .map(|m| m.agent_visible_content())
+            .collect();
+
         // Convert tool messages to text if toolshim is enabled
         let messages_for_provider = if config.toolshim {
-            convert_tool_messages_to_text(messages)
+            convert_tool_messages_to_text(&filtered_messages)
         } else {
-            Conversation::new_unvalidated(messages.to_vec())
+            Conversation::new_unvalidated(filtered_messages)
         };
 
         // Clone owned data to move into the async stream
