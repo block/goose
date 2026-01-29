@@ -437,17 +437,11 @@ pub async fn get_slash_commands() -> Result<Json<SlashCommandsResponse>, ErrorRe
 pub struct ModelInfoData {
     pub provider: String,
     pub model: String,
-    /// Context window size in tokens
     pub context_limit: usize,
-    /// Maximum output tokens
     pub max_output_tokens: Option<usize>,
-    /// Cost per input token in USD
     pub input_token_cost: Option<f64>,
-    /// Cost per output token in USD
     pub output_token_cost: Option<f64>,
-    /// Cost per cached read token in USD
     pub cache_read_token_cost: Option<f64>,
-    /// Cost per cached write token in USD
     pub cache_write_token_cost: Option<f64>,
     pub currency: String,
 }
@@ -484,11 +478,11 @@ pub async fn get_canonical_model_info(
             model: query.model.clone(),
             context_limit: canonical_model.limit.context,
             max_output_tokens: canonical_model.limit.output,
-            // Canonical model costs are per million tokens, convert to per-token
-            input_token_cost: canonical_model.cost.input.map(|c| c / 1_000_000.0),
-            output_token_cost: canonical_model.cost.output.map(|c| c / 1_000_000.0),
-            cache_read_token_cost: canonical_model.cost.cache_read.map(|c| c / 1_000_000.0),
-            cache_write_token_cost: canonical_model.cost.cache_write.map(|c| c / 1_000_000.0),
+            // Costs are per million tokens - client handles division for display
+            input_token_cost: canonical_model.cost.input,
+            output_token_cost: canonical_model.cost.output,
+            cache_read_token_cost: canonical_model.cost.cache_read,
+            cache_write_token_cost: canonical_model.cost.cache_write,
             currency: "$".to_string(),
         };
 

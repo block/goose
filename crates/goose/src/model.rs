@@ -68,8 +68,6 @@ impl ModelConfig {
         provider_name: &str,
         context_env_var: Option<&str>,
     ) -> Result<Self, ConfigError> {
-        let predefined = find_predefined_model(&model_name);
-
         // Priority 1: Check env vars first (highest priority)
         let context_limit_from_env = if let Some(env_var) = context_env_var {
             if let Ok(val) = std::env::var(env_var) {
@@ -103,6 +101,7 @@ impl ModelConfig {
         }
 
         // Priority 3: Check predefined models
+        let predefined = find_predefined_model(&model_name);
         if context_limit.is_none() {
             if let Some(ref pm) = predefined {
                 context_limit = pm.context_limit;
@@ -266,8 +265,6 @@ impl ModelConfig {
         self.context_limit.unwrap_or(DEFAULT_CONTEXT_LIMIT)
     }
 
-    /// Get the maximum output tokens for this model
-    /// Returns the value to use for max_tokens in API requests
     pub fn max_output_tokens(&self) -> i32 {
         // Priority 1: Explicit max_tokens (includes canonical data if set during init)
         if let Some(tokens) = self.max_tokens {

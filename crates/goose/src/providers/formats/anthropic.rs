@@ -391,12 +391,10 @@ pub fn create_request(
     let tool_specs = format_tools(tools);
     let system_spec = format_system(system);
 
-    // Check if we have any messages to send
     if anthropic_messages.is_empty() {
         return Err(anyhow!("No valid messages to send to Anthropic API"));
     }
 
-    // Get max output tokens from canonical model if available, otherwise use defaults
     let max_tokens = model_config.max_output_tokens();
     let mut payload = json!({
         "model": model_config.model_name,
@@ -404,7 +402,6 @@ pub fn create_request(
         "max_tokens": max_tokens,
     });
 
-    // Add system message if present
     if !system.is_empty() {
         payload
             .as_object_mut()
@@ -412,7 +409,6 @@ pub fn create_request(
             .insert("system".to_string(), json!(system_spec));
     }
 
-    // Add tools if present
     if !tool_specs.is_empty() {
         payload
             .as_object_mut()
@@ -420,7 +416,6 @@ pub fn create_request(
             .insert("tools".to_string(), json!(tool_specs));
     }
 
-    // Add temperature if specified and not using extended thinking model
     if let Some(temp) = model_config.temperature {
         payload
             .as_object_mut()
@@ -428,10 +423,8 @@ pub fn create_request(
             .insert("temperature".to_string(), json!(temp));
     }
 
-    // Add thinking parameters when CLAUDE_THINKING_ENABLED is set
     let is_thinking_enabled = std::env::var("CLAUDE_THINKING_ENABLED").is_ok();
     if is_thinking_enabled {
-        // Minimum budget_tokens is 1024
         let budget_tokens = std::env::var("CLAUDE_THINKING_BUDGET")
             .unwrap_or_else(|_| "16000".to_string())
             .parse()

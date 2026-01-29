@@ -48,6 +48,8 @@ pub struct OpenRouterProvider {
 
 impl OpenRouterProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
+        let model = model.with_fast(OPENROUTER_DEFAULT_FAST_MODEL.to_string());
+
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("OPENROUTER_API_KEY")?;
         let host: String = config
@@ -58,9 +60,6 @@ impl OpenRouterProvider {
         let api_client = ApiClient::new(host, auth)?
             .with_header("HTTP-Referer", "https://block.github.io/goose")?
             .with_header("X-Title", "goose")?;
-
-        // Set the fast model for compaction and other fast operations
-        let model = model.with_fast(OPENROUTER_DEFAULT_FAST_MODEL.to_string());
 
         Ok(Self {
             api_client,

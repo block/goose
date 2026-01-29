@@ -53,6 +53,8 @@ pub struct AnthropicProvider {
 
 impl AnthropicProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
+        let model = model.with_fast(ANTHROPIC_DEFAULT_FAST_MODEL.to_string());
+        
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("ANTHROPIC_API_KEY")?;
         let host: String = config
@@ -66,9 +68,6 @@ impl AnthropicProvider {
 
         let api_client =
             ApiClient::new(host, auth)?.with_header("anthropic-version", ANTHROPIC_API_VERSION)?;
-
-        // Set the fast model for compaction and other fast operations
-        let model = model.with_fast(ANTHROPIC_DEFAULT_FAST_MODEL.to_string());
 
         Ok(Self {
             api_client,

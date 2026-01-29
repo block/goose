@@ -64,6 +64,8 @@ pub struct OpenAiProvider {
 
 impl OpenAiProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
+        let model = model.with_fast(OPEN_AI_DEFAULT_FAST_MODEL.to_string());
+
         let config = crate::config::Config::global();
         let host: String = config
             .get_param("OPENAI_HOST")
@@ -106,9 +108,6 @@ impl OpenAiProvider {
             }
             api_client = api_client.with_headers(header_map)?;
         }
-
-        // Set the fast model for compaction and other fast operations
-        let model = model.with_fast(OPEN_AI_DEFAULT_FAST_MODEL.to_string());
 
         Ok(Self {
             api_client,
