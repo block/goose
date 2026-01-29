@@ -321,9 +321,6 @@ export SECURITY_PROMPT_CLASSIFIER_TOKEN="your-auth-token"
 # Control anonymous usage data collection
 export GOOSE_TELEMETRY_ENABLED=false  # Disable telemetry
 export GOOSE_TELEMETRY_ENABLED=true   # Enable telemetry
-
-# Disable anonymous usage data collection (legacy)
-export GOOSE_TELEMETRY_OFF=true
 ```
 
 :::tip
