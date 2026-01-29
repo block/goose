@@ -266,7 +266,6 @@ impl ModelConfig {
     }
 
     pub fn max_output_tokens(&self) -> i32 {
-        // Priority 1: Explicit max_tokens (includes canonical data if set during init)
         if let Some(tokens) = self.max_tokens {
             return tokens;
         }

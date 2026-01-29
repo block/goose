@@ -365,7 +365,7 @@ export default function ChatInput({
         return;
       }
 
-      // Priority 1: Check predefined models from environment (highest priority - user override)
+      // Priority 1: Check predefined models from environment
       const predefinedModels = getPredefinedModelsFromEnv();
       const predefinedModel = predefinedModels.find((m) => m.name === model);
       if (predefinedModel?.context_limit) {
