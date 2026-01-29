@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-01-29T16:01:37.627983565+00:00",
+  "timestamp": "2026-01-29T20:56:01.618357937+00:00",
   "unmapped_models": [
     {
       "provider": "google",
@@ -2496,10 +2496,6 @@
     {
       "provider": "openrouter",
       "model": "deepcogito/cogito-v2-preview-llama-70b"
-    },
-    {
-      "provider": "openrouter",
-      "model": "google/gemini-2.0-flash-exp:free"
     },
     {
       "provider": "openrouter",
@@ -5072,7 +5068,7 @@
     "anthropic": 9,
     "google": 47,
     "openai": 653,
-    "openrouter": 229,
+    "openrouter": 228,
     "tetrate": 0,
     "xai": 0
   },
