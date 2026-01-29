@@ -403,6 +403,7 @@ impl AppsManagerClient {
                 resizable: content.resizable.unwrap_or(DEFAULT_WINDOW_PROPS.resizable),
             }),
             prd: Some(prd),
+            is_goose_app: true,
         };
 
         self.save_app(&app)?;

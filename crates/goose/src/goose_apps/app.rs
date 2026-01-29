@@ -26,6 +26,12 @@ pub struct GooseApp {
     pub window_props: Option<WindowProps>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prd: Option<String>,
+    /// True if this app has valid Goose App JSON-LD metadata (@type: "GooseApp")
+    /// Only apps with this flag should be shown on the Apps page as they are
+    /// standalone, launchable apps. MCP apps from extensions without this
+    /// metadata are chat-dependent and should not appear on the Apps page.
+    #[serde(default)]
+    pub is_goose_app: bool,
 }
 
 impl GooseApp {
@@ -33,6 +39,34 @@ impl GooseApp {
     const PRD_SCRIPT_TYPE: &'static str = "application/x-goose-prd";
     const GOOSE_APP_TYPE: &'static str = "GooseApp";
     const GOOSE_SCHEMA_CONTEXT: &'static str = "urn:goose.ai:schema";
+
+    /// Check if HTML contains valid Goose App JSON-LD metadata.
+    /// Returns true if the HTML has a script tag with type "application/ld+json"
+    /// containing JSON with `@type: "GooseApp"`.
+    pub fn has_goose_app_metadata(html: &str) -> bool {
+        use regex::Regex;
+
+        let metadata_re = match Regex::new(&format!(
+            r#"(?s)<script type="{}"[^>]*>\s*(.*?)\s*</script>"#,
+            regex::escape(Self::METADATA_SCRIPT_TYPE)
+        )) {
+            Ok(re) => re,
+            Err(_) => return false,
+        };
+
+        let Some(json_str) = metadata_re.captures(html).and_then(|cap| cap.get(1)) else {
+            return false;
+        };
+
+        let Ok(metadata) = serde_json::from_str::<serde_json::Value>(json_str.as_str()) else {
+            return false;
+        };
+
+        metadata
+            .get("@type")
+            .and_then(|v| v.as_str())
+            .is_some_and(|t| t == Self::GOOSE_APP_TYPE)
+    }
 
     pub fn from_html(html: &str) -> Result<Self, String> {
         use regex::Regex;
@@ -107,6 +141,12 @@ impl GooseApp {
         let clean_html = metadata_re.replace(html, "");
         let clean_html = prd_re.replace(&clean_html, "").to_string();
 
+        // Validate @type is "GooseApp"
+        let is_goose_app = metadata
+            .get("@type")
+            .and_then(|v| v.as_str())
+            .is_some_and(|t| t == Self::GOOSE_APP_TYPE);
+
         Ok(GooseApp {
             resource: McpAppResource {
                 uri: format!("ui://apps/{}", name),
@@ -120,6 +160,7 @@ impl GooseApp {
             mcp_servers,
             window_props,
             prd,
+            is_goose_app,
         })
     }
 
@@ -236,6 +277,9 @@ pub async fn fetch_mcp_apps(
                 }
 
                 if !html.is_empty() {
+                    // Check if this HTML has valid Goose App metadata
+                    let is_goose_app = GooseApp::has_goose_app_metadata(&html);
+
                     let mcp_resource = McpAppResource {
                         uri: resource.uri.clone(),
                         name: resource.name.clone(),
@@ -291,6 +335,7 @@ pub async fn fetch_mcp_apps(
                         mcp_servers: vec![extension_name],
                         window_props,
                         prd: None,
+                        is_goose_app,
                     };
 
                     apps.push(app);

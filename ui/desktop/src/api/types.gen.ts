@@ -364,6 +364,13 @@ export type GetToolsQuery = {
 };
 
 export type GooseApp = McpAppResource & (WindowProps | null) & {
+    /**
+     * True if this app has valid Goose App JSON-LD metadata (@type: "GooseApp")
+     * Only apps with this flag should be shown on the Apps page as they are
+     * standalone, launchable apps. MCP apps from extensions without this
+     * metadata are chat-dependent and should not appear on the Apps page.
+     */
+    isGooseApp?: boolean;
     mcpServers?: Array<string>;
     prd?: string | null;
 };

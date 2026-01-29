@@ -978,10 +978,14 @@ async fn list_apps(
     let cache = McpAppCache::new().ok();
 
     let Some(session_id) = params.session_id else {
-        let apps = cache
+        // Filter cached apps to only include Goose Apps
+        let apps: Vec<GooseApp> = cache
             .as_ref()
             .and_then(|c| c.list_apps().ok())
-            .unwrap_or_default();
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|app| app.is_goose_app)
+            .collect();
         return Ok(Json(ListAppsResponse { apps }));
     };
 
@@ -993,12 +997,20 @@ async fn list_apps(
             status,
         })?;
 
-    let apps = fetch_mcp_apps(&agent.extension_manager, &session_id)
+    let all_apps = fetch_mcp_apps(&agent.extension_manager, &session_id)
         .await
         .map_err(|e| ErrorResponse {
             message: format!("Failed to list apps: {}", e.message),
             status: StatusCode::INTERNAL_SERVER_ERROR,
         })?;
+
+    // Filter to only include apps with valid Goose App metadata
+    // MCP apps from extensions without this metadata are chat-dependent
+    // and should not appear on the Apps page
+    let apps: Vec<GooseApp> = all_apps
+        .into_iter()
+        .filter(|app| app.is_goose_app)
+        .collect();
 
     if let Some(cache) = cache.as_ref() {
         let active_extensions: HashSet<String> = apps
