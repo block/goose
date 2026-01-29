@@ -16,6 +16,7 @@ use goose::recipe::Recipe;
 use goose::scheduler::{get_default_scheduled_recipes_dir, ScheduledJob};
 
 fn validate_schedule_id(id: &str) -> Result<(), ErrorResponse> {
+    let id = id.trim();
     let is_valid = !id.is_empty()
         && id
             .chars()
