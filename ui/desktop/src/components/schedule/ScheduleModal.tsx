@@ -6,8 +6,8 @@ import { ScheduledJob } from '../../schedule';
 import { CronPicker } from './CronPicker';
 import { Recipe, decodeRecipe } from '../../recipe';
 import { getStorageDirectory } from '../../recipe/recipe_management';
+import { recipeToYaml } from '../../api';
 import ClockIcon from '../../assets/clock-icon.svg';
-import * as yaml from 'yaml';
 
 export interface NewSchedulePayload {
   id: string;
@@ -28,38 +28,6 @@ interface ScheduleModalProps {
 
 type SourceType = 'file' | 'deeplink';
 
-interface CleanExtension {
-  name: string;
-  type: 'stdio' | 'sse' | 'builtin' | 'frontend' | 'streamable_http';
-  cmd?: string;
-  args?: string[];
-  uri?: string;
-  display_name?: string;
-  tools?: unknown[];
-  instructions?: string;
-  env_keys?: string[];
-  timeout?: number;
-  description?: string;
-  bundled?: boolean;
-}
-
-interface CleanRecipe {
-  title: string;
-  description: string;
-  instructions?: string;
-  prompt?: string;
-  activities?: string[];
-  extensions?: CleanExtension[];
-  author?: {
-    contact?: string;
-    metadata?: string;
-  };
-  schedule?: {
-    window_title?: string;
-    working_directory?: string;
-  };
-}
-
 async function parseDeepLink(deepLink: string): Promise<Recipe | null> {
   try {
     const url = new URL(deepLink);
@@ -77,119 +45,6 @@ async function parseDeepLink(deepLink: string): Promise<Recipe | null> {
     console.error('Failed to parse deep link:', error);
     return null;
   }
-}
-
-function recipeToYaml(recipe: Recipe): string {
-  const cleanRecipe: CleanRecipe = {
-    title: recipe.title,
-    description: recipe.description,
-  };
-
-  if (recipe.instructions) {
-    cleanRecipe.instructions = recipe.instructions;
-  }
-
-  if (recipe.prompt) {
-    cleanRecipe.prompt = recipe.prompt;
-  }
-
-  if (recipe.activities && recipe.activities.length > 0) {
-    cleanRecipe.activities = recipe.activities;
-  }
-
-  if (recipe.extensions && recipe.extensions.length > 0) {
-    cleanRecipe.extensions = recipe.extensions.map((ext) => {
-      const cleanExt: CleanExtension = {
-        name: ext.name,
-        type: 'builtin',
-      };
-
-      if ('type' in ext && ext.type) {
-        cleanExt.type = ext.type as CleanExtension['type'];
-
-        const extAny = ext as Record<string, unknown>;
-
-        if (ext.type === 'sse' && extAny.uri) {
-          cleanExt.uri = extAny.uri as string;
-        } else if (ext.type === 'streamable_http' && extAny.uri) {
-          cleanExt.uri = extAny.uri as string;
-        } else if (ext.type === 'stdio') {
-          if (extAny.cmd) {
-            cleanExt.cmd = extAny.cmd as string;
-          }
-          if (extAny.args) {
-            cleanExt.args = extAny.args as string[];
-          }
-        } else if (ext.type === 'builtin' && extAny.display_name) {
-          cleanExt.display_name = extAny.display_name as string;
-        }
-
-        if ((ext.type as string) === 'frontend') {
-          if (extAny.tools) {
-            cleanExt.tools = extAny.tools as unknown[];
-          }
-          if (extAny.instructions) {
-            cleanExt.instructions = extAny.instructions as string;
-          }
-        }
-      } else {
-        const extAny = ext as Record<string, unknown>;
-
-        if (extAny.cmd) {
-          cleanExt.type = 'stdio';
-          cleanExt.cmd = extAny.cmd as string;
-          if (extAny.args) {
-            cleanExt.args = extAny.args as string[];
-          }
-        } else if (extAny.command) {
-          cleanExt.type = 'stdio';
-          cleanExt.cmd = extAny.command as string;
-        } else if (extAny.uri) {
-          cleanExt.type = 'streamable_http';
-          cleanExt.uri = extAny.uri as string;
-        } else if (extAny.tools) {
-          cleanExt.type = 'frontend';
-          cleanExt.tools = extAny.tools as unknown[];
-          if (extAny.instructions) {
-            cleanExt.instructions = extAny.instructions as string;
-          }
-        } else {
-          cleanExt.type = 'builtin';
-        }
-      }
-
-      if ('env_keys' in ext && ext.env_keys && ext.env_keys.length > 0) {
-        cleanExt.env_keys = ext.env_keys;
-      }
-
-      if ('timeout' in ext && ext.timeout) {
-        cleanExt.timeout = ext.timeout as number;
-      }
-
-      if ('description' in ext && ext.description) {
-        cleanExt.description = ext.description as string;
-      }
-
-      if ('bundled' in ext && ext.bundled !== undefined) {
-        cleanExt.bundled = ext.bundled as boolean;
-      }
-
-      return cleanExt;
-    });
-  }
-
-  if (recipe.author) {
-    cleanRecipe.author = {
-      contact: recipe.author.contact || undefined,
-      metadata: recipe.author.metadata || undefined,
-    };
-  }
-
-  cleanRecipe.schedule = {
-    window_title: `${recipe.title} - Scheduled`,
-  };
-
-  return yaml.stringify(cleanRecipe);
 }
 
 const modalLabelClassName = 'block text-sm font-medium text-text-prominent mb-1';
@@ -314,7 +169,12 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
       }
 
       try {
-        const yamlContent = recipeToYaml(parsedRecipe);
+        const response = await recipeToYaml({
+          body: { recipe: parsedRecipe },
+          throwOnError: true,
+        });
+        const yamlContent = response.data.yaml;
+
         const tempFileName = `schedule-${scheduleId}-${Date.now()}.yaml`;
         const tempDir = window.electron.getConfig().GOOSE_WORKING_DIR || '.';
         const tempFilePath = `${tempDir}/${tempFileName}`;
