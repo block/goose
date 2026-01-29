@@ -9,7 +9,7 @@ use aws_sdk_sagemakerruntime::Client as SageMakerClient;
 use rmcp::model::Tool;
 use serde_json::{json, Value};
 
-use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{ConfigKey, Provider, ProviderFactory, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::RequestLog;
@@ -18,8 +18,10 @@ use crate::session_context::SESSION_ID_HEADER;
 
 use crate::model::ModelConfig;
 use chrono::Utc;
+use futures::future::BoxFuture;
 use rmcp::model::Role;
 
+const SAGEMAKER_TGI_PROVIDER_NAME: &str = "sagemaker_tgi";
 pub const SAGEMAKER_TGI_DOC_LINK: &str =
     "https://docs.aws.amazon.com/sagemaker/latest/dg/realtime-endpoints.html";
 
@@ -82,7 +84,7 @@ impl SageMakerTgiProvider {
             sagemaker_client,
             endpoint_name,
             model,
-            name: Self::metadata().name,
+            name: SAGEMAKER_TGI_PROVIDER_NAME.to_string(),
         })
     }
 
@@ -268,11 +270,12 @@ impl SageMakerTgiProvider {
     }
 }
 
-#[async_trait]
-impl Provider for SageMakerTgiProvider {
+impl ProviderFactory for SageMakerTgiProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "sagemaker_tgi",
+            SAGEMAKER_TGI_PROVIDER_NAME,
             "Amazon SageMaker TGI",
             "Run Text Generation Inference models through Amazon SageMaker endpoints. Requires AWS credentials and a SageMaker endpoint URL.",
             SAGEMAKER_TGI_DEFAULT_MODEL,
@@ -286,6 +289,13 @@ impl Provider for SageMakerTgiProvider {
         )
     }
 
+    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for SageMakerTgiProvider {
     fn get_name(&self) -> &str {
         &self.name
     }

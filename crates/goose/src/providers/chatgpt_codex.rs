@@ -2,11 +2,13 @@ use crate::config::paths::Paths;
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::api_client::AuthProvider;
-use crate::providers::base::{ConfigKey, MessageStream, Provider, ProviderMetadata, ProviderUsage};
+use crate::providers::base::{
+    ConfigKey, MessageStream, Provider, ProviderFactory, ProviderMetadata, ProviderUsage,
+};
 use crate::providers::errors::ProviderError;
 use crate::providers::formats::openai_responses::responses_api_to_streaming_message;
+use crate::providers::openai_compatible::handle_status_openai_compat;
 use crate::providers::retry::ProviderRetry;
-use crate::providers::utils::handle_status_openai_compat;
 use crate::session_context::SESSION_ID_HEADER;
 use anyhow::{anyhow, Result};
 use async_stream::try_stream;
@@ -14,6 +16,7 @@ use async_trait::async_trait;
 use axum::{extract::Query, response::Html, routing::get, Router};
 use base64::Engine;
 use chrono::{DateTime, Utc};
+use futures::future::BoxFuture;
 use futures::{StreamExt, TryStreamExt};
 use jsonwebtoken::jwk::JwkSet;
 use jsonwebtoken::{decode, decode_header, DecodingKey, Validation};
@@ -43,6 +46,7 @@ const OAUTH_PORT: u16 = 1455;
 const OAUTH_TIMEOUT_SECS: u64 = 300;
 const HTML_AUTO_CLOSE_TIMEOUT_MS: u64 = 2000;
 
+const CHATGPT_CODEX_PROVIDER_NAME: &str = "chatgpt_codex";
 pub const CHATGPT_CODEX_DEFAULT_MODEL: &str = "gpt-5.1-codex";
 pub const CHATGPT_CODEX_KNOWN_MODELS: &[&str] = &[
     "gpt-5.2-codex",
@@ -787,7 +791,7 @@ impl ChatGptCodexProvider {
         Ok(Self {
             auth_provider,
             model,
-            name: Self::metadata().name,
+            name: CHATGPT_CODEX_PROVIDER_NAME.to_string(),
         })
     }
 
@@ -837,11 +841,12 @@ impl ChatGptCodexProvider {
     }
 }
 
-#[async_trait]
-impl Provider for ChatGptCodexProvider {
+impl ProviderFactory for ChatGptCodexProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "chatgpt_codex",
+            CHATGPT_CODEX_PROVIDER_NAME,
             "ChatGPT Codex",
             "Use your ChatGPT Plus/Pro subscription for GPT-5 Codex models via OAuth",
             CHATGPT_CODEX_DEFAULT_MODEL,
@@ -856,6 +861,13 @@ impl Provider for ChatGptCodexProvider {
         )
     }
 
+    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for ChatGptCodexProvider {
     fn get_name(&self) -> &str {
         &self.name
     }
