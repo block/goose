@@ -419,7 +419,10 @@ async fn build_canonical_models() -> Result<()> {
                         .map(|arr| {
                             arr.iter()
                                 .filter_map(|v| v.as_str())
-                                .filter_map(|s| serde_json::from_value(serde_json::Value::String(s.to_string())).ok())
+                                .filter_map(|s| {
+                                    serde_json::from_value(serde_json::Value::String(s.to_string()))
+                                        .ok()
+                                })
                                 .collect()
                         })
                         .unwrap_or_else(|| vec![Modality::Text]),
@@ -430,7 +433,10 @@ async fn build_canonical_models() -> Result<()> {
                         .map(|arr| {
                             arr.iter()
                                 .filter_map(|v| v.as_str())
-                                .filter_map(|s| serde_json::from_value(serde_json::Value::String(s.to_string())).ok())
+                                .filter_map(|s| {
+                                    serde_json::from_value(serde_json::Value::String(s.to_string()))
+                                        .ok()
+                                })
                                 .collect()
                         })
                         .unwrap_or_else(|| vec![Modality::Text]),
