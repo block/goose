@@ -341,11 +341,6 @@ impl CliSession {
                 .map_err(|e| anyhow::anyhow!("Failed to start extension: {}", e))?;
         }
 
-        self.agent
-            .persist_extension_state(&self.session_id)
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to save extension state: {}", e))?;
-
         self.invalidate_completion_cache().await;
 
         Ok(())
