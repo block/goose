@@ -623,6 +623,7 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
                         const isStreaming = status?.streamState === 'streaming';
                         const hasError = status?.streamState === 'error';
                         const hasUnread = status?.hasUnreadActivity ?? false;
+                        const isActiveSession = session.id === activeSessionId;
                         return (
                           <DropdownMenuItem
                             key={session.id}
@@ -630,7 +631,10 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
                               clearUnread(session.id);
                               handleSessionClick(session.id);
                             }}
-                            className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer"
+                            className={cn(
+                              'flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer',
+                              isActiveSession && 'bg-background-medium'
+                            )}
                           >
                             <MessageSquare className="w-4 h-4 flex-shrink-0 text-text-muted" />
                             <span className="truncate flex-1">

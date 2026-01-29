@@ -482,6 +482,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                           const isStreaming = status?.streamState === 'streaming';
                           const hasError = status?.streamState === 'error';
                           const hasUnread = status?.hasUnreadActivity ?? false;
+                          const isActiveSession = session.id === activeSessionId;
                           return (
                             <DropdownMenuItem
                               key={session.id}
@@ -489,7 +490,10 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                                 clearUnread(session.id);
                                 handleSessionClick(session.id);
                               }}
-                              className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer"
+                              className={cn(
+                                'flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer',
+                                isActiveSession && 'bg-background-medium'
+                              )}
                             >
                               <MessageSquare className="w-4 h-4 flex-shrink-0 text-text-muted" />
                               <span className="truncate flex-1">
@@ -621,6 +625,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                             const isStreaming = status?.streamState === 'streaming';
                             const hasError = status?.streamState === 'error';
                             const hasUnread = status?.hasUnreadActivity ?? false;
+                            const isActiveSession = session.id === activeSessionId;
                             return (
                               <button
                                 key={session.id}
@@ -631,7 +636,8 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                                 className={cn(
                                   'w-full text-left px-2 py-1.5 text-xs rounded-md',
                                   'hover:bg-background-medium transition-colors',
-                                  'flex items-center gap-2'
+                                  'flex items-center gap-2',
+                                  isActiveSession && 'bg-background-medium'
                                 )}
                               >
                                 <MessageSquare className="w-3 h-3 flex-shrink-0 text-text-muted" />
@@ -742,6 +748,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                           const isStreaming = status?.streamState === 'streaming';
                           const hasError = status?.streamState === 'error';
                           const hasUnread = status?.hasUnreadActivity ?? false;
+                          const isActiveSession = session.id === activeSessionId;
                           return (
                             <DropdownMenuItem
                               key={session.id}
@@ -749,7 +756,10 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                                 clearUnread(session.id);
                                 handleSessionClick(session.id);
                               }}
-                              className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer"
+                              className={cn(
+                                'flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer',
+                                isActiveSession && 'bg-background-medium'
+                              )}
                             >
                               <MessageSquare className="w-4 h-4 flex-shrink-0 text-text-muted" />
                               <span className="truncate flex-1">
