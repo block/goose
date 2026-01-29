@@ -281,9 +281,8 @@ impl Provider for TetrateProvider {
 
                 // Check if the model supports computer_use (which indicates tool/function support)
                 // The Tetrate API uses "supports_computer_use" instead of "supported_parameters"
-                let supported_params = match model
-                    .get("supported_parameters")
-                    .and_then(|v| v.as_array()) {
+                let supported_params =
+                    match model.get("supported_parameters").and_then(|v| v.as_array()) {
                         Some(params) => params,
                         None => {
                             tracing::debug!(
@@ -301,10 +300,7 @@ impl Provider for TetrateProvider {
                 if has_tool_support {
                     Some(id.to_string())
                 } else {
-                    tracing::debug!(
-                        "Model '{}' does not support tools, skipping",
-                        id
-                    );
+                    tracing::debug!("Model '{}' does not support tools, skipping", id);
                     None
                 }
             })
