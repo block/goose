@@ -57,6 +57,7 @@ import {
   DropdownMenuSeparator,
 } from '../ui/dropdown-menu';
 import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
+import { errorMessage } from '../../utils/conversionUtils';
 
 export default function RecipesView() {
   const setView = useNavigation();
@@ -130,7 +131,7 @@ export default function RecipesView() {
       const recipeManifestResponses = await listSavedRecipes();
       setSavedRecipes(recipeManifestResponses);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load recipes');
+      setError(errorMessage(err, 'Failed to load recipes'));
       console.error('Failed to load saved recipes:', err);
     } finally {
       setLoading(false);
@@ -154,7 +155,7 @@ export default function RecipesView() {
       });
     } catch (error) {
       console.error('Failed to load recipe:', error);
-      const errorMsg = error instanceof Error ? error.message : 'Failed to load recipe';
+      const errorMsg = errorMessage(error, 'Failed to load recipe');
       trackRecipeStarted(false, getErrorType(error), false);
       setError(errorMsg);
     }
@@ -201,7 +202,7 @@ export default function RecipesView() {
       });
     } catch (err) {
       console.error('Failed to delete recipe:', err);
-      const errorMsg = err instanceof Error ? err.message : 'Failed to delete recipe';
+      const errorMsg = errorMessage(err, 'Failed to delete recipe');
       trackRecipeDeleted(false, getErrorType(err));
       setError(errorMsg);
     }
@@ -341,7 +342,7 @@ export default function RecipesView() {
       await loadSavedRecipes();
     } catch (error) {
       console.error('Failed to save schedule:', error);
-      const errorMsg = error instanceof Error ? error.message : 'Failed to save schedule';
+      const errorMsg = errorMessage(error, 'Failed to save schedule');
       trackRecipeScheduled(false, action, getErrorType(error));
       setError(errorMsg);
     }
@@ -369,7 +370,7 @@ export default function RecipesView() {
       await loadSavedRecipes();
     } catch (error) {
       console.error('Failed to remove schedule:', error);
-      const errorMsg = error instanceof Error ? error.message : 'Failed to remove schedule';
+      const errorMsg = errorMessage(error, 'Failed to remove schedule');
       trackRecipeScheduled(false, 'remove', getErrorType(error));
       setError(errorMsg);
     }
@@ -409,7 +410,7 @@ export default function RecipesView() {
       await loadSavedRecipes();
     } catch (error) {
       console.error('Failed to save slash command:', error);
-      const errorMsg = error instanceof Error ? error.message : 'Failed to save slash command';
+      const errorMsg = errorMessage(error, 'Failed to save slash command');
       trackRecipeSlashCommandSet(false, action, getErrorType(error));
       setError(errorMsg);
     }
@@ -437,7 +438,7 @@ export default function RecipesView() {
       await loadSavedRecipes();
     } catch (error) {
       console.error('Failed to remove slash command:', error);
-      const errorMsg = error instanceof Error ? error.message : 'Failed to remove slash command';
+      const errorMsg = errorMessage(error, 'Failed to remove slash command');
       trackRecipeSlashCommandSet(false, 'remove', getErrorType(error));
       setError(errorMsg);
     }

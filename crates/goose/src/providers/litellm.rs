@@ -47,7 +47,7 @@ impl LiteLLMProvider {
         let timeout_secs: u64 = config.get_param("LITELLM_TIMEOUT").unwrap_or(600);
 
         let auth = if api_key.is_empty() {
-            AuthMethod::Custom(Box::new(NoAuth))
+            AuthMethod::NoAuth
         } else {
             AuthMethod::BearerToken(api_key)
         };
@@ -126,17 +126,6 @@ impl LiteLLMProvider {
             .response_post(session_id, &self.base_path, payload)
             .await?;
         handle_response_openai_compat(response).await
-    }
-}
-
-// No authentication provider for LiteLLM when API key is not provided
-struct NoAuth;
-
-#[async_trait]
-impl super::api_client::AuthProvider for NoAuth {
-    async fn get_auth_header(&self) -> Result<(String, String)> {
-        // Return a dummy header that won't be used
-        Ok(("X-No-Auth".to_string(), "true".to_string()))
     }
 }
 
