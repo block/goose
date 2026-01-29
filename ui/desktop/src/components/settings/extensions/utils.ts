@@ -1,5 +1,5 @@
-import { FixedExtensionEntry } from '../../ConfigContext';
-import { ExtensionConfig } from '../../../api/types.gen';
+import type { FixedExtensionEntry } from '../../ConfigContext';
+import type { ExtensionConfig } from '../../../api/types.gen';
 import { parse as parseShellQuote, quote as quoteShell } from 'shell-quote';
 
 // Default extension timeout in seconds
