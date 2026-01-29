@@ -220,6 +220,7 @@ pub fn render_message(message: &Message, debug: bool) {
                         set_thinking_message(&notification.msg);
                     }
                     SystemNotificationType::InlineMessage => {
+                        hide_thinking();
                         println!("\n{}", style(&notification.msg).yellow());
                     }
                 }
