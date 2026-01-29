@@ -6,7 +6,6 @@ interface TextSplitterOptions {
   splitTypeTypes?: ('lines' | 'words' | 'chars')[];
 }
 
-// Class to split text into lines, words, and characters for animation
 export class TextSplitter {
   textElement: HTMLElement;
   onResize: (() => void) | null;
@@ -31,9 +30,7 @@ export class TextSplitter {
   }
 
   initResizeObserver() {
-    // Use a simpler approach to avoid type issues
     const resizeObserver = new ResizeObserver(() => {
-      // Just check the current width directly from the element
       if (this.textElement) {
         const currentWidth = Math.floor(this.textElement.getBoundingClientRect().width);
 
@@ -197,15 +194,11 @@ export class TextAnimator {
   }
 
   reset() {
-    // Clear all timeouts
     this.activeTimeouts.forEach((timeoutId) => clearTimeout(timeoutId));
     this.activeTimeouts = [];
-
-    // Cancel all animations
     this.activeAnimations.forEach((animation) => animation.cancel());
     this.activeAnimations = [];
 
-    // Reset text content
     const chars = this.splitter.getChars();
     chars.forEach((char, index) => {
       if (this.originalChars[index]) {
@@ -219,6 +212,10 @@ interface UseTextAnimatorProps {
   text: string;
 }
 
+function prefersReducedMotion(): boolean {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
 export function useTextAnimator({ text }: UseTextAnimatorProps) {
   const elementRef = useRef<HTMLDivElement>(null);
   const animator = useRef<TextAnimator | null>(null);
@@ -226,22 +223,23 @@ export function useTextAnimator({ text }: UseTextAnimatorProps) {
   useEffect(() => {
     if (!elementRef.current) return;
 
-    // Create animator
+    if (prefersReducedMotion()) {
+      return;
+    }
+
     animator.current = new TextAnimator(elementRef.current);
 
-    // Small delay to ensure content is ready
     const timeoutId = setTimeout(() => {
       animator.current?.animate();
     }, 100);
 
-    // Cleanup
     return () => {
       window.clearTimeout(timeoutId);
       if (animator.current) {
         animator.current.reset();
       }
     };
-  }, [text]); // Re-run when text changes
+  }, [text]);
 
   return elementRef;
 }

@@ -249,6 +249,7 @@ impl Provider for OpenRouterProvider {
                 ),
             ],
         )
+        .with_unlisted_models()
     }
 
     fn get_name(&self) -> &str {

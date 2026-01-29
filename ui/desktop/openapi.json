@@ -3483,7 +3483,6 @@
           "name",
           "engine",
           "display_name",
-          "api_key_env",
           "base_url",
           "models"
         ],
@@ -3519,6 +3518,9 @@
           },
           "name": {
             "type": "string"
+          },
+          "requires_auth": {
+            "type": "boolean"
           },
           "supports_streaming": {
             "type": "boolean",
@@ -6111,6 +6113,11 @@
             "type": "string",
             "nullable": true
           },
+          "max_turns": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0
+          },
           "temperature": {
             "type": "number",
             "format": "float",
@@ -6716,6 +6723,9 @@
             "items": {
               "type": "string"
             }
+          },
+          "requires_auth": {
+            "type": "boolean"
           },
           "supports_streaming": {
             "type": "boolean",
