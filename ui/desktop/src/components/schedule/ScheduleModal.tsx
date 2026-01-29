@@ -4,16 +4,14 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { ScheduledJob } from '../../schedule';
 import { CronPicker } from './CronPicker';
-import { Recipe, decodeRecipe } from '../../recipe';
+import { Recipe, parseDeeplink, parseRecipeFromFile } from '../../recipe';
 import { getStorageDirectory } from '../../recipe/recipe_management';
-import { recipeToYaml } from '../../api';
 import ClockIcon from '../../assets/clock-icon.svg';
 
 export interface NewSchedulePayload {
   id: string;
-  recipe_source: string;
+  recipe: Recipe;
   cron: string;
-  execution_mode?: string;
 }
 
 interface ScheduleModalProps {
@@ -27,25 +25,6 @@ interface ScheduleModalProps {
 }
 
 type SourceType = 'file' | 'deeplink';
-
-async function parseDeepLink(deepLink: string): Promise<Recipe | null> {
-  try {
-    const url = new URL(deepLink);
-    if (url.protocol !== 'goose:' || (url.hostname !== 'bot' && url.hostname !== 'recipe')) {
-      return null;
-    }
-
-    const recipeParam = url.searchParams.get('config');
-    if (!recipeParam) {
-      return null;
-    }
-
-    return await decodeRecipe(recipeParam);
-  } catch (error) {
-    console.error('Failed to parse deep link:', error);
-    return null;
-  }
-}
 
 const modalLabelClassName = 'block text-sm font-medium text-text-prominent mb-1';
 
@@ -75,7 +54,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
 
     if (value.trim()) {
       try {
-        const recipe = await parseDeepLink(value.trim());
+        const recipe = await parseDeeplink(value.trim());
         if (recipe) {
           setParsedRecipe(recipe);
           if (recipe.title) {
@@ -150,14 +129,26 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
       return;
     }
 
-    let finalRecipeSource = '';
+    let recipe: Recipe | null = null;
 
     if (sourceType === 'file') {
       if (!recipeSourcePath) {
         setInternalValidationError('Recipe source file is required.');
         return;
       }
-      finalRecipeSource = recipeSourcePath;
+
+      try {
+        const fileResponse = await window.electron.readFile(recipeSourcePath);
+        if (!fileResponse.found || fileResponse.error) {
+          setInternalValidationError(fileResponse.error || 'Failed to read recipe file.');
+          return;
+        }
+        recipe = await parseRecipeFromFile(fileResponse.file);
+      } catch (error) {
+        console.error('Failed to parse recipe file:', error);
+        setInternalValidationError('Failed to parse the recipe file.');
+        return;
+      }
     } else if (sourceType === 'deeplink') {
       if (!deepLinkInput.trim()) {
         setInternalValidationError('Deep link is required.');
@@ -167,35 +158,17 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
         setInternalValidationError('Invalid deep link. Please check the format.');
         return;
       }
+      recipe = parsedRecipe;
+    }
 
-      try {
-        const response = await recipeToYaml({
-          body: { recipe: parsedRecipe },
-          throwOnError: true,
-        });
-        const yamlContent = response.data.yaml;
-
-        const tempFileName = `schedule-${scheduleId}-${Date.now()}.yaml`;
-        const tempDir = window.electron.getConfig().GOOSE_WORKING_DIR || '.';
-        const tempFilePath = `${tempDir}/${tempFileName}`;
-
-        const writeSuccess = await window.electron.writeFile(tempFilePath, yamlContent);
-        if (!writeSuccess) {
-          setInternalValidationError('Failed to create temporary recipe file.');
-          return;
-        }
-
-        finalRecipeSource = tempFilePath;
-      } catch (error) {
-        console.error('Failed to convert recipe to YAML:', error);
-        setInternalValidationError('Failed to process the recipe from deep link.');
-        return;
-      }
+    if (!recipe) {
+      setInternalValidationError('No recipe found.');
+      return;
     }
 
     const newSchedulePayload: NewSchedulePayload = {
       id: scheduleId.trim(),
-      recipe_source: finalRecipeSource,
+      recipe,
       cron: cronExpression,
     };
 

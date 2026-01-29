@@ -135,7 +135,7 @@ export type CreateRecipeResponse = {
 export type CreateScheduleRequest = {
     cron: string;
     id: string;
-    recipe_source: string;
+    recipe: Recipe;
 };
 
 /**

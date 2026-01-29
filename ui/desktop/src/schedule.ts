@@ -11,6 +11,7 @@ import {
   inspectRunningJob as apiInspectRunningJob,
   SessionDisplayInfo,
 } from './api';
+import type { Recipe } from './api';
 
 export interface ScheduledJob {
   id: string;
@@ -54,9 +55,8 @@ export async function listSchedules(): Promise<ScheduledJob[]> {
 
 export async function createSchedule(request: {
   id: string;
-  recipe_source: string;
+  recipe: Recipe;
   cron: string;
-  execution_mode?: string;
 }): Promise<ScheduledJob> {
   try {
     const response = await apiCreateSchedule<true>({ body: request });

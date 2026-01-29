@@ -1,3 +1,4 @@
+use std::fs;
 use std::sync::Arc;
 
 use axum::{
@@ -9,13 +10,15 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use crate::routes::errors::ErrorResponse;
+use crate::routes::recipe_utils::validate_recipe;
 use crate::state::AppState;
-use goose::scheduler::ScheduledJob;
+use goose::recipe::Recipe;
+use goose::scheduler::{get_default_scheduled_recipes_dir, ScheduledJob};
 
 #[derive(Deserialize, Serialize, utoipa::ToSchema)]
 pub struct CreateScheduleRequest {
     id: String,
-    recipe_source: String,
+    recipe: Recipe,
     cron: String,
 }
 
@@ -89,11 +92,32 @@ async fn create_schedule(
     State(state): State<Arc<AppState>>,
     Json(req): Json<CreateScheduleRequest>,
 ) -> Result<Json<ScheduledJob>, ErrorResponse> {
-    let scheduler = state.scheduler();
+    if req.recipe.check_for_security_warnings() {
+        return Err(ErrorResponse::bad_request(
+            "This recipe contains hidden characters that could be malicious. Please remove them before trying to save.".to_string(),
+        ));
+    }
+    if let Err(err) = validate_recipe(&req.recipe) {
+        return Err(ErrorResponse {
+            message: err.message,
+            status: err.status,
+        });
+    }
+    let scheduled_recipes_dir = get_default_scheduled_recipes_dir().map_err(|e| {
+        ErrorResponse::internal(format!("Failed to get scheduled recipes directory: {}", e))
+    })?;
+
+    let recipe_path = scheduled_recipes_dir.join(format!("{}.yaml", req.id));
+    let yaml_content = req
+        .recipe
+        .to_yaml()
+        .map_err(|e| ErrorResponse::internal(format!("Failed to convert recipe to YAML: {}", e)))?;
+    fs::write(&recipe_path, yaml_content)
+        .map_err(|e| ErrorResponse::internal(format!("Failed to save recipe file: {}", e)))?;
 
     let job = ScheduledJob {
         id: req.id,
-        source: req.recipe_source,
+        source: recipe_path.to_string_lossy().into_owned(),
         cron: req.cron,
         last_run: None,
         currently_running: false,
@@ -101,8 +125,10 @@ async fn create_schedule(
         current_session_id: None,
         process_start_time: None,
     };
+
+    let scheduler = state.scheduler();
     scheduler
-        .add_scheduled_job(job.clone(), true)
+        .add_scheduled_job(job.clone(), false)
         .await
         .map_err(|e| match e {
             goose::scheduler::SchedulerError::CronParseError(msg) => {
@@ -117,6 +143,7 @@ async fn create_schedule(
             },
             _ => ErrorResponse::internal(format!("Error creating schedule: {}", e)),
         })?;
+
     Ok(Json(job))
 }
 
