@@ -177,39 +177,9 @@ impl Provider for XaiProvider {
         stream_openai_compat(response, log)
     }
 
-<<<<<<< HEAD
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        let response = match self.api_client.response_get(None, "models").await {
-            Ok(response) => response,
-            Err(e) => {
-                tracing::warn!(
-                    "Failed to fetch models from XAI API: {}, falling back to known models",
-                    e
-                );
-                let models: Vec<String> = XAI_KNOWN_MODELS.iter().map(|s| s.to_string()).collect();
-                return Ok(Some(models));
-            }
-        };
-||||||| f0d40cdc608
-    async fn fetch_supported_models(
-        &self,
-    ) -> Result<Option<Vec<String>>, ProviderError> {
-        let response = match self.api_client.response_get(None, "models").await {
-            Ok(response) => response,
-            Err(e) => {
-                tracing::warn!(
-                    "Failed to fetch models from XAI API: {}, falling back to known models",
-                    e
-                );
-                let models: Vec<String> = XAI_KNOWN_MODELS.iter().map(|s| s.to_string()).collect();
-                return Ok(Some(models));
-            }
-        };
-=======
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         let response = self.api_client.response_get(None, "models").await?;
         let json = handle_response_openai_compat(response).await?;
->>>>>>> 2a9837f1f6cb8665a596f4fd7d578e703e6d2727
 
         if let Some(err_obj) = json.get("error") {
             let msg = err_obj
