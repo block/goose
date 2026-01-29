@@ -4143,10 +4143,6 @@
           {
             "type": "object",
             "properties": {
-              "isGooseApp": {
-                "type": "boolean",
-                "description": "True if this app has valid Goose App JSON-LD metadata (@type: \"GooseApp\")\nOnly apps with this flag should be shown on the Apps page as they are\nstandalone, launchable apps. MCP apps from extensions without this\nmetadata are chat-dependent and should not appear on the Apps page."
-              },
               "mcpServers": {
                 "type": "array",
                 "items": {

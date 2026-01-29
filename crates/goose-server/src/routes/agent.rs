@@ -978,7 +978,7 @@ async fn list_apps(
     let cache = McpAppCache::new().ok();
 
     let Some(session_id) = params.session_id else {
-        let apps: Vec<GooseApp> = cache
+        let apps = cache
             .as_ref()
             .and_then(|c| c.list_apps().ok())
             .unwrap_or_default();
@@ -993,16 +993,12 @@ async fn list_apps(
             status,
         })?;
 
-    let all_apps = fetch_mcp_apps(&agent.extension_manager, &session_id)
+    let apps = fetch_mcp_apps(&agent.extension_manager, &session_id)
         .await
         .map_err(|e| ErrorResponse {
             message: format!("Failed to list apps: {}", e.message),
             status: StatusCode::INTERNAL_SERVER_ERROR,
         })?;
-
-    // NOTE: Do not filter server-side. The desktop client is responsible for
-    // deciding which apps to display (e.g., only standalone Goose Apps).
-    let apps: Vec<GooseApp> = all_apps;
 
     if let Some(cache) = cache.as_ref() {
         let active_extensions: HashSet<String> = apps
