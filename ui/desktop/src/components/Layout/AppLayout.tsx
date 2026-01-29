@@ -1,7 +1,6 @@
 import React from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AppWindowMac, AppWindow } from 'lucide-react';
 import { Goose } from '../icons/Goose';
 import { Button } from '../ui/button';
 import ChatSessionsContainer from '../ChatSessionsContainer';
@@ -24,7 +23,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
   const safeIsMacOS = (window?.electron?.platform || 'darwin') === 'darwin';
   const chatContext = useChatContext();
   const isOnPairRoute = location.pathname === '/pair';
-  
+
   const {
     isNavExpanded,
     setIsNavExpanded,
@@ -43,13 +42,6 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
   // Calculate padding based on macOS traffic lights
   const headerPadding = safeIsMacOS ? 'pl-21' : 'pl-4';
 
-  const handleNewWindow = () => {
-    window.electron.createChatWindow(
-      undefined,
-      window.appConfig.get('GOOSE_WORKING_DIR') as string | undefined
-    );
-  };
-
   // Render the appropriate navigation component based on style
   const renderNavigation = () => {
     if (effectiveNavigationStyle === 'expanded') {
@@ -63,7 +55,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
     if (effectiveNavigationMode === 'overlay') {
       return 'flex-row';
     }
-    
+
     switch (navigationPosition) {
       case 'top':
         return 'flex-col';
@@ -93,22 +85,29 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
   );
 
   return (
-    <div className={cn('flex flex-1 w-full h-full relative animate-fade-in bg-background-muted', getLayoutClass())}>
+    <div
+      className={cn(
+        'flex flex-1 w-full h-full relative animate-fade-in bg-background-muted',
+        getLayoutClass()
+      )}
+    >
       {/* Header controls */}
-      <div className={cn(
-        'absolute z-[100] flex items-center gap-1',
-        // Bottom right for bottom condensed push mode
-        effectiveNavigationStyle === 'condensed' && navigationPosition === 'bottom' && effectiveNavigationMode === 'push'
-          ? 'bottom-4 right-6'
-          : cn(
-              headerPadding,
-              'top-3 mt-[2px]',
-              // Right position (both condensed and expanded) - 24px from right
-              navigationPosition === 'right' 
-                ? 'right-6 left-auto' 
-                : 'ml-1.5'
-            )
-      )}>
+      <div
+        className={cn(
+          'absolute z-[100] flex items-center gap-1',
+          // Bottom right for bottom condensed push mode
+          effectiveNavigationStyle === 'condensed' &&
+            navigationPosition === 'bottom' &&
+            effectiveNavigationMode === 'push'
+            ? 'bottom-4 right-6'
+            : cn(
+                headerPadding,
+                'top-3 mt-[2px]',
+                // Right position (both condensed and expanded) - 24px from right
+                navigationPosition === 'right' ? 'right-6 left-auto' : 'ml-1.5'
+              )
+        )}
+      >
         {/* Navigation trigger */}
         <Button
           onClick={() => setIsNavExpanded(!isNavExpanded)}
@@ -120,17 +119,6 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
           <Goose className="w-6 h-6" />
           <span className="text-xs font-mono text-text-muted">menu</span>
         </Button>
-        
-        {/* New window button */}
-        <Button
-          onClick={handleNewWindow}
-          className="no-drag hover:!bg-background-medium"
-          variant="ghost"
-          size="xs"
-          title="Start a new session in a new window"
-        >
-          {safeIsMacOS ? <AppWindowMac className="w-4 h-4" /> : <AppWindow className="w-4 h-4" />}
-        </Button>
       </div>
 
       {/* Main content with navigation */}
@@ -140,33 +128,38 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
           {effectiveNavigationMode === 'push' && isNavExpanded && (
             <motion.div
               key="push-nav"
-              initial={{ 
+              initial={{
                 width: isHorizontalNav ? '100%' : 0,
                 height: isHorizontalNav ? 0 : '100%',
                 opacity: 0,
                 minWidth: 0,
               }}
-              animate={{ 
-                width: isHorizontalNav ? '100%' : (effectiveNavigationStyle === 'expanded' ? '30%' : 'auto'),
+              animate={{
+                width: isHorizontalNav
+                  ? '100%'
+                  : effectiveNavigationStyle === 'expanded'
+                    ? '30%'
+                    : 'auto',
                 height: isHorizontalNav ? 'auto' : '100%',
                 opacity: 1,
                 minWidth: !isHorizontalNav && effectiveNavigationStyle === 'expanded' ? 200 : 0,
               }}
-              exit={{ 
+              exit={{
                 width: isHorizontalNav ? '100%' : 0,
                 height: isHorizontalNav ? 0 : '100%',
                 opacity: 0,
                 minWidth: 0,
               }}
-              transition={{ 
+              transition={{
                 type: 'spring',
                 stiffness: 300,
                 damping: 30,
-                opacity: { duration: 0.15 }
+                opacity: { duration: 0.15 },
               }}
               style={{
                 // For expanded left/right, use percentage width that scales with window
-                maxWidth: !isHorizontalNav && effectiveNavigationStyle === 'expanded' ? '400px' : undefined,
+                maxWidth:
+                  !isHorizontalNav && effectiveNavigationStyle === 'expanded' ? '400px' : undefined,
                 // Ensure full height for left/right positions
                 height: !isHorizontalNav ? '100%' : undefined,
               }}
@@ -182,7 +175,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
             </motion.div>
           )}
         </AnimatePresence>
-        
+
         {/* Main content */}
         {mainContent}
       </div>
