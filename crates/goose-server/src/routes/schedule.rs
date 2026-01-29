@@ -1,5 +1,5 @@
-use std::fs;
 use std::sync::Arc;
+use tokio::fs;
 
 use axum::{
     extract::{Path, Query, State},
@@ -14,6 +14,21 @@ use crate::routes::recipe_utils::validate_recipe;
 use crate::state::AppState;
 use goose::recipe::Recipe;
 use goose::scheduler::{get_default_scheduled_recipes_dir, ScheduledJob};
+
+fn validate_schedule_id(id: &str) -> Result<(), ErrorResponse> {
+    let is_valid = !id.is_empty()
+        && id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == ' ');
+
+    if !is_valid {
+        return Err(ErrorResponse::bad_request(
+            "Schedule name must use only alphanumeric characters, hyphens, underscores, or spaces"
+                .to_string(),
+        ));
+    }
+    Ok(())
+}
 
 #[derive(Deserialize, Serialize, utoipa::ToSchema)]
 pub struct CreateScheduleRequest {
@@ -92,6 +107,8 @@ async fn create_schedule(
     State(state): State<Arc<AppState>>,
     Json(req): Json<CreateScheduleRequest>,
 ) -> Result<Json<ScheduledJob>, ErrorResponse> {
+    validate_schedule_id(&req.id)?;
+
     if req.recipe.check_for_security_warnings() {
         return Err(ErrorResponse::bad_request(
             "This recipe contains hidden characters that could be malicious. Please remove them before trying to save.".to_string(),
@@ -113,6 +130,7 @@ async fn create_schedule(
         .to_yaml()
         .map_err(|e| ErrorResponse::internal(format!("Failed to convert recipe to YAML: {}", e)))?;
     fs::write(&recipe_path, yaml_content)
+        .await
         .map_err(|e| ErrorResponse::internal(format!("Failed to save recipe file: {}", e)))?;
 
     let job = ScheduledJob {
