@@ -6,6 +6,14 @@ import { useForm } from '@tanstack/react-form';
 import { RecipeFormFields, extractTemplateVariables } from '../RecipeFormFields';
 import { type RecipeFormData } from '../recipeFormSchema';
 
+vi.mock('../../../ConfigContext', () => ({
+  useConfig: () => ({
+    extensionsList: [],
+    getExtensions: vi.fn().mockResolvedValue([]),
+    getProviders: vi.fn().mockResolvedValue([]),
+  }),
+}));
+
 const expandAdvancedSection = async (user: ReturnType<typeof userEvent.setup>) => {
   const advancedTrigger = screen.getByRole('button', { name: /advanced options/i });
   const activitiesField = screen.queryByText('Activities');
@@ -24,6 +32,9 @@ describe('RecipeFormFields', () => {
       activities: [],
       parameters: [],
       jsonSchema: '',
+      model: undefined,
+      provider: undefined,
+      extensions: undefined,
       ...initialValues,
     };
 
@@ -275,6 +286,9 @@ describe('RecipeFormFields', () => {
             activities: [],
             parameters: [],
             jsonSchema: '',
+            model: undefined,
+            provider: undefined,
+            extensions: undefined,
           } as RecipeFormData,
           onSubmit: async ({ value }) => {
             console.log('Form submitted:', value);
@@ -368,6 +382,9 @@ describe('RecipeFormFields', () => {
               },
             ],
             jsonSchema: '',
+            model: undefined,
+            provider: undefined,
+            extensions: undefined,
           } as RecipeFormData,
           onSubmit: async ({ value }) => {
             console.log('Form submitted:', value);
@@ -535,6 +552,9 @@ describe('RecipeFormFields', () => {
               },
             ],
             jsonSchema: '',
+            model: undefined,
+            provider: undefined,
+            extensions: undefined,
           } as RecipeFormData,
           onSubmit: async ({ value }) => {
             console.log('Form submitted:', value);
@@ -608,6 +628,9 @@ describe('RecipeFormFields', () => {
               },
             ],
             jsonSchema: '',
+            model: undefined,
+            provider: undefined,
+            extensions: undefined,
           } as RecipeFormData,
           onSubmit: async ({ value }) => {
             console.log('Form submitted:', value);
