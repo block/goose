@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Select } from '../../ui/Select';
+import { Input } from '../../ui/input';
 import { useConfig } from '../../ConfigContext';
 import { fetchModelsForProviders } from '../../settings/models/modelInterface';
 
@@ -22,6 +23,7 @@ export const RecipeModelSelector = ({
     { options: { value: string; label: string; provider: string }[] }[]
   >([]);
   const [loadingModels, setLoadingModels] = useState(false);
+  const [isCustomModel, setIsCustomModel] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -58,7 +60,7 @@ export const RecipeModelSelector = ({
 
           if (p.metadata.allows_unlisted_models) {
             options.push({
-              value: 'custom',
+              value: `__custom__:${p.name}`,
               label: 'Enter a model not listed...',
               provider: p.name,
             });
@@ -78,6 +80,18 @@ export const RecipeModelSelector = ({
     })();
   }, [getProviders]);
 
+  useEffect(() => {
+    if (!loadingModels && selectedModel && selectedProvider) {
+      const allModels = modelOptions.flatMap((group) => group.options);
+      const modelExists = allModels.some(
+        (opt) => opt.value === selectedModel && opt.provider === selectedProvider
+      );
+      if (!modelExists) {
+        setIsCustomModel(true);
+      }
+    }
+  }, [loadingModels, modelOptions, selectedModel, selectedProvider]);
+
   const filteredModelOptions = selectedProvider
     ? modelOptions.filter((group) => group.options[0]?.provider === selectedProvider)
     : [];
@@ -88,14 +102,21 @@ export const RecipeModelSelector = ({
       const providerValue = option?.value || undefined;
       onProviderChange(providerValue === '' ? undefined : providerValue);
       onModelChange(undefined);
+      setIsCustomModel(false);
     },
     [onProviderChange, onModelChange]
   );
 
   const handleModelChange = useCallback(
     (newValue: unknown) => {
-      const option = newValue as { value: string; label: string } | null;
-      onModelChange(option?.value || undefined);
+      const option = newValue as { value: string; label: string; provider: string } | null;
+      if (option?.value.startsWith('__custom__:')) {
+        setIsCustomModel(true);
+        onModelChange(undefined);
+      } else {
+        setIsCustomModel(false);
+        onModelChange(option?.value || undefined);
+      }
     },
     [onModelChange]
   );
@@ -124,26 +145,47 @@ export const RecipeModelSelector = ({
 
       {selectedProvider && (
         <div>
-          <label className="block text-sm font-medium text-textStandard mb-2">
-            Model (Optional)
-          </label>
+          <div className="flex justify-between items-center mb-2">
+            <label className="block text-sm font-medium text-textStandard">Model (Optional)</label>
+            {isCustomModel && (
+              <button
+                onClick={() => {
+                  setIsCustomModel(false);
+                  onModelChange(undefined);
+                }}
+                className="text-xs text-textSubtle hover:underline"
+                type="button"
+              >
+                Back to model list
+              </button>
+            )}
+          </div>
           <p className="text-xs text-textSubtle mb-2">
             Leave empty to use the default model for the selected provider
           </p>
-          <Select
-            options={loadingModels ? [] : filteredModelOptions}
-            value={
-              loadingModels
-                ? { value: '', label: 'Loading models…', isDisabled: true }
-                : selectedModel
-                  ? { value: selectedModel, label: selectedModel }
-                  : null
-            }
-            onChange={handleModelChange}
-            placeholder="Select a model"
-            isClearable
-            isDisabled={loadingModels}
-          />
+          {isCustomModel ? (
+            <Input
+              type="text"
+              placeholder="Enter custom model name"
+              value={selectedModel || ''}
+              onChange={(e) => onModelChange(e.target.value || undefined)}
+            />
+          ) : (
+            <Select
+              options={loadingModels ? [] : filteredModelOptions}
+              value={
+                loadingModels
+                  ? { value: '', label: 'Loading models…', isDisabled: true }
+                  : selectedModel
+                    ? { value: selectedModel, label: selectedModel }
+                    : null
+              }
+              onChange={handleModelChange}
+              placeholder="Select a model"
+              isClearable
+              isDisabled={loadingModels}
+            />
+          )}
         </div>
       )}
     </div>
