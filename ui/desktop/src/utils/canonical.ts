@@ -4,9 +4,6 @@
 
 import { getCanonicalModelInfo, type ModelInfoData } from '../api';
 
-// Re-export the generated type
-export type { ModelInfoData };
-
 /**
  * Fetch canonical model info (pricing + context limits) for a specific provider/model
  */

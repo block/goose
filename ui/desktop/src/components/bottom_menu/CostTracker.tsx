@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useModelAndProvider } from '../ModelAndProviderContext';
 import { CoinIcon } from '../icons';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/Tooltip';
-import { fetchCanonicalModelInfo, type ModelInfoData } from '../../utils/pricing';
+import { fetchCanonicalModelInfo } from '../../utils/canonical';
+import type { ModelInfoData } from '../../api';
 
 interface CostTrackerProps {
   inputTokens?: number;

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useModelAndProvider } from '../components/ModelAndProviderContext';
-import { fetchCanonicalModelInfo } from '../utils/pricing';
+import { fetchCanonicalModelInfo } from '../utils/canonical';
 import { Session } from '../api';
 
 interface UseCostTrackingProps {
