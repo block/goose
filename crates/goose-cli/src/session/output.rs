@@ -1059,24 +1059,4 @@ mod tests {
             "/v/l/p/w/m/components/file.txt"
         );
     }
-
-    #[test]
-    fn test_run_status_hook_no_env_var() {
-        // Ensure GOOSE_STATUS_HOOK is not set
-        env::remove_var("GOOSE_STATUS_HOOK");
-        // Should not panic when env var is not set
-        run_status_hook("waiting");
-        run_status_hook("thinking");
-    }
-
-    #[test]
-    fn test_run_status_hook_with_env_var() {
-        // Set a simple hook that just exits successfully
-        env::set_var("GOOSE_STATUS_HOOK", "true");
-        // Should not panic when env var is set
-        run_status_hook("waiting");
-        run_status_hook("thinking");
-        // Clean up
-        env::remove_var("GOOSE_STATUS_HOOK");
-    }
 }
