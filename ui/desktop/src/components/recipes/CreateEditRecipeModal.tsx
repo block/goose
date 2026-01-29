@@ -19,6 +19,7 @@ interface CreateEditRecipeModalProps {
   recipe?: Recipe;
   isCreateMode?: boolean;
   recipeId?: string | null;
+  onRecipeSaved?: (savedRecipeId: string) => void;
 }
 
 export default function CreateEditRecipeModal({
@@ -27,6 +28,7 @@ export default function CreateEditRecipeModal({
   recipe,
   isCreateMode = false,
   recipeId,
+  onRecipeSaved,
 }: CreateEditRecipeModalProps) {
   const getInitialValues = React.useCallback((): RecipeFormData => {
     if (recipe) {
@@ -40,6 +42,13 @@ export default function CreateEditRecipeModal({
         jsonSchema: recipe.response?.json_schema
           ? JSON.stringify(recipe.response.json_schema, null, 2)
           : '',
+        subRecipes: (recipe.sub_recipes || []).map((sr) => ({
+          name: sr.name,
+          path: sr.path,
+          description: sr.description || undefined,
+          values: sr.values || undefined,
+          sequential_when_repeated: sr.sequential_when_repeated ?? false,
+        })),
       };
     }
     return {
@@ -50,6 +59,7 @@ export default function CreateEditRecipeModal({
       activities: [],
       parameters: [],
       jsonSchema: '',
+      subRecipes: [],
     };
   }, [recipe]);
 
@@ -65,6 +75,7 @@ export default function CreateEditRecipeModal({
   const [activities, setActivities] = useState(form.state.values.activities);
   const [parameters, setParameters] = useState(form.state.values.parameters);
   const [jsonSchema, setJsonSchema] = useState(form.state.values.jsonSchema);
+  const [subRecipes, setSubRecipes] = useState(form.state.values.subRecipes);
 
   // Subscribe to form changes to update local state
   useEffect(() => {
@@ -76,6 +87,7 @@ export default function CreateEditRecipeModal({
       setActivities(form.state.values.activities);
       setParameters(form.state.values.parameters);
       setJsonSchema(form.state.values.jsonSchema);
+      setSubRecipes(form.state.values.subRecipes);
     });
   }, [form]);
   const [copied, setCopied] = useState(false);
@@ -132,6 +144,18 @@ export default function CreateEditRecipeModal({
       }
     }
 
+    // Format subrecipes for API (convert from form data to API format)
+    const formattedSubRecipes =
+      subRecipes.length > 0
+        ? subRecipes.map((subRecipe) => ({
+            name: subRecipe.name,
+            path: subRecipe.path,
+            description: subRecipe.description || undefined,
+            values: subRecipe.values || undefined,
+            sequential_when_repeated: subRecipe.sequential_when_repeated,
+          }))
+        : undefined;
+
     return {
       ...recipe,
       title,
@@ -141,6 +165,7 @@ export default function CreateEditRecipeModal({
       prompt: prompt || undefined,
       parameters: formattedParameters,
       response: responseConfig,
+      sub_recipes: formattedSubRecipes,
       // Strip envs to avoid leaking secrets
       extensions: recipeExtensions.map((extension) =>
         'envs' in extension ? { ...extension, envs: undefined } : extension
@@ -155,6 +180,7 @@ export default function CreateEditRecipeModal({
     prompt,
     parameters,
     jsonSchema,
+    subRecipes,
     recipeExtensions,
   ]);
 
@@ -227,6 +253,7 @@ export default function CreateEditRecipeModal({
     activities,
     parameters,
     jsonSchema,
+    subRecipes,
     recipeExtensions,
     getCurrentRecipe,
   ]);
@@ -260,7 +287,12 @@ export default function CreateEditRecipeModal({
     try {
       const recipe = getCurrentRecipe();
 
-      await saveRecipe(recipe, recipeId);
+      const savedRecipeId = await saveRecipe(recipe, recipeId);
+
+      // Call the callback with the saved recipe ID if provided
+      if (onRecipeSaved) {
+        onRecipeSaved(savedRecipeId);
+      }
 
       onClose(true);
 
