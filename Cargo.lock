@@ -2986,6 +2986,7 @@ version = "1.21.0"
 dependencies = [
  "anyhow",
  "assert-json-diff",
+ "async-trait",
  "axum 0.8.8",
  "fs-err",
  "futures",

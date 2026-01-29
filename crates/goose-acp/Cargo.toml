@@ -26,6 +26,7 @@ url = { workspace = true }
 
 [dev-dependencies]
 assert-json-diff = "2.0.2"
+async-trait = "0.1.89"
 wiremock = { workspace = true }
 tempfile = "3"
 test-case = { workspace = true }
