@@ -140,13 +140,20 @@ export default function CreateEditRecipeModal({
       'envs' in extension ? { ...extension, envs: undefined } : extension
     ) as ExtensionConfig[] | undefined;
 
-    const settings =
-      model || provider
-        ? {
-            goose_model: model || null,
-            goose_provider: provider || null,
-          }
-        : undefined;
+    const mergedSettings = {
+      ...(recipe?.settings || {}),
+    };
+    if (model !== undefined) {
+      mergedSettings.goose_model = model || null;
+    }
+    if (provider !== undefined) {
+      mergedSettings.goose_provider = provider || null;
+    }
+    const settings = Object.values(mergedSettings).some(
+      (value) => value !== undefined && value !== null
+    )
+      ? mergedSettings
+      : undefined;
 
     return {
       ...recipe,
