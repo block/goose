@@ -1,7 +1,6 @@
 import { AppEvents } from '../../constants/events';
 import React, { useEffect, useState } from 'react';
 import {
-  AppWindow,
   ChefHat,
   ChevronRight,
   Clock,
@@ -31,7 +30,6 @@ import { useNavigation } from '../../hooks/useNavigation';
 import { SessionIndicators } from '../SessionIndicators';
 import { useSidebarSessionStatus } from '../../hooks/useSidebarSessionStatus';
 import { getInitialWorkingDir } from '../../utils/workingDir';
-import { useConfig } from '../ConfigContext';
 
 interface SidebarProps {
   onSelectSession: (sessionId: string) => void;
@@ -62,13 +60,6 @@ const menuItems: NavigationEntry[] = [
     label: 'Recipes',
     icon: FileText,
     tooltip: 'Browse your saved recipes',
-  },
-  {
-    type: 'item',
-    path: '/apps',
-    label: 'Apps',
-    icon: AppWindow,
-    tooltip: 'MCP and custom apps',
   },
   {
     type: 'item',
@@ -198,11 +189,8 @@ SessionList.displayName = 'SessionList';
 const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   const navigate = useNavigate();
   const chatContext = useChatContext();
-  const configContext = useConfig();
   const setView = useNavigation();
 
-  const appsExtensionEnabled = !!configContext.extensionsList?.find((ext) => ext.name === 'apps')
-    ?.enabled;
   const [searchParams] = useSearchParams();
   const [recentSessions, setRecentSessions] = useState<Session[]>([]);
   const [isChatExpanded, setIsChatExpanded] = useState(true);
@@ -468,14 +456,6 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     );
   };
 
-  const visibleMenuItems = menuItems.filter((entry) => {
-    // Filter out Apps if extension is not enabled
-    if (entry.type === 'item' && entry.path === '/apps') {
-      return appsExtensionEnabled;
-    }
-    return true;
-  });
-
   return (
     <>
       <SidebarContent className="pt-12">
@@ -561,7 +541,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
 
           <SidebarSeparator />
 
-          {visibleMenuItems.map((entry, index) => renderMenuItem(entry, index))}
+          {menuItems.map((entry, index) => renderMenuItem(entry, index))}
         </SidebarMenu>
       </SidebarContent>
     </>
