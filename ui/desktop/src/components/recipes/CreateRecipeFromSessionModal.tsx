@@ -156,8 +156,6 @@ export default function CreateRecipeFromSessionModal({
 
     setIsCreating(true);
     try {
-      // Create the recipe object from form data
-      // Don't set extensions - let the recipe use default enabled extensions
       const recipe: Recipe = {
         title: formData.title,
         description: formData.description,

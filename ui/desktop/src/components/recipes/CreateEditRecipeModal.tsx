@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useForm } from '@tanstack/react-form';
-import { Recipe, generateDeepLink, Parameter, stripEmptyExtensions } from '../../recipe';
+import { Recipe, generateDeepLink, Parameter } from '../../recipe';
 import { Check, ExternalLink, Play, Save, X } from 'lucide-react';
 import { Geese } from '../icons/Geese';
 import Copy from '../icons/Copy';
@@ -81,12 +81,8 @@ export default function CreateEditRecipeModal({
   const [copied, setCopied] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Initialize selected extensions for the recipe
-  const [recipeExtensions] = useState<ExtensionConfig[]>(() => {
-    if (recipe?.extensions) {
-      return recipe.extensions;
-    }
-    return [];
+  const [recipeExtensions] = useState<ExtensionConfig[] | undefined>(() => {
+    return recipe?.extensions ?? undefined;
   });
 
   // Reset form when recipe changes
@@ -132,14 +128,11 @@ export default function CreateEditRecipeModal({
       }
     }
 
-    // Strip envs to avoid leaking secrets
-    const extensionsWithoutEnvs = recipeExtensions.map((extension) =>
+    const extensions = recipeExtensions?.map((extension) =>
       'envs' in extension ? { ...extension, envs: undefined } : extension
-    ) as ExtensionConfig[];
+    ) as ExtensionConfig[] | undefined;
 
-    // Use stripEmptyExtensions to avoid saving empty extensions array
-    // Empty extensions array would prevent default extensions from loading
-    return stripEmptyExtensions({
+    return {
       ...recipe,
       title,
       description,
@@ -148,8 +141,8 @@ export default function CreateEditRecipeModal({
       prompt: prompt || undefined,
       parameters: formattedParameters,
       response: responseConfig,
-      extensions: extensionsWithoutEnvs,
-    }) as Recipe;
+      extensions,
+    };
   }, [
     recipe,
     title,
