@@ -973,9 +973,14 @@ impl ExtensionManager {
         // Loop through each extension and try to read the resource, don't raise an error if the resource is not found
         // TODO: do we want to find if a provided uri is in multiple extensions?
         // currently it will return the first match and skip any others
-
-        // Collect extension names first to avoid holding the lock during iteration
-        let extension_names: Vec<String> = self.extensions.lock().await.keys().cloned().collect();
+        let extension_names: Vec<String> = self
+            .extensions
+            .lock()
+            .await
+            .iter()
+            .filter(|(_name, ext)| ext.supports_resources())
+            .map(|(name, _)| name.clone())
+            .collect();
 
         for extension_name in extension_names {
             let read_result = self
