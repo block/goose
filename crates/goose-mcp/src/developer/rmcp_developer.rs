@@ -639,7 +639,7 @@ impl DeveloperServer {
     ) -> Result<CallToolResult, ErrorData> {
         let params = params.0;
 
-        let mut image = if let Some(window_title) = &params.window_title {
+        let image = if let Some(window_title) = &params.window_title {
             // Try to find and capture the specified window
             let windows = Window::all().map_err(|_| {
                 ErrorData::new(
@@ -700,29 +700,8 @@ impl DeveloperServer {
             })?
         };
 
-        // Resize the image to a reasonable width while maintaining aspect ratio
-        let max_width = 768;
-        if image.width() > max_width {
-            let scale = max_width as f32 / image.width() as f32;
-            let new_height = (image.height() as f32 * scale) as u32;
-            image = xcap::image::imageops::resize(
-                &image,
-                max_width,
-                new_height,
-                xcap::image::imageops::FilterType::Lanczos3,
-            );
-        }
-
-        let mut bytes: Vec<u8> = Vec::new();
-        image
-            .write_to(&mut Cursor::new(&mut bytes), xcap::image::ImageFormat::Png)
-            .map_err(|e| {
-                ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Failed to write image buffer {}", e),
-                    None,
-                )
-            })?;
+        let dynamic_image = xcap::image::DynamicImage::ImageRgba8(image);
+        let (bytes, mime_type) = Self::prepare_image_for_llm(dynamic_image)?;
 
         // Convert to base64
         let data = base64::prelude::BASE64_STANDARD.encode(bytes);
@@ -731,7 +710,7 @@ impl DeveloperServer {
         // one text for Assistant, one image with priority 0.0
         Ok(CallToolResult::success(vec![
             Content::text("Screenshot captured").with_audience(vec![Role::Assistant]),
-            Content::image(data, "image/png").with_priority(0.0),
+            Content::image(data, &mime_type).with_priority(0.0),
         ]))
     }
 
@@ -1176,14 +1155,14 @@ impl DeveloperServer {
     /// Process an image file from disk.
     ///
     /// The image will be:
-    /// 1. Resized if larger than max width while maintaining aspect ratio
-    /// 2. Converted to PNG format
+    /// 1. Resized to max 1024px on either dimension while maintaining aspect ratio
+    /// 2. Converted to JPEG format (85% quality)
     /// 3. Returned as base64 encoded data
     ///
-    /// This allows processing image files for use in the conversation.
+    /// This allows processing image files for use in the conversation with optimized file sizes.
     #[tool(
         name = "image_processor",
-        description = "Process an image file from disk. Resizes if needed, converts to PNG, and returns as base64 data."
+        description = "Process an image file from disk. Resizes to max 1024px, converts to JPEG (85% quality), and returns as base64 data for optimized LLM consumption."
     )]
     pub async fn image_processor(
         &self,
@@ -1255,31 +1234,7 @@ impl DeveloperServer {
             )
         })?;
 
-        // Resize if necessary (same logic as screen_capture)
-        let mut processed_image = image;
-        let max_width = 768;
-        if processed_image.width() > max_width {
-            let scale = max_width as f32 / processed_image.width() as f32;
-            let new_height = (processed_image.height() as f32 * scale) as u32;
-            processed_image = xcap::image::DynamicImage::ImageRgba8(xcap::image::imageops::resize(
-                &processed_image,
-                max_width,
-                new_height,
-                xcap::image::imageops::FilterType::Lanczos3,
-            ));
-        }
-
-        // Convert to PNG and encode as base64
-        let mut bytes: Vec<u8> = Vec::new();
-        processed_image
-            .write_to(&mut Cursor::new(&mut bytes), xcap::image::ImageFormat::Png)
-            .map_err(|e| {
-                ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Failed to write image buffer: {}", e),
-                    None,
-                )
-            })?;
+        let (bytes, mime_type) = Self::prepare_image_for_llm(image)?;
 
         let data = base64::prelude::BASE64_STANDARD.encode(bytes);
 
@@ -1289,8 +1244,55 @@ impl DeveloperServer {
                 path.display()
             ))
             .with_audience(vec![Role::Assistant]),
-            Content::image(data, "image/png").with_priority(0.0),
+            Content::image(data, &mime_type).with_priority(0.0),
         ]))
+    }
+
+    fn prepare_image_for_llm(
+        mut image: xcap::image::DynamicImage,
+    ) -> Result<(Vec<u8>, String), ErrorData> {
+        let max_dimension = 1024;
+        let (width, height) = (image.width(), image.height());
+
+        if width > max_dimension || height > max_dimension {
+            let (new_width, new_height) = if width > height {
+                let scale = max_dimension as f32 / width as f32;
+                (max_dimension, (height as f32 * scale) as u32)
+            } else {
+                let scale = max_dimension as f32 / height as f32;
+                ((width as f32 * scale) as u32, max_dimension)
+            };
+
+            image = xcap::image::DynamicImage::ImageRgba8(xcap::image::imageops::resize(
+                &image,
+                new_width,
+                new_height,
+                xcap::image::imageops::FilterType::Lanczos3,
+            ));
+        }
+
+        let rgb_image = image.to_rgb8();
+        let (img_width, img_height) = rgb_image.dimensions();
+
+        let mut bytes: Vec<u8> = Vec::new();
+        let mut cursor = Cursor::new(&mut bytes);
+
+        image::codecs::jpeg::JpegEncoder::new_with_quality(&mut cursor, 85)
+            .encode(
+                rgb_image.as_raw(),
+                img_width,
+                img_height,
+                image::ColorType::Rgb8,
+            )
+            .map_err(|e| {
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Failed to encode image as JPEG: {}", e),
+                    None,
+                )
+            })?;
+
+        Ok((bytes, "image/jpeg".to_string()))
     }
 
     // Helper method to resolve and validate file paths
@@ -1316,32 +1318,20 @@ impl DeveloperServer {
             .map(|strategy| strategy.config_dir().join(".gooseignore"))
             .ok();
 
-        let mut has_local_ignore = local_ignore_path.is_file();
+        let has_local_ignore = local_ignore_path.is_file();
         let has_global_ignore = global_ignore_path
             .as_ref()
             .map(|p| p.is_file())
             .unwrap_or(false);
 
+        // If no ignore file exists, apply default patterns in memory without writing to disk
         if !has_local_ignore && !has_global_ignore {
-            match std::fs::write(&local_ignore_path, DEFAULT_GOOSEIGNORE_CONTENT) {
-                Ok(_) => {
-                    has_local_ignore = true;
+            for pattern in DEFAULT_GOOSEIGNORE_CONTENT.lines() {
+                let trimmed = pattern.trim();
+                if trimmed.is_empty() || trimmed.starts_with('#') {
+                    continue;
                 }
-                Err(err) => {
-                    tracing::warn!(
-                        "Failed to create default .gooseignore at {}: {}",
-                        local_ignore_path.display(),
-                        err
-                    );
-
-                    for pattern in DEFAULT_GOOSEIGNORE_CONTENT.lines() {
-                        let trimmed = pattern.trim();
-                        if trimmed.is_empty() || trimmed.starts_with('#') {
-                            continue;
-                        }
-                        let _ = builder.add_line(None, trimmed);
-                    }
-                }
+                let _ = builder.add_line(None, trimmed);
             }
         }
 
@@ -3279,15 +3269,14 @@ mod tests {
         // Don't create any ignore files
         let server = create_test_server();
 
+        // Verify that .gooseignore is NOT created on disk (patterns applied in memory only)
         let gooseignore_path = temp_dir.path().join(".gooseignore");
         assert!(
-            gooseignore_path.exists(),
-            ".gooseignore should be created by default"
+            !gooseignore_path.exists(),
+            ".gooseignore should NOT be created on disk"
         );
-        let default_contents = fs::read_to_string(gooseignore_path).unwrap();
-        assert_eq!(default_contents, DEFAULT_GOOSEIGNORE_CONTENT);
 
-        // Default patterns should be used
+        // Default patterns should still be applied in memory
         assert!(
             server.is_ignored(Path::new(".env")),
             ".env should be ignored by default patterns"

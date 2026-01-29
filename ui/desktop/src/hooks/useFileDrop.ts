@@ -1,5 +1,5 @@
 import { useCallback, useState, useRef, useEffect } from 'react';
-import { compressImageDataUrl } from '../utils/conversionUtils';
+import { compressImageDataUrl, errorMessage } from '../utils/conversionUtils';
 
 export interface DroppedFile {
   id: string;
@@ -66,7 +66,7 @@ export const useFileDrop = () => {
             type: file.type,
             isImage: false,
             isLoading: false,
-            error: `Failed to get file path: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            error: `Failed to get file path: ${errorMessage(error, 'Unknown error')}`,
           };
         }
 

@@ -3480,7 +3480,6 @@
           "name",
           "engine",
           "display_name",
-          "api_key_env",
           "base_url",
           "models"
         ],
@@ -3516,6 +3515,9 @@
           },
           "name": {
             "type": "string"
+          },
+          "requires_auth": {
+            "type": "boolean"
           },
           "supports_streaming": {
             "type": "boolean",
@@ -4866,7 +4868,7 @@
           "input_token_cost": {
             "type": "number",
             "format": "double",
-            "description": "Cost per token for input (optional)",
+            "description": "Cost per token for input in USD (optional)",
             "nullable": true
           },
           "name": {
@@ -4876,7 +4878,7 @@
           "output_token_cost": {
             "type": "number",
             "format": "double",
-            "description": "Cost per token for output (optional)",
+            "description": "Cost per token for output in USD (optional)",
             "nullable": true
           },
           "supports_cache_control": {
@@ -6087,6 +6089,11 @@
             "type": "string",
             "nullable": true
           },
+          "max_turns": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0
+          },
           "temperature": {
             "type": "number",
             "format": "float",
@@ -6692,6 +6699,9 @@
             "items": {
               "type": "string"
             }
+          },
+          "requires_auth": {
+            "type": "boolean"
           },
           "supports_streaming": {
             "type": "boolean",

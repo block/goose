@@ -1,3 +1,4 @@
+use crate::routes::errors::ErrorResponse;
 use axum::{
     extract::Path,
     routing::{delete, get, put},
@@ -6,7 +7,6 @@ use axum::{
 use goose::prompt_template::{
     get_template, list_templates, reset_template, save_template, Template,
 };
-use http::StatusCode;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -54,8 +54,9 @@ pub async fn get_prompts() -> Json<PromptsListResponse> {
 )]
 pub async fn get_prompt(
     Path(name): Path<String>,
-) -> Result<Json<PromptContentResponse>, StatusCode> {
-    let template = get_template(&name).ok_or(StatusCode::NOT_FOUND)?;
+) -> Result<Json<PromptContentResponse>, ErrorResponse> {
+    let template = get_template(&name)
+        .ok_or_else(|| ErrorResponse::not_found(format!("Prompt template '{}' not found", name)))?;
 
     let content = template
         .user_content
@@ -86,13 +87,12 @@ pub async fn get_prompt(
 pub async fn save_prompt(
     Path(name): Path<String>,
     Json(request): Json<SavePromptRequest>,
-) -> Result<Json<String>, StatusCode> {
+) -> Result<Json<String>, ErrorResponse> {
     save_template(&name, &request.content).map_err(|e| {
         if e.kind() == std::io::ErrorKind::NotFound {
-            StatusCode::NOT_FOUND
+            ErrorResponse::not_found(format!("Prompt template '{}' not found", name))
         } else {
-            tracing::error!("Failed to save prompt {}: {}", name, e);
-            StatusCode::INTERNAL_SERVER_ERROR
+            ErrorResponse::internal(format!("Failed to save prompt '{}': {}", name, e))
         }
     })?;
 
@@ -111,13 +111,12 @@ pub async fn save_prompt(
         (status = 500, description = "Failed to reset prompt")
     )
 )]
-pub async fn reset_prompt(Path(name): Path<String>) -> Result<Json<String>, StatusCode> {
+pub async fn reset_prompt(Path(name): Path<String>) -> Result<Json<String>, ErrorResponse> {
     reset_template(&name).map_err(|e| {
         if e.kind() == std::io::ErrorKind::NotFound {
-            StatusCode::NOT_FOUND
+            ErrorResponse::not_found(format!("Prompt template '{}' not found", name))
         } else {
-            tracing::error!("Failed to reset prompt {}: {}", name, e);
-            StatusCode::INTERNAL_SERVER_ERROR
+            ErrorResponse::internal(format!("Failed to reset prompt '{}': {}", name, e))
         }
     })?;
 

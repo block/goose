@@ -18,7 +18,7 @@ use std::sync::{Arc, LazyLock};
 use tracing::{info, warn};
 use utoipa::ToSchema;
 
-pub const CURRENT_SCHEMA_VERSION: i32 = 6;
+pub const CURRENT_SCHEMA_VERSION: i32 = 7;
 pub const SESSIONS_FOLDER: &str = "sessions";
 pub const DB_NAME: &str = "sessions.db";
 
@@ -363,6 +363,18 @@ impl SessionManager {
             .search_chat_history(query, limit, after_date, before_date, exclude_session_id)
             .await
     }
+
+    pub async fn update_message_metadata<F>(id: &str, message_id: &str, f: F) -> Result<()>
+    where
+        F: FnOnce(
+            crate::conversation::message::MessageMetadata,
+        ) -> crate::conversation::message::MessageMetadata,
+    {
+        Self::instance()
+            .storage
+            .update_message_metadata(id, message_id, f)
+            .await
+    }
 }
 
 pub struct SessionStorage {
@@ -575,6 +587,7 @@ impl SessionStorage {
             r#"
             CREATE TABLE messages (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                message_id TEXT,
                 session_id TEXT NOT NULL REFERENCES sessions(id),
                 role TEXT NOT NULL,
                 content_json TEXT NOT NULL,
@@ -592,6 +605,9 @@ impl SessionStorage {
             .execute(pool)
             .await?;
         sqlx::query("CREATE INDEX idx_messages_timestamp ON messages(timestamp)")
+            .execute(pool)
+            .await?;
+        sqlx::query("CREATE INDEX idx_messages_message_id ON messages(message_id)")
             .execute(pool)
             .await?;
         sqlx::query("CREATE INDEX idx_sessions_updated ON sessions(updated_at DESC)")
@@ -708,7 +724,9 @@ impl SessionStorage {
     }
 
     async fn run_migrations(pool: &Pool<Sqlite>) -> Result<()> {
-        let current_version = Self::get_schema_version(pool).await?;
+        let mut tx = pool.begin().await?;
+
+        let current_version = Self::get_schema_version(&mut tx).await?;
 
         if current_version < CURRENT_SCHEMA_VERSION {
             info!(
@@ -718,18 +736,19 @@ impl SessionStorage {
 
             for version in (current_version + 1)..=CURRENT_SCHEMA_VERSION {
                 info!("  Applying migration v{}...", version);
-                Self::apply_migration(pool, version).await?;
-                Self::update_schema_version(pool, version).await?;
+                Self::apply_migration(&mut tx, version).await?;
+                Self::update_schema_version(&mut tx, version).await?;
                 info!("  ✓ Migration v{} complete", version);
             }
 
             info!("All migrations complete");
         }
 
+        tx.commit().await?;
         Ok(())
     }
 
-    async fn get_schema_version(pool: &Pool<Sqlite>) -> Result<i32> {
+    async fn get_schema_version(tx: &mut sqlx::Transaction<'_, Sqlite>) -> Result<i32> {
         let table_exists = sqlx::query_scalar::<_, bool>(
             r#"
             SELECT EXISTS (
@@ -738,7 +757,7 @@ impl SessionStorage {
             )
         "#,
         )
-        .fetch_one(pool)
+        .fetch_one(&mut **tx)
         .await?;
 
         if !table_exists {
@@ -746,21 +765,25 @@ impl SessionStorage {
         }
 
         let version = sqlx::query_scalar::<_, i32>("SELECT MAX(version) FROM schema_version")
-            .fetch_one(pool)
+            .fetch_one(&mut **tx)
             .await?;
 
         Ok(version)
     }
 
-    async fn update_schema_version(pool: &Pool<Sqlite>, version: i32) -> Result<()> {
+    async fn update_schema_version(
+        tx: &mut sqlx::Transaction<'_, Sqlite>,
+        version: i32,
+    ) -> Result<()> {
         sqlx::query("INSERT INTO schema_version (version) VALUES (?)")
             .bind(version)
-            .execute(pool)
+            .execute(&mut **tx)
             .await?;
         Ok(())
     }
 
-    async fn apply_migration(pool: &Pool<Sqlite>, version: i32) -> Result<()> {
+    #[allow(clippy::too_many_lines)]
+    async fn apply_migration(tx: &mut sqlx::Transaction<'_, Sqlite>, version: i32) -> Result<()> {
         match version {
             1 => {
                 sqlx::query(
@@ -771,7 +794,7 @@ impl SessionStorage {
                     )
                 "#,
                 )
-                .execute(pool)
+                .execute(&mut **tx)
                 .await?;
             }
             2 => {
@@ -780,7 +803,7 @@ impl SessionStorage {
                     ALTER TABLE sessions ADD COLUMN user_recipe_values_json TEXT
                 "#,
                 )
-                .execute(pool)
+                .execute(&mut **tx)
                 .await?;
             }
             3 => {
@@ -789,7 +812,7 @@ impl SessionStorage {
                     ALTER TABLE messages ADD COLUMN metadata_json TEXT
                 "#,
                 )
-                .execute(pool)
+                .execute(&mut **tx)
                 .await?;
             }
             4 => {
@@ -798,7 +821,7 @@ impl SessionStorage {
                     ALTER TABLE sessions ADD COLUMN name TEXT DEFAULT ''
                 "#,
                 )
-                .execute(pool)
+                .execute(&mut **tx)
                 .await?;
 
                 sqlx::query(
@@ -806,7 +829,7 @@ impl SessionStorage {
                     ALTER TABLE sessions ADD COLUMN user_set_name BOOLEAN DEFAULT FALSE
                 "#,
                 )
-                .execute(pool)
+                .execute(&mut **tx)
                 .await?;
             }
             5 => {
@@ -815,11 +838,11 @@ impl SessionStorage {
                     ALTER TABLE sessions ADD COLUMN session_type TEXT NOT NULL DEFAULT 'user'
                 "#,
                 )
-                .execute(pool)
+                .execute(&mut **tx)
                 .await?;
 
                 sqlx::query("CREATE INDEX idx_sessions_type ON sessions(session_type)")
-                    .execute(pool)
+                    .execute(&mut **tx)
                     .await?;
             }
             6 => {
@@ -828,7 +851,7 @@ impl SessionStorage {
                     ALTER TABLE sessions ADD COLUMN provider_name TEXT
                 "#,
                 )
-                .execute(pool)
+                .execute(&mut **tx)
                 .await?;
 
                 sqlx::query(
@@ -836,8 +859,30 @@ impl SessionStorage {
                     ALTER TABLE sessions ADD COLUMN model_config_json TEXT
                 "#,
                 )
-                .execute(pool)
+                .execute(&mut **tx)
                 .await?;
+            }
+            7 => {
+                sqlx::query(
+                    r#"
+                    ALTER TABLE messages ADD COLUMN message_id TEXT
+                "#,
+                )
+                .execute(&mut **tx)
+                .await?;
+
+                sqlx::query(
+                    r#"
+                    UPDATE messages
+                    SET message_id = 'msg_' || session_id || '_' || id
+                "#,
+                )
+                .execute(&mut **tx)
+                .await?;
+
+                sqlx::query("CREATE INDEX idx_messages_message_id ON messages(message_id)")
+                    .execute(&mut **tx)
+                    .await?;
             }
             _ => {
                 anyhow::bail!("Unknown migration version: {}", version);
@@ -1036,16 +1081,16 @@ impl SessionStorage {
 
     async fn get_conversation(&self, session_id: &str) -> Result<Conversation> {
         let pool = self.pool().await?;
-        let rows = sqlx::query_as::<_, (String, String, i64, Option<String>)>(
-            "SELECT role, content_json, created_timestamp, metadata_json FROM messages WHERE session_id = ? ORDER BY timestamp",
+        let rows = sqlx::query_as::<_, (String, String, i64, Option<String>, Option<String>)>(
+            "SELECT role, content_json, created_timestamp, metadata_json, message_id FROM messages WHERE session_id = ? ORDER BY timestamp",
         )
             .bind(session_id)
             .fetch_all(pool)
             .await?;
 
         let mut messages = Vec::new();
-        for (idx, (role_str, content_json, created_timestamp, metadata_json)) in
-            rows.into_iter().enumerate()
+        for (role_str, content_json, created_timestamp, metadata_json, message_id) in
+            rows.into_iter()
         {
             let role = match role_str.as_str() {
                 "user" => Role::User,
@@ -1060,7 +1105,9 @@ impl SessionStorage {
 
             let mut message = Message::new(role, created_timestamp, content);
             message.metadata = metadata;
-            message = message.with_id(format!("msg_{}_{}", session_id, idx));
+            if let Some(id) = message_id {
+                message = message.with_id(id);
+            }
             messages.push(message);
         }
 
@@ -1073,12 +1120,18 @@ impl SessionStorage {
 
         let metadata_json = serde_json::to_string(&message.metadata)?;
 
+        let message_id = message
+            .id
+            .clone()
+            .unwrap_or_else(|| format!("msg_{}_{}", session_id, uuid::Uuid::new_v4()));
+
         sqlx::query(
             r#"
-            INSERT INTO messages (session_id, role, content_json, created_timestamp, metadata_json)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO messages (message_id, session_id, role, content_json, created_timestamp, metadata_json)
+            VALUES (?, ?, ?, ?, ?, ?)
         "#,
         )
+        .bind(message_id)
         .bind(session_id)
         .bind(role_to_string(&message.role))
         .bind(serde_json::to_string(&message.content)?)
@@ -1111,12 +1164,18 @@ impl SessionStorage {
         for message in conversation.messages() {
             let metadata_json = serde_json::to_string(&message.metadata)?;
 
+            let message_id = message
+                .id
+                .clone()
+                .unwrap_or_else(|| format!("msg_{}_{}", session_id, uuid::Uuid::new_v4()));
+
             sqlx::query(
                 r#"
-            INSERT INTO messages (session_id, role, content_json, created_timestamp, metadata_json)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO messages (message_id, session_id, role, content_json, created_timestamp, metadata_json)
+            VALUES (?, ?, ?, ?, ?, ?)
         "#,
             )
+            .bind(message_id)
             .bind(session_id)
             .bind(role_to_string(&message.role))
             .bind(serde_json::to_string(&message.content)?)
@@ -1343,6 +1402,48 @@ impl SessionStorage {
         )
         .execute()
         .await
+    }
+
+    async fn update_message_metadata<F>(
+        &self,
+        session_id: &str,
+        message_id: &str,
+        f: F,
+    ) -> Result<()>
+    where
+        F: FnOnce(
+            crate::conversation::message::MessageMetadata,
+        ) -> crate::conversation::message::MessageMetadata,
+    {
+        let pool = self.pool().await?;
+        let mut tx = pool.begin().await?;
+
+        let current_metadata_json = sqlx::query_scalar::<_, String>(
+            "SELECT metadata_json FROM messages WHERE message_id = ? AND session_id = ?",
+        )
+        .bind(message_id)
+        .bind(session_id)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        let current_metadata: crate::conversation::message::MessageMetadata =
+            serde_json::from_str(&current_metadata_json)?;
+
+        let new_metadata = f(current_metadata);
+        let metadata_json = serde_json::to_string(&new_metadata)?;
+
+        sqlx::query(
+            "UPDATE messages SET metadata_json = ? WHERE message_id = ? AND session_id = ?",
+        )
+        .bind(metadata_json)
+        .bind(message_id)
+        .bind(session_id)
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+
+        Ok(())
     }
 }
 

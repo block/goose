@@ -2,6 +2,7 @@
 ///
 /// This module provides endpoints for audio transcription using OpenAI's Whisper API.
 /// The OpenAI API key must be configured in the backend for this to work.
+use crate::routes::errors::ErrorResponse;
 use crate::state::AppState;
 use axum::{
     http::StatusCode,
@@ -44,18 +45,22 @@ struct WhisperResponse {
 fn validate_audio_input(
     audio: &str,
     mime_type: &str,
-) -> Result<(Vec<u8>, &'static str), StatusCode> {
+) -> Result<(Vec<u8>, &'static str), ErrorResponse> {
     // Decode the base64 audio data
-    let audio_bytes = BASE64.decode(audio).map_err(|_| StatusCode::BAD_REQUEST)?;
+    let audio_bytes = BASE64
+        .decode(audio)
+        .map_err(|_| ErrorResponse::bad_request("Invalid base64 audio data"))?;
 
     // Check file size
     if audio_bytes.len() > MAX_AUDIO_SIZE_BYTES {
-        tracing::warn!(
-            "Audio file too large: {} bytes (max: {} bytes)",
-            audio_bytes.len(),
-            MAX_AUDIO_SIZE_BYTES
-        );
-        return Err(StatusCode::PAYLOAD_TOO_LARGE);
+        return Err(ErrorResponse {
+            message: format!(
+                "Audio file too large: {} bytes (max: {} bytes)",
+                audio_bytes.len(),
+                MAX_AUDIO_SIZE_BYTES
+            ),
+            status: StatusCode::PAYLOAD_TOO_LARGE,
+        });
     }
 
     // Determine file extension based on MIME type
@@ -68,19 +73,28 @@ fn validate_audio_input(
         "audio/m4a" => "m4a",
         "audio/wav" => "wav",
         "audio/x-wav" => "wav",
-        _ => return Err(StatusCode::UNSUPPORTED_MEDIA_TYPE),
+        _ => {
+            return Err(ErrorResponse {
+                message: format!("Unsupported audio format: {}", mime_type),
+                status: StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            })
+        }
     };
 
     Ok((audio_bytes, file_extension))
 }
 
 /// Get OpenAI configuration (API key and host)
-fn get_openai_config() -> Result<(String, String), StatusCode> {
+fn get_openai_config() -> Result<(String, String), ErrorResponse> {
     let config = goose::config::Config::global();
 
-    let api_key: String = config.get_secret("OPENAI_API_KEY").map_err(|e| {
-        tracing::error!("Failed to get OpenAI API key: {:?}", e);
-        StatusCode::PRECONDITION_FAILED
+    let api_key: String = config.get_secret("OPENAI_API_KEY").map_err(|e| match e {
+        goose::config::ConfigError::NotFound(_) => ErrorResponse {
+            message: "OpenAI API key not configured. Please set OPENAI_API_KEY in settings."
+                .to_string(),
+            status: StatusCode::PRECONDITION_FAILED,
+        },
+        _ => ErrorResponse::internal(format!("Failed to get OpenAI API key: {:?}", e)),
     })?;
 
     let openai_host = match config.get("OPENAI_HOST", false) {
@@ -101,7 +115,7 @@ async fn send_openai_request(
     mime_type: &str,
     api_key: &str,
     openai_host: &str,
-) -> Result<WhisperResponse, StatusCode> {
+) -> Result<WhisperResponse, ErrorResponse> {
     tracing::info!("Using OpenAI host: {}", openai_host);
     tracing::info!(
         "Audio file size: {} bytes, extension: {}, mime_type: {}",
@@ -115,8 +129,7 @@ async fn send_openai_request(
         .file_name(format!("audio.{}", file_extension))
         .mime_str(mime_type)
         .map_err(|e| {
-            tracing::error!("Failed to create multipart part: {:?}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
+            ErrorResponse::internal(format!("Failed to create multipart part: {:?}", e))
         })?;
 
     let form = reqwest::multipart::Form::new()
@@ -130,10 +143,7 @@ async fn send_openai_request(
     let client = Client::builder()
         .timeout(Duration::from_secs(OPENAI_TIMEOUT_SECONDS))
         .build()
-        .map_err(|e| {
-            tracing::error!("Failed to create HTTP client: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+        .map_err(|e| ErrorResponse::internal(format!("Failed to create HTTP client: {}", e)))?;
 
     tracing::info!(
         "Sending request to OpenAI: {}/v1/audio/transcriptions",
@@ -148,14 +158,18 @@ async fn send_openai_request(
         .await
         .map_err(|e| {
             if e.is_timeout() {
-                tracing::error!(
-                    "OpenAI API request timed out after {}s",
-                    OPENAI_TIMEOUT_SECONDS
-                );
-                StatusCode::GATEWAY_TIMEOUT
+                ErrorResponse {
+                    message: format!(
+                        "OpenAI API request timed out after {}s",
+                        OPENAI_TIMEOUT_SECONDS
+                    ),
+                    status: StatusCode::GATEWAY_TIMEOUT,
+                }
             } else {
-                tracing::error!("Failed to send request to OpenAI: {}", e);
-                StatusCode::SERVICE_UNAVAILABLE
+                ErrorResponse {
+                    message: format!("Failed to send request to OpenAI: {}", e),
+                    status: StatusCode::SERVICE_UNAVAILABLE,
+                }
             }
         })?;
 
@@ -171,20 +185,27 @@ async fn send_openai_request(
 
         // Check for specific error codes
         if status == 401 {
-            tracing::error!("OpenAI API key appears to be invalid or unauthorized");
-            return Err(StatusCode::UNAUTHORIZED);
+            return Err(ErrorResponse {
+                message: "OpenAI API key appears to be invalid or unauthorized".to_string(),
+                status: StatusCode::UNAUTHORIZED,
+            });
         } else if status == 429 {
-            tracing::error!("OpenAI API quota or rate limit exceeded");
-            return Err(StatusCode::TOO_MANY_REQUESTS);
+            return Err(ErrorResponse {
+                message: "OpenAI API quota or rate limit exceeded".to_string(),
+                status: StatusCode::TOO_MANY_REQUESTS,
+            });
         }
 
-        return Err(StatusCode::BAD_GATEWAY);
+        return Err(ErrorResponse {
+            message: format!("OpenAI API error: {}", error_text),
+            status: StatusCode::BAD_GATEWAY,
+        });
     }
 
-    let whisper_response: WhisperResponse = response.json().await.map_err(|e| {
-        tracing::error!("Failed to parse OpenAI response: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    let whisper_response: WhisperResponse = response
+        .json()
+        .await
+        .map_err(|e| ErrorResponse::internal(format!("Failed to parse OpenAI response: {}", e)))?;
 
     Ok(whisper_response)
 }
@@ -208,7 +229,7 @@ async fn send_openai_request(
 /// - 503: Service Unavailable (network error)
 async fn transcribe_handler(
     Json(request): Json<TranscribeRequest>,
-) -> Result<Json<TranscribeResponse>, StatusCode> {
+) -> Result<Json<TranscribeResponse>, ErrorResponse> {
     let (audio_bytes, file_extension) = validate_audio_input(&request.audio, &request.mime_type)?;
     let (api_key, openai_host) = get_openai_config()?;
 
@@ -232,7 +253,7 @@ async fn transcribe_handler(
 /// Requires an ElevenLabs API key with speech-to-text access.
 async fn transcribe_elevenlabs_handler(
     Json(request): Json<TranscribeElevenLabsRequest>,
-) -> Result<Json<TranscribeResponse>, StatusCode> {
+) -> Result<Json<TranscribeResponse>, ErrorResponse> {
     let (audio_bytes, file_extension) = validate_audio_input(&request.audio, &request.mime_type)?;
 
     // Get the ElevenLabs API key from config (after input validation)
@@ -266,17 +287,17 @@ async fn transcribe_elevenlabs_handler(
                             key
                         }
                         None => {
-                            tracing::error!(
+                            return Err(ErrorResponse::bad_request(format!(
                                 "ElevenLabs API key is not a string, found: {:?}",
                                 value
-                            );
-                            return Err(StatusCode::PRECONDITION_FAILED);
+                            )));
                         }
                     }
                 }
                 Err(_) => {
-                    tracing::error!("No ElevenLabs API key found in configuration");
-                    return Err(StatusCode::PRECONDITION_FAILED);
+                    return Err(ErrorResponse::bad_request(
+                        "No ElevenLabs API key found in configuration",
+                    ));
                 }
             }
         }
@@ -286,7 +307,7 @@ async fn transcribe_elevenlabs_handler(
     let part = reqwest::multipart::Part::bytes(audio_bytes)
         .file_name(format!("audio.{}", file_extension))
         .mime_str(&request.mime_type)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|_| ErrorResponse::internal("Failed to create multipart part"))?;
 
     let form = reqwest::multipart::Form::new()
         .part("file", part) // Changed from "audio" to "file"
@@ -298,10 +319,7 @@ async fn transcribe_elevenlabs_handler(
     let client = Client::builder()
         .timeout(Duration::from_secs(OPENAI_TIMEOUT_SECONDS))
         .build()
-        .map_err(|e| {
-            tracing::error!("Failed to create HTTP client: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+        .map_err(|e| ErrorResponse::internal(format!("Failed to create HTTP client: {}", e)))?;
 
     let response = client
         .post("https://api.elevenlabs.io/v1/speech-to-text")
@@ -311,14 +329,18 @@ async fn transcribe_elevenlabs_handler(
         .await
         .map_err(|e| {
             if e.is_timeout() {
-                tracing::error!(
-                    "ElevenLabs API request timed out after {}s",
-                    OPENAI_TIMEOUT_SECONDS
-                );
-                StatusCode::GATEWAY_TIMEOUT
+                ErrorResponse {
+                    message: format!(
+                        "ElevenLabs API request timed out after {}s",
+                        OPENAI_TIMEOUT_SECONDS
+                    ),
+                    status: StatusCode::GATEWAY_TIMEOUT,
+                }
             } else {
-                tracing::error!("Failed to send request to ElevenLabs: {}", e);
-                StatusCode::SERVICE_UNAVAILABLE
+                ErrorResponse {
+                    message: format!("Failed to send request to ElevenLabs: {}", e),
+                    status: StatusCode::SERVICE_UNAVAILABLE,
+                }
             }
         })?;
 
@@ -329,12 +351,21 @@ async fn transcribe_elevenlabs_handler(
 
         // Check for specific error codes
         if error_text.contains("Unauthorized") || error_text.contains("Invalid API key") {
-            return Err(StatusCode::UNAUTHORIZED);
+            return Err(ErrorResponse {
+                message: "ElevenLabs API key is invalid or unauthorized".to_string(),
+                status: StatusCode::UNAUTHORIZED,
+            });
         } else if error_text.contains("quota") || error_text.contains("limit") {
-            return Err(StatusCode::PAYMENT_REQUIRED);
+            return Err(ErrorResponse {
+                message: "ElevenLabs API quota or rate limit exceeded".to_string(),
+                status: StatusCode::PAYMENT_REQUIRED,
+            });
         }
 
-        return Err(StatusCode::BAD_GATEWAY);
+        return Err(ErrorResponse {
+            message: format!("ElevenLabs API error: {}", error_text),
+            status: StatusCode::BAD_GATEWAY,
+        });
     }
 
     // Parse ElevenLabs response
@@ -347,8 +378,7 @@ async fn transcribe_elevenlabs_handler(
     }
 
     let elevenlabs_response: ElevenLabsResponse = response.json().await.map_err(|e| {
-        tracing::error!("Failed to parse ElevenLabs response: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
+        ErrorResponse::internal(format!("Failed to parse ElevenLabs response: {}", e))
     })?;
 
     Ok(Json(TranscribeResponse {
@@ -359,7 +389,7 @@ async fn transcribe_elevenlabs_handler(
 /// Check if dictation providers are configured
 ///
 /// Returns configuration status for dictation providers
-async fn check_dictation_config() -> Result<Json<serde_json::Value>, StatusCode> {
+async fn check_dictation_config() -> Result<Json<serde_json::Value>, ErrorResponse> {
     let config = goose::config::Config::global();
 
     // Check if ElevenLabs API key is configured
