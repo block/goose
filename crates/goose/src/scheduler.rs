@@ -743,11 +743,6 @@ async fn execute_job(
 
     let agent_provider = create(&provider_name, model_config).await?;
 
-    let extensions = resolve_extensions_for_new_session(recipe.extensions.as_deref(), None);
-    for ext in extensions {
-        agent.add_extension(ext.clone(), None).await?;
-    }
-
     let session = agent
         .config
         .session_manager
@@ -759,6 +754,11 @@ async fn execute_job(
         .await?;
 
     agent.update_provider(agent_provider, &session.id).await?;
+
+    let extensions = resolve_extensions_for_new_session(recipe.extensions.as_deref(), None);
+    for ext in extensions {
+        agent.add_extension(ext.clone(), &session.id).await?;
+    }
 
     let mut jobs_guard = jobs.lock().await;
     if let Some((_, job_def)) = jobs_guard.get_mut(job_id.as_str()) {

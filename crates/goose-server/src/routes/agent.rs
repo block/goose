@@ -587,7 +587,7 @@ async fn agent_add_extension(
     let agent = state.get_agent(request.session_id.clone()).await?;
 
     agent
-        .add_extension(request.config, Some(&request.session_id))
+        .add_extension(request.config, &request.session_id)
         .await
         .map_err(|e| {
             goose::posthog::emit_error(
@@ -618,7 +618,7 @@ async fn agent_remove_extension(
     let agent = state.get_agent(request.session_id.clone()).await?;
 
     agent
-        .remove_extension(&request.name, Some(&request.session_id))
+        .remove_extension(&request.name, &request.session_id)
         .await
         .map_err(|e| {
             error!("Failed to remove extension: {}", e);

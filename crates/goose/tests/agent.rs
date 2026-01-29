@@ -503,6 +503,8 @@ mod tests {
         use goose::session::SessionManager;
 
         async fn setup_agent_with_extension_manager() -> (Agent, String) {
+            use goose::session::session_manager::SessionType;
+
             // Add the TODO extension to the config so it can be discovered by search_available_extensions
             // Set it as disabled initially so tests can enable it
             let todo_extension_entry = ExtensionEntry {
@@ -522,15 +524,24 @@ mod tests {
             // Create agent with session_id from the start
             let temp_dir = tempfile::tempdir().unwrap();
             let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
-            let session_id = "test-session-id".to_string();
             let config = AgentConfig::new(
-                session_manager,
+                session_manager.clone(),
                 PermissionManager::instance(),
                 None,
                 GooseMode::Auto,
             );
 
             let agent = Agent::with_config(config);
+
+            let session = session_manager
+                .create_session(
+                    std::path::PathBuf::from("."),
+                    "Test Session".to_string(),
+                    SessionType::Hidden,
+                )
+                .await
+                .expect("Failed to create session");
+            let session_id = session.id;
 
             // Now add the extension manager platform extension
             let ext_config = ExtensionConfig::Platform {
@@ -542,7 +553,7 @@ mod tests {
             };
 
             agent
-                .add_extension(ext_config, None)
+                .add_extension(ext_config, &session_id)
                 .await
                 .expect("Failed to add extension manager");
             (agent, session_id)

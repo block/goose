@@ -484,7 +484,7 @@ impl ExtensionManager {
     /// Add an extension with an optional working directory.
     /// If working_dir is None, falls back to current_dir.
     #[allow(clippy::too_many_lines)]
-    pub async fn add_extension_with_working_dir(
+    pub async fn add_extension(
         self: &Arc<Self>,
         config: ExtensionConfig,
         working_dir: Option<PathBuf>,

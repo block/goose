@@ -211,7 +211,10 @@ async fn offer_extension_debugging_help(
     let extensions = get_all_extensions();
     for ext_wrapper in extensions {
         if ext_wrapper.enabled && ext_wrapper.config.name() == "developer" {
-            if let Err(e) = debug_agent.add_extension(ext_wrapper.config, None).await {
+            if let Err(e) = debug_agent
+                .add_extension(ext_wrapper.config, &session.id)
+                .await
+            {
                 // If we can't add developer extension, continue without it
                 eprintln!(
                     "Note: Could not load developer extension for debugging: {}",
@@ -258,6 +261,7 @@ async fn load_extensions(
     extensions_to_load: Vec<(String, ExtensionConfig)>,
     provider_for_debug: Arc<dyn goose::providers::base::Provider>,
     interactive: bool,
+    session_id: &str,
 ) -> Arc<Agent> {
     let mut set = JoinSet::new();
     let agent_ptr = Arc::new(agent);
@@ -266,7 +270,8 @@ async fn load_extensions(
     for (id, (_label, extension)) in extensions_to_load.iter().enumerate() {
         let agent_ptr = agent_ptr.clone();
         let cfg = extension.clone();
-        set.spawn(async move { (id, agent_ptr.add_extension(cfg, None).await) });
+        let sid = session_id.to_string();
+        set.spawn(async move { (id, agent_ptr.add_extension(cfg, &sid).await) });
     }
 
     let get_message = |waiting_ids: &BTreeSet<usize>| {
@@ -554,6 +559,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         extensions_to_load,
         Arc::clone(&provider_for_display),
         session_config.interactive,
+        &session_id,
     )
     .await;
 

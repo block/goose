@@ -336,7 +336,7 @@ impl CliSession {
     async fn add_and_persist_extensions(&mut self, configs: Vec<ExtensionConfig>) -> Result<()> {
         for config in configs {
             self.agent
-                .add_extension(config, None)
+                .add_extension(config, &self.session_id)
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to start extension: {}", e))?;
         }

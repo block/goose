@@ -133,7 +133,7 @@ fn get_agent_messages(
             .map_err(|e| anyhow!("Failed to set provider on sub agent: {}", e))?;
 
         for extension in task_config.extensions {
-            if let Err(e) = agent.add_extension(extension.clone(), None).await {
+            if let Err(e) = agent.add_extension(extension.clone(), &session_id).await {
                 debug!(
                     "Failed to add extension '{}' to subagent: {}",
                     extension.name(),

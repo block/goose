@@ -271,7 +271,11 @@ async fn add_builtins(agent: &Agent, builtins: Vec<String>) {
             }
         };
 
-        match agent.add_extension(config, None).await {
+        match agent
+            .extension_manager
+            .add_extension(config, None, None)
+            .await
+        {
             Ok(_) => info!(extension = %builtin, "extension loaded"),
             Err(e) => warn!(extension = %builtin, error = %e, "extension load failed"),
         }
@@ -707,11 +711,7 @@ impl GooseAcpAgent {
                 }
             };
             let name = config.name().to_string();
-            if let Err(e) = self
-                .agent
-                .add_extension(config, Some(&goose_session.id))
-                .await
-            {
+            if let Err(e) = self.agent.add_extension(config, &goose_session.id).await {
                 return Err(sacp::Error::internal_error()
                     .data(format!("Failed to add MCP server '{}': {}", name, e)));
             }

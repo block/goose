@@ -500,7 +500,7 @@ mod tests {
                     bundled: None,
                     available_tools: vec![],
                 },
-                None,
+                &session.id,
             )
             .await
             .unwrap();

@@ -186,7 +186,7 @@ async fn create_agent(provider_name: &str, model: &str) -> Result<Agent> {
 
     let enabled_configs = goose::config::get_enabled_extensions();
     for config in enabled_configs {
-        if let Err(e) = agent.add_extension(config.clone(), None).await {
+        if let Err(e) = agent.add_extension(config.clone(), &init_session.id).await {
             eprintln!("Warning: Failed to load extension {}: {}", config.name(), e);
         }
     }
