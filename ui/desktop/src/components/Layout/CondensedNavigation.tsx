@@ -410,369 +410,420 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
         <div className="bg-background-default rounded-lg self-stretch w-[160px] flex-shrink-0" />
       )}
 
-      {/* Navigation items */}
-      {visibleItems.map((item, index) => {
-        const Icon = item.icon;
-        const active = isActive(item.path);
-        const isDragging = draggedItem === item.id;
-        const isDragOver = dragOverItem === item.id;
-        const isChatItem = item.id === 'chat';
+      {/* Scrollable container for navigation items (vertical only) */}
+      {isVertical ? (
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden flex flex-col gap-[2px] sidebar-scrollbar">
+          {visibleItems.map((item, index) => {
+            const Icon = item.icon;
+            const active = isActive(item.path);
+            const isDragging = draggedItem === item.id;
+            const isDragOver = dragOverItem === item.id;
+            const isChatItem = item.id === 'chat';
 
-        return (
-          <motion.div
-            key={item.id}
-            draggable
-            onDragStart={(e) => handleDragStart(e as unknown as React.DragEvent, item.id)}
-            onDragOver={(e) => handleDragOver(e as unknown as React.DragEvent, item.id)}
-            onDrop={(e) => handleDrop(e as unknown as React.DragEvent, item.id)}
-            onDragEnd={handleDragEnd}
-            initial={{ opacity: 0 }}
-            animate={{
-              opacity: isDragging ? 0.5 : 1,
-            }}
-            transition={{
-              duration: 0.15,
-              delay: index * 0.02,
-            }}
-            className={cn(
-              'relative cursor-move group',
-              isVertical ? 'w-full' : 'flex-shrink-0',
-              isDragOver && 'ring-2 ring-blue-500 rounded-lg',
-              // Allow overflow for chat item's floating new chat button (both vertical and horizontal)
-              isChatItem && !isCondensedIconOnly && 'overflow-visible'
-            )}
-          >
-            <div className={cn('flex flex-col', isVertical ? 'w-full' : '')}>
-              {/* Chat item with dropdown in horizontal mode OR icon-only mode */}
-              {isChatItem && (!isVertical || isCondensedIconOnly) ? (
-                <>
-                  <DropdownMenu open={chatPopoverOpen} onOpenChange={setChatPopoverOpen}>
-                    <DropdownMenuTrigger asChild>
+            return (
+              <motion.div
+                key={item.id}
+                draggable
+                onDragStart={(e) => handleDragStart(e as unknown as React.DragEvent, item.id)}
+                onDragOver={(e) => handleDragOver(e as unknown as React.DragEvent, item.id)}
+                onDrop={(e) => handleDrop(e as unknown as React.DragEvent, item.id)}
+                onDragEnd={handleDragEnd}
+                initial={{ opacity: 0 }}
+                animate={{
+                  opacity: isDragging ? 0.5 : 1,
+                }}
+                transition={{
+                  duration: 0.15,
+                  delay: index * 0.02,
+                }}
+                className={cn(
+                  'relative cursor-move group',
+                  'w-full flex-shrink-0',
+                  isDragOver && 'ring-2 ring-blue-500 rounded-lg',
+                  isChatItem && !isCondensedIconOnly && 'overflow-visible'
+                )}
+              >
+                <div className="flex flex-col w-full">
+                  {/* Chat item with dropdown in icon-only mode */}
+                  {isChatItem && isCondensedIconOnly ? (
+                    <DropdownMenu open={chatPopoverOpen} onOpenChange={setChatPopoverOpen}>
+                      <DropdownMenuTrigger asChild>
+                        <motion.button
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          className={cn(
+                            'flex flex-row items-center justify-center gap-2',
+                            'relative rounded-lg transition-colors duration-200 no-drag',
+                            'p-2.5',
+                            active
+                              ? 'bg-background-accent text-text-on-accent'
+                              : 'bg-background-default hover:bg-background-medium'
+                          )}
+                        >
+                          <Icon className="w-5 h-5 flex-shrink-0" />
+                        </motion.button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        className="w-64 p-1 bg-background-default border-border-subtle rounded-lg shadow-lg"
+                        side={navigationPosition === 'left' ? 'right' : 'left'}
+                        align="start"
+                        sideOffset={8}
+                      >
+                        <DropdownMenuItem
+                          onClick={handleNewChat}
+                          className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer"
+                        >
+                          <Plus className="w-4 h-4 flex-shrink-0" />
+                          <span>New Chat</span>
+                        </DropdownMenuItem>
+                        {recentSessions.length > 0 && <DropdownMenuSeparator className="my-1" />}
+                        {recentSessions.map((session) => {
+                          const status = getSessionStatus(session.id);
+                          const isStreaming = status?.streamState === 'streaming';
+                          const hasError = status?.streamState === 'error';
+                          const hasUnread = status?.hasUnreadActivity ?? false;
+                          return (
+                            <DropdownMenuItem
+                              key={session.id}
+                              onClick={() => {
+                                clearUnread(session.id);
+                                handleSessionClick(session.id);
+                              }}
+                              className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer"
+                            >
+                              <MessageSquare className="w-4 h-4 flex-shrink-0 text-text-muted" />
+                              <span className="truncate flex-1">
+                                {truncateMessage(session.name, 30)}
+                              </span>
+                              <SessionIndicators
+                                isStreaming={isStreaming}
+                                hasUnread={hasUnread}
+                                hasError={hasError}
+                              />
+                            </DropdownMenuItem>
+                          );
+                        })}
+                        {recentSessions.length > 0 && (
+                          <>
+                            <DropdownMenuSeparator className="my-1" />
+                            <DropdownMenuItem
+                              onClick={() => handleNavClick('/sessions')}
+                              className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer text-text-muted"
+                            >
+                              <History className="w-4 h-4 flex-shrink-0" />
+                              <span>Show All</span>
+                            </DropdownMenuItem>
+                          </>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : (
+                    <>
                       <motion.button
+                        onClick={() => {
+                          if (isChatItem && !isCondensedIconOnly) {
+                            toggleChatExpanded();
+                          } else {
+                            handleNavClick(item.path);
+                          }
+                        }}
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
                         className={cn(
-                          'flex flex-row items-center justify-center gap-2',
+                          'flex flex-row items-center gap-2',
                           'relative rounded-lg transition-colors duration-200 no-drag',
-                          isCondensedIconOnly ? 'p-2.5' : 'px-3 py-2.5',
+                          isCondensedIconOnly ? 'justify-center p-2.5' : 'w-full pl-2 pr-4 py-2.5',
                           active
                             ? 'bg-background-accent text-text-on-accent'
                             : 'bg-background-default hover:bg-background-medium'
                         )}
                       >
+                        {!isCondensedIconOnly && (
+                          <div className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                            <GripVertical className="w-4 h-4 text-text-muted" />
+                          </div>
+                        )}
                         <Icon className="w-5 h-5 flex-shrink-0" />
                         {!isCondensedIconOnly && (
-                          <>
-                            <span className="text-sm font-medium text-left hidden min-[1200px]:block">
-                              {item.label}
+                          <span className="text-sm font-medium text-left flex-1">{item.label}</span>
+                        )}
+                        {!isCondensedIconOnly && item.getTag && (
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <span
+                              className={cn(
+                                'text-xs font-mono px-2 py-0.5 rounded-full',
+                                active
+                                  ? 'bg-background-default/20 text-text-on-accent/80'
+                                  : 'bg-background-muted text-text-muted'
+                              )}
+                            >
+                              {item.getTag()}
                             </span>
-                            {item.getTag && (
-                              <div className="flex items-center gap-1 flex-shrink-0 hidden min-[1200px]:flex">
-                                <span
-                                  className={cn(
-                                    'text-xs font-mono px-2 py-0.5 rounded-full',
-                                    active
-                                      ? 'bg-background-default/20 text-text-on-accent/80'
-                                      : 'bg-background-muted text-text-muted'
-                                  )}
-                                >
-                                  {item.getTag()}
-                                </span>
-                              </div>
+                          </div>
+                        )}
+                        {!isCondensedIconOnly && isChatItem && (
+                          <div className="flex-shrink-0">
+                            {isChatExpanded ? (
+                              <ChevronDown className="w-3 h-3 text-text-muted" />
+                            ) : (
+                              <ChevronRight className="w-3 h-3 text-text-muted" />
                             )}
-                          </>
+                          </div>
                         )}
                       </motion.button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent
-                      className="w-64 p-1 bg-background-default border-border-subtle rounded-lg shadow-lg"
-                      side={
-                        isCondensedIconOnly
-                          ? navigationPosition === 'left'
-                            ? 'right'
-                            : 'left'
-                          : isTopPosition
-                            ? 'bottom'
-                            : 'top'
-                      }
-                      align="start"
-                      sideOffset={8}
-                    >
-                      {/* New chat button */}
-                      <DropdownMenuItem
-                        onClick={handleNewChat}
-                        className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer"
-                      >
-                        <Plus className="w-4 h-4 flex-shrink-0" />
-                        <span>New Chat</span>
-                      </DropdownMenuItem>
-
-                      {recentSessions.length > 0 && <DropdownMenuSeparator className="my-1" />}
-
-                      {/* Recent sessions */}
-                      {recentSessions.map((session) => {
-                        const status = getSessionStatus(session.id);
-                        const isStreaming = status?.streamState === 'streaming';
-                        const hasError = status?.streamState === 'error';
-                        const hasUnread = status?.hasUnreadActivity ?? false;
-                        return (
-                          <DropdownMenuItem
-                            key={session.id}
-                            onClick={() => {
-                              clearUnread(session.id);
-                              handleSessionClick(session.id);
-                            }}
-                            className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer"
-                          >
-                            <MessageSquare className="w-4 h-4 flex-shrink-0 text-text-muted" />
-                            <span className="truncate flex-1">
-                              {truncateMessage(session.name, 30)}
-                            </span>
-                            <SessionIndicators
-                              isStreaming={isStreaming}
-                              hasUnread={hasUnread}
-                              hasError={hasError}
-                            />
-                          </DropdownMenuItem>
-                        );
-                      })}
-
-                      {/* Show All button */}
-                      {recentSessions.length > 0 && (
-                        <>
-                          <DropdownMenuSeparator className="my-1" />
-                          <DropdownMenuItem
-                            onClick={() => handleNavClick('/sessions')}
-                            className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer text-text-muted"
-                          >
-                            <History className="w-4 h-4 flex-shrink-0" />
-                            <span>Show All</span>
-                          </DropdownMenuItem>
-                        </>
+                      {isChatItem && !isCondensedIconOnly && !isChatExpanded && (
+                        <motion.button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleNewChat();
+                          }}
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.95 }}
+                          className={cn(
+                            'absolute top-1/2 -translate-y-1/2 p-1.5 rounded-md z-10',
+                            'opacity-0 group-hover:opacity-100 transition-opacity',
+                            'bg-background-medium hover:bg-background-accent hover:text-text-on-accent',
+                            'flex items-center justify-center',
+                            navigationPosition === 'left' ? '-right-9' : '-left-9'
+                          )}
+                          title="New Chat"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </motion.button>
                       )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-
-                  {/* New Chat button - appears outside nav panel for chat item in horizontal mode, hidden when dropdown is open */}
-                  {!isCondensedIconOnly && !chatPopoverOpen && (
-                    <motion.button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleNewChat();
-                      }}
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.95 }}
-                      className={cn(
-                        'absolute left-1/2 -translate-x-1/2 p-1.5 rounded-md z-10',
-                        'opacity-0 group-hover:opacity-100 transition-opacity',
-                        'bg-background-medium hover:bg-background-accent hover:text-text-on-accent',
-                        'flex items-center justify-center',
-                        isTopPosition ? '-bottom-9' : '-top-9'
-                      )}
-                      title="New Chat"
-                    >
-                      <Plus className="w-4 h-4" />
-                    </motion.button>
+                    </>
                   )}
-                </>
-              ) : (
-                /* Regular button for non-chat items or vertical mode (not icon-only) */
-                <>
+                  <AnimatePresence>
+                    {isChatItem && isChatExpanded && !isCondensedIconOnly && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="bg-background-default rounded-lg mt-[2px] p-1 flex flex-col gap-[2px]">
+                          <button
+                            onClick={handleNewChat}
+                            className={cn(
+                              'w-full text-left px-2 py-1.5 text-xs rounded-md',
+                              'hover:bg-background-medium transition-colors',
+                              'flex items-center gap-2 text-text-default font-medium'
+                            )}
+                          >
+                            <span className="w-3 h-3 flex-shrink-0 flex items-center justify-center">
+                              +
+                            </span>
+                            <span>New Chat</span>
+                          </button>
+                          {recentSessions.map((session) => {
+                            const status = getSessionStatus(session.id);
+                            const isStreaming = status?.streamState === 'streaming';
+                            const hasError = status?.streamState === 'error';
+                            const hasUnread = status?.hasUnreadActivity ?? false;
+                            return (
+                              <button
+                                key={session.id}
+                                onClick={() => {
+                                  clearUnread(session.id);
+                                  handleSessionClick(session.id);
+                                }}
+                                className={cn(
+                                  'w-full text-left px-2 py-1.5 text-xs rounded-md',
+                                  'hover:bg-background-medium transition-colors',
+                                  'flex items-center gap-2'
+                                )}
+                              >
+                                <MessageSquare className="w-3 h-3 flex-shrink-0 text-text-muted" />
+                                <span className="truncate text-text-default flex-1">
+                                  {truncateMessage(session.name)}
+                                </span>
+                                <SessionIndicators
+                                  isStreaming={isStreaming}
+                                  hasUnread={hasUnread}
+                                  hasError={hasError}
+                                />
+                              </button>
+                            );
+                          })}
+                          {recentSessions.length > 0 && (
+                            <button
+                              onClick={() => handleNavClick('/sessions')}
+                              className={cn(
+                                'w-full text-left px-2 py-1.5 text-xs rounded-md',
+                                'hover:bg-background-medium transition-colors',
+                                'flex items-center gap-2 text-text-muted'
+                              )}
+                            >
+                              <History className="w-3 h-3 flex-shrink-0" />
+                              <span>Show All</span>
+                            </button>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      ) : (
+        /* Horizontal navigation items */
+        visibleItems.map((item, index) => {
+          const Icon = item.icon;
+          const active = isActive(item.path);
+          const isDragging = draggedItem === item.id;
+          const isDragOver = dragOverItem === item.id;
+          const isChatItem = item.id === 'chat';
+
+          return (
+            <motion.div
+              key={item.id}
+              draggable
+              onDragStart={(e) => handleDragStart(e as unknown as React.DragEvent, item.id)}
+              onDragOver={(e) => handleDragOver(e as unknown as React.DragEvent, item.id)}
+              onDrop={(e) => handleDrop(e as unknown as React.DragEvent, item.id)}
+              onDragEnd={handleDragEnd}
+              initial={{ opacity: 0 }}
+              animate={{
+                opacity: isDragging ? 0.5 : 1,
+              }}
+              transition={{
+                duration: 0.15,
+                delay: index * 0.02,
+              }}
+              className={cn(
+                'relative cursor-move group flex-shrink-0',
+                isDragOver && 'ring-2 ring-blue-500 rounded-lg',
+                isChatItem && !isCondensedIconOnly && 'overflow-visible'
+              )}
+            >
+              <div className="flex flex-col">
+                {/* Chat item with dropdown in horizontal mode */}
+                {isChatItem ? (
+                  <>
+                    <DropdownMenu open={chatPopoverOpen} onOpenChange={setChatPopoverOpen}>
+                      <DropdownMenuTrigger asChild>
+                        <motion.button
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          className={cn(
+                            'flex flex-row items-center justify-center gap-2',
+                            'relative rounded-lg transition-colors duration-200 no-drag',
+                            'px-3 py-2.5',
+                            active
+                              ? 'bg-background-accent text-text-on-accent'
+                              : 'bg-background-default hover:bg-background-medium'
+                          )}
+                        >
+                          <Icon className="w-5 h-5 flex-shrink-0" />
+                          <span className="text-sm font-medium text-left hidden min-[1200px]:block">
+                            {item.label}
+                          </span>
+                        </motion.button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        className="w-64 p-1 bg-background-default border-border-subtle rounded-lg shadow-lg"
+                        side={isTopPosition ? 'bottom' : 'top'}
+                        align="start"
+                        sideOffset={8}
+                      >
+                        <DropdownMenuItem
+                          onClick={handleNewChat}
+                          className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer"
+                        >
+                          <Plus className="w-4 h-4 flex-shrink-0" />
+                          <span>New Chat</span>
+                        </DropdownMenuItem>
+                        {recentSessions.length > 0 && <DropdownMenuSeparator className="my-1" />}
+                        {recentSessions.map((session) => {
+                          const status = getSessionStatus(session.id);
+                          const isStreaming = status?.streamState === 'streaming';
+                          const hasError = status?.streamState === 'error';
+                          const hasUnread = status?.hasUnreadActivity ?? false;
+                          return (
+                            <DropdownMenuItem
+                              key={session.id}
+                              onClick={() => {
+                                clearUnread(session.id);
+                                handleSessionClick(session.id);
+                              }}
+                              className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer"
+                            >
+                              <MessageSquare className="w-4 h-4 flex-shrink-0 text-text-muted" />
+                              <span className="truncate flex-1">
+                                {truncateMessage(session.name, 30)}
+                              </span>
+                              <SessionIndicators
+                                isStreaming={isStreaming}
+                                hasUnread={hasUnread}
+                                hasError={hasError}
+                              />
+                            </DropdownMenuItem>
+                          );
+                        })}
+                        {recentSessions.length > 0 && (
+                          <>
+                            <DropdownMenuSeparator className="my-1" />
+                            <DropdownMenuItem
+                              onClick={() => handleNavClick('/sessions')}
+                              className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer text-text-muted"
+                            >
+                              <History className="w-4 h-4 flex-shrink-0" />
+                              <span>Show All</span>
+                            </DropdownMenuItem>
+                          </>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    {!chatPopoverOpen && (
+                      <motion.button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleNewChat();
+                        }}
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.95 }}
+                        className={cn(
+                          'absolute left-1/2 -translate-x-1/2 p-1.5 rounded-md z-10',
+                          'opacity-0 group-hover:opacity-100 transition-opacity',
+                          'bg-background-medium hover:bg-background-accent hover:text-text-on-accent',
+                          'flex items-center justify-center',
+                          isTopPosition ? '-bottom-9' : '-top-9'
+                        )}
+                        title="New Chat"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </motion.button>
+                    )}
+                  </>
+                ) : (
                   <motion.button
-                    onClick={() => {
-                      if (isChatItem && isVertical && !isCondensedIconOnly) {
-                        toggleChatExpanded();
-                      } else {
-                        handleNavClick(item.path);
-                      }
-                    }}
+                    onClick={() => handleNavClick(item.path)}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     className={cn(
-                      'flex flex-row items-center gap-2',
+                      'flex flex-row items-center gap-2 px-3 py-2.5',
                       'relative rounded-lg transition-colors duration-200 no-drag',
-                      isCondensedIconOnly
-                        ? 'justify-center p-2.5'
-                        : isVertical
-                          ? 'w-full pl-2 pr-4 py-2.5'
-                          : 'px-3 py-2.5',
                       active
                         ? 'bg-background-accent text-text-on-accent'
                         : 'bg-background-default hover:bg-background-medium'
                     )}
                   >
-                    {/* Drag handle - visible on hover (not in icon-only mode) */}
-                    {!isCondensedIconOnly && (
-                      <div
-                        className={cn(
-                          'opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0',
-                          !isVertical && 'hidden'
-                        )}
-                      >
-                        <GripVertical className="w-4 h-4 text-text-muted" />
-                      </div>
-                    )}
-
-                    {/* Icon */}
                     <Icon className="w-5 h-5 flex-shrink-0" />
-
-                    {/* Label - hidden in icon-only mode and on horizontal unless wide screen */}
-                    {!isCondensedIconOnly && (
-                      <span
-                        className={cn(
-                          'text-sm font-medium text-left',
-                          isVertical ? 'flex-1' : 'hidden min-[1200px]:block'
-                        )}
-                      >
-                        {item.label}
-                      </span>
-                    )}
-
-                    {/* Tag/Badge - hidden in icon-only mode */}
-                    {!isCondensedIconOnly && item.getTag && (
-                      <div
-                        className={cn(
-                          'flex items-center gap-1 flex-shrink-0',
-                          !isVertical && 'hidden min-[1200px]:flex'
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            'text-xs font-mono px-2 py-0.5 rounded-full',
-                            active
-                              ? 'bg-background-default/20 text-text-on-accent/80'
-                              : 'bg-background-muted text-text-muted'
-                          )}
-                        >
-                          {item.getTag()}
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Expand indicator for chat item (vertical only, not icon-only) - after count */}
-                    {!isCondensedIconOnly && isChatItem && isVertical && (
-                      <div className="flex-shrink-0">
-                        {isChatExpanded ? (
-                          <ChevronDown className="w-3 h-3 text-text-muted" />
-                        ) : (
-                          <ChevronRight className="w-3 h-3 text-text-muted" />
-                        )}
-                      </div>
-                    )}
+                    <span className="text-sm font-medium text-left hidden min-[1200px]:block">
+                      {item.label}
+                    </span>
                   </motion.button>
-
-                  {/* New Chat button - appears outside nav panel for chat item in vertical mode, hidden when menu is expanded */}
-                  {isChatItem && isVertical && !isCondensedIconOnly && !isChatExpanded && (
-                    <motion.button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleNewChat();
-                      }}
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.95 }}
-                      className={cn(
-                        'absolute top-1/2 -translate-y-1/2 p-1.5 rounded-md z-10',
-                        'opacity-0 group-hover:opacity-100 transition-opacity',
-                        'bg-background-medium hover:bg-background-accent hover:text-text-on-accent',
-                        'flex items-center justify-center',
-                        navigationPosition === 'left' ? '-right-9' : '-left-9'
-                      )}
-                      title="New Chat"
-                    >
-                      <Plus className="w-4 h-4" />
-                    </motion.button>
-                  )}
-                </>
-              )}
-
-              {/* Recent sessions dropdown (vertical only, not icon-only mode) */}
-              <AnimatePresence>
-                {isChatItem && isChatExpanded && isVertical && !isCondensedIconOnly && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="overflow-hidden"
-                  >
-                    {/* Container with same background as main buttons */}
-                    <div className="bg-background-default rounded-lg mt-[2px] p-1 flex flex-col gap-[2px]">
-                      {/* New chat button at top */}
-                      <button
-                        onClick={handleNewChat}
-                        className={cn(
-                          'w-full text-left px-2 py-1.5 text-xs rounded-md',
-                          'hover:bg-background-medium transition-colors',
-                          'flex items-center gap-2 text-text-default font-medium'
-                        )}
-                      >
-                        <span className="w-3 h-3 flex-shrink-0 flex items-center justify-center">
-                          +
-                        </span>
-                        <span>New Chat</span>
-                      </button>
-
-                      {/* Recent sessions */}
-                      {recentSessions.map((session) => {
-                        const status = getSessionStatus(session.id);
-                        const isStreaming = status?.streamState === 'streaming';
-                        const hasError = status?.streamState === 'error';
-                        const hasUnread = status?.hasUnreadActivity ?? false;
-                        return (
-                          <button
-                            key={session.id}
-                            onClick={() => {
-                              clearUnread(session.id);
-                              handleSessionClick(session.id);
-                            }}
-                            className={cn(
-                              'w-full text-left px-2 py-1.5 text-xs rounded-md',
-                              'hover:bg-background-medium transition-colors',
-                              'flex items-center gap-2'
-                            )}
-                          >
-                            <MessageSquare className="w-3 h-3 flex-shrink-0 text-text-muted" />
-                            <span className="truncate text-text-default flex-1">
-                              {truncateMessage(session.name)}
-                            </span>
-                            <SessionIndicators
-                              isStreaming={isStreaming}
-                              hasUnread={hasUnread}
-                              hasError={hasError}
-                            />
-                          </button>
-                        );
-                      })}
-
-                      {/* Show All button */}
-                      {recentSessions.length > 0 && (
-                        <button
-                          onClick={() => handleNavClick('/sessions')}
-                          className={cn(
-                            'w-full text-left px-2 py-1.5 text-xs rounded-md',
-                            'hover:bg-background-medium transition-colors',
-                            'flex items-center gap-2 text-text-muted'
-                          )}
-                        >
-                          <History className="w-3 h-3 flex-shrink-0" />
-                          <span>Show All</span>
-                        </button>
-                      )}
-                    </div>
-                  </motion.div>
                 )}
-              </AnimatePresence>
-            </div>
-          </motion.div>
-        );
-      })}
-
-      {/* Spacer to extend to bottom (vertical only - both regular and icon-only modes) */}
-      {isVertical && (
-        <div className="bg-background-default rounded-lg flex-1 w-full min-h-[20px]" />
+              </div>
+            </motion.div>
+          );
+        })
       )}
 
-      {/* Right spacer (horizontal - both top and bottom positions) - full width to fill remaining space */}
+      {/* Right spacer (horizontal only) */}
       {!isVertical && (
         <div className="bg-background-default rounded-lg self-stretch flex-1 min-w-[40px]" />
       )}
