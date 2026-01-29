@@ -572,7 +572,7 @@ export type ModelInfo = {
      */
     currency?: string | null;
     /**
-     * Cost per token for input in USD
+     * Cost per token for input in USD (optional)
      */
     input_token_cost?: number | null;
     /**
@@ -580,7 +580,7 @@ export type ModelInfo = {
      */
     name: string;
     /**
-     * Cost per token for output in USD
+     * Cost per token for output in USD (optional)
      */
     output_token_cost?: number | null;
     /**
