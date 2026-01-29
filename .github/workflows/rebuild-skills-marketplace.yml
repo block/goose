@@ -28,11 +28,14 @@ jobs:
 
     steps:
       - name: Log trigger info
+        env:
+          TRIGGER: ${{ github.event_name }}
+          REASON: ${{ github.event.inputs.reason }}
         run: |
-          echo "Triggered by: ${{ github.event_name }}"
+          echo "Triggered by: $TRIGGER"
           echo "Time: $(date -u)"
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            echo "Reason: ${{ github.event.inputs.reason }}"
+          if [ "$TRIGGER" == "workflow_dispatch" ]; then
+            echo "Reason: $REASON"
           fi
 
       - name: Checkout the branch
