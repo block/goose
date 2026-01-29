@@ -731,8 +731,8 @@ goose session --name use-custom-theme
 ### Keyboard Shortcuts
 
 **Session Control:**
-- **`Ctrl+C`** - Interrupt the current request
-- **`Ctrl+J`** - Add a newline
+- **`Ctrl+C`** - Clear the current line if text is entered, interrupt the current request if processing, or exit the session if line is empty
+- **`Ctrl+J`** - Add a newline. Can customize the character via `GOOSE_CLI_NEWLINE_KEY` in the [config file](/docs/guides/config-files) (e.g. `GOOSE_CLI_NEWLINE_KEY: n`) or as an [environment variable](/docs/guides/environment-variables#session-management). Avoid "c" and common terminal shortcuts like "r", "w", "z".   
 
 **Navigation:**
 - **`Cmd+Up/Down arrows`** - Navigate through command history
