@@ -58,17 +58,12 @@ export async function createSchedule(request: {
   recipe: Recipe;
   cron: string;
 }): Promise<ScheduledJob> {
-  try {
-    const response = await apiCreateSchedule<true>({ body: request });
-    if (response && response.data) {
-      return response.data as ScheduledJob;
-    }
-    console.error('Unexpected response format from apiCreateSchedule', response);
-    throw new Error('Failed to create schedule: Unexpected response format');
-  } catch (error) {
-    console.error('Error creating schedule:', error);
-    throw error;
+  const response = await apiCreateSchedule({ body: request });
+  if (response.data) {
+    return response.data as ScheduledJob;
   }
+  const err = response.error as { message?: string } | undefined;
+  throw new Error(err?.message || 'Failed to create schedule');
 }
 
 export async function deleteSchedule(id: string): Promise<void> {
