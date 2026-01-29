@@ -814,10 +814,9 @@ pub async fn configure_provider_oauth(
         )));
     }
 
-    let temp_model = ModelConfig::new("temp", &provider_name)
-        .map_err(|e| {
-            ErrorResponse::bad_request(format!("Failed to create temporary model config: {}", e))
-        })?;
+    let temp_model = ModelConfig::new("temp", &provider_name).map_err(|e| {
+        ErrorResponse::bad_request(format!("Failed to create temporary model config: {}", e))
+    })?;
 
     let provider = create(&provider_name, temp_model).await.map_err(|e| {
         ErrorResponse::bad_request(format!(

@@ -47,12 +47,14 @@ pub enum ConfigError {
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ModelConfig {
     pub model_name: String,
+    pub provider_name: String,
     pub context_limit: Option<usize>,
     pub temperature: Option<f32>,
     pub max_tokens: Option<i32>,
     pub toolshim: bool,
     pub toolshim_model: Option<String>,
-    pub fast_model: Option<String>,
+    #[serde(skip)]
+    pub fast_model_config: Option<Box<ModelConfig>>,
     /// Provider-specific request parameters (e.g., anthropic_beta headers)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub request_params: Option<HashMap<String, Value>>,
@@ -116,12 +118,13 @@ impl ModelConfig {
 
         Ok(Self {
             model_name,
+            provider_name: provider_name.to_string(),
             context_limit,
             temperature,
             max_tokens,
             toolshim,
             toolshim_model,
-            fast_model: None,
+            fast_model_config: None,
             request_params,
         })
     }
@@ -241,9 +244,11 @@ impl ModelConfig {
         self
     }
 
-    pub fn with_fast(mut self, fast_model: String) -> Self {
-        self.fast_model = Some(fast_model);
-        self
+    pub fn with_fast(mut self, fast_model_name: &str) -> Result<Self, ConfigError> {
+        // Create a full ModelConfig for the fast model with proper canonical lookup
+        let fast_config = ModelConfig::new(fast_model_name, &self.provider_name)?;
+        self.fast_model_config = Some(Box::new(fast_config));
+        Ok(self)
     }
 
     pub fn with_request_params(mut self, params: Option<HashMap<String, Value>>) -> Self {
@@ -252,10 +257,8 @@ impl ModelConfig {
     }
 
     pub fn use_fast_model(&self) -> Self {
-        if let Some(fast_model) = &self.fast_model {
-            let mut config = self.clone();
-            config.model_name = fast_model.clone();
-            config
+        if let Some(fast_config) = &self.fast_model_config {
+            *fast_config.clone()
         } else {
             self.clone()
         }

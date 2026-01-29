@@ -539,12 +539,12 @@ mod tests {
     async fn test_lead_worker_switching() {
         let lead_provider = Arc::new(MockProvider {
             name: "lead".to_string(),
-            model_config: ModelConfig::new_or_fail("lead-model"),
+            model_config: ModelConfig::new_or_fail("lead-model", "test"),
         });
 
         let worker_provider = Arc::new(MockProvider {
             name: "worker".to_string(),
-            model_config: ModelConfig::new_or_fail("worker-model"),
+            model_config: ModelConfig::new_or_fail("worker-model", "test"),
         });
 
         let provider = LeadWorkerProvider::new(lead_provider, worker_provider, Some(3));
@@ -588,13 +588,13 @@ mod tests {
     async fn test_technical_failure_retry() {
         let lead_provider = Arc::new(MockFailureProvider {
             name: "lead".to_string(),
-            model_config: ModelConfig::new_or_fail("lead-model"),
+            model_config: ModelConfig::new_or_fail("lead-model", "test"),
             should_fail: false, // Lead provider works
         });
 
         let worker_provider = Arc::new(MockFailureProvider {
             name: "worker".to_string(),
-            model_config: ModelConfig::new_or_fail("worker-model"),
+            model_config: ModelConfig::new_or_fail("worker-model", "test"),
             should_fail: true, // Worker will fail
         });
 
@@ -636,13 +636,13 @@ mod tests {
         // For now, we'll test the fallback mode functionality directly
         let lead_provider = Arc::new(MockFailureProvider {
             name: "lead".to_string(),
-            model_config: ModelConfig::new_or_fail("lead-model"),
+            model_config: ModelConfig::new_or_fail("lead-model", "test"),
             should_fail: false,
         });
 
         let worker_provider = Arc::new(MockFailureProvider {
             name: "worker".to_string(),
-            model_config: ModelConfig::new_or_fail("worker-model"),
+            model_config: ModelConfig::new_or_fail("worker-model", "test"),
             should_fail: false,
         });
 

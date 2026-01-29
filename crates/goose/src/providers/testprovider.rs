@@ -242,7 +242,7 @@ mod tests {
         );
 
         let mock = Arc::new(MockProvider {
-            model_config: ModelConfig::new_or_fail("mock-model"),
+            model_config: ModelConfig::new_or_fail("mock-model", "test"),
             response: "Hello, world!".to_string(),
         });
 
