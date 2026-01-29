@@ -60,22 +60,27 @@ struct StreamingChunk {
 pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Value> {
     let mut messages_spec = Vec::new();
     for message in messages.iter().filter(|m| m.is_agent_visible()) {
+        let filtered = message.agent_visible_content();
         let mut converted = json!({
-            "role": message.role
+            "role": filtered.role
         });
 
         let mut output = Vec::new();
         let mut content_array = Vec::new();
         let mut text_array = Vec::new();
 
-        for content in &message.content {
+        for content in &filtered.content {
             match content {
                 MessageContent::Text(text) => {
                     if !text.text.is_empty() {
-                        if let Some(image_path) = detect_image_path(&text.text) {
-                            if let Ok(image) = load_image_file(image_path) {
-                                content_array.push(json!({"type": "text", "text": text.text}));
-                                content_array.push(convert_image(&image, image_format));
+                        if message.role == Role::User {
+                            if let Some(image_path) = detect_image_path(&text.text) {
+                                if let Ok(image) = load_image_file(image_path) {
+                                    content_array.push(json!({"type": "text", "text": text.text}));
+                                    content_array.push(convert_image(&image, image_format));
+                                } else {
+                                    text_array.push(text.text.clone());
+                                }
                             } else {
                                 text_array.push(text.text.clone());
                             }
@@ -131,17 +136,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                 MessageContent::ToolResponse(response) => {
                     match &response.tool_result {
                         Ok(result) => {
-                            // Send only contents with no audience or with Assistant in the audience
-                            let abridged: Vec<_> = result
-                                .content
-                                .iter()
-                                .filter(|content| {
-                                    content
-                                        .audience()
-                                        .is_none_or(|audience| audience.contains(&Role::Assistant))
-                                })
-                                .cloned()
-                                .collect();
+                            let abridged: Vec<_> = result.content.to_vec();
 
                             // Process all content, replacing images with placeholder text
                             let mut tool_content = Vec::new();
@@ -204,7 +199,14 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                 MessageContent::ToolConfirmationRequest(_) => {}
                 MessageContent::ActionRequired(_) => {}
                 MessageContent::Image(image) => {
-                    content_array.push(convert_image(image, image_format));
+                    if message.role == Role::User {
+                        content_array.push(convert_image(image, image_format));
+                    } else {
+                        content_array.push(json!({
+                            "type": "text",
+                            "text": "[Image content removed - not supported in assistant messages]"
+                        }));
+                    }
                 }
                 MessageContent::FrontendToolRequest(request) => match &request.tool_call {
                     Ok(tool_call) => {
@@ -1031,9 +1033,9 @@ mod tests {
         std::fs::write(&png_path, png_data)?;
         let png_path_str = png_path.to_str().unwrap();
 
-        // Create message with image path
-        let message = Message::user().with_text(format!("Here is an image: {}", png_path_str));
-        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+        // Create user message with image path - should load the image
+        let user_message = Message::user().with_text(format!("Here is an image: {}", png_path_str));
+        let spec = format_messages(&[user_message], &ImageFormat::OpenAi);
 
         assert_eq!(spec.len(), 1);
         assert_eq!(spec[0]["role"], "user");
@@ -1048,6 +1050,22 @@ mod tests {
             .as_str()
             .unwrap()
             .starts_with("data:image/png;base64,"));
+
+        // Create assistant message with same text - should NOT load the image
+        let assistant_message =
+            Message::assistant().with_text(format!("I saved the output to {}", png_path_str));
+        let spec = format_messages(&[assistant_message], &ImageFormat::OpenAi);
+
+        assert_eq!(spec.len(), 1);
+        assert_eq!(spec[0]["role"], "assistant");
+
+        // Content should be plain text, NOT an array with image
+        let content = spec[0]["content"].as_str();
+        assert!(
+            content.is_some(),
+            "Assistant message content should be a string, not an array with image"
+        );
+        assert!(content.unwrap().contains(png_path_str));
 
         Ok(())
     }

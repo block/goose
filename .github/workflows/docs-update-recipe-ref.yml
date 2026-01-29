@@ -41,7 +41,7 @@ jobs:
     
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
         with:
           fetch-depth: 0  # Fetch all history for version comparison
           fetch-tags: true  # Fetch all tags so we can checkout version tags
@@ -61,7 +61,7 @@ jobs:
           sudo apt-get install -y jq ripgrep
       
       - name: Set up Node.js
-        uses: actions/setup-node@1a4442cacd436585916779262731d5b162bc6ec7 # pin@v3
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238  # v6.2.0
         with:
           node-version: '20'
       
@@ -178,7 +178,7 @@ jobs:
       
       - name: Upload automation outputs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
         with:
           name: recipe-docs-update-${{ steps.versions.outputs.old_version }}-to-${{ steps.versions.outputs.new_version }}
           path: |

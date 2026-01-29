@@ -1,4 +1,5 @@
 import { ProviderDetails, getProviderModels } from '../../../api';
+import { errorMessage as getErrorMessage } from '../../../utils/conversionUtils';
 
 export default interface Model {
   id?: number; // Make `id` optional to allow user-defined models
@@ -60,7 +61,8 @@ export async function fetchModelsForProviders(
       const models = response.data || [];
       return { provider: p, models, error: null };
     } catch (e: unknown) {
-      const errorMessage = `Failed to fetch models for ${p.name}${e instanceof Error ? `: ${e.message}` : ''}`;
+      const errMsg = getErrorMessage(e);
+      const errorMessage = `Failed to fetch models for ${p.name}${errMsg ? `: ${errMsg}` : ''}`;
       return {
         provider: p,
         models: null,

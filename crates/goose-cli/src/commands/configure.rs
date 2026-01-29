@@ -5,7 +5,9 @@ use goose::agents::extension::ToolInfo;
 use goose::agents::extension_manager::get_parameter_names;
 use goose::agents::Agent;
 use goose::agents::{extension::Envs, ExtensionConfig};
-use goose::config::declarative_providers::{create_custom_provider, remove_custom_provider};
+use goose::config::declarative_providers::{
+    create_custom_provider, remove_custom_provider, CreateCustomProviderParams,
+};
 use goose::config::extensions::{
     get_all_extension_names, get_all_extensions, get_enabled_extensions, get_extension_by_name,
     name_to_key, remove_extension, set_extension, set_extension_enabled,
@@ -1864,10 +1866,15 @@ fn add_provider() -> anyhow::Result<()> {
         })
         .interact()?;
 
-    let api_key: String = cliclack::password("API key:")
-        .allow_empty()
-        .mask('▪')
+    let requires_auth = cliclack::confirm("Does this provider require authentication?")
+        .initial_value(true)
         .interact()?;
+
+    let api_key: String = if requires_auth {
+        cliclack::password("API key:").mask('▪').interact()?
+    } else {
+        String::new()
+    };
 
     let models_input: String = cliclack::input("Available models (separate with commas):")
         .placeholder("model-a, model-b, model-c")
@@ -1897,15 +1904,16 @@ fn add_provider() -> anyhow::Result<()> {
         None
     };
 
-    create_custom_provider(
-        provider_type,
-        display_name.clone(),
+    create_custom_provider(CreateCustomProviderParams {
+        engine: provider_type.to_string(),
+        display_name: display_name.clone(),
         api_url,
         api_key,
         models,
-        Some(supports_streaming),
+        supports_streaming: Some(supports_streaming),
         headers,
-    )?;
+        requires_auth,
+    })?;
 
     cliclack::outro(format!("Custom provider added: {}", display_name))?;
     Ok(())

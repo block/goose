@@ -14,7 +14,7 @@ use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::action_required_manager::ActionRequiredManager;
 use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
-use crate::agents::extension_manager::{get_parameter_names, normalize, ExtensionManager};
+use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
 use crate::agents::extension_manager_extension::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
 use crate::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
@@ -70,6 +70,7 @@ pub struct ReplyContext {
     pub toolshim_tools: Vec<Tool>,
     pub system_prompt: String,
     pub goose_mode: GooseMode,
+    pub tool_call_cut_off: usize,
     pub initial_messages: Vec<Message>,
 }
 
@@ -282,7 +283,10 @@ impl Agent {
         let mut messages = Vec::new();
         let manager = self.config.session_manager.clone();
         let mut elicitation_rx = ActionRequiredManager::global().request_rx.lock().await;
-        while let Ok(elicitation_message) = elicitation_rx.try_recv() {
+        while let Ok(mut elicitation_message) = elicitation_rx.try_recv() {
+            if elicitation_message.id.is_none() {
+                elicitation_message = elicitation_message.with_generated_id();
+            }
             if let Err(e) = manager.add_message(session_id, &elicitation_message).await {
                 warn!("Failed to save elicitation message to session: {}", e);
             }
@@ -321,6 +325,9 @@ impl Agent {
             toolshim_tools,
             system_prompt,
             goose_mode: self.config.goose_mode,
+            tool_call_cut_off: Config::global()
+                .get_param::<usize>("GOOSE_TOOL_CALL_CUTOFF")
+                .unwrap_or(10),
             initial_messages,
         })
     }
@@ -534,8 +541,16 @@ impl Agent {
             };
 
             let extensions = self.get_extension_configs().await;
+
+            let max_turns_from_recipe = session
+                .recipe
+                .as_ref()
+                .and_then(|r| r.settings.as_ref())
+                .and_then(|s| s.max_turns);
+
             let task_config =
-                TaskConfig::new(provider, &session.id, &session.working_dir, extensions);
+                TaskConfig::new(provider, &session.id, &session.working_dir, extensions)
+                    .with_max_turns(max_turns_from_recipe);
             let sub_recipes = self.sub_recipes.lock().await.clone();
 
             let arguments = tool_call
@@ -675,11 +690,10 @@ impl Agent {
 
                 async move {
                     let name = config_clone.name().to_string();
-                    let normalized_name = normalize(&name);
 
                     if agent_ref
                         .extension_manager
-                        .is_extension_enabled(&normalized_name)
+                        .is_extension_enabled(&name)
                         .await
                     {
                         tracing::debug!("Extension {} already loaded, skipping", name);
@@ -768,14 +782,6 @@ impl Agent {
 
     pub async fn subagents_enabled(&self, session_id: &str) -> bool {
         if self.config.goose_mode != GooseMode::Auto {
-            return false;
-        }
-        if self
-            .provider()
-            .await
-            .map(|provider| provider.get_active_model_name().starts_with("gemini"))
-            .unwrap_or(false)
-        {
             return false;
         }
         let context = self.extension_manager.get_context();
@@ -1071,6 +1077,7 @@ impl Agent {
             mut tools,
             mut toolshim_tools,
             mut system_prompt,
+            tool_call_cut_off,
             goose_mode,
             initial_messages,
         } = context;
@@ -1121,6 +1128,13 @@ impl Agent {
                     );
                     break;
                 }
+
+                let tool_pair_summarization_task = crate::context_mgmt::maybe_summarize_tool_pair(
+                    self.provider().await?,
+                    session_config.id.clone(),
+                    conversation.clone(),
+                    tool_call_cut_off,
+                );
 
                 let conversation_with_moim = super::moim::inject_moim(
                     &session_config.id,
@@ -1194,9 +1208,7 @@ impl Agent {
                                 }
 
                                 let tool_response_messages: Vec<Arc<Mutex<Message>>> = (0..num_tool_requests)
-                                    .map(|_| Arc::new(Mutex::new(Message::user().with_id(
-                                        format!("msg_{}", Uuid::new_v4())
-                                    ))))
+                                    .map(|_| Arc::new(Mutex::new(Message::user().with_generated_id())))
                                     .collect();
 
                                 let mut request_to_response_map = HashMap::new();
@@ -1521,6 +1533,36 @@ impl Agent {
                     }
                 }
 
+                if let Ok(Some((summary_msg, tool_id))) = tool_pair_summarization_task.await {
+                    let mut updated_messages = conversation.messages().clone();
+
+                    let matching: Vec<&mut Message> = updated_messages
+                        .iter_mut()
+                        .filter(|msg| {
+                            msg.id.is_some() && msg.content.iter().any(|c| match c {
+                                MessageContent::ToolRequest(req) => req.id == tool_id,
+                                MessageContent::ToolResponse(resp) => resp.id == tool_id,
+                                _ => false,
+                            })
+                        })
+                        .collect();
+
+                    if matching.len() == 2 {
+                        for msg in matching {
+                            let id = msg.id.as_ref().unwrap();
+                            msg.metadata = msg.metadata.with_agent_invisible();
+                            SessionManager::update_message_metadata(&session_config.id, id, |metadata| {
+                                metadata.with_agent_invisible()
+                            }).await?;
+                        }
+                        conversation = Conversation::new_unvalidated(updated_messages);
+                        messages_to_add.push(summary_msg);
+                    } else {
+                        warn!("Expected a tool request/reply pair, but found {} matching messages",
+                            matching.len());
+                    }
+                }
+
                 for msg in &messages_to_add {
                     session_manager.add_message(&session_config.id, msg).await?;
                 }
@@ -1833,6 +1875,7 @@ impl Agent {
             goose_provider: Some(provider_name.clone()),
             goose_model: Some(model_name.clone()),
             temperature: Some(model_config.temperature.unwrap_or(0.0)),
+            max_turns: None,
         };
 
         tracing::debug!(

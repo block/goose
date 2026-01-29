@@ -65,13 +65,14 @@ impl CursorAgentProvider {
 
         // Add conversation history
         for message in messages.iter().filter(|m| m.is_agent_visible()) {
-            let role_prefix = match message.role {
+            let filtered = message.agent_visible_content();
+            let role_prefix = match filtered.role {
                 Role::User => "Human: ",
                 Role::Assistant => "Assistant: ",
             };
             full_prompt.push_str(role_prefix);
 
-            for content in &message.content {
+            for content in &filtered.content {
                 match content {
                     MessageContent::Text(text_content) => {
                         full_prompt.push_str(&text_content.text);

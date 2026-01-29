@@ -104,6 +104,9 @@ pub struct Settings {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature: Option<f32>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_turns: Option<usize>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]

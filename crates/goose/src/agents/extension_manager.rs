@@ -713,10 +713,11 @@ impl ExtensionManager {
         info: Option<ServerInfo>,
         temp_dir: Option<TempDir>,
     ) {
+        let normalized = normalize(&name);
         self.extensions
             .lock()
             .await
-            .insert(name, Extension::new(config, client, info, temp_dir));
+            .insert(normalized, Extension::new(config, client, info, temp_dir));
         self.invalidate_tools_cache_and_bump_version().await;
     }
 
@@ -761,7 +762,8 @@ impl ExtensionManager {
     }
 
     pub async fn is_extension_enabled(&self, name: &str) -> bool {
-        self.extensions.lock().await.contains_key(name)
+        let normalized = normalize(name);
+        self.extensions.lock().await.contains_key(&normalized)
     }
 
     pub async fn get_extension_configs(&self) -> Vec<ExtensionConfig> {
@@ -798,18 +800,21 @@ impl ExtensionManager {
         extension_name: Option<&str>,
         exclude: Option<&str>,
     ) -> Vec<Tool> {
+        let extension_name_normalized = extension_name.map(normalize);
+        let exclude_normalized = exclude.map(normalize);
+
         tools
             .iter()
             .filter(|tool| {
                 let tool_prefix = tool.name.as_ref().split("__").next().unwrap_or("");
 
-                if let Some(excluded) = exclude {
+                if let Some(ref excluded) = exclude_normalized {
                     if tool_prefix == excluded {
                         return false;
                     }
                 }
 
-                if let Some(name_filter) = extension_name {
+                if let Some(ref name_filter) = extension_name_normalized {
                     tool_prefix == name_filter
                 } else {
                     true
@@ -968,9 +973,14 @@ impl ExtensionManager {
         // Loop through each extension and try to read the resource, don't raise an error if the resource is not found
         // TODO: do we want to find if a provided uri is in multiple extensions?
         // currently it will return the first match and skip any others
-
-        // Collect extension names first to avoid holding the lock during iteration
-        let extension_names: Vec<String> = self.extensions.lock().await.keys().cloned().collect();
+        let extension_names: Vec<String> = self
+            .extensions
+            .lock()
+            .await
+            .iter()
+            .filter(|(_name, ext)| ext.supports_resources())
+            .map(|(name, _)| name.clone())
+            .collect();
 
         for extension_name in extension_names {
             let read_result = self
@@ -1439,10 +1449,11 @@ impl ExtensionManager {
     }
 
     async fn get_server_client(&self, name: impl Into<String>) -> Option<McpClientBox> {
+        let normalized = normalize(&name.into());
         self.extensions
             .lock()
             .await
-            .get(&name.into())
+            .get(&normalized)
             .map(|ext| ext.get_client())
     }
 

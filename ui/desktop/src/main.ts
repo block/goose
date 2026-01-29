@@ -28,7 +28,7 @@ import { expandTilde } from './utils/pathUtils';
 import log from './utils/logger';
 import { ensureWinShims } from './utils/winShims';
 import { addRecentDir, loadRecentDirs } from './utils/recentDirs';
-import { formatAppName } from './utils/conversionUtils';
+import { formatAppName, errorMessage } from './utils/conversionUtils';
 import type { Settings } from './utils/settings';
 import { defaultKeyboardShortcuts, getKeyboardShortcuts } from './utils/settings';
 import * as crypto from 'crypto';
@@ -1073,8 +1073,7 @@ function parseRecipeDeeplink(url: string): RecipeDeeplinkData | undefined {
       try {
         recipeDeeplink = decodeURIComponent(recipeDeeplinkTmp);
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        console.error('[Main] parseRecipeDeeplink - Failed to decode:', errorMessage);
+        console.error('[Main] parseRecipeDeeplink - Failed to decode:', errorMessage(error));
         return undefined;
       }
     }

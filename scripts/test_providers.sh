@@ -3,6 +3,10 @@
 # Usage:
 #   ./test_providers.sh              # Normal mode (direct tool calls)
 #   ./test_providers.sh --code-exec  # Code execution mode (JS batching)
+#
+# Environment variables:
+#   SKIP_PROVIDERS  Comma-separated list of providers to skip (e.g., "tetrate,xai")
+#   SKIP_BUILD      Skip the cargo build step if set
 
 CODE_EXEC_MODE=false
 for arg in "$@"; do
@@ -91,6 +95,22 @@ is_allowed_failure() {
   return 1
 }
 
+should_skip_provider() {
+  local provider="$1"
+  if [ -z "$SKIP_PROVIDERS" ]; then
+    return 1
+  fi
+  IFS=',' read -ra SKIP_LIST <<< "$SKIP_PROVIDERS"
+  for skip in "${SKIP_LIST[@]}"; do
+    # Trim whitespace
+    skip=$(echo "$skip" | xargs)
+    if [ "$skip" = "$provider" ]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 RESULTS=()
 HARD_FAILURES=()
 
@@ -98,6 +118,14 @@ for provider_config in "${PROVIDERS[@]}"; do
   # Split on " -> " to get provider and models
   PROVIDER="${provider_config%% -> *}"
   MODELS_STR="${provider_config#* -> }"
+
+  # Skip provider if it's in SKIP_PROVIDERS
+  if should_skip_provider "$PROVIDER"; then
+    echo "⊘ Skipping provider: ${PROVIDER} (SKIP_PROVIDERS)"
+    echo "---"
+    continue
+  fi
+
   # Split models on "|"
   IFS='|' read -ra MODELS <<< "$MODELS_STR"
   for MODEL in "${MODELS[@]}"; do
