@@ -1,0 +1,90 @@
+name: Rebuild Skills Marketplace
+
+# This workflow rebuilds the documentation site to pull in new skills
+# from the Agent-Skills repository. It runs:
+# 1. Every hour on a schedule
+# 2. On manual trigger for testing
+
+on:
+  schedule:
+    # Run every hour at minute 15
+    - cron: '15 * * * *'
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Reason for manual rebuild'
+        required: false
+        default: 'Manual trigger'
+
+concurrency:
+  group: pr-preview
+  cancel-in-progress: false
+
+jobs:
+  rebuild-docs:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Log trigger info
+        run: |
+          echo "Triggered by: ${{ github.event_name }}"
+          echo "Time: $(date -u)"
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "Reason: ${{ github.event.inputs.reason }}"
+          fi
+
+      - name: Checkout the branch
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238  # v6.2.0
+        with:
+          node-version: 20 
+
+      - name: Cache Node.js modules (documentation)
+        uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7  # v5.0.2
+        with:
+          path: ./documentation/node_modules
+          key: ${{ runner.os }}-documentation-${{ hashFiles('./documentation/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-documentation-
+
+      - name: Install dependencies and build docs
+        working-directory: ./documentation
+        env:
+          INKEEP_API_KEY: ${{ secrets.INKEEP_API_KEY }}
+          INKEEP_INTEGRATION_ID: ${{ secrets.INKEEP_INTEGRATION_ID }}
+          INKEEP_ORG_ID: ${{ secrets.INKEEP_ORG_ID }}
+        run: |
+          npm install
+          npm run build
+
+      - name: Verify docs map was generated
+        working-directory: ./documentation
+        run: ./scripts/verify-build.sh
+
+      - name: Checkout gh-pages branch
+        continue-on-error: true
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+        with:
+          ref: gh-pages
+          path: gh-pages-current
+
+      - name: Preserve pr-preview directory
+        run: |
+          if [ -d "gh-pages-current/pr-preview" ]; then
+            cp -r gh-pages-current/pr-preview documentation/build/pr-preview
+            echo "Preserved pr-preview directory with $(ls gh-pages-current/pr-preview | wc -l) PR previews"
+          else
+            echo "No pr-preview directory to preserve"
+          fi
+
+      - name: Deploy to /gh-pages
+        uses: peaceiris/actions-gh-pages@4f9cc6602d3f66b9c108549d475ec49e8ef4d45e  # v4.0.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: documentation/build
+          keep_files: false
+          force_orphan: true
