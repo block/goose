@@ -4,12 +4,14 @@ use std::path::PathBuf;
 
 use anyhow::{anyhow, Result};
 use futures::FutureExt;
-use rmcp::model::{Content, ErrorCode, ErrorData, Tool};
+use rmcp::model::{Content, ErrorCode, ErrorData, ServerNotification, Tool};
 use serde::Deserialize;
 use serde_json::{json, Value};
+use tokio::sync::mpsc;
+use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_util::sync::CancellationToken;
 
-use crate::agents::subagent_handler::run_complete_subagent_task;
+use crate::agents::subagent_handler::run_complete_subagent_task_with_notifications;
 use crate::agents::subagent_task_config::TaskConfig;
 use crate::agents::tool_execution::ToolCallResult;
 use crate::agents::AgentConfig;
@@ -31,7 +33,7 @@ Make sure your last message provides a comprehensive summary of:
 Be concise but complete.
 "#;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct SubagentParams {
     pub instructions: Option<String>,
     pub subrecipe: Option<String>,
@@ -46,7 +48,7 @@ fn default_summary() -> bool {
     true
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct SubagentSettings {
     pub provider: Option<String>,
     pub model: Option<String>,
@@ -224,29 +226,33 @@ pub fn handle_subagent_tool(
     };
 
     let config = config.clone();
+    let (notification_tx, notification_rx) = mpsc::unbounded_channel();
+
     ToolCallResult {
-        notification_stream: None,
+        notification_stream: Some(Box::new(UnboundedReceiverStream::new(notification_rx))),
         result: Box::new(
-            execute_subagent(
+            execute_subagent_with_notifications(
                 config,
                 recipe,
                 task_config,
                 parsed_params,
                 working_dir,
                 cancellation_token,
+                notification_tx,
             )
             .boxed(),
         ),
     }
 }
 
-async fn execute_subagent(
+async fn execute_subagent_with_notifications(
     config: AgentConfig,
     recipe: Recipe,
     task_config: TaskConfig,
     params: SubagentParams,
     working_dir: PathBuf,
     cancellation_token: Option<CancellationToken>,
+    notification_tx: mpsc::UnboundedSender<ServerNotification>,
 ) -> Result<rmcp::model::CallToolResult, ErrorData> {
     let session = config
         .session_manager
@@ -270,13 +276,14 @@ async fn execute_subagent(
             data: None,
         })?;
 
-    let result = run_complete_subagent_task(
+    let result = run_complete_subagent_task_with_notifications(
         config,
         recipe,
         task_config,
         params.summary,
         session.id,
         cancellation_token,
+        Some(notification_tx),
     )
     .await;
 
