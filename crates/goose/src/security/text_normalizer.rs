@@ -70,7 +70,7 @@ impl TextNormalizer {
         let mut seen = HashSet::new();
         let mut result = Vec::new();
         for word in words {
-            if seen.insert(word.to_lowercase()) {
+            if seen.insert(*word) {
                 result.push(*word);
             }
         }
