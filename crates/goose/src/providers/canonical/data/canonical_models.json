@@ -7096,8 +7096,8 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 0.0,
-      "output": 0.0
+      "input": 0.4,
+      "output": 2.0
     },
     "limit": {
       "context": 262144,
@@ -8995,6 +8995,64 @@
     }
   },
   {
+    "id": "openrouter/arcee-ai/trinity-large-preview:free",
+    "name": "Trinity Large Preview",
+    "family": "trinity",
+    "attachment": false,
+    "reasoning": false,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2025-06",
+    "release_date": "2026-01-28",
+    "last_updated": "2026-01-28",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.0,
+      "output": 0.0
+    },
+    "limit": {
+      "context": 131072,
+      "output": 131072
+    }
+  },
+  {
+    "id": "openrouter/arcee-ai/trinity-mini:free",
+    "name": "Trinity Mini",
+    "family": "trinity-mini",
+    "attachment": false,
+    "reasoning": false,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2025-06",
+    "release_date": "2026-01-28",
+    "last_updated": "2026-01-28",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.0,
+      "output": 0.0
+    },
+    "limit": {
+      "context": 131072,
+      "output": 131072
+    }
+  },
+  {
     "id": "openrouter/cognitivecomputations/dolphin3.0-mistral-24b",
     "name": "Dolphin3.0 Mistral 24B",
     "family": "mistral",
@@ -9799,12 +9857,12 @@
     }
   },
   {
-    "id": "openrouter/google/gemma-2-9b-it:free",
-    "name": "Gemma 2 9B (free)",
+    "id": "openrouter/google/gemma-2-9b-it",
+    "name": "Gemma 2 9B",
     "family": "gemma",
     "attachment": false,
     "reasoning": false,
-    "tool_call": true,
+    "tool_call": false,
     "temperature": true,
     "knowledge": "2024-06",
     "release_date": "2024-06-28",
@@ -9819,8 +9877,8 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 0.0,
-      "output": 0.0
+      "input": 0.03,
+      "output": 0.09
     },
     "limit": {
       "context": 8192,
@@ -9829,11 +9887,41 @@
   },
   {
     "id": "openrouter/google/gemma-3-12b-it",
-    "name": "Gemma 3 12B IT",
+    "name": "Gemma 3 12B",
     "family": "gemma",
     "attachment": true,
     "reasoning": false,
-    "tool_call": true,
+    "tool_call": false,
+    "temperature": true,
+    "knowledge": "2024-10",
+    "release_date": "2025-03-13",
+    "last_updated": "2025-03-13",
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.03,
+      "output": 0.1
+    },
+    "limit": {
+      "context": 131072,
+      "output": 131072
+    }
+  },
+  {
+    "id": "openrouter/google/gemma-3-12b-it:free",
+    "name": "Gemma 3 12B (free)",
+    "family": "gemma",
+    "attachment": true,
+    "reasoning": false,
+    "tool_call": false,
     "temperature": true,
     "knowledge": "2024-10",
     "release_date": "2025-03-13",
@@ -9853,13 +9941,43 @@
       "output": 0.0
     },
     "limit": {
-      "context": 96000,
+      "context": 32768,
       "output": 8192
     }
   },
   {
     "id": "openrouter/google/gemma-3-27b-it",
-    "name": "Gemma 3 27B IT",
+    "name": "Gemma 3 27B",
+    "family": "gemma",
+    "attachment": true,
+    "reasoning": false,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2024-10",
+    "release_date": "2025-03-12",
+    "last_updated": "2025-03-12",
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.04,
+      "output": 0.15
+    },
+    "limit": {
+      "context": 96000,
+      "output": 96000
+    }
+  },
+  {
+    "id": "openrouter/google/gemma-3-27b-it:free",
+    "name": "Gemma 3 27B (free)",
     "family": "gemma",
     "attachment": true,
     "reasoning": false,
@@ -9883,26 +10001,84 @@
       "output": 0.0
     },
     "limit": {
-      "context": 96000,
+      "context": 131072,
       "output": 8192
     }
   },
   {
-    "id": "openrouter/google/gemma-3n-e4b-it",
-    "name": "Gemma 3n E4B IT",
+    "id": "openrouter/google/gemma-3-4b-it",
+    "name": "Gemma 3 4B",
     "family": "gemma",
     "attachment": true,
     "reasoning": false,
     "tool_call": false,
     "temperature": true,
     "knowledge": "2024-10",
-    "release_date": "2025-05-20",
-    "last_updated": "2025-05-20",
+    "release_date": "2025-03-13",
+    "last_updated": "2025-03-13",
     "modalities": {
       "input": [
         "text",
-        "image",
-        "audio"
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.01703,
+      "output": 0.06815
+    },
+    "limit": {
+      "context": 96000,
+      "output": 96000
+    }
+  },
+  {
+    "id": "openrouter/google/gemma-3-4b-it:free",
+    "name": "Gemma 3 4B (free)",
+    "family": "gemma",
+    "attachment": true,
+    "reasoning": false,
+    "tool_call": false,
+    "temperature": true,
+    "knowledge": "2024-10",
+    "release_date": "2025-03-13",
+    "last_updated": "2025-03-13",
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.0,
+      "output": 0.0
+    },
+    "limit": {
+      "context": 32768,
+      "output": 8192
+    }
+  },
+  {
+    "id": "openrouter/google/gemma-3n-e2b-it:free",
+    "name": "Gemma 3n 2B (free)",
+    "family": "gemma",
+    "attachment": true,
+    "reasoning": false,
+    "tool_call": false,
+    "temperature": true,
+    "knowledge": "2024-06",
+    "release_date": "2025-07-09",
+    "last_updated": "2025-07-09",
+    "modalities": {
+      "input": [
+        "text"
       ],
       "output": [
         "text"
@@ -9915,7 +10091,36 @@
     },
     "limit": {
       "context": 8192,
-      "output": 8192
+      "output": 2000
+    }
+  },
+  {
+    "id": "openrouter/google/gemma-3n-e4b-it",
+    "name": "Gemma 3n 4B",
+    "family": "gemma",
+    "attachment": true,
+    "reasoning": false,
+    "tool_call": false,
+    "temperature": true,
+    "knowledge": "2024-06",
+    "release_date": "2025-05-20",
+    "last_updated": "2025-05-20",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.02,
+      "output": 0.04
+    },
+    "limit": {
+      "context": 32768,
+      "output": 32768
     }
   },
   {
@@ -9924,16 +10129,14 @@
     "family": "gemma",
     "attachment": true,
     "reasoning": false,
-    "tool_call": true,
+    "tool_call": false,
     "temperature": true,
-    "knowledge": "2025-05",
+    "knowledge": "2024-06",
     "release_date": "2025-05-20",
     "last_updated": "2025-05-20",
     "modalities": {
       "input": [
-        "text",
-        "image",
-        "audio"
+        "text"
       ],
       "output": [
         "text"
@@ -9946,7 +10149,7 @@
     },
     "limit": {
       "context": 8192,
-      "output": 8192
+      "output": 2000
     }
   },
   {
@@ -12928,7 +13131,7 @@
     "temperature": true,
     "knowledge": "2025-03",
     "release_date": "2025-12-06",
-    "last_updated": "2026-01-08",
+    "last_updated": "2026-01-28",
     "modalities": {
       "input": [
         "text",
@@ -12947,8 +13150,8 @@
       "cache_write": 7.5
     },
     "limit": {
-      "context": 202752,
-      "output": 50688
+      "context": 198000,
+      "output": 49500
     }
   },
   {
@@ -12961,7 +13164,7 @@
     "temperature": true,
     "knowledge": "2025-09",
     "release_date": "2025-01-15",
-    "last_updated": "2026-01-15",
+    "last_updated": "2026-01-28",
     "modalities": {
       "input": [
         "text",
@@ -12979,8 +13182,8 @@
       "cache_write": 4.69
     },
     "limit": {
-      "context": 202752,
-      "output": 50688
+      "context": 198000,
+      "output": 49500
     }
   },
   {
@@ -12993,7 +13196,7 @@
     "temperature": true,
     "knowledge": "2025-10",
     "release_date": "2025-12-04",
-    "last_updated": "2025-12-29",
+    "last_updated": "2026-01-28",
     "modalities": {
       "input": [
         "text"
@@ -13009,8 +13212,8 @@
       "cache_read": 0.2
     },
     "limit": {
-      "context": 163840,
-      "output": 40960
+      "context": 160000,
+      "output": 40000
     }
   },
   {
@@ -13023,7 +13226,7 @@
     "temperature": true,
     "knowledge": "2025-01",
     "release_date": "2025-12-19",
-    "last_updated": "2025-12-30",
+    "last_updated": "2026-01-28",
     "modalities": {
       "input": [
         "text",
@@ -13043,8 +13246,8 @@
       "cache_read": 0.07
     },
     "limit": {
-      "context": 262144,
-      "output": 65536
+      "context": 256000,
+      "output": 64000
     }
   },
   {
@@ -13057,7 +13260,7 @@
     "temperature": true,
     "knowledge": "2024-04",
     "release_date": "2025-12-02",
-    "last_updated": "2025-12-29",
+    "last_updated": "2026-01-28",
     "modalities": {
       "input": [
         "text",
@@ -13076,8 +13279,8 @@
       "cache_read": 0.625
     },
     "limit": {
-      "context": 202752,
-      "output": 50688
+      "context": 198000,
+      "output": 49500
     }
   },
   {
@@ -13090,7 +13293,7 @@
     "temperature": true,
     "knowledge": "2025-07",
     "release_date": "2025-11-04",
-    "last_updated": "2025-12-29",
+    "last_updated": "2026-01-28",
     "modalities": {
       "input": [
         "text",
@@ -13106,8 +13309,8 @@
       "output": 0.2
     },
     "limit": {
-      "context": 202752,
-      "output": 50688
+      "context": 198000,
+      "output": 49500
     }
   },
   {
@@ -13120,7 +13323,7 @@
     "temperature": true,
     "knowledge": "2025-07",
     "release_date": "2025-12-01",
-    "last_updated": "2025-12-29",
+    "last_updated": "2026-01-28",
     "modalities": {
       "input": [
         "text",
@@ -13137,8 +13340,8 @@
       "cache_read": 0.125
     },
     "limit": {
-      "context": 262144,
-      "output": 65536
+      "context": 256000,
+      "output": 64000
     }
   },
   {
@@ -13150,7 +13353,7 @@
     "tool_call": true,
     "temperature": true,
     "release_date": "2025-12-01",
-    "last_updated": "2026-01-02",
+    "last_updated": "2026-01-28",
     "modalities": {
       "input": [
         "text"
@@ -13166,8 +13369,8 @@
       "cache_read": 0.03
     },
     "limit": {
-      "context": 262144,
-      "output": 65536
+      "context": 256000,
+      "output": 64000
     }
   },
   {
@@ -13180,7 +13383,7 @@
     "temperature": true,
     "knowledge": "2024-04",
     "release_date": "2025-09-25",
-    "last_updated": "2026-01-15",
+    "last_updated": "2026-01-28",
     "modalities": {
       "input": [
         "text"
@@ -13195,8 +13398,8 @@
       "output": 3.0
     },
     "limit": {
-      "context": 131072,
-      "output": 32768
+      "context": 128000,
+      "output": 32000
     }
   },
   {
@@ -13209,7 +13412,7 @@
     "temperature": true,
     "knowledge": "2024-04",
     "release_date": "2026-01-27",
-    "last_updated": "2026-01-27",
+    "last_updated": "2026-01-28",
     "modalities": {
       "input": [
         "text",
@@ -13226,8 +13429,8 @@
       "cache_read": 0.125
     },
     "limit": {
-      "context": 262144,
-      "output": 65536
+      "context": 256000,
+      "output": 64000
     }
   },
   {
@@ -13240,7 +13443,7 @@
     "temperature": true,
     "knowledge": "2024-04",
     "release_date": "2025-12-10",
-    "last_updated": "2025-12-30",
+    "last_updated": "2026-01-28",
     "modalities": {
       "input": [
         "text"
@@ -13256,38 +13459,8 @@
       "cache_read": 0.375
     },
     "limit": {
-      "context": 262144,
-      "output": 65536
-    }
-  },
-  {
-    "id": "venice/kimi-k2.5",
-    "name": "Kimi K2.5",
-    "family": "kimi",
-    "attachment": true,
-    "reasoning": true,
-    "tool_call": true,
-    "temperature": true,
-    "knowledge": "2024-04",
-    "release_date": "2026-01-27",
-    "last_updated": "2026-01-27",
-    "modalities": {
-      "input": [
-        "text",
-        "image"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": true,
-    "cost": {
-      "input": 0.75,
-      "output": 3.75
-    },
-    "limit": {
-      "context": 262144,
-      "output": 65536
+      "context": 256000,
+      "output": 64000
     }
   },
   {
@@ -13300,7 +13473,7 @@
     "temperature": true,
     "knowledge": "2023-12",
     "release_date": "2024-10-03",
-    "last_updated": "2026-01-13",
+    "last_updated": "2026-01-28",
     "modalities": {
       "input": [
         "text"
@@ -13315,8 +13488,8 @@
       "output": 0.6
     },
     "limit": {
-      "context": 131072,
-      "output": 32768
+      "context": 128000,
+      "output": 32000
     }
   },
   {
@@ -13329,7 +13502,7 @@
     "temperature": true,
     "knowledge": "2023-12",
     "release_date": "2025-04-06",
-    "last_updated": "2025-12-29",
+    "last_updated": "2026-01-28",
     "modalities": {
       "input": [
         "text"
@@ -13344,8 +13517,8 @@
       "output": 2.8
     },
     "limit": {
-      "context": 131072,
-      "output": 32768
+      "context": 128000,
+      "output": 32000
     }
   },
   {
@@ -13357,7 +13530,7 @@
     "tool_call": true,
     "temperature": true,
     "release_date": "2025-12-01",
-    "last_updated": "2026-01-02",
+    "last_updated": "2026-01-28",
     "modalities": {
       "input": [
         "text"
@@ -13366,15 +13539,15 @@
         "text"
       ]
     },
-    "open_weights": false,
+    "open_weights": true,
     "cost": {
       "input": 0.4,
       "output": 1.6,
       "cache_read": 0.04
     },
     "limit": {
-      "context": 202752,
-      "output": 50688
+      "context": 198000,
+      "output": 49500
     }
   },
   {
@@ -13387,7 +13560,7 @@
     "temperature": true,
     "knowledge": "2023-10",
     "release_date": "2025-03-18",
-    "last_updated": "2025-12-18",
+    "last_updated": "2026-01-28",
     "modalities": {
       "input": [
         "text",
@@ -13403,8 +13576,8 @@
       "output": 2.0
     },
     "limit": {
-      "context": 131072,
-      "output": 32768
+      "context": 128000,
+      "output": 32000
     }
   },
   {
@@ -13417,7 +13590,7 @@
     "temperature": true,
     "knowledge": "2025-08-31",
     "release_date": "2025-12-13",
-    "last_updated": "2025-12-29",
+    "last_updated": "2026-01-28",
     "modalities": {
       "input": [
         "text"
@@ -13433,8 +13606,8 @@
       "cache_read": 0.219
     },
     "limit": {
-      "context": 262144,
-      "output": 65536
+      "context": 256000,
+      "output": 64000
     }
   },
   {
@@ -13447,7 +13620,7 @@
     "temperature": true,
     "knowledge": "2025-08",
     "release_date": "2025-01-15",
-    "last_updated": "2026-01-15",
+    "last_updated": "2026-01-28",
     "modalities": {
       "input": [
         "text",
@@ -13464,8 +13637,8 @@
       "cache_read": 0.219
     },
     "limit": {
-      "context": 262144,
-      "output": 65536
+      "context": 256000,
+      "output": 64000
     }
   },
   {
@@ -13478,7 +13651,7 @@
     "temperature": true,
     "knowledge": "2025-07",
     "release_date": "2025-11-06",
-    "last_updated": "2025-12-29",
+    "last_updated": "2026-01-28",
     "modalities": {
       "input": [
         "text"
@@ -13493,8 +13666,8 @@
       "output": 0.3
     },
     "limit": {
-      "context": 131072,
-      "output": 32768
+      "context": 128000,
+      "output": 32000
     }
   },
   {
@@ -13507,7 +13680,7 @@
     "temperature": true,
     "knowledge": "2025-07",
     "release_date": "2025-04-29",
-    "last_updated": "2025-12-18",
+    "last_updated": "2026-01-28",
     "modalities": {
       "input": [
         "text"
@@ -13522,8 +13695,8 @@
       "output": 0.75
     },
     "limit": {
-      "context": 131072,
-      "output": 32768
+      "context": 128000,
+      "output": 32000
     }
   },
   {
@@ -13536,7 +13709,7 @@
     "temperature": true,
     "knowledge": "2025-07",
     "release_date": "2025-04-29",
-    "last_updated": "2025-12-18",
+    "last_updated": "2026-01-28",
     "modalities": {
       "input": [
         "text"
@@ -13551,8 +13724,8 @@
       "output": 3.5
     },
     "limit": {
-      "context": 131072,
-      "output": 32768
+      "context": 128000,
+      "output": 32000
     }
   },
   {
@@ -13565,7 +13738,7 @@
     "temperature": true,
     "knowledge": "2024-07",
     "release_date": "2025-04-29",
-    "last_updated": "2025-12-18",
+    "last_updated": "2026-01-28",
     "modalities": {
       "input": [
         "text"
@@ -13580,8 +13753,8 @@
       "output": 0.15
     },
     "limit": {
-      "context": 32768,
-      "output": 8192
+      "context": 32000,
+      "output": 8000
     }
   },
   {
@@ -13594,7 +13767,7 @@
     "temperature": true,
     "knowledge": "2025-07",
     "release_date": "2025-04-29",
-    "last_updated": "2025-12-18",
+    "last_updated": "2026-01-28",
     "modalities": {
       "input": [
         "text"
@@ -13609,8 +13782,8 @@
       "output": 3.0
     },
     "limit": {
-      "context": 262144,
-      "output": 65536
+      "context": 256000,
+      "output": 64000
     }
   },
   {
@@ -13623,7 +13796,7 @@
     "temperature": true,
     "knowledge": "2025-07",
     "release_date": "2025-04-29",
-    "last_updated": "2025-12-18",
+    "last_updated": "2026-01-28",
     "modalities": {
       "input": [
         "text"
@@ -13638,8 +13811,8 @@
       "output": 1.9
     },
     "limit": {
-      "context": 262144,
-      "output": 65536
+      "context": 256000,
+      "output": 64000
     }
   },
   {
@@ -13651,7 +13824,7 @@
     "tool_call": true,
     "temperature": true,
     "release_date": "2026-01-16",
-    "last_updated": "2026-01-19",
+    "last_updated": "2026-01-28",
     "modalities": {
       "input": [
         "text",
@@ -13667,8 +13840,8 @@
       "output": 1.5
     },
     "limit": {
-      "context": 262144,
-      "output": 65536
+      "context": 256000,
+      "output": 64000
     }
   },
   {
@@ -13681,7 +13854,7 @@
     "temperature": true,
     "knowledge": "2023-10",
     "release_date": "2025-03-18",
-    "last_updated": "2025-12-18",
+    "last_updated": "2026-01-28",
     "modalities": {
       "input": [
         "text"
@@ -13696,8 +13869,8 @@
       "output": 0.9
     },
     "limit": {
-      "context": 32768,
-      "output": 8192
+      "context": 32000,
+      "output": 8000
     }
   },
   {
@@ -13710,7 +13883,7 @@
     "temperature": true,
     "knowledge": "2025-04",
     "release_date": "2025-12-24",
-    "last_updated": "2026-01-26",
+    "last_updated": "2026-01-28",
     "modalities": {
       "input": [
         "text"
@@ -13726,8 +13899,8 @@
       "cache_read": 0.11
     },
     "limit": {
-      "context": 202752,
-      "output": 50688
+      "context": 198000,
+      "output": 49500
     }
   },
   {
