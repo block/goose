@@ -50,8 +50,7 @@ async fn get_provider_models_with_canonical(
         }
     };
 
-    let session_id = uuid::Uuid::new_v4().to_string();
-    let models = match provider.fetch_supported_models(&session_id).await {
+    let models = match provider.fetch_supported_models().await {
         Ok(Some(models)) => models,
         Ok(None) => Vec::new(),
         Err(e) => {

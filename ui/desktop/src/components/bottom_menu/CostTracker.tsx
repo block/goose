@@ -84,8 +84,8 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
         costInfo &&
         (costInfo.input_token_cost !== undefined || costInfo.output_token_cost !== undefined)
       ) {
-        const currentInputCost = inputTokens * (costInfo.input_token_cost || 0);
-        const currentOutputCost = outputTokens * (costInfo.output_token_cost || 0);
+        const currentInputCost = (inputTokens * (costInfo.input_token_cost || 0)) / 1_000_000;
+        const currentOutputCost = (outputTokens * (costInfo.output_token_cost || 0)) / 1_000_000;
         totalCost += currentInputCost + currentOutputCost;
       }
 
@@ -100,8 +100,8 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
       return 0;
     }
 
-    const inputCost = inputTokens * (costInfo.input_token_cost || 0);
-    const outputCost = outputTokens * (costInfo.output_token_cost || 0);
+    const inputCost = (inputTokens * (costInfo.input_token_cost || 0)) / 1_000_000;
+    const outputCost = (outputTokens * (costInfo.output_token_cost || 0)) / 1_000_000;
     const total = inputCost + outputCost;
 
     return total;
@@ -201,8 +201,9 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
       // Add current model if it has costs
       if (costInfo && (inputTokens > 0 || outputTokens > 0)) {
         const currentCost =
-          inputTokens * (costInfo.input_token_cost || 0) +
-          outputTokens * (costInfo.output_token_cost || 0);
+          (inputTokens * (costInfo.input_token_cost || 0) +
+            outputTokens * (costInfo.output_token_cost || 0)) /
+          1_000_000;
         if (currentCost > 0) {
           tooltip += `${currentProvider}/${currentModel} (current): ${costInfo.currency || '$'}${currentCost.toFixed(6)} (${inputTokens.toLocaleString()} in, ${outputTokens.toLocaleString()} out)\n`;
         }
@@ -213,7 +214,7 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
     }
 
     // Default tooltip for single model
-    return `Input: ${inputTokens.toLocaleString()} tokens (${costInfo?.currency || '$'}${(inputTokens * (costInfo?.input_token_cost || 0)).toFixed(6)}) | Output: ${outputTokens.toLocaleString()} tokens (${costInfo?.currency || '$'}${(outputTokens * (costInfo?.output_token_cost || 0)).toFixed(6)})`;
+    return `Input: ${inputTokens.toLocaleString()} tokens (${costInfo?.currency || '$'}${((inputTokens * (costInfo?.input_token_cost || 0)) / 1_000_000).toFixed(6)}) | Output: ${outputTokens.toLocaleString()} tokens (${costInfo?.currency || '$'}${((outputTokens * (costInfo?.output_token_cost || 0)) / 1_000_000).toFixed(6)})`;
   };
 
   return (

@@ -547,9 +547,9 @@ export type MessageMetadata = {
 
 export type ModelConfig = {
     context_limit?: number | null;
-    fast_model?: string | null;
     max_tokens?: number | null;
     model_name: string;
+    provider_name: string;
     /**
      * Provider-specific request parameters (e.g., anthropic_beta headers)
      */
@@ -592,31 +592,13 @@ export type ModelInfo = {
 };
 
 export type ModelInfoData = {
-    /**
-     * Cost per cached read token in USD
-     */
     cache_read_token_cost?: number | null;
-    /**
-     * Cost per cached write token in USD
-     */
     cache_write_token_cost?: number | null;
-    /**
-     * Context window size in tokens
-     */
     context_limit: number;
     currency: string;
-    /**
-     * Cost per input token in USD
-     */
     input_token_cost?: number | null;
-    /**
-     * Maximum output tokens
-     */
     max_output_tokens?: number | null;
     model: string;
-    /**
-     * Cost per output token in USD
-     */
     output_token_cost?: number | null;
     provider: string;
 };

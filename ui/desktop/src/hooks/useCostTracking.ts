@@ -49,9 +49,11 @@ export const useCostTracking = ({
 
         if (prevCostInfo) {
           const prevInputCost =
-            (sessionInputTokens || localInputTokens) * (prevCostInfo.input_token_cost || 0);
+            ((sessionInputTokens || localInputTokens) * (prevCostInfo.input_token_cost || 0)) /
+            1_000_000;
           const prevOutputCost =
-            (sessionOutputTokens || localOutputTokens) * (prevCostInfo.output_token_cost || 0);
+            ((sessionOutputTokens || localOutputTokens) * (prevCostInfo.output_token_cost || 0)) /
+            1_000_000;
           const prevTotalCost = prevInputCost + prevOutputCost;
 
           // Save the accumulated costs for this model

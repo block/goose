@@ -4814,6 +4814,7 @@
         "type": "object",
         "required": [
           "model_name",
+          "provider_name",
           "toolshim"
         ],
         "properties": {
@@ -4822,16 +4823,15 @@
             "nullable": true,
             "minimum": 0
           },
-          "fast_model": {
-            "type": "string",
-            "nullable": true
-          },
           "max_tokens": {
             "type": "integer",
             "format": "int32",
             "nullable": true
           },
           "model_name": {
+            "type": "string"
+          },
+          "provider_name": {
             "type": "string"
           },
           "request_params": {
@@ -4907,18 +4907,15 @@
           "cache_read_token_cost": {
             "type": "number",
             "format": "double",
-            "description": "Cost per cached read token in USD",
             "nullable": true
           },
           "cache_write_token_cost": {
             "type": "number",
             "format": "double",
-            "description": "Cost per cached write token in USD",
             "nullable": true
           },
           "context_limit": {
             "type": "integer",
-            "description": "Context window size in tokens",
             "minimum": 0
           },
           "currency": {
@@ -4927,12 +4924,10 @@
           "input_token_cost": {
             "type": "number",
             "format": "double",
-            "description": "Cost per input token in USD",
             "nullable": true
           },
           "max_output_tokens": {
             "type": "integer",
-            "description": "Maximum output tokens",
             "nullable": true,
             "minimum": 0
           },
@@ -4942,7 +4937,6 @@
           "output_token_cost": {
             "type": "number",
             "format": "double",
-            "description": "Cost per output token in USD",
             "nullable": true
           },
           "provider": {
