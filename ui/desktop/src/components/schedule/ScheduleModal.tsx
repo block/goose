@@ -63,22 +63,14 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
     if (value.trim()) {
       try {
         const recipe = await parseDeeplink(value.trim());
-        if (recipe) {
-          setParsedRecipe(recipe);
-          if (recipe.title) {
-            setScheduleIdFromTitle(recipe.title);
-          }
-        } else {
-          setParsedRecipe(null);
-          setInternalValidationError(
-            'Invalid deep link format. Please use a goose://bot or goose://recipe link.'
-          );
+        if (!recipe) throw new Error();
+        setParsedRecipe(recipe);
+        if (recipe.title) {
+          setScheduleIdFromTitle(recipe.title);
         }
       } catch {
         setParsedRecipe(null);
-        setInternalValidationError(
-          'Failed to parse deep link. Please ensure using a goose://bot or goose://recipe link and try again.'
-        );
+        setInternalValidationError('Invalid deep link. Please use a goose://recipe link.');
       }
     } else {
       setParsedRecipe(null);
@@ -259,7 +251,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
                         type="text"
                         value={deepLinkInput}
                         onChange={(e) => handleDeepLinkChange(e.target.value)}
-                        placeholder="Paste goose://bot or goose://recipe link here..."
+                        placeholder="Paste goose://recipe link here..."
                         className="rounded-full"
                       />
                       {parsedRecipe && (
