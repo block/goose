@@ -16,12 +16,10 @@ import { BottomMenuExtensionSelection } from './bottom_menu/BottomMenuExtensionS
 import { AlertType, useAlerts } from './alerts';
 import { useConfig } from './ConfigContext';
 import { useModelAndProvider } from './ModelAndProviderContext';
-import { useWhisper } from '../hooks/useWhisper';
-import { DICTATION_PROVIDER_ELEVENLABS } from '../hooks/dictationConstants';
-import { WaveformVisualizer } from './WaveformVisualizer';
+import { useAudioRecorder } from '../hooks/useAudioRecorder';
 import { toastError } from '../toasts';
 import MentionPopover, { DisplayItemWithMatch } from './MentionPopover';
-import { COST_TRACKING_ENABLED, VOICE_DICTATION_ELEVENLABS_ENABLED } from '../updates';
+import { COST_TRACKING_ENABLED } from '../updates';
 import { CostTracker } from './bottom_menu/CostTracker';
 import { DroppedFile, useFileDrop } from '../hooks/useFileDrop';
 import { Recipe } from '../recipe';
@@ -254,19 +252,17 @@ export default function ChatInput({
     selectFile: (index: number) => void;
   }>(null);
 
-  // Whisper hook for voice dictation
+  // Audio recorder hook for voice dictation
   const {
+    isEnabled,
+    dictationProvider,
     isRecording,
     isTranscribing,
-    canUseDictation,
-    audioContext,
-    analyser,
     startRecording,
     stopRecording,
     recordingDuration,
     estimatedSize,
-    dictationSettings,
-  } = useWhisper({
+  } = useAudioRecorder({
     onTranscription: (text) => {
       trackVoiceDictation('transcribed');
       // Append transcribed text to the current input
@@ -281,12 +277,6 @@ export default function ChatInput({
       toastError({
         title: 'Dictation Error',
         msg: error.message,
-      });
-    },
-    onSizeWarning: (sizeMB) => {
-      toastError({
-        title: 'Recording Size Warning',
-        msg: `Recording is ${sizeMB.toFixed(1)}MB. Maximum size is 25MB.`,
       });
     },
   });
@@ -1236,26 +1226,25 @@ export default function ChatInput({
               maxHeight: `${maxHeight}px`,
               overflowY: 'auto',
               opacity: isRecording ? 0 : 1,
-              paddingRight: dictationSettings?.enabled ? '180px' : '120px',
+              paddingRight: dictationProvider ? '180px' : '120px',
             }}
             className="w-full outline-none border-none focus:ring-0 bg-transparent px-3 pt-3 pb-1.5 text-sm resize-none text-textStandard placeholder:text-textPlaceholder"
           />
           {isRecording && (
             <div className="absolute inset-0 flex items-center pl-4 pr-32 pt-3 pb-1.5">
-              <WaveformVisualizer
-                audioContext={audioContext}
-                analyser={analyser}
-                isRecording={isRecording}
-              />
+              <div className="flex items-center gap-2 text-textSubtle">
+                <span className="inline-block w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                <span>Recording...</span>
+              </div>
             </div>
           )}
 
           {/* Inline action buttons - absolutely positioned on the right */}
           <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-            {/* Microphone button - show only if dictation is enabled */}
-            {dictationSettings?.enabled && (
+            {/* Microphone button - show only if provider is selected */}
+            {dictationProvider && (
               <>
-                {!canUseDictation ? (
+                {!isEnabled ? (
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <span className="inline-flex">
@@ -1273,18 +1262,17 @@ export default function ChatInput({
                       </span>
                     </TooltipTrigger>
                     <TooltipContent>
-                      {dictationSettings.provider === 'openai' ? (
+                      {dictationProvider === 'openai' ? (
                         <p>
                           OpenAI API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
                           <b>Models.</b>
                         </p>
-                      ) : VOICE_DICTATION_ELEVENLABS_ENABLED &&
-                        dictationSettings.provider === DICTATION_PROVIDER_ELEVENLABS ? (
+                      ) : dictationProvider === 'elevenlabs' ? (
                         <p>
                           ElevenLabs API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
                           <b>Chat</b> {'>'} <b>Voice Dictation.</b>
                         </p>
-                      ) : dictationSettings.provider === null ? (
+                      ) : dictationProvider === null ? (
                         <p>
                           Dictation is not configured. Configure it in <b>Settings</b> {'>'}{' '}
                           <b>Chat</b> {'>'} <b>Voice Dictation.</b>
