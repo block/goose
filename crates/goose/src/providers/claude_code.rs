@@ -1,5 +1,7 @@
 use anyhow::Result;
+use async_stream::try_stream;
 use async_trait::async_trait;
+use futures;
 use rmcp::model::Role;
 use serde_json::{json, Value};
 use std::ffi::OsString;
@@ -8,7 +10,7 @@ use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
-use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{ConfigKey, MessageStream, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::utils::{filter_extensions_from_system_prompt, RequestLog};
 use crate::config::base::ClaudeCodeCommand;
@@ -238,6 +240,101 @@ impl ClaudeCodeProvider {
         Ok((response_message, usage))
     }
 
+    fn parse_streaming_event(line: &str) -> Option<(Option<String>, Option<Usage>)> {
+        let parsed: Value = serde_json::from_str(line).ok()?;
+        let event_type = parsed.get("type").and_then(|t| t.as_str())?;
+
+        match event_type {
+            "stream_event" => {
+                let event = parsed.get("event")?;
+                let inner_type = event.get("type").and_then(|t| t.as_str())?;
+
+                match inner_type {
+                    "content_block_delta" => {
+                        let delta = event.get("delta")?;
+                        if delta.get("type").and_then(|t| t.as_str()) == Some("text_delta") {
+                            if let Some(text) = delta.get("text").and_then(|t| t.as_str()) {
+                                return Some((Some(text.to_string()), None));
+                            }
+                        }
+                        None
+                    }
+                    "message_delta" => {
+                        if let Some(usage_info) = event.get("usage") {
+                            let output_tokens = usage_info
+                                .get("output_tokens")
+                                .and_then(|v| v.as_i64())
+                                .map(|v| v as i32);
+                            return Some((None, Some(Usage::new(None, output_tokens, None))));
+                        }
+                        None
+                    }
+                    "message_start" => {
+                        if let Some(message) = event.get("message") {
+                            if let Some(usage_info) = message.get("usage") {
+                                let input_tokens = usage_info
+                                    .get("input_tokens")
+                                    .and_then(|v| v.as_i64())
+                                    .map(|v| v as i32);
+                                return Some((None, Some(Usage::new(input_tokens, None, None))));
+                            }
+                        }
+                        None
+                    }
+                    _ => None,
+                }
+            }
+            "result" => {
+                if let Some(usage_info) = parsed.get("usage") {
+                    let input_tokens = usage_info
+                        .get("input_tokens")
+                        .and_then(|v| v.as_i64())
+                        .map(|v| v as i32);
+                    let output_tokens = usage_info
+                        .get("output_tokens")
+                        .and_then(|v| v.as_i64())
+                        .map(|v| v as i32);
+                    return Some((None, Some(Usage::new(input_tokens, output_tokens, None))));
+                }
+                None
+            }
+            _ => None,
+        }
+    }
+
+    fn build_command(
+        &self,
+        messages_json: &Value,
+        filtered_system: &str,
+        streaming: bool,
+    ) -> Result<Command, ProviderError> {
+        let mut cmd = Command::new(&self.command);
+        configure_command_no_window(&mut cmd);
+        cmd.arg("-p")
+            .arg(messages_json.to_string())
+            .arg("--system-prompt")
+            .arg(filtered_system);
+
+        if CLAUDE_CODE_KNOWN_MODELS.contains(&self.model.model_name.as_str()) {
+            cmd.arg("--model").arg(&self.model.model_name);
+        }
+
+        if streaming {
+            cmd.arg("--verbose")
+                .arg("--output-format")
+                .arg("stream-json")
+                .arg("--include-partial-messages");
+        } else {
+            cmd.arg("--verbose").arg("--output-format").arg("json");
+        }
+
+        Self::apply_permission_flags(&mut cmd)?;
+
+        cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+
+        Ok(cmd)
+    }
+
     async fn execute_command(
         &self,
         system: &str,
@@ -269,24 +366,7 @@ impl ClaudeCodeProvider {
             println!("================================");
         }
 
-        let mut cmd = Command::new(&self.command);
-        configure_command_no_window(&mut cmd);
-        cmd.arg("-p")
-            .arg(messages_json.to_string())
-            .arg("--system-prompt")
-            .arg(&filtered_system);
-
-        // Only pass model parameter if it's in the known models list
-        if CLAUDE_CODE_KNOWN_MODELS.contains(&self.model.model_name.as_str()) {
-            cmd.arg("--model").arg(&self.model.model_name);
-        }
-
-        cmd.arg("--verbose").arg("--output-format").arg("json");
-
-        // Add permission mode based on GOOSE_MODE setting
-        Self::apply_permission_flags(&mut cmd)?;
-
-        cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+        let mut cmd = self.build_command(&messages_json, &filtered_system, false)?;
 
         let mut child = cmd.spawn().map_err(|e| {
             ProviderError::RequestFailed(format!(
@@ -452,5 +532,162 @@ impl Provider for ClaudeCodeProvider {
             message,
             ProviderUsage::new(model_config.model_name.clone(), usage),
         ))
+    }
+
+    fn supports_streaming(&self) -> bool {
+        true
+    }
+
+    async fn stream(
+        &self,
+        _session_id: &str,
+        system: &str,
+        messages: &[Message],
+        _tools: &[Tool],
+    ) -> Result<MessageStream, ProviderError> {
+        if system.contains("four words or less") || system.contains("4 words or less") {
+            let (message, usage) = self.generate_simple_session_description(messages)?;
+            return Ok(Box::pin(futures::stream::once(async move {
+                Ok((Some(message), Some(usage)))
+            })));
+        }
+
+        let messages_json = self
+            .messages_to_claude_format(system, messages)
+            .map_err(|e| {
+                ProviderError::RequestFailed(format!("Failed to format messages: {}", e))
+            })?;
+
+        let filtered_system = filter_extensions_from_system_prompt(system);
+
+        let mut cmd = self.build_command(&messages_json, &filtered_system, true)?;
+
+        let mut child = cmd.spawn().map_err(|e| {
+            ProviderError::RequestFailed(format!(
+                "Failed to spawn Claude CLI command '{:?}': {}.",
+                self.command, e
+            ))
+        })?;
+
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| ProviderError::RequestFailed("Failed to capture stdout".to_string()))?;
+
+        let stderr = child.stderr.take();
+
+        let model_name = self.model.model_name.clone();
+
+        let message_id = uuid::Uuid::new_v4().to_string();
+
+        Ok(Box::pin(try_stream! {
+            // Drain stderr in background to prevent the child process from blocking
+            let stderr_task = stderr.map(|stderr| {
+                tokio::spawn(async move {
+                    let mut reader = BufReader::new(stderr);
+                    let mut content = String::new();
+                    let _ = tokio::io::AsyncReadExt::read_to_string(&mut reader, &mut content).await;
+                    content
+                })
+            });
+
+            let mut reader = BufReader::new(stdout);
+            let mut line = String::new();
+            let mut accumulated_usage = Usage::default();
+
+            loop {
+                line.clear();
+                match reader.read_line(&mut line).await {
+                    Ok(0) => break,
+                    Ok(_) => {
+                        let trimmed = line.trim();
+                        if !trimmed.is_empty() {
+                            if let Some((text_opt, usage_opt)) = Self::parse_streaming_event(trimmed) {
+                                if let Some(text) = text_opt {
+                                    let mut partial_message = Message::new(
+                                        Role::Assistant,
+                                        chrono::Utc::now().timestamp(),
+                                        vec![MessageContent::text(text)],
+                                    );
+                                    partial_message.id = Some(message_id.clone());
+                                    yield (Some(partial_message), None);
+                                }
+                                if let Some(usage) = usage_opt {
+                                    accumulated_usage.input_tokens = usage.input_tokens.or(accumulated_usage.input_tokens);
+                                    accumulated_usage.output_tokens = usage.output_tokens.or(accumulated_usage.output_tokens);
+                                    accumulated_usage.total_tokens = accumulated_usage.input_tokens
+                                        .zip(accumulated_usage.output_tokens)
+                                        .map(|(i, o)| i + o)
+                                        .or(accumulated_usage.input_tokens)
+                                        .or(accumulated_usage.output_tokens);
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        Err(ProviderError::RequestFailed(format!(
+                            "Failed to read streaming output: {e}"
+                        )))?;
+                    }
+                }
+            }
+
+            let stderr_content = if let Some(task) = stderr_task {
+                task.await.ok().unwrap_or_default()
+            } else {
+                String::new()
+            };
+
+            let exit_status = child.wait().await.map_err(|e| {
+                ProviderError::RequestFailed(format!("Failed to wait for command: {e}"))
+            })?;
+
+            if !exit_status.success() {
+                let stderr_msg = if stderr_content.is_empty() {
+                    String::new()
+                } else {
+                    format!(" Stderr: {}", stderr_content.trim())
+                };
+                Err(ProviderError::RequestFailed(format!(
+                    "Command failed with exit code: {:?}.{stderr_msg}",
+                    exit_status.code()
+                )))?;
+            }
+
+            let provider_usage = ProviderUsage::new(model_name, accumulated_usage);
+            yield (None, Some(provider_usage));
+        }))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_streaming_event() {
+        let event = r#"{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"Hello"}}}"#;
+        assert!(
+            matches!(ClaudeCodeProvider::parse_streaming_event(event), Some((Some(text), None)) if text == "Hello")
+        );
+
+        let event = r#"{"type":"stream_event","event":{"type":"message_start","message":{"usage":{"input_tokens":100}}}}"#;
+        assert!(
+            matches!(ClaudeCodeProvider::parse_streaming_event(event), Some((None, Some(usage))) if usage.input_tokens == Some(100))
+        );
+
+        let event = r#"{"type":"stream_event","event":{"type":"message_delta","usage":{"output_tokens":50}}}"#;
+        assert!(
+            matches!(ClaudeCodeProvider::parse_streaming_event(event), Some((None, Some(usage))) if usage.output_tokens == Some(50))
+        );
+
+        let event = r#"{"type":"result","usage":{"input_tokens":100,"output_tokens":50}}"#;
+        assert!(
+            matches!(ClaudeCodeProvider::parse_streaming_event(event), Some((None, Some(usage))) if usage.input_tokens == Some(100) && usage.output_tokens == Some(50))
+        );
+
+        assert!(ClaudeCodeProvider::parse_streaming_event("not json").is_none());
+        assert!(ClaudeCodeProvider::parse_streaming_event(r#"{"type":"unknown"}"#).is_none());
+        assert!(ClaudeCodeProvider::parse_streaming_event(r#"{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta"}}}"#).is_none());
     }
 }
