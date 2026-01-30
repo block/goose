@@ -20,10 +20,15 @@ pub struct ExtensionEntry {
 }
 
 pub fn name_to_key(name: &str) -> String {
-    name.chars()
-        .filter(|c| !c.is_whitespace())
-        .collect::<String>()
-        .to_lowercase()
+    let mut result = String::with_capacity(name.len());
+    for c in name.chars() {
+        result.push(match c {
+            c if c.is_ascii_alphanumeric() || c == '_' || c == '-' => c,
+            c if c.is_whitespace() => continue,
+            _ => '_',
+        });
+    }
+    result.to_lowercase()
 }
 
 fn get_extensions_map_with_config(config: &Config) -> IndexMap<String, ExtensionEntry> {
