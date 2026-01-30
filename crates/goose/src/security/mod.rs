@@ -43,9 +43,15 @@ impl SecurityManager {
     fn is_ml_scanning_enabled(&self) -> bool {
         let config = Config::global();
 
-        config
+        let prompt_enabled = config
             .get_param::<bool>("SECURITY_PROMPT_CLASSIFIER_ENABLED")
-            .unwrap_or(false)
+            .unwrap_or(false);
+
+        let command_enabled = config
+            .get_param::<bool>("SECURITY_COMMAND_CLASSIFIER_ENABLED")
+            .unwrap_or(false);
+
+        prompt_enabled || command_enabled
     }
 
     pub async fn analyze_tool_requests(
