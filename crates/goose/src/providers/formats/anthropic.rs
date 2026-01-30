@@ -19,9 +19,11 @@ const USER_ROLE: &str = "user";
 const ASSISTANT_ROLE: &str = "assistant";
 const TOOL_USE_TYPE: &str = "tool_use";
 const TOOL_RESULT_TYPE: &str = "tool_result";
+const IMAGE_TYPE: &str = "image";
 const THINKING_TYPE: &str = "thinking";
 const REDACTED_THINKING_TYPE: &str = "redacted_thinking";
 const CACHE_CONTROL_FIELD: &str = "cache_control";
+const EPHEMERAL_FIELD: &str = "ephemeral";
 const ID_FIELD: &str = "id";
 const NAME_FIELD: &str = "name";
 const INPUT_FIELD: &str = "input";
@@ -147,29 +149,33 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
         }));
     }
 
-    // Add "cache_control" to the last and second-to-last "user" messages.
-    // During each turn, we mark the final message with cache_control so the conversation can be
-    // incrementally cached. The second-to-last user message is also marked for caching with the
-    // cache_control parameter, so that this checkpoint can read from the previous cache.
-    let mut user_count = 0;
-    for message in anthropic_messages.iter_mut().rev() {
-        if message.get(ROLE_FIELD) == Some(&json!(USER_ROLE)) {
-            if let Some(content) = message.get_mut(CONTENT_FIELD) {
-                if let Some(content_array) = content.as_array_mut() {
-                    if let Some(last_content) = content_array.last_mut() {
-                        last_content.as_object_mut().unwrap().insert(
-                            CACHE_CONTROL_FIELD.to_string(),
-                            json!({ TYPE_FIELD: "ephemeral" }),
-                        );
-                    }
-                }
-            }
-            user_count += 1;
-            if user_count >= 2 {
-                break;
-            }
-        }
-    }
+    // Cache the last valid content block that isn't MOIM
+    // Valid blocks: text, image, tool_use, tool_result (per Anthropic docs)
+    let is_cacheable = |block: &Value| {
+        let block_type = block.get(TYPE_FIELD).and_then(|value| value.as_str());
+        let is_valid_type = matches!(
+            block_type,
+            Some(TEXT_TYPE | IMAGE_TYPE | TOOL_USE_TYPE | TOOL_RESULT_TYPE)
+        );
+        let is_moim = block
+            .get(TEXT_TYPE)
+            .and_then(|value| value.as_str())
+            .is_some_and(|str| str.starts_with("<info-msg>"));
+        is_valid_type && !is_moim
+    };
+
+    anthropic_messages
+        .iter_mut()
+        .rev()
+        .filter_map(|message| message.get_mut(CONTENT_FIELD)?.as_array_mut())
+        .find_map(|content| content.iter_mut().rev().find(|block| is_cacheable(block)))
+        .and_then(|block| block.as_object_mut())
+        .map(|block| {
+            block.insert(
+                CACHE_CONTROL_FIELD.to_string(),
+                json!({ TYPE_FIELD: EPHEMERAL_FIELD }),
+            )
+        });
 
     anthropic_messages
 }
