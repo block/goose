@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import {
   Home,
@@ -34,6 +33,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
+import * as PopoverPrimitive from '@radix-ui/react-popover';
 
 interface NavItem {
   id: string;
@@ -66,84 +66,36 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
   const [dragOverItem, setDragOverItem] = useState<string | null>(null);
   const [chatPopoverOpen, setChatPopoverOpen] = useState(false);
-  const [chatRowHovered, setChatRowHovered] = useState(false);
-  const [chatRowRect, setChatRowRect] = useState<{
-    top: number;
-    right: number;
-    left: number;
-    height: number;
-  } | null>(null);
-  const chatHoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [newChatHoverOpen, setNewChatHoverOpen] = useState(false);
+  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [recentSessions, setRecentSessions] = useState<Session[]>([]);
 
   // Ref for focusing navigation when opened
   const navContainerRef = useRef<HTMLDivElement>(null);
-  const chatRowRef = useRef<HTMLDivElement>(null);
-  // Store the unscaled rect so we can use it when hover starts
-  const chatRowUnscaledRectRef = useRef<{
-    top: number;
-    right: number;
-    left: number;
-    height: number;
-  } | null>(null);
 
-  // Continuously update the unscaled rect when not hovered
-  useEffect(() => {
-    if (chatRowHovered || !chatRowRef.current) return;
+  // Hover handlers with delay to allow mouse to travel between trigger and popover
+  const handleHoverOpen = useCallback(() => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+    setNewChatHoverOpen(true);
+  }, []);
 
-    const updateRect = () => {
-      if (chatRowRef.current && !chatRowHovered) {
-        const rect = chatRowRef.current.getBoundingClientRect();
-        chatRowUnscaledRectRef.current = {
-          top: rect.top,
-          right: rect.right,
-          left: rect.left,
-          height: rect.height,
-        };
-      }
-    };
-
-    // Update immediately
-    updateRect();
-
-    // Also update on scroll/resize
-    window.addEventListener('scroll', updateRect, true);
-    window.addEventListener('resize', updateRect);
-
-    return () => {
-      window.removeEventListener('scroll', updateRect, true);
-      window.removeEventListener('resize', updateRect);
-    };
-  }, [chatRowHovered, isNavExpanded]);
+  const handleHoverClose = useCallback(() => {
+    hoverTimeoutRef.current = setTimeout(() => {
+      setNewChatHoverOpen(false);
+    }, 300);
+  }, []);
 
   // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
-      if (chatHoverTimeoutRef.current) {
-        clearTimeout(chatHoverTimeoutRef.current);
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
       }
     };
-  }, []);
-
-  // Delayed hover handlers to allow mouse to move between chat row and button
-  const handleChatRowMouseEnter = useCallback(() => {
-    if (chatHoverTimeoutRef.current) {
-      clearTimeout(chatHoverTimeoutRef.current);
-      chatHoverTimeoutRef.current = null;
-    }
-    // Use the pre-captured unscaled rect
-    if (!chatRowHovered && chatRowUnscaledRectRef.current) {
-      setChatRowRect(chatRowUnscaledRectRef.current);
-    }
-    setChatRowHovered(true);
-  }, [chatRowHovered]);
-
-  const handleChatRowMouseLeave = useCallback(() => {
-    // Small delay to allow mouse to reach the button
-    chatHoverTimeoutRef.current = setTimeout(() => {
-      setChatRowHovered(false);
-    }, 100);
   }, []);
 
   // Track session for /pair navigation
@@ -604,25 +556,73 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                     </DropdownMenu>
                   ) : (
                     <>
-                      {/* Wrapper for Chat row to position hover button relative to just this row */}
-                      <div
-                        ref={isChatItem ? chatRowRef : undefined}
-                        className={cn('relative', !isCondensedIconOnly && 'w-full')}
-                        onMouseEnter={() =>
-                          isChatItem && !isCondensedIconOnly && handleChatRowMouseEnter()
-                        }
-                        onMouseLeave={() =>
-                          isChatItem && !isCondensedIconOnly && handleChatRowMouseLeave()
-                        }
-                      >
+                      {/* Chat row with hover popover for new chat button */}
+                      {isChatItem && !isCondensedIconOnly ? (
+                        <PopoverPrimitive.Root open={newChatHoverOpen}>
+                          <PopoverPrimitive.Trigger asChild>
+                            <motion.button
+                              onClick={toggleChatExpanded}
+                              onMouseEnter={handleHoverOpen}
+                              onMouseLeave={handleHoverClose}
+                              whileHover={{ scale: 1.02 }}
+                              whileTap={{ scale: 0.98 }}
+                              className={cn(
+                                'flex flex-row items-center gap-2 outline-none',
+                                'relative rounded-lg transition-colors duration-200 no-drag',
+                                'w-full pl-2 pr-4 py-2.5',
+                                active
+                                  ? 'bg-background-accent text-text-on-accent'
+                                  : 'bg-background-default hover:bg-background-medium'
+                              )}
+                            >
+                              <div className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                                <GripVertical className="w-4 h-4 text-text-muted" />
+                              </div>
+                              <Icon className="w-5 h-5 flex-shrink-0" />
+                              <span className="text-sm font-medium text-left flex-1">
+                                {item.label}
+                              </span>
+                              <div className="flex-shrink-0">
+                                {isChatExpanded ? (
+                                  <ChevronDown className="w-3 h-3 text-text-muted" />
+                                ) : (
+                                  <ChevronRight className="w-3 h-3 text-text-muted" />
+                                )}
+                              </div>
+                            </motion.button>
+                          </PopoverPrimitive.Trigger>
+                          <PopoverPrimitive.Portal>
+                            <PopoverPrimitive.Content
+                              side={navigationPosition === 'left' ? 'right' : 'left'}
+                              align="center"
+                              sideOffset={4}
+                              onMouseEnter={handleHoverOpen}
+                              onMouseLeave={handleHoverClose}
+                              className="z-[9999] outline-none"
+                            >
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleNewChat();
+                                  setNewChatHoverOpen(false);
+                                }}
+                                className={cn(
+                                  'p-1.5 rounded-md outline-none',
+                                  'bg-background-medium hover:bg-background-accent hover:text-text-on-accent',
+                                  'flex items-center justify-center',
+                                  'shadow-sm transition-all duration-150',
+                                  'hover:scale-110 active:scale-95'
+                                )}
+                                title="New Chat"
+                              >
+                                <Plus className="w-4 h-4" />
+                              </button>
+                            </PopoverPrimitive.Content>
+                          </PopoverPrimitive.Portal>
+                        </PopoverPrimitive.Root>
+                      ) : (
                         <motion.button
-                          onClick={() => {
-                            if (isChatItem && !isCondensedIconOnly) {
-                              toggleChatExpanded();
-                            } else {
-                              handleNavClick(item.path);
-                            }
-                          }}
+                          onClick={() => handleNavClick(item.path)}
                           whileHover={{ scale: 1.02 }}
                           whileTap={{ scale: 0.98 }}
                           className={cn(
@@ -661,17 +661,8 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                               </span>
                             </div>
                           )}
-                          {!isCondensedIconOnly && isChatItem && (
-                            <div className="flex-shrink-0">
-                              {isChatExpanded ? (
-                                <ChevronDown className="w-3 h-3 text-text-muted" />
-                              ) : (
-                                <ChevronRight className="w-3 h-3 text-text-muted" />
-                              )}
-                            </div>
-                          )}
                         </motion.button>
-                      </div>
+                      )}
                     </>
                   )}
                   <AnimatePresence>
@@ -926,50 +917,9 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
     );
   }
 
-  // Render the hover button using a portal so it's not clipped by overflow
-  const hoverButton =
-    chatRowHovered &&
-    chatRowRect &&
-    isVertical &&
-    !isCondensedIconOnly &&
-    createPortal(
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          handleNewChat();
-        }}
-        onMouseEnter={handleChatRowMouseEnter}
-        onMouseLeave={handleChatRowMouseLeave}
-        style={{
-          position: 'fixed',
-          top: chatRowRect.top + chatRowRect.height / 2,
-          transform: 'translateY(-50%)',
-          left: navigationPosition === 'left' ? chatRowRect.right + 4 : undefined,
-          right:
-            navigationPosition === 'right' ? window.innerWidth - chatRowRect.left + 4 : undefined,
-        }}
-        className={cn(
-          'p-1.5 rounded-md z-[9999]',
-          'bg-background-medium hover:bg-background-accent hover:text-text-on-accent',
-          'flex items-center justify-center',
-          'shadow-sm transition-all duration-150',
-          'hover:scale-110 active:scale-95'
-        )}
-        title="New Chat"
-      >
-        <Plus className="w-4 h-4" />
-      </button>,
-      document.body
-    );
-
   // Push mode: render inline
   if (!isNavExpanded) return null;
-  return (
-    <>
-      {navContent}
-      {hoverButton}
-    </>
-  );
+  return navContent;
 };
 
 // Trigger button to open navigation
