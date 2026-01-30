@@ -6,7 +6,7 @@ authors:
     - matt
 ---
 
-![Level Up Your MCP Apps - Goose and MCP Jam](blogbanner.png)
+![Level Up Your MCP Apps - goose and MCP Jam](blogbanner.png)
 
 [MCP Apps](https://modelcontextprotocol.io/docs/extensions/apps) allow you to render interactive UI directly inside any agent supporting the Model Context Protocol. Instead of a wall of text, your agent can now provide a functional chart, a checkout form, or a video player. This bridges the gap in agentic workflows: clicking a button is often clearer than describing the action you hope an agent executes.
 
