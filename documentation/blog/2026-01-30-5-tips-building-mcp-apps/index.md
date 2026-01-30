@@ -342,10 +342,10 @@ Ready to dive deeper? Check out the [MCP Apps tutorial](/docs/tutorials/building
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2026/01/30/5-tips-building-mcp-apps" />
   <meta property="og:description" content="5 expert tips on building better MCP Apps for your AI agents" />
-  <meta property="og:image" content="https://block.github.io/goose/assets/images/blogbanner.png" />
+  <meta property="og:image" content="https://block.github.io/goose/assets/images/blogbanner-2663f4e7979c47f3f4921df4ce960920.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="5 Tips for Building MCP Apps That Work" />
   <meta name="twitter:description" content="5 expert tips on building better MCP Apps for your AI agents" />
-  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/blogbanner.png" />
+  <meta name="twitter:image" content="https://block.github.io/goose/assets/images/blogbanner-2663f4e7979c47f3f4921df4ce960920.png" />
 </head>
