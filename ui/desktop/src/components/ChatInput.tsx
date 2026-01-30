@@ -1236,7 +1236,7 @@ export default function ChatInput({
               opacity: isRecording ? 0 : 1,
               paddingRight: dictationSettings?.enabled ? '180px' : '120px',
             }}
-            className="w-full outline-none border-none focus:ring-0 bg-transparent px-3 pt-3 pb-1.5 pr-32 text-sm resize-none text-textStandard placeholder:text-textPlaceholder"
+            className="w-full outline-none border-none focus:ring-0 bg-transparent px-3 pt-3 pb-1.5 text-sm resize-none text-textStandard placeholder:text-textPlaceholder"
           />
           {isRecording && (
             <div className="absolute inset-0 flex items-center pl-4 pr-32 pt-3 pb-1.5">
