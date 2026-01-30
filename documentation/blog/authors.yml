@@ -198,3 +198,13 @@ clinton:
   socials:
     linkedin: clinton-carpene-0b5aa839
     github: ccarpene-blk
+
+matt:
+  name: Matthew Wang
+  title: CEO at MCP Jam
+  image_url: /img/authors/matt-wang.png
+  page: true
+  socials:
+    linkedin: matt8p
+    github: matteo8p
+    x: mcpjams
