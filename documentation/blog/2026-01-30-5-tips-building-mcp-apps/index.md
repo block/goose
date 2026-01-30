@@ -119,8 +119,8 @@ server.registerTool(
     return {
       content: [
         { type: "text", text: `Loaded cocktail "${cocktail.name}".` },
-        { type: "text", text: `Cocktail ingredients: ${cocktail.ingredients}".` },
-        { type: "text", text: `Cocktail instructions: ${cocktail.instructions}".` },
+        { type: "text", text: `Cocktail ingredients: ${cocktail.ingredients}.` },
+        { type: "text", text: `Cocktail instructions: ${cocktail.instructions}.` },
       ],
       structuredContent: { cocktail },
       _meta: { timestamp: new Date().toString() }
@@ -155,8 +155,10 @@ server.registerTool(
     description: "Fetch a cocktail by id with ingredients and images...",
     inputSchema: z.object({ id: z.string().describe("The id of the cocktail to fetch.") }),
     _meta: {
-      ui: { resourceUri: "ui://cocktail/cocktail-recipe-widget.html" },
-      visibility: ["model", "app"],
+      ui: {
+        resourceUri: "ui://cocktail/cocktail-recipe-widget.html",
+        visibility: ["model", "app"],
+      },
     },
   },
   async ({ id }: { id: string }): Promise<CallToolResult> => {
