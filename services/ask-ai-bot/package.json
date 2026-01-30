@@ -1,17 +1,14 @@
 {
-  "name": "discraft-bot",
+  "name": "goose-ask-ai-bot",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "Bot created with discraft",
   "module": "index.ts",
   "type": "module",
   "scripts": {
     "start": "discraft start",
     "build": "discraft build",
-    "dev": "discraft dev",
-    "pull-docs": "./scripts/pull-docs.sh",
-    "embeddings": "node scripts/generate-embeddings.js",
-    "embeddings:search": "node scripts/generate-embeddings.js search"
+    "dev": "discraft dev"
   },
   "devDependencies": {
     "discraft": "^1.7.11",
