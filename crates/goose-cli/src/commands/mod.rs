@@ -1,6 +1,7 @@
 pub mod bench;
 pub mod configure;
 pub mod info;
+pub mod model;
 pub mod project;
 pub mod recipe;
 pub mod schedule;

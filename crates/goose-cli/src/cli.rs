@@ -653,6 +653,42 @@ pub enum BenchCommand {
 }
 
 #[derive(Subcommand)]
+enum ModelCommand {
+    /// List available models
+    #[command(about = "List available models from configured provider")]
+    List {
+        /// Filter models by name (case-insensitive substring match)
+        #[arg(help = "Filter models containing this string")]
+        filter: Option<String>,
+
+        /// Filter by provider name
+        #[arg(
+            long = "provider",
+            value_name = "NAME",
+            help = "Only show models from this provider"
+        )]
+        provider: Option<String>,
+
+        /// Show models from all providers, not just configured
+        #[arg(short, long, help = "Show models from all providers")]
+        all: bool,
+
+        /// Show verbose output with context info
+        #[arg(short, long, help = "Show additional columns (context)")]
+        verbose: bool,
+
+        /// Output format (text, json)
+        #[arg(
+            long = "format",
+            value_name = "FORMAT",
+            help = "Output format: text (default), json",
+            default_value = "text"
+        )]
+        format: String,
+    },
+}
+
+#[derive(Subcommand)]
 enum RecipeCommand {
     /// Validate a recipe file
     #[command(about = "Validate a recipe")]
@@ -737,6 +773,13 @@ enum Command {
     Mcp {
         #[arg(value_parser = clap::value_parser!(McpCommand))]
         server: McpCommand,
+    },
+
+    /// List and manage models
+    #[command(about = "List and manage models")]
+    Model {
+        #[command(subcommand)]
+        command: ModelCommand,
     },
 
     /// Run goose as an ACP (Agent Client Protocol) agent
@@ -1011,6 +1054,7 @@ fn get_command_name(command: &Option<Command>) -> &'static str {
         Some(Command::Configure {}) => "configure",
         Some(Command::Info { .. }) => "info",
         Some(Command::Mcp { .. }) => "mcp",
+        Some(Command::Model { .. }) => "model",
         Some(Command::Acp { .. }) => "acp",
         Some(Command::Session { .. }) => "session",
         Some(Command::Project {}) => "project",
@@ -1038,6 +1082,31 @@ async fn handle_mcp_command(server: McpCommand) -> Result<()> {
         McpCommand::Developer => serve(DeveloperServer::new()).await?,
     }
     Ok(())
+}
+
+async fn handle_model_subcommand(command: ModelCommand) -> Result<()> {
+    use crate::commands::model::{handle_list, OutputFormat};
+
+    match command {
+        ModelCommand::List {
+            filter,
+            provider,
+            all,
+            verbose,
+            format,
+        } => {
+            let output_format: OutputFormat =
+                format.parse().map_err(|e: String| anyhow::anyhow!(e))?;
+            handle_list(
+                filter.as_deref(),
+                provider.as_deref(),
+                verbose,
+                output_format,
+                all,
+            )
+            .await
+        }
+    }
 }
 
 async fn handle_session_subcommand(command: SessionCommand) -> Result<()> {
@@ -1538,6 +1607,7 @@ pub async fn cli() -> anyhow::Result<()> {
         Some(Command::Configure {}) => handle_configure().await,
         Some(Command::Info { verbose }) => handle_info(verbose),
         Some(Command::Mcp { server }) => handle_mcp_command(server).await,
+        Some(Command::Model { command }) => handle_model_subcommand(command).await,
         Some(Command::Acp { builtins }) => goose_acp::server::run(builtins).await,
         Some(Command::Session {
             command: Some(cmd), ..
