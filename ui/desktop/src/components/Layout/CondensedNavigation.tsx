@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import {
   Home,
@@ -65,11 +66,85 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
   const [dragOverItem, setDragOverItem] = useState<string | null>(null);
   const [chatPopoverOpen, setChatPopoverOpen] = useState(false);
+  const [chatRowHovered, setChatRowHovered] = useState(false);
+  const [chatRowRect, setChatRowRect] = useState<{
+    top: number;
+    right: number;
+    left: number;
+    height: number;
+  } | null>(null);
+  const chatHoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [recentSessions, setRecentSessions] = useState<Session[]>([]);
 
   // Ref for focusing navigation when opened
   const navContainerRef = useRef<HTMLDivElement>(null);
+  const chatRowRef = useRef<HTMLDivElement>(null);
+  // Store the unscaled rect so we can use it when hover starts
+  const chatRowUnscaledRectRef = useRef<{
+    top: number;
+    right: number;
+    left: number;
+    height: number;
+  } | null>(null);
+
+  // Continuously update the unscaled rect when not hovered
+  useEffect(() => {
+    if (chatRowHovered || !chatRowRef.current) return;
+
+    const updateRect = () => {
+      if (chatRowRef.current && !chatRowHovered) {
+        const rect = chatRowRef.current.getBoundingClientRect();
+        chatRowUnscaledRectRef.current = {
+          top: rect.top,
+          right: rect.right,
+          left: rect.left,
+          height: rect.height,
+        };
+      }
+    };
+
+    // Update immediately
+    updateRect();
+
+    // Also update on scroll/resize
+    window.addEventListener('scroll', updateRect, true);
+    window.addEventListener('resize', updateRect);
+
+    return () => {
+      window.removeEventListener('scroll', updateRect, true);
+      window.removeEventListener('resize', updateRect);
+    };
+  }, [chatRowHovered, isNavExpanded]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (chatHoverTimeoutRef.current) {
+        clearTimeout(chatHoverTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Delayed hover handlers to allow mouse to move between chat row and button
+  const handleChatRowMouseEnter = useCallback(() => {
+    if (chatHoverTimeoutRef.current) {
+      clearTimeout(chatHoverTimeoutRef.current);
+      chatHoverTimeoutRef.current = null;
+    }
+    // Use the pre-captured unscaled rect
+    if (!chatRowHovered && chatRowUnscaledRectRef.current) {
+      setChatRowRect(chatRowUnscaledRectRef.current);
+    }
+    setChatRowHovered(true);
+  }, [chatRowHovered]);
+
+  const handleChatRowMouseLeave = useCallback(() => {
+    // Small delay to allow mouse to reach the button
+    chatHoverTimeoutRef.current = setTimeout(() => {
+      setChatRowHovered(false);
+    }, 100);
+  }, []);
 
   // Track session for /pair navigation
   const [searchParams] = useSearchParams();
@@ -94,10 +169,10 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
     try {
       const sessionsResponse = await listSessions({ throwOnError: false });
       if (sessionsResponse.data) {
-        // Get the 10 most recent sessions
+        // Get the 5 most recent sessions
         const sorted = [...sessionsResponse.data.sessions]
           .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-          .slice(0, 10);
+          .slice(0, 5);
         setRecentSessions(sorted);
       }
     } catch (error) {
@@ -116,7 +191,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
       if (session) {
         setRecentSessions((prev) => {
           if (prev.some((s) => s.id === session.id)) return prev;
-          return [session, ...prev].slice(0, 10);
+          return [session, ...prev].slice(0, 5);
         });
       }
 
@@ -134,14 +209,14 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
         try {
           const response = await listSessions({ throwOnError: false });
           if (response.data) {
-            const apiSessions = response.data.sessions.slice(0, 10);
+            const apiSessions = response.data.sessions.slice(0, 5);
             setRecentSessions((prev) => {
               // Merge: keep empty local sessions not in API, add API sessions
               const emptyLocalSessions = prev.filter(
                 (local) =>
                   local.message_count === 0 && !apiSessions.some((api) => api.id === local.id)
               );
-              return [...emptyLocalSessions, ...apiSessions].slice(0, 10);
+              return [...emptyLocalSessions, ...apiSessions].slice(0, 5);
             });
           }
         } catch (error) {
@@ -386,12 +461,14 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
         'bg-app outline-none',
         isOverlayMode && 'rounded-xl backdrop-blur-md shadow-lg p-2',
         isVertical ? 'flex flex-col gap-[2px] h-full' : 'flex flex-row items-stretch gap-[2px]',
-        // Add 2px padding on the edge facing the content for vertical
-        !isOverlayMode && navigationPosition === 'left' && 'pr-[2px]',
-        !isOverlayMode && navigationPosition === 'right' && 'pl-[2px]',
+        // Add 2px padding on the edge facing the content for vertical (only when not icon-only)
+        !isOverlayMode && navigationPosition === 'left' && !isCondensedIconOnly && 'pr-[2px]',
+        !isOverlayMode && navigationPosition === 'right' && !isCondensedIconOnly && 'pl-[2px]',
         // Add 2px padding on the edge facing the content for horizontal
         !isOverlayMode && isTopPosition && 'pb-[2px] pt-0',
         !isOverlayMode && isBottomPosition && 'pt-[2px] pb-0',
+        // Allow hover buttons to overflow outside the nav container
+        !isCondensedIconOnly && 'overflow-visible',
         className
       )}
     >
@@ -399,8 +476,8 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
       {isVertical && (
         <div
           className={cn(
-            'bg-background-default rounded-lg w-full flex-shrink-0',
-            isCondensedIconOnly ? 'h-[80px]' : 'h-[48px]'
+            'bg-background-default rounded-lg flex-shrink-0',
+            isCondensedIconOnly ? 'h-[80px] w-[40px]' : 'h-[48px] w-full'
           )}
         />
       )}
@@ -412,7 +489,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
 
       {/* Scrollable container for navigation items (vertical only) */}
       {isVertical ? (
-        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden flex flex-col gap-[2px] sidebar-scrollbar">
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-visible flex flex-col gap-[2px] sidebar-scrollbar">
           {visibleItems.map((item, index) => {
             const Icon = item.icon;
             const active = isActive(item.path);
@@ -438,30 +515,34 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                 }}
                 className={cn(
                   'relative cursor-move group',
-                  'w-full flex-shrink-0',
+                  isCondensedIconOnly ? 'flex-shrink-0' : 'w-full flex-shrink-0',
                   isDragOver && 'ring-2 ring-blue-500 rounded-lg',
                   isChatItem && !isCondensedIconOnly && 'overflow-visible'
                 )}
               >
-                <div className="flex flex-col w-full">
+                <div
+                  className={cn(
+                    'flex flex-col',
+                    isCondensedIconOnly ? 'items-start' : 'w-full',
+                    isChatItem && !isCondensedIconOnly && 'overflow-visible'
+                  )}
+                >
                   {/* Chat item with dropdown in icon-only mode */}
                   {isChatItem && isCondensedIconOnly ? (
                     <DropdownMenu open={chatPopoverOpen} onOpenChange={setChatPopoverOpen}>
                       <DropdownMenuTrigger asChild>
-                        <motion.button
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
+                        <button
                           className={cn(
-                            'flex flex-row items-center justify-center gap-2',
-                            'relative rounded-lg transition-colors duration-200 no-drag',
+                            'flex items-center justify-center',
+                            'rounded-lg transition-colors duration-200 no-drag',
                             'p-2.5',
                             active
                               ? 'bg-background-accent text-text-on-accent'
                               : 'bg-background-default hover:bg-background-medium'
                           )}
                         >
-                          <Icon className="w-5 h-5 flex-shrink-0" />
-                        </motion.button>
+                          <Icon className="w-5 h-5" />
+                        </button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent
                         className="w-64 p-1 bg-background-default border-border-subtle rounded-lg shadow-lg"
@@ -523,78 +604,74 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                     </DropdownMenu>
                   ) : (
                     <>
-                      <motion.button
-                        onClick={() => {
-                          if (isChatItem && !isCondensedIconOnly) {
-                            toggleChatExpanded();
-                          } else {
-                            handleNavClick(item.path);
-                          }
-                        }}
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        className={cn(
-                          'flex flex-row items-center gap-2',
-                          'relative rounded-lg transition-colors duration-200 no-drag',
-                          isCondensedIconOnly ? 'justify-center p-2.5' : 'w-full pl-2 pr-4 py-2.5',
-                          active
-                            ? 'bg-background-accent text-text-on-accent'
-                            : 'bg-background-default hover:bg-background-medium'
-                        )}
+                      {/* Wrapper for Chat row to position hover button relative to just this row */}
+                      <div
+                        ref={isChatItem ? chatRowRef : undefined}
+                        className={cn('relative', !isCondensedIconOnly && 'w-full')}
+                        onMouseEnter={() =>
+                          isChatItem && !isCondensedIconOnly && handleChatRowMouseEnter()
+                        }
+                        onMouseLeave={() =>
+                          isChatItem && !isCondensedIconOnly && handleChatRowMouseLeave()
+                        }
                       >
-                        {!isCondensedIconOnly && (
-                          <div className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                            <GripVertical className="w-4 h-4 text-text-muted" />
-                          </div>
-                        )}
-                        <Icon className="w-5 h-5 flex-shrink-0" />
-                        {!isCondensedIconOnly && (
-                          <span className="text-sm font-medium text-left flex-1">{item.label}</span>
-                        )}
-                        {!isCondensedIconOnly && item.getTag && (
-                          <div className="flex items-center gap-1 flex-shrink-0">
-                            <span
-                              className={cn(
-                                'text-xs font-mono px-2 py-0.5 rounded-full',
-                                active
-                                  ? 'bg-background-default/20 text-text-on-accent/80'
-                                  : 'bg-background-muted text-text-muted'
-                              )}
-                            >
-                              {item.getTag()}
-                            </span>
-                          </div>
-                        )}
-                        {!isCondensedIconOnly && isChatItem && (
-                          <div className="flex-shrink-0">
-                            {isChatExpanded ? (
-                              <ChevronDown className="w-3 h-3 text-text-muted" />
-                            ) : (
-                              <ChevronRight className="w-3 h-3 text-text-muted" />
-                            )}
-                          </div>
-                        )}
-                      </motion.button>
-                      {isChatItem && !isCondensedIconOnly && !isChatExpanded && (
                         <motion.button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleNewChat();
+                          onClick={() => {
+                            if (isChatItem && !isCondensedIconOnly) {
+                              toggleChatExpanded();
+                            } else {
+                              handleNavClick(item.path);
+                            }
                           }}
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.95 }}
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
                           className={cn(
-                            'absolute top-1/2 -translate-y-1/2 p-1.5 rounded-md z-10',
-                            'opacity-0 group-hover:opacity-100 transition-opacity',
-                            'bg-background-medium hover:bg-background-accent hover:text-text-on-accent',
-                            'flex items-center justify-center',
-                            navigationPosition === 'left' ? '-right-9' : '-left-9'
+                            'flex flex-row items-center gap-2',
+                            'relative rounded-lg transition-colors duration-200 no-drag',
+                            isCondensedIconOnly
+                              ? 'justify-center p-2.5'
+                              : 'w-full pl-2 pr-4 py-2.5',
+                            active
+                              ? 'bg-background-accent text-text-on-accent'
+                              : 'bg-background-default hover:bg-background-medium'
                           )}
-                          title="New Chat"
                         >
-                          <Plus className="w-4 h-4" />
+                          {!isCondensedIconOnly && (
+                            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                              <GripVertical className="w-4 h-4 text-text-muted" />
+                            </div>
+                          )}
+                          <Icon className="w-5 h-5 flex-shrink-0" />
+                          {!isCondensedIconOnly && (
+                            <span className="text-sm font-medium text-left flex-1">
+                              {item.label}
+                            </span>
+                          )}
+                          {!isCondensedIconOnly && item.getTag && (
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <span
+                                className={cn(
+                                  'text-xs font-mono px-2 py-0.5 rounded-full',
+                                  active
+                                    ? 'bg-background-default/20 text-text-on-accent/80'
+                                    : 'bg-background-muted text-text-muted'
+                                )}
+                              >
+                                {item.getTag()}
+                              </span>
+                            </div>
+                          )}
+                          {!isCondensedIconOnly && isChatItem && (
+                            <div className="flex-shrink-0">
+                              {isChatExpanded ? (
+                                <ChevronDown className="w-3 h-3 text-text-muted" />
+                              ) : (
+                                <ChevronRight className="w-3 h-3 text-text-muted" />
+                              )}
+                            </div>
+                          )}
                         </motion.button>
-                      )}
+                      </div>
                     </>
                   )}
                   <AnimatePresence>
@@ -607,19 +684,6 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                         className="overflow-hidden"
                       >
                         <div className="bg-background-default rounded-lg mt-[2px] p-1 flex flex-col gap-[2px]">
-                          <button
-                            onClick={handleNewChat}
-                            className={cn(
-                              'w-full text-left px-2 py-1.5 text-xs rounded-md',
-                              'hover:bg-background-medium transition-colors',
-                              'flex items-center gap-2 text-text-default font-medium'
-                            )}
-                          >
-                            <span className="w-3 h-3 flex-shrink-0 flex items-center justify-center">
-                              +
-                            </span>
-                            <span>New Chat</span>
-                          </button>
                           {recentSessions.map((session) => {
                             const status = getSessionStatus(session.id);
                             const isStreaming = status?.streamState === 'streaming';
@@ -652,19 +716,6 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                               </button>
                             );
                           })}
-                          {recentSessions.length > 0 && (
-                            <button
-                              onClick={() => handleNavClick('/sessions')}
-                              className={cn(
-                                'w-full text-left px-2 py-1.5 text-xs rounded-md',
-                                'hover:bg-background-medium transition-colors',
-                                'flex items-center gap-2 text-text-muted'
-                              )}
-                            >
-                              <History className="w-3 h-3 flex-shrink-0" />
-                              <span>Show All</span>
-                            </button>
-                          )}
                         </div>
                       </motion.div>
                     )}
@@ -875,9 +926,50 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
     );
   }
 
+  // Render the hover button using a portal so it's not clipped by overflow
+  const hoverButton =
+    chatRowHovered &&
+    chatRowRect &&
+    isVertical &&
+    !isCondensedIconOnly &&
+    createPortal(
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          handleNewChat();
+        }}
+        onMouseEnter={handleChatRowMouseEnter}
+        onMouseLeave={handleChatRowMouseLeave}
+        style={{
+          position: 'fixed',
+          top: chatRowRect.top + chatRowRect.height / 2,
+          transform: 'translateY(-50%)',
+          left: navigationPosition === 'left' ? chatRowRect.right + 4 : undefined,
+          right:
+            navigationPosition === 'right' ? window.innerWidth - chatRowRect.left + 4 : undefined,
+        }}
+        className={cn(
+          'p-1.5 rounded-md z-[9999]',
+          'bg-background-medium hover:bg-background-accent hover:text-text-on-accent',
+          'flex items-center justify-center',
+          'shadow-sm transition-all duration-150',
+          'hover:scale-110 active:scale-95'
+        )}
+        title="New Chat"
+      >
+        <Plus className="w-4 h-4" />
+      </button>,
+      document.body
+    );
+
   // Push mode: render inline
   if (!isNavExpanded) return null;
-  return navContent;
+  return (
+    <>
+      {navContent}
+      {hoverButton}
+    </>
+  );
 };
 
 // Trigger button to open navigation

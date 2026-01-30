@@ -31,6 +31,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
     effectiveNavigationStyle,
     navigationPosition,
     isHorizontalNav,
+    isCondensedIconOnly,
   } = useNavigationContext();
 
   if (!chatContext) {
@@ -134,7 +135,9 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
                 : isNavExpanded
                   ? effectiveNavigationStyle === 'expanded'
                     ? '30%'
-                    : 200
+                    : isCondensedIconOnly
+                      ? 44
+                      : 200
                   : 0,
               height: isHorizontalNav
                 ? isNavExpanded
@@ -154,7 +157,9 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
                 !isHorizontalNav && effectiveNavigationStyle === 'expanded' ? '400px' : undefined,
               minWidth:
                 !isHorizontalNav && effectiveNavigationStyle === 'condensed' && isNavExpanded
-                  ? 200
+                  ? isCondensedIconOnly
+                    ? 44
+                    : 200
                   : undefined,
               minHeight:
                 isHorizontalNav && isNavExpanded
@@ -164,7 +169,13 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
                   : undefined,
               height: !isHorizontalNav ? '100%' : undefined,
             }}
-            className={cn('flex-shrink-0 overflow-hidden', isHorizontalNav ? 'w-full' : 'h-full')}
+            className={cn(
+              'flex-shrink-0',
+              effectiveNavigationStyle === 'condensed' && !isHorizontalNav
+                ? 'overflow-visible'
+                : 'overflow-hidden',
+              isHorizontalNav ? 'w-full' : 'h-full'
+            )}
           >
             {renderNavigation()}
           </motion.div>
