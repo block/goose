@@ -48,7 +48,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_urlencoded = "0.7"
 jsonschema = "0.30.0"
-uuid = { version = "1.0", features = ["v4"] }
+uuid = { version = "1.0", features = ["v4", "serde"] }
 regex = "1.11.1"
 async-trait = "0.1"
 async-stream = "0.3"
@@ -102,6 +102,9 @@ tokio-util = "0.7.15"
 unicode-normalization = "0.1"
 
 oauth2 = "5.0.0"
+
+# Native model inference - uses Ollama's local API for Metal GPU + LoRA support
+# No additional dependencies needed - uses existing reqwest
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }

@@ -10,6 +10,7 @@ import { useState, useEffect } from 'react';
 import ChatSettingsSection from './chat/ChatSettingsSection';
 import { CONFIGURATION_ENABLED } from '../../updates';
 import SettingsTileNavigation from './SettingsTileNavigation';
+import LLMTuningSection from './tuning/LLMTuningSection';
 
 export type SettingsViewOptions = {
   deepLinkConfig?: ExtensionConfig;
@@ -35,6 +36,7 @@ export default function SettingsView({
       const sectionToTab: Record<string, string> = {
         update: 'app',
         models: 'models',
+        tuning: 'tuning',
         modes: 'chat',
         sharing: 'sharing',
         styles: 'chat',
@@ -88,6 +90,12 @@ export default function SettingsView({
                 {activeTab === 'models' && (
                   <div className="focus-visible:outline-none focus-visible:ring-0">
                     <ModelsSection setView={setView} />
+                  </div>
+                )}
+
+                {activeTab === 'tuning' && (
+                  <div className="focus-visible:outline-none focus-visible:ring-0">
+                    <LLMTuningSection />
                   </div>
                 )}
 

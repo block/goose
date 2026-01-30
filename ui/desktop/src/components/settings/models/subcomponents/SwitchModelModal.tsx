@@ -43,6 +43,7 @@ export const SwitchModelModal = ({ sessionId, onClose, setView }: SwitchModelMod
   const [selectedPredefinedModel, setSelectedPredefinedModel] = useState<Model | null>(null);
   const [predefinedModels, setPredefinedModels] = useState<Model[]>([]);
   const [loadingModels, setLoadingModels] = useState<boolean>(false);
+  const [fineTunedModels, setFineTunedModels] = useState<any[]>([]);
 
   // Validate form data
   const validateForm = useCallback(() => {
@@ -205,6 +206,86 @@ export const SwitchModelModal = ({ sessionId, onClose, setView }: SwitchModelMod
             });
           }
         });
+
+        // Fetch fine-tuned models and add them to native_model provider
+        try {
+          const backendUrl = await window.electron.getGoosedHostPort();
+          const secretKey = await window.electron.getSecretKey();
+          
+          console.log('[SwitchModelModal] Fetching fine-tuned models from:', backendUrl);
+          
+          if (backendUrl && secretKey) {
+            const response = await fetch(`${backendUrl}/training/finetuned-models`, {
+              headers: {
+                'X-Secret-Key': secretKey,
+              },
+            });
+            
+            console.log('[SwitchModelModal] Fine-tuned models response status:', response.status);
+            
+            if (response.ok) {
+              const data = await response.json();
+              console.log('[SwitchModelModal] Fine-tuned models data:', data);
+              setFineTunedModels(data.models || []);
+              
+              // Add fine-tuned models to ollama provider group (since they're registered with Ollama)
+              if (data.models && data.models.length > 0) {
+                console.log('[SwitchModelModal] Looking for ollama provider in groups:', groupedOptions.length);
+                console.log('[SwitchModelModal] Available providers:', groupedOptions.map(g => g.options[0]?.provider));
+                
+                // Try to find ollama provider first, fallback to native_model
+                let targetGroupIndex = groupedOptions.findIndex(
+                  (group) => group.options[0]?.provider === 'ollama'
+                );
+                
+                if (targetGroupIndex === -1) {
+                  targetGroupIndex = groupedOptions.findIndex(
+                    (group) => group.options[0]?.provider === 'native_model'
+                  );
+                }
+                
+                console.log('[SwitchModelModal] Found target provider group at index:', targetGroupIndex);
+                
+                if (targetGroupIndex !== -1) {
+                  const targetProvider = groupedOptions[targetGroupIndex].options[0]?.provider;
+                  console.log('[SwitchModelModal] Adding fine-tuned models to provider:', targetProvider);
+                  
+                  // Add fine-tuned models at the beginning of the group
+                  const fineTunedOptions = data.models
+                    .filter((m: any) => m.gguf_available && m.ollama_model_name)
+                    .map((m: any) => ({
+                      value: m.ollama_model_name,
+                      label: `${m.model_name} (fine-tuned)`,
+                      provider: targetProvider,
+                    }));
+                  
+                  console.log('[SwitchModelModal] Adding fine-tuned options:', fineTunedOptions);
+                  console.log('[SwitchModelModal] Before adding - options count:', groupedOptions[targetGroupIndex].options.length);
+                  
+                  // Create a new groupedOptions array with the updated group
+                  groupedOptions[targetGroupIndex] = {
+                    options: [
+                      ...fineTunedOptions,
+                      ...groupedOptions[targetGroupIndex].options,
+                    ],
+                  };
+                  
+                  console.log('[SwitchModelModal] After adding - options count:', groupedOptions[targetGroupIndex].options.length);
+                } else {
+                  console.warn('[SwitchModelModal] No ollama or native_model provider group found');
+                }
+              } else {
+                console.log('[SwitchModelModal] No fine-tuned models found');
+              }
+            } else {
+              console.error('[SwitchModelModal] Failed to fetch fine-tuned models:', response.statusText);
+            }
+          } else {
+            console.warn('[SwitchModelModal] Missing backendUrl or secretKey');
+          }
+        } catch (error) {
+          console.error('Failed to fetch fine-tuned models:', error);
+        }
 
         setModelOptions(groupedOptions);
         setOriginalModelOptions(groupedOptions);

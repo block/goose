@@ -494,6 +494,7 @@ impl TrainingJobManager {
 
         // Start training task with provided data
         let jobs_clone = self.jobs.clone();
+        let job_clone_for_hook = job.clone();
         let handle = tokio::spawn(async move {
             info!("Executing training job {}", job_id);
             let result = trainer
@@ -515,6 +516,15 @@ impl TrainingJobManager {
                             job.status = JobStatus::Failed;
                         }
                     }
+                }
+            }
+
+            // Post-completion hook: convert to GGUF and register with Ollama
+            if result.is_ok() {
+                info!("Running post-completion hook for job {}", job_id);
+                if let Err(e) = Self::post_completion_hook(&job_clone_for_hook).await {
+                    warn!("Post-completion hook failed for job {}: {}", job_id, e);
+                    // Don't fail the job if post-processing fails
                 }
             }
 
@@ -565,6 +575,157 @@ impl TrainingJobManager {
         // For now, return empty vector
         debug!("Loading training data with filter: {:?}", filter);
         Ok(Vec::new())
+    }
+
+    /// Post-completion hook: convert adapter to GGUF and register with Ollama
+    async fn post_completion_hook(job: &TrainingJob) -> Result<()> {
+        info!("Starting post-completion processing for job {}", job.id);
+        
+        // Get adapter directory
+        let runtime = crate::model_training::axolotl::AxolotlRuntime::default();
+        let adapter_dir = runtime.output_root.join(format!("job-{}", job.id));
+        
+        // Check if adapter exists
+        let safetensors_path = adapter_dir.join("adapter_model.safetensors");
+        if !safetensors_path.exists() {
+            warn!("No adapter found at {}, skipping post-processing", safetensors_path.display());
+            return Ok(());
+        }
+        
+        // Check if already converted
+        let gguf_path = adapter_dir.join("adapter_model.gguf");
+        if gguf_path.exists() {
+            info!("Adapter already converted to GGUF, skipping conversion");
+        } else {
+            info!("Converting adapter to GGUF format...");
+            
+            // Get paths for conversion
+            // Write the embedded script to a temp file
+            let convert_script_content = include_str!("convert_lora_to_gguf.py");
+            let temp_dir = std::env::temp_dir();
+            let convert_script = temp_dir.join("convert_lora_to_gguf.py");
+            
+            if let Err(e) = std::fs::write(&convert_script, convert_script_content) {
+                warn!("Failed to write conversion script: {}", e);
+                return Ok(());
+            }
+            
+            let llama_cpp_dir = std::env::current_dir()
+                .ok()
+                .map(|p| p.join("llama.cpp"))
+                .filter(|p| p.exists())
+                .or_else(|| {
+                    dirs::home_dir().map(|h| h.join("llama.cpp")).filter(|p| p.exists())
+                })
+                .unwrap_or_else(|| std::path::PathBuf::from("llama.cpp"));
+            
+            if !llama_cpp_dir.exists() {
+                warn!("llama.cpp not found at {}, skipping GGUF conversion", llama_cpp_dir.display());
+                return Ok(());
+            }
+            
+            // Run conversion
+            let python_path = &runtime.python;
+            let mut cmd = tokio::process::Command::new(python_path);
+            cmd.arg(&convert_script)
+                .arg(&adapter_dir)
+                .arg(&llama_cpp_dir)
+                .arg(python_path);
+            
+            cmd.stdout(std::process::Stdio::piped());
+            cmd.stderr(std::process::Stdio::piped());
+            
+            match cmd.output().await {
+                Ok(output) => {
+                    if output.status.success() {
+                        info!("Successfully converted adapter to GGUF");
+                    } else {
+                        let stderr = String::from_utf8_lossy(&output.stderr);
+                        warn!("GGUF conversion failed: {}", stderr);
+                        return Ok(()); // Don't fail the job
+                    }
+                }
+                Err(e) => {
+                    warn!("Failed to execute conversion: {}", e);
+                    return Ok(()); // Don't fail the job
+                }
+            }
+        }
+        
+        // Register with Ollama
+        info!("Registering model with Ollama...");
+        if let Err(e) = Self::register_with_ollama(job, &gguf_path).await {
+            warn!("Failed to register with Ollama: {}", e);
+            // Don't fail - user can manually register later
+        }
+        
+        info!("Post-completion processing finished for job {}", job.id);
+        Ok(())
+    }
+    
+    /// Register the fine-tuned model with Ollama
+    async fn register_with_ollama(job: &TrainingJob, gguf_path: &PathBuf) -> Result<()> {
+        // Extract base model name from path
+        let base_model = job.base_model_path
+            .to_str()
+            .and_then(|s| s.split('/').last())
+            .unwrap_or("unknown");
+        
+        // Create a unique model name
+        let model_name = format!("finetuned-{}", &job.id.to_string()[..8]);
+        
+        // Create Modelfile
+        let modelfile = format!(
+            "FROM {}\nADAPTER {}",
+            base_model,
+            gguf_path.display()
+        );
+        
+        info!("Creating Ollama model '{}' with Modelfile:\n{}", model_name, modelfile);
+        
+        // Check if ollama is available
+        let ollama_check = tokio::process::Command::new("ollama")
+            .arg("list")
+            .output()
+            .await;
+        
+        if ollama_check.is_err() {
+            warn!("Ollama not available, skipping model registration");
+            return Ok(());
+        }
+        
+        // Write Modelfile to temp location
+        let modelfile_path = std::env::temp_dir().join(format!("modelfile-{}", job.id));
+        tokio::fs::write(&modelfile_path, &modelfile).await?;
+        
+        // Create model with ollama
+        let mut cmd = tokio::process::Command::new("ollama");
+        cmd.arg("create")
+            .arg(&model_name)
+            .arg("-f")
+            .arg(&modelfile_path);
+        
+        cmd.stdout(std::process::Stdio::piped());
+        cmd.stderr(std::process::Stdio::piped());
+        
+        match cmd.output().await {
+            Ok(output) => {
+                if output.status.success() {
+                    info!("Successfully registered model '{}' with Ollama", model_name);
+                } else {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    warn!("Failed to register with Ollama: {}", stderr);
+                }
+            }
+            Err(e) => {
+                warn!("Failed to execute ollama create: {}", e);
+            }
+        }
+        
+        // Clean up temp file
+        let _ = tokio::fs::remove_file(&modelfile_path).await;
+        
+        Ok(())
     }
 }
 

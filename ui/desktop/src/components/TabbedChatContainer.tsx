@@ -237,6 +237,7 @@ export const TabbedChatContainer: React.FC<TabbedChatContainerProps> = ({
                       showPendingInvites={true}
                       tabId={tabState.tab.id}
                       isTabActive={isActive} // New prop to indicate if tab is active
+                      fineTunedModel={tabState.chat.fineTunedModel} // Pass fine-tuned model info
                     />
                   }
                   rightContent={
@@ -279,6 +280,7 @@ export const TabbedChatContainer: React.FC<TabbedChatContainerProps> = ({
                   showPendingInvites={true}
                   tabId={tabState.tab.id}
                   isTabActive={isActive} // New prop to indicate if tab is active
+                  fineTunedModel={tabState.chat.fineTunedModel} // Pass fine-tuned model info
                 />
               )}
             </div>

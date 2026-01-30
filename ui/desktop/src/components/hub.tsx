@@ -18,123 +18,259 @@ import { SessionInsights } from './sessions/SessionsInsights';
 import ChatInput from './ChatInput';
 import { ChatState } from '../types/chatState';
 import { ContextManagerProvider } from './context_management/ContextManager';
-import { Goose } from './icons/Goose';
 import { Greeting } from './common/Greeting';
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import 'react-toastify/dist/ReactToastify.css';
 import { View, ViewOptions } from '../utils/navigationUtils';
 import { useLocation } from 'react-router-dom';
 import MatrixChat from './MatrixChat';
 import { useMatrix } from '../contexts/MatrixContext';
+import { HubThemeSelector, useHubTheme } from './HubThemeSelector';
+import type { HubTheme } from '../types/hubTheme';
+import { CyberpunkWidgets } from './CyberpunkWidgets';
+import HackerASCIIText from './HackerASCIIText';
+import { AmberGhostCursor } from './AmberGhostCursor';
 
-// Animated Node Matrix Background Component
-const NodeMatrixBackground: React.FC = () => {
+// Helper functions for theme-based styling
+const getWidthClass = (width: HubTheme['input']['width']) => {
+  switch (width) {
+    case 'narrow': return 'max-w-md';
+    case 'medium': return 'max-w-2xl';
+    case 'wide': return 'max-w-4xl';
+    case 'full': return 'w-full max-w-none';
+    default: return 'max-w-4xl';
+  }
+};
+
+const getRoundedClass = (rounded: HubTheme['input']['rounded']) => {
+  switch (rounded) {
+    case 'none': return 'rounded-none';
+    case 'sm': return 'rounded-sm';
+    case 'md': return 'rounded-md';
+    case 'lg': return 'rounded-lg';
+    case 'xl': return 'rounded-xl';
+    case '2xl': return 'rounded-2xl';
+    case 'full': return 'rounded-full';
+    default: return 'rounded-2xl';
+  }
+};
+
+const getPaddingClass = (padding: HubTheme['layout']['padding']) => {
+  switch (padding) {
+    case 'none': return 'p-0';
+    case 'sm': return 'p-4';
+    case 'md': return 'p-6';
+    case 'lg': return 'p-8';
+    default: return 'p-8';
+  }
+};
+
+const getPositionClasses = (position: HubTheme['input']['position']) => {
+  switch (position) {
+    case 'center':
+      return {
+        container: 'items-center justify-center',
+        wrapper: 'w-full',
+      };
+    case 'bottom-left':
+      return {
+        container: 'items-end justify-start',
+        wrapper: 'w-auto',
+      };
+    case 'bottom-right':
+      return {
+        container: 'items-end justify-end',
+        wrapper: 'w-auto',
+      };
+    case 'top-left':
+      return {
+        container: 'items-start justify-start',
+        wrapper: 'w-auto',
+      };
+    case 'top-right':
+      return {
+        container: 'items-start justify-end',
+        wrapper: 'w-auto',
+      };
+    case 'bottom-full':
+      return {
+        container: 'items-end justify-center',
+        wrapper: 'w-full',
+      };
+    default:
+      return {
+        container: 'items-center justify-center',
+        wrapper: 'w-full',
+      };
+  }
+};
+
+const getGreetingPositionClasses = (position: HubTheme['greeting']['position']) => {
+  switch (position) {
+    case 'center':
+      return 'items-center justify-center text-center';
+    case 'top-left':
+      return 'items-start justify-start text-left';
+    case 'top-right':
+      return 'items-start justify-end text-right';
+    case 'bottom-left':
+      return 'items-end justify-start text-left';
+    case 'bottom-right':
+      return 'items-end justify-end text-right';
+    default:
+      return 'items-center justify-center text-center';
+  }
+};
+
+// ASCII Canvas Background Component
+interface AsciiCanvasProps {
+  className?: string;
+  cellSize?: number;
+  characters?: string;
+  color?: string;
+  backgroundColor?: string;
+  animationSpeed?: number;
+  glitchIntensity?: number;
+}
+
+const AsciiCanvas: React.FC<AsciiCanvasProps> = ({
+  className = '',
+  cellSize = 8,
+  characters = ' .:-=+*#%@',
+  color = '#00ff00',
+  backgroundColor = 'transparent',
+  animationSpeed = 0.02,
+  glitchIntensity = 0.1,
+}) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const animationRef = useRef<number>();
+  const timeRef = useRef(0);
 
-  useEffect(() => {
+  const drawAsciiFrame = React.useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Set canvas size
-    const resizeCanvas = () => {
+    // Set canvas size to match viewport
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
+    }
+
+    // Clear canvas
+    if (backgroundColor !== 'transparent') {
+      ctx.fillStyle = backgroundColor;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    } else {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    // Calculate grid dimensions
+    const cols = Math.floor(canvas.width / cellSize);
+    const rows = Math.floor(canvas.height / cellSize);
+
+    // Set font for ASCII characters
+    ctx.font = `${cellSize - 2}px monospace`;
+    ctx.fillStyle = color;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // Generate ASCII pattern
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
+        // Create animated noise pattern
+        const x = col * cellSize + cellSize / 2;
+        const y = row * cellSize + cellSize / 2;
+        
+        // Generate noise value based on position and time
+        const noiseX = (col + timeRef.current * 0.5) * 0.1;
+        const noiseY = (row + timeRef.current * 0.3) * 0.1;
+        const noise1 = Math.sin(noiseX) * Math.cos(noiseY);
+        const noise2 = Math.sin(noiseX * 2.1 + timeRef.current) * Math.cos(noiseY * 1.7);
+        const noise3 = Math.sin(noiseX * 0.8 + timeRef.current * 0.7) * Math.cos(noiseY * 2.3);
+        
+        // Combine noise values
+        let intensity = (noise1 + noise2 * 0.5 + noise3 * 0.3) * 0.5 + 0.5;
+        
+        // Add some randomness for glitch effect
+        if (Math.random() < glitchIntensity * 0.01) {
+          intensity = Math.random();
+        }
+        
+        // Map intensity to character
+        const charIndex = Math.floor(intensity * characters.length);
+        const char = characters[Math.min(charIndex, characters.length - 1)];
+        
+        // Vary opacity based on character
+        const opacity = 0.1 + (intensity * 0.4);
+        ctx.globalAlpha = opacity;
+        
+        // Add slight position jitter for glitch effect
+        const jitterX = (Math.random() - 0.5) * glitchIntensity * 2;
+        const jitterY = (Math.random() - 0.5) * glitchIntensity * 2;
+        
+        ctx.fillText(char, x + jitterX, y + jitterY);
+      }
+    }
+
+    // Reset alpha
+    ctx.globalAlpha = 1;
+
+    // Add scanlines effect
+    ctx.fillStyle = color;
+    ctx.globalAlpha = 0.03;
+    for (let y = 0; y < canvas.height; y += 4) {
+      ctx.fillRect(0, y, canvas.width, 1);
+    }
+    
+    ctx.globalAlpha = 1;
+
+    // Update time
+    timeRef.current += animationSpeed;
+  }, [cellSize, characters, color, backgroundColor, animationSpeed, glitchIntensity]);
+
+  const animate = React.useCallback(() => {
+    drawAsciiFrame();
+    animationRef.current = requestAnimationFrame(animate);
+  }, [drawAsciiFrame]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    // Start animation
+    animate();
+
+    // Handle resize
+    const handleResize = () => {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
     };
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
 
-    // Node configuration
-    const nodes: Array<{
-      x: number;
-      y: number;
-      vx: number;
-      vy: number;
-      size: number;
-    }> = [];
-
-    const nodeCount = 50;
-    const maxDistance = 150;
-    const nodeSpeed = 0.3;
-
-    // Initialize nodes
-    for (let i = 0; i < nodeCount; i++) {
-      nodes.push({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        vx: (Math.random() - 0.5) * nodeSpeed,
-        vy: (Math.random() - 0.5) * nodeSpeed,
-        size: Math.random() * 2 + 1,
-      });
-    }
-
-    // Animation loop
-    const animate = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      // Update and draw nodes
-      nodes.forEach((node, i) => {
-        // Update position
-        node.x += node.vx;
-        node.y += node.vy;
-
-        // Bounce off edges
-        if (node.x <= 0 || node.x >= canvas.width) node.vx *= -1;
-        if (node.y <= 0 || node.y >= canvas.height) node.vy *= -1;
-
-        // Keep nodes in bounds
-        node.x = Math.max(0, Math.min(canvas.width, node.x));
-        node.y = Math.max(0, Math.min(canvas.height, node.y));
-
-        // Draw node
-        ctx.beginPath();
-        ctx.arc(node.x, node.y, node.size, 0, Math.PI * 2);
-        // Use CSS variable for background color with 80% opacity
-        const bgColor = getComputedStyle(canvas).getPropertyValue('--background-default').trim() || '#ffffff';
-        ctx.fillStyle = bgColor.startsWith('#') 
-          ? `${bgColor}CC` // Add 80% opacity (CC in hex)
-          : bgColor.replace('rgb', 'rgba').replace(')', ', 0.8)');
-        ctx.fill();
-
-        // Draw connections
-        for (let j = i + 1; j < nodes.length; j++) {
-          const otherNode = nodes[j];
-          const distance = Math.sqrt(
-            Math.pow(node.x - otherNode.x, 2) + Math.pow(node.y - otherNode.y, 2)
-          );
-
-          if (distance < maxDistance) {
-            const opacity = (1 - distance / maxDistance) * 0.2;
-            ctx.beginPath();
-            ctx.moveTo(node.x, node.y);
-            ctx.lineTo(otherNode.x, otherNode.y);
-            // Use the same background color for connections
-            ctx.strokeStyle = bgColor.startsWith('#')
-              ? `${bgColor}${Math.round(opacity * 255).toString(16).padStart(2, '0')}`
-              : bgColor.replace('rgb', 'rgba').replace(')', `, ${opacity})`);
-            ctx.lineWidth = 0.5;
-            ctx.stroke();
-          }
-        }
-      });
-
-      requestAnimationFrame(animate);
-    };
-
-    animate();
+    window.addEventListener('resize', handleResize);
+    handleResize(); // Initial size
 
     return () => {
-      window.removeEventListener('resize', resizeCanvas);
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+      window.removeEventListener('resize', handleResize);
     };
-  }, []);
+  }, [animate]);
 
   return (
     <canvas
       ref={canvasRef}
-      className="absolute inset-0 pointer-events-none"
-      style={{ zIndex: 1 }}
+      className={`absolute inset-0 pointer-events-none ${className}`}
+      style={{ 
+        zIndex: 1,
+        width: '100%',
+        height: '100%'
+      }}
     />
   );
 };
@@ -155,6 +291,33 @@ export default function Hub({
   const [backgroundImage, setBackgroundImage] = React.useState<string | null>(null);
   const [showText, setShowText] = React.useState(true);
   const [blurOpacity, setBlurOpacity] = React.useState(1);
+  
+  // Theme management
+  const { theme, themeId, setTheme } = useHubTheme();
+
+  // Inject custom CSS from theme
+  useEffect(() => {
+    if (theme.customCSS) {
+      const styleId = 'hub-theme-custom-css';
+      let styleElement = document.getElementById(styleId) as HTMLStyleElement;
+      
+      if (!styleElement) {
+        styleElement = document.createElement('style');
+        styleElement.id = styleId;
+        document.head.appendChild(styleElement);
+      }
+      
+      styleElement.textContent = theme.customCSS;
+      
+      return () => {
+        // Clean up when theme changes or component unmounts
+        const element = document.getElementById(styleId);
+        if (element) {
+          element.remove();
+        }
+      };
+    }
+  }, [theme.customCSS]);
 
   // Load background image from localStorage
   useEffect(() => {
@@ -177,17 +340,23 @@ export default function Hub({
     };
   }, []);
 
-  // Fade out blur when text disappears after 5 seconds
+  // Fade out blur when text disappears based on theme settings
   useEffect(() => {
+    if (!theme.greeting.show) {
+      setShowText(false);
+      setBlurOpacity(0);
+      return;
+    }
+
     const hideTextTimer = setTimeout(() => {
       setShowText(false);
-      setBlurOpacity(0); // Fade out blur when text disappears
-    }, 5000);
+      setBlurOpacity(0);
+    }, theme.greeting.fadeDelay);
 
     return () => {
       clearTimeout(hideTextTimer);
     };
-  }, []);
+  }, [theme]);
 
   // Check if we're in Matrix chat mode
   const routeState = location.state as ViewOptions | undefined;
@@ -309,9 +478,26 @@ export default function Hub({
     );
   }
 
+  // Get position classes based on theme
+  const inputPositionClasses = getPositionClasses(theme.input.position);
+  const greetingPositionClasses = getGreetingPositionClasses(theme.greeting.position);
+  const widthClass = getWidthClass(theme.input.width);
+  const roundedClass = getRoundedClass(theme.input.rounded);
+  const paddingClass = getPaddingClass(theme.layout.padding);
+
   return (
     <ContextManagerProvider>
-      <div className="relative flex flex-col h-full bg-background-default rounded-t-2xl overflow-hidden">
+      <div 
+        className="relative flex flex-col h-full rounded-t-2xl overflow-hidden transition-colors duration-500"
+        style={{
+          background: theme.background.gradient || theme.background.color,
+        }}
+      >
+        {/* Theme Selector Button - Top Right */}
+        <div className="absolute top-6 right-6 z-50">
+          <HubThemeSelector currentThemeId={themeId} onThemeChange={setTheme} />
+        </div>
+
         {/* Background Image - Behind everything */}
         {backgroundImage && (
           <>
@@ -335,56 +521,95 @@ export default function Hub({
           </>
         )}
         
-        {/* Animated Node Matrix Background */}
-        <NodeMatrixBackground />
+        {/* Animated ASCII Canvas Background */}
+        {theme.ascii.enabled && (
+          <AsciiCanvas 
+            cellSize={theme.ascii.cellSize}
+            characters={theme.ascii.characters}
+            color={theme.ascii.color}
+            backgroundColor="transparent"
+            animationSpeed={theme.ascii.animationSpeed}
+            glitchIntensity={theme.ascii.glitchIntensity}
+          />
+        )}
         
-        {/* Center Chat Input - Main focal point */}
-        <div className="relative flex-1 flex items-center justify-center p-8" style={{ zIndex: 10 }}>
-          <div className="w-full max-w-4xl flex flex-col items-center">
-            {/* Greeting above the input */}
-            <div className={`text-center transition-all duration-1000 ${showText ? 'mb-8' : 'mb-4'}`}>
-              <div className="origin-center mb-6 goose-icon-animation">
-                <Goose className="size-12 mx-auto" />
-              </div>
+
+        
+        {/* Cyberpunk Widgets - Only show for cyberpunk theme */}
+        {themeId === 'cyberpunk' && <CyberpunkWidgets />}
+        
+        {/* Hacker ASCII Text - Only show for hacker theme */}
+        {themeId === 'hacker' && <HackerASCIIText text="GOOSE" />}
+        
+        {/* Main Content Area - Theme-based layout */}
+        <div className={`relative flex-1 flex flex-col ${paddingClass} ${theme.layout.contentAlignment === 'space-between' ? 'justify-between' : ''}`} style={{ zIndex: 10 }}>
+          {/* Greeting - Theme-based position */}
+          {theme.greeting.show && (
+            <div className={`flex ${theme.layout.contentAlignment === 'space-between' ? 'justify-start' : greetingPositionClasses} transition-all duration-1000 ${theme.greeting.position === 'center' ? 'flex-1' : ''}`}>
               <div 
                 className="transition-all duration-1000 overflow-hidden"
                 style={{ 
                   opacity: showText ? 1 : 0,
-                  maxHeight: showText ? '200px' : '0px',
-                  marginBottom: showText ? '0px' : '0px'
+                  maxHeight: showText ? '300px' : '0px',
                 }}
               >
-                <Greeting className="text-4xl font-light text-text-default mb-4" />
-                <p className="text-text-default text-lg">
-                  Start a new conversation to get help with your projects
-                </p>
+                {theme.greeting.position !== 'center' && theme.greeting.position.includes('top') && (
+                  <div className="mb-2">
+                    <img 
+                      src="/logo.svg" 
+                      alt="Logo" 
+                      className="size-8 brightness-0 dark:invert"
+                    />
+                  </div>
+                )}
+                <Greeting className={theme.greeting.className} />
+                {theme.greeting.position === 'center' && (
+                  <p className="text-text-default text-lg mt-4">
+                    Start a new conversation to get help with your projects
+                  </p>
+                )}
               </div>
             </div>
+          )}
 
-            {/* Chat Input */}
-            <div className="w-full shadow-lg drop-shadow-md dark:shadow-white/10 dark:drop-shadow-[0_4px_6px_rgba(255,255,255,0.1)] [&>div]:!rounded-2xl">
-              <ChatInput
-                sessionId={null}
-                handleSubmit={handleSubmit}
-                autoSubmit={false}
-                chatState={ChatState.Idle}
-                onStop={() => {}}
-                commandHistory={[]}
-                initialValue=""
-                setView={setView}
-                numTokens={0}
-                inputTokens={0}
-                outputTokens={0}
-                droppedFiles={[]}
-                onFilesProcessed={() => {}}
-                messages={[]}
-                setMessages={() => {}}
-                disableAnimation={false}
-                sessionCosts={undefined}
-                setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
-                isExtensionsLoading={isExtensionsLoading}
-                toolCount={0}
-              />
+          {/* Chat Input - Theme-based position and styling */}
+          <div className={`flex ${theme.layout.contentAlignment === 'space-between' ? (theme.input.position === 'bottom-left' ? 'justify-start' : 'justify-center') : inputPositionClasses.container} ${theme.greeting.show && theme.greeting.position === 'center' ? 'flex-1' : ''}`}>
+            <div className={`${inputPositionClasses.wrapper} ${widthClass} ${theme.input.position === 'bottom-left' && theme.input.width === 'full' ? 'text-left' : ''}`}>
+              {/* Custom prompt prefix for CLI themes */}
+              {theme.input.prompt && (
+                <div className="mb-2 font-mono text-sm" style={{ color: theme.input.borderColor || theme.ascii.color }}>
+                  {theme.input.prompt}
+                </div>
+              )}
+              
+              <div className={`${theme.input.className} [&>div]:!${roundedClass} ${theme.input.position === 'bottom-left' && theme.input.width === 'full' ? '[&>div]:!mx-0 [&>div]:!ml-0' : ''}`}>
+                <ChatInput
+                  sessionId={null}
+                  handleSubmit={handleSubmit}
+                  autoSubmit={false}
+                  chatState={ChatState.Idle}
+                  onStop={() => {}}
+                  commandHistory={[]}
+                  initialValue=""
+                  setView={setView}
+                  numTokens={0}
+                  inputTokens={0}
+                  outputTokens={0}
+                  droppedFiles={[]}
+                  onFilesProcessed={() => {}}
+                  messages={[]}
+                  setMessages={() => {}}
+                  disableAnimation={false}
+                  sessionCosts={undefined}
+                  setIsGoosehintsModalOpen={setIsGoosehintsModalOpen}
+                  isExtensionsLoading={isExtensionsLoading}
+                  toolCount={0}
+                  themeStyles={theme.input.customStyles}
+                  themeTypography={theme.typography}
+                  themeAnimations={theme.animations}
+                  themeEffects={theme.effects}
+                />
+              </div>
             </div>
           </div>
         </div>

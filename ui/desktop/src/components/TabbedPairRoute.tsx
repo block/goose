@@ -17,15 +17,31 @@ export const TabbedPairRoute: React.FC<TabbedPairRouteProps> = ({
   const [searchParams] = useSearchParams();
   const routeState = location.state as ViewOptions | undefined;
   const initialMessage = routeState?.initialMessage;
+  const fineTunedModel = (routeState as any)?.fineTunedModel;
   const { isNavExpanded } = useNavigation();
   const { openExistingSession, openMatrixChat, handleNewTab } = useTabContext();
 
   // Track if we've already handled the initial message to prevent duplicate handling
   const [hasHandledInitialMessage, setHasHandledInitialMessage] = React.useState(false);
+  const [hasHandledFineTunedModel, setHasHandledFineTunedModel] = React.useState(false);
+
+  // Handle fine-tuned model from route state - create a new tab for the fine-tuned model
+  useEffect(() => {
+    if (fineTunedModel && !hasHandledFineTunedModel) {
+      console.log('🎯 TabbedPairRoute: Handling fine-tuned model from route state:', fineTunedModel);
+      
+      // Create a new tab for the fine-tuned model with the model info
+      handleNewTab({ fineTunedModel });
+      setHasHandledFineTunedModel(true);
+      
+      // Clear the location state to prevent re-handling on navigation
+      window.history.replaceState({}, '', window.location.href);
+    }
+  }, [fineTunedModel, hasHandledFineTunedModel, handleNewTab]);
 
   // Handle initial message from Hub - create a new tab with the message
   useEffect(() => {
-    if (initialMessage && !hasHandledInitialMessage) {
+    if (initialMessage && !hasHandledInitialMessage && !fineTunedModel) {
       console.log('📝 TabbedPairRoute: Handling initial message from Hub:', initialMessage);
       
       // Create a new tab - the initialMessage will be passed to TabbedChatContainer
@@ -36,7 +52,7 @@ export const TabbedPairRoute: React.FC<TabbedPairRouteProps> = ({
       // Clear the location state to prevent re-handling on navigation
       window.history.replaceState({}, '', window.location.href);
     }
-  }, [initialMessage, hasHandledInitialMessage, handleNewTab]);
+  }, [initialMessage, hasHandledInitialMessage, handleNewTab, fineTunedModel]);
 
   // Handle resuming existing sessions from URL parameters
   useEffect(() => {

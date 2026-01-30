@@ -9,8 +9,9 @@ use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata};
 
 use goose::session::{Session, SessionInsights};
 use rmcp::model::{
-    Annotations, Content, EmbeddedResource, Icon, ImageContent, RawAudioContent, RawEmbeddedResource, RawImageContent,
-    RawResource, RawTextContent, ResourceContents, Role, TextContent, Tool, ToolAnnotations,
+    Annotations, Content, EmbeddedResource, Icon, ImageContent, RawAudioContent,
+    RawEmbeddedResource, RawImageContent, RawResource, RawTextContent, ResourceContents, Role,
+    TextContent, Tool, ToolAnnotations,
 };
 use utoipa::{OpenApi, ToSchema};
 

@@ -19,6 +19,7 @@ pub mod google;
 pub mod groq;
 pub mod lead_worker;
 pub mod litellm;
+pub mod native_model;
 pub mod oauth;
 pub mod ollama;
 pub mod openai;

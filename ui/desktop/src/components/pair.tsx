@@ -116,13 +116,13 @@ export default function Pair({
         
         const data = await response.json();
         console.log('✅ Inference server started successfully:', data);
+        console.log('🔌 Inference server port:', data.status.port);
+        console.log('📍 Inference server URL will be: http://localhost:' + data.status.port + '/v1/chat/completions');
         
         setInferenceServerPort(data.status.port);
         setInferenceServerStatus('running');
         
-        // TODO: Configure the session to use this inference server
-        // This would involve updating the provider configuration to point to
-        // http://localhost:{port} for this specific session
+        console.log('✅ Inference server configuration complete - messages will be routed to fine-tuned model');
         
       } catch (error) {
         console.error('❌ Failed to start inference server:', error);
@@ -1196,6 +1196,7 @@ export default function Pair({
       showParticipantsBar={isMatrixMode} // Show participants bar when in Matrix mode
       matrixRoomId={matrixRoomId || undefined} // Pass the Matrix room ID
       showPendingInvites={isConnected} // Show pending invites when connected to Matrix
+      inferenceServerPort={inferenceServerPort} // Pass inference server port for fine-tuned models
     />
   );
 }

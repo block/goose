@@ -8,22 +8,53 @@ use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 #[derive(Clone)]
+pub struct TrainingCollectorHandle(
+    pub std::sync::Arc<goose::training_data::collector::TrainingDataCollector>,
+);
+
+#[derive(Clone)]
 pub struct AppState {
     pub(crate) agent_manager: Arc<AgentManager>,
     pub recipe_file_hash_map: Arc<Mutex<HashMap<String, PathBuf>>>,
     pub session_counter: Arc<AtomicUsize>,
     /// Tracks sessions that have already emitted recipe telemetry to prevent double counting.
     recipe_session_tracker: Arc<Mutex<HashSet<String>>>,
+
+    /// Training state (jobs, storage)
+    pub training_state: Arc<TrainingState>,
+    pub training_collector: Arc<goose::training_data::collector::TrainingDataCollector>,
 }
 
 impl AppState {
+    pub fn default_model_name(&self) -> String {
+        use goose::providers::base::get_current_model;
+        get_current_model().unwrap_or_else(|| "qwen2.5-7b".to_string())
+    }
+
     pub async fn new() -> anyhow::Result<Arc<AppState>> {
         let agent_manager = Arc::new(AgentManager::new(None).await?);
+        let training_state = Arc::new(Self::init_training_state_inner()?);
+        // Build the training data collector components
+        let collector = {
+            use goose::training_data::collector::TrainingDataCollector;
+            use goose::training_data::quality::SimpleQualityScorer;
+            use goose::training_data::schema::CollectionConfig;
+            let cfg = CollectionConfig::default();
+            let storage = training_state.storage.clone();
+            let scorer = Arc::new(SimpleQualityScorer::new());
+            // NOTE: TrainingDataCollector holds Arc<dyn TrainingDataStorage>, so clone as trait object
+            let storage_trait: Arc<dyn goose::training_data::storage::TrainingDataStorage> =
+                storage;
+            Arc::new(TrainingDataCollector::new(cfg, storage_trait, scorer))
+        };
+
         Ok(Arc::new(Self {
             agent_manager,
             recipe_file_hash_map: Arc::new(Mutex::new(HashMap::new())),
             session_counter: Arc::new(AtomicUsize::new(0)),
             recipe_session_tracker: Arc::new(Mutex::new(HashSet::new())),
+            training_state,
+            training_collector: collector,
         }))
     }
 
@@ -67,5 +98,29 @@ impl AppState {
                 tracing::error!("Failed to get agent: {}", e);
                 StatusCode::INTERNAL_SERVER_ERROR
             })
+    }
+}
+
+// use goose::model_training::job_manager::{TrainingJobManager, TrainerFactory};
+use goose::training_data::storage::{InMemoryTrainingDataStorage, TrainingDataStorage};
+use std::sync::Arc as StdArc;
+
+pub struct TrainingState {
+    pub storage: StdArc<dyn TrainingDataStorage>,
+}
+
+impl AppState {
+    pub async fn init_training_state(&self) -> anyhow::Result<TrainingState> {
+        let storage: StdArc<dyn TrainingDataStorage> =
+            StdArc::new(InMemoryTrainingDataStorage::new());
+        Ok(TrainingState { storage })
+    }
+}
+
+impl AppState {
+    fn init_training_state_inner() -> anyhow::Result<TrainingState> {
+        let storage: StdArc<dyn TrainingDataStorage> =
+            StdArc::new(InMemoryTrainingDataStorage::new());
+        Ok(TrainingState { storage })
     }
 }

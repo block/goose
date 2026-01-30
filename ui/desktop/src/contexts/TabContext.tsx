@@ -18,7 +18,7 @@ interface TabContextType {
   setActiveTabId: (tabId: string) => void;
   handleTabClick: (tabId: string) => void;
   handleTabClose: (tabId: string) => void;
-  handleNewTab: () => void;
+  handleNewTab: (options?: { fineTunedModel?: any }) => void;
   handleChatUpdate: (tabId: string, chat: ChatType) => void;
   handleMessageSubmit: (message: string, tabId: string) => void;
   getActiveTabState: () => TabState | undefined;
@@ -243,9 +243,14 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
     console.log('🖱️ TabContext: setActiveTabId called');
   }, [activeTabId]);
 
-  const handleNewTab = useCallback(async () => {
+  const handleNewTab = useCallback(async (options?: { fineTunedModel?: any }) => {
     try {
-      console.log('🆕 Creating new tab with immediate backend session');
+      const fineTunedModel = options?.fineTunedModel;
+      
+      console.log('🆕 Creating new tab with immediate backend session', fineTunedModel ? 'for fine-tuned model' : '');
+      if (fineTunedModel) {
+        console.log('🎯 Fine-tuned model info:', fineTunedModel);
+      }
       console.log('🆕 Current tab states before creating new tab:', tabStates.map(ts => ({
         tabId: ts.tab.id,
         sessionId: ts.tab.sessionId,
@@ -266,11 +271,22 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
       const sessionId = response.data.id;
       console.log('✅ Created backend session for new tab:', sessionId);
 
-      // Create the tab with the real backend session ID
-      const newTab = createNewTab({ sessionId });
+      // Create the tab with the real backend session ID and fine-tuned model info
+      const tabTitle = fineTunedModel ? `Chat with ${fineTunedModel.name}` : 'New Chat';
+      const newTab = createNewTab({ 
+        sessionId,
+        title: tabTitle
+      });
+      
+      const newChat = createNewChat(sessionId);
+      if (fineTunedModel) {
+        newChat.fineTunedModel = fineTunedModel;
+        newChat.title = tabTitle;
+      }
+      
       const newTabState: TabState = {
         tab: newTab,
-        chat: createNewChat(sessionId),
+        chat: newChat,
         loadingChat: false
       };
       
@@ -280,7 +296,8 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
           tabId: ts.tab.id,
           sessionId: ts.tab.sessionId,
           title: ts.tab.title,
-          isActive: ts.tab.isActive
+          isActive: ts.tab.isActive,
+          hasFineTunedModel: !!ts.chat.fineTunedModel
         })));
         return updatedStates;
       });
@@ -289,24 +306,39 @@ export const TabProvider: React.FC<TabProviderProps> = ({ children }) => {
       console.log('✅ New tab created successfully:', { 
         tabId: newTab.id, 
         sessionId,
+        fineTunedModel: fineTunedModel?.name,
         uniqueSessionIds: [...new Set([...tabStates.map(ts => ts.tab.sessionId), sessionId])].length,
         totalTabs: tabStates.length + 1
       });
     } catch (error) {
       console.error('❌ Failed to create new tab with backend session:', error);
       
+      const fineTunedModel = options?.fineTunedModel;
+      
       // Fallback: create tab with temporary session ID and try to create backend session later
       const tempSessionId = `temp_${Date.now()}`;
-      const newTab = createNewTab({ sessionId: tempSessionId });
+      const tabTitle = fineTunedModel ? `Chat with ${fineTunedModel.name}` : 'New Chat';
+      const newTab = createNewTab({ 
+        sessionId: tempSessionId,
+        title: tabTitle
+      });
+      
+      const newChat = createNewChat(newTab.sessionId);
+      if (fineTunedModel) {
+        newChat.fineTunedModel = fineTunedModel;
+        newChat.title = tabTitle;
+      }
+      
       const newTabState: TabState = {
         tab: newTab,
-        chat: createNewChat(newTab.sessionId),
+        chat: newChat,
         loadingChat: false
       };
       
       console.log('🆕 Creating fallback tab with temp session:', {
         tabId: newTab.id,
         tempSessionId,
+        fineTunedModel: fineTunedModel?.name,
         currentTabCount: tabStates.length
       });
       

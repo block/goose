@@ -95,8 +95,9 @@ impl InferenceManager {
         let venv_path = crate::config::Config::global()
             .get_param::<PathBuf>("GOOSE_TRAINING_VENV")
             .unwrap_or_else(|_| {
-                dirs::config_dir()
+                dirs::home_dir()
                     .unwrap_or_else(|| PathBuf::from("."))
+                    .join(".config")
                     .join("goose")
                     .join("axolotl-venv")
             });

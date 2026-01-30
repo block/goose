@@ -40,7 +40,10 @@ impl AgentManager {
         };
 
         if let Err(e) = manager.configure_default_provider().await {
-            warn!("❌ Failed to configure default provider during AgentManager initialization: {}", e);
+            warn!(
+                "❌ Failed to configure default provider during AgentManager initialization: {}",
+                e
+            );
             // Don't fail the entire AgentManager creation, but log the error
         }
 
@@ -58,7 +61,7 @@ impl AgentManager {
 
     pub async fn configure_default_provider(&self) -> Result<()> {
         debug!("🔧 Starting configure_default_provider");
-        
+
         let provider_name = std::env::var("GOOSE_DEFAULT_PROVIDER")
             .or_else(|_| std::env::var("GOOSE_PROVIDER__TYPE"))
             .ok();
@@ -67,21 +70,35 @@ impl AgentManager {
             .or_else(|_| std::env::var("GOOSE_PROVIDER__MODEL"))
             .ok();
 
-        debug!("🔧 Environment variables - GOOSE_DEFAULT_PROVIDER: {:?}, GOOSE_DEFAULT_MODEL: {:?}", provider_name, model_name);
+        debug!(
+            "🔧 Environment variables - GOOSE_DEFAULT_PROVIDER: {:?}, GOOSE_DEFAULT_MODEL: {:?}",
+            provider_name, model_name
+        );
 
         if provider_name.is_none() || model_name.is_none() {
-            warn!("❌ Missing provider configuration - provider_name: {:?}, model_name: {:?}", provider_name, model_name);
-            warn!("❌ Available env vars: GOOSE_DEFAULT_PROVIDER={:?}, GOOSE_DEFAULT_MODEL={:?}", 
-                  std::env::var("GOOSE_DEFAULT_PROVIDER").ok(),
-                  std::env::var("GOOSE_DEFAULT_MODEL").ok());
+            warn!(
+                "❌ Missing provider configuration - provider_name: {:?}, model_name: {:?}",
+                provider_name, model_name
+            );
+            warn!(
+                "❌ Available env vars: GOOSE_DEFAULT_PROVIDER={:?}, GOOSE_DEFAULT_MODEL={:?}",
+                std::env::var("GOOSE_DEFAULT_PROVIDER").ok(),
+                std::env::var("GOOSE_DEFAULT_MODEL").ok()
+            );
             return Ok(());
         }
 
         if let (Some(provider_name), Some(model_name)) = (provider_name, model_name) {
-            debug!("🔧 Creating provider '{}' with model '{}'", provider_name, model_name);
+            debug!(
+                "🔧 Creating provider '{}' with model '{}'",
+                provider_name, model_name
+            );
             match ModelConfig::new(&model_name) {
                 Ok(model_config) => {
-                    debug!("🔧 Created model config for {}: {:?}", model_name, model_config);
+                    debug!(
+                        "🔧 Created model config for {}: {:?}",
+                        model_name, model_config
+                    );
                     match create(&provider_name, model_config) {
                         Ok(provider) => {
                             self.set_default_provider(provider).await;
@@ -91,17 +108,28 @@ impl AgentManager {
                             );
                         }
                         Err(e) => {
-                            warn!("❌ Failed to create default provider {}: {}", provider_name, e);
+                            warn!(
+                                "❌ Failed to create default provider {}: {}",
+                                provider_name, e
+                            );
                             warn!("❌ This will cause the system to fall back to OpenAI, which may cause quota errors");
                             // This is critical - if provider creation fails, we need to know about it
-                            return Err(anyhow::anyhow!("Failed to create default provider {}: {}", provider_name, e));
+                            return Err(anyhow::anyhow!(
+                                "Failed to create default provider {}: {}",
+                                provider_name,
+                                e
+                            ));
                         }
                     }
-                },
+                }
                 Err(e) => {
                     warn!("❌ Failed to create model config for {}: {}", model_name, e);
                     warn!("❌ This will cause the system to fall back to OpenAI, which may cause quota errors");
-                    return Err(anyhow::anyhow!("Failed to create model config for {}: {}", model_name, e));
+                    return Err(anyhow::anyhow!(
+                        "Failed to create model config for {}: {}",
+                        model_name,
+                        e
+                    ));
                 }
             }
         }
@@ -143,18 +171,30 @@ impl AgentManager {
         }
 
         if let Some(provider) = &*self.default_provider.read().await {
-            info!("🔧 Setting default provider on agent for session {}", session_id);
+            info!(
+                "🔧 Setting default provider on agent for session {}",
+                session_id
+            );
             match agent.update_provider(Arc::clone(provider)).await {
                 Ok(_) => {
-                    info!("✅ Successfully set provider on agent for session {}", session_id);
+                    info!(
+                        "✅ Successfully set provider on agent for session {}",
+                        session_id
+                    );
                 }
                 Err(e) => {
-                    warn!("❌ Failed to set provider on agent for session {}: {}", session_id, e);
+                    warn!(
+                        "❌ Failed to set provider on agent for session {}: {}",
+                        session_id, e
+                    );
                     warn!("❌ This may cause the agent to fall back to OpenAI, leading to quota errors");
                 }
             }
         } else {
-            warn!("❌ No default provider available for session {}", session_id);
+            warn!(
+                "❌ No default provider available for session {}",
+                session_id
+            );
             warn!("❌ Agent will likely fall back to OpenAI, which may cause quota errors");
             warn!("❌ Check that GOOSE_DEFAULT_PROVIDER and GOOSE_DEFAULT_MODEL are set correctly");
         }
@@ -164,7 +204,7 @@ impl AgentManager {
             Ok(extensions) => {
                 let mut loaded_count = 0;
                 let mut failed_count = 0;
-                
+
                 for ext_config in extensions {
                     if ext_config.enabled {
                         match agent.add_extension(ext_config.config.clone()).await {
@@ -188,7 +228,7 @@ impl AgentManager {
                         }
                     }
                 }
-                
+
                 if loaded_count > 0 {
                     info!(
                         "✅ Loaded {} extension(s) for session {}{}",

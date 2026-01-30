@@ -299,6 +299,13 @@ async fn reply_handler(
                 response = timeout(Duration::from_millis(500), stream.next()) => {
                     match response {
                         Ok(Some(Ok(AgentEvent::Message(message)))) => {
+                            tracing::info!(
+                                "Reply handler received message: role={:?}, user_visible={}, content_len={}",
+                                message.role,
+                                message.is_user_visible(),
+                                message.content.len()
+                            );
+
                             for content in &message.content {
                                 track_tool_telemetry(content, all_messages.messages());
                             }
@@ -307,7 +314,10 @@ async fn reply_handler(
 
                             // Only send message to client if it's user_visible
                             if message.is_user_visible() {
+                                tracing::info!("Sending message to UI");
                                 stream_event(MessageEvent::Message { message }, &tx, &cancel_token).await;
+                            } else {
+                                tracing::warn!("Message not user_visible, skipping UI send");
                             }
                         }
                         Ok(Some(Ok(AgentEvent::HistoryReplaced(new_messages)))) => {
@@ -338,6 +348,7 @@ async fn reply_handler(
                             break;
                         }
                         Ok(None) => {
+                            tracing::info!("Stream ended (received None from agent stream)");
                             break;
                         }
                         Err(_) => {

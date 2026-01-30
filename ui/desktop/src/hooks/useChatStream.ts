@@ -13,6 +13,7 @@ import {
 import { client } from '../api/client.gen';
 
 import { createUserMessage, getCompactingMessage, getThinkingMessage } from '../types/message';
+import { getApiUrl } from '../config';
 
 const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
 
@@ -118,6 +119,12 @@ interface UseChatStreamProps {
   isMatrixTab?: boolean; // Flag to indicate if this is a Matrix tab that should listen for Matrix messages
   tabId?: string; // Tab ID to filter sidecars for context injection
   matrixRoomId?: string; // Matrix room ID for loading historical messages
+  fineTunedModel?: {
+    jobId: string;
+    name: string;
+    baseModel: string;
+    adapterPath: string;
+  };
 }
 
 interface UseChatStreamReturn {
@@ -288,6 +295,7 @@ export function useChatStream({
   isMatrixTab = false,
   tabId,
   matrixRoomId,
+  fineTunedModel,
 }: UseChatStreamProps): UseChatStreamReturn {
   
   // Debug logging for Matrix parameters
@@ -296,8 +304,10 @@ export function useChatStream({
     fullSessionId: sessionId, // Show full session ID for debugging
     isMatrixTab,
     matrixRoomId: matrixRoomId ? matrixRoomId.substring(0, 20) + '...' : 'undefined',
-    tabId
+    tabId,
+    hasFineTunedModel: !!fineTunedModel,
   });
+  
   const [messages, setMessages] = useState<Message[]>([]);
   const messagesRef = useRef<Message[]>([]);
   const [session, setSession] = useState<Session>();
@@ -315,6 +325,112 @@ export function useChatStream({
   const abortControllerRef = useRef<AbortController | null>(null);
   const initialSessionIdRef = useRef<string>(sessionId);
   const hasLoadedSessionRef = useRef<boolean>(false);
+  
+  // Fine-tuned model inference server state
+  const [inferenceServerPort, setInferenceServerPort] = useState<number | null>(null);
+  const [inferenceServerStatus, setInferenceServerStatus] = useState<'starting' | 'running' | 'stopped' | 'error' | null>(null);
+  
+  // Auto-start inference server for fine-tuned models
+  useEffect(() => {
+    const startInferenceServer = async () => {
+      if (!fineTunedModel) {
+        console.log('🔧 No fine-tuned model, skipping inference server start');
+        return;
+      }
+      
+      if (inferenceServerStatus === 'running' || inferenceServerStatus === 'starting') {
+        console.log('🔧 Inference server already starting/running, skipping');
+        return;
+      }
+      
+      console.log('🚀 Starting inference server for fine-tuned model:', fineTunedModel);
+      setInferenceServerStatus('starting');
+      
+      try {
+        const startUrl = getApiUrl('/inference/start');
+        console.log('📍 Inference start URL:', startUrl);
+        
+        // Get the secret key for authentication
+        const secretKey = await window.electron.getSecretKey();
+        console.log('🔑 Got secret key for inference server start:', !!secretKey);
+        
+        const response = await fetch(startUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Secret-Key': secretKey,
+          },
+          body: JSON.stringify({
+            job_id: fineTunedModel.jobId,
+            base_model: fineTunedModel.baseModel,
+            adapter_path: fineTunedModel.adapterPath,
+          }),
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to start inference server');
+        }
+        
+        const data = await response.json();
+        console.log('✅ Inference server started successfully:', data);
+        console.log('🔌 Inference server port:', data.status.port);
+        console.log('📍 Inference server URL will be: http://localhost:' + data.status.port + '/v1/chat/completions');
+        
+        setInferenceServerPort(data.status.port);
+        setInferenceServerStatus('running');
+        
+        console.log('✅ Inference server configuration complete - messages will be routed to fine-tuned model');
+        
+      } catch (error) {
+        console.error('❌ Failed to start inference server:', error);
+        setInferenceServerStatus('error');
+        // Don't set fatal error - user can still use the app with global model
+      }
+    };
+    
+    startInferenceServer();
+  }, [fineTunedModel]); // Only depend on fineTunedModel, not inferenceServerStatus
+  
+  // Auto-stop inference server when component unmounts or fine-tuned model changes
+  useEffect(() => {
+    return () => {
+      const stopInferenceServer = async () => {
+        if (!fineTunedModel || inferenceServerStatus !== 'running') {
+          return;
+        }
+        
+        console.log('🛑 Stopping inference server for job:', fineTunedModel.jobId);
+        
+        try {
+          const stopUrl = getApiUrl(`/inference/stop/${fineTunedModel.jobId}`);
+          console.log('📍 Inference stop URL:', stopUrl);
+          
+          // Get the secret key for authentication
+          const secretKey = await window.electron.getSecretKey();
+          console.log('🔑 Got secret key for inference server stop:', !!secretKey);
+          
+          const response = await fetch(stopUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Secret-Key': secretKey,
+            },
+          });
+          
+          if (!response.ok) {
+            console.error('❌ Failed to stop inference server');
+          } else {
+            console.log('✅ Inference server stopped successfully');
+          }
+        } catch (error) {
+          console.error('❌ Error stopping inference server:', error);
+        }
+      };
+      
+      stopInferenceServer();
+    };
+  }, [fineTunedModel, inferenceServerStatus]);
 
   useEffect(() => {
     if (session) {
@@ -814,7 +930,25 @@ export function useChatStream({
 
         // Get the configured base URL and headers from the API client
         const baseUrl = config.baseUrl || '';
-        const apiUrl = `${baseUrl}/reply`;
+        
+        // Override API URL if using fine-tuned model
+        let apiUrl: string;
+        if (fineTunedModel && inferenceServerPort) {
+          apiUrl = `http://localhost:${inferenceServerPort}/v1/chat/completions`;
+          console.log('🎯 Using fine-tuned model inference server:', {
+            jobId: fineTunedModel.jobId,
+            name: fineTunedModel.name,
+            port: inferenceServerPort,
+            url: apiUrl
+          });
+        } else {
+          apiUrl = `${baseUrl}/reply`;
+          console.log('📡 Using default backend API:', {
+            url: apiUrl,
+            hasFineTunedModel: !!fineTunedModel,
+            hasInferenceServerPort: !!inferenceServerPort
+          });
+        }
 
         // Get and log the secret key for debugging
         const secretKey = await window.electron.getSecretKey();
@@ -824,7 +958,8 @@ export function useChatStream({
           hasSecretKey: !!secretKey,
           secretKeyLength: secretKey?.length || 0,
           configHeaders: Object.keys(config.headers || {}),
-          sessionId: currentSession.id.slice(0, 8)
+          sessionId: currentSession.id.slice(0, 8),
+          usingFineTunedModel: !!(fineTunedModel && inferenceServerPort)
         });
 
         // Make a direct fetch call to handle SSE streaming
@@ -903,7 +1038,7 @@ export function useChatStream({
         }
       }
     },
-    [sessionId, session, gooseEnabled, setMessagesAndLog, onFinish, onSessionIdChange]
+    [sessionId, session, gooseEnabled, setMessagesAndLog, onFinish, onSessionIdChange, fineTunedModel, inferenceServerPort]
   );
 
   const setRecipeUserParams = useCallback(

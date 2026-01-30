@@ -2252,6 +2252,39 @@ ipcMain.handle('get-goosed-host-port', async (event) => {
   return client.getConfig().baseUrl || null;
 });
 
+ipcMain.handle('get-home-dir', () => {
+  return os.homedir();
+});
+
+
+// Training data submission IPC
+ipcMain.handle('submit-training-data', async (event, payload: any) => {
+  try {
+    const windowId = BrowserWindow.fromWebContents(event.sender)?.id;
+    if (!windowId) return { error: 'No window context' };
+    const client = goosedClients.get(windowId);
+    if (!client) return { error: 'No goosed client for window' };
+
+    await checkServerStatus(client);
+    const res = await fetch(`${client.getConfig().baseUrl}/training/submit`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Secret-Key': process.env.GOOSE_EXTERNAL_BACKEND ? 'test' : SERVER_SECRET,
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      return { error: `HTTP ${res.status} ${text}` };
+    }
+    return await res.json();
+  } catch (err: any) {
+    console.error('[Main] submit-training-data failed:', err);
+    return { error: err?.message || 'unknown error' };
+  }
+});
+
 ipcMain.handle('set-scheduling-engine', async (_event, engine: string) => {
   try {
     const settings = loadSettings();

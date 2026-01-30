@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Bot, MessageSquare, Share2, Monitor, Settings, Palette, Users, Cog } from 'lucide-react';
+import { Bot, MessageSquare, Share2, Monitor, Settings, Palette, Users, Cog, Zap } from 'lucide-react';
 
 interface SettingsTile {
   id: string;
@@ -30,6 +30,14 @@ export const SettingsTileNavigation: React.FC<SettingsTileNavigationProps> = ({
       tagColor: 'info',
     },
     {
+      id: 'tuning',
+      label: 'Tuning',
+      icon: Zap,
+      description: 'Fine-tune models with custom data',
+      getTag: () => 'TUNE',
+      tagColor: 'info',
+    },
+    {
       id: 'chat',
       label: 'Chat',
       icon: MessageSquare,
@@ -56,7 +64,7 @@ export const SettingsTileNavigation: React.FC<SettingsTileNavigationProps> = ({
   ];
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-0.5">
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-5 xl:grid-cols-5 gap-0.5">
         {settingsTiles.map((tile, index) => {
           const IconComponent = tile.icon;
           const isActive = activeSection === tile.id;

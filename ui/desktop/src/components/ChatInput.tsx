@@ -107,6 +107,37 @@ interface ChatInputProps {
   isExtensionsLoading?: boolean;
   fineTunedModel?: import('../types/chat').FineTunedModelInfo | null;
   gooseEnabled?: boolean;
+  // Theme customization props
+  themeStyles?: {
+    container?: string;
+    textarea?: string;
+    sendButton?: string;
+    placeholder?: string;
+    bottomControls?: string;
+  };
+  themeTypography?: {
+    fontFamily?: string;
+    fontSize?: string;
+    fontWeight?: string;
+    letterSpacing?: string;
+    lineHeight?: string;
+  };
+  themeAnimations?: {
+    cursorBlink?: boolean;
+    cursorStyle?: 'block' | 'underline' | 'bar';
+    typewriterEffect?: boolean;
+    glitchText?: boolean;
+    scanlines?: boolean;
+    vignette?: boolean;
+  };
+  themeEffects?: {
+    blur?: number;
+    brightness?: number;
+    contrast?: number;
+    saturate?: number;
+    hueRotate?: number;
+    noise?: boolean;
+  };
 }
 
 export default function ChatInput({
@@ -136,6 +167,10 @@ export default function ChatInput({
   isExtensionsLoading = false,
   gooseEnabled = true,
   fineTunedModel = null,
+  themeStyles,
+  themeTypography,
+  themeAnimations,
+  themeEffects,
 }: ChatInputProps) {
   // Track the available width for responsive layout
   const [availableWidth, setAvailableWidth] = useState(window.innerWidth);
@@ -1920,9 +1955,9 @@ export default function ChatInput({
 
 
 
-      {/* Chat input container with max width - floating card */}
-      <div className="max-w-4xl mx-auto w-full shadow-2xl drop-shadow-2xl">
-        <div className="bg-background-default rounded-[32px] pt-3 px-3">
+      {/* Chat input container - theme controls all styling */}
+      <div className="max-w-4xl mx-auto w-full">
+        <div className={`pt-3 px-3 ${themeStyles?.container || 'bg-background-default rounded-[32px] shadow-2xl drop-shadow-2xl'}`}>
       {/* Message Queue Display */}
       {queuedMessages.length > 0 && (
         <MessageQueue
@@ -1985,8 +2020,15 @@ export default function ChatInput({
               maxHeight: `${maxHeight}px`,
               overflowY: 'auto',
               opacity: isRecording ? 0 : 1,
+              ...(themeTypography && {
+                fontFamily: themeTypography.fontFamily,
+                fontSize: themeTypography.fontSize,
+                fontWeight: themeTypography.fontWeight,
+                letterSpacing: themeTypography.letterSpacing,
+                lineHeight: themeTypography.lineHeight,
+              }),
             }}
-            className="w-full outline-none border-none focus:ring-0 bg-transparent px-3 pt-3 pb-1.5 pr-20 text-sm resize-none text-textStandard placeholder:text-textPlaceholder"
+            className={`w-full outline-none border-none focus:ring-0 bg-transparent px-3 pt-3 pb-1.5 pr-20 text-sm resize-none text-textStandard placeholder:text-textPlaceholder ${themeStyles?.textarea || ''}`}
           />
           {isRecording && (
             <div className="absolute inset-0 flex items-center pl-4 pr-20 pt-3 pb-1.5">

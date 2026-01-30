@@ -97,6 +97,7 @@ interface BaseChatProps {
   showParticipantsBar?: boolean;
   matrixRoomId?: string;
   showPendingInvites?: boolean; // Show outstanding Matrix invites in chat history
+  inferenceServerPort?: number | null; // Port for fine-tuned model inference server
 }
 
 function BaseChatContent({
@@ -286,6 +287,7 @@ function BaseChatContent({
   } = useChatEngine({
     chat,
     setChat,
+    inferenceServerPort: props.inferenceServerPort, // Pass inference server port for fine-tuned models
     onMessageStreamFinish: () => {
       conditionalAutoScroll();
 

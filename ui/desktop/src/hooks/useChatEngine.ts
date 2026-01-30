@@ -34,6 +34,7 @@ interface UseChatEngineProps {
   setChat: (chat: ChatType) => void;
   onMessageStreamFinish?: () => void;
   onMessageSent?: () => void; // Add callback for when message is sent
+  inferenceServerPort?: number | null; // Port for fine-tuned model inference server
 }
 
 export const useChatEngine = ({
@@ -41,6 +42,7 @@ export const useChatEngine = ({
   setChat,
   onMessageStreamFinish,
   onMessageSent,
+  inferenceServerPort,
 }: UseChatEngineProps) => {
   const [lastInteractionTime, setLastInteractionTime] = useState<number>(Date.now());
   const [sessionTokenCount, setSessionTokenCount] = useState<number>(0);
@@ -116,6 +118,30 @@ export const useChatEngine = ({
     }
   }, [userContext, chat.sessionId]);
 
+  // Determine API URL - use inference server if fine-tuned model is active
+  const apiUrl = useMemo(() => {
+    if (chat.fineTunedModel && inferenceServerPort) {
+      const customUrl = `http://localhost:${inferenceServerPort}/v1/chat/completions`;
+      console.log('🎯 Using fine-tuned model inference server:', {
+        modelName: chat.fineTunedModel.name,
+        baseModel: chat.fineTunedModel.baseModel,
+        port: inferenceServerPort,
+        url: customUrl,
+        hasFineTunedModel: !!chat.fineTunedModel,
+        hasPort: !!inferenceServerPort,
+      });
+      return customUrl;
+    }
+    const defaultUrl = getApiUrl('/reply');
+    console.log('📡 Using default backend API:', {
+      url: defaultUrl,
+      hasFineTunedModel: !!chat.fineTunedModel,
+      hasPort: !!inferenceServerPort,
+      reason: !chat.fineTunedModel ? 'No fine-tuned model' : 'No inference server port',
+    });
+    return defaultUrl;
+  }, [chat.fineTunedModel, inferenceServerPort]);
+
   const {
     messages,
     append: originalAppend,
@@ -131,7 +157,7 @@ export const useChatEngine = ({
     session,
     setError,
   } = useMessageStream({
-    api: getApiUrl('/reply'),
+    api: apiUrl, // Use custom API URL for fine-tuned models
     id: chat.sessionId, // Keep original ID for frontend state management
     initialMessages: chat.messages,
     disabled: false, // Never disable - we'll handle blocking in the append function

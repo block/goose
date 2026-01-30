@@ -113,8 +113,8 @@ impl ServerHandler for TutorialServer {
             server_info: Implementation {
                 name: "goose-tutorial".to_string(),
                 version: env!("CARGO_PKG_VERSION").to_owned(),
-                icons: None, // Add missing icons field
-                title: None, // Add missing title field
+                icons: None,       // Add missing icons field
+                title: None,       // Add missing title field
                 website_url: None, // Add missing website_url field
             },
             capabilities: ServerCapabilities::builder().enable_tools().build(),

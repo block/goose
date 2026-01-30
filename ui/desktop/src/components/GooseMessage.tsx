@@ -27,6 +27,7 @@ import { NotificationEvent } from '../hooks/useMessageStream';
 import { MessageComment, TextSelection } from '../types/comment';
 import { cn } from '../utils';
 import AvatarImage from './AvatarImage';
+import FeedbackToolbar from './FeedbackToolbar';
 
 interface GooseMessageProps {
   // messages up to this index are presumed to be "history" from a resumed session, this is used to track older tool confirmation requests
@@ -362,10 +363,21 @@ export default function GooseMessage({
             )}
 
             {toolRequests.length === 0 && (
-              <div className="relative flex justify-start">
-                {message.content.every((content) => content.type === 'text') && !isStreaming && (
-                  <div className="absolute left-0 pt-1">
-                    <MessageCopyLink text={displayText} contentRef={contentRef} />
+              <div className="mt-2">
+                {!isStreaming && (
+                  <div className="flex flex-wrap items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                    {message.content.every((content) => content.type === 'text') && (
+                      <MessageCopyLink text={displayText} contentRef={contentRef} />
+                    )}
+                    {message.role === 'assistant' && messageIndex === messages.length - 1 && (
+                      <FeedbackToolbar
+                        conversationId={sessionId}
+                        sessionId={sessionId}
+                        messages={messages}
+                        providerUsed={undefined}
+                        modelUsed={undefined}
+                      />
+                    )}
                   </div>
                 )}
               </div>

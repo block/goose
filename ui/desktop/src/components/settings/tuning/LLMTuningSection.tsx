@@ -21,7 +21,11 @@ import {
   ExternalLink,
   Wrench,
   ThumbsUp,
-  MessageSquare
+  MessageSquare,
+  Trash2,
+  Edit2,
+  X,
+  Check
 } from 'lucide-react';
 import AxolotlConfig from './AxolotlConfig';
 import { useNavigate } from 'react-router-dom';
@@ -290,12 +294,112 @@ export default function LLMTuningSection() {
     }
   }, [backendUrl, secretKey]);
 
+  // Fetch fine-tuned models
+  const [fineTunedModels, setFineTunedModels] = useState<any[]>([]);
+  const [loadingFineTunedModels, setLoadingFineTunedModels] = useState(false);
+  const [editingModelId, setEditingModelId] = useState<string | null>(null);
+  const [editingModelName, setEditingModelName] = useState<string>('');
+
+  const fetchFineTunedModels = useCallback(async () => {
+    if (!backendUrl || !secretKey) return;
+    
+    setLoadingFineTunedModels(true);
+    try {
+      const res = await fetch(`${backendUrl}/training/finetuned-models`, {
+        headers: { 'X-Secret-Key': secretKey }
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        setFineTunedModels(data.models || []);
+      }
+    } catch (e) {
+      console.error('Failed to fetch fine-tuned models:', e);
+    } finally {
+      setLoadingFineTunedModels(false);
+    }
+  }, [backendUrl, secretKey]);
+
+  const handleRenameModel = useCallback(async (jobId: string, newName: string) => {
+    console.log('[Rename] Starting rename:', { jobId, newName, backendUrl, hasSecretKey: !!secretKey });
+    
+    try {
+      const res = await fetch(`${backendUrl}/training/rename-model`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Secret-Key': secretKey,
+        },
+        body: JSON.stringify({ job_id: jobId, new_name: newName }),
+      });
+      
+      console.log('[Rename] Response status:', res.status, res.statusText);
+      
+      if (res.ok) {
+        const data = await res.json();
+        console.log('[Rename] Response data:', data);
+        if (data.success) {
+          fetchFineTunedModels();
+          setEditingModelId(null);
+          setEditingModelName('');
+        } else {
+          alert('❌ ' + data.message);
+        }
+      } else {
+        const errorText = await res.text();
+        console.error('[Rename] Error response:', errorText);
+        alert('❌ Failed to rename model: ' + (res.status === 401 ? 'Unauthorized - check authentication' : res.statusText));
+      }
+    } catch (e) {
+      console.error('[Rename] Exception:', e);
+      alert('❌ Error: ' + (e as Error).message);
+    }
+  }, [backendUrl, secretKey, fetchFineTunedModels]);
+
+  const handleDeleteModel = useCallback(async (jobId: string, modelName: string) => {
+    if (!confirm(`Are you sure you want to delete "${modelName}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`${backendUrl}/training/delete-model`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Secret-Key': secretKey,
+        },
+        body: JSON.stringify({ job_id: jobId }),
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          alert('✅ Model deleted successfully');
+          fetchFineTunedModels();
+        } else {
+          alert('❌ ' + data.message);
+        }
+      } else {
+        alert('❌ Failed to delete model');
+      }
+    } catch (e) {
+      alert('❌ Error: ' + (e as Error).message);
+    }
+  }, [backendUrl, secretKey, fetchFineTunedModels]);
+
   // Fetch jobs when switching to jobs or models tab
   useEffect(() => {
     if ((activeTab === 'jobs' || activeTab === 'models') && backendUrl && secretKey) {
       fetchTrainingJobs();
     }
   }, [activeTab, backendUrl, secretKey, fetchTrainingJobs]);
+
+  // Fetch fine-tuned models when switching to models tab
+  useEffect(() => {
+    if (activeTab === 'models' && backendUrl && secretKey) {
+      fetchFineTunedModels();
+    }
+  }, [activeTab, backendUrl, secretKey, fetchFineTunedModels]);
 
   const handleFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -480,32 +584,66 @@ export default function LLMTuningSection() {
     }
   }, [backendUrl, secretKey]);
 
-  const handleChatWithModel = useCallback((job: TuningJob) => {
-    // Navigate to chat with adapter info in state
-    // The adapter path will be: ~/.config/goose/training/job-{id}/adapter_model.safetensors
-    const home = window.electron.platform === 'darwin' ? '~' : process.env.HOME || '~';
-    const adapterPath = `${home}/.config/goose/training/job-${job.id}`;
-    
-    console.log('Opening chat with fine-tuned model:', {
-      jobId: job.id,
-      jobName: job.name,
-      baseModel: job.baseModel,
-      adapterPath
-    });
-    
-    // Navigate to chat with initial message about the model
-    navigate('/pair', {
-      state: {
-        fineTunedModel: {
-          jobId: job.id,
-          name: job.name,
-          baseModel: job.baseModel,
-          adapterPath
-        },
-        initialMessage: `Using fine-tuned model: ${job.name}`
+  const handleChatWithModel = useCallback(async (job: TuningJob, ollamaModelName?: string) => {
+    try {
+      // Switch to the fine-tuned model using the same logic as the dropdown
+      if (ollamaModelName) {
+        // Get the model metadata
+        const modelObj = {
+          name: ollamaModelName,
+          provider: 'ollama',
+          subtext: 'Ollama',
+          alias: job.name,
+        };
+
+        // Use the backend API to switch models
+        const response = await fetch(`${backendUrl}/config/upsert`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Secret-Key': secretKey,
+          },
+          body: JSON.stringify({
+            key: 'GOOSE_MODEL',
+            value: ollamaModelName,
+            is_secret: false,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to switch model');
+        }
+
+        // Also update the provider if needed
+        await fetch(`${backendUrl}/config/upsert`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Secret-Key': secretKey,
+          },
+          body: JSON.stringify({
+            key: 'GOOSE_PROVIDER',
+            value: 'ollama',
+            is_secret: false,
+          }),
+        });
+
+        console.log('Switched to fine-tuned model:', {
+          modelName: ollamaModelName,
+          jobName: job.name,
+        });
+
+        // Navigate to chat
+        navigate('/pair');
+      } else {
+        console.warn('No Ollama model name available for this model');
+        alert('⚠️ This model needs to be converted to GGUF and registered with Ollama first.');
       }
-    });
-  }, [navigate]);
+    } catch (e) {
+      console.error('Failed to switch to model:', e);
+      alert('❌ Failed to switch to model: ' + (e as Error).message);
+    }
+  }, [navigate, backendUrl, secretKey]);
 
   const handleQuickTrainWithFeedback = useCallback(async () => {
     if (feedbackCount === 0) {
@@ -970,91 +1108,223 @@ export default function LLMTuningSection() {
               </div>
             </div>
 
-            {/* Completed Models Grid */}
-            {(() => {
-              const completedJobs = tuningJobs.filter(job => job.status === 'completed');
-              
-              if (completedJobs.length === 0) {
-                return (
-                  <div className="text-center py-12">
-                    <BarChart3 className="w-16 h-16 text-text-muted mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-text-default mb-2">No Fine-tuned Models Yet</h3>
-                    <p className="text-text-muted mb-4">
-                      Complete a training job to see your fine-tuned models here.
-                    </p>
-                    <button 
-                      onClick={() => setActiveTab('datasets')}
-                      className="flex items-center gap-2 px-4 py-2 bg-background-accent text-text-on-accent rounded-lg hover:bg-background-accent/90 transition-colors mx-auto"
-                    >
-                      <Zap className="w-4 h-4" />
-                      Start Training
-                    </button>
-                  </div>
-                );
-              }
-
-              return (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {completedJobs.map((job) => (
-                    <div
-                      key={job.id}
-                      className="p-6 bg-background-default border border-border-default rounded-lg hover:bg-background-subtle transition-colors"
-                    >
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex items-center gap-2">
-                          <CheckCircle className="w-5 h-5 text-green-500" />
-                          <span className="px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400">
-                            READY
-                          </span>
-                        </div>
-                        <span className="text-xs text-text-muted">
-                          {job.startTime.toLocaleDateString()}
-                        </span>
+            {/* Fine-tuned Models Grid */}
+            {loadingFineTunedModels ? (
+              <div className="text-center py-12">
+                <RefreshCw className="w-16 h-16 text-text-muted mx-auto mb-4 animate-spin" />
+                <p className="text-text-muted">Loading fine-tuned models...</p>
+              </div>
+            ) : fineTunedModels.length === 0 ? (
+              <div className="text-center py-12">
+                <BarChart3 className="w-16 h-16 text-text-muted mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-text-default mb-2">No Fine-tuned Models Yet</h3>
+                <p className="text-text-muted mb-4">
+                  Complete a training job to see your fine-tuned models here.
+                </p>
+                <button 
+                  onClick={() => setActiveTab('datasets')}
+                  className="flex items-center gap-2 px-4 py-2 bg-background-accent text-text-on-accent rounded-lg hover:bg-background-accent/90 transition-colors mx-auto"
+                >
+                  <Zap className="w-4 h-4" />
+                  Start Training
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {fineTunedModels.map((model: any) => (
+                  <div
+                    key={model.job_id}
+                    className="p-6 bg-background-default border border-border-default rounded-lg hover:bg-background-subtle transition-colors"
+                  >
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        {model.gguf_available ? (
+                          <>
+                            <CheckCircle className="w-5 h-5 text-green-500" />
+                            <span className="px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400">
+                              READY
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <AlertCircle className="w-5 h-5 text-yellow-500" />
+                            <span className="px-2 py-1 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400">
+                              NEEDS CONVERSION
+                            </span>
+                          </>
+                        )}
                       </div>
-                      
-                      <h5 className="font-medium text-text-default mb-2">{job.name}</h5>
-                      <p className="text-sm text-text-muted mb-4">
-                        Base: {job.baseModel}
-                      </p>
-                      
-                      {/* Tags */}
-                      <div className="flex flex-wrap gap-1 mb-4">
-                        <span className="px-2 py-1 text-xs bg-background-muted text-text-muted rounded">
-                          LoRA
-                        </span>
-                        <span className="px-2 py-1 text-xs bg-background-muted text-text-muted rounded">
-                          Fine-tuned
-                        </span>
-                      </div>
-                      
-                      {/* Actions */}
-                      <div className="space-y-2">
-                        <button
-                          onClick={() => handleChatWithModel(job)}
-                          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-background-accent text-text-on-accent rounded-lg hover:bg-background-accent/90 transition-colors text-sm font-medium"
-                        >
-                          <MessageSquare className="w-4 h-4" />
-                          Chat with Model
-                        </button>
-                        <button
-                          onClick={() => handleActivateAdapter(job.id)}
-                          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-background-subtle text-text-default rounded-lg hover:bg-background-medium transition-colors text-sm font-medium"
-                        >
-                          <Zap className="w-4 h-4" />
-                          Set as Default
-                        </button>
-                      </div>
-                      
-                      <div className="mt-3 pt-3 border-t border-border-default">
-                        <div className="text-xs text-text-muted">
-                          Job ID: {job.id.slice(0, 8)}...
-                        </div>
-                      </div>
+                      <span className="text-xs text-text-muted">
+                        {new Date(model.created_at).toLocaleDateString()}
+                      </span>
                     </div>
-                  ))}
-                </div>
-              );
-            })()}
+                    
+                    {/* Model Name with Edit */}
+                    <div className="flex items-center gap-2 mb-2">
+                      {editingModelId === model.job_id ? (
+                        <>
+                          <input
+                            type="text"
+                            value={editingModelName}
+                            onChange={(e) => setEditingModelName(e.target.value)}
+                            className="flex-1 px-2 py-1 text-sm border border-border-default rounded bg-background-default text-text-default"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                handleRenameModel(model.job_id, editingModelName);
+                              } else if (e.key === 'Escape') {
+                                setEditingModelId(null);
+                                setEditingModelName('');
+                              }
+                            }}
+                          />
+                          <button
+                            onClick={() => handleRenameModel(model.job_id, editingModelName)}
+                            className="p-1 hover:bg-background-muted rounded text-green-600"
+                            title="Save"
+                          >
+                            <Check className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setEditingModelId(null);
+                              setEditingModelName('');
+                            }}
+                            className="p-1 hover:bg-background-muted rounded text-red-600"
+                            title="Cancel"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <h5 className="flex-1 font-medium text-text-default">{model.model_name}</h5>
+                          <button
+                            onClick={() => {
+                              setEditingModelId(model.job_id);
+                              setEditingModelName(model.model_name);
+                            }}
+                            className="p-1 hover:bg-background-muted rounded text-text-muted hover:text-text-default"
+                            title="Rename model"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteModel(model.job_id, model.model_name)}
+                            className="p-1 hover:bg-background-muted rounded text-text-muted hover:text-red-600"
+                            title="Delete model"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                    <p className="text-sm text-text-muted mb-2">
+                      Base: {model.base_model}
+                    </p>
+                    {model.size_mb && (
+                      <p className="text-xs text-text-muted mb-4">
+                        Size: {model.size_mb.toFixed(1)} MB
+                      </p>
+                    )}
+                    
+                    {/* Tags */}
+                    <div className="flex flex-wrap gap-1 mb-4">
+                      <span className="px-2 py-1 text-xs bg-background-muted text-text-muted rounded">
+                        LoRA
+                      </span>
+                      <span className="px-2 py-1 text-xs bg-background-muted text-text-muted rounded">
+                        Fine-tuned
+                      </span>
+                      {model.gguf_available && (
+                        <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400 rounded">
+                          GGUF
+                        </span>
+                      )}
+                      {model.ollama_model_name && (
+                        <span className="px-2 py-1 text-xs bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400 rounded">
+                          Ollama
+                        </span>
+                      )}
+                    </div>
+                    
+                    {/* Actions */}
+                    <div className="space-y-2">
+                      {model.gguf_available && model.ollama_model_name && (
+                        <>
+                          <button
+                            onClick={() => {
+                              // Create a fake job object for the chat handler
+                              const fakeJob: TuningJob = {
+                                id: model.job_id,
+                                name: model.model_name,
+                                status: 'completed',
+                                progress: 100,
+                                baseModel: model.base_model,
+                                datasetSize: 0,
+                                startTime: new Date(model.created_at),
+                              };
+                              handleChatWithModel(fakeJob, model.ollama_model_name);
+                            }}
+                            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-background-accent text-text-on-accent rounded-lg hover:bg-background-accent/90 transition-colors text-sm font-medium"
+                          >
+                            <MessageSquare className="w-4 h-4" />
+                            Chat with Model
+                          </button>
+                          <button
+                            onClick={() => handleActivateAdapter(model.job_id)}
+                            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-background-subtle text-text-default rounded-lg hover:bg-background-medium transition-colors text-sm font-medium"
+                          >
+                            <Zap className="w-4 h-4" />
+                            Set as Default
+                          </button>
+                        </>
+                      )}
+                      {!model.gguf_available && (
+                        <button
+                          onClick={async () => {
+                            try {
+                              const res = await fetch(`${backendUrl}/training/convert-to-gguf`, {
+                                method: 'POST',
+                                headers: {
+                                  'Content-Type': 'application/json',
+                                  'X-Secret-Key': secretKey,
+                                },
+                                body: JSON.stringify({ job_id: model.job_id }),
+                              });
+                              
+                              if (res.ok) {
+                                alert('✅ Conversion started! Refresh to see updated status.');
+                                fetchFineTunedModels();
+                              } else {
+                                alert('❌ Failed to convert model');
+                              }
+                            } catch (e) {
+                              alert('❌ Error: ' + (e as Error).message);
+                            }
+                          }}
+                          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors text-sm font-medium"
+                        >
+                          <RefreshCw className="w-4 h-4" />
+                          Convert to GGUF
+                        </button>
+                      )}
+                    </div>
+                    
+                    <div className="mt-3 pt-3 border-t border-border-default">
+                      <div className="text-xs text-text-muted">
+                        Job ID: {model.job_id.slice(0, 8)}...
+                      </div>
+                      {model.ollama_model_name && (
+                        <div className="text-xs text-text-muted mt-1">
+                          Ollama: {model.ollama_model_name}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Model Providers - Keep for reference but hide for now */}
             <div className="hidden space-y-6">
