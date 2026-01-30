@@ -16,7 +16,6 @@ use goose::recipe::Recipe;
 use goose::scheduler::{get_default_scheduled_recipes_dir, ScheduledJob};
 
 fn validate_schedule_id(id: &str) -> Result<(), ErrorResponse> {
-    let id = id.trim();
     let is_valid = !id.is_empty()
         && id
             .chars()
@@ -108,7 +107,8 @@ async fn create_schedule(
     State(state): State<Arc<AppState>>,
     Json(req): Json<CreateScheduleRequest>,
 ) -> Result<Json<ScheduledJob>, ErrorResponse> {
-    validate_schedule_id(&req.id)?;
+    let id = req.id.trim().to_string();
+    validate_schedule_id(&id)?;
 
     if req.recipe.check_for_security_warnings() {
         return Err(ErrorResponse::bad_request(
@@ -125,7 +125,7 @@ async fn create_schedule(
         ErrorResponse::internal(format!("Failed to get scheduled recipes directory: {}", e))
     })?;
 
-    let recipe_path = scheduled_recipes_dir.join(format!("{}.yaml", req.id));
+    let recipe_path = scheduled_recipes_dir.join(format!("{}.yaml", id));
     let yaml_content = req
         .recipe
         .to_yaml()
@@ -135,7 +135,7 @@ async fn create_schedule(
         .map_err(|e| ErrorResponse::internal(format!("Failed to save recipe file: {}", e)))?;
 
     let job = ScheduledJob {
-        id: req.id,
+        id,
         source: recipe_path.to_string_lossy().into_owned(),
         cron: req.cron,
         last_run: None,
