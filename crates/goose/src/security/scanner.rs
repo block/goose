@@ -155,7 +155,7 @@ impl PromptInjectionScanner {
 
         let final_confidence = self.combine_confidences(
             tool_result.confidence,
-            context_result.ml_confidence, // Use ml_confidence (Option<f32>) instead of confidence
+            context_result.ml_confidence, 
         );
 
         tracing::info!(
