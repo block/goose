@@ -19,18 +19,12 @@ export const DictationSettings = () => {
 
   useEffect(() => {
     const loadSettings = async () => {
-      try {
-        const providerValue = await read('voice_dictation_provider', false);
-        const loadedProvider: DictationProvider | null =
-          (providerValue as DictationProvider) || null;
-        setProvider(loadedProvider);
+      const providerValue = await read('voice_dictation_provider', false);
+      const loadedProvider: DictationProvider | null = (providerValue as DictationProvider) || null;
+      setProvider(loadedProvider);
 
-        // Get provider configuration status from backend
-        const audioConfig = await getDictationConfig();
-        setProviderStatuses(audioConfig.data || {});
-      } catch (error) {
-        console.error('Error loading dictation settings:', error);
-      }
+      const audioConfig = await getDictationConfig();
+      setProviderStatuses(audioConfig.data || {});
     };
 
     loadSettings();
@@ -39,12 +33,8 @@ export const DictationSettings = () => {
   const saveProvider = async (newProvider: DictationProvider | null) => {
     console.log('Saving dictation provider to backend config:', newProvider);
     setProvider(newProvider);
-    try {
-      await upsert('voice_dictation_provider', newProvider || '', false);
-      trackSettingToggled('voice_dictation', newProvider !== null);
-    } catch (error) {
-      console.error('Error saving dictation provider:', error);
-    }
+    await upsert('voice_dictation_provider', newProvider || '', false);
+    trackSettingToggled('voice_dictation', newProvider !== null);
   };
 
   const handleProviderChange = (newProvider: DictationProvider | null) => {
@@ -57,12 +47,8 @@ export const DictationSettings = () => {
     setShowProviderDropdown(newShowState);
 
     if (newShowState) {
-      try {
-        const audioConfig = await getDictationConfig();
-        setProviderStatuses(audioConfig.data || {});
-      } catch (error) {
-        console.error('Error checking provider configuration:', error);
-      }
+      const audioConfig = await getDictationConfig();
+      setProviderStatuses(audioConfig.data || {});
     }
   };
 

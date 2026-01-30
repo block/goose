@@ -3,14 +3,14 @@ import { transcribeDictation, getDictationConfig, DictationProvider } from '../a
 import { useConfig } from '../components/ConfigContext';
 
 interface UseAudioRecorderOptions {
-  onTranscription?: (text: string) => void;
-  onError?: (error: Error) => void;
+  onTranscription: (text: string) => void;
+  onError: (error: Error) => void;
 }
 
 const MAX_AUDIO_SIZE_MB = 25;
 const MAX_RECORDING_DURATION_SECONDS = 600; // 10 minutes
 
-export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderOptions = {}) => {
+export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderOptions) => {
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
@@ -25,42 +25,23 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
   const streamRef = useRef<MediaStream | null>(null);
   const durationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Check provider configuration on mount
   useEffect(() => {
     const checkProviderConfig = async () => {
       try {
-        // Read provider preference from backend config
         const providerValue = await read('voice_dictation_provider', false);
         const preferredProvider = (providerValue as DictationProvider) || null;
-        console.log('[useAudioRecorder] Read voice_dictation_provider:', preferredProvider);
 
-        // If no provider selected, dictation is disabled
         if (!preferredProvider) {
-          console.log('[useAudioRecorder] No provider selected, setting to null');
           setIsEnabled(false);
           setProvider(null);
           return;
         }
 
-        // Check backend audio config to see if provider is actually configured (has API key)
         const audioConfigResponse = await getDictationConfig();
         const providerStatus = audioConfigResponse.data?.[preferredProvider];
-        console.log(
-          '[useAudioRecorder] Provider status for',
-          preferredProvider,
-          ':',
-          providerStatus
-        );
 
-        if (providerStatus?.configured) {
-          console.log('[useAudioRecorder] Provider is configured, enabling');
-          setIsEnabled(true);
-          setProvider(preferredProvider);
-        } else {
-          console.log('[useAudioRecorder] Provider not configured, disabling but keeping provider');
-          setIsEnabled(false);
-          setProvider(preferredProvider);
-        }
+        setIsEnabled(!!providerStatus?.configured);
+        setProvider(preferredProvider);
       } catch (error) {
         console.error('Error checking audio config:', error);
         setIsEnabled(false);
@@ -89,7 +70,6 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
     }
   }, []);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (durationIntervalRef.current) {
@@ -104,14 +84,13 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
   const transcribeAudio = useCallback(
     async (audioBlob: Blob) => {
       if (!provider) {
-        onError?.(new Error('No transcription provider configured'));
+        onError(new Error('No transcription provider configured'));
         return;
       }
 
       setIsTranscribing(true);
 
       try {
-        // Check file size
         const sizeMB = audioBlob.size / (1024 * 1024);
         if (sizeMB > MAX_AUDIO_SIZE_MB) {
           throw new Error(
@@ -119,7 +98,6 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
           );
         }
 
-        // Convert to base64
         const reader = new FileReader();
         const base64Audio = await new Promise<string>((resolve, reject) => {
           reader.onloadend = () => {
@@ -135,7 +113,6 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
           throw new Error('Unable to determine audio format');
         }
 
-        // Transcribe using generated API
         const result = await transcribeDictation({
           body: {
             audio: base64Audio,
@@ -146,11 +123,11 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
         });
 
         if (result.data?.text) {
-          onTranscription?.(result.data.text);
+          onTranscription(result.data.text);
         }
       } catch (error) {
         console.error('Error transcribing audio:', error);
-        onError?.(error as Error);
+        onError(error as Error);
       } finally {
         setIsTranscribing(false);
         setRecordingDuration(0);
@@ -162,7 +139,7 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
 
   const startRecording = useCallback(async () => {
     if (!isEnabled) {
-      onError?.(new Error('Voice dictation is not enabled'));
+      onError(new Error('Voice dictation is not enabled'));
       return;
     }
 
@@ -197,7 +174,7 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
         // Auto-stop at max duration
         if (elapsed >= MAX_RECORDING_DURATION_SECONDS) {
           stopRecording();
-          onError?.(
+          onError(
             new Error(
               `Maximum recording duration (${MAX_RECORDING_DURATION_SECONDS / 60} minutes) reached`
             )
@@ -215,7 +192,7 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
         const audioBlob = new Blob(audioChunksRef.current, { type: mimeType || 'audio/webm' });
 
         if (audioBlob.size === 0) {
-          onError?.(new Error('No audio data was recorded. Please check your microphone.'));
+          onError(new Error('No audio data was recorded. Please check your microphone.'));
           return;
         }
 
@@ -224,7 +201,7 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
 
       mediaRecorder.onerror = (event) => {
         console.error('MediaRecorder error:', event);
-        onError?.(new Error('Recording failed'));
+        onError(new Error('Recording failed'));
       };
 
       mediaRecorder.start(100);
@@ -232,7 +209,7 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
     } catch (error) {
       console.error('Error starting recording:', error);
       stopRecording();
-      onError?.(error as Error);
+      onError(error as Error);
     }
   }, [isEnabled, onError, transcribeAudio, stopRecording]);
 
