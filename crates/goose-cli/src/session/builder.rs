@@ -542,15 +542,9 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         resolve_extensions_for_new_session(recipe.and_then(|r| r.extensions.as_deref()), None)
     };
 
-    let streamable_urls: Vec<String> = session_config
-        .streamable_http_extensions
-        .iter()
-        .map(|opt| opt.url.clone())
-        .collect();
-
     let cli_flag_extensions_to_load = parse_cli_flag_extensions(
         &session_config.extensions,
-        &streamable_urls,
+        &session_config.streamable_http_extensions,
         &session_config.builtins,
     );
 
