@@ -146,14 +146,21 @@ async fn handle_response_error(response: reqwest::Response) -> ErrorResponse {
     let error_text = response.text().await.unwrap_or_default();
 
     ErrorResponse {
-        message: if status == 401 || error_text.contains("Invalid API key") || error_text.contains("Unauthorized") {
+        message: if status == 401
+            || error_text.contains("Invalid API key")
+            || error_text.contains("Unauthorized")
+        {
             "Invalid API key".to_string()
         } else if status == 429 || error_text.contains("quota") || error_text.contains("limit") {
             "Rate limit exceeded".to_string()
         } else {
             format!("API error: {}", error_text)
         },
-        status: if status.is_client_error() { status } else { StatusCode::BAD_GATEWAY },
+        status: if status.is_client_error() {
+            status
+        } else {
+            StatusCode::BAD_GATEWAY
+        },
     }
 }
 
@@ -162,10 +169,12 @@ fn build_api_client(provider: &str) -> Result<ApiClient, ErrorResponse> {
     let def = get_provider_def(provider)
         .ok_or_else(|| ErrorResponse::bad_request(format!("Unknown provider: {}", provider)))?;
 
-    let api_key = config.get_secret(def.config_key).map_err(|_| ErrorResponse {
-        message: format!("{} not configured", def.config_key),
-        status: StatusCode::PRECONDITION_FAILED,
-    })?;
+    let api_key = config
+        .get_secret(def.config_key)
+        .map_err(|_| ErrorResponse {
+            message: format!("{} not configured", def.config_key),
+            status: StatusCode::PRECONDITION_FAILED,
+        })?;
 
     let url = if let Some(host_key) = def.host_key {
         config
@@ -173,7 +182,8 @@ fn build_api_client(provider: &str) -> Result<ApiClient, ErrorResponse> {
             .ok()
             .and_then(|v| v.as_str().map(|s| s.to_string()))
             .map(|custom_host| {
-                let path = def.default_url
+                let path = def
+                    .default_url
                     .splitn(4, '/')
                     .nth(3)
                     .map(|p| format!("/{}", p))
@@ -191,7 +201,12 @@ fn build_api_client(provider: &str) -> Result<ApiClient, ErrorResponse> {
             header_name: "xi-api-key".to_string(),
             key: api_key,
         },
-        _ => return Err(ErrorResponse::bad_request(format!("Unknown provider: {}", provider))),
+        _ => {
+            return Err(ErrorResponse::bad_request(format!(
+                "Unknown provider: {}",
+                provider
+            )))
+        }
     };
 
     ApiClient::with_timeout(url, auth, REQUEST_TIMEOUT)
