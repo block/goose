@@ -32,6 +32,9 @@ function findDocFile(partialPath: string): string | null {
       const stat = fs.statSync(filePath);
 
       if (stat.isDirectory()) {
+        if (file === "assets" || file === "docker") {
+          continue;
+        }
         walkDir(filePath);
       } else {
         const relativePath = path.relative(docsDir, filePath);

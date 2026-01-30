@@ -53,6 +53,9 @@ function initializeSearch(): MiniSearch<DocFile> {
         const stat = fs.statSync(filePath);
 
         if (stat.isDirectory()) {
+          if (file === "assets" || file === "docker") {
+            continue;
+          }
           walkDir(filePath);
         } else {
           try {
