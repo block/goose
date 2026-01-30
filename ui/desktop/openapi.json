@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.21.0"
+    "version": "1.22.0"
   },
   "paths": {
     "/action-required/tool-confirmation": {
@@ -3812,6 +3812,10 @@
               },
               "description": {
                 "type": "string"
+              },
+              "display_name": {
+                "type": "string",
+                "nullable": true
               },
               "name": {
                 "type": "string",

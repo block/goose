@@ -42,6 +42,8 @@ enum RecipeExtensionConfigInternal {
         #[serde(default)]
         description: Option<String>,
         #[serde(default)]
+        display_name: Option<String>,
+        #[serde(default)]
         bundled: Option<bool>,
         #[serde(default)]
         available_tools: Vec<String>,
@@ -128,6 +130,7 @@ impl From<RecipeExtensionConfigInternal> for ExtensionConfig {
                 available_tools
             },
             Platform {
+                display_name,
                 bundled,
                 available_tools
             },

@@ -491,14 +491,17 @@ mod tests {
         ];
 
         agent
-            .add_extension(crate::agents::extension::ExtensionConfig::Frontend {
-                name: "frontend".to_string(),
-                description: "desc".to_string(),
-                tools: frontend_tools,
-                instructions: None,
-                bundled: None,
-                available_tools: vec![],
-            })
+            .add_extension(
+                crate::agents::extension::ExtensionConfig::Frontend {
+                    name: "frontend".to_string(),
+                    description: "desc".to_string(),
+                    tools: frontend_tools,
+                    instructions: None,
+                    bundled: None,
+                    available_tools: vec![],
+                },
+                &session.id,
+            )
             .await
             .unwrap();
 
