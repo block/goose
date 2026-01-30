@@ -337,6 +337,7 @@ MCP Apps open up a new dimension for agent interactions. Now it's time to build 
 Ready to dive deeper? Check out the [MCP Apps tutorial](/docs/tutorials/building-mcp-apps) or [build your first MCP App with MCPJam](https://docs.mcpjam.com/guides/first-mcp-app).
 
 <head>
+  <link rel="canonical" href="https://www.mcpjam.com/blog/mcp-apps-tips" />
   <meta property="og:title" content="5 Tips for Building MCP Apps That Work" />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2026/01/30/5-tips-building-mcp-apps" />
