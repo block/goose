@@ -1,13 +1,17 @@
 use anyhow::Result;
+use async_stream::try_stream;
 use async_trait::async_trait;
-use rmcp::model::Role;
+use futures::{future::BoxFuture, stream};
+use rmcp::model::{Role, Tool};
 use serde_json::{json, Value};
 use std::path::PathBuf;
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
-use super::base::{ConfigKey, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{
+    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
+};
 use super::errors::ProviderError;
 use super::utils::{filter_extensions_from_system_prompt, RequestLog};
 use crate::config::base::ClaudeCodeCommand;
@@ -16,8 +20,24 @@ use crate::config::{Config, GooseMode};
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::subprocess::configure_command_no_window;
-use futures::future::BoxFuture;
-use rmcp::model::Tool;
+
+#[derive(Default)]
+struct ParsedStreamEvent {
+    text: Option<String>,
+    usage: Option<Usage>,
+}
+
+fn extract_usage_tokens(usage_info: &Value) -> (Option<i32>, Option<i32>) {
+    let input = usage_info
+        .get("input_tokens")
+        .and_then(|v| v.as_i64())
+        .and_then(|v| i32::try_from(v).ok());
+    let output = usage_info
+        .get("output_tokens")
+        .and_then(|v| v.as_i64())
+        .and_then(|v| i32::try_from(v).ok());
+    (input, output)
+}
 
 const CLAUDE_CODE_PROVIDER_NAME: &str = "claude-code";
 pub const CLAUDE_CODE_DEFAULT_MODEL: &str = "claude-sonnet-4-20250514";
@@ -45,7 +65,6 @@ impl ClaudeCodeProvider {
         })
     }
 
-    /// Convert goose messages to the format expected by claude CLI
     fn messages_to_claude_format(&self, _system: &str, messages: &[Message]) -> Result<Value> {
         let mut claude_messages = Vec::new();
 
@@ -76,7 +95,6 @@ impl ClaudeCodeProvider {
                     }
                     MessageContent::ToolResponse(tool_response) => {
                         if let Ok(result) = &tool_response.tool_result {
-                            // Convert tool result contents to text
                             let content_text = result
                                 .content
                                 .iter()
@@ -96,9 +114,7 @@ impl ClaudeCodeProvider {
                             }));
                         }
                     }
-                    _ => {
-                        // Skip other content types for now
-                    }
+                    _ => {}
                 }
             }
 
@@ -111,7 +127,6 @@ impl ClaudeCodeProvider {
         Ok(json!(claude_messages))
     }
 
-    /// Parse the JSON response from claude CLI
     fn apply_permission_flags(cmd: &mut Command) -> Result<(), ProviderError> {
         let config = Config::global();
         let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
@@ -132,9 +147,7 @@ impl ClaudeCodeProvider {
                         .to_string(),
                 ));
             }
-            GooseMode::Chat => {
-                // Chat mode doesn't need permission flags
-            }
+            GooseMode::Chat => {}
         }
         Ok(())
     }
@@ -146,8 +159,7 @@ impl ClaudeCodeProvider {
         let mut all_text_content = Vec::new();
         let mut usage = Usage::default();
 
-        // Join all lines and parse as a single JSON array
-        let full_response = json_lines.join("");
+        let full_response = json_lines.concat();
         let json_array: Vec<Value> = serde_json::from_str(&full_response).map_err(|e| {
             ProviderError::RequestFailed(format!("Failed to parse JSON response: {}", e))
         })?;
@@ -157,7 +169,6 @@ impl ClaudeCodeProvider {
                 match msg_type {
                     "assistant" => {
                         if let Some(message) = parsed.get("message") {
-                            // Extract text content from this assistant message
                             if let Some(content) = message.get("content").and_then(|c| c.as_array())
                             {
                                 for item in content {
@@ -171,56 +182,39 @@ impl ClaudeCodeProvider {
                                                 all_text_content.push(text.to_string());
                                             }
                                         }
-                                        // Skip tool_use - those are claude CLI's internal tools
                                     }
                                 }
                             }
 
-                            // Extract usage information
                             if let Some(usage_info) = message.get("usage") {
-                                usage.input_tokens = usage_info
-                                    .get("input_tokens")
-                                    .and_then(|v| v.as_i64())
-                                    .map(|v| v as i32);
-                                usage.output_tokens = usage_info
-                                    .get("output_tokens")
-                                    .and_then(|v| v.as_i64())
-                                    .map(|v| v as i32);
-
-                                // Calculate total if not provided
-                                if usage.total_tokens.is_none() {
-                                    if let (Some(input), Some(output)) =
-                                        (usage.input_tokens, usage.output_tokens)
-                                    {
-                                        usage.total_tokens = Some(input + output);
-                                    }
-                                }
+                                let (input, output) = extract_usage_tokens(usage_info);
+                                usage.input_tokens = input;
+                                usage.output_tokens = output;
+                                usage.total_tokens = match (input, output) {
+                                    (Some(i), Some(o)) => Some(i + o),
+                                    (Some(i), None) => Some(i),
+                                    (None, Some(o)) => Some(o),
+                                    (None, None) => None,
+                                };
                             }
                         }
                     }
                     "result" => {
-                        // Extract additional usage info from result if available
                         if let Some(result_usage) = parsed.get("usage") {
+                            let (input, output) = extract_usage_tokens(result_usage);
                             if usage.input_tokens.is_none() {
-                                usage.input_tokens = result_usage
-                                    .get("input_tokens")
-                                    .and_then(|v| v.as_i64())
-                                    .map(|v| v as i32);
+                                usage.input_tokens = input;
                             }
                             if usage.output_tokens.is_none() {
-                                usage.output_tokens = result_usage
-                                    .get("output_tokens")
-                                    .and_then(|v| v.as_i64())
-                                    .map(|v| v as i32);
+                                usage.output_tokens = output;
                             }
                         }
                     }
-                    _ => {} // Ignore other message types
+                    _ => {}
                 }
             }
         }
 
-        // Combine all text content into a single message
         let combined_text = all_text_content.join("\n\n");
         if combined_text.is_empty() {
             return Err(ProviderError::RequestFailed(
@@ -237,6 +231,96 @@ impl ClaudeCodeProvider {
         );
 
         Ok((response_message, usage))
+    }
+
+    fn parse_streaming_event(line: &str) -> Option<ParsedStreamEvent> {
+        let parsed: Value = serde_json::from_str(line).ok()?;
+        let event_type = parsed.get("type").and_then(|t| t.as_str())?;
+
+        match event_type {
+            "stream_event" => {
+                let event = parsed.get("event")?;
+                let inner_type = event.get("type").and_then(|t| t.as_str())?;
+
+                match inner_type {
+                    "content_block_delta" => {
+                        let text = event
+                            .get("delta")
+                            .filter(|d| {
+                                d.get("type").and_then(|t| t.as_str()) == Some("text_delta")
+                            })
+                            .and_then(|d| d.get("text"))
+                            .and_then(|t| t.as_str())
+                            .map(|t| t.to_string())?;
+                        Some(ParsedStreamEvent {
+                            text: Some(text),
+                            ..Default::default()
+                        })
+                    }
+                    "message_delta" => event.get("usage").map(|usage_info| {
+                        let (_, output) = extract_usage_tokens(usage_info);
+                        ParsedStreamEvent {
+                            usage: Some(Usage::new(None, output, None)),
+                            ..Default::default()
+                        }
+                    }),
+                    "message_start" => {
+                        event
+                            .get("message")
+                            .and_then(|m| m.get("usage"))
+                            .map(|usage_info| {
+                                let (input, _) = extract_usage_tokens(usage_info);
+                                ParsedStreamEvent {
+                                    usage: Some(Usage::new(input, None, None)),
+                                    ..Default::default()
+                                }
+                            })
+                    }
+                    _ => None,
+                }
+            }
+            "result" => parsed.get("usage").map(|usage_info| {
+                let (input, output) = extract_usage_tokens(usage_info);
+                ParsedStreamEvent {
+                    usage: Some(Usage::new(input, output, None)),
+                    ..Default::default()
+                }
+            }),
+            _ => None,
+        }
+    }
+
+    fn build_command(
+        &self,
+        messages_json: &Value,
+        filtered_system: &str,
+        streaming: bool,
+    ) -> Result<Command, ProviderError> {
+        let mut cmd = Command::new(&self.command);
+        configure_command_no_window(&mut cmd);
+        cmd.arg("-p")
+            .arg(messages_json.to_string())
+            .arg("--system-prompt")
+            .arg(filtered_system);
+
+        if CLAUDE_CODE_KNOWN_MODELS.contains(&self.model.model_name.as_str()) {
+            cmd.arg("--model").arg(&self.model.model_name);
+        }
+
+        if streaming {
+            cmd.arg("--verbose")
+                .arg("--output-format")
+                .arg("stream-json")
+                .arg("--include-partial-messages");
+        } else {
+            cmd.arg("--verbose").arg("--output-format").arg("json");
+        }
+
+        Self::apply_permission_flags(&mut cmd)?;
+
+        cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+
+        Ok(cmd)
     }
 
     async fn execute_command(
@@ -270,24 +354,7 @@ impl ClaudeCodeProvider {
             println!("================================");
         }
 
-        let mut cmd = Command::new(&self.command);
-        configure_command_no_window(&mut cmd);
-        cmd.arg("-p")
-            .arg(messages_json.to_string())
-            .arg("--system-prompt")
-            .arg(&filtered_system);
-
-        // Only pass model parameter if it's in the known models list
-        if CLAUDE_CODE_KNOWN_MODELS.contains(&self.model.model_name.as_str()) {
-            cmd.arg("--model").arg(&self.model.model_name);
-        }
-
-        cmd.arg("--verbose").arg("--output-format").arg("json");
-
-        // Add permission mode based on GOOSE_MODE setting
-        Self::apply_permission_flags(&mut cmd)?;
-
-        cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+        let mut cmd = self.build_command(&messages_json, &filtered_system, false)?;
 
         let mut child = cmd.spawn().map_err(|e| {
             ProviderError::RequestFailed(format!(
@@ -308,7 +375,7 @@ impl ClaudeCodeProvider {
         loop {
             line.clear();
             match reader.read_line(&mut line).await {
-                Ok(0) => break, // EOF
+                Ok(0) => break,
                 Ok(_) => {
                     let trimmed = line.trim();
                     if !trimmed.is_empty() {
@@ -343,12 +410,10 @@ impl ClaudeCodeProvider {
         Ok(lines)
     }
 
-    /// Generate a simple session description without calling subprocess
     fn generate_simple_session_description(
         &self,
         messages: &[Message],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        // Extract the first user message text
         let description = messages
             .iter()
             .find(|m| m.role == Role::User)
@@ -359,7 +424,6 @@ impl ClaudeCodeProvider {
                 })
             })
             .map(|text| {
-                // Take first few words, limit to 4 words
                 text.split_whitespace()
                     .take(4)
                     .collect::<Vec<_>>()
@@ -416,7 +480,6 @@ impl Provider for ClaudeCodeProvider {
     }
 
     fn get_model_config(&self) -> ModelConfig {
-        // Return the model config with appropriate context limit for Claude models
         self.model.clone()
     }
 
@@ -426,13 +489,12 @@ impl Provider for ClaudeCodeProvider {
     )]
     async fn complete_with_model(
         &self,
-        _session_id: Option<&str>, // create_session == YYYYMMDD_N, but --session-id requires a UUID
+        _session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        // Check if this is a session description request (short system prompt asking for 4 words or less)
         if system.contains("four words or less") || system.contains("4 words or less") {
             return self.generate_simple_session_description(messages);
         }
@@ -441,7 +503,6 @@ impl Provider for ClaudeCodeProvider {
 
         let (message, usage) = self.parse_claude_response(&json_lines)?;
 
-        // Create a dummy payload for debug tracing
         let payload = json!({
             "command": self.command,
             "model": model_config.model_name,
@@ -461,5 +522,175 @@ impl Provider for ClaudeCodeProvider {
             message,
             ProviderUsage::new(model_config.model_name.clone(), usage),
         ))
+    }
+
+    fn supports_streaming(&self) -> bool {
+        true
+    }
+
+    async fn stream(
+        &self,
+        _session_id: &str,
+        system: &str,
+        messages: &[Message],
+        _tools: &[Tool],
+    ) -> Result<MessageStream, ProviderError> {
+        if system.contains("four words or less") || system.contains("4 words or less") {
+            let (message, usage) = self.generate_simple_session_description(messages)?;
+            return Ok(Box::pin(stream::once(async move {
+                Ok((Some(message), Some(usage)))
+            })));
+        }
+
+        let messages_json = self
+            .messages_to_claude_format(system, messages)
+            .map_err(|e| {
+                ProviderError::RequestFailed(format!("Failed to format messages: {}", e))
+            })?;
+
+        let filtered_system = filter_extensions_from_system_prompt(system);
+
+        let mut cmd = self.build_command(&messages_json, &filtered_system, true)?;
+
+        let mut child = cmd.spawn().map_err(|e| {
+            ProviderError::RequestFailed(format!(
+                "Failed to spawn Claude CLI command '{:?}': {}.",
+                self.command, e
+            ))
+        })?;
+
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| ProviderError::RequestFailed("Failed to capture stdout".to_string()))?;
+
+        let stderr = child.stderr.take();
+
+        let model_name = self.model.model_name.clone();
+
+        let message_id = uuid::Uuid::new_v4().to_string();
+
+        Ok(Box::pin(try_stream! {
+            let stderr_task = stderr.map(|stderr| {
+                tokio::spawn(async move {
+                    let mut reader = BufReader::new(stderr);
+                    let mut content = String::new();
+                    match tokio::io::AsyncReadExt::read_to_string(&mut reader, &mut content).await {
+                        Ok(_) => content,
+                        Err(e) => {
+                            tracing::warn!("Failed to read stderr from claude process: {e}");
+                            String::new()
+                        }
+                    }
+                })
+            });
+
+            let mut reader = BufReader::new(stdout);
+            let mut line = String::new();
+            let mut accumulated_usage = Usage::default();
+
+            loop {
+                line.clear();
+                match reader.read_line(&mut line).await {
+                    Ok(0) => break,
+                    Ok(_) => {
+                        let trimmed = line.trim();
+                        if !trimmed.is_empty() {
+                            if let Some(event) = Self::parse_streaming_event(trimmed) {
+                                if let Some(text) = event.text {
+                                    let mut partial_message = Message::new(
+                                        Role::Assistant,
+                                        chrono::Utc::now().timestamp(),
+                                        vec![MessageContent::text(text)],
+                                    );
+                                    partial_message.id = Some(message_id.clone());
+                                    yield (Some(partial_message), None);
+                                }
+                                if let Some(usage) = event.usage {
+                                    if let Some(input) = usage.input_tokens {
+                                        accumulated_usage.input_tokens = Some(input);
+                                    }
+                                    if let Some(output) = usage.output_tokens {
+                                        accumulated_usage.output_tokens = Some(output);
+                                    }
+                                    accumulated_usage.total_tokens = match (accumulated_usage.input_tokens, accumulated_usage.output_tokens) {
+                                        (Some(i), Some(o)) => Some(i + o),
+                                        (Some(i), None) => Some(i),
+                                        (None, Some(o)) => Some(o),
+                                        (None, None) => None,
+                                    };
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        Err(ProviderError::RequestFailed(format!(
+                            "Failed to read streaming output: {e}"
+                        )))?;
+                    }
+                }
+            }
+
+            let stderr_content = match stderr_task {
+                Some(task) => task.await.unwrap_or_else(|e| {
+                    tracing::warn!("Stderr collection task failed: {e}");
+                    String::new()
+                }),
+                None => String::new(),
+            };
+
+            let exit_status = child.wait().await.map_err(|e| {
+                ProviderError::RequestFailed(format!("Failed to wait for command: {e}"))
+            })?;
+
+            if !exit_status.success() {
+                let stderr_msg = if stderr_content.is_empty() {
+                    String::new()
+                } else {
+                    format!(" Stderr: {}", stderr_content.trim())
+                };
+                Err(ProviderError::RequestFailed(format!(
+                    "Command failed with exit code: {:?}.{stderr_msg}",
+                    exit_status.code()
+                )))?;
+            }
+
+            let provider_usage = ProviderUsage::new(model_name, accumulated_usage);
+            yield (None, Some(provider_usage));
+        }))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_streaming_event() {
+        let event = r#"{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"Hello"}}}"#;
+        let parsed = ClaudeCodeProvider::parse_streaming_event(event).unwrap();
+        assert_eq!(parsed.text.as_deref(), Some("Hello"));
+        assert!(parsed.usage.is_none());
+
+        let event = r#"{"type":"stream_event","event":{"type":"message_start","message":{"usage":{"input_tokens":100}}}}"#;
+        let parsed = ClaudeCodeProvider::parse_streaming_event(event).unwrap();
+        assert!(parsed.text.is_none());
+        assert_eq!(parsed.usage.as_ref().unwrap().input_tokens, Some(100));
+
+        let event = r#"{"type":"stream_event","event":{"type":"message_delta","usage":{"output_tokens":50}}}"#;
+        let parsed = ClaudeCodeProvider::parse_streaming_event(event).unwrap();
+        assert!(parsed.text.is_none());
+        assert_eq!(parsed.usage.as_ref().unwrap().output_tokens, Some(50));
+
+        let event = r#"{"type":"result","usage":{"input_tokens":100,"output_tokens":50}}"#;
+        let parsed = ClaudeCodeProvider::parse_streaming_event(event).unwrap();
+        assert!(parsed.text.is_none());
+        let usage = parsed.usage.as_ref().unwrap();
+        assert_eq!(usage.input_tokens, Some(100));
+        assert_eq!(usage.output_tokens, Some(50));
+
+        assert!(ClaudeCodeProvider::parse_streaming_event("not json").is_none());
+        assert!(ClaudeCodeProvider::parse_streaming_event(r#"{"type":"unknown"}"#).is_none());
+        assert!(ClaudeCodeProvider::parse_streaming_event(r#"{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta"}}}"#).is_none());
     }
 }
