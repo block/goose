@@ -214,5 +214,3 @@ async fn test_permission_persistence(
         expected_yaml
     );
 }
-
-}
