@@ -153,10 +153,8 @@ impl PromptInjectionScanner {
             threshold
         );
 
-        let final_confidence = self.combine_confidences(
-            tool_result.confidence,
-            context_result.ml_confidence, 
-        );
+        let final_confidence =
+            self.combine_confidences(tool_result.confidence, context_result.ml_confidence);
 
         tracing::info!(
             tool_confidence = %tool_result.confidence,
