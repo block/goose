@@ -579,7 +579,6 @@ p > code.bg-inline-code {
 
 /* Sidebar scrollbar styles */
 .sidebar-scrollbar {
-  scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
 }

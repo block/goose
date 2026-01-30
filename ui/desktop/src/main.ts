@@ -1946,6 +1946,23 @@ async function appMain() {
         );
       }
     }
+
+    const viewMenu = menu.items.find((item) => item.label === 'View');
+    if (viewMenu?.submenu && shortcuts.toggleNavigation) {
+      viewMenu.submenu.append(new MenuItem({ type: 'separator' }));
+      viewMenu.submenu.append(
+        new MenuItem({
+          label: 'Toggle Navigation',
+          accelerator: shortcuts.toggleNavigation,
+          click() {
+            const focusedWindow = BrowserWindow.getFocusedWindow();
+            if (focusedWindow) {
+              focusedWindow.webContents.send('toggle-navigation');
+            }
+          },
+        })
+      );
+    }
   }
 
   // on macOS, the topbar is hidden
