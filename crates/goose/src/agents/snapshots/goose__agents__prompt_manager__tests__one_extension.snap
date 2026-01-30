@@ -31,8 +31,8 @@ in your tool specification.
 
 ## test
 
-test supports resources, you can use platform__read_resource,
-and platform__list_resources on this extension.
+test supports resources, you can use extensionmanager__read_resource,
+and extensionmanager__list_resources on this extension.
 ### Instructions
 how to use this extension
 

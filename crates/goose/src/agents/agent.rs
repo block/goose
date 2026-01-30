@@ -8,12 +8,13 @@ use futures::stream::BoxStream;
 use futures::{stream, FutureExt, Stream, StreamExt, TryStreamExt};
 use uuid::Uuid;
 
+use super::container::Container;
 use super::final_output_tool::FinalOutputTool;
 use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::action_required_manager::ActionRequiredManager;
 use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
-use crate::agents::extension_manager::{get_parameter_names, normalize, ExtensionManager};
+use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
 use crate::agents::extension_manager_extension::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
 use crate::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
@@ -69,6 +70,7 @@ pub struct ReplyContext {
     pub toolshim_tools: Vec<Tool>,
     pub system_prompt: String,
     pub goose_mode: GooseMode,
+    pub tool_call_cut_off: usize,
     pub initial_messages: Vec<Message>,
 }
 
@@ -128,6 +130,7 @@ pub struct Agent {
 
     pub(super) retry_manager: RetryManager,
     pub(super) tool_inspection_manager: ToolInspectionManager,
+    container: Mutex<Option<Container>>,
 }
 
 #[derive(Clone, Debug)]
@@ -212,6 +215,7 @@ impl Agent {
             tool_result_rx: Arc::new(Mutex::new(tool_rx)),
             retry_manager: RetryManager::new(),
             tool_inspection_manager: Self::create_tool_inspection_manager(permission_manager),
+            container: Mutex::new(None),
         }
     }
 
@@ -279,7 +283,10 @@ impl Agent {
         let mut messages = Vec::new();
         let manager = self.config.session_manager.clone();
         let mut elicitation_rx = ActionRequiredManager::global().request_rx.lock().await;
-        while let Ok(elicitation_message) = elicitation_rx.try_recv() {
+        while let Ok(mut elicitation_message) = elicitation_rx.try_recv() {
+            if elicitation_message.id.is_none() {
+                elicitation_message = elicitation_message.with_generated_id();
+            }
             if let Err(e) = manager.add_message(session_id, &elicitation_message).await {
                 warn!("Failed to save elicitation message to session: {}", e);
             }
@@ -318,6 +325,9 @@ impl Agent {
             toolshim_tools,
             system_prompt,
             goose_mode: self.config.goose_mode,
+            tool_call_cut_off: Config::global()
+                .get_param::<usize>("GOOSE_TOOL_CALL_CUTOFF")
+                .unwrap_or(10),
             initial_messages,
         })
     }
@@ -407,6 +417,15 @@ impl Agent {
             Some(provider) => Ok(Arc::clone(provider)),
             None => Err(anyhow!("Provider not set")),
         }
+    }
+
+    /// When set, all stdio extensions will be started via `docker exec` in the specified container.
+    pub async fn set_container(&self, container: Option<Container>) {
+        *self.container.lock().await = container.clone();
+    }
+
+    pub async fn container(&self) -> Option<Container> {
+        self.container.lock().await.clone()
     }
 
     /// Check if a tool is a frontend tool
@@ -522,8 +541,16 @@ impl Agent {
             };
 
             let extensions = self.get_extension_configs().await;
+
+            let max_turns_from_recipe = session
+                .recipe
+                .as_ref()
+                .and_then(|r| r.settings.as_ref())
+                .and_then(|s| s.max_turns);
+
             let task_config =
-                TaskConfig::new(provider, &session.id, &session.working_dir, extensions);
+                TaskConfig::new(provider, &session.id, &session.working_dir, extensions)
+                    .with_max_turns(max_turns_from_recipe);
             let sub_recipes = self.sub_recipes.lock().await.clone();
 
             let arguments = tool_call
@@ -651,23 +678,21 @@ impl Agent {
             }
         };
 
-        // Capture the session's working_dir to pass to extensions
-        let working_dir = session.working_dir.clone();
+        let session_id = session.id.clone();
 
         let extension_futures = enabled_configs
             .into_iter()
             .map(|config| {
                 let config_clone = config.clone();
                 let agent_ref = self.clone();
-                let working_dir_clone = working_dir.clone();
+                let session_id_clone = session_id.clone();
 
                 async move {
                     let name = config_clone.name().to_string();
-                    let normalized_name = normalize(&name);
 
                     if agent_ref
                         .extension_manager
-                        .is_extension_enabled(&normalized_name)
+                        .is_extension_enabled(&name)
                         .await
                     {
                         tracing::debug!("Extension {} already loaded, skipping", name);
@@ -679,7 +704,7 @@ impl Agent {
                     }
 
                     match agent_ref
-                        .add_extension_with_working_dir(config_clone, Some(working_dir_clone))
+                        .add_extension(config_clone, &session_id_clone)
                         .await
                     {
                         Ok(_) => ExtensionLoadResult {
@@ -704,15 +729,24 @@ impl Agent {
         futures::future::join_all(extension_futures).await
     }
 
-    pub async fn add_extension(&self, extension: ExtensionConfig) -> ExtensionResult<()> {
-        self.add_extension_with_working_dir(extension, None).await
-    }
-
-    pub async fn add_extension_with_working_dir(
+    pub async fn add_extension(
         &self,
         extension: ExtensionConfig,
-        working_dir: Option<std::path::PathBuf>,
+        session_id: &str,
     ) -> ExtensionResult<()> {
+        let session = self
+            .config
+            .session_manager
+            .get_session(session_id, false)
+            .await
+            .map_err(|e| {
+                crate::agents::extension::ExtensionError::SetupError(format!(
+                    "Failed to get session '{}': {}",
+                    session_id, e
+                ))
+            })?;
+        let working_dir = Some(session.working_dir);
+
         match &extension {
             ExtensionConfig::Frontend {
                 tools,
@@ -740,25 +774,29 @@ impl Agent {
                 }
             }
             _ => {
+                let container = self.container.lock().await;
                 self.extension_manager
-                    .add_extension_with_working_dir(extension.clone(), working_dir)
+                    .add_extension(extension.clone(), working_dir, container.as_ref())
                     .await?;
             }
         }
+
+        // Persist extension state after successful add
+        self.persist_extension_state(session_id)
+            .await
+            .map_err(|e| {
+                error!("Failed to persist extension state: {}", e);
+                crate::agents::extension::ExtensionError::SetupError(format!(
+                    "Failed to persist extension state: {}",
+                    e
+                ))
+            })?;
 
         Ok(())
     }
 
     pub async fn subagents_enabled(&self, session_id: &str) -> bool {
         if self.config.goose_mode != GooseMode::Auto {
-            return false;
-        }
-        if self
-            .provider()
-            .await
-            .map(|provider| provider.get_active_model_name().starts_with("gemini"))
-            .unwrap_or(false)
-        {
             return false;
         }
         let context = self.extension_manager.get_context();
@@ -810,8 +848,17 @@ impl Agent {
         prefixed_tools
     }
 
-    pub async fn remove_extension(&self, name: &str) -> Result<()> {
+    pub async fn remove_extension(&self, name: &str, session_id: &str) -> Result<()> {
         self.extension_manager.remove_extension(name).await?;
+
+        // Persist extension state after successful removal
+        self.persist_extension_state(session_id)
+            .await
+            .map_err(|e| {
+                error!("Failed to persist extension state: {}", e);
+                anyhow!("Failed to persist extension state: {}", e)
+            })?;
+
         Ok(())
     }
 
@@ -1054,6 +1101,7 @@ impl Agent {
             mut tools,
             mut toolshim_tools,
             mut system_prompt,
+            tool_call_cut_off,
             goose_mode,
             initial_messages,
         } = context;
@@ -1104,6 +1152,13 @@ impl Agent {
                     );
                     break;
                 }
+
+                let tool_pair_summarization_task = crate::context_mgmt::maybe_summarize_tool_pair(
+                    self.provider().await?,
+                    session_config.id.clone(),
+                    conversation.clone(),
+                    tool_call_cut_off,
+                );
 
                 let conversation_with_moim = super::moim::inject_moim(
                     &session_config.id,
@@ -1177,9 +1232,7 @@ impl Agent {
                                 }
 
                                 let tool_response_messages: Vec<Arc<Mutex<Message>>> = (0..num_tool_requests)
-                                    .map(|_| Arc::new(Mutex::new(Message::user().with_id(
-                                        format!("msg_{}", Uuid::new_v4())
-                                    ))))
+                                    .map(|_| Arc::new(Mutex::new(Message::user().with_generated_id())))
                                     .collect();
 
                                 let mut request_to_response_map = HashMap::new();
@@ -1504,6 +1557,36 @@ impl Agent {
                     }
                 }
 
+                if let Ok(Some((summary_msg, tool_id))) = tool_pair_summarization_task.await {
+                    let mut updated_messages = conversation.messages().clone();
+
+                    let matching: Vec<&mut Message> = updated_messages
+                        .iter_mut()
+                        .filter(|msg| {
+                            msg.id.is_some() && msg.content.iter().any(|c| match c {
+                                MessageContent::ToolRequest(req) => req.id == tool_id,
+                                MessageContent::ToolResponse(resp) => resp.id == tool_id,
+                                _ => false,
+                            })
+                        })
+                        .collect();
+
+                    if matching.len() == 2 {
+                        for msg in matching {
+                            let id = msg.id.as_ref().unwrap();
+                            msg.metadata = msg.metadata.with_agent_invisible();
+                            SessionManager::update_message_metadata(&session_config.id, id, |metadata| {
+                                metadata.with_agent_invisible()
+                            }).await?;
+                        }
+                        conversation = Conversation::new_unvalidated(updated_messages);
+                        messages_to_add.push(summary_msg);
+                    } else {
+                        warn!("Expected a tool request/reply pair, but found {} matching messages",
+                            matching.len());
+                    }
+                }
+
                 for msg in &messages_to_add {
                     session_manager.add_message(&session_config.id, msg).await?;
                 }
@@ -1816,6 +1899,7 @@ impl Agent {
             goose_provider: Some(provider_name.clone()),
             goose_model: Some(model_name.clone()),
             temperature: Some(model_config.temperature.unwrap_or(0.0)),
+            max_turns: None,
         };
 
         tracing::debug!(

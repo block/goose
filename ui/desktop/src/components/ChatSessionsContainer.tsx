@@ -30,7 +30,7 @@ export default function ChatSessionsContainer({
 
   // Build the list of sessions to render
   let sessionsToRender = activeSessions;
-  
+
   // If we have a currentSessionId that's not in activeSessions, add it (handles page refresh)
   if (currentSessionId && !activeSessions.some((s) => s.sessionId === currentSessionId)) {
     sessionsToRender = [...activeSessions, { sessionId: currentSessionId }];

@@ -76,3 +76,11 @@ export async function generateDeepLink(recipe: Recipe): Promise<string> {
   const encoded = await encodeRecipe(recipe);
   return `goose://recipe?config=${encoded}`;
 }
+
+export function stripEmptyExtensions(recipe: Recipe): Recipe {
+  if (Array.isArray(recipe.extensions) && recipe.extensions.length === 0) {
+    const { extensions: _, ...rest } = recipe;
+    return rest as Recipe;
+  }
+  return recipe;
+}

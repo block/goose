@@ -5,6 +5,7 @@ import { Download, Play, Upload } from 'lucide-react';
 import { exportApp, GooseApp, importApp, listApps } from '../../api';
 import { useChatContext } from '../../contexts/ChatContext';
 import { formatAppName } from '../../utils/conversionUtils';
+import { errorMessage } from '../../utils/conversionUtils';
 
 const GridLayout = ({ children }: { children: React.ReactNode }) => {
   return (
@@ -63,7 +64,7 @@ export default function AppsView() {
         console.warn('Failed to refresh apps:', err);
         // Don't set error if we already have cached apps
         if (apps.length === 0) {
-          setError(err instanceof Error ? err.message : 'Failed to load apps');
+          setError(errorMessage(err, 'Failed to load apps'));
         }
       }
     };
@@ -115,7 +116,7 @@ export default function AppsView() {
     } catch (err) {
       // Only set error if we don't have apps to show
       if (apps.length === 0) {
-        setError(err instanceof Error ? err.message : 'Failed to load apps');
+        setError(errorMessage(err, 'Failed to load apps'));
       }
     } finally {
       setLoading(false);
@@ -151,7 +152,7 @@ export default function AppsView() {
       }
     } catch (err) {
       console.error('Failed to export app:', err);
-      setError(err instanceof Error ? err.message : 'Failed to export app');
+      setError(errorMessage(err, 'Failed to export app'));
     }
   };
 
@@ -179,7 +180,7 @@ export default function AppsView() {
       setError(null);
     } catch (err) {
       console.error('Failed to import app:', err);
-      setError(err instanceof Error ? err.message : 'Failed to import app');
+      setError(errorMessage(err, 'Failed to import app'));
     }
     event.target.value = '';
   };
