@@ -167,7 +167,7 @@ If you run commands but goose says it doesn't see any recent activity, check if 
 You can also check the id of the goose session in your current terminal:
 ```bash
 # Check if session ID exists
-echo $GOOSE_SESSION_ID
+echo $AGENT_SESSION_ID
 # Should show something like: 20251209_151730
 ```
 To share context across terminal windows, use a [named session](#named-sessions) instead.
