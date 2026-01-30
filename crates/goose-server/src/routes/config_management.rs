@@ -879,8 +879,4 @@ pub fn routes(state: Arc<AppState>) -> Router {
 }
 
 #[cfg(test)]
-mod tests {
-    use http::HeaderMap;
-
-    use super::*;
-}
+mod tests {}
