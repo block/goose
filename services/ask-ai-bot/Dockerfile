@@ -24,4 +24,7 @@ COPY --from=build /app/package.json ./
 # Copy documentation (only docs/ subdirectory with markdown files)
 COPY documentation/docs ./docs
 
+# Empty index.ts for discraft start to detect
+RUN touch index.ts
+
 CMD ["bun", "run", "start"]
