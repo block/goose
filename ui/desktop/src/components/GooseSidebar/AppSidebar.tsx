@@ -1,5 +1,5 @@
 import { AppEvents } from '../../constants/events';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   AppWindow,
   ChefHat,
@@ -10,6 +10,7 @@ import {
   Home,
   MessageSquarePlus,
   Puzzle,
+  Edit2,
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -25,13 +26,15 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/colla
 import { Gear } from '../icons';
 import { View, ViewOptions } from '../../utils/navigationUtils';
 import { DEFAULT_CHAT_TITLE, useChatContext } from '../../contexts/ChatContext';
-import { listSessions, Session } from '../../api';
+import { listSessions, Session, updateSessionName } from '../../api';
 import { resumeSession, startNewSession, shouldShowNewChatTitle } from '../../sessions';
 import { useNavigation } from '../../hooks/useNavigation';
 import { SessionIndicators } from '../SessionIndicators';
 import { useSidebarSessionStatus } from '../../hooks/useSidebarSessionStatus';
 import { getInitialWorkingDir } from '../../utils/workingDir';
 import { useConfig } from '../ConfigContext';
+import { Button } from '../ui/button';
+import { toast } from 'react-toastify';
 
 interface SidebarProps {
   onSelectSession: (sessionId: string) => void;
@@ -104,6 +107,95 @@ const getSessionDisplayName = (session: Session): string => {
   return DEFAULT_CHAT_TITLE;
 };
 
+// Context menu state type
+interface ContextMenuState {
+  x: number;
+  y: number;
+  session: Session;
+}
+
+// Rename modal component
+interface RenameModalProps {
+  session: Session | null;
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (sessionId: string, newName: string) => Promise<void>;
+}
+
+const RenameModal: React.FC<RenameModalProps> = ({ session, isOpen, onClose, onSave }) => {
+  const [name, setName] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  useEffect(() => {
+    if (session && isOpen) {
+      setName(session.name);
+    } else if (!isOpen) {
+      setName('');
+      setIsUpdating(false);
+    }
+  }, [session, isOpen]);
+
+  const handleSave = useCallback(async () => {
+    if (!session) return;
+
+    const trimmedName = name.trim();
+    if (trimmedName === session.name) {
+      onClose();
+      return;
+    }
+
+    setIsUpdating(true);
+    try {
+      await onSave(session.id, trimmedName);
+      onClose();
+    } catch (error) {
+      console.error('Failed to rename session:', error);
+    } finally {
+      setIsUpdating(false);
+    }
+  }, [session, name, onSave, onClose]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter' && !isUpdating) {
+        handleSave();
+      } else if (e.key === 'Escape' && !isUpdating) {
+        onClose();
+      }
+    },
+    [handleSave, onClose, isUpdating]
+  );
+
+  if (!isOpen || !session) return null;
+
+  return (
+    <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50">
+      <div className="bg-background-default border border-border-subtle rounded-lg p-6 w-[400px] max-w-[90vw]">
+        <h3 className="text-lg font-medium text-text-standard mb-4">Rename Session</h3>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="Enter session name"
+          autoFocus
+          maxLength={200}
+          onKeyDown={handleKeyDown}
+          disabled={isUpdating}
+        />
+        <div className="flex justify-end space-x-3 mt-6">
+          <Button onClick={onClose} variant="ghost" disabled={isUpdating}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={!name.trim() || isUpdating} variant="default">
+            {isUpdating ? 'Saving...' : 'Save'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const SessionList = React.memo<{
   sessions: Session[];
   activeSessionId: string | undefined;
@@ -111,8 +203,9 @@ const SessionList = React.memo<{
     sessionId: string
   ) => { streamState: string; hasUnreadActivity: boolean } | undefined;
   onSessionClick: (session: Session) => void;
+  onContextMenu: (e: React.MouseEvent, session: Session) => void;
 }>(
-  ({ sessions, activeSessionId, getSessionStatus, onSessionClick }) => {
+  ({ sessions, activeSessionId, getSessionStatus, onSessionClick, onContextMenu }) => {
     const sortedSessions = React.useMemo(() => {
       return [...sessions].sort((a, b) => {
         const aIsEmptyNew = shouldShowNewChatTitle(a);
@@ -145,6 +238,7 @@ const SessionList = React.memo<{
               <div className="absolute left-0 w-2 h-px bg-border-strong top-1/2" />
               <button
                 onClick={() => onSessionClick(session)}
+                onContextMenu={(e) => onContextMenu(e, session)}
                 className={`w-full text-left ml-3 px-1.5 py-1.5 pr-2 rounded-md text-sm transition-colors flex items-center gap-1 min-w-0 ${
                   activeSessionId === session.id
                     ? 'bg-background-medium text-text-default'
@@ -208,6 +302,74 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   const [isChatExpanded, setIsChatExpanded] = useState(true);
   const activeSessionId = searchParams.get('resumeSessionId') ?? undefined;
   const { getSessionStatus, clearUnread } = useSidebarSessionStatus(activeSessionId);
+
+  // Context menu state
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  // Rename modal state
+  const [renameSession, setRenameSession] = useState<Session | null>(null);
+
+  // Close context menu on click outside
+  useEffect(() => {
+    const handleClick = () => setContextMenu(null);
+    if (contextMenu) {
+      document.addEventListener('click', handleClick);
+      return () => document.removeEventListener('click', handleClick);
+    }
+  }, [contextMenu]);
+
+  // Close context menu on escape
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setContextMenu(null);
+    };
+    if (contextMenu) {
+      document.addEventListener('keydown', handleEscape);
+      return () => document.removeEventListener('keydown', handleEscape);
+    }
+  }, [contextMenu]);
+
+  const handleContextMenu = useCallback((e: React.MouseEvent, session: Session) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({ x: e.clientX, y: e.clientY, session });
+  }, []);
+
+  const handleRenameClick = useCallback(() => {
+    if (contextMenu) {
+      setRenameSession(contextMenu.session);
+      setContextMenu(null);
+    }
+  }, [contextMenu]);
+
+  const handleRenameSave = useCallback(async (sessionId: string, newName: string) => {
+    try {
+      await updateSessionName({
+        path: { session_id: sessionId },
+        body: { name: newName },
+        throwOnError: true,
+      });
+      
+      // Update local state
+      setRecentSessions((prev) =>
+        prev.map((s) =>
+          s.id === sessionId ? { ...s, name: newName, message_count: Math.max(s.message_count, 1) } : s
+        )
+      );
+      
+      // Dispatch event for other components
+      window.dispatchEvent(
+        new CustomEvent(AppEvents.SESSION_RENAMED, {
+          detail: { sessionId, newName },
+        })
+      );
+      
+      toast.success('Session renamed');
+    } catch (error) {
+      console.error('Failed to rename session:', error);
+      toast.error('Failed to rename session');
+      throw error;
+    }
+  }, []);
 
   // When activeSessionId changes, ensure it's in the recent sessions list
   // This handles the case where a session is loaded from history that's older than the top 10
@@ -543,6 +705,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                         activeSessionId={activeSessionId}
                         getSessionStatus={getSessionStatus}
                         onSessionClick={handleSessionClick}
+                        onContextMenu={handleContextMenu}
                       />
                       {/* View All Link */}
                       <button
@@ -564,6 +727,30 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
           {visibleMenuItems.map((entry, index) => renderMenuItem(entry, index))}
         </SidebarMenu>
       </SidebarContent>
+
+      {/* Context Menu */}
+      {contextMenu && (
+        <div
+          className="fixed z-[200] min-w-[160px] bg-background-default border border-border-subtle rounded-lg shadow-lg py-1"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+        >
+          <button
+            onClick={handleRenameClick}
+            className="w-full px-3 py-2 text-left text-sm text-text-standard hover:bg-background-medium flex items-center gap-2"
+          >
+            <Edit2 className="w-4 h-4" />
+            Rename
+          </button>
+        </div>
+      )}
+
+      {/* Rename Modal */}
+      <RenameModal
+        session={renameSession}
+        isOpen={!!renameSession}
+        onClose={() => setRenameSession(null)}
+        onSave={handleRenameSave}
+      />
     </>
   );
 };
