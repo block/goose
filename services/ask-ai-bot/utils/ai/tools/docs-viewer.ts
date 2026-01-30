@@ -1,6 +1,10 @@
 import fs from "fs";
 import path from "path";
 
+function getDocsDir(): string {
+  return process.env.DOCS_PATH || path.join(process.cwd(), "docs");
+}
+
 function generateWebUrl(filePath: string): string {
   const baseUrl = "https://block.github.io/goose/docs";
   // Remove file extension for the URL path
@@ -9,7 +13,7 @@ function generateWebUrl(filePath: string): string {
 }
 
 function findDocFile(partialPath: string): string | null {
-  const docsDir = path.join(process.cwd(), "data", "docs");
+  const docsDir = getDocsDir();
 
   if (!fs.existsSync(docsDir)) {
     return null;
@@ -48,7 +52,7 @@ function getDocChunk(
   startLine: number = 0,
   lineCount: number = 100,
 ): { fileName: string; content: string; webUrl: string } {
-  const docsDir = path.join(process.cwd(), "data", "docs");
+  const docsDir = getDocsDir();
   const fullPath = path.join(docsDir, filePath);
 
   const normalizedPath = path.normalize(fullPath);

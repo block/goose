@@ -22,12 +22,16 @@ interface DocFile {
 
 let miniSearch: MiniSearch<DocFile> | null = null;
 
+function getDocsDir(): string {
+  return process.env.DOCS_PATH || path.join(process.cwd(), "docs");
+}
+
 function initializeSearch(): MiniSearch<DocFile> {
   if (miniSearch) {
     return miniSearch;
   }
 
-  const docsDir = path.join(process.cwd(), "data", "docs");
+  const docsDir = getDocsDir();
 
   if (!fs.existsSync(docsDir)) {
     logger.warn(`Docs directory not found at ${docsDir}`);
