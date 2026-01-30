@@ -31,7 +31,7 @@ function initializeSearch(): MiniSearch<DocFile> {
     return miniSearch;
   }
 
-  const docsDir = getDocsDir();
+  const docsDir = path.resolve(getDocsDir());
 
   if (!fs.existsSync(docsDir)) {
     logger.warn(`Docs directory not found at ${docsDir}`);
