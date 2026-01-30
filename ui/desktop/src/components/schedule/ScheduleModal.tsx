@@ -48,6 +48,14 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
   const [internalValidationError, setInternalValidationError] = useState<string | null>(null);
   const [isValid, setIsValid] = useState(true);
 
+  const setScheduleIdFromTitle = (title: string) => {
+    const cleanId = title
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, '-')
+      .replace(/-+/g, '-');
+    setScheduleId(cleanId);
+  };
+
   const handleDeepLinkChange = useCallback(async (value: string) => {
     setDeepLinkInput(value);
     setInternalValidationError(null);
@@ -58,11 +66,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
         if (recipe) {
           setParsedRecipe(recipe);
           if (recipe.title) {
-            const cleanId = recipe.title
-              .toLowerCase()
-              .replace(/[^a-z0-9-]/g, '-')
-              .replace(/-+/g, '-');
-            setScheduleId(cleanId);
+            setScheduleIdFromTitle(recipe.title);
           }
         } else {
           setParsedRecipe(null);
@@ -109,6 +113,17 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
       if (filePath.endsWith('.yaml') || filePath.endsWith('.yml')) {
         setRecipeSourcePath(filePath);
         setInternalValidationError(null);
+
+        const fileResponse = await window.electron.readFile(filePath);
+        if (fileResponse.found && !fileResponse.error) {
+          const recipe = await parseRecipeFromFile(fileResponse.file);
+          if (recipe) {
+            setParsedRecipe(recipe);
+            if (recipe.title) {
+              setScheduleIdFromTitle(recipe.title);
+            }
+          }
+        }
       } else {
         setInternalValidationError('Invalid file type: Please select a YAML file (.yaml or .yml)');
       }
@@ -129,46 +144,14 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
       return;
     }
 
-    let recipe: Recipe | null = null;
-
-    if (sourceType === 'file') {
-      if (!recipeSourcePath) {
-        setInternalValidationError('Recipe source file is required.');
-        return;
-      }
-
-      try {
-        const fileResponse = await window.electron.readFile(recipeSourcePath);
-        if (!fileResponse.found || fileResponse.error) {
-          setInternalValidationError(fileResponse.error || 'Failed to read recipe file.');
-          return;
-        }
-        recipe = await parseRecipeFromFile(fileResponse.file);
-      } catch (error) {
-        console.error('Failed to parse recipe file:', error);
-        setInternalValidationError('Failed to parse the recipe file.');
-        return;
-      }
-    } else if (sourceType === 'deeplink') {
-      if (!deepLinkInput.trim()) {
-        setInternalValidationError('Deep link is required.');
-        return;
-      }
-      if (!parsedRecipe) {
-        setInternalValidationError('Invalid deep link. Please check the format.');
-        return;
-      }
-      recipe = parsedRecipe;
-    }
-
-    if (!recipe) {
-      setInternalValidationError('No recipe found.');
+    if (!parsedRecipe) {
+      setInternalValidationError('Please provide a valid recipe source.');
       return;
     }
 
     const newSchedulePayload: NewSchedulePayload = {
       id: scheduleId.trim(),
-      recipe,
+      recipe: parsedRecipe,
       cron: cronExpression,
     };
 
