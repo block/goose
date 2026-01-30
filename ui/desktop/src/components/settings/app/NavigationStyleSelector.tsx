@@ -7,18 +7,23 @@ interface NavigationStyleSelectorProps {
   className?: string;
 }
 
-const styles: { value: NavigationStyle; label: string; icon: React.ReactNode; description: string }[] = [
+const styles: {
+  value: NavigationStyle;
+  label: string;
+  icon: React.ReactNode;
+  description: string;
+}[] = [
   {
     value: 'expanded',
-    label: 'Expanded',
+    label: 'Tile',
     icon: <LayoutGrid className="w-5 h-5" />,
-    description: 'Full navigation with labels',
+    description: 'Enlarged tile view',
   },
   {
     value: 'condensed',
-    label: 'Condensed',
+    label: 'List',
     icon: <List className="w-5 h-5" />,
-    description: 'Compact icon-only view',
+    description: 'Classic condensed view',
   },
 ];
 
