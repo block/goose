@@ -6,7 +6,7 @@ use axum::{
     Json, Router,
 };
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-use reqwest::Client;
+use goose::providers::api_client::{ApiClient, AuthMethod};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -141,54 +141,68 @@ fn validate_audio(audio: &str, mime_type: &str) -> Result<(Vec<u8>, &'static str
     Ok((audio_bytes, extension))
 }
 
-fn get_provider_config(provider: &str) -> Result<(String, String), ErrorResponse> {
+async fn handle_response_error(response: reqwest::Response) -> ErrorResponse {
+    let status = response.status();
+    let error_text = response.text().await.unwrap_or_default();
+
+    ErrorResponse {
+        message: if status == 401 || error_text.contains("Invalid API key") || error_text.contains("Unauthorized") {
+            "Invalid API key".to_string()
+        } else if status == 429 || error_text.contains("quota") || error_text.contains("limit") {
+            "Rate limit exceeded".to_string()
+        } else {
+            format!("API error: {}", error_text)
+        },
+        status: if status.is_client_error() { status } else { StatusCode::BAD_GATEWAY },
+    }
+}
+
+fn build_api_client(provider: &str) -> Result<ApiClient, ErrorResponse> {
     let config = goose::config::Config::global();
     let def = get_provider_def(provider)
         .ok_or_else(|| ErrorResponse::bad_request(format!("Unknown provider: {}", provider)))?;
 
-    let api_key = config
-        .get_secret(def.config_key)
-        .map_err(|_| ErrorResponse {
-            message: format!("{} not configured", def.config_key),
-            status: StatusCode::PRECONDITION_FAILED,
-        })?;
+    let api_key = config.get_secret(def.config_key).map_err(|_| ErrorResponse {
+        message: format!("{} not configured", def.config_key),
+        status: StatusCode::PRECONDITION_FAILED,
+    })?;
 
     let url = if let Some(host_key) = def.host_key {
-        // If host_key is configured, replace the host part of the default URL
-        if let Some(custom_host) = config
+        config
             .get(host_key, false)
             .ok()
             .and_then(|v| v.as_str().map(|s| s.to_string()))
-        {
-            // Extract the path from default_url (everything after the third slash)
-            // e.g., "https://api.openai.com/v1/audio/transcriptions" -> "/v1/audio/transcriptions"
-            let path = def
-                .default_url
-                .splitn(4, '/')
-                .nth(3)
-                .map(|p| format!("/{}", p))
-                .unwrap_or_else(|| "".to_string());
-
-            // Remove trailing slash from custom host if present
-            let custom_host = custom_host.trim_end_matches('/');
-
-            format!("{}{}", custom_host, path)
-        } else {
-            def.default_url.to_string()
-        }
+            .map(|custom_host| {
+                let path = def.default_url
+                    .splitn(4, '/')
+                    .nth(3)
+                    .map(|p| format!("/{}", p))
+                    .unwrap_or_default();
+                format!("{}{}", custom_host.trim_end_matches('/'), path)
+            })
+            .unwrap_or_else(|| def.default_url.to_string())
     } else {
         def.default_url.to_string()
     };
 
-    Ok((api_key, url))
+    let auth = match provider {
+        "openai" => AuthMethod::BearerToken(api_key),
+        "elevenlabs" => AuthMethod::ApiKey {
+            header_name: "xi-api-key".to_string(),
+            key: api_key,
+        },
+        _ => return Err(ErrorResponse::bad_request(format!("Unknown provider: {}", provider))),
+    };
+
+    ApiClient::with_timeout(url, auth, REQUEST_TIMEOUT)
+        .map_err(|e| ErrorResponse::internal(format!("Failed to create client: {}", e)))
 }
 
 async fn transcribe_openai(
     audio_bytes: Vec<u8>,
     extension: &str,
     mime_type: &str,
-    api_key: &str,
-    url: &str,
+    client: &ApiClient,
 ) -> Result<String, ErrorResponse> {
     let part = reqwest::multipart::Part::bytes(audio_bytes)
         .file_name(format!("audio.{}", extension))
@@ -199,49 +213,25 @@ async fn transcribe_openai(
         .part("file", part)
         .text("model", "whisper-1");
 
-    let client = Client::builder()
-        .timeout(REQUEST_TIMEOUT)
-        .build()
-        .map_err(|e| ErrorResponse::internal(format!("Failed to create client: {}", e)))?;
-
     let response = client
-        .post(url)
-        .header("Authorization", format!("Bearer {}", api_key))
-        .multipart(form)
-        .send()
+        .request(None, "")
+        .multipart_post(form)
         .await
-        .map_err(|e| {
-            if e.is_timeout() {
-                ErrorResponse {
-                    message: "Request timed out".to_string(),
-                    status: StatusCode::GATEWAY_TIMEOUT,
-                }
+        .map_err(|e| ErrorResponse {
+            message: if e.to_string().contains("timeout") {
+                "Request timed out".to_string()
             } else {
-                ErrorResponse {
-                    message: format!("Request failed: {}", e),
-                    status: StatusCode::SERVICE_UNAVAILABLE,
-                }
-            }
+                format!("Request failed: {}", e)
+            },
+            status: if e.to_string().contains("timeout") {
+                StatusCode::GATEWAY_TIMEOUT
+            } else {
+                StatusCode::SERVICE_UNAVAILABLE
+            },
         })?;
 
     if !response.status().is_success() {
-        let status = response.status();
-        let error_text = response.text().await.unwrap_or_default();
-
-        return Err(ErrorResponse {
-            message: if status == 401 {
-                "Invalid API key".to_string()
-            } else if status == 429 {
-                "Rate limit exceeded".to_string()
-            } else {
-                format!("API error: {}", error_text)
-            },
-            status: if status.is_client_error() {
-                status
-            } else {
-                StatusCode::BAD_GATEWAY
-            },
-        });
+        return Err(handle_response_error(response).await);
     }
 
     let data: TranscribeResponse = response
@@ -256,8 +246,7 @@ async fn transcribe_elevenlabs(
     audio_bytes: Vec<u8>,
     extension: &str,
     mime_type: &str,
-    api_key: &str,
-    url: &str,
+    client: &ApiClient,
 ) -> Result<String, ErrorResponse> {
     let part = reqwest::multipart::Part::bytes(audio_bytes)
         .file_name(format!("audio.{}", extension))
@@ -268,51 +257,25 @@ async fn transcribe_elevenlabs(
         .part("file", part)
         .text("model_id", "scribe_v1");
 
-    let client = Client::builder()
-        .timeout(REQUEST_TIMEOUT)
-        .build()
-        .map_err(|e| ErrorResponse::internal(format!("Failed to create client: {}", e)))?;
-
     let response = client
-        .post(url)
-        .header("xi-api-key", api_key)
-        .multipart(form)
-        .send()
+        .request(None, "")
+        .multipart_post(form)
         .await
-        .map_err(|e| {
-            if e.is_timeout() {
-                ErrorResponse {
-                    message: "Request timed out".to_string(),
-                    status: StatusCode::GATEWAY_TIMEOUT,
-                }
+        .map_err(|e| ErrorResponse {
+            message: if e.to_string().contains("timeout") {
+                "Request timed out".to_string()
             } else {
-                ErrorResponse {
-                    message: format!("Request failed: {}", e),
-                    status: StatusCode::SERVICE_UNAVAILABLE,
-                }
-            }
+                format!("Request failed: {}", e)
+            },
+            status: if e.to_string().contains("timeout") {
+                StatusCode::GATEWAY_TIMEOUT
+            } else {
+                StatusCode::SERVICE_UNAVAILABLE
+            },
         })?;
 
     if !response.status().is_success() {
-        let status = response.status();
-        let error_text = response.text().await.unwrap_or_default();
-
-        return Err(ErrorResponse {
-            message: if error_text.contains("Unauthorized")
-                || error_text.contains("Invalid API key")
-            {
-                "Invalid API key".to_string()
-            } else if error_text.contains("quota") || error_text.contains("limit") {
-                "Rate limit exceeded".to_string()
-            } else {
-                format!("API error: {}", error_text)
-            },
-            status: if status.is_client_error() {
-                status
-            } else {
-                StatusCode::BAD_GATEWAY
-            },
-        });
+        return Err(handle_response_error(response).await);
     }
 
     let data: TranscribeResponse = response
@@ -345,15 +308,14 @@ pub async fn transcribe_dictation(
 ) -> Result<Json<TranscribeResponse>, ErrorResponse> {
     let (audio_bytes, extension) = validate_audio(&request.audio, &request.mime_type)?;
     let provider_name = request.provider.as_str();
-    let (api_key, url) = get_provider_config(provider_name)?;
+    let client = build_api_client(provider_name)?;
 
     let text = match request.provider {
         DictationProvider::OpenAI => {
-            transcribe_openai(audio_bytes, extension, &request.mime_type, &api_key, &url).await?
+            transcribe_openai(audio_bytes, extension, &request.mime_type, &client).await?
         }
         DictationProvider::ElevenLabs => {
-            transcribe_elevenlabs(audio_bytes, extension, &request.mime_type, &api_key, &url)
-                .await?
+            transcribe_elevenlabs(audio_bytes, extension, &request.mime_type, &client).await?
         }
     };
 

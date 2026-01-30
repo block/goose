@@ -271,12 +271,12 @@ export default function ChatInput({
       setValue(newValue);
       textAreaRef.current?.focus();
     },
-    onError: (error) => {
-      const errorType = error.name || 'DictationError';
+    onError: (message) => {
+      const errorType = 'DictationError';
       trackVoiceDictation('error', undefined, errorType);
       toastError({
         title: 'Dictation Error',
-        msg: error.message,
+        msg: message,
       });
     },
   });
@@ -1270,11 +1270,6 @@ export default function ChatInput({
                       ) : dictationProvider === 'elevenlabs' ? (
                         <p>
                           ElevenLabs API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
-                          <b>Chat</b> {'>'} <b>Voice Dictation.</b>
-                        </p>
-                      ) : dictationProvider === null ? (
-                        <p>
-                          Dictation is not configured. Configure it in <b>Settings</b> {'>'}{' '}
                           <b>Chat</b> {'>'} <b>Voice Dictation.</b>
                         </p>
                       ) : (

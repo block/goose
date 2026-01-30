@@ -1,14 +1,15 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { transcribeDictation, getDictationConfig, DictationProvider } from '../api';
 import { useConfig } from '../components/ConfigContext';
+import { errorMessage } from '../utils/conversionUtils';
 
 interface UseAudioRecorderOptions {
   onTranscription: (text: string) => void;
-  onError: (error: Error) => void;
+  onError: (message: string) => void;
 }
 
 const MAX_AUDIO_SIZE_MB = 25;
-const MAX_RECORDING_DURATION_SECONDS = 600; // 10 minutes
+const MAX_RECORDING_DURATION_SECONDS = 10 * 60;
 
 export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderOptions) => {
   const [isRecording, setIsRecording] = useState(false);
@@ -84,7 +85,7 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
   const transcribeAudio = useCallback(
     async (audioBlob: Blob) => {
       if (!provider) {
-        onError(new Error('No transcription provider configured'));
+        onError('No transcription provider configured');
         return;
       }
 
@@ -93,9 +94,10 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
       try {
         const sizeMB = audioBlob.size / (1024 * 1024);
         if (sizeMB > MAX_AUDIO_SIZE_MB) {
-          throw new Error(
+          onError(
             `Audio file too large (${sizeMB.toFixed(1)}MB). Maximum size is ${MAX_AUDIO_SIZE_MB}MB.`
           );
+          return;
         }
 
         const reader = new FileReader();
@@ -126,8 +128,7 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
           onTranscription(result.data.text);
         }
       } catch (error) {
-        console.error('Error transcribing audio:', error);
-        onError(error as Error);
+        onError(errorMessage(error));
       } finally {
         setIsTranscribing(false);
         setRecordingDuration(0);
@@ -139,7 +140,7 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
 
   const startRecording = useCallback(async () => {
     if (!isEnabled) {
-      onError(new Error('Voice dictation is not enabled'));
+      onError('Voice dictation is not enabled');
       return;
     }
 
@@ -153,7 +154,6 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
       });
       streamRef.current = stream;
 
-      // Determine best supported MIME type
       const supportedTypes = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/wav'];
       const mimeType = supportedTypes.find((type) => MediaRecorder.isTypeSupported(type)) || '';
 
@@ -161,23 +161,18 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
-      // Track recording duration and size
       const startTime = Date.now();
       durationIntervalRef.current = setInterval(() => {
         const elapsed = (Date.now() - startTime) / 1000;
         setRecordingDuration(elapsed);
 
-        // Estimate size based on typical webm bitrate (~128kbps)
         const estimatedSizeMB = (elapsed * 128 * 1024) / (8 * 1024 * 1024);
         setEstimatedSize(estimatedSizeMB);
 
-        // Auto-stop at max duration
         if (elapsed >= MAX_RECORDING_DURATION_SECONDS) {
           stopRecording();
           onError(
-            new Error(
-              `Maximum recording duration (${MAX_RECORDING_DURATION_SECONDS / 60} minutes) reached`
-            )
+            `Maximum recording duration (${MAX_RECORDING_DURATION_SECONDS / 60} minutes) reached`
           );
         }
       }, 100);
@@ -192,24 +187,22 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
         const audioBlob = new Blob(audioChunksRef.current, { type: mimeType || 'audio/webm' });
 
         if (audioBlob.size === 0) {
-          onError(new Error('No audio data was recorded. Please check your microphone.'));
+          onError('No audio data was recorded. Please check your microphone.');
           return;
         }
 
         await transcribeAudio(audioBlob);
       };
 
-      mediaRecorder.onerror = (event) => {
-        console.error('MediaRecorder error:', event);
-        onError(new Error('Recording failed'));
+      mediaRecorder.onerror = (_event) => {
+        onError('Recording failed');
       };
 
       mediaRecorder.start(100);
       setIsRecording(true);
     } catch (error) {
-      console.error('Error starting recording:', error);
       stopRecording();
-      onError(error as Error);
+      onError(errorMessage(error));
     }
   }, [isEnabled, onError, transcribeAudio, stopRecording]);
 
