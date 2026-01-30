@@ -2,6 +2,8 @@ use anyhow::Result;
 use fs_err as fs;
 use goose::agents::extension::{Envs, PLATFORM_EXTENSIONS};
 use goose::agents::{Agent, AgentConfig, ExtensionConfig, SessionConfig};
+use goose::config::base::CONFIG_YAML_NAME;
+use goose::config::extensions::get_enabled_extensions_with_config;
 use goose::config::paths::Paths;
 use goose::config::permission::PermissionManager;
 use goose::config::Config;
@@ -46,7 +48,7 @@ pub struct GooseAcpAgent {
     provider: Arc<dyn goose::providers::base::Provider>,
 }
 
-pub struct GooseAcpConfig {
+pub struct AcpServerConfig {
     pub provider: Arc<dyn goose::providers::base::Provider>,
     pub builtins: Vec<String>,
     pub data_dir: std::path::PathBuf,
@@ -255,8 +257,9 @@ async fn add_builtins(agent: &Agent, builtins: Vec<String>) {
         let config = if PLATFORM_EXTENSIONS.contains_key(builtin.as_str()) {
             ExtensionConfig::Platform {
                 name: builtin.clone(),
-                bundled: None,
                 description: builtin.clone(),
+                display_name: None,
+                bundled: None,
                 available_tools: Vec::new(),
             }
         } else {
@@ -270,14 +273,35 @@ async fn add_builtins(agent: &Agent, builtins: Vec<String>) {
             }
         };
 
-        match agent.add_extension(config).await {
+        match agent
+            .extension_manager
+            .add_extension(config, None, None)
+            .await
+        {
             Ok(_) => info!(extension = %builtin, "extension loaded"),
             Err(e) => warn!(extension = %builtin, error = %e, "extension load failed"),
         }
     }
 }
+async fn add_extensions(agent: &Agent, extensions: Vec<ExtensionConfig>) {
+    for extension in extensions {
+        let name = extension.name().to_string();
+        match agent
+            .extension_manager
+            .add_extension(extension, None, None)
+            .await
+        {
+            Ok(_) => info!(extension = %name, "extension loaded"),
+            Err(e) => warn!(extension = %name, error = %e, "extension load failed"),
+        }
+    }
+}
 
 impl GooseAcpAgent {
+    pub fn permission_manager(&self) -> Arc<PermissionManager> {
+        Arc::clone(&self.agent.config.permission_manager)
+    }
+
     pub async fn new(builtins: Vec<String>) -> Result<Self> {
         let config = Config::global();
 
@@ -295,7 +319,7 @@ impl GooseAcpAgent {
             .get_goose_mode()
             .unwrap_or(goose::config::GooseMode::Auto);
 
-        Self::with_config(GooseAcpConfig {
+        Self::with_config(AcpServerConfig {
             provider,
             builtins,
             data_dir: Paths::data_dir(),
@@ -305,8 +329,9 @@ impl GooseAcpAgent {
         .await
     }
 
-    pub async fn with_config(config: GooseAcpConfig) -> Result<Self> {
+    pub async fn with_config(config: AcpServerConfig) -> Result<Self> {
         let session_manager = Arc::new(SessionManager::new(config.data_dir));
+        let config_dir = config.config_dir.clone();
         let permission_manager = Arc::new(PermissionManager::new(config.config_dir));
 
         let agent = Agent::with_config(AgentConfig::new(
@@ -318,7 +343,12 @@ impl GooseAcpAgent {
 
         let agent_ptr = Arc::new(agent);
 
+        let config_path = config_dir.join(CONFIG_YAML_NAME);
+        let config_file = Config::new(&config_path, "goose")?;
+        let extensions = get_enabled_extensions_with_config(&config_file);
+
         add_builtins(&agent_ptr, config.builtins).await;
+        add_extensions(&agent_ptr, extensions).await;
 
         Ok(Self {
             provider: config.provider.clone(),
@@ -697,7 +727,7 @@ impl GooseAcpAgent {
                 }
             };
             let name = config.name().to_string();
-            if let Err(e) = self.agent.add_extension(config).await {
+            if let Err(e) = self.agent.add_extension(config, &goose_session.id).await {
                 return Err(sacp::Error::internal_error()
                     .data(format!("Failed to add MCP server '{}': {}", name, e)));
             }

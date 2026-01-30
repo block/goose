@@ -1,242 +1,29 @@
-mod common;
-
-use common::{ExpectedSessionId, McpFixture, OpenAiFixture, FAKE_CODE};
-use fs_err as fs;
-use goose::config::GooseMode;
-use goose::model::ModelConfig;
-use goose::providers::api_client::{ApiClient, AuthMethod};
-use goose::providers::openai::OpenAiProvider;
-use goose_acp::server::{serve, GooseAcpAgent, GooseAcpConfig};
-use sacp::schema::{
-    ContentBlock, ContentChunk, InitializeRequest, McpServer, McpServerHttp, NewSessionRequest,
-    PermissionOptionKind, PromptRequest, ProtocolVersion, RequestPermissionOutcome,
-    RequestPermissionRequest, RequestPermissionResponse, SelectedPermissionOutcome,
-    SessionNotification, SessionUpdate, StopReason, TextContent, ToolCallId, ToolCallStatus,
-    ToolCallUpdate, ToolCallUpdateFields,
+mod common_tests;
+use common_tests::fixtures::run_test;
+use common_tests::fixtures::server::ClientToAgentSession;
+use common_tests::{
+    run_basic_completion, run_builtin_and_mcp, run_configured_extension, run_mcp_http_server,
+    run_permission_persistence,
 };
-use sacp::{ClientToAgent, JrConnectionCx};
-use std::path::Path;
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
-use test_case::test_case;
-use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
-use wiremock::MockServer;
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_acp_basic_completion() {
-    let temp_dir = tempfile::tempdir().unwrap();
-    let prompt = "what is 1+1";
-    let expected_session_id = ExpectedSessionId::default();
-    let openai = OpenAiFixture::new(
-        vec![(
-            format!(r#"</info-msg>\n{prompt}""#),
-            include_str!("./test_data/openai_basic_response.txt"),
-        )],
-        expected_session_id.clone(),
-    )
-    .await;
-
-    run_acp_session(
-        &openai.server,
-        vec![],
-        &[],
-        temp_dir.path(),
-        GooseMode::Auto,
-        None,
-        expected_session_id.clone(),
-        |cx, session_id, updates| async move {
-            let response = cx
-                .send_request(PromptRequest::new(
-                    session_id,
-                    vec![ContentBlock::Text(TextContent::new(prompt))],
-                ))
-                .block_task()
-                .await
-                .unwrap();
-
-            assert_eq!(response.stop_reason, StopReason::EndTurn);
-            wait_for(
-                &updates,
-                &SessionUpdate::AgentMessageChunk(ContentChunk::new(ContentBlock::Text(
-                    TextContent::new("2"),
-                ))),
-            )
-            .await;
-        },
-    )
-    .await;
-
-    expected_session_id.assert_no_errors();
+#[test]
+fn test_acp_basic_completion() {
+    run_test(async { run_basic_completion::<ClientToAgentSession>().await });
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_acp_with_mcp_http_server() {
-    let temp_dir = tempfile::tempdir().unwrap();
-    let prompt = "Use the get_code tool and output only its result.";
-    let expected_session_id = ExpectedSessionId::default();
-    let mcp = McpFixture::new(expected_session_id.clone()).await;
-    let openai = OpenAiFixture::new(
-        vec![
-            (
-                format!(r#"</info-msg>\n{prompt}""#),
-                include_str!("./test_data/openai_tool_call_response.txt"),
-            ),
-            (
-                format!(r#""content":"{FAKE_CODE}""#),
-                include_str!("./test_data/openai_tool_result_response.txt"),
-            ),
-        ],
-        expected_session_id.clone(),
-    )
-    .await;
-
-    run_acp_session(
-        &openai.server,
-        vec![McpServer::Http(McpServerHttp::new("lookup", &mcp.url))],
-        &[],
-        temp_dir.path(),
-        GooseMode::Auto,
-        None,
-        expected_session_id.clone(),
-        |cx, session_id, updates| async move {
-            let response = cx
-                .send_request(PromptRequest::new(
-                    session_id,
-                    vec![ContentBlock::Text(TextContent::new(prompt))],
-                ))
-                .block_task()
-                .await
-                .unwrap();
-
-            assert_eq!(response.stop_reason, StopReason::EndTurn);
-            wait_for(
-                &updates,
-                &SessionUpdate::AgentMessageChunk(ContentChunk::new(ContentBlock::Text(
-                    TextContent::new(FAKE_CODE),
-                ))),
-            )
-            .await;
-        },
-    )
-    .await;
-
-    expected_session_id.assert_no_errors();
+#[test]
+fn test_acp_with_mcp_http_server() {
+    run_test(async { run_mcp_http_server::<ClientToAgentSession>().await });
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn test_acp_with_builtin_and_mcp() {
-    let temp_dir = tempfile::tempdir().unwrap();
-    let prompt =
-        "Search for get_code and text_editor tools. Use them to save the code to /tmp/result.txt.";
-    let expected_session_id = ExpectedSessionId::default();
-    let mcp = McpFixture::new(expected_session_id.clone()).await;
-    let openai = OpenAiFixture::new(
-        vec![
-            (
-                format!(r#"</info-msg>\n{prompt}""#),
-                include_str!("./test_data/openai_builtin_search.txt"),
-            ),
-            (
-                r#"lookup/get_code: Get the code"#.into(),
-                include_str!("./test_data/openai_builtin_read_modules.txt"),
-            ),
-            (
-                r#"lookup[\"get_code\"]({}): string - Get the code"#.into(),
-                include_str!("./test_data/openai_builtin_execute.txt"),
-            ),
-            (
-                r#"Successfully wrote to /tmp/result.txt"#.into(),
-                include_str!("./test_data/openai_builtin_final.txt"),
-            ),
-        ],
-        expected_session_id.clone(),
-    )
-    .await;
-
-    run_acp_session(
-        &openai.server,
-        vec![McpServer::Http(McpServerHttp::new("lookup", &mcp.url))],
-        &["code_execution", "developer"],
-        temp_dir.path(),
-        GooseMode::Auto,
-        None,
-        expected_session_id.clone(),
-        |cx, session_id, updates| async move {
-            let response = cx
-                .send_request(PromptRequest::new(
-                    session_id,
-                    vec![ContentBlock::Text(TextContent::new(prompt))],
-                ))
-                .block_task()
-                .await
-                .unwrap();
-
-            assert_eq!(response.stop_reason, StopReason::EndTurn);
-            wait_for(
-                &updates,
-                &SessionUpdate::AgentMessageChunk(ContentChunk::new(ContentBlock::Text(
-                    TextContent::new(FAKE_CODE),
-                ))),
-            )
-            .await;
-        },
-    )
-    .await;
-
-    expected_session_id.assert_no_errors();
+#[test]
+fn test_acp_with_builtin_and_mcp() {
+    run_test(async { run_builtin_and_mcp::<ClientToAgentSession>().await });
 }
 
-async fn wait_for(updates: &Arc<Mutex<Vec<SessionNotification>>>, expected: &SessionUpdate) {
-    let deadline = tokio::time::Instant::now() + Duration::from_millis(500);
-    let mut context = String::new();
-
-    loop {
-        let matched = {
-            let guard = updates.lock().unwrap();
-            context.clear();
-
-            match expected {
-                SessionUpdate::AgentMessageChunk(chunk) => {
-                    let expected_text = match &chunk.content {
-                        ContentBlock::Text(t) => &t.text,
-                        other => panic!("wait_for: unhandled content {:?}", other),
-                    };
-                    for n in guard.iter() {
-                        if let SessionUpdate::AgentMessageChunk(c) = &n.update {
-                            if let ContentBlock::Text(t) = &c.content {
-                                if t.text.is_empty() {
-                                    context.clear();
-                                } else {
-                                    context.push_str(&t.text);
-                                }
-                            }
-                        }
-                    }
-                    context.contains(expected_text)
-                }
-                SessionUpdate::ToolCallUpdate(expected_update) => {
-                    for n in guard.iter() {
-                        if let SessionUpdate::ToolCallUpdate(u) = &n.update {
-                            context.push_str(&format!("{:?}\n", u));
-                            if u.fields.status == expected_update.fields.status {
-                                return;
-                            }
-                        }
-                    }
-                    false
-                }
-                other => panic!("wait_for: unhandled update {:?}", other),
-            }
-        };
-
-        if matched {
-            return;
-        }
-        if tokio::time::Instant::now() > deadline {
-            panic!("Timeout waiting for {:?}\n\n{}", expected, context);
-        }
-        tokio::task::yield_now().await;
-    }
+#[test]
+fn test_permission_persistence() {
+    run_test(async { run_permission_persistence::<ClientToAgentSession>().await });
 }
 
 async fn spawn_server_in_process(
@@ -426,4 +213,6 @@ async fn test_permission_persistence(
         fs::read_to_string(temp_dir.path().join("permission.yaml")).unwrap_or_default(),
         expected_yaml
     );
+}
+
 }
