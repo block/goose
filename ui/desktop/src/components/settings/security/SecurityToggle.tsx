@@ -281,7 +281,7 @@ export const SecurityToggle = () => {
                   Enable Command Injection ML Detection
                 </h4>
                 <p className="text-xs text-text-muted max-w-md mt-[2px]">
-                  Use ML models to detect malicious shell commands (recommended)
+                  Use ML models to detect malicious shell commands
                 </p>
               </div>
               <div className="flex items-center">
