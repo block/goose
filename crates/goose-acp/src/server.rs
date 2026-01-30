@@ -286,7 +286,11 @@ async fn add_builtins(agent: &Agent, builtins: Vec<String>) {
 async fn add_extensions(agent: &Agent, extensions: Vec<ExtensionConfig>) {
     for extension in extensions {
         let name = extension.name().to_string();
-        match agent.add_extension(extension).await {
+        match agent
+            .extension_manager
+            .add_extension(extension, None, None)
+            .await
+        {
             Ok(_) => info!(extension = %name, "extension loaded"),
             Err(e) => warn!(extension = %name, error = %e, "extension load failed"),
         }
