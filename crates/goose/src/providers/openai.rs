@@ -1,5 +1,7 @@
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{ConfigKey, ModelInfo, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{
+    ConfigKey, ModelInfo, Provider, ProviderFactory, ProviderMetadata, ProviderUsage, Usage,
+};
 use super::embedding::{EmbeddingCapable, EmbeddingRequest, EmbeddingResponse};
 use super::errors::ProviderError;
 use super::formats::openai::{create_request, get_usage, response_to_message};
@@ -7,16 +9,17 @@ use super::formats::openai_responses::{
     create_responses_request, get_responses_usage, responses_api_to_message,
     responses_api_to_streaming_message, ResponsesApiResponse,
 };
-use super::retry::ProviderRetry;
-use super::utils::{
-    get_model, handle_response_openai_compat, handle_status_openai_compat, stream_openai_compat,
-    ImageFormat,
+use super::openai_compatible::{
+    handle_response_openai_compat, handle_status_openai_compat, stream_openai_compat,
 };
+use super::retry::ProviderRetry;
+use super::utils::{get_model, ImageFormat};
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
 use anyhow::Result;
 use async_stream::try_stream;
 use async_trait::async_trait;
+use futures::future::BoxFuture;
 use futures::{StreamExt, TryStreamExt};
 use reqwest::StatusCode;
 use serde_json::Value;
@@ -31,6 +34,7 @@ use crate::providers::base::MessageStream;
 use crate::providers::utils::RequestLog;
 use rmcp::model::Tool;
 
+const OPEN_AI_PROVIDER_NAME: &str = "openai";
 pub const OPEN_AI_DEFAULT_MODEL: &str = "gpt-4o";
 pub const OPEN_AI_DEFAULT_FAST_MODEL: &str = "gpt-4o-mini";
 pub const OPEN_AI_KNOWN_MODELS: &[(&str, usize)] = &[
@@ -71,10 +75,13 @@ impl OpenAiProvider {
             .get_param("OPENAI_HOST")
             .unwrap_or_else(|_| "https://api.openai.com".to_string());
 
-        let api_key: Option<String> = config.get_secret("OPENAI_API_KEY").ok();
-        let custom_headers: Option<HashMap<String, String>> = config
-            .get_secret::<String>("OPENAI_CUSTOM_HEADERS")
-            .ok()
+        let secrets = config
+            .get_secrets("OPENAI_API_KEY", &["OPENAI_CUSTOM_HEADERS"])
+            .unwrap_or_default();
+        let api_key: Option<String> = secrets.get("OPENAI_API_KEY").cloned();
+        let custom_headers: Option<HashMap<String, String>> = secrets
+            .get("OPENAI_CUSTOM_HEADERS")
+            .cloned()
             .map(parse_custom_headers);
 
         let base_path: String = config
@@ -117,7 +124,7 @@ impl OpenAiProvider {
             model,
             custom_headers,
             supports_streaming: true,
-            name: Self::metadata().name,
+            name: OPEN_AI_PROVIDER_NAME.to_string(),
         })
     }
 
@@ -131,7 +138,7 @@ impl OpenAiProvider {
             model,
             custom_headers: None,
             supports_streaming: true,
-            name: Self::metadata().name,
+            name: OPEN_AI_PROVIDER_NAME.to_string(),
         }
     }
 
@@ -228,15 +235,16 @@ impl OpenAiProvider {
     }
 }
 
-#[async_trait]
-impl Provider for OpenAiProvider {
+impl ProviderFactory for OpenAiProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         let models = OPEN_AI_KNOWN_MODELS
             .iter()
             .map(|(name, limit)| ModelInfo::new(*name, *limit))
             .collect();
         ProviderMetadata::with_models(
-            "openai",
+            OPEN_AI_PROVIDER_NAME,
             "OpenAI",
             "GPT-4 and other OpenAI models, including OpenAI compatible ones",
             OPEN_AI_DEFAULT_MODEL,
@@ -254,6 +262,13 @@ impl Provider for OpenAiProvider {
         )
     }
 
+    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for OpenAiProvider {
     fn get_name(&self) -> &str {
         &self.name
     }

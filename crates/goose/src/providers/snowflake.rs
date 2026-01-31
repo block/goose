@@ -4,17 +4,20 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
+use super::base::{ConfigKey, Provider, ProviderFactory, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
 use super::formats::snowflake::{create_request, get_usage, response_to_message};
+use super::openai_compatible::map_http_error_to_provider_error;
 use super::retry::ProviderRetry;
-use super::utils::{get_model, map_http_error_to_provider_error, ImageFormat, RequestLog};
+use super::utils::{get_model, ImageFormat, RequestLog};
 use crate::config::ConfigError;
 use crate::conversation::message::Message;
 
 use crate::model::ModelConfig;
+use futures::future::BoxFuture;
 use rmcp::model::Tool;
 
+const SNOWFLAKE_PROVIDER_NAME: &str = "snowflake";
 pub const SNOWFLAKE_DEFAULT_MODEL: &str = "claude-sonnet-4-5";
 pub const SNOWFLAKE_KNOWN_MODELS: &[&str] = &[
     // Claude 4.5 series
@@ -103,7 +106,7 @@ impl SnowflakeProvider {
             api_client,
             model,
             image_format: ImageFormat::OpenAi,
-            name: Self::metadata().name,
+            name: SNOWFLAKE_PROVIDER_NAME.to_string(),
         })
     }
 
@@ -292,11 +295,12 @@ impl SnowflakeProvider {
     }
 }
 
-#[async_trait]
-impl Provider for SnowflakeProvider {
+impl ProviderFactory for SnowflakeProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "snowflake",
+            SNOWFLAKE_PROVIDER_NAME,
             "Snowflake",
             "Access the latest models using Snowflake Cortex services.",
             SNOWFLAKE_DEFAULT_MODEL,
@@ -309,6 +313,13 @@ impl Provider for SnowflakeProvider {
         )
     }
 
+    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for SnowflakeProvider {
     fn get_name(&self) -> &str {
         &self.name
     }

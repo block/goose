@@ -431,10 +431,6 @@ mod tests {
 
     #[async_trait]
     impl Provider for MockProvider {
-        fn metadata() -> crate::providers::base::ProviderMetadata {
-            crate::providers::base::ProviderMetadata::empty()
-        }
-
         fn get_name(&self) -> &str {
             "mock"
         }

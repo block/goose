@@ -1,6 +1,6 @@
 use crate::config::paths::Paths;
 use crate::providers::api_client::{ApiClient, AuthMethod};
-use crate::providers::utils::{handle_status_openai_compat, stream_openai_compat};
+use crate::providers::openai_compatible::{handle_status_openai_compat, stream_openai_compat};
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use axum::http;
@@ -13,19 +13,22 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use super::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{Provider, ProviderFactory, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::formats::openai::{create_request, get_usage, response_to_message};
+use super::openai_compatible::handle_response_openai_compat;
 use super::retry::ProviderRetry;
-use super::utils::{get_model, handle_response_openai_compat, ImageFormat, RequestLog};
+use super::utils::{get_model, ImageFormat, RequestLog};
 
 use crate::config::{Config, ConfigError};
 use crate::conversation::message::Message;
 
 use crate::model::ModelConfig;
 use crate::providers::base::{ConfigKey, MessageStream};
+use futures::future::BoxFuture;
 use rmcp::model::Tool;
 
+const GITHUB_COPILOT_PROVIDER_NAME: &str = "github_copilot";
 pub const GITHUB_COPILOT_DEFAULT_MODEL: &str = "gpt-4.1";
 pub const GITHUB_COPILOT_KNOWN_MODELS: &[&str] = &[
     "gpt-4.1",
@@ -165,7 +168,7 @@ impl GithubCopilotProvider {
             cache,
             mu,
             model,
-            name: Self::metadata().name,
+            name: GITHUB_COPILOT_PROVIDER_NAME.to_string(),
         })
     }
 
@@ -376,11 +379,12 @@ impl GithubCopilotProvider {
     }
 }
 
-#[async_trait]
-impl Provider for GithubCopilotProvider {
+impl ProviderFactory for GithubCopilotProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "github_copilot",
+            GITHUB_COPILOT_PROVIDER_NAME,
             "GitHub Copilot",
             "GitHub Copilot. Run `goose configure` and select copilot to set up.",
             GITHUB_COPILOT_DEFAULT_MODEL,
@@ -395,6 +399,13 @@ impl Provider for GithubCopilotProvider {
         )
     }
 
+    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for GithubCopilotProvider {
     fn get_name(&self) -> &str {
         &self.name
     }

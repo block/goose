@@ -25,6 +25,7 @@ pub mod litellm;
 pub mod oauth;
 pub mod ollama;
 pub mod openai;
+pub mod openai_compatible;
 pub mod openrouter;
 pub mod provider_registry;
 pub mod provider_test;

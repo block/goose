@@ -1,4 +1,5 @@
 use anyhow::Result;
+use futures::future::BoxFuture;
 use futures::Stream;
 use serde::{Deserialize, Serialize};
 
@@ -343,6 +344,18 @@ impl Usage {
 
 use async_trait::async_trait;
 
+pub trait ProviderFactory: Send + Sync {
+    type Provider: Provider + 'static;
+
+    fn metadata() -> ProviderMetadata
+    where
+        Self: Sized;
+
+    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>>
+    where
+        Self: Sized;
+}
+
 /// Trait for LeadWorkerProvider-specific functionality
 pub trait LeadWorkerProviderTrait {
     /// Get information about the lead and worker models for logging
@@ -358,11 +371,6 @@ pub trait LeadWorkerProviderTrait {
 /// Base trait for AI providers (OpenAI, Anthropic, etc)
 #[async_trait]
 pub trait Provider: Send + Sync {
-    /// Get the metadata for this provider type
-    fn metadata() -> ProviderMetadata
-    where
-        Self: Sized;
-
     /// Get the name of this provider instance
     fn get_name(&self) -> &str;
 

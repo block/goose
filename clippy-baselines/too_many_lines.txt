@@ -16,6 +16,7 @@ crates/goose/src/agents/agent.rs::create_recipe
 crates/goose/src/agents/agent.rs::dispatch_tool_call
 crates/goose/src/agents/agent.rs::reply
 crates/goose/src/agents/agent.rs::reply_internal
+crates/goose/src/providers/canonical/build_canonical_models.rs::build_canonical_models
 crates/goose/src/providers/formats/anthropic.rs::format_messages
 crates/goose/src/providers/formats/anthropic.rs::response_to_streaming_message
 crates/goose/src/providers/formats/databricks.rs::format_messages

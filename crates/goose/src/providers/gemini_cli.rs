@@ -7,7 +7,7 @@ use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
-use super::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{Provider, ProviderFactory, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::utils::{filter_extensions_from_system_prompt, RequestLog};
 use crate::config::base::GeminiCliCommand;
@@ -17,9 +17,11 @@ use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::ConfigKey;
 use crate::subprocess::configure_command_no_window;
+use futures::future::BoxFuture;
 use rmcp::model::Role;
 use rmcp::model::Tool;
 
+const GEMINI_CLI_PROVIDER_NAME: &str = "gemini-cli";
 pub const GEMINI_CLI_DEFAULT_MODEL: &str = "gemini-2.5-pro";
 pub const GEMINI_CLI_KNOWN_MODELS: &[&str] = &[
     "gemini-2.5-pro",
@@ -46,7 +48,7 @@ impl GeminiCliProvider {
         Ok(Self {
             command: resolved_command,
             model,
-            name: Self::metadata().name,
+            name: GEMINI_CLI_PROVIDER_NAME.to_string(),
         })
     }
 
@@ -235,11 +237,12 @@ impl GeminiCliProvider {
     }
 }
 
-#[async_trait]
-impl Provider for GeminiCliProvider {
+impl ProviderFactory for GeminiCliProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "gemini-cli",
+            GEMINI_CLI_PROVIDER_NAME,
             "Gemini CLI",
             "Execute Gemini models via gemini CLI tool",
             GEMINI_CLI_DEFAULT_MODEL,
@@ -249,6 +252,13 @@ impl Provider for GeminiCliProvider {
         )
     }
 
+    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for GeminiCliProvider {
     fn get_name(&self) -> &str {
         &self.name
     }
