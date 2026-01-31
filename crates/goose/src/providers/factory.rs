@@ -16,6 +16,7 @@ use super::{
     google::GoogleProvider,
     lead_worker::LeadWorkerProvider,
     litellm::LiteLLMProvider,
+    moonshot::MoonshotProvider,
     ollama::OllamaProvider,
     openai::OpenAiProvider,
     openrouter::OpenRouterProvider,
@@ -71,6 +72,7 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
             false,
         );
         registry.register::<GoogleProvider, _>(|m| Box::pin(GoogleProvider::from_env(m)), true);
+        registry.register::<MoonshotProvider, _>(|m| Box::pin(MoonshotProvider::from_env(m)), true);
         registry.register::<LiteLLMProvider, _>(|m| Box::pin(LiteLLMProvider::from_env(m)), false);
         registry.register::<OllamaProvider, _>(|m| Box::pin(OllamaProvider::from_env(m)), true);
         registry.register::<OpenAiProvider, _>(|m| Box::pin(OpenAiProvider::from_env(m)), true);
