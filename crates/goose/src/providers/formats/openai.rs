@@ -39,6 +39,9 @@ struct Delta {
     role: Option<String>,
     tool_calls: Option<Vec<DeltaToolCall>>,
     reasoning_details: Option<Vec<Value>>,
+    /// reasoning_content used by OpenAI-compatible providers (Moonshot, DeepSeek)
+    /// for thinking/reasoning output from models like kimi-k2-thinking
+    reasoning_content: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -67,6 +70,8 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
         let mut output = Vec::new();
         let mut content_array = Vec::new();
         let mut text_array = Vec::new();
+        // Collect thinking content for reasoning_content field (Moonshot/DeepSeek)
+        let mut thinking_texts: Vec<String> = Vec::new();
 
         for content in &message.content {
             match content {
@@ -88,12 +93,15 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                         }
                     }
                 }
-                MessageContent::Thinking(_) => {
-                    // Thinking blocks are not directly used in OpenAI format
-                    continue;
+                MessageContent::Thinking(thinking) => {
+                    // Collect thinking content for reasoning_content (Moonshot/DeepSeek)
+                    // Only include if signature is None (OpenAI-compatible format)
+                    if thinking.signature.is_none() && !thinking.thinking.is_empty() {
+                        thinking_texts.push(thinking.thinking.clone());
+                    }
                 }
                 MessageContent::RedactedThinking(_) => {
-                    // Redacted thinking blocks are not directly used in OpenAI format
+                    // Redacted thinking blocks are not used in OpenAI format
                     continue;
                 }
                 MessageContent::SystemNotification(_) => {
@@ -247,6 +255,19 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
             converted["content"] = json!(text_array.join("\n"));
         }
 
+        // Add reasoning_content for OpenAI-compatible providers (Moonshot/DeepSeek)
+        // When tool_calls present: MUST include reasoning_content (empty if no thinking)
+        // When no tool_calls: only include if non-empty
+        let has_tool_calls = converted.get("tool_calls").is_some();
+        let reasoning_content = thinking_texts.join("\n");
+        if has_tool_calls {
+            // Always include reasoning_content when tool_calls present
+            converted["reasoning_content"] = json!(reasoning_content);
+        } else if !reasoning_content.is_empty() {
+            // Only include if non-empty when no tool_calls
+            converted["reasoning_content"] = json!(reasoning_content);
+        }
+
         if converted.get("content").is_some() || converted.get("tool_calls").is_some() {
             output.insert(0, converted);
         }
@@ -299,6 +320,16 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
     };
 
     let mut content = Vec::new();
+
+    // Parse reasoning_content from OpenAI-compatible providers (Moonshot, DeepSeek)
+    // This represents the model's thinking/reasoning process
+    if let Some(reasoning) = original.get("reasoning_content") {
+        if let Some(reasoning_str) = reasoning.as_str() {
+            if !reasoning_str.is_empty() {
+                content.push(MessageContent::thinking(reasoning_str, None));
+            }
+        }
+    }
 
     if let Some(text) = original.get("content") {
         if let Some(text_str) = text.as_str() {
@@ -471,6 +502,8 @@ where
         use futures::StreamExt;
 
         let mut accumulated_reasoning: Vec<Value> = Vec::new();
+        // Accumulator for reasoning_content (used by Moonshot/DeepSeek thinking models)
+        let mut accumulated_reasoning_content = String::new();
 
         'outer: while let Some(response) = stream.next().await {
             if response.as_ref().is_ok_and(|s| s == "data: [DONE]") {
@@ -490,6 +523,10 @@ where
             if !chunk.choices.is_empty() {
                 if let Some(details) = &chunk.choices[0].delta.reasoning_details {
                     accumulated_reasoning.extend(details.iter().cloned());
+                }
+                // Accumulate reasoning_content from Moonshot/DeepSeek thinking models
+                if let Some(reasoning) = &chunk.choices[0].delta.reasoning_content {
+                    accumulated_reasoning_content.push_str(reasoning);
                 }
             }
 
@@ -531,6 +568,10 @@ where
                                     if let Some(details) = &tool_chunk.choices[0].delta.reasoning_details {
                                         accumulated_reasoning.extend(details.iter().cloned());
                                     }
+                                    // Accumulate reasoning_content during tool call streaming
+                                    if let Some(reasoning) = &tool_chunk.choices[0].delta.reasoning_content {
+                                        accumulated_reasoning_content.push_str(reasoning);
+                                    }
                                     if let Some(delta_tool_calls) = &tool_chunk.choices[0].delta.tool_calls {
                                         for delta_call in delta_tool_calls {
                                             if let Some(index) = delta_call.index {
@@ -564,6 +605,13 @@ where
                 };
 
                 let mut contents = Vec::new();
+
+                // Prepend ThinkingContent if we accumulated reasoning_content
+                if !accumulated_reasoning_content.is_empty() {
+                    contents.push(MessageContent::thinking(&accumulated_reasoning_content, None));
+                    accumulated_reasoning_content.clear();
+                }
+
                 let mut sorted_indices: Vec<_> = tool_call_data.keys().cloned().collect();
                 sorted_indices.sort();
 
@@ -1658,6 +1706,211 @@ data: [DONE]
         assert_eq!(result.tool_calls.len(), 1, "Expected 1 tool call");
         assert_eq!(result.tool_calls[0], "developer__shell");
         assert_usage_yielded_once(&result, 12376, 79, 12455);
+
+        Ok(())
+    }
+
+    // Tests for reasoning_content support (Moonshot/DeepSeek thinking models)
+
+    #[test]
+    fn test_response_to_message_with_reasoning_content() -> anyhow::Result<()> {
+        // Test parsing reasoning_content from response (Moonshot/DeepSeek format)
+        let response = json!({
+            "choices": [{
+                "message": {
+                    "role": "assistant",
+                    "reasoning_content": "Let me think about this step by step...",
+                    "content": "The answer is 42.",
+                    "tool_calls": [{
+                        "id": "call_1",
+                        "function": {
+                            "name": "calculator",
+                            "arguments": "{\"expression\": \"6 * 7\"}"
+                        }
+                    }]
+                }
+            }],
+            "usage": {
+                "prompt_tokens": 100,
+                "completion_tokens": 50,
+                "total_tokens": 150
+            }
+        });
+
+        let message = response_to_message(&response)?;
+
+        // First content should be ThinkingContent (reasoning)
+        assert!(message.content.len() >= 2, "Expected at least 2 content items");
+        if let MessageContent::Thinking(thinking) = &message.content[0] {
+            assert_eq!(thinking.thinking, "Let me think about this step by step...");
+            assert!(thinking.signature.is_none(), "OpenAI-compatible signature should be None");
+        } else {
+            panic!("Expected Thinking content as first item, got {:?}", message.content[0]);
+        }
+
+        // Second content should be text
+        if let MessageContent::Text(text) = &message.content[1] {
+            assert_eq!(text.text, "The answer is 42.");
+        } else {
+            panic!("Expected Text content as second item");
+        }
+
+        // Third should be tool call
+        if let MessageContent::ToolRequest(req) = &message.content[2] {
+            assert_eq!(req.id, "call_1");
+        } else {
+            panic!("Expected ToolRequest as third item");
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_with_reasoning_and_tool_calls() -> anyhow::Result<()> {
+        // Test that reasoning_content is serialized with tool calls
+        let message = Message::assistant()
+            .with_thinking("I need to calculate this...", None) // None signature = OpenAI format
+            .with_tool_request(
+                "call_1",
+                Ok(CallToolRequestParams {
+                    meta: None,
+                    task: None,
+                    name: "calculator".into(),
+                    arguments: Some(object!({"x": 5})),
+                }),
+            );
+
+        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+
+        assert_eq!(spec.len(), 1);
+        assert_eq!(spec[0]["role"], "assistant");
+
+        // reasoning_content should be present since we have tool_calls
+        assert!(
+            spec[0].get("reasoning_content").is_some(),
+            "reasoning_content should be present when tool_calls exist"
+        );
+        assert_eq!(spec[0]["reasoning_content"], "I need to calculate this...");
+
+        // tool_calls should be present
+        assert!(spec[0]["tool_calls"].is_array());
+        assert_eq!(spec[0]["tool_calls"][0]["id"], "call_1");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_tool_calls_without_thinking_includes_empty_reasoning() -> anyhow::Result<()> {
+        // Test that reasoning_content is included (empty) when tool_calls present but no thinking
+        let message = Message::assistant().with_tool_request(
+            "call_1",
+            Ok(CallToolRequestParams {
+                meta: None,
+                task: None,
+                name: "calculator".into(),
+                arguments: Some(object!({"x": 5})),
+            }),
+        );
+
+        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+
+        assert_eq!(spec.len(), 1);
+        assert_eq!(spec[0]["role"], "assistant");
+
+        // reasoning_content should be present (empty) since tool_calls exist
+        assert!(
+            spec[0].get("reasoning_content").is_some(),
+            "reasoning_content should be present when tool_calls exist"
+        );
+        assert_eq!(spec[0]["reasoning_content"], "");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_thinking_without_tool_calls() -> anyhow::Result<()> {
+        // Test that reasoning_content is included when thinking present but no tool_calls
+        let message = Message::assistant()
+            .with_thinking("Just thinking out loud...", None)
+            .with_text("Here is my response");
+
+        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+
+        assert_eq!(spec.len(), 1);
+        assert_eq!(spec[0]["role"], "assistant");
+        assert_eq!(spec[0]["content"], "Here is my response");
+
+        // reasoning_content should be present
+        assert!(
+            spec[0].get("reasoning_content").is_some(),
+            "reasoning_content should be present when thinking exists"
+        );
+        assert_eq!(spec[0]["reasoning_content"], "Just thinking out loud...");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_no_thinking_no_tool_calls_no_reasoning() -> anyhow::Result<()> {
+        // Test that reasoning_content is NOT included when neither thinking nor tool_calls present
+        let message = Message::assistant().with_text("Simple response");
+
+        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+
+        assert_eq!(spec.len(), 1);
+        assert_eq!(spec[0]["role"], "assistant");
+        assert_eq!(spec[0]["content"], "Simple response");
+
+        // reasoning_content should NOT be present
+        assert!(
+            spec[0].get("reasoning_content").is_none(),
+            "reasoning_content should NOT be present when no thinking and no tool_calls"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_streaming_reasoning_content() -> anyhow::Result<()> {
+        // Test streaming with reasoning_content (Moonshot/DeepSeek format)
+        let response_lines = r#"
+data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1234567890,"model":"kimi-k2-thinking","choices":[{"index":0,"delta":{"role":"assistant","reasoning_content":"Let me "},"finish_reason":null}]}
+data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1234567890,"model":"kimi-k2-thinking","choices":[{"index":0,"delta":{"reasoning_content":"think about this..."},"finish_reason":null}]}
+data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1234567890,"model":"kimi-k2-thinking","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"calculator","arguments":""}}]},"finish_reason":null}]}
+data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1234567890,"model":"kimi-k2-thinking","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"x\": 5}"}}]},"finish_reason":null}]}
+data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1234567890,"model":"kimi-k2-thinking","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":100,"completion_tokens":20,"total_tokens":120}}
+data: [DONE]
+"#;
+
+        let lines: Vec<String> = response_lines.lines().map(|s| s.to_string()).collect();
+        let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
+        let messages = response_to_streaming_message(response_stream);
+        pin!(messages);
+
+        let mut thinking_found = false;
+        let mut tool_call_found = false;
+
+        while let Some(Ok((message, _usage))) = messages.next().await {
+            if let Some(msg) = message {
+                for content in &msg.content {
+                    match content {
+                        MessageContent::Thinking(thinking) => {
+                            assert_eq!(thinking.thinking, "Let me think about this...");
+                            assert!(thinking.signature.is_none());
+                            thinking_found = true;
+                        }
+                        MessageContent::ToolRequest(req) => {
+                            assert_eq!(req.id, "call_1");
+                            tool_call_found = true;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        assert!(thinking_found, "Expected ThinkingContent in stream");
+        assert!(tool_call_found, "Expected ToolRequest in stream");
 
         Ok(())
     }
