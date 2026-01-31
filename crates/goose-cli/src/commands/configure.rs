@@ -561,10 +561,11 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
     let current_provider: Option<String> = config.get_goose_provider().ok();
     let default_provider = current_provider.unwrap_or_default();
 
-    // Select provider
+    // Select provider (filter_mode enables type-to-search filtering)
     let provider_name = cliclack::select("Which model provider should we use?")
         .initial_value(&default_provider)
         .items(&provider_items)
+        .filter_mode()
         .interact()?;
 
     // Get the selected provider's metadata
