@@ -27,6 +27,14 @@
       "context_limit": 256000
     },
     {
+      "name": "devstral-2512",
+      "context_limit": 262144
+    },
+    {
+      "name": "devstral-small-2505",
+      "context_limit": 262144
+    },
+    {
       "name": "pixtral-large-2411",
       "context_limit": 128000
     },
