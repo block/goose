@@ -1,15 +1,17 @@
 use anyhow::Result;
+use async_stream::try_stream;
 use async_trait::async_trait;
+use futures::{pin_mut, StreamExt, TryStreamExt};
 use serde_json::Value;
+use std::io;
+use tokio_util::codec::{FramedRead, LinesCodec};
+use tokio_util::io::StreamReader;
 
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{ConfigKey, MessageStream, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
-use super::utils::{
-    get_model, handle_response_openai_compat, handle_status_openai_compat, stream_openai_compat,
-    RequestLog,
-};
+use super::utils::{get_model, handle_response_openai_compat, handle_status_openai_compat, RequestLog};
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::formats::moonshot as moonshot_format;
@@ -155,7 +157,7 @@ impl Provider for MoonshotProvider {
     }
 
     fn supports_streaming(&self) -> bool {
-        false
+        true
     }
 
     async fn stream(
@@ -190,6 +192,22 @@ impl Provider for MoonshotProvider {
                 let _ = log.error(e);
             })?;
 
-        stream_openai_compat(response, log)
+        let stream = response.bytes_stream().map_err(io::Error::other);
+
+        Ok(Box::pin(try_stream! {
+            let stream_reader = StreamReader::new(stream);
+            let framed = FramedRead::new(stream_reader, LinesCodec::new())
+                .map_err(anyhow::Error::from);
+
+            let message_stream = moonshot_format::response_to_streaming_message(framed);
+            pin_mut!(message_stream);
+            while let Some(message) = message_stream.next().await {
+                let (message, usage): (Option<Message>, Option<ProviderUsage>) = message.map_err(|e|
+                    ProviderError::RequestFailed(format!("Stream decode error: {}", e))
+                )?;
+                log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
+                yield (message, usage);
+            }
+        }))
     }
 }

@@ -1,7 +1,13 @@
 use crate::conversation::message::{Message, MessageContent, ProviderMetadata};
+use crate::providers::base::{ProviderUsage, Usage};
 use crate::providers::formats::openai;
-use rmcp::model::Role;
+use anyhow::anyhow;
+use async_stream::try_stream;
+use futures::Stream;
+use rmcp::model::{object, CallToolRequestParam, ErrorCode, ErrorData, Role};
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::borrow::Cow;
 
 pub const REASONING_CONTENT_KEY: &str = "reasoning_content";
 
@@ -82,6 +88,252 @@ pub fn add_reasoning_content_to_request(payload: &mut Value, messages: &[Message
                     }
                 }
                 assistant_idx += 1;
+            }
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Default)]
+struct DeltaToolCallFunction {
+    name: Option<String>,
+    #[serde(default)]
+    arguments: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct DeltaToolCall {
+    id: Option<String>,
+    function: DeltaToolCallFunction,
+    index: Option<i32>,
+    r#type: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct Delta {
+    content: Option<String>,
+    role: Option<String>,
+    tool_calls: Option<Vec<DeltaToolCall>>,
+    reasoning_content: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct StreamingChoice {
+    delta: Delta,
+    index: Option<i32>,
+    finish_reason: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct StreamingChunk {
+    choices: Vec<StreamingChoice>,
+    created: Option<i64>,
+    id: Option<String>,
+    usage: Option<Value>,
+    model: Option<String>,
+}
+
+fn get_usage(usage: &Value) -> Usage {
+    Usage {
+        input_tokens: usage
+            .get("prompt_tokens")
+            .and_then(|v| v.as_i64())
+            .map(|v| v as i32),
+        output_tokens: usage
+            .get("completion_tokens")
+            .and_then(|v| v.as_i64())
+            .map(|v| v as i32),
+        total_tokens: usage
+            .get("total_tokens")
+            .and_then(|v| v.as_i64())
+            .map(|v| v as i32),
+        ..Default::default()
+    }
+}
+
+fn strip_data_prefix(line: &str) -> Option<&str> {
+    line.strip_prefix("data: ").map(|s| s.trim())
+}
+
+pub fn response_to_streaming_message<S>(
+    mut stream: S,
+) -> impl Stream<Item = anyhow::Result<(Option<Message>, Option<ProviderUsage>)>> + 'static
+where
+    S: Stream<Item = anyhow::Result<String>> + Unpin + Send + 'static,
+{
+    try_stream! {
+        use futures::StreamExt;
+
+        let mut accumulated_reasoning: Option<String> = None;
+
+        'outer: while let Some(response) = stream.next().await {
+            if response.as_ref().is_ok_and(|s| s == "data: [DONE]") {
+                break 'outer;
+            }
+            let response_str = response?;
+            let line = strip_data_prefix(&response_str);
+
+            if line.is_none() || line.is_some_and(|l| l.is_empty()) {
+                continue
+            }
+
+            let chunk: StreamingChunk = serde_json::from_str(line
+                .ok_or_else(|| anyhow!("unexpected stream format"))?)
+                .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line))?;
+
+            if !chunk.choices.is_empty() {
+                if let Some(reasoning) = &chunk.choices[0].delta.reasoning_content {
+                    match &mut accumulated_reasoning {
+                        Some(acc) => acc.push_str(reasoning),
+                        None => accumulated_reasoning = Some(reasoning.clone()),
+                    }
+                }
+            }
+
+            let usage = chunk.usage.as_ref().and_then(|u| {
+                chunk.model.as_ref().map(|model| {
+                    ProviderUsage {
+                        usage: get_usage(u),
+                        model: model.clone(),
+                    }
+                })
+            });
+
+            if chunk.choices.is_empty() {
+                yield (None, usage)
+            } else if chunk.choices[0].delta.tool_calls.as_ref().is_some_and(|tc| !tc.is_empty()) {
+                let mut tool_call_data: std::collections::HashMap<i32, (String, String, String)> = std::collections::HashMap::new();
+
+                if let Some(tool_calls) = &chunk.choices[0].delta.tool_calls {
+                    for tool_call in tool_calls {
+                        if let (Some(index), Some(id), Some(name)) = (tool_call.index, &tool_call.id, &tool_call.function.name) {
+                            tool_call_data.insert(index, (id.clone(), name.clone(), tool_call.function.arguments.clone()));
+                        }
+                    }
+                }
+
+                let is_complete = chunk.choices[0].finish_reason == Some("tool_calls".to_string());
+
+                if !is_complete {
+                    let mut done = false;
+                    while !done {
+                        if let Some(response_chunk) = stream.next().await {
+                            if response_chunk.as_ref().is_ok_and(|s| s == "data: [DONE]") {
+                                break 'outer;
+                            }
+                            let response_str = response_chunk?;
+                            if let Some(line) = strip_data_prefix(&response_str) {
+                                let tool_chunk: StreamingChunk = serde_json::from_str(line)
+                                    .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line))?;
+
+                                if !tool_chunk.choices.is_empty() {
+                                    if let Some(reasoning) = &tool_chunk.choices[0].delta.reasoning_content {
+                                        match &mut accumulated_reasoning {
+                                            Some(acc) => acc.push_str(reasoning),
+                                            None => accumulated_reasoning = Some(reasoning.clone()),
+                                        }
+                                    }
+                                    if let Some(delta_tool_calls) = &tool_chunk.choices[0].delta.tool_calls {
+                                        for delta_call in delta_tool_calls {
+                                            if let Some(index) = delta_call.index {
+                                                if let Some((_, _, ref mut args)) = tool_call_data.get_mut(&index) {
+                                                    args.push_str(&delta_call.function.arguments);
+                                                } else if let (Some(id), Some(name)) = (&delta_call.id, &delta_call.function.name) {
+                                                    tool_call_data.insert(index, (id.clone(), name.clone(), delta_call.function.arguments.clone()));
+                                                }
+                                            }
+                                        }
+                                    }
+                                    if tool_chunk.choices[0].finish_reason.is_some() {
+                                        done = true;
+                                    }
+                                } else {
+                                    done = true;
+                                }
+                            }
+                        } else {
+                            break;
+                        }
+                    }
+                }
+
+                let metadata: Option<ProviderMetadata> = accumulated_reasoning.as_ref().map(|reasoning| {
+                    let mut map = ProviderMetadata::new();
+                    map.insert(REASONING_CONTENT_KEY.to_string(), json!(reasoning));
+                    map
+                });
+
+                let mut contents = Vec::new();
+                let mut sorted_indices: Vec<_> = tool_call_data.keys().cloned().collect();
+                sorted_indices.sort();
+
+                for index in sorted_indices {
+                    if let Some((id, function_name, arguments)) = tool_call_data.get(&index) {
+                        let parsed = if arguments.is_empty() {
+                            Ok(json!({}))
+                        } else {
+                            serde_json::from_str::<Value>(arguments)
+                        };
+
+                        let content = match parsed {
+                            Ok(params) => {
+                                MessageContent::tool_request_with_metadata(
+                                    id.clone(),
+                                    Ok(CallToolRequestParam { name: function_name.clone().into(), arguments: Some(object(params)) }),
+                                    metadata.as_ref(),
+                                )
+                            },
+                            Err(e) => {
+                                let error = ErrorData {
+                                    code: ErrorCode::INVALID_PARAMS,
+                                    message: Cow::from(format!(
+                                        "Could not interpret tool use parameters for id {}: {}",
+                                        id, e
+                                    )),
+                                    data: None,
+                                };
+                                MessageContent::tool_request_with_metadata(id.clone(), Err(error), metadata.as_ref())
+                            }
+                        };
+                        contents.push(content);
+                    }
+                }
+
+                let mut msg = Message::new(
+                    Role::Assistant,
+                    chrono::Utc::now().timestamp(),
+                    contents,
+                );
+
+                if let Some(id) = chunk.id {
+                    msg = msg.with_id(id);
+                }
+
+                yield (
+                    Some(msg),
+                    usage,
+                )
+            } else if chunk.choices[0].delta.content.is_some() {
+                let text = chunk.choices[0].delta.content.as_ref().unwrap();
+                let mut msg = Message::new(
+                    Role::Assistant,
+                    chrono::Utc::now().timestamp(),
+                    vec![MessageContent::text(text)],
+                );
+
+                if let Some(id) = chunk.id {
+                    msg = msg.with_id(id);
+                }
+
+                yield (
+                    Some(msg),
+                    if chunk.choices[0].finish_reason.is_some() {
+                        usage
+                    } else {
+                        None
+                    },
+                )
+            } else if usage.is_some() {
+                yield (None, usage)
             }
         }
     }
