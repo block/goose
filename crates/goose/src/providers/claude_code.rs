@@ -302,37 +302,90 @@ impl ClaudeCodeProvider {
             .take()
             .ok_or_else(|| ProviderError::RequestFailed("Failed to capture stdout".to_string()))?;
 
-        let mut reader = BufReader::new(stdout);
-        let mut lines = Vec::new();
-        let mut line = String::new();
+        let stderr = child
+            .stderr
+            .take()
+            .ok_or_else(|| ProviderError::RequestFailed("Failed to capture stderr".to_string()))?;
 
-        loop {
-            line.clear();
-            match reader.read_line(&mut line).await {
-                Ok(0) => break, // EOF
-                Ok(_) => {
-                    let trimmed = line.trim();
-                    if !trimmed.is_empty() {
-                        lines.push(trimmed.to_string());
+        // Read stdout/stderr concurrently to avoid child process blocking on full pipes.
+        let read_stdout = async move {
+            let mut reader = BufReader::new(stdout);
+            let mut lines = Vec::new();
+            let mut line = String::new();
+
+            loop {
+                line.clear();
+                match reader.read_line(&mut line).await {
+                    Ok(0) => break, // EOF
+                    Ok(_) => {
+                        let trimmed = line.trim();
+                        if !trimmed.is_empty() {
+                            lines.push(trimmed.to_string());
+                        }
+                    }
+                    Err(e) => {
+                        return Err(ProviderError::RequestFailed(format!(
+                            "Failed to read stdout: {}",
+                            e
+                        )));
                     }
                 }
-                Err(e) => {
-                    return Err(ProviderError::RequestFailed(format!(
-                        "Failed to read output: {}",
-                        e
-                    )));
+            }
+
+            Ok::<_, ProviderError>(lines)
+        };
+
+        let read_stderr = async move {
+            let mut reader = BufReader::new(stderr);
+            let mut buf = String::new();
+            let mut line = String::new();
+
+            // Prevent unbounded memory usage if a child is very noisy.
+            const MAX_STDERR_CHARS: usize = 200_000;
+
+            loop {
+                line.clear();
+                match reader.read_line(&mut line).await {
+                    Ok(0) => break, // EOF
+                    Ok(_) => {
+                        if buf.len() < MAX_STDERR_CHARS {
+                            buf.push_str(&line);
+                            if buf.len() > MAX_STDERR_CHARS {
+                                buf.truncate(MAX_STDERR_CHARS);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        return Err(ProviderError::RequestFailed(format!(
+                            "Failed to read stderr: {}",
+                            e
+                        )));
+                    }
                 }
             }
-        }
 
-        let exit_status = child.wait().await.map_err(|e| {
+            Ok::<_, ProviderError>(buf)
+        };
+
+        let (lines, stderr_text, exit_status) =
+            tokio::join!(read_stdout, read_stderr, child.wait());
+
+        let lines = lines?;
+        let stderr_text = stderr_text?;
+        let exit_status = exit_status.map_err(|e| {
             ProviderError::RequestFailed(format!("Failed to wait for command: {}", e))
         })?;
 
         if !exit_status.success() {
+            let stderr_excerpt = stderr_text.trim();
             return Err(ProviderError::RequestFailed(format!(
-                "Command failed with exit code: {:?}",
-                exit_status.code()
+                "Command failed with exit code: {:?}{}",
+                exit_status.code(),
+                if stderr_excerpt.is_empty() {
+                    "".to_string()
+                } else {
+                    format!("\nStderr:\n{}", stderr_excerpt)
+                }
             )));
         }
 
