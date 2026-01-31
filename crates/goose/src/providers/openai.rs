@@ -200,7 +200,10 @@ impl OpenAiProvider {
     }
 
     fn uses_responses_api(model_name: &str) -> bool {
-        model_name.starts_with("gpt-5-codex") || model_name.starts_with("gpt-5.1-codex")
+        model_name.starts_with("gpt-5-codex")
+            || model_name.starts_with("gpt-5.1-codex")
+            || model_name.starts_with("gpt-5.2-codex")
+            || model_name.starts_with("gpt-5.2-pro")
     }
 
     async fn post(
@@ -518,5 +521,27 @@ impl EmbeddingCapable for OpenAiProvider {
             .into_iter()
             .map(|d| d.embedding)
             .collect())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn uses_responses_api_for_supported_models() {
+        assert!(OpenAiProvider::uses_responses_api("gpt-5-codex"));
+        assert!(OpenAiProvider::uses_responses_api("gpt-5-codex-2025-12-11"));
+        assert!(OpenAiProvider::uses_responses_api("gpt-5.1-codex"));
+        assert!(OpenAiProvider::uses_responses_api(
+            "gpt-5.1-codex-2025-12-11"
+        ));
+        assert!(OpenAiProvider::uses_responses_api("gpt-5.2-codex"));
+        assert!(OpenAiProvider::uses_responses_api(
+            "gpt-5.2-codex-2025-12-11"
+        ));
+        assert!(OpenAiProvider::uses_responses_api("gpt-5.2-pro"));
+        assert!(OpenAiProvider::uses_responses_api("gpt-5.2-pro-2025-12-11"));
+        assert!(!OpenAiProvider::uses_responses_api("gpt-4o"));
     }
 }
