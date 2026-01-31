@@ -1,5 +1,5 @@
 use crate::conversation::message::{Message, MessageContent, ProviderMetadata};
-use crate::providers::base::{ProviderUsage, Usage};
+use crate::providers::base::ProviderUsage;
 use crate::providers::formats::openai;
 use anyhow::anyhow;
 use async_stream::try_stream;
@@ -132,24 +132,6 @@ struct StreamingChunk {
     model: Option<String>,
 }
 
-fn get_usage(usage: &Value) -> Usage {
-    Usage {
-        input_tokens: usage
-            .get("prompt_tokens")
-            .and_then(|v| v.as_i64())
-            .map(|v| v as i32),
-        output_tokens: usage
-            .get("completion_tokens")
-            .and_then(|v| v.as_i64())
-            .map(|v| v as i32),
-        total_tokens: usage
-            .get("total_tokens")
-            .and_then(|v| v.as_i64())
-            .map(|v| v as i32),
-        ..Default::default()
-    }
-}
-
 fn strip_data_prefix(line: &str) -> Option<&str> {
     line.strip_prefix("data: ").map(|s| s.trim())
 }
@@ -192,7 +174,7 @@ where
             let usage = chunk.usage.as_ref().and_then(|u| {
                 chunk.model.as_ref().map(|model| {
                     ProviderUsage {
-                        usage: get_usage(u),
+                        usage: openai::get_usage(u),
                         model: model.clone(),
                     }
                 })
