@@ -221,7 +221,7 @@ async fn main() -> Result<()> {
 
             let (canonical_input, canonical_output) =
                 if let Some(ref canonical_id) = canonical_id_opt {
-                    get_canonical_limits_by_id(&registry, canonical_id)
+                    get_canonical_limits_by_id(registry, canonical_id)
                 } else {
                     (None, None)
                 };
