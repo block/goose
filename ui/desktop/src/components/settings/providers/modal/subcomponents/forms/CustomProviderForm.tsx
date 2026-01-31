@@ -72,6 +72,7 @@ export default function CustomProviderForm({
     const keyEmpty = !newHeaderKey.trim();
     const valueEmpty = !newHeaderValue.trim();
     const keyHasSpaces = newHeaderKey.includes(' ');
+    const isDuplicate = headers.some(h => h.key.trim() === newHeaderKey.trim());
 
     if (keyEmpty || valueEmpty) {
       setInvalidHeaderFields({
@@ -91,6 +92,15 @@ export default function CustomProviderForm({
       return;
     }
 
+    if (isDuplicate) {
+      setInvalidHeaderFields({
+        key: true,
+        value: false,
+      });
+      setHeaderValidationError('A header with this name already exists');
+      return;
+    }
+
     setHeaderValidationError(null);
     setInvalidHeaderFields({ key: false, value: false });
     setHeaders([...headers, { key: newHeaderKey, value: newHeaderValue }]);
@@ -103,6 +113,15 @@ export default function CustomProviderForm({
   };
 
   const handleHeaderChange = (index: number, field: 'key' | 'value', value: string) => {
+    if (field === 'key') {
+      if (value.includes(' ')) {
+        return;
+      }
+      const isDuplicate = headers.some((h, i) => i !== index && h.key.trim() === value.trim());
+      if (isDuplicate && value.trim() !== '') {
+        return;
+      }
+    }
     const updatedHeaders = [...headers];
     updatedHeaders[index][field] = value;
     setHeaders(updatedHeaders);
@@ -151,7 +170,7 @@ export default function CustomProviderForm({
       models: modelList,
       supports_streaming: supportsStreaming,
       requires_auth: !noAuthRequired,
-      headers: Object.keys(headersObject).length > 0 ? headersObject : null,
+      headers: Object.keys(headersObject).length > 0 ? headersObject : {},
     });
   };
 
