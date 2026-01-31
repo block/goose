@@ -565,6 +565,7 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
     let provider_name = cliclack::select("Which model provider should we use?")
         .initial_value(&default_provider)
         .items(&provider_items)
+        .filter_mode()
         .interact()?;
 
     // Get the selected provider's metadata
