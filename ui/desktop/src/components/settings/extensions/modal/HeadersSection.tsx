@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button } from '../../../ui/button';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, Eye, EyeOff } from 'lucide-react';
 import { Input } from '../../../ui/input';
 import { cn } from '../../../../utils';
 
@@ -31,6 +31,42 @@ export default function HeadersSection({
     key: false,
     value: false,
   });
+  // Track which header values are visible (by index, -1 for new row)
+  const [visibleValues, setVisibleValues] = React.useState<Set<number>>(new Set());
+
+  // Check if header key indicates a sensitive value that should be masked
+  const isSensitiveHeader = (headerKey: string): boolean => {
+    const key = headerKey.toLowerCase();
+    // Check for API key patterns specifically to avoid false positives
+    // (e.g., 'Content-Type', 'Cookie' contain 'key' but are not sensitive)
+    const hasKeyPattern =
+      key === 'key' ||
+      key.endsWith('-key') ||
+      key.includes('api-key') ||
+      key.includes('apikey') ||
+      key.includes('api_key');
+    return (
+      key.includes('authorization') ||
+      key.includes('token') ||
+      key.includes('secret') ||
+      hasKeyPattern ||
+      key.includes('password') ||
+      key.includes('bearer') ||
+      key.includes('credential')
+    );
+  };
+
+  const toggleVisibility = (index: number) => {
+    setVisibleValues((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      return next;
+    });
+  };
 
   // Notify parent when pending input changes
   React.useEffect(() => {
@@ -105,16 +141,31 @@ export default function HeadersSection({
                 )}
               />
             </div>
-            <div className="relative">
+            <div className="relative flex items-center">
               <Input
                 value={header.value}
                 onChange={(e) => onChange(index, 'value', e.target.value)}
                 placeholder="Value"
+                type={isSensitiveHeader(header.key) && !visibleValues.has(index) ? 'password' : 'text'}
                 className={cn(
-                  'w-full text-textStandard border-borderSubtle hover:border-borderStandard',
+                  'w-full text-textStandard border-borderSubtle hover:border-borderStandard pr-10',
                   isFieldInvalid(index, 'value') && 'border-red-500 focus:border-red-500'
                 )}
               />
+              {isSensitiveHeader(header.key) && (
+                <button
+                  type="button"
+                  onClick={() => toggleVisibility(index)}
+                  className="absolute right-2 p-1 text-gray-400 hover:text-white transition-colors"
+                  aria-label={visibleValues.has(index) ? 'Hide value' : 'Show value'}
+                >
+                  {visibleValues.has(index) ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              )}
             </div>
             <Button
               onClick={() => onRemove(index)}
@@ -139,18 +190,36 @@ export default function HeadersSection({
             invalidFields.key && 'border-red-500 focus:border-red-500'
           )}
         />
-        <Input
-          value={newValue}
-          onChange={(e) => {
-            setNewValue(e.target.value);
-            clearValidation();
-          }}
-          placeholder="Value"
-          className={cn(
-            'w-full text-textStandard border-borderSubtle hover:border-borderStandard',
-            invalidFields.value && 'border-red-500 focus:border-red-500'
+        <div className="relative flex items-center">
+          <Input
+            value={newValue}
+            onChange={(e) => {
+              setNewValue(e.target.value);
+              clearValidation();
+            }}
+            placeholder="Value"
+            type={isSensitiveHeader(newKey) && !visibleValues.has(-1) ? 'password' : 'text'}
+            data-testid="new-header-value"
+            className={cn(
+              'w-full text-textStandard border-borderSubtle hover:border-borderStandard pr-10',
+              invalidFields.value && 'border-red-500 focus:border-red-500'
+            )}
+          />
+          {isSensitiveHeader(newKey) && (
+            <button
+              type="button"
+              onClick={() => toggleVisibility(-1)}
+              className="absolute right-2 p-1 text-gray-400 hover:text-white transition-colors"
+              aria-label={visibleValues.has(-1) ? 'Hide value' : 'Show value'}
+            >
+              {visibleValues.has(-1) ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
+            </button>
           )}
-        />
+        </div>
         <Button
           onClick={handleAdd}
           variant="ghost"
