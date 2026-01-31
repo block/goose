@@ -11,7 +11,9 @@ use super::api_client::{ApiClient, AuthMethod};
 use super::base::{ConfigKey, MessageStream, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
-use super::utils::{get_model, handle_response_openai_compat, handle_status_openai_compat, RequestLog};
+use super::utils::{
+    get_model, handle_response_openai_compat, handle_status_openai_compat, RequestLog,
+};
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::formats::moonshot as moonshot_format;
@@ -49,10 +51,14 @@ impl MoonshotProvider {
         })
     }
 
-    async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
+    async fn post(
+        &self,
+        session_id: Option<&str>,
+        payload: &Value,
+    ) -> Result<Value, ProviderError> {
         let response = self
             .api_client
-            .response_post("v1/chat/completions", payload)
+            .response_post(session_id, "v1/chat/completions", payload)
             .await?;
 
         let response_body = handle_response_openai_compat(response)
@@ -115,11 +121,12 @@ impl Provider for MoonshotProvider {
     }
 
     #[tracing::instrument(
-        skip(self, model_config, system, messages, tools),
+        skip(self, session_id, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
     async fn complete_with_model(
         &self,
+        session_id: Option<&str>,
         model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
@@ -141,7 +148,7 @@ impl Provider for MoonshotProvider {
         let response = self
             .with_retry(|| async {
                 let payload_clone = payload.clone();
-                self.post(&payload_clone).await
+                self.post(session_id, &payload_clone).await
             })
             .await?;
 
@@ -162,6 +169,7 @@ impl Provider for MoonshotProvider {
 
     async fn stream(
         &self,
+        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -183,7 +191,7 @@ impl Provider for MoonshotProvider {
             .with_retry(|| async {
                 let resp = self
                     .api_client
-                    .response_post("v1/chat/completions", &payload)
+                    .response_post(Some(session_id), "v1/chat/completions", &payload)
                     .await?;
                 handle_status_openai_compat(resp).await
             })

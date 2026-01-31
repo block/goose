@@ -4,7 +4,7 @@ use crate::providers::formats::openai;
 use anyhow::anyhow;
 use async_stream::try_stream;
 use futures::Stream;
-use rmcp::model::{object, CallToolRequestParam, ErrorCode, ErrorData, Role};
+use rmcp::model::{object, CallToolRequestParams, ErrorCode, ErrorData, Role};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::borrow::Cow;
@@ -260,7 +260,12 @@ where
                             Ok(params) => {
                                 MessageContent::tool_request_with_metadata(
                                     id.clone(),
-                                    Ok(CallToolRequestParam { name: function_name.clone().into(), arguments: Some(object(params)) }),
+                                    Ok(CallToolRequestParams {
+                                        meta: None,
+                                        task: None,
+                                        name: function_name.clone().into(),
+                                        arguments: Some(object(params)),
+                                    }),
                                     metadata.as_ref(),
                                 )
                             },
