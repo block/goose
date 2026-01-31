@@ -33,7 +33,7 @@ import VideoCarousel from '@site/src/components/VideoCarousel';
       link="/docs/tutorials/building-mcp-apps"
     />
     <Card 
-      title="MCP-UI Extensions"
+      title="Using MCP Apps and MCP-UI"
       description="goose transforms text-based responses into engaging graphical and interactive user experiences."
       link="/docs/guides/interactive-chat/mcp-ui"
     />
@@ -48,6 +48,11 @@ import VideoCarousel from '@site/src/components/VideoCarousel';
 <div className={styles.categorySection}>
   <h2 className={styles.categoryTitle}>📝 Featured Blog Posts</h2>
   <div className={styles.cardGrid}>
+    <Card      
+      title="From MCP-UI to MCP Apps: Evolving Interactive Agent UIs"
+      description="A practical migration guide to MCP Apps: the 4 key changes, what broke, and why this shift matters."
+      link="/blog/2026/01/22/mcp-ui-to-mcp-apps"
+    />
     <Card      
       title="goose Lands MCP Apps"
       description="goose ships early support for the draft MCP Apps specification, aligning with the emerging standard for interactive UIs."
@@ -87,6 +92,13 @@ import VideoCarousel from '@site/src/components/VideoCarousel';
 <VideoCarousel
   id="more-videos"
   videos={[
+    { 
+      type: 'iframe', 
+      src: 'https://youtube.com/embed/QcojQ3Fwqsw',
+      title: 'What are MCP Apps?',
+      description: 'Why MCP Apps are different from MCP-UI and what makes them portable, secure, and standardized',
+      duration: '1:53'
+    },
     { 
       type: 'iframe', 
       src: 'https://youtube.com/embed/Kxj-vFBO_9U',
