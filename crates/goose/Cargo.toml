@@ -12,7 +12,7 @@ workspace = true
 
 [build-dependencies]
 tokio = { workspace = true }
-reqwest = { workspace = true, features = ["json", "rustls-tls-native-roots"], default-features = false }
+reqwest = { workspace = true, features = ["json", "rustls-tls-native-roots", "system-proxy"], default-features = false }
 
 [dependencies]
 lru = "0.16"
@@ -27,7 +27,7 @@ anyhow = { workspace = true }
 thiserror = "1.0"
 futures = { workspace = true }
 dirs = "5.0"
-reqwest = { workspace = true, features = ["rustls-tls-native-roots", "json", "cookies", "gzip", "brotli", "deflate", "zstd", "charset", "http2", "stream", "blocking"], default-features = false }
+reqwest = { workspace = true, features = ["rustls-tls-native-roots", "json", "cookies", "gzip", "brotli", "deflate", "zstd", "charset", "http2", "stream", "blocking", "system-proxy"], default-features = false }
 tokio = { workspace = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { workspace = true }
