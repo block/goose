@@ -178,7 +178,9 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                         let mut part = Map::new();
                         part.insert("text".to_string(), json!(thinking.thinking));
                         if include_signature {
-                            part.insert("thoughtSignature".to_string(), json!(thinking.signature));
+                            if let Some(sig) = &thinking.signature {
+                                part.insert("thoughtSignature".to_string(), json!(sig));
+                            }
                         }
                         parts.push(json!(part));
                     }
@@ -264,7 +266,7 @@ fn process_response_part_impl(
         }
         match (signature, signed_text_handling) {
             (Some(sig), SignedTextHandling::SignedTextAsThinking) => {
-                Some(MessageContent::thinking(text.to_string(), sig.to_string()))
+                Some(MessageContent::thinking(text.to_string(), Some(sig.to_string())))
             }
             _ => Some(MessageContent::text(text.to_string())),
         }
@@ -922,7 +924,7 @@ mod tests {
         let thinking = native.content[0]
             .as_thinking()
             .expect("Text with function calls should be Thinking");
-        assert_eq!(thinking.signature, SIG);
+        assert_eq!(thinking.signature.as_deref(), Some(SIG));
 
         let req1 = native.content[1]
             .as_tool_request()
@@ -947,7 +949,7 @@ mod tests {
         assert_eq!(google_out[1]["parts"][0]["thoughtSignature"], SIG);
 
         let second_assistant =
-            Message::assistant().with_thinking("More thinking".to_string(), "sig_456".to_string());
+            Message::assistant().with_thinking("More thinking".to_string(), Some("sig_456".to_string()));
         let google_multi = format_messages(&[native, tool_response, second_assistant]);
         assert!(google_multi[0]["parts"][0]
             .get("thoughtSignature")
@@ -1099,7 +1101,7 @@ mod tests {
                     }
                     Some(MessageContent::Thinking(thinking)) => {
                         thinking_parts.push(thinking.thinking.clone());
-                        assert_eq!(thinking.signature, "sig123");
+                        assert_eq!(thinking.signature.as_deref(), Some("sig123"));
                     }
                     _ => {}
                 }

@@ -655,7 +655,7 @@ mod tests {
     #[test]
     fn test_message_to_markdown_thinking() {
         let message = Message::assistant()
-            .with_thinking("I need to analyze this problem...", "test-signature");
+            .with_thinking("I need to analyze this problem...", Some("test-signature".to_string()));
 
         let result = message_to_markdown(&message, true);
         assert!(result.contains("**Thinking:**"));
