@@ -225,7 +225,7 @@ pub fn handle_projects_interactive() -> Result<()> {
     let cancel_value = String::from("cancel");
     select = select.item(&cancel_value, "Cancel", "Don't resume any project");
 
-    let selected = select.filter_mode().interact()?;
+    let selected = select.interact()?;
 
     if selected == "cancel" {
         let _ = outro("Project selection canceled.");

@@ -765,7 +765,7 @@ pub fn toggle_extensions_dialog() -> anyhow::Result<()> {
         .map(|(name, _)| name)
         .collect();
 
-    // Let user toggle extensions (filter_mode enables type-to-search)
+    // Let user toggle extensions
     let selected = cliclack::multiselect(
         "enable extensions: (use \"space\" to toggle and \"enter\" to submit)",
     )
