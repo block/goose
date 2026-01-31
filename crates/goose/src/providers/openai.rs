@@ -64,7 +64,7 @@ pub struct OpenAiProvider {
 
 impl OpenAiProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let model = model.with_fast(OPEN_AI_DEFAULT_FAST_MODEL.to_string());
+        let model = model.with_fast(OPEN_AI_DEFAULT_FAST_MODEL)?;
 
         let config = crate::config::Config::global();
         let host: String = config

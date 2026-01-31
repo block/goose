@@ -547,9 +547,9 @@ export type MessageMetadata = {
 
 export type ModelConfig = {
     context_limit?: number | null;
-    fast_model?: string | null;
     max_tokens?: number | null;
     model_name: string;
+    provider_name: string;
     /**
      * Provider-specific request parameters (e.g., anthropic_beta headers)
      */
@@ -591,6 +591,28 @@ export type ModelInfo = {
     supports_cache_control?: boolean | null;
 };
 
+export type ModelInfoData = {
+    cache_read_token_cost?: number | null;
+    cache_write_token_cost?: number | null;
+    context_limit: number;
+    currency: string;
+    input_token_cost?: number | null;
+    max_output_tokens?: number | null;
+    model: string;
+    output_token_cost?: number | null;
+    provider: string;
+};
+
+export type ModelInfoQuery = {
+    model: string;
+    provider: string;
+};
+
+export type ModelInfoResponse = {
+    model_info?: ModelInfoData | null;
+    source: string;
+};
+
 export type ParseRecipeRequest = {
     content: string;
 };
@@ -603,25 +625,6 @@ export type ParseRecipeResponse = {
  * Enum representing the possible permission levels for a tool.
  */
 export type PermissionLevel = 'always_allow' | 'ask_before' | 'never_allow';
-
-export type PricingData = {
-    context_length?: number | null;
-    currency: string;
-    input_token_cost: number;
-    model: string;
-    output_token_cost: number;
-    provider: string;
-};
-
-export type PricingQuery = {
-    model: string;
-    provider: string;
-};
-
-export type PricingResponse = {
-    pricing: Array<PricingData>;
-    source: string;
-};
 
 export type PrincipalType = 'Extension' | 'Tool';
 
@@ -1816,6 +1819,29 @@ export type BackupConfigResponses = {
 
 export type BackupConfigResponse = BackupConfigResponses[keyof BackupConfigResponses];
 
+export type GetCanonicalModelInfoData = {
+    body: ModelInfoQuery;
+    path?: never;
+    query?: never;
+    url: '/config/canonical-model-info';
+};
+
+export type GetCanonicalModelInfoErrors = {
+    /**
+     * Model not found in canonical registry
+     */
+    404: unknown;
+};
+
+export type GetCanonicalModelInfoResponses = {
+    /**
+     * Model information retrieved successfully
+     */
+    200: ModelInfoResponse;
+};
+
+export type GetCanonicalModelInfoResponse = GetCanonicalModelInfoResponses[keyof GetCanonicalModelInfoResponses];
+
 export type CheckProviderData = {
     body: CheckProviderRequest;
     path?: never;
@@ -2088,22 +2114,6 @@ export type UpsertPermissionsResponses = {
 };
 
 export type UpsertPermissionsResponse = UpsertPermissionsResponses[keyof UpsertPermissionsResponses];
-
-export type GetPricingData = {
-    body: PricingQuery;
-    path?: never;
-    query?: never;
-    url: '/config/pricing';
-};
-
-export type GetPricingResponses = {
-    /**
-     * Model pricing data retrieved successfully
-     */
-    200: PricingResponse;
-};
-
-export type GetPricingResponse = GetPricingResponses[keyof GetPricingResponses];
 
 export type GetPromptsData = {
     body?: never;

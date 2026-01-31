@@ -44,163 +44,89 @@ pub enum ConfigError {
     InvalidRange(String, String),
 }
 
-static MODEL_SPECIFIC_LIMITS: Lazy<Vec<(&'static str, usize)>> = Lazy::new(|| {
-    vec![
-        // openai
-        ("gpt-5.2-codex", 400_000), // auto-compacting context
-        ("gpt-5.2", 400_000),       // auto-compacting context
-        ("gpt-5.1-codex-max", 256_000),
-        ("gpt-5.1-codex-mini", 256_000),
-        ("gpt-4-turbo", 128_000),
-        ("gpt-4.1", 1_000_000),
-        ("gpt-4-1", 1_000_000),
-        ("gpt-4o", 128_000),
-        ("o4-mini", 200_000),
-        ("o3-mini", 200_000),
-        ("o3", 200_000),
-        // anthropic - all 200k
-        ("claude", 200_000),
-        // google
-        ("gemini-1.5-flash", 1_048_576),
-        ("gemini-1", 128_000),
-        ("gemini-2", 1_048_576),
-        ("gemini-3-pro-image", 65_536),
-        ("gemini-3-pro", 1_048_576),
-        ("gemini-3-flash", 1_048_576),
-        ("gemma-3-27b", 128_000),
-        ("gemma-3-12b", 128_000),
-        ("gemma-3-4b", 128_000),
-        ("gemma-3-1b", 32_000),
-        ("gemma3-27b", 128_000),
-        ("gemma3-12b", 128_000),
-        ("gemma3-4b", 128_000),
-        ("gemma3-1b", 32_000),
-        ("gemma-2-27b", 8_192),
-        ("gemma-2-9b", 8_192),
-        ("gemma-2-2b", 8_192),
-        ("gemma2-", 8_192),
-        ("gemma-7b", 8_192),
-        ("gemma-2b", 8_192),
-        ("gemma1", 8_192),
-        ("gemma", 8_192),
-        // facebook
-        ("llama-2-1b", 32_000),
-        ("llama", 128_000),
-        // qwen
-        ("qwen3-coder", 262_144),
-        ("qwen2-7b", 128_000),
-        ("qwen2-14b", 128_000),
-        ("qwen2-32b", 131_072),
-        ("qwen2-70b", 262_144),
-        ("qwen2", 128_000),
-        ("qwen3-32b", 131_072),
-        // xai
-        ("grok-4", 256_000),
-        ("grok-code-fast-1", 256_000),
-        ("grok", 131_072),
-        // other
-        ("kimi-k2", 131_072),
-    ]
-});
-
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ModelConfig {
     pub model_name: String,
+    pub provider_name: String,
     pub context_limit: Option<usize>,
     pub temperature: Option<f32>,
     pub max_tokens: Option<i32>,
     pub toolshim: bool,
     pub toolshim_model: Option<String>,
-    pub fast_model: Option<String>,
+    #[serde(skip)]
+    pub fast_model_config: Option<Box<ModelConfig>>,
     /// Provider-specific request parameters (e.g., anthropic_beta headers)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub request_params: Option<HashMap<String, Value>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ModelLimitConfig {
-    pub pattern: String,
-    pub context_limit: usize,
-}
-
 impl ModelConfig {
-    pub fn new(model_name: &str) -> Result<Self, ConfigError> {
-        Self::new_with_context_env(model_name.to_string(), None)
+    pub fn new(model_name: &str, provider_name: &str) -> Result<Self, ConfigError> {
+        Self::new_with_context_env(model_name.to_string(), provider_name, None)
     }
 
     pub fn new_with_context_env(
         model_name: String,
+        provider_name: &str,
         context_env_var: Option<&str>,
     ) -> Result<Self, ConfigError> {
-        let predefined = find_predefined_model(&model_name);
-
-        let context_limit = if let Some(ref pm) = predefined {
-            if let Some(env_var) = context_env_var {
-                if let Ok(val) = std::env::var(env_var) {
-                    Some(Self::validate_context_limit(&val, env_var)?)
-                } else {
-                    pm.context_limit
-                }
-            } else if let Ok(val) = std::env::var("GOOSE_CONTEXT_LIMIT") {
-                Some(Self::validate_context_limit(&val, "GOOSE_CONTEXT_LIMIT")?)
+        // Priority 1: Check env vars first (highest priority)
+        let context_limit_from_env = if let Some(env_var) = context_env_var {
+            if let Ok(val) = std::env::var(env_var) {
+                Some(Self::validate_context_limit(&val, env_var)?)
             } else {
-                pm.context_limit
+                None
             }
+        } else if let Ok(val) = std::env::var("GOOSE_CONTEXT_LIMIT") {
+            Some(Self::validate_context_limit(&val, "GOOSE_CONTEXT_LIMIT")?)
         } else {
-            Self::parse_context_limit(&model_name, None, context_env_var)?
+            None
         };
+
+        let max_tokens_from_env = Self::parse_max_tokens()?;
+
+        // Priority 2: Try canonical model lookup
+        let mut context_limit = context_limit_from_env;
+        let mut max_tokens = max_tokens_from_env;
+
+        if context_limit.is_none() || max_tokens.is_none() {
+            if let Some(canonical) =
+                crate::providers::canonical::maybe_get_canonical_model(provider_name, &model_name)
+            {
+                if context_limit.is_none() {
+                    context_limit = Some(canonical.limit.context);
+                }
+                if max_tokens.is_none() {
+                    max_tokens = canonical.limit.output.map(|o| o as i32);
+                }
+            }
+        }
+
+        // Priority 3: Check predefined models
+        let predefined = find_predefined_model(&model_name);
+        if context_limit.is_none() {
+            if let Some(ref pm) = predefined {
+                context_limit = pm.context_limit;
+            }
+        }
 
         let request_params = predefined.and_then(|pm| pm.request_params);
 
         let temperature = Self::parse_temperature()?;
-        let max_tokens = Self::parse_max_tokens()?;
         let toolshim = Self::parse_toolshim()?;
         let toolshim_model = Self::parse_toolshim_model()?;
 
         Ok(Self {
             model_name,
+            provider_name: provider_name.to_string(),
             context_limit,
             temperature,
             max_tokens,
             toolshim,
             toolshim_model,
-            fast_model: None,
+            fast_model_config: None,
             request_params,
         })
-    }
-
-    fn parse_context_limit(
-        model_name: &str,
-        fast_model: Option<&str>,
-        custom_env_var: Option<&str>,
-    ) -> Result<Option<usize>, ConfigError> {
-        // First check if there's an explicit environment variable override
-        if let Some(env_var) = custom_env_var {
-            if let Ok(val) = std::env::var(env_var) {
-                return Self::validate_context_limit(&val, env_var).map(Some);
-            }
-        }
-        if let Ok(val) = std::env::var("GOOSE_CONTEXT_LIMIT") {
-            return Self::validate_context_limit(&val, "GOOSE_CONTEXT_LIMIT").map(Some);
-        }
-
-        // Get the model's limit
-        let model_limit = Self::get_model_specific_limit(model_name);
-
-        // If there's a fast_model, get its limit and use the minimum
-        if let Some(fast_model_name) = fast_model {
-            let fast_model_limit = Self::get_model_specific_limit(fast_model_name);
-
-            // Return the minimum of both limits (if both exist)
-            match (model_limit, fast_model_limit) {
-                (Some(m), Some(f)) => Ok(Some(m.min(f))),
-                (Some(m), None) => Ok(Some(m)),
-                (None, Some(f)) => Ok(Some(f)),
-                (None, None) => Ok(None),
-            }
-        } else {
-            Ok(model_limit)
-        }
     }
 
     fn validate_context_limit(val: &str, env_var: &str) -> Result<usize, ConfigError> {
@@ -291,23 +217,6 @@ impl ModelConfig {
         }
     }
 
-    fn get_model_specific_limit(model_name: &str) -> Option<usize> {
-        MODEL_SPECIFIC_LIMITS
-            .iter()
-            .find(|(pattern, _)| model_name.contains(pattern))
-            .map(|(_, limit)| *limit)
-    }
-
-    pub fn get_all_model_limits() -> Vec<ModelLimitConfig> {
-        MODEL_SPECIFIC_LIMITS
-            .iter()
-            .map(|(pattern, context_limit)| ModelLimitConfig {
-                pattern: pattern.to_string(),
-                context_limit: *context_limit,
-            })
-            .collect()
-    }
-
     pub fn with_context_limit(mut self, limit: Option<usize>) -> Self {
         if limit.is_some() {
             self.context_limit = limit;
@@ -335,9 +244,11 @@ impl ModelConfig {
         self
     }
 
-    pub fn with_fast(mut self, fast_model: String) -> Self {
-        self.fast_model = Some(fast_model);
-        self
+    pub fn with_fast(mut self, fast_model_name: &str) -> Result<Self, ConfigError> {
+        // Create a full ModelConfig for the fast model with proper canonical lookup
+        let fast_config = ModelConfig::new(fast_model_name, &self.provider_name)?;
+        self.fast_model_config = Some(Box::new(fast_config));
+        Ok(self)
     }
 
     pub fn with_request_params(mut self, params: Option<HashMap<String, Value>>) -> Self {
@@ -346,37 +257,28 @@ impl ModelConfig {
     }
 
     pub fn use_fast_model(&self) -> Self {
-        if let Some(fast_model) = &self.fast_model {
-            let mut config = self.clone();
-            config.model_name = fast_model.clone();
-            config
+        if let Some(fast_config) = &self.fast_model_config {
+            *fast_config.clone()
         } else {
             self.clone()
         }
     }
 
     pub fn context_limit(&self) -> usize {
-        // If we have an explicit context limit set, use it
-        if let Some(limit) = self.context_limit {
-            return limit;
-        }
-
-        // Otherwise, get the model's default limit
-        let main_limit =
-            Self::get_model_specific_limit(&self.model_name).unwrap_or(DEFAULT_CONTEXT_LIMIT);
-
-        // If we have a fast_model, also check its limit and use the minimum
-        if let Some(fast_model) = &self.fast_model {
-            let fast_limit =
-                Self::get_model_specific_limit(fast_model).unwrap_or(DEFAULT_CONTEXT_LIMIT);
-            main_limit.min(fast_limit)
-        } else {
-            main_limit
-        }
+        self.context_limit.unwrap_or(DEFAULT_CONTEXT_LIMIT)
     }
 
-    pub fn new_or_fail(model_name: &str) -> ModelConfig {
-        ModelConfig::new(model_name)
+    pub fn max_output_tokens(&self) -> i32 {
+        if let Some(tokens) = self.max_tokens {
+            return tokens;
+        }
+
+        // Priority 2: Global default
+        4_096
+    }
+
+    pub fn new_or_fail(model_name: &str, provider_name: &str) -> ModelConfig {
+        ModelConfig::new(model_name, provider_name)
             .unwrap_or_else(|_| panic!("Failed to create model config for {}", model_name))
     }
 }
@@ -432,7 +334,7 @@ mod tests {
             ("GOOSE_TOOLSHIM", None::<&str>),
             ("GOOSE_TOOLSHIM_OLLAMA_MODEL", None::<&str>),
         ]);
-        let config = ModelConfig::new("test-model").unwrap();
+        let config = ModelConfig::new("test-model", "test").unwrap();
         assert_eq!(config.max_tokens, Some(8192));
     }
 
@@ -445,7 +347,7 @@ mod tests {
             ("GOOSE_TOOLSHIM", None::<&str>),
             ("GOOSE_TOOLSHIM_OLLAMA_MODEL", None::<&str>),
         ]);
-        let config = ModelConfig::new("test-model").unwrap();
+        let config = ModelConfig::new("test-model", "test").unwrap();
         assert_eq!(config.max_tokens, None);
     }
 }

@@ -381,7 +381,7 @@ pub async fn spawn_acp_server_in_process(
         AuthMethod::BearerToken("test-key".to_string()),
     )
     .unwrap();
-    let model_config = ModelConfig::new("gpt-5-nano").unwrap();
+    let model_config = ModelConfig::new("gpt-5-nano", "openai").unwrap();
     let provider = OpenAiProvider::new(api_client, model_config);
 
     let config = AcpServerConfig {
