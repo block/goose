@@ -5,6 +5,7 @@ import { useConfig } from '../../ConfigContext';
 import { Input } from '../../ui/input';
 import { Button } from '../../ui/button';
 import { trackSettingToggled } from '../../../utils/analytics';
+import { LocalModelManager } from './LocalModelManager';
 
 export const DictationSettings = () => {
   const [provider, setProvider] = useState<DictationProvider | null>(null);
@@ -106,7 +107,14 @@ export const DictationSettings = () => {
 
   const getProviderLabel = (provider: DictationProvider | null): string => {
     if (!provider) return 'Disabled';
-    return provider.charAt(0).toUpperCase() + provider.slice(1);
+    switch (provider) {
+      case 'elevenlabs':
+        return 'ElevenLabs';
+      case 'openai':
+        return 'OpenAI';
+      case 'local':
+        return 'Local (Offline)';
+    }
   };
 
   return (
@@ -163,11 +171,11 @@ export const DictationSettings = () => {
 
       {provider && providerStatuses[provider] && (
         <>
-          <div className="py-2 px-2">
-            <p className="text-xs text-text-muted">{providerStatuses[provider].description}</p>
-          </div>
-
-          {providerStatuses[provider].uses_provider_config ? (
+          {provider === 'local' ? (
+            <div className="py-2 px-2">
+              <LocalModelManager />
+            </div>
+          ) : providerStatuses[provider].uses_provider_config ? (
             <div className="py-2 px-2 bg-background-subtle rounded-lg">
               {!providerStatuses[provider].configured ? (
                 <p className="text-xs text-text-muted">

@@ -4,6 +4,8 @@ use goose::agents::ExtensionConfig;
 use goose::config::permission::PermissionLevel;
 use goose::config::ExtensionEntry;
 use goose::conversation::Conversation;
+use goose::dictation::download_manager::{DownloadProgress, DownloadStatus};
+use goose::dictation::models::WhisperModel;
 use goose::model::ModelConfig;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata, ProviderType};
@@ -414,6 +416,11 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::telemetry::send_telemetry_event,
         super::routes::dictation::transcribe_dictation,
         super::routes::dictation::get_dictation_config,
+        super::routes::dictation::list_models,
+        super::routes::dictation::download_model,
+        super::routes::dictation::get_download_progress,
+        super::routes::dictation::cancel_download,
+        super::routes::dictation::delete_model,
     ),
     components(schemas(
         super::routes::config_management::UpsertConfigQuery,
@@ -576,6 +583,9 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::dictation::TranscribeResponse,
         super::routes::dictation::DictationProvider,
         super::routes::dictation::DictationProviderStatus,
+        WhisperModel,
+        DownloadProgress,
+        DownloadStatus,
     ))
 )]
 pub struct ApiDoc;

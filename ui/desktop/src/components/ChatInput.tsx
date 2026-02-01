@@ -1272,6 +1272,11 @@ export default function ChatInput({
                           ElevenLabs API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
                           <b>Chat</b> {'>'} <b>Voice Dictation.</b>
                         </p>
+                      ) : dictationProvider === 'local' ? (
+                        <p>
+                          Local Whisper model not found. Download a model in{' '}
+                          <b>Settings &gt; Dictation &gt; Local (Offline)</b>
+                        </p>
                       ) : (
                         <p>Dictation provider is not properly configured.</p>
                       )}

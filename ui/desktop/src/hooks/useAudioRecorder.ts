@@ -8,8 +8,82 @@ interface UseAudioRecorderOptions {
   onError: (message: string) => void;
 }
 
-const MAX_AUDIO_SIZE_MB = 25;
+const MAX_AUDIO_SIZE_MB = 50;
 const MAX_RECORDING_DURATION_SECONDS = 10 * 60;
+
+// Convert audio blob to WAV format using Web Audio API
+// Resamples to 16kHz mono (Whisper's native format) to reduce payload size
+async function convertToWav(audioBlob: Blob): Promise<Blob> {
+  const arrayBuffer = await audioBlob.arrayBuffer();
+  const audioContext = new AudioContext();
+  const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+  // Resample to 16kHz (Whisper's native sample rate)
+  const targetSampleRate = 16000;
+  const offlineContext = new OfflineAudioContext(
+    1, // mono
+    Math.ceil(audioBuffer.duration * targetSampleRate),
+    targetSampleRate
+  );
+
+  // Create a buffer source
+  const source = offlineContext.createBufferSource();
+  source.buffer = audioBuffer;
+  source.connect(offlineContext.destination);
+  source.start(0);
+
+  // Render the resampled audio
+  const resampledBuffer = await offlineContext.startRendering();
+
+  // Extract mono audio data
+  const audioData = new Float32Array(resampledBuffer.length);
+  resampledBuffer.copyFromChannel(audioData, 0);
+
+  // Create WAV file at 16kHz
+  const wavBuffer = encodeWav(audioData, targetSampleRate, 1);
+  return new Blob([wavBuffer], { type: 'audio/wav' });
+}
+
+// Encode PCM data as WAV file
+function encodeWav(samples: Float32Array, sampleRate: number, numChannels: number): ArrayBuffer {
+  const bytesPerSample = 2; // 16-bit
+  const blockAlign = numChannels * bytesPerSample;
+
+  const buffer = new ArrayBuffer(44 + samples.length * bytesPerSample);
+  const view = new DataView(buffer);
+
+  // WAV header
+  const writeString = (offset: number, string: string) => {
+    for (let i = 0; i < string.length; i++) {
+      view.setUint8(offset + i, string.charCodeAt(i));
+    }
+  };
+
+  writeString(0, 'RIFF');
+  view.setUint32(4, 36 + samples.length * bytesPerSample, true);
+  writeString(8, 'WAVE');
+  writeString(12, 'fmt ');
+  view.setUint32(16, 16, true); // fmt chunk size
+  view.setUint16(20, 1, true); // PCM format
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * blockAlign, true); // byte rate
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, bytesPerSample * 8, true); // bits per sample
+  writeString(36, 'data');
+  view.setUint32(40, samples.length * bytesPerSample, true);
+
+  // Write PCM data
+  let offset = 44;
+  for (let i = 0; i < samples.length; i++) {
+    const sample = Math.max(-1, Math.min(1, samples[i]));
+    const intSample = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+    view.setInt16(offset, intSample, true);
+    offset += 2;
+  }
+
+  return buffer;
+}
 
 export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderOptions) => {
   const [isRecording, setIsRecording] = useState(false);
@@ -92,7 +166,10 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
       setIsTranscribing(true);
 
       try {
-        const sizeMB = audioBlob.size / (1024 * 1024);
+        // Convert to WAV format for local transcription (works with all providers)
+        const wavBlob = await convertToWav(audioBlob);
+
+        const sizeMB = wavBlob.size / (1024 * 1024);
         if (sizeMB > MAX_AUDIO_SIZE_MB) {
           onError(
             `Audio file too large (${sizeMB.toFixed(1)}MB). Maximum size is ${MAX_AUDIO_SIZE_MB}MB.`
@@ -107,18 +184,13 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
             resolve(base64.split(',')[1]);
           };
           reader.onerror = reject;
-          reader.readAsDataURL(audioBlob);
+          reader.readAsDataURL(wavBlob);
         });
-
-        const mimeType = audioBlob.type;
-        if (!mimeType) {
-          throw new Error('Unable to determine audio format');
-        }
 
         const result = await transcribeDictation({
           body: {
             audio: base64Audio,
-            mime_type: mimeType,
+            mime_type: 'audio/wav',
             provider: provider,
           },
           throwOnError: true,
@@ -154,7 +226,8 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
       });
       streamRef.current = stream;
 
-      const supportedTypes = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/wav'];
+      // Record in whatever format the browser supports - we'll convert to WAV before sending
+      const supportedTypes = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'];
       const mimeType = supportedTypes.find((type) => MediaRecorder.isTypeSupported(type)) || '';
 
       const mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
@@ -166,7 +239,9 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
         const elapsed = (Date.now() - startTime) / 1000;
         setRecordingDuration(elapsed);
 
-        const estimatedSizeMB = (elapsed * 128 * 1024) / (8 * 1024 * 1024);
+        // Estimate final WAV size: 48kHz * 16-bit * mono ≈ 96 KB/s ≈ 0.09375 MB/s
+        // (Recorded in compressed format but converted to WAV before sending)
+        const estimatedSizeMB = (elapsed * 96) / 1024;
         setEstimatedSize(estimatedSizeMB);
 
         if (elapsed >= MAX_RECORDING_DURATION_SECONDS) {
