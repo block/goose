@@ -158,7 +158,6 @@ impl DownloadManager {
 
         let total_bytes = response.content_length().unwrap_or(0);
 
-        // Update total size
         {
             if let Ok(mut downloads) = downloads.lock() {
                 if let Some(progress) = downloads.get_mut(model_id) {

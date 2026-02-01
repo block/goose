@@ -642,42 +642,6 @@ fn decode_audio_simple(audio_data: &[u8]) -> Result<Vec<f32>> {
     Ok(resampled)
 }
 
-fn save_wav_16khz(path: &str, samples: &[f32]) -> Result<()> {
-    use std::io::Write;
-
-    let sample_rate = 16000u32;
-    let num_channels = 1u16;
-    let bits_per_sample = 16u16;
-    let byte_rate = sample_rate * num_channels as u32 * bits_per_sample as u32 / 8;
-    let block_align = num_channels * bits_per_sample / 8;
-    let data_size = (samples.len() * 2) as u32;
-
-    let mut file = std::fs::File::create(path)?;
-
-    file.write_all(b"RIFF")?;
-    file.write_all(&(36 + data_size).to_le_bytes())?;
-    file.write_all(b"WAVE")?;
-
-    file.write_all(b"fmt ")?;
-    file.write_all(&16u32.to_le_bytes())?;
-    file.write_all(&1u16.to_le_bytes())?;
-    file.write_all(&num_channels.to_le_bytes())?;
-    file.write_all(&sample_rate.to_le_bytes())?;
-    file.write_all(&byte_rate.to_le_bytes())?;
-    file.write_all(&block_align.to_le_bytes())?;
-    file.write_all(&bits_per_sample.to_le_bytes())?;
-
-    file.write_all(b"data")?;
-    file.write_all(&data_size.to_le_bytes())?;
-
-    for &sample in samples {
-        let sample_i16 = (sample.clamp(-1.0, 1.0) * 32767.0) as i16;
-        file.write_all(&sample_i16.to_le_bytes())?;
-    }
-
-    Ok(())
-}
-
 fn audio_buffer_to_f32(buffer: &AudioBufferRef) -> Vec<f32> {
     let num_channels = buffer.spec().channels.count();
     let num_frames = buffer.frames();

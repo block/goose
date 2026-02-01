@@ -265,30 +265,38 @@ export default function ChatInput({
       trackVoiceDictation('transcribed');
 
       let filteredText = text.replace(/\([^)]*\)/g, '').trim();
+      console.log('[Auto-submit] Raw text:', text);
+      console.log('[Auto-submit] Filtered text:', filteredText);
 
       if (!filteredText) {
         return;
       }
 
       const shouldAutoSubmit = /\bsubmit[.,!?;'"\s]*$/i.test(filteredText);
+      console.log('[Auto-submit] Should auto-submit:', shouldAutoSubmit);
 
       const cleanedText = shouldAutoSubmit
         ? filteredText.replace(/\bsubmit[.,!?;'"\s]*$/i, '').trim()
         : filteredText;
+      console.log('[Auto-submit] Cleaned text:', cleanedText);
+      console.log('[Auto-submit] Current displayValue:', displayValue);
 
-      const newValue = displayValue.trim()
+      const newValue = displayValue.trim() && cleanedText
         ? `${displayValue.trim()} ${cleanedText}`
-        : cleanedText;
+        : displayValue.trim() || cleanedText;
+      console.log('[Auto-submit] New value:', newValue);
 
       setDisplayValue(newValue);
       setValue(newValue);
 
-      if (shouldAutoSubmit) {
+      if (shouldAutoSubmit && newValue.trim()) {
+        console.log('[Auto-submit] Triggering submit with:', newValue);
         trackVoiceDictation('auto_submit');
         setTimeout(() => {
           performSubmit(newValue);
         }, 100);
       } else {
+        console.log('[Auto-submit] NOT submitting - shouldAutoSubmit:', shouldAutoSubmit, 'newValue.trim():', newValue.trim());
         textAreaRef.current?.focus();
       }
     },

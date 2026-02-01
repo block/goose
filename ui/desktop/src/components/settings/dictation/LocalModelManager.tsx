@@ -134,6 +134,10 @@ export const LocalModelManager = () => {
 
     try {
       await deleteModelApi({ path: { model_id: modelId } });
+      if (selectedModelId === modelId) {
+        await upsert(LOCAL_WHISPER_MODEL_CONFIG_KEY, '', false);
+        setSelectedModelId(null);
+      }
       loadModels();
     } catch (error) {
       console.error('Failed to delete model:', error);

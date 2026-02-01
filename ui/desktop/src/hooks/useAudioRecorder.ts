@@ -136,7 +136,9 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
     if (chunks.length === 0) return;
 
     const total = chunks.reduce((n, c) => n + c.length, 0);
-    const merged = new Float32Array(total);
+    const paddingSeconds = 0.5;
+    const paddingSamples = Math.floor(SAMPLE_RATE * paddingSeconds);
+    const merged = new Float32Array(total + paddingSamples);
     let off = 0;
     for (const c of chunks) {
       merged.set(c, off);
