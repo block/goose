@@ -208,7 +208,6 @@ impl MappingReport {
         println!("CHANGES SINCE PREVIOUS RUN");
         println!("{SEPARATOR}");
 
-        // Build maps using references to avoid cloning unless necessary
         let prev_map: HashMap<(&str, &str), &str> = previous
             .mapped_models
             .iter()
@@ -308,7 +307,6 @@ impl MappingReport {
     }
 }
 
-/// Get the path to a data file in the canonical models directory
 fn data_file_path(filename: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("src/providers/canonical/data")
@@ -332,7 +330,6 @@ async fn fetch_models_dev() -> Result<Value> {
         .context("Failed to parse models.dev response")
 }
 
-/// Extract optional string field from JSON
 fn get_string(value: &Value, field: &str) -> Option<String> {
     value.get(field).and_then(|v| v.as_str()).map(String::from)
 }
