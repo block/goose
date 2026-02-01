@@ -11,6 +11,9 @@ interface UseAudioRecorderOptions {
 const SAMPLE_RATE = 16000;
 const SILENCE_MS = 800;
 const MIN_SPEECH_MS = 200;
+// RMS threshold for speech detection. Audio samples are Float32 in [-1, 1] range.
+// 0.015 (~1.5% of full-scale) distinguishes normal speech from background noise
+// without clipping early speech onsets. Determined empirically for 16kHz mono input.
 const RMS_THRESHOLD = 0.015;
 
 // Import the worklet module - Vite will handle this correctly
@@ -98,7 +101,8 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
         const resp = await getDictationConfig();
         setIsEnabled(!!resp.data?.[pref]?.configured);
         setProvider(pref);
-      } catch {
+      } catch (error) {
+        console.error('Failed to check dictation config:', error);
         setIsEnabled(false);
         setProvider(null);
       }

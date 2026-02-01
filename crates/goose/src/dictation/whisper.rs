@@ -140,7 +140,21 @@ impl WhisperModel {
                 suppress_tokens: SUPPRESS_TOKENS.to_vec(),
                 max_target_positions: 448,
             },
-            _ => panic!("Unknown model: {}", self.id),
+            _ => {
+                tracing::warn!("Unknown model '{}', falling back to tiny config", self.id);
+                Config {
+                    num_mel_bins: 80,
+                    max_source_positions: 1500,
+                    d_model: 384,
+                    encoder_attention_heads: 6,
+                    encoder_layers: 4,
+                    decoder_attention_heads: 6,
+                    decoder_layers: 4,
+                    vocab_size: 51865,
+                    suppress_tokens: SUPPRESS_TOKENS.to_vec(),
+                    max_target_positions: 448,
+                }
+            }
         }
     }
 }
@@ -598,9 +612,6 @@ fn decode_audio_simple(audio_data: &[u8]) -> Result<Vec<f32>> {
 
     let mut decoder = symphonia::default::get_codecs()
         .make(&track.codec_params, &DecoderOptions::default())
-        .map_err(|e| {
-            e
-        })
         .context("Failed to create audio decoder - please ensure browser sends WAV format audio")?;
 
     let mut pcm_data = Vec::new();
