@@ -5,7 +5,7 @@ use super::errors::ProviderError;
 use super::retry::{ProviderRetry, RetryConfig};
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
-use crate::providers::utils::RequestLog;
+
 use anyhow::Result;
 use async_trait::async_trait;
 use aws_sdk_bedrockruntime::config::ProvideCredentials;
@@ -315,18 +315,6 @@ impl Provider for BedrockProvider {
             .unwrap_or_default();
 
         let message = from_bedrock_message(&bedrock_message)?;
-
-        // Add debug trace with input context
-        let debug_payload = serde_json::json!({
-            "system": system,
-            "messages": messages,
-            "tools": tools
-        });
-        let mut log = RequestLog::start(&self.model, &debug_payload)?;
-        log.write(
-            &serde_json::to_value(&message).unwrap_or_default(),
-            Some(&usage),
-        )?;
 
         let provider_usage = ProviderUsage::new(model_name.to_string(), usage);
         Ok((message, provider_usage))

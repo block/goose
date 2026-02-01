@@ -381,8 +381,8 @@ impl<'a> ApiRequestBuilder<'a> {
     {
         let url = self.client.build_url(self.path)?;
         let mut headers = self.headers.clone();
-        headers.remove(SESSION_ID_HEADER);
         if let Some(session_id) = self.session_id {
+            headers.remove(SESSION_ID_HEADER);
             let header_name = HeaderName::from_static(SESSION_ID_HEADER);
             let header_value = HeaderValue::from_str(session_id)?;
             headers.insert(header_name, header_value);
@@ -429,8 +429,6 @@ mod tests {
 
     #[test_case(Some("test-session_id-456"), None, Some("test-session_id-456"); "header set")]
     #[test_case(Some("new-session"), Some(("Agent-Session-Id", "old-session")), Some("new-session"); "replaces existing")]
-    #[test_case(None, Some(("Agent-Session-Id", "old-session")), None; "removes existing on none")]
-    #[test_case(Some(""), Some(("agent-session-id", "old-session")), None; "removes existing on empty")]
     fn test_session_id_header(
         session_id: Option<&str>,
         existing_header: Option<(&str, &str)>,

@@ -1,10 +1,12 @@
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{ConfigKey, MessageStream, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{
+    ConfigKey, Provider, ProviderMetadata, ProviderUsage, StreamFormat, StreamRequest, Usage,
+};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::{
     get_model, handle_response_google_compat, handle_response_openai_compat,
-    handle_status_openai_compat, is_google_model, stream_openai_compat, RequestLog,
+    handle_status_openai_compat, is_google_model,
 };
 use crate::config::signup_tetrate::TETRATE_DEFAULT_MODEL;
 use crate::conversation::message::Message;
@@ -176,7 +178,6 @@ impl Provider for TetrateProvider {
             &super::utils::ImageFormat::OpenAi,
             false,
         )?;
-        let mut log = RequestLog::start(model_config, &payload)?;
 
         // Make request
         let response = self
@@ -193,17 +194,16 @@ impl Provider for TetrateProvider {
             Usage::default()
         });
         let model = get_model(&response);
-        log.write(&response, Some(&usage))?;
         Ok((message, ProviderUsage::new(model, usage)))
     }
 
-    async fn stream(
+    fn build_stream_request(
         &self,
-        session_id: &str,
+        _session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<MessageStream, ProviderError> {
+    ) -> Result<StreamRequest, ProviderError> {
         let payload = create_request(
             &self.model,
             system,
@@ -213,22 +213,25 @@ impl Provider for TetrateProvider {
             true,
         )?;
 
-        let mut log = RequestLog::start(&self.model, &payload)?;
+        Ok(StreamRequest::new(
+            "v1/chat/completions",
+            payload,
+            StreamFormat::OpenAiCompat,
+        ))
+    }
 
-        let response = self
-            .with_retry(|| async {
-                let resp = self
-                    .api_client
-                    .response_post(Some(session_id), "v1/chat/completions", &payload)
-                    .await?;
-                handle_status_openai_compat(resp).await
-            })
-            .await
-            .inspect_err(|e| {
-                let _ = log.error(e);
-            })?;
+    async fn execute_stream_request(
+        &self,
+        request: &StreamRequest,
+    ) -> Result<reqwest::Response, ProviderError> {
+        let mut api_request = self.api_client.request(None, &request.url);
 
-        stream_openai_compat(response, log)
+        for (key, value) in &request.headers {
+            api_request = api_request.header(key.as_str(), value.to_str().unwrap_or(""))?;
+        }
+
+        let resp = api_request.response_post(&request.payload).await?;
+        handle_status_openai_compat(resp).await
     }
 
     /// Fetch supported models from Tetrate Agent Router Service API (only models with tool support)

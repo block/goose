@@ -341,7 +341,59 @@ impl Usage {
     }
 }
 
+use crate::session_context::SESSION_ID_HEADER;
 use async_trait::async_trait;
+use reqwest::header::HeaderMap;
+
+use super::utils::{
+    stream_anthropic_raw, stream_google_raw, stream_openai_compat_raw, stream_openai_responses_raw,
+    wrap_stream_with_logging, RequestLog,
+};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StreamFormat {
+    OpenAiCompat,
+    OpenAiResponses,
+    Anthropic,
+    Google,
+}
+
+#[derive(Debug, Clone)]
+pub struct StreamRequest {
+    /// The URL path to POST to (relative to the provider's base URL)
+    pub url: String,
+    /// Additional headers for this request
+    pub headers: HeaderMap,
+    /// The JSON payload to send
+    pub payload: serde_json::Value,
+    /// The format of the streaming response
+    pub format: StreamFormat,
+}
+
+impl StreamRequest {
+    pub fn new(url: impl Into<String>, payload: serde_json::Value, format: StreamFormat) -> Self {
+        Self {
+            url: url.into(),
+            headers: HeaderMap::new(),
+            payload,
+            format,
+        }
+    }
+
+    pub fn with_header(mut self, name: &str, value: &str) -> Result<Self, ProviderError> {
+        let header_name = reqwest::header::HeaderName::from_bytes(name.as_bytes())
+            .map_err(|e| ProviderError::RequestFailed(format!("Invalid header name: {}", e)))?;
+        let header_value = reqwest::header::HeaderValue::from_str(value)
+            .map_err(|e| ProviderError::RequestFailed(format!("Invalid header value: {}", e)))?;
+        self.headers.insert(header_name, header_value);
+        Ok(self)
+    }
+
+    pub fn with_headers(mut self, headers: HeaderMap) -> Self {
+        self.headers.extend(headers);
+        self
+    }
+}
 
 /// Trait for LeadWorkerProvider-specific functionality
 pub trait LeadWorkerProviderTrait {
@@ -366,11 +418,7 @@ pub trait Provider: Send + Sync {
     /// Get the name of this provider instance
     fn get_name(&self) -> &str;
 
-    // Internal implementation of complete, used by complete_fast and complete
-    // Providers should override this to implement their actual completion logic
-    //
-    /// # Parameters
-    /// - `session_id`: Use `None` only for configuration or pre-session tasks.
+    /// Internal implementation of complete. Providers implement this method.
     async fn complete_with_model(
         &self,
         session_id: Option<&str>,
@@ -539,16 +587,59 @@ pub trait Provider: Send + Sync {
         None
     }
 
-    async fn stream(
+    /// Build a streaming request descriptor.
+    /// Providers implement this to specify what request to make.
+    fn build_stream_request(
         &self,
         _session_id: &str,
         _system: &str,
         _messages: &[Message],
         _tools: &[Tool],
-    ) -> Result<MessageStream, ProviderError> {
+    ) -> Result<StreamRequest, ProviderError> {
         Err(ProviderError::NotImplemented(
             "streaming not implemented".to_string(),
         ))
+    }
+
+    /// Execute a streaming request and return the HTTP response.
+    /// Providers implement this to handle authentication, retry logic, etc.
+    async fn execute_stream_request(
+        &self,
+        _request: &StreamRequest,
+    ) -> Result<reqwest::Response, ProviderError> {
+        Err(ProviderError::NotImplemented(
+            "streaming not implemented".to_string(),
+        ))
+    }
+
+    /// Stream a request with automatic request logging.
+    /// Providers should implement `build_stream_request` and `execute_stream_request`.
+    /// Callers should use this method.
+    async fn stream(
+        &self,
+        session_id: &str,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+    ) -> Result<MessageStream, ProviderError> {
+        let mut request = self.build_stream_request(session_id, system, messages, tools)?;
+
+        if !session_id.is_empty() {
+            request = request.with_header(SESSION_ID_HEADER, session_id)?;
+        }
+
+        let mut log = RequestLog::start(&self.get_model_config(), &request.payload)?;
+
+        let response = log.run(self.execute_stream_request(&request)).await?;
+
+        let raw_stream = match request.format {
+            StreamFormat::OpenAiCompat => stream_openai_compat_raw(response),
+            StreamFormat::OpenAiResponses => stream_openai_responses_raw(response),
+            StreamFormat::Anthropic => stream_anthropic_raw(response),
+            StreamFormat::Google => stream_google_raw(response),
+        };
+
+        Ok(wrap_stream_with_logging(raw_stream, log))
     }
 
     fn supports_streaming(&self) -> bool {

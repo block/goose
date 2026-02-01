@@ -5,15 +5,16 @@ use serde_json::Value;
 use std::time::Duration;
 
 use super::api_client::{ApiClient, AuthMethod, AuthProvider};
-use super::base::{ConfigKey, MessageStream, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{
+    ConfigKey, Provider, ProviderMetadata, ProviderUsage, StreamFormat, StreamRequest, Usage,
+};
 use super::embedding::EmbeddingCapable;
 use super::errors::ProviderError;
 use super::formats::databricks::{create_request, response_to_message};
 use super::oauth;
 use super::retry::ProviderRetry;
 use super::utils::{
-    get_model, handle_response_openai_compat, map_http_error_to_provider_error,
-    stream_openai_compat, ImageFormat, RequestLog,
+    get_model, handle_response_openai_compat, map_http_error_to_provider_error, ImageFormat,
 };
 use crate::config::ConfigError;
 use crate::conversation::message::Message;
@@ -270,8 +271,6 @@ impl Provider for DatabricksProvider {
             .expect("payload should have model key")
             .remove("model");
 
-        let mut log = RequestLog::start(&self.model, &payload)?;
-
         let response = self
             .with_retry(|| self.post(session_id, payload.clone(), Some(&model_config.model_name)))
             .await?;
@@ -282,18 +281,17 @@ impl Provider for DatabricksProvider {
             Usage::default()
         });
         let response_model = get_model(&response);
-        log.write(&response, Some(&usage))?;
 
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
 
-    async fn stream(
+    fn build_stream_request(
         &self,
-        session_id: &str,
+        _session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<MessageStream, ProviderError> {
+    ) -> Result<StreamRequest, ProviderError> {
         let model_config = self.model.clone();
 
         let mut payload =
@@ -308,30 +306,33 @@ impl Provider for DatabricksProvider {
             .unwrap()
             .insert("stream".to_string(), Value::Bool(true));
 
-        let path = self.get_endpoint_path(&model_config.model_name, false);
-        let mut log = RequestLog::start(&self.model, &payload)?;
-        let response = self
-            .with_retry(|| async {
-                let resp = self
-                    .api_client
-                    .response_post(Some(session_id), &path, &payload)
-                    .await?;
-                if !resp.status().is_success() {
-                    let status = resp.status();
-                    let error_text = resp.text().await.unwrap_or_default();
+        let url = self.get_endpoint_path(&model_config.model_name, false);
 
-                    // Parse as JSON if possible to pass to map_http_error_to_provider_error
-                    let json_payload = serde_json::from_str::<Value>(&error_text).ok();
-                    return Err(map_http_error_to_provider_error(status, json_payload));
-                }
-                Ok(resp)
-            })
-            .await
-            .inspect_err(|e| {
-                let _ = log.error(e);
-            })?;
+        Ok(StreamRequest::new(url, payload, StreamFormat::OpenAiCompat))
+    }
 
-        stream_openai_compat(response, log)
+    async fn execute_stream_request(
+        &self,
+        request: &StreamRequest,
+    ) -> Result<reqwest::Response, ProviderError> {
+        self.with_retry(|| async {
+            let mut api_request = self.api_client.request(None, &request.url);
+
+            for (key, value) in &request.headers {
+                api_request = api_request.header(key.as_str(), value.to_str().unwrap_or(""))?;
+            }
+
+            let resp = api_request.response_post(&request.payload).await?;
+            if !resp.status().is_success() {
+                let status = resp.status();
+                let error_text = resp.text().await.unwrap_or_default();
+
+                let json_payload = serde_json::from_str::<Value>(&error_text).ok();
+                return Err(map_http_error_to_provider_error(status, json_payload));
+            }
+            Ok(resp)
+        })
+        .await
     }
 
     fn supports_streaming(&self) -> bool {

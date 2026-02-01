@@ -1,34 +1,27 @@
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{ConfigKey, ModelInfo, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{
+    ConfigKey, ModelInfo, Provider, ProviderMetadata, ProviderUsage, StreamFormat, StreamRequest,
+    Usage,
+};
 use super::embedding::{EmbeddingCapable, EmbeddingRequest, EmbeddingResponse};
 use super::errors::ProviderError;
 use super::formats::openai::{create_request, get_usage, response_to_message};
 use super::formats::openai_responses::{
-    create_responses_request, get_responses_usage, responses_api_to_message,
-    responses_api_to_streaming_message, ResponsesApiResponse,
+    create_responses_request, get_responses_usage, responses_api_to_message, ResponsesApiResponse,
 };
 use super::retry::ProviderRetry;
 use super::utils::{
-    get_model, handle_response_openai_compat, handle_status_openai_compat, stream_openai_compat,
-    ImageFormat,
+    get_model, handle_response_openai_compat, handle_status_openai_compat, ImageFormat,
 };
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
 use anyhow::Result;
-use async_stream::try_stream;
 use async_trait::async_trait;
-use futures::{StreamExt, TryStreamExt};
 use reqwest::StatusCode;
 use serde_json::Value;
 use std::collections::HashMap;
-use std::io;
-use tokio::pin;
-use tokio_util::codec::{FramedRead, LinesCodec};
-use tokio_util::io::StreamReader;
 
 use crate::model::ModelConfig;
-use crate::providers::base::MessageStream;
-use crate::providers::utils::RequestLog;
 use rmcp::model::Tool;
 
 pub const OPEN_AI_DEFAULT_MODEL: &str = "gpt-4o";
@@ -276,17 +269,13 @@ impl Provider for OpenAiProvider {
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         if Self::uses_responses_api(&model_config.model_name) {
             let payload = create_responses_request(model_config, system, messages, tools)?;
-            let mut log = RequestLog::start(&self.model, &payload)?;
 
             let json_response = self
                 .with_retry(|| async {
                     let payload_clone = payload.clone();
                     self.post_responses(session_id, &payload_clone).await
                 })
-                .await
-                .inspect_err(|e| {
-                    let _ = log.error(e);
-                })?;
+                .await?;
 
             let responses_api_response: ResponsesApiResponse =
                 serde_json::from_value(json_response.clone()).map_err(|e| {
@@ -300,7 +289,6 @@ impl Provider for OpenAiProvider {
             let usage = get_responses_usage(&responses_api_response);
             let model = responses_api_response.model.clone();
 
-            log.write(&json_response, Some(&usage))?;
             Ok((message, ProviderUsage::new(model, usage)))
         } else {
             let payload = create_request(
@@ -312,16 +300,12 @@ impl Provider for OpenAiProvider {
                 false,
             )?;
 
-            let mut log = RequestLog::start(&self.model, &payload)?;
             let json_response = self
                 .with_retry(|| async {
                     let payload_clone = payload.clone();
                     self.post(session_id, &payload_clone).await
                 })
-                .await
-                .inspect_err(|e| {
-                    let _ = log.error(e);
-                })?;
+                .await?;
 
             let message = response_to_message(&json_response)?;
             let usage = json_response
@@ -333,7 +317,6 @@ impl Provider for OpenAiProvider {
                 });
 
             let model = get_model(&json_response);
-            log.write(&json_response, Some(&usage))?;
             Ok((message, ProviderUsage::new(model, usage)))
         }
     }
@@ -383,47 +366,22 @@ impl Provider for OpenAiProvider {
         self.supports_streaming
     }
 
-    async fn stream(
+    fn build_stream_request(
         &self,
-        session_id: &str,
+        _session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<MessageStream, ProviderError> {
+    ) -> Result<StreamRequest, ProviderError> {
         if Self::uses_responses_api(&self.model.model_name) {
             let mut payload = create_responses_request(&self.model, system, messages, tools)?;
             payload["stream"] = serde_json::Value::Bool(true);
 
-            let mut log = RequestLog::start(&self.model, &payload)?;
-
-            let response = self
-                .with_retry(|| async {
-                    let payload_clone = payload.clone();
-                    let resp = self
-                        .api_client
-                        .response_post(Some(session_id), "v1/responses", &payload_clone)
-                        .await?;
-                    handle_status_openai_compat(resp).await
-                })
-                .await
-                .inspect_err(|e| {
-                    let _ = log.error(e);
-                })?;
-
-            let stream = response.bytes_stream().map_err(io::Error::other);
-
-            Ok(Box::pin(try_stream! {
-                let stream_reader = StreamReader::new(stream);
-                let framed = FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
-
-                let message_stream = responses_api_to_streaming_message(framed);
-                pin!(message_stream);
-                while let Some(message) = message_stream.next().await {
-                    let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
-                    log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
-                    yield (message, usage);
-                }
-            }))
+            Ok(StreamRequest::new(
+                "v1/responses",
+                payload,
+                StreamFormat::OpenAiResponses,
+            ))
         } else {
             let payload = create_request(
                 &self.model,
@@ -433,23 +391,30 @@ impl Provider for OpenAiProvider {
                 &ImageFormat::OpenAi,
                 true,
             )?;
-            let mut log = RequestLog::start(&self.model, &payload)?;
 
-            let response = self
-                .with_retry(|| async {
-                    let resp = self
-                        .api_client
-                        .response_post(Some(session_id), &self.base_path, &payload)
-                        .await?;
-                    handle_status_openai_compat(resp).await
-                })
-                .await
-                .inspect_err(|e| {
-                    let _ = log.error(e);
-                })?;
-
-            stream_openai_compat(response, log)
+            Ok(StreamRequest::new(
+                &self.base_path,
+                payload,
+                StreamFormat::OpenAiCompat,
+            ))
         }
+    }
+
+    async fn execute_stream_request(
+        &self,
+        request: &StreamRequest,
+    ) -> Result<reqwest::Response, ProviderError> {
+        self.with_retry(|| async {
+            let mut api_request = self.api_client.request(None, &request.url);
+
+            for (key, value) in &request.headers {
+                api_request = api_request.header(key.as_str(), value.to_str().unwrap_or(""))?;
+            }
+
+            let resp = api_request.response_post(&request.payload).await?;
+            handle_status_openai_compat(resp).await
+        })
+        .await
     }
 }
 

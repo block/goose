@@ -10,7 +10,7 @@ use tokio::process::Command;
 
 use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
-use super::utils::{filter_extensions_from_system_prompt, RequestLog};
+use super::utils::filter_extensions_from_system_prompt;
 use crate::config::base::ClaudeCodeCommand;
 use crate::config::search_path::SearchPaths;
 use crate::config::{Config, GooseMode};
@@ -431,22 +431,6 @@ impl Provider for ClaudeCodeProvider {
         let json_lines = self.execute_command(system, messages, tools).await?;
 
         let (message, usage) = self.parse_claude_response(&json_lines)?;
-
-        // Create a dummy payload for debug tracing
-        let payload = json!({
-            "command": self.command,
-            "model": model_config.model_name,
-            "system": system,
-            "messages": messages.len()
-        });
-        let mut log = RequestLog::start(model_config, &payload)?;
-
-        let response = json!({
-            "lines": json_lines.len(),
-            "usage": usage
-        });
-
-        log.write(&response, Some(&usage))?;
 
         Ok((
             message,

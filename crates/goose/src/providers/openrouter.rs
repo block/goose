@@ -3,13 +3,12 @@ use async_trait::async_trait;
 use serde_json::{json, Value};
 
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{ConfigKey, MessageStream, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{
+    ConfigKey, Provider, ProviderMetadata, ProviderUsage, StreamFormat, StreamRequest, Usage,
+};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
-use super::utils::{
-    get_model, handle_response_openai_compat, handle_status_openai_compat, stream_openai_compat,
-    RequestLog,
-};
+use super::utils::{get_model, handle_response_openai_compat, handle_status_openai_compat};
 use crate::conversation::message::Message;
 
 use crate::model::ModelConfig;
@@ -260,20 +259,19 @@ impl Provider for OpenRouterProvider {
     }
 
     #[tracing::instrument(
-        skip(self, model_config, system, messages, tools),
+        skip(self, _model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
     async fn complete_with_model(
         &self,
         session_id: Option<&str>,
-        model_config: &ModelConfig,
+        _model_config: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let payload =
             create_request_based_on_model(self, session_id, system, messages, tools).await?;
-        let mut log = RequestLog::start(model_config, &payload)?;
 
         let response = self
             .with_retry(|| async {
@@ -293,7 +291,6 @@ impl Provider for OpenRouterProvider {
             tracing::debug!("Failed to get usage data");
             Usage::default()
         });
-        log.write(&response, Some(&usage))?;
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
 
@@ -389,13 +386,13 @@ impl Provider for OpenRouterProvider {
         self.supports_streaming
     }
 
-    async fn stream(
+    fn build_stream_request(
         &self,
-        session_id: &str,
+        _session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<MessageStream, ProviderError> {
+    ) -> Result<StreamRequest, ProviderError> {
         let mut payload = create_request(
             &self.model,
             system,
@@ -405,7 +402,12 @@ impl Provider for OpenRouterProvider {
             true,
         )?;
 
-        if self.supports_cache_control().await {
+        // Check cache control synchronously (same logic as supports_cache_control)
+        if self
+            .model
+            .model_name
+            .starts_with(OPENROUTER_MODEL_PREFIX_ANTHROPIC)
+        {
             payload = update_request_for_anthropic(&payload);
         }
 
@@ -417,21 +419,27 @@ impl Provider for OpenRouterProvider {
             obj.insert("transforms".to_string(), json!(["middle-out"]));
         }
 
-        let mut log = RequestLog::start(&self.model, &payload)?;
+        Ok(StreamRequest::new(
+            "api/v1/chat/completions",
+            payload,
+            StreamFormat::OpenAiCompat,
+        ))
+    }
 
-        let response = self
-            .with_retry(|| async {
-                let resp = self
-                    .api_client
-                    .response_post(Some(session_id), "api/v1/chat/completions", &payload)
-                    .await?;
-                handle_status_openai_compat(resp).await
-            })
-            .await
-            .inspect_err(|e| {
-                let _ = log.error(e);
-            })?;
+    async fn execute_stream_request(
+        &self,
+        request: &StreamRequest,
+    ) -> Result<reqwest::Response, ProviderError> {
+        self.with_retry(|| async {
+            let mut api_request = self.api_client.request(None, &request.url);
 
-        stream_openai_compat(response, log)
+            for (key, value) in &request.headers {
+                api_request = api_request.header(key.as_str(), value.to_str().unwrap_or(""))?;
+            }
+
+            let resp = api_request.response_post(&request.payload).await?;
+            handle_status_openai_compat(resp).await
+        })
+        .await
     }
 }
