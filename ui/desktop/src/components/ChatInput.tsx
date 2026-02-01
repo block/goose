@@ -270,10 +270,10 @@ export default function ChatInput({
         return;
       }
 
-      const shouldAutoSubmit = /\bsubmit\s*$/i.test(filteredText);
+      const shouldAutoSubmit = /\bsubmit[.,!?;'"\s]*$/i.test(filteredText);
 
       const cleanedText = shouldAutoSubmit
-        ? filteredText.replace(/\bsubmit\s*$/i, '').trim()
+        ? filteredText.replace(/\bsubmit[.,!?;'"\s]*$/i, '').trim()
         : filteredText;
 
       const newValue = displayValue.trim()
