@@ -6,6 +6,7 @@ import { Geese } from '../icons/Geese';
 import Copy from '../icons/Copy';
 import { ExtensionConfig } from '../ConfigContext';
 import { Button } from '../ui/button';
+import type { Settings } from '../../api';
 
 import { RecipeFormFields } from './shared/RecipeFormFields';
 import { RecipeFormData } from './shared/recipeFormSchema';
@@ -140,14 +141,18 @@ export default function CreateEditRecipeModal({
       'envs' in extension ? { ...extension, envs: undefined } : extension
     ) as ExtensionConfig[] | undefined;
 
-    const mergedSettings = {
+    const mergedSettings: Settings = {
       ...(recipe?.settings || {}),
     };
     if (model !== undefined) {
       mergedSettings.goose_model = model || null;
+    } else if ('goose_model' in mergedSettings) {
+      delete mergedSettings.goose_model;
     }
     if (provider !== undefined) {
       mergedSettings.goose_provider = provider || null;
+    } else if ('goose_provider' in mergedSettings) {
+      delete mergedSettings.goose_provider;
     }
     const settings = Object.values(mergedSettings).some(
       (value) => value !== undefined && value !== null
