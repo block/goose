@@ -884,6 +884,7 @@ describe('RecipeFormFields', () => {
 
     it('allows selecting provider and model', async () => {
       const user = userEvent.setup();
+      const onSubmit = vi.fn();
       const TestComponent = () => {
         const form = useForm({
           defaultValues: {
@@ -899,7 +900,7 @@ describe('RecipeFormFields', () => {
             extensions: undefined,
           } as RecipeFormData,
           onSubmit: async ({ value }) => {
-            console.log('Form submitted:', value);
+            onSubmit(value);
           },
         });
 
@@ -955,7 +956,12 @@ describe('RecipeFormFields', () => {
         provider: 'openai',
       };
 
-      render(<TestWrapper initialValues={initialValues} />);
+      const TestComponent = () => {
+        const form = useTestForm(initialValues);
+        return <RecipeFormFields form={form} />;
+      };
+
+      render(<TestComponent />);
 
       await expandAdvancedSection(user);
 
@@ -981,11 +987,17 @@ describe('RecipeFormFields', () => {
         ],
       };
 
-      render(<TestWrapper initialValues={initialValues} />);
+      const TestComponent = () => {
+        const form = useTestForm(initialValues);
+        return <RecipeFormFields form={form} />;
+      };
+
+      render(<TestComponent />);
 
       await expandAdvancedSection(user);
 
       expect(screen.getByText('Extensions (Optional)')).toBeInTheDocument();
+      expect(screen.getByText('1 extension selected')).toBeInTheDocument();
     });
   });
 });
