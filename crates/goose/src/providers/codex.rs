@@ -176,6 +176,13 @@ impl CodexProvider {
         let mut cmd = Command::new(&self.command);
         configure_command_no_window(&mut cmd);
 
+        // Propagate extended PATH so the codex subprocess can find Node.js
+        // and other dependencies (especially when launched from the desktop app
+        // where the inherited PATH is limited).
+        if let Ok(path) = SearchPaths::builder().with_npm().path() {
+            cmd.env("PATH", path);
+        }
+
         // Use 'exec' subcommand for non-interactive mode
         cmd.arg("exec");
 
