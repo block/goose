@@ -58,6 +58,7 @@ import {
 } from '../ui/dropdown-menu';
 import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
 import { errorMessage } from '../../utils/conversionUtils';
+import { AppEvents } from '../../constants/events';
 
 export default function RecipesView() {
   const setView = useNavigation();
@@ -149,6 +150,9 @@ export default function RecipesView() {
       });
       const session = newAgent.data;
       trackRecipeStarted(true, undefined, false);
+
+      window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED, { detail: { session } }));
+
       setView('pair', {
         disableAnimation: true,
         resumeSessionId: session.id,
