@@ -112,6 +112,8 @@ export const DictationSettings = () => {
         return 'ElevenLabs';
       case 'openai':
         return 'OpenAI';
+      case 'groq':
+        return 'Groq';
       case 'local':
         return 'Local (Offline)';
     }

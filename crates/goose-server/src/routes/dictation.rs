@@ -25,6 +25,7 @@ pub struct WhisperModelResponse {
     #[schema(inline)]
     model: &'static whisper::WhisperModel,
     downloaded: bool,
+    recommended: bool,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -225,15 +226,17 @@ pub async fn get_dictation_config(
     get,
     path = "/dictation/models",
     responses(
-        (status = 200, description = "List of available Whisper models", body = Vec<WhisperModel>)
+        (status = 200, description = "List of available Whisper models", body = Vec<WhisperModelResponse>)
     )
 )]
 pub async fn list_models() -> Result<Json<Vec<WhisperModelResponse>>, ErrorResponse> {
+    let recommended_id = whisper::recommend_model();
     let models = whisper::available_models()
         .iter()
         .map(|m| WhisperModelResponse {
             model: m,
             downloaded: m.is_downloaded(),
+            recommended: m.id == recommended_id,
         })
         .collect();
 

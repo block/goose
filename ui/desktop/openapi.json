@@ -1608,7 +1608,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/WhisperModel"
+                    "$ref": "#/components/schemas/WhisperModelResponse"
                   }
                 }
               }
@@ -3814,6 +3814,7 @@
         "enum": [
           "openai",
           "elevenlabs",
+          "groq",
           "local"
         ]
       },
@@ -7206,67 +7207,53 @@
           }
         }
       },
-      "WhisperModel": {
-        "type": "object",
-        "required": [
-          "id",
-          "name",
-          "size_bytes",
-          "size_display",
-          "quality",
-          "url",
-          "downloaded",
-          "recommended_for",
-          "speed",
-          "description"
-        ],
-        "properties": {
-          "description": {
-            "type": "string",
-            "description": "Description"
+      "WhisperModelResponse": {
+        "allOf": [
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "size_mb",
+              "url",
+              "description"
+            ],
+            "properties": {
+              "description": {
+                "type": "string",
+                "description": "Description"
+              },
+              "id": {
+                "type": "string",
+                "description": "Model identifier (e.g., \"tiny\", \"base\", \"small\")"
+              },
+              "size_mb": {
+                "type": "integer",
+                "format": "int32",
+                "description": "Model file size in MB",
+                "minimum": 0
+              },
+              "url": {
+                "type": "string",
+                "description": "Download URL from HuggingFace"
+              }
+            }
           },
-          "downloaded": {
-            "type": "boolean",
-            "description": "Whether this model is currently downloaded"
-          },
-          "id": {
-            "type": "string",
-            "description": "Model identifier (e.g., \"tiny\", \"base\", \"small\")"
-          },
-          "name": {
-            "type": "string",
-            "description": "Display name"
-          },
-          "quality": {
-            "type": "string",
-            "description": "Quality tier: \"fast\", \"balanced\", \"accurate\""
-          },
-          "recommended_for": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "description": "Recommended for which hardware tier"
-          },
-          "size_bytes": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Model file size in bytes",
-            "minimum": 0
-          },
-          "size_display": {
-            "type": "string",
-            "description": "Model file size formatted for display (e.g., \"40MB\")"
-          },
-          "speed": {
-            "type": "string",
-            "description": "Relative transcription speed (multiplier of realtime, e.g., \"3.5x\")"
-          },
-          "url": {
-            "type": "string",
-            "description": "Download URL from HuggingFace"
+          {
+            "type": "object",
+            "required": [
+              "downloaded",
+              "recommended"
+            ],
+            "properties": {
+              "downloaded": {
+                "type": "boolean"
+              },
+              "recommended": {
+                "type": "boolean"
+              }
+            }
           }
-        }
+        ]
       },
       "WindowProps": {
         "type": "object",

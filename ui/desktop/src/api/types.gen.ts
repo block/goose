@@ -190,7 +190,7 @@ export type DetectProviderResponse = {
     provider_name: string;
 };
 
-export type DictationProvider = 'openai' | 'elevenlabs' | 'local';
+export type DictationProvider = 'openai' | 'elevenlabs' | 'groq' | 'local';
 
 export type DictationProviderStatus = {
     /**
@@ -1345,47 +1345,26 @@ export type UpsertPermissionsQuery = {
     tool_permissions: Array<ToolPermission>;
 };
 
-export type WhisperModel = {
+export type WhisperModelResponse = {
     /**
      * Description
      */
     description: string;
     /**
-     * Whether this model is currently downloaded
-     */
-    downloaded: boolean;
-    /**
      * Model identifier (e.g., "tiny", "base", "small")
      */
     id: string;
     /**
-     * Display name
+     * Model file size in MB
      */
-    name: string;
-    /**
-     * Quality tier: "fast", "balanced", "accurate"
-     */
-    quality: string;
-    /**
-     * Recommended for which hardware tier
-     */
-    recommended_for: Array<string>;
-    /**
-     * Model file size in bytes
-     */
-    size_bytes: number;
-    /**
-     * Model file size formatted for display (e.g., "40MB")
-     */
-    size_display: string;
-    /**
-     * Relative transcription speed (multiplier of realtime, e.g., "3.5x")
-     */
-    speed: string;
+    size_mb: number;
     /**
      * Download URL from HuggingFace
      */
     url: string;
+} & {
+    downloaded: boolean;
+    recommended: boolean;
 };
 
 export type WindowProps = {
@@ -2610,7 +2589,7 @@ export type ListModelsResponses = {
     /**
      * List of available Whisper models
      */
-    200: Array<WhisperModel>;
+    200: Array<WhisperModelResponse>;
 };
 
 export type ListModelsResponse = ListModelsResponses[keyof ListModelsResponses];

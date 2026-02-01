@@ -8,207 +8,187 @@ interface UseAudioRecorderOptions {
   onError: (message: string) => void;
 }
 
-const MAX_AUDIO_SIZE_MB = 50;
-const MAX_RECORDING_DURATION_SECONDS = 10 * 60;
+const SAMPLE_RATE = 16000;
+const SILENCE_MS = 1200;
+const MIN_SPEECH_MS = 300;
+const RMS_THRESHOLD = 0.015;
 
-// Convert audio blob to WAV format using Web Audio API
-// Resamples to 16kHz mono (Whisper's native format) to reduce payload size
-async function convertToWav(audioBlob: Blob): Promise<Blob> {
-  const arrayBuffer = await audioBlob.arrayBuffer();
-  const audioContext = new AudioContext();
-  const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+// Import the worklet module - Vite will handle this correctly
+const WORKLET_URL = new URL('../audio-capture-worklet.js', import.meta.url).href;
 
-  // Resample to 16kHz (Whisper's native sample rate)
-  const targetSampleRate = 16000;
-  const offlineContext = new OfflineAudioContext(
-    1, // mono
-    Math.ceil(audioBuffer.duration * targetSampleRate),
-    targetSampleRate
-  );
-
-  // Create a buffer source
-  const source = offlineContext.createBufferSource();
-  source.buffer = audioBuffer;
-  source.connect(offlineContext.destination);
-  source.start(0);
-
-  // Render the resampled audio
-  const resampledBuffer = await offlineContext.startRendering();
-
-  // Extract mono audio data
-  const audioData = new Float32Array(resampledBuffer.length);
-  resampledBuffer.copyFromChannel(audioData, 0);
-
-  // Create WAV file at 16kHz
-  const wavBuffer = encodeWav(audioData, targetSampleRate, 1);
-  return new Blob([wavBuffer], { type: 'audio/wav' });
+function encodeWav(samples: Float32Array, sampleRate: number): ArrayBuffer {
+  const buf = new ArrayBuffer(44 + samples.length * 2);
+  const v = new DataView(buf);
+  const w = (o: number, s: string) => {
+    for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i));
+  };
+  w(0, 'RIFF');
+  v.setUint32(4, 36 + samples.length * 2, true);
+  w(8, 'WAVE');
+  w(12, 'fmt ');
+  v.setUint32(16, 16, true);
+  v.setUint16(20, 1, true);
+  v.setUint16(22, 1, true);
+  v.setUint32(24, sampleRate, true);
+  v.setUint32(28, sampleRate * 2, true);
+  v.setUint16(32, 2, true);
+  v.setUint16(34, 16, true);
+  w(36, 'data');
+  v.setUint32(40, samples.length * 2, true);
+  let o = 44;
+  for (let i = 0; i < samples.length; i++) {
+    const s = Math.max(-1, Math.min(1, samples[i]));
+    v.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    o += 2;
+  }
+  return buf;
 }
 
-// Encode PCM data as WAV file
-function encodeWav(samples: Float32Array, sampleRate: number, numChannels: number): ArrayBuffer {
-  const bytesPerSample = 2; // 16-bit
-  const blockAlign = numChannels * bytesPerSample;
+function rms(samples: Float32Array): number {
+  let sum = 0;
+  for (let i = 0; i < samples.length; i++) sum += samples[i] * samples[i];
+  return Math.sqrt(sum / samples.length);
+}
 
-  const buffer = new ArrayBuffer(44 + samples.length * bytesPerSample);
-  const view = new DataView(buffer);
-
-  // WAV header
-  const writeString = (offset: number, string: string) => {
-    for (let i = 0; i < string.length; i++) {
-      view.setUint8(offset + i, string.charCodeAt(i));
-    }
-  };
-
-  writeString(0, 'RIFF');
-  view.setUint32(4, 36 + samples.length * bytesPerSample, true);
-  writeString(8, 'WAVE');
-  writeString(12, 'fmt ');
-  view.setUint32(16, 16, true); // fmt chunk size
-  view.setUint16(20, 1, true); // PCM format
-  view.setUint16(22, numChannels, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * blockAlign, true); // byte rate
-  view.setUint16(32, blockAlign, true);
-  view.setUint16(34, bytesPerSample * 8, true); // bits per sample
-  writeString(36, 'data');
-  view.setUint32(40, samples.length * bytesPerSample, true);
-
-  // Write PCM data
-  let offset = 44;
-  for (let i = 0; i < samples.length; i++) {
-    const sample = Math.max(-1, Math.min(1, samples[i]));
-    const intSample = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
-    view.setInt16(offset, intSample, true);
-    offset += 2;
-  }
-
-  return buffer;
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onloadend = () => resolve((r.result as string).split(',')[1]);
+    r.onerror = reject;
+    r.readAsDataURL(blob);
+  });
 }
 
 export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderOptions) => {
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
-  const [recordingDuration, setRecordingDuration] = useState(0);
-  const [estimatedSize, setEstimatedSize] = useState(0);
   const [isEnabled, setIsEnabled] = useState(false);
   const [provider, setProvider] = useState<DictationProvider | null>(null);
 
   const { read } = useConfig();
 
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
+  const audioContextRef = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const durationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // VAD state (all refs to avoid re-render/stale closure issues)
+  const samplesRef = useRef<Float32Array[]>([]);
+  const isSpeakingRef = useRef(false);
+  const silenceStartRef = useRef(0);
+  const speechStartRef = useRef(0);
+  const pendingTranscriptions = useRef(0);
+  const providerRef = useRef(provider);
+  providerRef.current = provider;
+
+  // Keep callback refs fresh
+  const onTranscriptionRef = useRef(onTranscription);
+  onTranscriptionRef.current = onTranscription;
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
 
   useEffect(() => {
-    const checkProviderConfig = async () => {
+    const check = async () => {
       try {
-        const providerValue = await read('voice_dictation_provider', false);
-        const preferredProvider = (providerValue as DictationProvider) || null;
-
-        if (!preferredProvider) {
+        const val = await read('voice_dictation_provider', false);
+        const pref = (val as DictationProvider) || null;
+        if (!pref) {
           setIsEnabled(false);
           setProvider(null);
           return;
         }
-
-        const audioConfigResponse = await getDictationConfig();
-        const providerStatus = audioConfigResponse.data?.[preferredProvider];
-
-        setIsEnabled(!!providerStatus?.configured);
-        setProvider(preferredProvider);
-      } catch (error) {
-        console.error('Error checking audio config:', error);
+        const resp = await getDictationConfig();
+        setIsEnabled(!!resp.data?.[pref]?.configured);
+        setProvider(pref);
+      } catch {
         setIsEnabled(false);
         setProvider(null);
       }
     };
-
-    checkProviderConfig();
+    check();
   }, [read]);
 
+  const transcribeChunk = useCallback(async (samples: Float32Array) => {
+    const prov = providerRef.current;
+    if (!prov) return;
+
+    pendingTranscriptions.current++;
+    setIsTranscribing(true);
+
+    try {
+      const wav = new Blob([encodeWav(samples, SAMPLE_RATE)], { type: 'audio/wav' });
+      const base64 = await blobToBase64(wav);
+      const result = await transcribeDictation({
+        body: { audio: base64, mime_type: 'audio/wav', provider: prov },
+        throwOnError: true,
+      });
+      if (result.data?.text) {
+        onTranscriptionRef.current(result.data.text);
+      }
+    } catch (error) {
+      onErrorRef.current(errorMessage(error));
+    } finally {
+      pendingTranscriptions.current--;
+      if (pendingTranscriptions.current === 0) setIsTranscribing(false);
+    }
+  }, []);
+
+  const flush = useCallback(() => {
+    const chunks = samplesRef.current;
+    if (chunks.length === 0) return;
+
+    const total = chunks.reduce((n, c) => n + c.length, 0);
+    const merged = new Float32Array(total);
+    let off = 0;
+    for (const c of chunks) {
+      merged.set(c, off);
+      off += c.length;
+    }
+    samplesRef.current = [];
+    transcribeChunk(merged);
+  }, [transcribeChunk]);
+
+  const flushRef = useRef(flush);
+  flushRef.current = flush;
+
+  const handleSamples = useCallback((samples: Float32Array) => {
+    const now = Date.now();
+
+    if (rms(samples) > RMS_THRESHOLD) {
+      if (!isSpeakingRef.current) {
+        isSpeakingRef.current = true;
+        speechStartRef.current = now;
+      }
+      silenceStartRef.current = 0;
+      samplesRef.current.push(new Float32Array(samples));
+    } else if (isSpeakingRef.current) {
+      samplesRef.current.push(new Float32Array(samples));
+
+      if (silenceStartRef.current === 0) {
+        silenceStartRef.current = now;
+      } else if (now - silenceStartRef.current > SILENCE_MS) {
+        if (now - speechStartRef.current > MIN_SPEECH_MS) {
+          flushRef.current();
+        } else {
+          samplesRef.current = [];
+        }
+        isSpeakingRef.current = false;
+        silenceStartRef.current = 0;
+      }
+    }
+  }, []);
+
   const stopRecording = useCallback(() => {
+    if (isSpeakingRef.current && samplesRef.current.length > 0) {
+      flushRef.current();
+    }
+    isSpeakingRef.current = false;
+    silenceStartRef.current = 0;
+
+    audioContextRef.current?.close();
+    audioContextRef.current = null;
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
     setIsRecording(false);
-
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
-    }
-
-    if (durationIntervalRef.current) {
-      clearInterval(durationIntervalRef.current);
-      durationIntervalRef.current = null;
-    }
-
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
   }, []);
-
-  useEffect(() => {
-    return () => {
-      if (durationIntervalRef.current) {
-        clearInterval(durationIntervalRef.current);
-      }
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
-      }
-    };
-  }, []);
-
-  const transcribeAudio = useCallback(
-    async (audioBlob: Blob) => {
-      if (!provider) {
-        onError('No transcription provider configured');
-        return;
-      }
-
-      setIsTranscribing(true);
-
-      try {
-        // Convert to WAV format for local transcription (works with all providers)
-        const wavBlob = await convertToWav(audioBlob);
-
-        const sizeMB = wavBlob.size / (1024 * 1024);
-        if (sizeMB > MAX_AUDIO_SIZE_MB) {
-          onError(
-            `Audio file too large (${sizeMB.toFixed(1)}MB). Maximum size is ${MAX_AUDIO_SIZE_MB}MB.`
-          );
-          return;
-        }
-
-        const reader = new FileReader();
-        const base64Audio = await new Promise<string>((resolve, reject) => {
-          reader.onloadend = () => {
-            const base64 = reader.result as string;
-            resolve(base64.split(',')[1]);
-          };
-          reader.onerror = reject;
-          reader.readAsDataURL(wavBlob);
-        });
-
-        const result = await transcribeDictation({
-          body: {
-            audio: base64Audio,
-            mime_type: 'audio/wav',
-            provider: provider,
-          },
-          throwOnError: true,
-        });
-
-        if (result.data?.text) {
-          onTranscription(result.data.text);
-        }
-      } catch (error) {
-        onError(errorMessage(error));
-      } finally {
-        setIsTranscribing(false);
-        setRecordingDuration(0);
-        setEstimatedSize(0);
-      }
-    },
-    [provider, onTranscription, onError]
-  );
 
   const startRecording = useCallback(async () => {
     if (!isEnabled) {
@@ -218,76 +198,46 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
       streamRef.current = stream;
 
-      // Record in whatever format the browser supports - we'll convert to WAV before sending
-      const supportedTypes = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'];
-      const mimeType = supportedTypes.find((type) => MediaRecorder.isTypeSupported(type)) || '';
+      const ctx = new AudioContext({ sampleRate: SAMPLE_RATE });
+      audioContextRef.current = ctx;
 
-      const mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
+      await ctx.audioWorklet.addModule(WORKLET_URL);
 
-      const startTime = Date.now();
-      durationIntervalRef.current = setInterval(() => {
-        const elapsed = (Date.now() - startTime) / 1000;
-        setRecordingDuration(elapsed);
+      const source = ctx.createMediaStreamSource(stream);
+      const worklet = new AudioWorkletNode(ctx, 'audio-capture');
 
-        // Estimate final WAV size: 48kHz * 16-bit * mono ≈ 96 KB/s ≈ 0.09375 MB/s
-        // (Recorded in compressed format but converted to WAV before sending)
-        const estimatedSizeMB = (elapsed * 96) / 1024;
-        setEstimatedSize(estimatedSizeMB);
+      worklet.port.onmessage = (e: MessageEvent<Float32Array>) => handleSamples(e.data);
 
-        if (elapsed >= MAX_RECORDING_DURATION_SECONDS) {
-          stopRecording();
-          onError(
-            `Maximum recording duration (${MAX_RECORDING_DURATION_SECONDS / 60} minutes) reached`
-          );
-        }
-      }, 100);
+      // Connect through silent gain to keep worklet processing alive
+      const silence = ctx.createGain();
+      silence.gain.value = 0;
+      source.connect(worklet);
+      worklet.connect(silence);
+      silence.connect(ctx.destination);
 
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType || 'audio/webm' });
-
-        if (audioBlob.size === 0) {
-          onError('No audio data was recorded. Please check your microphone.');
-          return;
-        }
-
-        await transcribeAudio(audioBlob);
-      };
-
-      mediaRecorder.onerror = (_event) => {
-        onError('Recording failed');
-      };
-
-      mediaRecorder.start(100);
       setIsRecording(true);
     } catch (error) {
       stopRecording();
       onError(errorMessage(error));
     }
-  }, [isEnabled, onError, transcribeAudio, stopRecording]);
+  }, [isEnabled, onError, handleSamples, stopRecording]);
+
+  useEffect(() => {
+    return () => {
+      audioContextRef.current?.close();
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+    };
+  }, []);
 
   return {
     isEnabled,
     dictationProvider: provider,
     isRecording,
     isTranscribing,
-    recordingDuration,
-    estimatedSize,
     startRecording,
     stopRecording,
   };

@@ -8,7 +8,7 @@ import {
   getDownloadProgress,
   cancelDownload as cancelDownloadApi,
   deleteModel as deleteModelApi,
-  type WhisperModel,
+  type WhisperModelResponse,
   type DownloadProgress,
 } from '../../../api';
 
@@ -24,7 +24,7 @@ const capitalize = (str: string): string => {
 };
 
 export const LocalModelManager = () => {
-  const [models, setModels] = useState<WhisperModel[]>([]);
+  const [models, setModels] = useState<WhisperModelResponse[]>([]);
   const [downloads, setDownloads] = useState<Map<string, DownloadProgress>>(new Map());
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const { read, upsert } = useConfig();
