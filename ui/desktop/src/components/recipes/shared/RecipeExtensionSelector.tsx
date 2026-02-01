@@ -103,7 +103,16 @@ export const RecipeExtensionSelector = ({
               <div
                 key={ext.name}
                 className="flex items-center justify-between px-4 py-3 hover:bg-bgSubtle transition-colors cursor-pointer border-b border-borderSubtle last:border-b-0"
+                role="button"
+                tabIndex={0}
+                aria-pressed={isSelected}
                 onClick={() => handleToggle(ext)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    handleToggle(ext);
+                  }
+                }}
                 title={ext.description || ext.name}
               >
                 <div className="flex-1 min-w-0">
