@@ -259,7 +259,6 @@ fn to_bedrock_document(
         Some((name, "txt")) => (name, bedrock::DocumentFormat::Txt),
         Some((name, "csv")) => (name, bedrock::DocumentFormat::Csv),
         Some((name, "md")) => (name, bedrock::DocumentFormat::Md),
-        Some((name, "html")) => (name, bedrock::DocumentFormat::Html),
         _ => return Ok(None), // Not a supported document type
     };
 
