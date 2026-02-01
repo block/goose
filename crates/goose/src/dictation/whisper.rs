@@ -4,12 +4,14 @@
 //! via the Candle ML framework. It supports loading GGUF quantized models for
 //! efficient CPU inference.
 
+use crate::config::paths::Paths;
 use anyhow::{Context, Result};
 use candle_core::{Device, IndexOp, Tensor};
 use candle_nn::ops::log_softmax;
 use candle_transformers::models::whisper::{self as m, audio, Config, N_FRAMES};
+use serde::{Deserialize, Serialize};
 use std::io::Cursor;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use symphonia::core::audio::{AudioBufferRef, Signal};
 use symphonia::core::codecs::DecoderOptions;
 use symphonia::core::formats::FormatOptions;
@@ -17,54 +19,155 @@ use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::MetadataOptions;
 use symphonia::core::probe::Hint;
 use tokenizers::Tokenizer;
+use utoipa::ToSchema;
 
-/// Whisper transcription engine
+// Common suppress tokens for all Whisper models
+const SUPPRESS_TOKENS: &[u32] = &[
+    1, 2, 7, 8, 9, 10, 14, 25, 26, 27, 28, 29, 31, 58, 59, 60, 61, 62, 63, 90, 91, 92, 93, 359,
+    503, 522, 542, 873, 893, 902, 918, 922, 931, 1350, 1853, 1982, 2460, 2627, 3246, 3253, 3268,
+    3536, 3846, 3961, 4183, 4667, 6585, 6647, 7273, 9061, 9383, 10428, 10929, 11938, 12033, 12331,
+    12562, 13793, 14157, 14635, 15265, 15618, 16553, 16604, 18362, 18956, 20075, 21675, 22520,
+    26130, 26161, 26435, 28279, 29464, 31650, 32302, 32470, 36865, 42863, 47425, 49870, 50254,
+    50258, 50360, 50362,
+];
+
+// Special token IDs
+const SOT_TOKEN: u32 = 50258;
+const TRANSCRIBE_TOKEN: u32 = 50359;
+const EOT_TOKEN: u32 = 50257;
+const TIMESTAMP_BEGIN: u32 = 50364;
+const SAMPLE_BEGIN: usize = 3;
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct WhisperModel {
+    /// Model identifier (e.g., "tiny", "base", "small")
+    pub id: &'static str,
+    /// Model file size in MB
+    pub size_mb: u32,
+    /// Download URL from HuggingFace
+    pub url: &'static str,
+    /// Description
+    pub description: &'static str,
+}
+
+const MODELS: &[WhisperModel] = &[
+    WhisperModel {
+        id: "tiny",
+        size_mb: 40,
+        url: "https://huggingface.co/oxide-lab/whisper-tiny-GGUF/resolve/main/model-tiny-q80.gguf",
+        description: "Fastest, ~2-3x realtime on CPU (5-10x with GPU)",
+    },
+    WhisperModel {
+        id: "base",
+        size_mb: 78,
+        url: "https://huggingface.co/oxide-lab/whisper-base-GGUF/resolve/main/whisper-base-q8_0.gguf",
+        description: "Good balance, ~1.5-2x realtime on CPU (4-8x with GPU)",
+    },
+    WhisperModel {
+        id: "small",
+        size_mb: 247,
+        url: "https://huggingface.co/oxide-lab/whisper-small-GGUF/resolve/main/whisper-small-q8_0.gguf",
+        description: "High accuracy, ~0.8-1x realtime on CPU (3-5x with GPU)",
+    },
+    WhisperModel {
+        id: "medium",
+        size_mb: 777,
+        url: "https://huggingface.co/oxide-lab/whisper-medium-GGUF/resolve/main/whisper-medium-q8_0.gguf",
+        description: "Highest accuracy, ~0.5x realtime on CPU (2-4x with GPU)",
+    },
+];
+
+impl WhisperModel {
+    pub fn local_path(&self) -> PathBuf {
+        let filename = self.url.rsplit('/').next().unwrap_or("");
+        Paths::in_data_dir("models").join(filename)
+    }
+
+    pub fn is_downloaded(&self) -> bool {
+        self.local_path().exists()
+    }
+
+    pub fn config(&self) -> Config {
+        match self.id {
+            "tiny" => Config {
+                num_mel_bins: 80,
+                max_source_positions: 1500,
+                d_model: 384,
+                encoder_attention_heads: 6,
+                encoder_layers: 4,
+                decoder_attention_heads: 6,
+                decoder_layers: 4,
+                vocab_size: 51865,
+                suppress_tokens: SUPPRESS_TOKENS.to_vec(),
+                max_target_positions: 448,
+            },
+            "base" => Config {
+                num_mel_bins: 80,
+                max_source_positions: 1500,
+                d_model: 512,
+                encoder_attention_heads: 8,
+                encoder_layers: 6,
+                decoder_attention_heads: 8,
+                decoder_layers: 6,
+                vocab_size: 51865,
+                suppress_tokens: SUPPRESS_TOKENS.to_vec(),
+                max_target_positions: 448,
+            },
+            "small" => Config {
+                num_mel_bins: 80,
+                max_source_positions: 1500,
+                d_model: 768,
+                encoder_attention_heads: 12,
+                encoder_layers: 12,
+                decoder_attention_heads: 12,
+                decoder_layers: 12,
+                vocab_size: 51865,
+                suppress_tokens: SUPPRESS_TOKENS.to_vec(),
+                max_target_positions: 448,
+            },
+            "medium" => Config {
+                num_mel_bins: 80,
+                max_source_positions: 1500,
+                d_model: 1024,
+                encoder_attention_heads: 16,
+                encoder_layers: 24,
+                decoder_attention_heads: 16,
+                decoder_layers: 24,
+                vocab_size: 51865,
+                suppress_tokens: SUPPRESS_TOKENS.to_vec(),
+                max_target_positions: 448,
+            },
+            _ => panic!("Unknown model: {}", self.id),
+        }
+    }
+}
+
+pub fn available_models() -> &'static [WhisperModel] {
+    MODELS
+}
+
+pub fn get_model(id: &str) -> Option<&'static WhisperModel> {
+    MODELS.iter().find(|m| m.id == id)
+}
+
 pub struct WhisperTranscriber {
     model: m::quantized_model::Whisper,
     config: Config,
     device: Device,
     mel_filters: Vec<f32>,
-    tokenizer: Option<Tokenizer>,
-    // Token IDs for timestamp processing
+    tokenizer: Tokenizer,
     eot_token: u32,
     no_timestamps_token: u32,
-    language_token: Option<u32>,
-    max_initial_timestamp_index: Option<u32>,
+    language_token: u32,
+    max_initial_timestamp_index: u32,
 }
 
 impl WhisperTranscriber {
-    /// Create a new transcriber by loading a model from a file path
-    ///
-    /// # Arguments
-    /// * `model_path` - Path to the GGUF model file (e.g., "whisper-tiny-q80.gguf")
-    ///
-    /// # Example
-    /// ```no_run
-    /// use goose::whisper::WhisperTranscriber;
-    ///
-    /// let transcriber = WhisperTranscriber::new("~/.goose/whisper-models/whisper-tiny-q80.gguf")?;
-    /// # Ok::<(), anyhow::Error>(())
-    /// ```
-    pub fn new<P: AsRef<Path>>(model_path: P) -> Result<Self> {
-        Self::new_with_tokenizer(model_path, None)
-    }
-
-    /// Create a new transcriber with an optional bundled tokenizer
-    ///
-    /// If the tokenizer doesn't exist at the expected location and bundled_tokenizer is provided,
-    /// it will be written to disk for future use.
-    ///
-    /// # Arguments
-    /// * `model_path` - Path to the GGUF model file (e.g., "whisper-tiny-q80.gguf")
-    /// * `bundled_tokenizer` - Optional tokenizer JSON content to use if file doesn't exist
     pub fn new_with_tokenizer<P: AsRef<Path>>(
+        model_id: &str,
         model_path: P,
-        bundled_tokenizer: Option<&str>,
+        bundled_tokenizer: &str,
     ) -> Result<Self> {
-        // Try to use GPU acceleration: CUDA > Metal > CPU
-        // Note: GPU features must be enabled at build time:
-        //   cargo build --features cuda    (for NVIDIA GPUs)
-        //   cargo build --features metal   (for Apple Silicon/AMD on macOS)
         let device = if let Ok(device) = Device::new_cuda(0) {
             tracing::info!("Using CUDA GPU acceleration");
             device
@@ -78,94 +181,14 @@ impl WhisperTranscriber {
 
         let model_path_ref = model_path.as_ref();
 
-        tracing::debug!("whisper.rs: Checking model path: {}", model_path_ref.display());
-        tracing::debug!("whisper.rs: Path exists: {}", model_path_ref.exists());
-        tracing::debug!("whisper.rs: Path is absolute: {}", model_path_ref.is_absolute());
-        tracing::debug!("whisper.rs: Path as_os_str: {:?}", model_path_ref.as_os_str());
-
         if !model_path_ref.exists() {
             anyhow::bail!("Model file not found: {}", model_path_ref.display());
         }
 
-        tracing::info!(
-            "Loading Whisper model from: {}",
-            model_path_ref.display()
-        );
+        let model =
+            get_model(model_id).ok_or_else(|| anyhow::anyhow!("Unknown model: {}", model_id))?;
+        let config = model.config();
 
-        // Detect model size from filename to use appropriate config
-        let filename = model_path_ref
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("");
-
-        // Common suppress tokens for all models
-        let suppress_tokens = vec![
-            1, 2, 7, 8, 9, 10, 14, 25, 26, 27, 28, 29, 31, 58, 59, 60, 61, 62, 63, 90, 91,
-            92, 93, 359, 503, 522, 542, 873, 893, 902, 918, 922, 931, 1350, 1853, 1982,
-            2460, 2627, 3246, 3253, 3268, 3536, 3846, 3961, 4183, 4667, 6585, 6647, 7273,
-            9061, 9383, 10428, 10929, 11938, 12033, 12331, 12562, 13793, 14157, 14635,
-            15265, 15618, 16553, 16604, 18362, 18956, 20075, 21675, 22520, 26130, 26161,
-            26435, 28279, 29464, 31650, 32302, 32470, 36865, 42863, 47425, 49870, 50254,
-            50258, 50360, 50362,
-        ];
-
-        // Load config based on model size
-        let config = if filename.contains("tiny") {
-            Config {
-                num_mel_bins: 80,
-                max_source_positions: 1500,
-                d_model: 384,
-                encoder_attention_heads: 6,
-                encoder_layers: 4,
-                decoder_attention_heads: 6,
-                decoder_layers: 4,
-                vocab_size: 51865,
-                suppress_tokens: suppress_tokens.clone(),
-                max_target_positions: 448,
-            }
-        } else if filename.contains("base") {
-            Config {
-                num_mel_bins: 80,
-                max_source_positions: 1500,
-                d_model: 512,
-                encoder_attention_heads: 8,
-                encoder_layers: 6,
-                decoder_attention_heads: 8,
-                decoder_layers: 6,
-                vocab_size: 51865,
-                suppress_tokens: suppress_tokens.clone(),
-                max_target_positions: 448,
-            }
-        } else if filename.contains("medium") {
-            Config {
-                num_mel_bins: 80,
-                max_source_positions: 1500,
-                d_model: 1024,
-                encoder_attention_heads: 16,
-                encoder_layers: 24,
-                decoder_attention_heads: 16,
-                decoder_layers: 24,
-                vocab_size: 51865,
-                suppress_tokens: suppress_tokens.clone(),
-                max_target_positions: 448,
-            }
-        } else {
-            // Small model (default)
-            Config {
-                num_mel_bins: 80,
-                max_source_positions: 1500,
-                d_model: 768,
-                encoder_attention_heads: 12,
-                encoder_layers: 12,
-                decoder_attention_heads: 12,
-                decoder_layers: 12,
-                vocab_size: 51865,
-                suppress_tokens,
-                max_target_positions: 448,
-            }
-        };
-
-        // Load mel filterbank
         let mel_bytes = match config.num_mel_bins {
             80 => include_bytes!("whisper_data/melfilters.bytes").as_slice(),
             128 => include_bytes!("whisper_data/melfilters128.bytes").as_slice(),
@@ -177,22 +200,13 @@ impl WhisperTranscriber {
             &mut mel_filters,
         )?;
 
-        // Load the quantized model from GGUF
         let vb = candle_transformers::quantized_var_builder::VarBuilder::from_gguf(
             model_path_ref,
             &device,
         )?;
         let model = m::quantized_model::Whisper::load(&vb, config.clone())?;
 
-        tracing::info!("Whisper model loaded successfully");
-
-        // Try to load tokenizer from the same directory or download it
-        let tokenizer = Self::load_tokenizer(model_path_ref, bundled_tokenizer).ok();
-        if tokenizer.is_some() {
-            tracing::info!("Tokenizer loaded successfully");
-        } else {
-            tracing::warn!("Could not load tokenizer, token decoding will be limited");
-        }
+        let tokenizer = Self::load_tokenizer(model_path_ref, Some(bundled_tokenizer))?;
 
         Ok(Self {
             model,
@@ -202,8 +216,8 @@ impl WhisperTranscriber {
             tokenizer,
             eot_token: 50257,
             no_timestamps_token: 50363,
-            language_token: Some(50259), // English token
-            max_initial_timestamp_index: Some(50), // Limit initial timestamp to first 1 second
+            language_token: 50259,           // English token
+            max_initial_timestamp_index: 50, // Limit initial timestamp to first 1 second
         })
     }
 
@@ -223,10 +237,7 @@ impl WhisperTranscriber {
 
         // If we have a bundled tokenizer and the file doesn't exist, write it
         if let Some(tokenizer_json) = bundled_tokenizer {
-            tracing::info!(
-                "Writing bundled tokenizer to {}",
-                tokenizer_path.display()
-            );
+            tracing::info!("Writing bundled tokenizer to {}", tokenizer_path.display());
 
             // Create parent directory if it doesn't exist
             if let Some(parent) = tokenizer_path.parent() {
@@ -271,6 +282,46 @@ impl WhisperTranscriber {
     pub fn transcribe(&mut self, audio_data: &[u8]) -> Result<String> {
         tracing::info!("Transcribing {} bytes of audio data", audio_data.len());
 
+        let mel_tensor = self.prepare_audio_input(audio_data)?;
+        let (_, _, content_frames) = mel_tensor.dims3()?;
+
+        // Process mel in segments
+        let num_segments = content_frames.div_ceil(N_FRAMES);
+        tracing::info!(
+            "Processing mel in {} segment(s) (N_FRAMES={}, content_frames={})",
+            num_segments,
+            N_FRAMES,
+            content_frames
+        );
+
+        let mut all_text_tokens = Vec::new();
+        let mut seek = 0;
+        let mut segment_num = 0;
+
+        while seek < content_frames {
+            segment_num += 1;
+            let segment_size = usize::min(content_frames - seek, N_FRAMES);
+
+            let segment_text_tokens =
+                self.process_segment(&mel_tensor, seek, segment_size, segment_num, num_segments)?;
+
+            all_text_tokens.extend(segment_text_tokens);
+            seek += segment_size;
+        }
+
+        tracing::info!(
+            "=== COMPLETE: Processed {} segments, {} total text tokens ===",
+            num_segments,
+            all_text_tokens.len()
+        );
+
+        let text = self.decode_tokens(&all_text_tokens)?;
+        tracing::info!("Transcription complete: {} tokens", all_text_tokens.len());
+
+        Ok(text)
+    }
+
+    fn prepare_audio_input(&self, audio_data: &[u8]) -> Result<Tensor> {
         // Debug: Save audio if requested via env var
         if std::env::var("GOOSE_SAVE_AUDIO").is_ok() {
             let save_path = "/tmp/whisper_audio.wav";
@@ -330,288 +381,269 @@ impl WhisperTranscriber {
             pcm_data.len() / 160
         );
 
-        // Special token IDs
-        let sot_token_id = 50258_u32;
-        let english_token_id = 50259_u32;
-        let transcribe_token_id = 50359_u32;
-        let no_timestamps_token_id = 50363_u32;
-        let eot_token_id = 50257_u32;
+        Ok(mel_tensor)
+    }
 
-        // Process mel in segments - encoder can handle up to N_FRAMES (3000) which downsamples to 1500
-        let num_segments = (content_frames + N_FRAMES - 1) / N_FRAMES;
+    fn process_segment(
+        &mut self,
+        mel_tensor: &Tensor,
+        seek: usize,
+        segment_size: usize,
+        segment_num: usize,
+        num_segments: usize,
+    ) -> Result<Vec<u32>> {
+        let time_offset = (seek * 160) as f32 / 16000.0; // HOP_LENGTH = 160
+        let segment_duration = (segment_size * 160) as f32 / 16000.0;
+
+        tracing::info!("=== SEGMENT {}/{} ===", segment_num, num_segments);
         tracing::info!(
-            "Processing mel in {} segment(s) (N_FRAMES={}, content_frames={})",
-            num_segments,
-            N_FRAMES,
-            content_frames
+            "  Seek: {}, Size: {}, Time: {:.1}s - {:.1}s",
+            seek,
+            segment_size,
+            time_offset,
+            time_offset + segment_duration
         );
 
-        let mut all_text_tokens = Vec::new();
-        let mut seek = 0;
-        let mut segment_num = 0;
+        let mel_segment = mel_tensor.narrow(2, seek, segment_size)?;
+        tracing::info!("  Mel segment shape: {:?}", mel_segment.dims());
 
-        while seek < content_frames {
-            segment_num += 1;
-            let segment_size = usize::min(content_frames - seek, N_FRAMES);
-            let time_offset = (seek * 160) as f32 / 16000.0; // HOP_LENGTH = 160
-            let segment_duration = (segment_size * 160) as f32 / 16000.0;
+        // Reset decoder KV cache before processing new segment
+        self.model.decoder.reset_kv_cache();
 
-            tracing::info!(
-                "=== SEGMENT {}/{} ===",
-                segment_num,
-                num_segments
-            );
-            tracing::info!(
-                "  Seek: {}, Size: {}, Time: {:.1}s - {:.1}s",
-                seek,
-                segment_size,
-                time_offset,
-                time_offset + segment_duration
-            );
+        // Encode audio segment
+        let audio_features = self.model.encoder.forward(&mel_segment, true)?;
+        tracing::info!("  Encoder output shape: {:?}", audio_features.dims());
 
-            let mel_segment = mel_tensor.narrow(2, seek, segment_size)?;
-            tracing::info!("  Mel segment shape: {:?}", mel_segment.dims());
-
-            // Reset decoder KV cache before processing new segment
-            self.model.decoder.reset_kv_cache();
-
-            // Encode audio segment
-            let audio_features = self.model.encoder.forward(&mel_segment, true)?;
-            tracing::info!("  Encoder output shape: {:?}", audio_features.dims());
-
-            // Create suppress tokens tensor
-            // Per OpenAI Whisper: suppress the no_timestamps token when in timestamps mode
-            // https://github.com/openai/whisper/blob/e8622f9afc4eba139bf796c210f5c01081000472/whisper/decoding.py#L452
-            let suppress_tokens = {
-                let mut suppress = vec![0f32; self.config.vocab_size];
-                for &token_id in &self.config.suppress_tokens {
-                    if (token_id as usize) < suppress.len() {
-                        suppress[token_id as usize] = f32::NEG_INFINITY;
-                    }
-                }
-                // In timestamps mode, also suppress the no_timestamps token
-                suppress[no_timestamps_token_id as usize] = f32::NEG_INFINITY;
-
-                Tensor::from_vec(suppress, self.config.vocab_size, &self.device)?
-            };
-
-            // Initialize token sequence for this segment
-            // Match candle example: SOT + language + task tokens
-            // NOTE: We do NOT add no_timestamps token, which enables timestamps mode
-            let mut tokens = vec![
-                sot_token_id,
-                english_token_id,
-                transcribe_token_id,
-            ];
-
-            let sample_len = self.config.max_target_positions / 2;
-
-            // Decode loop for this segment
-            for i in 0..sample_len {
-                let tokens_tensor = Tensor::new(tokens.as_slice(), &self.device)?.unsqueeze(0)?;
-                let ys = self
-                    .model
-                    .decoder
-                    .forward(&tokens_tensor, &audio_features, i == 0)?;
-
-                let (_, seq_len, _) = ys.dims3()?;
-                let mut logits = self
-                    .model
-                    .decoder
-                    .final_linear(&ys.i((..1, seq_len - 1..))?)?
-                    .i(0)?
-                    .i(0)?;
-
-                // Apply timestamp rules in timestamps mode
-                logits = self.apply_timestamp_rules(&logits, &tokens)?;
-
-                let logits = logits.broadcast_add(&suppress_tokens)?;
-
-                let logits_v: Vec<f32> = logits.to_vec1()?;
-                let next_token = logits_v
-                    .iter()
-                    .enumerate()
-                    .max_by(|(_, u), (_, v)| u.total_cmp(v))
-                    .map(|(i, _)| i as u32)
-                    .unwrap();
-
-                tokens.push(next_token);
-
-                if next_token == eot_token_id || tokens.len() > self.config.max_target_positions {
-                    break;
+        // Create suppress tokens tensor
+        let suppress_tokens = {
+            let mut suppress = vec![0f32; self.config.vocab_size];
+            for &token_id in &self.config.suppress_tokens {
+                if (token_id as usize) < suppress.len() {
+                    suppress[token_id as usize] = f32::NEG_INFINITY;
                 }
             }
+            suppress[self.no_timestamps_token as usize] = f32::NEG_INFINITY;
+            Tensor::from_vec(suppress, self.config.vocab_size, &self.device)?
+        };
 
-            // Extract text tokens (skip the 3 special tokens at start: SOT + English + Transcribe)
-            // Also filter out EOT and timestamp tokens (>= 50364)
-            let timestamp_begin = 50364_u32; // First timestamp token
-            let segment_text_tokens: Vec<u32> = tokens[3..]
+        // Initialize token sequence for this segment
+        let mut tokens = vec![SOT_TOKEN, self.language_token, TRANSCRIBE_TOKEN];
+        let sample_len = self.config.max_target_positions / 2;
+
+        // Decode loop for this segment
+        for i in 0..sample_len {
+            let tokens_tensor = Tensor::new(tokens.as_slice(), &self.device)?.unsqueeze(0)?;
+            let ys = self
+                .model
+                .decoder
+                .forward(&tokens_tensor, &audio_features, i == 0)?;
+
+            let (_, seq_len, _) = ys.dims3()?;
+            let mut logits = self
+                .model
+                .decoder
+                .final_linear(&ys.i((..1, seq_len - 1..))?)?
+                .i(0)?
+                .i(0)?;
+
+            logits = self.apply_timestamp_rules(&logits, &tokens)?;
+            let logits = logits.broadcast_add(&suppress_tokens)?;
+
+            let logits_v: Vec<f32> = logits.to_vec1()?;
+            let next_token = logits_v
                 .iter()
-                .filter(|&&t| t != eot_token_id && t < timestamp_begin)
-                .copied()
-                .collect();
+                .enumerate()
+                .max_by(|(_, u), (_, v)| u.total_cmp(v))
+                .map(|(i, _)| i as u32)
+                .unwrap();
 
-            tracing::info!(
-                "  Segment produced {} text tokens (total tokens: {})",
-                segment_text_tokens.len(),
-                tokens.len()
-            );
+            tokens.push(next_token);
 
-            // Decode this segment's tokens to see what we got
-            if let Some(tokenizer) = &self.tokenizer {
-                if let Ok(segment_text) = tokenizer.decode(&segment_text_tokens, true) {
-                    tracing::info!("  Segment text: {:?}", segment_text);
-                }
+            if next_token == EOT_TOKEN || tokens.len() > self.config.max_target_positions {
+                break;
             }
-
-            all_text_tokens.extend(segment_text_tokens);
-            seek += segment_size;
         }
 
+        // Extract text tokens (skip the 3 special tokens at start)
+        let segment_text_tokens: Vec<u32> = tokens[3..]
+            .iter()
+            .filter(|&&t| t != EOT_TOKEN && t < TIMESTAMP_BEGIN)
+            .copied()
+            .collect();
+
         tracing::info!(
-            "=== COMPLETE: Processed {} segments, {} total text tokens ===",
-            num_segments,
-            all_text_tokens.len()
+            "  Segment produced {} text tokens (total tokens: {})",
+            segment_text_tokens.len(),
+            tokens.len()
         );
 
-        // Decode all tokens to text
-        let text = self.decode_tokens(&all_text_tokens)?;
-        tracing::info!("Transcription complete: {} tokens", all_text_tokens.len());
+        if let Ok(segment_text) = self.tokenizer.decode(&segment_text_tokens, true) {
+            tracing::info!("  Segment text: {:?}", segment_text);
+        }
 
-        Ok(text)
+        Ok(segment_text_tokens)
     }
 
     /// Apply timestamp rules to logits during decoding
-    /// This implements the timestamp constraints from OpenAI's Whisper decoder
     fn apply_timestamp_rules(&self, input_logits: &Tensor, tokens: &[u32]) -> Result<Tensor> {
         let device = input_logits.device().clone();
-        let timestamp_begin = self.no_timestamps_token + 1;
         let vocab_size = self.model.config.vocab_size as u32;
 
-        // ========== SETUP: Extract sampled tokens for analysis ==========
-        let sample_begin = if self.language_token.is_some() { 3 } else { 2 };
-        let sampled_tokens = if tokens.len() > sample_begin {
-            &tokens[sample_begin..]
+        let sampled_tokens = if tokens.len() > SAMPLE_BEGIN {
+            &tokens[SAMPLE_BEGIN..]
         } else {
             &[]
         };
 
         let mut masks = Vec::new();
-        // Pre-allocate reusable mask buffer to avoid repeated allocations
         let mut mask_buffer = vec![0.0f32; vocab_size as usize];
 
-        // ========== RULE 1: Timestamp pairing constraints ==========
-        // Timestamps must come in pairs, except directly before EOT
-        if !sampled_tokens.is_empty() {
-            let last_was_timestamp = sampled_tokens
-                .last()
-                .map(|&t| t >= timestamp_begin)
-                .unwrap_or(false);
+        // Apply various timestamp constraints
+        self.apply_timestamp_pairing_rule(sampled_tokens, vocab_size, &mut masks, &mut mask_buffer, &device)?;
+        self.apply_initial_timestamp_rule(tokens.len(), vocab_size, &mut masks, &mut mask_buffer, &device)?;
 
-            let penultimate_was_timestamp = if sampled_tokens.len() >= 2 {
-                sampled_tokens[sampled_tokens.len() - 2] >= timestamp_begin
-            } else {
-                false
-            };
-
-            if last_was_timestamp {
-                if penultimate_was_timestamp {
-                    // Has to be non-timestamp - suppress timestamp tokens
-                    for i in 0..vocab_size {
-                        mask_buffer[i as usize] = if i >= timestamp_begin {
-                            f32::NEG_INFINITY
-                        } else {
-                            0.0
-                        };
-                    }
-                    masks.push(Tensor::new(mask_buffer.as_slice(), &device)?);
-                } else {
-                    // Cannot be normal text tokens - suppress everything before EOT
-                    for i in 0..vocab_size {
-                        mask_buffer[i as usize] = if i < self.eot_token {
-                            f32::NEG_INFINITY
-                        } else {
-                            0.0
-                        };
-                    }
-                    masks.push(Tensor::new(mask_buffer.as_slice(), &device)?);
-                }
-            }
-
-            // ========== RULE 2: Non-decreasing timestamp constraint ==========
-            // Timestamps shouldn't decrease; forbid timestamp tokens smaller than the last
-            let timestamp_tokens: Vec<u32> = sampled_tokens
-                .iter()
-                .filter(|&&t| t >= timestamp_begin)
-                .cloned()
-                .collect();
-
-            if !timestamp_tokens.is_empty() {
-                let timestamp_last = if last_was_timestamp && !penultimate_was_timestamp {
-                    *timestamp_tokens.last().unwrap()
-                } else {
-                    timestamp_tokens.last().unwrap() + 1
-                };
-
-                for i in 0..vocab_size {
-                    mask_buffer[i as usize] = if i >= timestamp_begin && i < timestamp_last {
-                        f32::NEG_INFINITY
-                    } else {
-                        0.0
-                    };
-                }
-                masks.push(Tensor::new(mask_buffer.as_slice(), &device)?);
-            }
-        }
-
-        // ========== RULE 3: Force initial timestamp ==========
-        // At the beginning, suppress generating non-timestamp tokens
-        if tokens.len() == sample_begin {
-            for i in 0..vocab_size {
-                mask_buffer[i as usize] = if i < timestamp_begin {
-                    f32::NEG_INFINITY
-                } else {
-                    0.0
-                };
-            }
-            masks.push(Tensor::new(mask_buffer.as_slice(), &device)?);
-
-            // Apply the max_initial_timestamp constraint
-            if let Some(max_initial_timestamp_index) = self.max_initial_timestamp_index {
-                let last_allowed = timestamp_begin + max_initial_timestamp_index;
-                if last_allowed < vocab_size {
-                    for i in 0..vocab_size {
-                        mask_buffer[i as usize] = if i > last_allowed {
-                            f32::NEG_INFINITY
-                        } else {
-                            0.0
-                        };
-                    }
-                    masks.push(Tensor::new(mask_buffer.as_slice(), &device)?);
-                }
-            }
-        }
-
-        // ========== APPLY MASKS: Apply all constraint masks ==========
+        // Apply all constraint masks
         let mut logits = input_logits.clone();
         for mask in masks {
             logits = logits.broadcast_add(&mask)?;
         }
 
-        // ========== RULE 4: Probability-based timestamp preference ==========
-        // If sum of probability over timestamps is above any other token, sample timestamp
-        let log_probs = log_softmax(&logits, 0)?;
+        // Apply probability-based timestamp preference
+        logits = self.apply_timestamp_probability_rule(&logits, vocab_size, &mut mask_buffer, &device)?;
 
-        // Extract timestamp and text log probabilities
+        Ok(logits)
+    }
+
+    fn apply_timestamp_pairing_rule(
+        &self,
+        sampled_tokens: &[u32],
+        vocab_size: u32,
+        masks: &mut Vec<Tensor>,
+        mask_buffer: &mut [f32],
+        device: &Device,
+    ) -> Result<()> {
+        if sampled_tokens.is_empty() {
+            return Ok(());
+        }
+
+        let last_was_timestamp = sampled_tokens
+            .last()
+            .map(|&t| t >= TIMESTAMP_BEGIN)
+            .unwrap_or(false);
+
+        let penultimate_was_timestamp = if sampled_tokens.len() >= 2 {
+            sampled_tokens[sampled_tokens.len() - 2] >= TIMESTAMP_BEGIN
+        } else {
+            false
+        };
+
+        if last_was_timestamp {
+            if penultimate_was_timestamp {
+                // Has to be non-timestamp - suppress timestamp tokens
+                for i in 0..vocab_size {
+                    mask_buffer[i as usize] = if i >= TIMESTAMP_BEGIN {
+                        f32::NEG_INFINITY
+                    } else {
+                        0.0
+                    };
+                }
+                masks.push(Tensor::new(mask_buffer as &[f32], device)?);
+            } else {
+                // Cannot be normal text tokens - suppress everything before EOT
+                for i in 0..vocab_size {
+                    mask_buffer[i as usize] = if i < self.eot_token {
+                        f32::NEG_INFINITY
+                    } else {
+                        0.0
+                    };
+                }
+                masks.push(Tensor::new(mask_buffer as &[f32], device)?);
+            }
+        }
+
+        // Non-decreasing timestamp constraint
+        let timestamp_tokens: Vec<u32> = sampled_tokens
+            .iter()
+            .filter(|&&t| t >= TIMESTAMP_BEGIN)
+            .cloned()
+            .collect();
+
+        if !timestamp_tokens.is_empty() {
+            let timestamp_last = if last_was_timestamp && !penultimate_was_timestamp {
+                *timestamp_tokens.last().unwrap()
+            } else {
+                timestamp_tokens.last().unwrap() + 1
+            };
+
+            for i in 0..vocab_size {
+                mask_buffer[i as usize] = if i >= TIMESTAMP_BEGIN && i < timestamp_last {
+                    f32::NEG_INFINITY
+                } else {
+                    0.0
+                };
+            }
+            masks.push(Tensor::new(mask_buffer as &[f32], device)?);
+        }
+
+        Ok(())
+    }
+
+    fn apply_initial_timestamp_rule(
+        &self,
+        tokens_len: usize,
+        vocab_size: u32,
+        masks: &mut Vec<Tensor>,
+        mask_buffer: &mut [f32],
+        device: &Device,
+    ) -> Result<()> {
+        if tokens_len != SAMPLE_BEGIN {
+            return Ok(());
+        }
+
+        // At the beginning, suppress generating non-timestamp tokens
+        for i in 0..vocab_size {
+            mask_buffer[i as usize] = if i < TIMESTAMP_BEGIN {
+                f32::NEG_INFINITY
+            } else {
+                0.0
+            };
+        }
+        masks.push(Tensor::new(mask_buffer as &[f32], device)?);
+
+        // Apply the max_initial_timestamp constraint
+        let last_allowed = TIMESTAMP_BEGIN + self.max_initial_timestamp_index;
+        if last_allowed < vocab_size {
+            for i in 0..vocab_size {
+                mask_buffer[i as usize] = if i > last_allowed {
+                    f32::NEG_INFINITY
+                } else {
+                    0.0
+                };
+            }
+            masks.push(Tensor::new(mask_buffer as &[f32], device)?);
+        }
+
+        Ok(())
+    }
+
+    fn apply_timestamp_probability_rule(
+        &self,
+        logits: &Tensor,
+        vocab_size: u32,
+        mask_buffer: &mut [f32],
+        device: &Device,
+    ) -> Result<Tensor> {
+        let log_probs = log_softmax(logits, 0)?;
+
         let timestamp_log_probs = log_probs.narrow(
             0,
-            timestamp_begin as usize,
-            vocab_size as usize - timestamp_begin as usize,
+            TIMESTAMP_BEGIN as usize,
+            vocab_size as usize - TIMESTAMP_BEGIN as usize,
         )?;
 
-        let text_log_probs = log_probs.narrow(0, 0, timestamp_begin as usize)?;
+        let text_log_probs = log_probs.narrow(0, 0, TIMESTAMP_BEGIN as usize)?;
 
-        // Implement logsumexp for timestamp tokens (numerically stable)
+        // Logsumexp for timestamp tokens (numerically stable)
         let timestamp_logprob = {
             let max_val = timestamp_log_probs.max(0)?;
             let shifted = timestamp_log_probs.broadcast_sub(&max_val)?;
@@ -621,42 +653,29 @@ impl WhisperTranscriber {
             max_val.broadcast_add(&log_sum)?.to_scalar::<f32>()?
         };
 
-        // Get max text token log probability
         let max_text_token_logprob: f32 = text_log_probs.max(0)?.to_scalar::<f32>()?;
 
-        // Compare in log space
+        // If timestamps are more likely, only consider timestamp tokens
         if timestamp_logprob > max_text_token_logprob {
-            // Only consider timestamp tokens
             for i in 0..vocab_size {
-                mask_buffer[i as usize] = if i < timestamp_begin {
+                mask_buffer[i as usize] = if i < TIMESTAMP_BEGIN {
                     f32::NEG_INFINITY
                 } else {
                     0.0
                 };
             }
-            let mask_tensor = Tensor::new(mask_buffer.as_slice(), &device)?;
-            logits = logits.broadcast_add(&mask_tensor)?;
+            let mask_tensor = Tensor::new(mask_buffer as &[f32], device)?;
+            return logits.broadcast_add(&mask_tensor).map_err(Into::into);
         }
 
-        Ok(logits)
+        Ok(logits.clone())
     }
 
     /// Decode token IDs to text
     fn decode_tokens(&self, tokens: &[u32]) -> Result<String> {
-        if let Some(tokenizer) = &self.tokenizer {
-            // Use the tokenizer to decode
-            let text = tokenizer
-                .decode(tokens, true)
-                .map_err(|e| anyhow::anyhow!("Failed to decode tokens: {}", e))?;
-            Ok(text)
-        } else {
-            // Fallback without tokenizer
-            let text = format!(
-                "[Transcription: {} tokens - tokenizer not available]",
-                tokens.len()
-            );
-            Ok(text)
-        }
+        self.tokenizer
+            .decode(tokens, true)
+            .map_err(|e| anyhow::anyhow!("Failed to decode tokens: {}", e))
     }
 }
 
@@ -933,16 +952,4 @@ fn resample_audio(data: &[f32], from_rate: u32, to_rate: u32) -> Result<Vec<f32>
     let waves_out = resampler.process(&waves_in, None)?;
 
     Ok(waves_out[0].clone())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    #[ignore] // Requires model file to be present
-    fn test_load_model() {
-        let result = WhisperTranscriber::new("~/.goose/whisper-models/ggml-small.bin");
-        assert!(result.is_ok());
-    }
 }

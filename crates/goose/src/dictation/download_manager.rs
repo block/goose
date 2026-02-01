@@ -41,6 +41,12 @@ pub struct DownloadManager {
     downloads: DownloadMap,
 }
 
+impl Default for DownloadManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DownloadManager {
     pub fn new() -> Self {
         Self {
@@ -234,9 +240,8 @@ impl DownloadManager {
     }
 }
 
-// Global download manager instance
 static DOWNLOAD_MANAGER: once_cell::sync::Lazy<DownloadManager> =
-    once_cell::sync::Lazy::new(|| DownloadManager::new());
+    once_cell::sync::Lazy::new(DownloadManager::new);
 
 pub fn get_download_manager() -> &'static DownloadManager {
     &DOWNLOAD_MANAGER

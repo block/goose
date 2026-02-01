@@ -2,114 +2,189 @@ use crate::config::Config;
 use crate::providers::api_client::{ApiClient, AuthMethod};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use std::sync::Mutex;
 use std::time::Duration;
+use utoipa::ToSchema;
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TranscribeResponse {
-    pub text: String,
+// Global lazy-initialized transcriber to reuse the loaded model
+// Stores (model_path, transcriber) to detect when model changes
+static LOCAL_TRANSCRIBER: once_cell::sync::Lazy<
+    Mutex<Option<(String, super::whisper::WhisperTranscriber)>>,
+> = once_cell::sync::Lazy::new(|| Mutex::new(None));
+
+// Bundled tokenizer JSON (2.4MB)
+const WHISPER_TOKENIZER_JSON: &str = include_str!("whisper_data/tokens.json");
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize, ToSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum DictationProvider {
+    OpenAI,
+    ElevenLabs,
+    Local,
 }
 
-// Provider definitions
 pub struct DictationProviderDef {
+    pub provider: DictationProvider,
     pub config_key: &'static str,
-    pub default_url: &'static str,
+    pub default_base_url: &'static str,
+    pub endpoint_path: &'static str,
     pub host_key: Option<&'static str>,
     pub description: &'static str,
     pub uses_provider_config: bool,
     pub settings_path: Option<&'static str>,
 }
 
-pub const   PROVIDERS: &[(&str, DictationProviderDef)] = &[
-    (
-        "openai",
-        DictationProviderDef {
-            config_key: "OPENAI_API_KEY",
-            default_url: "https://api.openai.com/v1/audio/transcriptions",
-            host_key: Some("OPENAI_HOST"),
-            description: "Uses OpenAI Whisper API for high-quality transcription.",
-            uses_provider_config: true,
-            settings_path: Some("Settings > Models"),
-        },
-    ),
-    (
-        "elevenlabs",
-        DictationProviderDef {
-            config_key: "ELEVENLABS_API_KEY",
-            default_url: "https://api.elevenlabs.io/v1/speech-to-text",
-            host_key: None,
-            description: "Uses ElevenLabs speech-to-text API for advanced voice processing.",
-            uses_provider_config: false,
-            settings_path: None,
-        },
-    ),
-    (
-        "local",
-        DictationProviderDef {
-            config_key: "LOCAL_WHISPER_MODEL",
-            default_url: "",
-            host_key: None,
-            description: "Uses local Whisper model for offline transcription. No API key needed.",
-            uses_provider_config: false,
-            settings_path: None,
-        },
-    ),
+pub const PROVIDERS: &[DictationProviderDef] = &[
+    DictationProviderDef {
+        provider: DictationProvider::OpenAI,
+        config_key: "OPENAI_API_KEY",
+        default_base_url: "https://api.openai.com",
+        endpoint_path: "v1/audio/transcriptions",
+        host_key: Some("OPENAI_HOST"),
+        description: "Uses OpenAI Whisper API for high-quality transcription.",
+        uses_provider_config: true,
+        settings_path: Some("Settings > Models"),
+    },
+    DictationProviderDef {
+        provider: DictationProvider::ElevenLabs,
+        config_key: "ELEVENLABS_API_KEY",
+        default_base_url: "https://api.elevenlabs.io",
+        endpoint_path: "v1/speech-to-text",
+        host_key: None,
+        description: "Uses ElevenLabs speech-to-text API for advanced voice processing.",
+        uses_provider_config: false,
+        settings_path: None,
+    },
+    DictationProviderDef {
+        provider: DictationProvider::Local,
+        config_key: "LOCAL_WHISPER_MODEL",
+        default_base_url: "",
+        endpoint_path: "",
+        host_key: None,
+        description: "Uses local Whisper model for offline transcription. No API key needed.",
+        uses_provider_config: false,
+        settings_path: None,
+    },
 ];
 
-pub fn get_provider_def(name: &str) -> Option<&'static DictationProviderDef> {
+pub fn get_provider_def(provider: DictationProvider) -> &'static DictationProviderDef {
     PROVIDERS
         .iter()
-        .find_map(|(n, def)| if *n == name { Some(def) } else { None })
+        .find(|def| def.provider == provider)
+        .unwrap() // Safe because all enum variants are in PROVIDERS
 }
 
-fn build_api_client(provider_name: &str) -> Result<ApiClient> {
+pub fn is_configured(provider: DictationProvider) -> bool {
     let config = Config::global();
-    let def = get_provider_def(provider_name)
-        .ok_or_else(|| anyhow::anyhow!("Unknown provider: {}", provider_name))?;
+
+    match provider {
+        DictationProvider::Local => config
+            .get("LOCAL_WHISPER_MODEL", false)
+            .ok()
+            .and_then(|v| v.as_str().map(|s| s.to_string()))
+            .and_then(|id| super::whisper::get_model(&id))
+            .is_some_and(|m| m.is_downloaded()),
+        _ => {
+            let def = get_provider_def(provider);
+            config.get_secret::<String>(def.config_key).is_ok()
+        }
+    }
+}
+
+pub async fn transcribe_local(audio_bytes: Vec<u8>) -> Result<String> {
+    // Run transcription in a blocking task to avoid blocking the async runtime
+    tokio::task::spawn_blocking(move || {
+        // Get model ID from config
+        let config = Config::global();
+        let model_id = config
+            .get("LOCAL_WHISPER_MODEL", false)
+            .ok()
+            .and_then(|v| v.as_str().map(|s| s.to_string()))
+            .ok_or_else(|| anyhow::anyhow!("LOCAL_WHISPER_MODEL not configured"))?;
+
+        // Convert model ID to full path
+        let model = super::whisper::get_model(&model_id)
+            .ok_or_else(|| anyhow::anyhow!("Unknown model: {}", model_id))?;
+        let model_path = model.local_path();
+
+        // Get or initialize the transcriber
+        let mut transcriber_lock = LOCAL_TRANSCRIBER
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Failed to lock transcriber: {}", e))?;
+
+        // Check if we need to load/reload the transcriber
+        let model_path_str = model_path.to_string_lossy().to_string();
+        let needs_reload = match transcriber_lock.as_ref() {
+            None => true,
+            Some((cached_path, _)) => cached_path != &model_path_str,
+        };
+
+        if needs_reload {
+            tracing::info!("Loading Whisper model from: {}", model_path.display());
+
+            let transcriber = super::whisper::WhisperTranscriber::new_with_tokenizer(
+                &model_id,
+                &model_path,
+                WHISPER_TOKENIZER_JSON,
+            )?;
+
+            *transcriber_lock = Some((model_path_str, transcriber));
+        }
+
+        // Transcribe the audio
+        let (_, transcriber) = transcriber_lock.as_mut().unwrap();
+        let text = transcriber
+            .transcribe(&audio_bytes)
+            .context("Transcription failed")?;
+
+        Ok(text)
+    })
+    .await
+    .context("Transcription task failed")?
+}
+
+fn build_api_client(provider: DictationProvider) -> Result<ApiClient> {
+    let config = Config::global();
+    let def = get_provider_def(provider);
 
     let api_key = config
         .get_secret(def.config_key)
         .context(format!("{} not configured", def.config_key))?;
 
-    let url = if let Some(host_key) = def.host_key {
+    let base_url = if let Some(host_key) = def.host_key {
         config
             .get(host_key, false)
             .ok()
             .and_then(|v| v.as_str().map(|s| s.to_string()))
-            .map(|custom_host| {
-                let path = def
-                    .default_url
-                    .splitn(4, '/')
-                    .nth(3)
-                    .map(|p| format!("/{}", p))
-                    .unwrap_or_default();
-                format!("{}{}", custom_host.trim_end_matches('/'), path)
-            })
-            .unwrap_or_else(|| def.default_url.to_string())
+            .unwrap_or_else(|| def.default_base_url.to_string())
     } else {
-        def.default_url.to_string()
+        def.default_base_url.to_string()
     };
 
-    let auth = match provider_name {
-        "openai" => AuthMethod::BearerToken(api_key),
-        "elevenlabs" => AuthMethod::ApiKey {
+    let auth = match provider {
+        DictationProvider::OpenAI => AuthMethod::BearerToken(api_key),
+        DictationProvider::ElevenLabs => AuthMethod::ApiKey {
             header_name: "xi-api-key".to_string(),
             key: api_key,
         },
-        _ => anyhow::bail!("Unknown provider: {}", provider_name),
+        DictationProvider::Local => anyhow::bail!("Local provider should not use API client"),
     };
 
-    ApiClient::with_timeout(url, auth, REQUEST_TIMEOUT)
-        .context("Failed to create API client")
+    ApiClient::with_timeout(base_url, auth, REQUEST_TIMEOUT).context("Failed to create API client")
 }
 
-pub async fn transcribe_openai(
+pub async fn transcribe_with_provider(
+    provider: DictationProvider,
+    model_param: String,
+    model_value: String,
     audio_bytes: Vec<u8>,
     extension: &str,
     mime_type: &str,
 ) -> Result<String> {
-    let client = build_api_client("openai")?;
+    let client = build_api_client(provider)?;
+    let def = get_provider_def(provider);
 
     let part = reqwest::multipart::Part::bytes(audio_bytes)
         .file_name(format!("audio.{}", extension))
@@ -118,10 +193,10 @@ pub async fn transcribe_openai(
 
     let form = reqwest::multipart::Form::new()
         .part("file", part)
-        .text("model", "whisper-1");
+        .text(model_param, model_value);
 
     let response = client
-        .request(None, "")
+        .request(None, def.endpoint_path)
         .multipart_post(form)
         .await
         .context("Request failed")?;
@@ -139,53 +214,12 @@ pub async fn transcribe_openai(
         }
     }
 
-    let data: TranscribeResponse = response
-        .json()
-        .await
-        .context("Failed to parse response")?;
+    let data: serde_json::Value = response.json().await.context("Failed to parse response")?;
 
-    Ok(data.text)
-}
+    let text = data["text"]
+        .as_str()
+        .ok_or_else(|| anyhow::anyhow!("Missing 'text' field in response"))?
+        .to_string();
 
-pub async fn transcribe_elevenlabs(
-    audio_bytes: Vec<u8>,
-    extension: &str,
-    mime_type: &str,
-) -> Result<String> {
-    let client = build_api_client("elevenlabs")?;
-
-    let part = reqwest::multipart::Part::bytes(audio_bytes)
-        .file_name(format!("audio.{}", extension))
-        .mime_str(mime_type)
-        .context("Failed to create multipart")?;
-
-    let form = reqwest::multipart::Form::new()
-        .part("file", part)
-        .text("model_id", "scribe_v1");
-
-    let response = client
-        .request(None, "")
-        .multipart_post(form)
-        .await
-        .context("Request failed")?;
-
-    if !response.status().is_success() {
-        let status = response.status();
-        let error_text = response.text().await.unwrap_or_default();
-
-        if status == 401 || error_text.contains("Invalid API key") {
-            anyhow::bail!("Invalid API key");
-        } else if status == 429 || error_text.contains("quota") {
-            anyhow::bail!("Rate limit exceeded");
-        } else {
-            anyhow::bail!("API error: {}", error_text);
-        }
-    }
-
-    let data: TranscribeResponse = response
-        .json()
-        .await
-        .context("Failed to parse response")?;
-
-    Ok(data.text)
+    Ok(text)
 }

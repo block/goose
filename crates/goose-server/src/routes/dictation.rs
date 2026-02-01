@@ -7,6 +7,11 @@ use axum::{
     Json, Router,
 };
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+use goose::dictation::download_manager::{get_download_manager, DownloadProgress};
+use goose::dictation::providers::{
+    is_configured, transcribe_local, transcribe_with_provider, DictationProvider, PROVIDERS,
+};
+use goose::dictation::whisper;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -14,12 +19,12 @@ use utoipa::ToSchema;
 
 const MAX_AUDIO_SIZE_BYTES: usize = 50 * 1024 * 1024;
 
-#[derive(Debug, Deserialize, ToSchema)]
-#[serde(rename_all = "lowercase")]
-pub enum DictationProvider {
-    OpenAI,
-    ElevenLabs,
-    Local,
+#[derive(Debug, Serialize, ToSchema)]
+pub struct WhisperModelResponse {
+    #[serde(flatten)]
+    #[schema(inline)]
+    model: &'static whisper::WhisperModel,
+    downloaded: bool,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -61,17 +66,6 @@ fn validate_audio(audio: &str, mime_type: &str) -> Result<(Vec<u8>, &'static str
     let audio_bytes = BASE64
         .decode(audio)
         .map_err(|_| ErrorResponse::bad_request("Invalid base64 audio data"))?;
-
-    if audio_bytes.len() > MAX_AUDIO_SIZE_BYTES {
-        return Err(ErrorResponse {
-            message: format!(
-                "Audio file too large: {} bytes (max: {} bytes)",
-                audio_bytes.len(),
-                MAX_AUDIO_SIZE_BYTES
-            ),
-            status: StatusCode::PAYLOAD_TOO_LARGE,
-        });
-    }
 
     let extension = match mime_type {
         "audio/webm" | "audio/webm;codecs=opus" => "webm",
@@ -146,27 +140,27 @@ pub async fn transcribe_dictation(
     let (audio_bytes, extension) = validate_audio(&request.audio, &request.mime_type)?;
 
     let text = match request.provider {
-        DictationProvider::OpenAI => {
-            goose::dictation::providers::transcribe_openai(
-                audio_bytes,
-                extension,
-                &request.mime_type,
-            )
-            .await
-            .map_err(convert_error)?
-        }
-        DictationProvider::ElevenLabs => {
-            goose::dictation::providers::transcribe_elevenlabs(
-                audio_bytes,
-                extension,
-                &request.mime_type,
-            )
-            .await
-            .map_err(convert_error)?
-        }
-        DictationProvider::Local => goose::dictation::local::transcribe_local(audio_bytes)
-            .await
-            .map_err(convert_error)?,
+        DictationProvider::OpenAI => transcribe_with_provider(
+            DictationProvider::OpenAI,
+            "model".to_string(),
+            "whisper-1".to_string(),
+            audio_bytes,
+            extension,
+            &request.mime_type,
+        )
+        .await
+        .map_err(convert_error)?,
+        DictationProvider::ElevenLabs => transcribe_with_provider(
+            DictationProvider::ElevenLabs,
+            "model_id".to_string(),
+            "scribe_v1".to_string(),
+            audio_bytes,
+            extension,
+            &request.mime_type,
+        )
+        .await
+        .map_err(convert_error)?,
+        DictationProvider::Local => transcribe_local(audio_bytes).await.map_err(convert_error)?,
     };
 
     Ok(Json(TranscribeResponse { text }))
@@ -180,16 +174,13 @@ pub async fn transcribe_dictation(
     )
 )]
 pub async fn get_dictation_config(
-) -> Result<Json<HashMap<String, DictationProviderStatus>>, ErrorResponse> {
+) -> Result<Json<HashMap<DictationProvider, DictationProviderStatus>>, ErrorResponse> {
     let config = goose::config::Config::global();
     let mut providers = HashMap::new();
 
-    for (name, def) in goose::dictation::providers::PROVIDERS.iter() {
-        let configured = if *name == "local" {
-            goose::dictation::local::is_local_configured()
-        } else {
-            config.get_secret::<String>(def.config_key).is_ok()
-        };
+    for def in PROVIDERS {
+        let provider = def.provider;
+        let configured = is_configured(provider);
 
         let host = if let Some(host_key) = def.host_key {
             config
@@ -201,7 +192,7 @@ pub async fn get_dictation_config(
         };
 
         providers.insert(
-            name.to_string(),
+            provider,
             DictationProviderStatus {
                 configured,
                 host,
@@ -227,15 +218,16 @@ pub async fn get_dictation_config(
         (status = 200, description = "List of available Whisper models", body = Vec<WhisperModel>)
     )
 )]
-pub async fn list_models(
-) -> Result<Json<Vec<goose::dictation::models::WhisperModel>>, ErrorResponse> {
-    let mut available = goose::dictation::models::available_models();
+pub async fn list_models() -> Result<Json<Vec<WhisperModelResponse>>, ErrorResponse> {
+    let models = whisper::available_models()
+        .iter()
+        .map(|m| WhisperModelResponse {
+            model: m,
+            downloaded: m.is_downloaded(),
+        })
+        .collect();
 
-    for model in &mut available {
-        model.downloaded = model.is_downloaded();
-    }
-
-    Ok(Json(available))
+    Ok(Json(models))
 }
 
 #[utoipa::path(
@@ -247,18 +239,17 @@ pub async fn list_models(
         (status = 500, description = "Internal server error")
     )
 )]
-pub async fn download_model(
-    Path(model_id): Path<String>,
-) -> Result<StatusCode, ErrorResponse> {
-    let available = goose::dictation::models::available_models();
-    let model = available
-        .iter()
-        .find(|m| m.id == model_id)
+pub async fn download_model(Path(model_id): Path<String>) -> Result<StatusCode, ErrorResponse> {
+    let model = whisper::get_model(&model_id)
         .ok_or_else(|| ErrorResponse::bad_request("Model not found"))?;
 
-    let manager = goose::dictation::download_manager::get_download_manager();
+    let manager = get_download_manager();
     manager
-        .download_model(model.id.clone(), model.url.clone(), model.local_path())
+        .download_model(
+            model.id.to_string(),
+            model.url.to_string(),
+            model.local_path(),
+        )
         .await
         .map_err(convert_error)?;
 
@@ -275,8 +266,8 @@ pub async fn download_model(
 )]
 pub async fn get_download_progress(
     Path(model_id): Path<String>,
-) -> Result<Json<goose::dictation::download_manager::DownloadProgress>, ErrorResponse> {
-    let manager = goose::dictation::download_manager::get_download_manager();
+) -> Result<Json<DownloadProgress>, ErrorResponse> {
+    let manager = get_download_manager();
     let progress = manager
         .get_progress(&model_id)
         .ok_or_else(|| ErrorResponse::bad_request("Download not found"))?;
@@ -292,13 +283,9 @@ pub async fn get_download_progress(
         (status = 404, description = "Download not found")
     )
 )]
-pub async fn cancel_download(
-    Path(model_id): Path<String>,
-) -> Result<StatusCode, ErrorResponse> {
-    let manager = goose::dictation::download_manager::get_download_manager();
-    manager
-        .cancel_download(&model_id)
-        .map_err(convert_error)?;
+pub async fn cancel_download(Path(model_id): Path<String>) -> Result<StatusCode, ErrorResponse> {
+    let manager = get_download_manager();
+    manager.cancel_download(&model_id).map_err(convert_error)?;
     Ok(StatusCode::OK)
 }
 
@@ -312,22 +299,16 @@ pub async fn cancel_download(
     )
 )]
 pub async fn delete_model(Path(model_id): Path<String>) -> Result<StatusCode, ErrorResponse> {
-    let available = goose::dictation::models::available_models();
-    let model = available
-        .iter()
-        .find(|m| m.id == model_id)
+    let model = whisper::get_model(&model_id)
         .ok_or_else(|| ErrorResponse::bad_request("Model not found"))?;
 
     let path = model.local_path();
-    let path_str = path.to_string_lossy().to_string();
-    let expanded = shellexpand::tilde(&path_str);
-    let path_to_delete = std::path::Path::new(expanded.as_ref());
 
-    if !path_to_delete.exists() {
+    if !path.exists() {
         return Err(ErrorResponse::bad_request("Model not downloaded"));
     }
 
-    tokio::fs::remove_file(path_to_delete)
+    tokio::fs::remove_file(&path)
         .await
         .map_err(|e| ErrorResponse::internal(format!("Failed to delete model: {}", e)))?;
 
@@ -339,7 +320,10 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/dictation/transcribe", post(transcribe_dictation))
         .route("/dictation/config", get(get_dictation_config))
         .route("/dictation/models", get(list_models))
-        .route("/dictation/models/{model_id}/download", post(download_model))
+        .route(
+            "/dictation/models/{model_id}/download",
+            post(download_model),
+        )
         .route(
             "/dictation/models/{model_id}/download",
             get(get_download_progress),

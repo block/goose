@@ -19,22 +19,19 @@ const formatBytes = (bytes: number): string => {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)}GB`;
 };
 
-const getQualityLabel = (quality: string): string => {
-  // Capitalize first letter
-  return quality.charAt(0).toUpperCase() + quality.slice(1).replace('_', ' ');
+const capitalize = (str: string): string => {
+  return str.charAt(0).toUpperCase() + str.slice(1);
 };
 
 export const LocalModelManager = () => {
   const [models, setModels] = useState<WhisperModel[]>([]);
   const [downloads, setDownloads] = useState<Map<string, DownloadProgress>>(new Map());
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
-  const [hardwareTier, setHardwareTier] = useState<string>('mid_range');
   const { read, upsert } = useConfig();
 
   useEffect(() => {
     loadModels();
     loadSelectedModel();
-    detectHardware();
   }, []);
 
   const loadSelectedModel = async () => {
@@ -53,13 +50,8 @@ export const LocalModelManager = () => {
   };
 
   const selectModel = async (modelId: string) => {
-    // Store just the model ID, the backend will resolve the full path
-    try {
       await upsert('LOCAL_WHISPER_MODEL', modelId, false);
       setSelectedModelId(modelId);
-    } catch (error) {
-      console.error('Failed to save selected model:', error);
-    }
   };
 
   const loadModels = async () => {
@@ -70,18 +62,6 @@ export const LocalModelManager = () => {
       }
     } catch (error) {
       console.error('Failed to load models:', error);
-    }
-  };
-
-  const detectHardware = async () => {
-    // Simple client-side hardware detection
-    const memory = (navigator as any).deviceMemory || 4; // GB
-    if (memory >= 16) {
-      setHardwareTier('high_end');
-    } else if (memory >= 8) {
-      setHardwareTier('mid_range');
-    } else {
-      setHardwareTier('low_end');
     }
   };
 
@@ -140,14 +120,6 @@ export const LocalModelManager = () => {
     }
   };
 
-  const getRecommendation = (model: WhisperModel): string | null => {
-    const tier = hardwareTier.replace('_', '-');
-    if (model.recommended_for.some((r) => r.toLowerCase().includes(tier))) {
-      return 'Recommended for your hardware';
-    }
-    return null;
-  };
-
   return (
     <div className="space-y-3">
       <div className="text-xs text-text-muted mb-2">
@@ -158,7 +130,6 @@ export const LocalModelManager = () => {
         {models.map((model) => {
           const progress = downloads.get(model.id);
           const isDownloading = progress?.status === 'downloading';
-          const recommendation = getRecommendation(model);
           const isSelected = selectedModelId === model.id;
           const canSelect = model.downloaded && !isDownloading;
 
@@ -183,34 +154,21 @@ export const LocalModelManager = () => {
                       />
                     )}
                     <h4 className="text-sm font-medium text-text-default">
-                      {model.name}
+                      {capitalize(model.id)}
                     </h4>
                     <span className="text-xs text-text-muted">
-                      {model.size_display}
+                      {model.size_mb}MB
                     </span>
                     {isSelected && (
                       <span className="text-xs bg-accent-primary text-white px-2 py-0.5 rounded">
                         Active
                       </span>
                     )}
-                    {recommendation && !isSelected && (
-                      <span className="text-xs bg-accent-primary/10 text-accent-primary px-2 py-0.5 rounded">
-                        Recommended
-                      </span>
-                    )}
                   </div>
 
-                  <div className="flex items-center gap-3 mt-1 text-xs text-text-muted">
-                    <span>{getQualityLabel(model.quality)}</span>
-                    <span>•</span>
-                    <span>{model.speed}</span>
-                  </div>
-
-                  {model.description && (
-                    <p className="text-xs text-text-muted mt-1">
-                      {model.description}
-                    </p>
-                  )}
+                  <p className="text-xs text-text-muted mt-1">
+                    {model.description}
+                  </p>
                 </div>
 
                 <div className="flex items-center gap-2">

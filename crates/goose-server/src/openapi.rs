@@ -5,7 +5,6 @@ use goose::config::permission::PermissionLevel;
 use goose::config::ExtensionEntry;
 use goose::conversation::Conversation;
 use goose::dictation::download_manager::{DownloadProgress, DownloadStatus};
-use goose::dictation::models::WhisperModel;
 use goose::model::ModelConfig;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata, ProviderType};
@@ -581,9 +580,9 @@ derive_utoipa!(Icon as IconSchema);
         goose::goose_apps::ResourceMetadata,
         super::routes::dictation::TranscribeRequest,
         super::routes::dictation::TranscribeResponse,
-        super::routes::dictation::DictationProvider,
+        goose::dictation::providers::DictationProvider,
         super::routes::dictation::DictationProviderStatus,
-        WhisperModel,
+        super::routes::dictation::WhisperModelResponse,
         DownloadProgress,
         DownloadStatus,
     ))
