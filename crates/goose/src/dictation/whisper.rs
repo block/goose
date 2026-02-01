@@ -6,6 +6,8 @@
 //! Heavily "inspired" by the reference implementation
 
 use crate::config::paths::Paths;
+
+pub const LOCAL_WHISPER_MODEL_CONFIG_KEY: &str = "LOCAL_WHISPER_MODEL";
 use anyhow::{Context, Result};
 use candle_core::{Device, IndexOp, Tensor};
 use candle_nn::ops::log_softmax;

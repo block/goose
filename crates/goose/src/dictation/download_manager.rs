@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tokio::io::AsyncWriteExt;
 use utoipa::ToSchema;
+use crate::dictation::whisper::LOCAL_WHISPER_MODEL_CONFIG_KEY;
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct DownloadProgress {
@@ -124,6 +125,9 @@ impl DownloadManager {
                             progress.progress_percent = 100.0;
                         }
                     }
+
+                    let _ = crate::config::Config::global()
+                        .set_param(LOCAL_WHISPER_MODEL_CONFIG_KEY, model_id_clone.clone());
                 }
                 Err(e) => {
                     if let Ok(mut downloads) = downloads.lock() {

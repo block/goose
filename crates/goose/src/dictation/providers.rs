@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use std::time::Duration;
 use utoipa::ToSchema;
+use crate::dictation::whisper::LOCAL_WHISPER_MODEL_CONFIG_KEY;
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -70,7 +71,7 @@ pub const PROVIDERS: &[DictationProviderDef] = &[
     },
     DictationProviderDef {
         provider: DictationProvider::Local,
-        config_key: "LOCAL_WHISPER_MODEL",
+        config_key: LOCAL_WHISPER_MODEL_CONFIG_KEY,
         default_base_url: "",
         endpoint_path: "",
         host_key: None,
@@ -92,7 +93,7 @@ pub fn is_configured(provider: DictationProvider) -> bool {
 
     match provider {
         DictationProvider::Local => config
-            .get("LOCAL_WHISPER_MODEL", false)
+            .get(LOCAL_WHISPER_MODEL_CONFIG_KEY, false)
             .ok()
             .and_then(|v| v.as_str().map(|s| s.to_string()))
             .and_then(|id| super::whisper::get_model(&id))
@@ -110,10 +111,10 @@ pub async fn transcribe_local(audio_bytes: Vec<u8>) -> Result<String> {
         // Get model ID from config
         let config = Config::global();
         let model_id = config
-            .get("LOCAL_WHISPER_MODEL", false)
+            .get(LOCAL_WHISPER_MODEL_CONFIG_KEY, false)
             .ok()
             .and_then(|v| v.as_str().map(|s| s.to_string()))
-            .ok_or_else(|| anyhow::anyhow!("LOCAL_WHISPER_MODEL not configured"))?;
+            .ok_or_else(|| anyhow::anyhow!("Local Whisper model not configured"))?;
 
         // Convert model ID to full path
         let model = super::whisper::get_model(&model_id)

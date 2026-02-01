@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Download, Trash2, X, Check } from 'lucide-react';
+import { Download, Trash2, X, Check, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { useConfig } from '../../ConfigContext';
 import {
@@ -11,6 +11,8 @@ import {
   type WhisperModelResponse,
   type DownloadProgress,
 } from '../../../api';
+
+const LOCAL_WHISPER_MODEL_CONFIG_KEY = 'LOCAL_WHISPER_MODEL';
 
 const formatBytes = (bytes: number): string => {
   if (bytes < 1024) return `${bytes}B`;
@@ -27,6 +29,7 @@ export const LocalModelManager = () => {
   const [models, setModels] = useState<WhisperModelResponse[]>([]);
   const [downloads, setDownloads] = useState<Map<string, DownloadProgress>>(new Map());
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
+  const [showAllModels, setShowAllModels] = useState(false);
   const { read, upsert } = useConfig();
 
   useEffect(() => {
@@ -34,23 +37,35 @@ export const LocalModelManager = () => {
     loadSelectedModel();
   }, []);
 
+  // Determine if we should show all models by default (if non-recommended models are downloaded)
+  useEffect(() => {
+    if (models.length === 0) return;
+
+    const hasDownloadedNonRecommended = models.some(
+      (model) => model.downloaded && !model.recommended
+    );
+
+    if (hasDownloadedNonRecommended && !showAllModels) {
+      setShowAllModels(true);
+    }
+  }, [models]);
+
   const loadSelectedModel = async () => {
     try {
-      const value = await read('LOCAL_WHISPER_MODEL', false);
+      const value = await read(LOCAL_WHISPER_MODEL_CONFIG_KEY, false);
       if (value && typeof value === 'string') {
         setSelectedModelId(value);
       } else {
-        // Default to tiny if not set
-        setSelectedModelId('tiny');
+        setSelectedModelId(null);
       }
     } catch (error) {
       console.error('Failed to load selected model:', error);
-      setSelectedModelId('tiny');
+      setSelectedModelId(null);
     }
   };
 
   const selectModel = async (modelId: string) => {
-      await upsert('LOCAL_WHISPER_MODEL', modelId, false);
+      await upsert(LOCAL_WHISPER_MODEL_CONFIG_KEY, modelId, false);
       setSelectedModelId(modelId);
   };
 
@@ -82,9 +97,14 @@ export const LocalModelManager = () => {
           const progress = response.data;
           setDownloads((prev) => new Map(prev).set(modelId, progress));
 
-          if (progress.status === 'completed' || progress.status === 'failed') {
+          if (progress.status === 'completed') {
             clearInterval(interval);
-            loadModels(); // Refresh model list
+            await loadModels(); // Refresh model list
+            // Backend auto-selects, but also update frontend state
+            await loadSelectedModel();
+          } else if (progress.status === 'failed') {
+            clearInterval(interval);
+            await loadModels();
           }
         } else {
           clearInterval(interval);
@@ -120,6 +140,9 @@ export const LocalModelManager = () => {
     }
   };
 
+  const displayedModels = showAllModels ? models : models.filter((m) => m.recommended);
+  const hasNonRecommendedModels = models.some((m) => !m.recommended);
+
   return (
     <div className="space-y-3">
       <div className="text-xs text-text-muted mb-2">
@@ -127,7 +150,7 @@ export const LocalModelManager = () => {
       </div>
 
       <div className="space-y-2">
-        {models.map((model) => {
+        {displayedModels.map((model) => {
           const progress = downloads.get(model.id);
           const isDownloading = progress?.status === 'downloading';
           const isSelected = selectedModelId === model.id;
@@ -159,6 +182,11 @@ export const LocalModelManager = () => {
                     <span className="text-xs text-text-muted">
                       {model.size_mb}MB
                     </span>
+                    {model.recommended && (
+                      <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded">
+                        Recommended
+                      </span>
+                    )}
                     {isSelected && (
                       <span className="text-xs bg-accent-primary text-white px-2 py-0.5 rounded">
                         Active
@@ -169,6 +197,11 @@ export const LocalModelManager = () => {
                   <p className="text-xs text-text-muted mt-1">
                     {model.description}
                   </p>
+                  {model.recommended && (
+                    <p className="text-xs text-blue-600 mt-1 font-medium">
+                      Recommended for your hardware
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -235,6 +268,27 @@ export const LocalModelManager = () => {
           );
         })}
       </div>
+
+      {hasNonRecommendedModels && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setShowAllModels(!showAllModels)}
+          className="w-full text-text-muted hover:text-text-default"
+        >
+          {showAllModels ? (
+            <>
+              <ChevronUp className="w-4 h-4 mr-1" />
+              Show recommended only
+            </>
+          ) : (
+            <>
+              <ChevronDown className="w-4 h-4 mr-1" />
+              Show all models
+            </>
+          )}
+        </Button>
+      )}
 
       {models.length === 0 && (
         <div className="text-center py-6 text-text-muted text-sm">

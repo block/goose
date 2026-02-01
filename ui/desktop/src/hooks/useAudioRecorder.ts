@@ -65,7 +65,7 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
   const [isEnabled, setIsEnabled] = useState(false);
   const [provider, setProvider] = useState<DictationProvider | null>(null);
 
-  const { read } = useConfig();
+  const { read, config } = useConfig();
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -104,7 +104,7 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
       }
     };
     check();
-  }, [read]);
+  }, [read, config]);
 
   const transcribeChunk = useCallback(async (samples: Float32Array) => {
     const prov = providerRef.current;
