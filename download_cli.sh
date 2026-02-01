@@ -202,7 +202,7 @@ if ! curl -sLf "$DOWNLOAD_URL" --output "$FILE"; then
     LATEST_TAG=$(curl -s https://api.github.com/repos/block/goose/releases/latest | \
       grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
     if [ -z "$LATEST_TAG" ]; then
-      echo "Error: Failed to download $DOWNLOAD_URL"
+      echo "Error: Failed to download $DOWNLOAD_URL and latest tag unavailable"
       exit 1
     fi
 
@@ -211,7 +211,7 @@ if ! curl -sLf "$DOWNLOAD_URL" --output "$FILE"; then
       # Fallback succeeded
       :
     else
-      echo "Error: Failed to download $DOWNLOAD_URL"
+      echo "Error: Failed to download from fallback url $DOWNLOAD_URL using latest tag $LATEST_TAG"
       exit 1
     fi
   else
