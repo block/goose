@@ -15,12 +15,14 @@ import { useConfig } from '../../../ConfigContext';
 import { getProviderMetadata } from '../modelInterface';
 import { Alert } from '../../../alerts';
 import BottomMenuAlertPopover from '../../../bottom_menu/BottomMenuAlertPopover';
+import { Recipe } from '../../../../recipe';
 
 interface ModelsBottomBarProps {
   sessionId: string | null;
   dropdownRef: React.RefObject<HTMLDivElement>;
   setView: (view: View) => void;
   alerts: Alert[];
+  recipe?: Recipe | null;
 }
 
 export default function ModelsBottomBar({
@@ -28,6 +30,7 @@ export default function ModelsBottomBar({
   dropdownRef,
   setView,
   alerts,
+  recipe,
 }: ModelsBottomBarProps) {
   const {
     currentModel,
@@ -44,6 +47,12 @@ export default function ModelsBottomBar({
   const [isLeadWorkerModalOpen, setIsLeadWorkerModalOpen] = useState(false);
   const [isLeadWorkerActive, setIsLeadWorkerActive] = useState(false);
   const [providerDefaultModel, setProviderDefaultModel] = useState<string | null>(null);
+
+  const recipeProvider = recipe?.settings?.goose_provider;
+  const recipeModel = recipe?.settings?.goose_model;
+
+  const effectiveProvider = recipeProvider || currentProvider;
+  const effectiveModel = recipeModel || currentModel;
 
   // Check if lead/worker mode is active
   useEffect(() => {
@@ -109,22 +118,33 @@ export default function ModelsBottomBar({
   const displayModel =
     isLeadWorkerActive && currentModelInfo?.model
       ? currentModelInfo.model
-      : currentModel || providerDefaultModel || displayModelName;
+      : effectiveModel || providerDefaultModel || displayModelName;
 
-  // Update display provider when current provider changes
   useEffect(() => {
-    if (currentProvider) {
+    if (effectiveProvider) {
       (async () => {
-        const providerDisplayName = await getCurrentProviderDisplayName();
-        if (providerDisplayName) {
-          setDisplayProvider(providerDisplayName);
+        if (recipeProvider) {
+          const capitalizedProvider =
+            recipeProvider.charAt(0).toUpperCase() + recipeProvider.slice(1);
+          setDisplayProvider(capitalizedProvider);
         } else {
-          const modelProvider = await getCurrentModelAndProviderForDisplay();
-          setDisplayProvider(modelProvider.provider);
+          const providerDisplayName = await getCurrentProviderDisplayName();
+          if (providerDisplayName) {
+            setDisplayProvider(providerDisplayName);
+          } else {
+            const modelProvider = await getCurrentModelAndProviderForDisplay();
+            setDisplayProvider(modelProvider.provider);
+          }
         }
       })();
     }
-  }, [currentProvider, getCurrentProviderDisplayName, getCurrentModelAndProviderForDisplay]);
+  }, [
+    effectiveProvider,
+    recipeProvider,
+    currentProvider,
+    getCurrentProviderDisplayName,
+    getCurrentModelAndProviderForDisplay,
+  ]);
 
   // Fetch provider default model when provider changes and no current model
   useEffect(() => {
@@ -144,13 +164,16 @@ export default function ModelsBottomBar({
     }
   }, [currentProvider, currentModel, getProviders]);
 
-  // Update display model name when current model changes
   useEffect(() => {
     (async () => {
-      const displayName = await getCurrentModelDisplayName();
-      setDisplayModelName(displayName);
+      if (recipeModel) {
+        setDisplayModelName(recipeModel);
+      } else {
+        const displayName = await getCurrentModelDisplayName();
+        setDisplayModelName(displayName);
+      }
     })();
-  }, [currentModel, getCurrentModelDisplayName]);
+  }, [effectiveModel, recipeModel, currentModel, getCurrentModelDisplayName]);
 
   return (
     <div className="relative flex items-center" ref={dropdownRef}>
