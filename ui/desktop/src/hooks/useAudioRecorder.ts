@@ -9,8 +9,8 @@ interface UseAudioRecorderOptions {
 }
 
 const SAMPLE_RATE = 16000;
-const SILENCE_MS = 1200;
-const MIN_SPEECH_MS = 300;
+const SILENCE_MS = 800;
+const MIN_SPEECH_MS = 200;
 const RMS_THRESHOLD = 0.015;
 
 // Import the worklet module - Vite will handle this correctly
@@ -136,9 +136,7 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
     if (chunks.length === 0) return;
 
     const total = chunks.reduce((n, c) => n + c.length, 0);
-    const paddingSeconds = 0.5;
-    const paddingSamples = Math.floor(SAMPLE_RATE * paddingSeconds);
-    const merged = new Float32Array(total + paddingSamples);
+    const merged = new Float32Array(total);
     let off = 0;
     for (const c of chunks) {
       merged.set(c, off);

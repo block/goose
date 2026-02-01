@@ -212,17 +212,6 @@ pub async fn check_if_compaction_needed(
     } else {
         usage_ratio > threshold
     };
-
-    debug!(
-        "Compaction check: {} / {} tokens ({:.1}%), threshold: {:.1}%, needs compaction: {}, source: {}",
-        current_tokens,
-        context_limit,
-        usage_ratio * 100.0,
-        threshold * 100.0,
-        needs_compaction,
-        token_source
-    );
-
     Ok(needs_compaction)
 }
 
