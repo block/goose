@@ -150,6 +150,16 @@ pub async fn transcribe_dictation(
         )
         .await
         .map_err(convert_error)?,
+        DictationProvider::Groq => transcribe_with_provider(
+            DictationProvider::Groq,
+            "model".to_string(),
+            "whisper-large-v3-turbo".to_string(),
+            audio_bytes,
+            extension,
+            &request.mime_type,
+        )
+        .await
+        .map_err(convert_error)?,
         DictationProvider::ElevenLabs => transcribe_with_provider(
             DictationProvider::ElevenLabs,
             "model_id".to_string(),

@@ -22,6 +22,7 @@ const WHISPER_TOKENIZER_JSON: &str = include_str!("whisper_data/tokens.json");
 pub enum DictationProvider {
     OpenAI,
     ElevenLabs,
+    Groq,
     Local,
 }
 
@@ -46,6 +47,16 @@ pub const PROVIDERS: &[DictationProviderDef] = &[
         description: "Uses OpenAI Whisper API for high-quality transcription.",
         uses_provider_config: true,
         settings_path: Some("Settings > Models"),
+    },
+    DictationProviderDef {
+        provider: DictationProvider::Groq,
+        config_key: "GROQ_API_KEY",
+        default_base_url: "https://api.groq.com/openai/v1",
+        endpoint_path: "audio/transcriptions",
+        host_key: None,
+        description: "Uses Groq's ultra-fast Whisper implementation with LPU acceleration.",
+        uses_provider_config: false,
+        settings_path: None,
     },
     DictationProviderDef {
         provider: DictationProvider::ElevenLabs,
@@ -165,6 +176,7 @@ fn build_api_client(provider: DictationProvider) -> Result<ApiClient> {
 
     let auth = match provider {
         DictationProvider::OpenAI => AuthMethod::BearerToken(api_key),
+        DictationProvider::Groq => AuthMethod::BearerToken(api_key),
         DictationProvider::ElevenLabs => AuthMethod::ApiKey {
             header_name: "xi-api-key".to_string(),
             key: api_key,
