@@ -22,6 +22,18 @@ export const RecipeExtensionSelector = ({
     [selectedExtensions]
   );
 
+  const displayExtensions = useMemo(() => {
+    const extensionMap = new Map(allExtensions.map((ext) => [ext.name, ext]));
+
+    selectedExtensions.forEach((ext) => {
+      if (!extensionMap.has(ext.name)) {
+        extensionMap.set(ext.name, { ...ext, enabled: true });
+      }
+    });
+
+    return Array.from(extensionMap.values());
+  }, [allExtensions, selectedExtensions]);
+
   const handleToggle = (extensionConfig: ExtensionConfig) => {
     const isSelected = selectedExtensionNames.has(extensionConfig.name);
 
@@ -33,14 +45,14 @@ export const RecipeExtensionSelector = ({
   };
 
   const filteredExtensions = useMemo(() => {
-    return allExtensions.filter((ext) => {
+    return displayExtensions.filter((ext) => {
       const query = searchQuery.toLowerCase();
       return (
         ext.name.toLowerCase().includes(query) ||
         (ext.description && ext.description.toLowerCase().includes(query))
       );
     });
-  }, [allExtensions, searchQuery]);
+  }, [displayExtensions, searchQuery]);
 
   const sortedExtensions = useMemo(() => {
     return [...filteredExtensions].sort((a, b) => {
