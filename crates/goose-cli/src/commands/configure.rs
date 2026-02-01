@@ -1911,6 +1911,7 @@ fn add_provider() -> anyhow::Result<()> {
         api_key,
         models,
         supports_streaming: Some(supports_streaming),
+        supports_structured_output: None,
         headers,
         requires_auth,
     })?;

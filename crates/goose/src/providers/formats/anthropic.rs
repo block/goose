@@ -386,6 +386,7 @@ pub fn create_request(
     system: &str,
     messages: &[Message],
     tools: &[Tool],
+    response_schema: Option<&Value>,
 ) -> Result<Value> {
     let anthropic_messages = format_messages(messages);
     let tool_specs = format_tools(tools);
@@ -413,6 +414,16 @@ pub fn create_request(
         "messages": anthropic_messages,
         "max_tokens": max_tokens,
     });
+
+    if let Some(schema) = response_schema {
+        payload.as_object_mut().unwrap().insert(
+            "output_format".to_string(),
+            json!({
+                "type": "json_schema",
+                "schema": schema
+            }),
+        );
+    }
 
     // Add system message if present
     if !system.is_empty() {

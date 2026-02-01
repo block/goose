@@ -166,6 +166,7 @@ export type DeclarativeProviderConfig = {
     name: string;
     requires_auth?: boolean;
     supports_streaming?: boolean | null;
+    supports_structured_output?: boolean | null;
     timeout_seconds?: number | null;
 };
 
@@ -556,6 +557,7 @@ export type ModelConfig = {
     request_params?: {
         [key: string]: unknown;
     } | null;
+    response_schema?: unknown;
     temperature?: number | null;
     toolshim: boolean;
     toolshim_model?: string | null;
@@ -1208,6 +1210,7 @@ export type UpdateCustomProviderRequest = {
     models: Array<string>;
     requires_auth?: boolean;
     supports_streaming?: boolean | null;
+    supports_structured_output?: boolean | null;
 };
 
 export type UpdateFromSessionRequest = {

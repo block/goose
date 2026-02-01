@@ -143,8 +143,18 @@ fn get_agent_messages(
         }
 
         let has_response_schema = recipe.response.is_some();
+        let provider_supports_structured_output = agent
+            .provider()
+            .await
+            .map(|p| p.supports_structured_output())
+            .unwrap_or(false);
         agent
-            .apply_recipe_components(recipe.sub_recipes.clone(), recipe.response.clone(), true)
+            .apply_recipe_components(
+                recipe.sub_recipes.clone(),
+                recipe.response.clone(),
+                true,
+                provider_supports_structured_output,
+            )
             .await;
 
         let tools = agent.list_tools(&session_id, None).await;
