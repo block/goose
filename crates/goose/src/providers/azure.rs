@@ -82,12 +82,10 @@ impl ProviderDef for AzureProvider {
             })?;
 
             let auth_provider = AzureAuthProvider { auth };
-            let api_client = ApiClient::new(endpoint, AuthMethod::Custom(Box::new(auth_provider)))?;
+            let api_client = ApiClient::new(endpoint, AuthMethod::Custom(Box::new(auth_provider)))?
+                .with_query(vec![("api-version".to_string(), api_version)]);
 
-            let path = format!(
-                "openai/deployments/{}/chat/completions?api-version={}",
-                deployment_name, api_version
-            );
+            let path = format!("openai/deployments/{}", deployment_name);
 
             Ok(OpenAiCompatibleProvider::new(
                 AZURE_PROVIDER_NAME.to_string(),

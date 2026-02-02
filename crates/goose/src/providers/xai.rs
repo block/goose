@@ -65,7 +65,7 @@ impl ProviderDef for XaiProvider {
                 XAI_PROVIDER_NAME.to_string(),
                 model,
                 api_client,
-                "chat/completions".to_string(),
+                String::new(),
             ))
         })
     }

@@ -24,16 +24,25 @@ pub struct OpenAiCompatibleProvider {
     api_client: ApiClient,
     model: ModelConfig,
     name: String,
-    path: String,
+    /// Base path prefix for all endpoints (e.g. "" or "openai/deployments/{name}")
+    base_path: String,
 }
 
 impl OpenAiCompatibleProvider {
-    pub fn new(name: String, model: ModelConfig, api_client: ApiClient, path: String) -> Self {
+    pub fn new(name: String, model: ModelConfig, api_client: ApiClient, base_path: String) -> Self {
         Self {
             api_client,
             model,
             name,
-            path,
+            base_path,
+        }
+    }
+
+    fn endpoint(&self, path: &str) -> String {
+        if self.base_path.is_empty() {
+            path.to_string()
+        } else {
+            format!("{}/{}", self.base_path, path)
         }
     }
 
@@ -80,14 +89,13 @@ impl Provider for OpenAiCompatibleProvider {
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
         let payload = self.build_request(model_config, system, messages, tools, false)?;
-        let path = self.path.clone();
         let mut log = RequestLog::start(model_config, &payload)?;
 
         let response = self
             .with_retry(|| async {
                 let resp = self
                     .api_client
-                    .response_post(session_id, &path, &payload)
+                    .response_post(session_id, &self.endpoint("chat/completions"), &payload)
                     .await?;
                 handle_response_openai_compat(resp).await
             })
@@ -103,6 +111,36 @@ impl Provider for OpenAiCompatibleProvider {
         log.write(&response, Some(&usage))?;
 
         Ok((message, ProviderUsage::new(response_model, usage)))
+    }
+
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+        let response = self
+            .api_client
+            .response_get(None, &self.endpoint("models"))
+            .await
+            .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
+        let json = handle_response_openai_compat(response).await?;
+
+        if let Some(err_obj) = json.get("error") {
+            let msg = err_obj
+                .get("message")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown error");
+            return Err(ProviderError::Authentication(msg.to_string()));
+        }
+
+        let data = json.get("data").and_then(|v| v.as_array());
+        match data {
+            Some(arr) => {
+                let mut models: Vec<String> = arr
+                    .iter()
+                    .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(str::to_string))
+                    .collect();
+                models.sort();
+                Ok(Some(models))
+            }
+            None => Ok(None),
+        }
     }
 
     fn supports_streaming(&self) -> bool {
@@ -123,7 +161,11 @@ impl Provider for OpenAiCompatibleProvider {
             .with_retry(|| async {
                 let resp = self
                     .api_client
-                    .response_post(Some(session_id), &self.path, &payload)
+                    .response_post(
+                        Some(session_id),
+                        &self.endpoint("chat/completions"),
+                        &payload,
+                    )
                     .await?;
                 handle_status_openai_compat(resp).await
             })
