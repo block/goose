@@ -12,10 +12,21 @@ let serverUrl = DEFAULT_SERVER_URL;
 let oneShotPrompt: string | null = null;
 let orchestratorMode = false;
 let repoPath = process.cwd();
+let transportType: 'http' | 'websocket' = 'http';
 
 for (let i = 0; i < args.length; i++) {
   if ((args[i] === '--server' || args[i] === '-s') && args[i + 1]) {
     serverUrl = args[++i];
+  } else if ((args[i] === '--transport' || args[i] === '-t') && args[i + 1]) {
+    const value = args[++i];
+    if (value === 'websocket' || value === 'ws') {
+      transportType = 'websocket';
+    } else if (value === 'http' || value === 'sse') {
+      transportType = 'http';
+    } else {
+      console.error(`Invalid transport: ${value}. Use 'http' or 'websocket'`);
+      process.exit(1);
+    }
   } else if ((args[i] === '--prompt' || args[i] === '-p') && args[i + 1]) {
     oneShotPrompt = args[++i];
   } else if (args[i] === '--orchestrator' || args[i] === '-o') {
@@ -33,18 +44,27 @@ Modes:
   -o, --orchestrator  Multi-agent orchestrator mode
 
 Options:
-  -s, --server <url>  Server URL (default: ${DEFAULT_SERVER_URL})
-  -p, --prompt <text> One-shot mode: send prompt and exit (single mode only)
-  -r, --repo <path>   Repository path for orchestrator (default: current dir)
-  -h, --help          Show this help
+  -s, --server <url>     Server URL (default: ${DEFAULT_SERVER_URL})
+  -t, --transport <type> Transport type: http or websocket (default: http)
+  -p, --prompt <text>    One-shot mode: send prompt and exit (single mode only)
+  -r, --repo <path>      Repository path for orchestrator (default: current dir)
+  -h, --help             Show this help
+
+Examples:
+  npm start                                    # HTTP/SSE transport (default)
+  npm start -- --transport websocket           # WebSocket transport
+  npm start -- -t ws                           # WebSocket (short form)
+  npm start -- -s http://localhost:8080        # Custom server
+  npm start -- -p "Fix the bug"                # One-shot mode
+  npm start -- --orchestrator                  # Orchestrator mode
 
 Orchestrator Mode:
   Manage multiple goose agents working on different tasks.
   Each task runs in its own git worktree for isolation.
-  
+
   Controls:
     n         Create new workstream
-    ↑/↓       Navigate workstreams  
+    ↑/↓       Navigate workstreams
     Enter     Focus on workstream
     s         Stop workstream
     q         Quit
@@ -52,7 +72,7 @@ Orchestrator Mode:
 
 Single Agent Mode:
   Interactive chat with a single goose agent.
-  
+
   Controls:
     Type and press Enter to send messages
     Ctrl+C    Quit
@@ -62,15 +82,15 @@ Single Agent Mode:
 }
 
 if (oneShotPrompt) {
-  runOneShot(serverUrl, oneShotPrompt);
+  runOneShot(serverUrl, oneShotPrompt, transportType);
 } else if (orchestratorMode) {
-  render(<OrchestratorApp serverUrl={serverUrl} repoPath={repoPath} />);
+  render(<OrchestratorApp serverUrl={serverUrl} repoPath={repoPath} transportType={transportType} />);
 } else {
-  render(<App serverUrl={serverUrl} />);
+  render(<App serverUrl={serverUrl} transportType={transportType} />);
 }
 
-async function runOneShot(serverUrl: string, prompt: string) {
-  const client = new AcpClient({ baseUrl: serverUrl });
+async function runOneShot(serverUrl: string, prompt: string, transportType: 'http' | 'websocket') {
+  const client = new AcpClient({ baseUrl: serverUrl, transport: transportType });
   
   try {
     // connect() handles MCP initialize and returns the session ID
