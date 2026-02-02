@@ -1,9 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
-use goose_acp::{
-    http::{self, HttpState},
-    server_factory::{AcpServer, AcpServerFactoryConfig},
-};
+use goose_acp::server_factory::{AcpServer, AcpServerFactoryConfig};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tracing::info;
@@ -11,7 +8,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilte
 
 #[derive(Parser)]
 #[command(name = "goose-acp-server")]
-#[command(about = "ACP server for goose over streamable HTTP")]
+#[command(about = "ACP server for goose over HTTP and WebSocket")]
 struct Cli {
     #[arg(long, default_value = "127.0.0.1")]
     host: String,
@@ -45,12 +42,13 @@ async fn main() -> Result<()> {
     };
 
     let server = Arc::new(AcpServer::new(config));
-    let state = Arc::new(HttpState::new(server));
+    let router = goose_acp::transport::create_router(server);
 
     let addr: SocketAddr = format!("{}:{}", cli.host, cli.port).parse()?;
     info!("Starting goose-acp-server on {}", addr);
 
-    http::serve(state, addr).await?;
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    axum::serve(listener, router).await?;
 
     Ok(())
 }
