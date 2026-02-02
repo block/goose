@@ -13,6 +13,7 @@ export interface WorkstreamManagerConfig {
   serverUrl: string;
   repoPath: string;
   useWorktrees: boolean;
+  transportType?: 'http' | 'websocket';
 }
 
 type WorkstreamEventHandler = (workstreamId: string, event: WorkstreamEvent) => void;
@@ -132,7 +133,10 @@ export class WorkstreamManager {
     const workstream = this.workstreams.get(workstreamId);
     if (!workstream) throw new Error('Workstream not found');
 
-    const client = new AcpClient({ baseUrl: this.config.serverUrl });
+    const client = new AcpClient({
+      baseUrl: this.config.serverUrl,
+      transport: this.config.transportType || 'http'
+    });
     this.clients.set(workstreamId, client);
 
     // Set up message handling

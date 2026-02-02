@@ -24,12 +24,14 @@
     "ink-spinner": "^5.0.0",
     "ink-text-input": "^6.0.0",
     "react": "^18.3.1",
-    "uuid": "^13.0.0"
+    "uuid": "^13.0.0",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "@types/eventsource": "^1.1.15",
     "@types/node": "^22.10.0",
     "@types/react": "^18.3.0",
+    "@types/ws": "^8.5.13",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"
   }

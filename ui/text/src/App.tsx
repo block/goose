@@ -23,11 +23,12 @@ interface Message {
 
 interface AppProps {
   serverUrl: string;
+  transportType?: 'http' | 'websocket';
 }
 
-export const App: React.FC<AppProps> = ({ serverUrl }) => {
+export const App: React.FC<AppProps> = ({ serverUrl, transportType = 'http' }) => {
   const { exit } = useApp();
-  const [client] = useState(() => new AcpClient({ baseUrl: serverUrl }));
+  const [client] = useState(() => new AcpClient({ baseUrl: serverUrl, transport: transportType }));
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(true);
   const [sessionId, setSessionId] = useState<string | null>(null);

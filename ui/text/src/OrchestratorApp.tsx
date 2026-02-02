@@ -19,6 +19,7 @@ import { PermissionRequestParams } from './client.js';
 interface OrchestratorAppProps {
   serverUrl: string;
   repoPath: string;
+  transportType?: 'http' | 'websocket';
 }
 
 type OverlayMode = 'none' | 'message' | 'diff' | 'status' | 'help' | 'permission';
@@ -31,17 +32,19 @@ interface PendingPermission {
   options: Array<{ id: string; label: string; kind: string }>;
 }
 
-export const OrchestratorApp: React.FC<OrchestratorAppProps> = ({ 
-  serverUrl, 
-  repoPath 
+export const OrchestratorApp: React.FC<OrchestratorAppProps> = ({
+  serverUrl,
+  repoPath,
+  transportType = 'http'
 }) => {
   const { exit } = useApp();
-  
+
   // Core state
   const [manager] = useState(() => new WorkstreamManager({
     serverUrl,
     repoPath,
-    useWorktrees: true
+    useWorktrees: true,
+    transportType
   }));
   const [workstreams, setWorkstreams] = useState<Workstream[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
