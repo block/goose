@@ -394,6 +394,12 @@ async function handleFileOpen(filePath: string) {
 declare var MAIN_WINDOW_VITE_DEV_SERVER_URL: string;
 declare var MAIN_WINDOW_VITE_NAME: string;
 
+function getAppUrl(): URL {
+  return MAIN_WINDOW_VITE_DEV_SERVER_URL
+    ? new URL(MAIN_WINDOW_VITE_DEV_SERVER_URL)
+    : pathToFileURL(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
+}
+
 // Parse command line arguments
 const parseArgs = () => {
   let dirPath = null;
@@ -672,9 +678,7 @@ const createChat = async (
   });
 
   const windowId = mainWindow.id;
-  const url = MAIN_WINDOW_VITE_DEV_SERVER_URL
-    ? new URL(MAIN_WINDOW_VITE_DEV_SERVER_URL)
-    : pathToFileURL(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
+  const url = getAppUrl();
 
   let appPath = '/';
   const routeMap: Record<string, string> = {
@@ -832,9 +836,7 @@ const createLauncher = () => {
   );
 
   // Load launcher window content
-  const url = MAIN_WINDOW_VITE_DEV_SERVER_URL
-    ? new URL(MAIN_WINDOW_VITE_DEV_SERVER_URL)
-    : pathToFileURL(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
+  const url = getAppUrl();
 
   url.hash = '/launcher';
   launcherWindow.loadURL(formatUrl(url));
@@ -2241,9 +2243,6 @@ async function appMain() {
         throw new Error('No client found for launching window');
       }
 
-      const currentUrl = launchingWindow.webContents.getURL();
-      const baseUrl = new URL(currentUrl).origin;
-
       const appWindow = new BrowserWindow({
         title: formatAppName(gooseApp.name),
         width: gooseApp.width ?? 800,
@@ -2269,14 +2268,17 @@ async function appMain() {
 
       const workingDir = app.getPath('home');
       const extensionName = gooseApp.mcpServers?.[0] ?? '';
-      const standaloneUrl =
-        `${baseUrl}/#/standalone-app?` +
-        `resourceUri=${encodeURIComponent(gooseApp.uri)}` +
-        `&extensionName=${encodeURIComponent(extensionName)}` +
-        `&appName=${encodeURIComponent(gooseApp.name)}` +
-        `&workingDir=${encodeURIComponent(workingDir)}`;
 
-      await appWindow.loadURL(standaloneUrl);
+      const url = getAppUrl();
+
+      const searchParams = new URLSearchParams();
+      searchParams.set('resourceUri', gooseApp.uri);
+      searchParams.set('extensionName', extensionName);
+      searchParams.set('appName', gooseApp.name);
+      searchParams.set('workingDir', workingDir);
+
+      url.hash = `/standalone-app?${searchParams.toString()}`;
+      await appWindow.loadURL(formatUrl(url));
       appWindow.show();
     } catch (error) {
       console.error('Failed to launch app:', error);

@@ -27,7 +27,7 @@ anyhow = { workspace = true }
 thiserror = "1.0"
 futures = { workspace = true }
 dirs = "5.0"
-reqwest = { workspace = true, features = ["rustls-tls-native-roots", "json", "cookies", "gzip", "brotli", "deflate", "zstd", "charset", "http2", "stream", "blocking"], default-features = false }
+reqwest = { workspace = true, features = ["rustls-tls-native-roots", "json", "cookies", "gzip", "brotli", "deflate", "zstd", "charset", "http2", "stream", "blocking", "multipart"], default-features = false }
 tokio = { workspace = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { workspace = true }
@@ -87,7 +87,6 @@ dashmap = "6.1"
 ahash = "0.8"
 tokio-util = { version = "0.7.15", features = ["compat"] }
 unicode-normalization = "0.1"
-goose-mcp = { path = "../goose-mcp" }
 zip = "0.6"
 sys-info = "0.9"
 
