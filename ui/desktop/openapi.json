@@ -3653,7 +3653,7 @@
         "type": "object",
         "required": [
           "id",
-          "recipe_source",
+          "recipe",
           "cron"
         ],
         "properties": {
@@ -3663,8 +3663,8 @@
           "id": {
             "type": "string"
           },
-          "recipe_source": {
-            "type": "string"
+          "recipe": {
+            "$ref": "#/components/schemas/Recipe"
           }
         }
       },
