@@ -45,14 +45,15 @@ impl AcpServer {
             .map_err(|e| anyhow::anyhow!("No model configured: {}", e))?;
 
         let model_config = ModelConfig {
-            request_params: None,
+            provider_name: provider_name.clone(),
             model_name: model_name.clone(),
             context_limit: None,
             temperature: None,
             max_tokens: None,
             toolshim: false,
             toolshim_model: None,
-            fast_model: None,
+            fast_model_config: None,
+            request_params: None,
         };
 
         let provider = create(&provider_name, model_config).await?;
