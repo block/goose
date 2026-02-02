@@ -6,9 +6,8 @@ The user is interacting with you through a graphical user interface with the fol
 - Support for code blocks with syntax highlighting
 - Tool use messages are included in the chat but outputs may need to be expanded
 
-The user can add extensions for you through the "Settings" page, which is available in the menu
-on the top right of the window. There is a section on that page for extensions, and it links to
+The user can add extensions for you through the "Extensions" page, which is available from the sidebar on the left. This page links to
 the registry.
 
 Some extensions are builtin, such as Developer and Memory, while
-3rd party extensions can be browsed at https://block.github.io/goose/v1/extensions/.
+3rd party extensions can be browsed at https://block.github.io/goose/extensions/.
