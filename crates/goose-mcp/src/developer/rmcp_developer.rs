@@ -93,6 +93,55 @@ pub struct TextEditorParams {
 pub struct ShellParams {
     /// The command string to execute in the shell
     pub command: String,
+
+    /// If true, run the command in the background and return immediately with a process ID.
+    /// Use this for long-running commands like dev servers (npm run dev, uvicorn, etc.).
+    /// The process will continue running and you can check its status or stop it later.
+    #[serde(default)]
+    pub background: Option<bool>,
+}
+
+/// Status of a background process
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum BackgroundProcessStatus {
+    Running,
+    Completed { exit_code: i32 },
+    Failed { error: String },
+    Cancelled,
+}
+
+/// Information about a background process
+#[derive(Debug, Clone)]
+pub struct BackgroundProcess {
+    pub id: String,
+    pub command: String,
+    pub pid: Option<u32>,
+    pub started_at: std::time::Instant,
+    pub status: BackgroundProcessStatus,
+    pub output_buffer: Arc<RwLock<std::collections::VecDeque<String>>>,
+    pub cancellation_token: CancellationToken,
+}
+
+/// Parameters for listing background processes
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct ListBackgroundProcessesParams {}
+
+/// Parameters for getting background process output
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct GetBackgroundProcessOutputParams {
+    /// The process ID to get output for
+    pub process_id: String,
+
+    /// Number of lines to retrieve (default: 50, max: 500)
+    #[serde(default)]
+    pub lines: Option<usize>,
+}
+
+/// Parameters for stopping a background process
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct StopBackgroundProcessParams {
+    /// The process ID to stop
+    pub process_id: String,
 }
 
 /// Parameters for the image_processor tool
@@ -204,6 +253,11 @@ pub struct DeveloperServer {
     pub running_processes: Arc<RwLock<HashMap<String, CancellationToken>>>,
     #[cfg(not(test))]
     running_processes: Arc<RwLock<HashMap<String, CancellationToken>>>,
+    /// Background processes that have been detached and continue running
+    #[cfg(test)]
+    pub background_processes: Arc<RwLock<HashMap<String, BackgroundProcess>>>,
+    #[cfg(not(test))]
+    background_processes: Arc<RwLock<HashMap<String, BackgroundProcess>>>,
     bash_env_file: Option<PathBuf>,
     extend_path_with_shell: bool,
 }
@@ -579,6 +633,7 @@ impl DeveloperServer {
             prompts: load_prompt_files(),
             code_analyzer: CodeAnalyzer::new(),
             running_processes: Arc::new(RwLock::new(HashMap::new())),
+            background_processes: Arc::new(RwLock::new(HashMap::new())),
             extend_path_with_shell: false,
             bash_env_file: None,
         }
@@ -853,7 +908,7 @@ impl DeveloperServer {
     /// this tool does not run indefinitely.
     #[tool(
         name = "shell",
-        description = "Execute a command in the shell.This will return the output and error concatenated into a single string, as you would see from running on the command line. There will also be an indication of if the command succeeded or failed. Avoid commands that produce a large amount of output, and consider piping those outputs to files. If you need to run a long lived command, background it - e.g. `uvicorn main:app &` so that this tool does not run indefinitely."
+        description = "Execute a command in the shell. Returns output and error as a single string. For long-running commands (dev servers, watch processes), use background: true to run in background and return immediately with a process ID. You can then continue with other tasks while the process runs. Use list_background_processes, get_background_process_output, and stop_background_process to manage background processes."
     )]
     pub async fn shell(
         &self,
@@ -862,12 +917,19 @@ impl DeveloperServer {
     ) -> Result<CallToolResult, ErrorData> {
         let params = params.0;
         let command = &params.command;
+        let background = params.background.unwrap_or(false);
         let peer = context.peer;
         let request_id = context.id;
 
         // Validate the shell command
         self.validate_shell_command(command)?;
 
+        // If background mode is requested, spawn the process and return immediately
+        if background {
+            return self.execute_background_command(command, &peer).await;
+        }
+
+        // Normal foreground execution
         let cancellation_token = CancellationToken::new();
         // Track the process using the request ID
         {
@@ -905,6 +967,180 @@ impl DeveloperServer {
         Ok(CallToolResult::success(vec![
             Content::text(final_output).with_audience(vec![Role::Assistant]),
             Content::text(user_output)
+                .with_audience(vec![Role::User])
+                .with_priority(0.0),
+        ]))
+    }
+
+    /// Execute a command in the background and return immediately with a process ID.
+    /// The process continues running and output is buffered for later retrieval.
+    async fn execute_background_command(
+        &self,
+        command: &str,
+        peer: &rmcp::service::Peer<RoleServer>,
+    ) -> Result<CallToolResult, ErrorData> {
+        use uuid::Uuid;
+        
+        let process_id = Uuid::new_v4().to_string()[..8].to_string();
+        let command_str = command.to_string();
+        
+        let mut shell_config = ShellConfig::default();
+        let shell_name = std::path::Path::new(&shell_config.executable)
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("bash");
+
+        let working_dir = std::env::var("GOOSE_WORKING_DIR")
+            .ok()
+            .map(std::path::PathBuf::from);
+
+        if let Some(ref env_file) = self.bash_env_file {
+            if shell_name == "bash" {
+                shell_config.envs.push((
+                    OsString::from("BASH_ENV"),
+                    env_file.clone().into_os_string(),
+                ))
+            }
+        }
+
+        let mut cmd = configure_shell_command(&shell_config, command, working_dir.as_deref());
+
+        if self.extend_path_with_shell {
+            if let Err(e) = get_shell_path_dirs()
+                .await
+                .and_then(|dirs| join_paths(dirs).map_err(|e| anyhow!(e)))
+                .map(|path| cmd.env("PATH", path))
+            {
+                tracing::error!("Failed to extend PATH with shell directories: {}", e)
+            }
+        }
+
+        let mut child = cmd
+            .spawn()
+            .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
+
+        let pid = child.id();
+        
+        // Create output buffer and cancellation token
+        let output_buffer: Arc<RwLock<std::collections::VecDeque<String>>> = 
+            Arc::new(RwLock::new(std::collections::VecDeque::with_capacity(1000)));
+        let cancellation_token = CancellationToken::new();
+        
+        // Create background process entry
+        let bg_process = BackgroundProcess {
+            id: process_id.clone(),
+            command: command_str.clone(),
+            pid,
+            started_at: std::time::Instant::now(),
+            status: BackgroundProcessStatus::Running,
+            output_buffer: output_buffer.clone(),
+            cancellation_token: cancellation_token.clone(),
+        };
+        
+        // Register the background process
+        {
+            let mut bg_processes = self.background_processes.write().await;
+            bg_processes.insert(process_id.clone(), bg_process);
+        }
+        
+        // Spawn a task to monitor the process and capture output
+        let bg_processes = self.background_processes.clone();
+        let process_id_clone = process_id.clone();
+        let peer_clone = peer.clone();
+        
+        tokio::spawn(async move {
+            let stdout = child.stdout.take();
+            let stderr = child.stderr.take();
+            
+            if let (Some(stdout), Some(stderr)) = (stdout, stderr) {
+                let stdout = BufReader::new(stdout);
+                let stderr = BufReader::new(stderr);
+                
+                // Merge stdout and stderr streams
+                let stdout_stream = SplitStream::new(stdout.split(b'\n')).map(|v| ("stdout", v));
+                let stderr_stream = SplitStream::new(stderr.split(b'\n')).map(|v| ("stderr", v));
+                let mut merged = stdout_stream.merge(stderr_stream);
+                
+                while let Some((stream_type, line)) = merged.next().await {
+                    if let Ok(mut line) = line {
+                        line.push(b'\n');
+                        let line_str = String::from_utf8_lossy(&line).to_string();
+                        
+                        // Add to output buffer (ring buffer behavior - keep last 1000 lines)
+                        {
+                            let mut buffer = output_buffer.write().await;
+                            if buffer.len() >= 1000 {
+                                buffer.pop_front();
+                            }
+                            buffer.push_back(line_str.clone());
+                        }
+                        
+                        // Stream to client as logging notification
+                        let trimmed = line_str.trim();
+                        if !trimmed.is_empty() {
+                            let _ = peer_clone
+                                .notify_logging_message(LoggingMessageNotificationParam {
+                                    level: LoggingLevel::Info,
+                                    data: serde_json::json!({
+                                        "type": "background_process_output",
+                                        "process_id": process_id_clone,
+                                        "stream": stream_type,
+                                        "output": trimmed
+                                    }),
+                                    logger: Some("shell_tool".to_string()),
+                                })
+                                .await;
+                        }
+                    }
+                }
+            }
+            
+            // Wait for process to complete and update status
+            match child.wait().await {
+                Ok(exit_status) => {
+                    let mut bg_processes = bg_processes.write().await;
+                    if let Some(process) = bg_processes.get_mut(&process_id_clone) {
+                        process.status = if exit_status.success() {
+                            BackgroundProcessStatus::Completed { 
+                                exit_code: exit_status.code().unwrap_or(0) 
+                            }
+                        } else {
+                            BackgroundProcessStatus::Failed { 
+                                error: format!("Process exited with code: {:?}", exit_status.code()) 
+                            }
+                        };
+                    }
+                }
+                Err(e) => {
+                    let mut bg_processes = bg_processes.write().await;
+                    if let Some(process) = bg_processes.get_mut(&process_id_clone) {
+                        process.status = BackgroundProcessStatus::Failed { 
+                            error: e.to_string() 
+                        };
+                    }
+                }
+            }
+        });
+        
+        // Return immediately with process information
+        let response = format!(
+            "Process started in background.\n\
+             Process ID: {}\n\
+             Command: {}\n\
+             PID: {}\n\n\
+             The process is now running independently. You can:\n\
+             - Continue with other tasks\n\
+             - Check process status with list_background_processes\n\
+             - Get output with get_background_process_output\n\
+             - Stop it with stop_background_process",
+            process_id,
+            command_str,
+            pid.map(|p| p.to_string()).unwrap_or_else(|| "unknown".to_string())
+        );
+        
+        Ok(CallToolResult::success(vec![
+            Content::text(response.clone()).with_audience(vec![Role::Assistant]),
+            Content::text(response)
                 .with_audience(vec![Role::User])
                 .with_priority(0.0),
         ]))
@@ -1248,6 +1484,215 @@ impl DeveloperServer {
         ]))
     }
 
+    /// List all background processes that are currently running or have completed.
+    /// Returns information about each process including its ID, command, status, and runtime.
+    #[tool(
+        name = "list_background_processes",
+        description = "List all background processes. Shows process ID, command, status (Running/Completed/Failed), PID, and runtime. Use this to check on long-running commands started with background: true."
+    )]
+    pub async fn list_background_processes(
+        &self,
+        _params: Parameters<ListBackgroundProcessesParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let bg_processes = self.background_processes.read().await;
+        
+        if bg_processes.is_empty() {
+            let response = "No background processes are currently tracked.";
+            return Ok(CallToolResult::success(vec![
+                Content::text(response).with_audience(vec![Role::Assistant]),
+                Content::text(response)
+                    .with_audience(vec![Role::User])
+                    .with_priority(0.0),
+            ]));
+        }
+        
+        let mut output = String::from("Background Processes:\n");
+        output.push_str("─".repeat(60).as_str());
+        output.push('\n');
+        
+        for (id, process) in bg_processes.iter() {
+            let status_str = match &process.status {
+                BackgroundProcessStatus::Running => "🟢 Running".to_string(),
+                BackgroundProcessStatus::Completed { exit_code } => format!("✅ Completed (exit: {})", exit_code),
+                BackgroundProcessStatus::Failed { error } => format!("❌ Failed: {}", error),
+                BackgroundProcessStatus::Cancelled => "⚪ Cancelled".to_string(),
+            };
+            
+            let runtime = process.started_at.elapsed();
+            let runtime_str = if runtime.as_secs() >= 3600 {
+                format!("{}h {}m {}s", runtime.as_secs() / 3600, (runtime.as_secs() % 3600) / 60, runtime.as_secs() % 60)
+            } else if runtime.as_secs() >= 60 {
+                format!("{}m {}s", runtime.as_secs() / 60, runtime.as_secs() % 60)
+            } else {
+                format!("{}s", runtime.as_secs())
+            };
+            
+            output.push_str(&format!("\nID: {}\n", id));
+            output.push_str(&format!("  Command: {}\n", process.command));
+            output.push_str(&format!("  Status: {}\n", status_str));
+            output.push_str(&format!("  PID: {}\n", process.pid.map(|p| p.to_string()).unwrap_or_else(|| "unknown".to_string())));
+            output.push_str(&format!("  Runtime: {}\n", runtime_str));
+        }
+        
+        Ok(CallToolResult::success(vec![
+            Content::text(output.clone()).with_audience(vec![Role::Assistant]),
+            Content::text(output)
+                .with_audience(vec![Role::User])
+                .with_priority(0.0),
+        ]))
+    }
+
+    /// Get the output from a background process.
+    /// Returns the last N lines of output (default 50, max 500) from the process's output buffer.
+    #[tool(
+        name = "get_background_process_output",
+        description = "Get output from a background process. Returns the last N lines (default: 50, max: 500) from the process's output buffer. Use the process_id from list_background_processes."
+    )]
+    pub async fn get_background_process_output(
+        &self,
+        params: Parameters<GetBackgroundProcessOutputParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let params = params.0;
+        let process_id = &params.process_id;
+        let lines = params.lines.unwrap_or(50).min(500);
+        
+        let bg_processes = self.background_processes.read().await;
+        
+        let process = bg_processes.get(process_id).ok_or_else(|| {
+            ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                format!("No background process found with ID: {}", process_id),
+                None,
+            )
+        })?;
+        
+        let output_buffer = process.output_buffer.read().await;
+        
+        let status_str = match &process.status {
+            BackgroundProcessStatus::Running => "🟢 Running".to_string(),
+            BackgroundProcessStatus::Completed { exit_code } => format!("✅ Completed (exit: {})", exit_code),
+            BackgroundProcessStatus::Failed { error } => format!("❌ Failed: {}", error),
+            BackgroundProcessStatus::Cancelled => "⚪ Cancelled".to_string(),
+        };
+        
+        let total_lines = output_buffer.len();
+        let start = total_lines.saturating_sub(lines);
+        let output_lines: Vec<&String> = output_buffer.iter().skip(start).collect();
+        
+        let mut response = format!(
+            "Background Process Output\n\
+             ─────────────────────────\n\
+             Process ID: {}\n\
+             Command: {}\n\
+             Status: {}\n\
+             Showing: {} of {} buffered lines\n\
+             ─────────────────────────\n\n",
+            process_id,
+            process.command,
+            status_str,
+            output_lines.len(),
+            total_lines
+        );
+        
+        if output_lines.is_empty() {
+            response.push_str("(No output captured yet)");
+        } else {
+            for line in output_lines {
+                response.push_str(line);
+            }
+        }
+        
+        Ok(CallToolResult::success(vec![
+            Content::text(response.clone()).with_audience(vec![Role::Assistant]),
+            Content::text(response)
+                .with_audience(vec![Role::User])
+                .with_priority(0.0),
+        ]))
+    }
+
+    /// Stop a background process.
+    /// Sends a termination signal to the process and marks it as cancelled.
+    #[tool(
+        name = "stop_background_process",
+        description = "Stop a running background process. Sends SIGTERM to terminate the process gracefully. Use the process_id from list_background_processes."
+    )]
+    pub async fn stop_background_process(
+        &self,
+        params: Parameters<StopBackgroundProcessParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let params = params.0;
+        let process_id = &params.process_id;
+        
+        let mut bg_processes = self.background_processes.write().await;
+        
+        let process = bg_processes.get_mut(process_id).ok_or_else(|| {
+            ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                format!("No background process found with ID: {}", process_id),
+                None,
+            )
+        })?;
+        
+        // Check if already stopped
+        match &process.status {
+            BackgroundProcessStatus::Running => {
+                // Cancel the process
+                process.cancellation_token.cancel();
+                
+                // Try to kill the process directly if we have a PID
+                if let Some(pid) = process.pid {
+                    #[cfg(unix)]
+                    {
+                        use std::process::Command;
+                        // Send SIGTERM to process group
+                        let _ = Command::new("kill")
+                            .args(["-TERM", &format!("-{}", pid)])
+                            .output();
+                    }
+                    #[cfg(windows)]
+                    {
+                        use std::process::Command;
+                        let _ = Command::new("taskkill")
+                            .args(["/PID", &pid.to_string(), "/T", "/F"])
+                            .output();
+                    }
+                }
+                
+                process.status = BackgroundProcessStatus::Cancelled;
+                
+                let response = format!(
+                    "Background process stopped.\n\
+                     Process ID: {}\n\
+                     Command: {}\n\
+                     Status: ⚪ Cancelled",
+                    process_id,
+                    process.command
+                );
+                
+                Ok(CallToolResult::success(vec![
+                    Content::text(response.clone()).with_audience(vec![Role::Assistant]),
+                    Content::text(response)
+                        .with_audience(vec![Role::User])
+                        .with_priority(0.0),
+                ]))
+            }
+            status => {
+                let status_str = match status {
+                    BackgroundProcessStatus::Completed { exit_code } => format!("already completed (exit: {})", exit_code),
+                    BackgroundProcessStatus::Failed { error } => format!("already failed: {}", error),
+                    BackgroundProcessStatus::Cancelled => "already cancelled".to_string(),
+                    BackgroundProcessStatus::Running => unreachable!(),
+                };
+                
+                Err(ErrorData::new(
+                    ErrorCode::INVALID_PARAMS,
+                    format!("Process {} is {}", process_id, status_str),
+                    None,
+                ))
+            }
+        }
+    }
+
     fn prepare_image_for_llm(
         mut image: xcap::image::DynamicImage,
     ) -> Result<(Vec<u8>, String), ErrorData> {
@@ -1550,6 +1995,7 @@ mod tests {
                 .shell(
                     Parameters(ShellParams {
                         command: "".to_string(),
+                        background: None,
                     }),
                     RequestContext {
                         ct: Default::default(),
@@ -1585,6 +2031,7 @@ mod tests {
             // Test PowerShell command
             let shell_params = Parameters(ShellParams {
                 command: "Get-ChildItem".to_string(),
+                background: None,
             });
 
             let result = server
@@ -1968,6 +2415,7 @@ mod tests {
                 .shell(
                     Parameters(ShellParams {
                         command: format!("cat {}", secret_file_path.to_str().unwrap()),
+                        background: None,
                     }),
                     RequestContext {
                         ct: Default::default(),
@@ -1990,6 +2438,7 @@ mod tests {
                 .shell(
                     Parameters(ShellParams {
                         command: format!("cat {}", allowed_file_path.to_str().unwrap()),
+                        background: None,
                     }),
                     RequestContext {
                         ct: Default::default(),
@@ -3039,6 +3488,7 @@ mod tests {
                 .shell(
                     Parameters(ShellParams {
                         command: command.to_string(),
+                        background: None,
                     }),
                     RequestContext {
                         ct: Default::default(),
@@ -3188,6 +3638,7 @@ mod tests {
                 .shell(
                     Parameters(ShellParams {
                         command: command.to_string(),
+                        background: None,
                     }),
                     RequestContext {
                         ct: Default::default(),
@@ -3405,6 +3856,7 @@ mod tests {
                     .shell(
                         Parameters(ShellParams {
                             command: "sleep 30".to_string(),
+                            background: None,
                         }),
                         context,
                     )
@@ -3493,6 +3945,7 @@ mod tests {
                     .shell(
                         Parameters(ShellParams {
                             command: "bash -c 'sleep 60 & wait'".to_string(),
+                            background: None,
                         }),
                         context,
                     )
@@ -3590,6 +4043,7 @@ mod tests {
                 .shell(
                     Parameters(ShellParams {
                         command: "echo 'Hello, World!'".to_string(),
+                        background: None,
                     }),
                     context,
                 )
