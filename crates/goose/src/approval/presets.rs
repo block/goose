@@ -461,7 +461,10 @@ mod tests {
 
     #[test]
     fn test_preset_parsing() {
-        assert_eq!(ApprovalPreset::from_name("safe"), Some(ApprovalPreset::Safe));
+        assert_eq!(
+            ApprovalPreset::from_name("safe"),
+            Some(ApprovalPreset::Safe)
+        );
         assert_eq!(
             ApprovalPreset::from_name("PARANOID"),
             Some(ApprovalPreset::Paranoid)

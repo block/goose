@@ -15,10 +15,14 @@ pub mod final_output_tool;
 mod large_response_handler;
 pub mod mcp_client;
 pub mod moim;
+pub mod observability;
 pub mod orchestrator;
+pub mod persistence;
 pub mod planner;
 pub mod platform_tools;
 pub mod prompt_manager;
+pub mod reasoning;
+pub mod reflexion;
 mod reply_parts;
 pub mod retry;
 mod schedule_tool;
@@ -46,12 +50,28 @@ pub use critic::{
 pub use execute_commands::COMPACT_TRIGGERS;
 pub use extension::ExtensionConfig;
 pub use extension_manager::ExtensionManager;
+pub use observability::{
+    CostTracker, ExecutionMetrics, ExecutionTrace, ExecutionTracer, ModelPricing, Span,
+    SpanBuilder, SpanType, TokenUsage, TraceId,
+};
 pub use orchestrator::{
     AgentOrchestrator, AgentRole, OrchestratorConfig, TaskPriority, TaskResult, TaskStatus,
     Workflow, WorkflowStatus, WorkflowTask,
 };
+pub use persistence::{
+    Checkpoint, CheckpointConfig, CheckpointId, CheckpointManager, CheckpointMetadata,
+    CheckpointSummary, Checkpointer, MemoryCheckpointer, SqliteCheckpointer, ThreadId,
+};
 pub use planner::{Plan, PlanContext, PlanManager, PlanStatus, PlanStep, Planner, StepStatus};
 pub use prompt_manager::PromptManager;
+pub use reasoning::{
+    ActionResult, ReActTrace, ReasonedAction, ReasoningConfig, ReasoningManager, ReasoningMode,
+    Thought, ThoughtType,
+};
+pub use reflexion::{
+    AttemptAction, AttemptOutcome, Reflection, ReflectionMemory, ReflexionAgent, ReflexionConfig,
+    TaskAttempt,
+};
 pub use specialists::{
     CodeAgent, DeployAgent, DocsAgent, SecurityAgent, SpecialistAgent, SpecialistConfig,
     SpecialistContext, SpecialistFactory, TestAgent,
