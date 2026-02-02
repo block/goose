@@ -111,6 +111,7 @@ pub async fn run_builtin_and_mcp<S: Session>() {
     let _ = session.prompt(prompt, PermissionDecision::Cancel).await;
 
     let result = fs::read_to_string("/tmp/result.txt").unwrap_or_default();
+    eprintln!("{}", result);
     assert!(result.contains(FAKE_CODE));
     expected_session_id.assert_matches(&session.id().0);
 }
