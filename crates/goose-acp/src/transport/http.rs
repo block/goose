@@ -2,42 +2,23 @@ use anyhow::Result;
 use axum::{
     body::Body,
     extract::State,
-    http::{header, Method, Request, StatusCode},
+    http::{Request, StatusCode},
     response::{IntoResponse, Response, Sse},
-    routing::{delete, get, post},
-    Router,
 };
 use http_body_util::BodyExt;
 use serde_json::Value;
-use std::{
-    collections::HashMap,
-    convert::Infallible,
-    pin::Pin,
-    sync::Arc,
-    task::{Context, Poll},
-    time::Duration,
-};
+use std::{collections::HashMap, convert::Infallible, sync::Arc, time::Duration};
 use tokio::sync::{mpsc, Mutex, RwLock};
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
-use tower_http::cors::{Any, CorsLayer};
 use tracing::{error, info};
 
+use super::*;
+use crate::adapters::{ReceiverToAsyncRead, SenderToAsyncWrite};
 use crate::server_factory::AcpServer;
 
-// ACP header constants
-const HEADER_SESSION_ID: &str = "Acp-Session-Id";
-const EVENT_STREAM_MIME_TYPE: &str = "text/event-stream";
-const JSON_MIME_TYPE: &str = "application/json";
-
-struct HttpSession {
-    to_agent_tx: mpsc::Sender<String>,
-    from_agent_rx: Arc<Mutex<mpsc::Receiver<String>>>,
-    handle: tokio::task::JoinHandle<()>,
-}
-
-pub struct HttpState {
+pub(crate) struct HttpState {
     server: Arc<AcpServer>,
-    sessions: RwLock<HashMap<String, HttpSession>>,
+    sessions: RwLock<HashMap<String, TransportSession>>,
 }
 
 impl HttpState {
@@ -75,7 +56,7 @@ impl HttpState {
 
         self.sessions.write().await.insert(
             session_id.clone(),
-            HttpSession {
+            TransportSession {
                 to_agent_tx,
                 from_agent_rx: Arc::new(Mutex::new(from_agent_rx)),
                 handle,
@@ -115,166 +96,6 @@ impl HttpState {
         let session = sessions.get(session_id).ok_or(StatusCode::NOT_FOUND)?;
         Ok(session.from_agent_rx.clone())
     }
-}
-
-struct ReceiverToAsyncRead {
-    rx: mpsc::Receiver<String>,
-    buffer: Vec<u8>,
-    pos: usize,
-}
-
-impl ReceiverToAsyncRead {
-    fn new(rx: mpsc::Receiver<String>) -> Self {
-        Self {
-            rx,
-            buffer: Vec::new(),
-            pos: 0,
-        }
-    }
-}
-
-impl tokio::io::AsyncRead for ReceiverToAsyncRead {
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut tokio::io::ReadBuf<'_>,
-    ) -> Poll<std::io::Result<()>> {
-        if self.pos < self.buffer.len() {
-            let remaining = &self.buffer[self.pos..];
-            let to_copy = remaining.len().min(buf.remaining());
-            buf.put_slice(&remaining[..to_copy]);
-            self.pos += to_copy;
-            if self.pos >= self.buffer.len() {
-                self.buffer.clear();
-                self.pos = 0;
-            }
-            return Poll::Ready(Ok(()));
-        }
-
-        match Pin::new(&mut self.rx).poll_recv(cx) {
-            Poll::Ready(Some(msg)) => {
-                let bytes = format!("{}\n", msg).into_bytes();
-                let to_copy = bytes.len().min(buf.remaining());
-                buf.put_slice(&bytes[..to_copy]);
-                if to_copy < bytes.len() {
-                    self.buffer = bytes[to_copy..].to_vec();
-                    self.pos = 0;
-                }
-                Poll::Ready(Ok(()))
-            }
-            Poll::Ready(None) => Poll::Ready(Ok(())),
-            Poll::Pending => Poll::Pending,
-        }
-    }
-}
-
-struct SenderToAsyncWrite {
-    tx: mpsc::Sender<String>,
-    buffer: Vec<u8>,
-}
-
-impl SenderToAsyncWrite {
-    fn new(tx: mpsc::Sender<String>) -> Self {
-        Self {
-            tx,
-            buffer: Vec::new(),
-        }
-    }
-}
-
-impl tokio::io::AsyncWrite for SenderToAsyncWrite {
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        _cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<std::io::Result<usize>> {
-        self.buffer.extend_from_slice(buf);
-
-        while let Some(pos) = self.buffer.iter().position(|&b| b == b'\n') {
-            let line = String::from_utf8_lossy(&self.buffer[..pos]).to_string();
-            self.buffer.drain(..=pos);
-
-            if !line.is_empty() {
-                if let Err(e) = self.tx.try_send(line.clone()) {
-                    match e {
-                        mpsc::error::TrySendError::Full(_) => {
-                            let truncated: String = line.chars().take(100).collect();
-                            error!(
-                                "Channel full, dropping message (backpressure): {}",
-                                truncated
-                            );
-                        }
-                        mpsc::error::TrySendError::Closed(_) => {
-                            return Poll::Ready(Err(std::io::Error::new(
-                                std::io::ErrorKind::BrokenPipe,
-                                "Channel closed",
-                            )));
-                        }
-                    }
-                }
-            }
-        }
-
-        Poll::Ready(Ok(buf.len()))
-    }
-
-    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
-        Poll::Ready(Ok(()))
-    }
-
-    fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
-        Poll::Ready(Ok(()))
-    }
-}
-
-fn accepts_mime_type(request: &Request<Body>, mime_type: &str) -> bool {
-    request
-        .headers()
-        .get(header::ACCEPT)
-        .and_then(|v| v.to_str().ok())
-        .is_some_and(|accept| accept.contains(mime_type))
-}
-
-fn accepts_json_and_sse(request: &Request<Body>) -> bool {
-    request
-        .headers()
-        .get(header::ACCEPT)
-        .and_then(|v| v.to_str().ok())
-        .is_some_and(|accept| {
-            accept.contains(JSON_MIME_TYPE) && accept.contains(EVENT_STREAM_MIME_TYPE)
-        })
-}
-
-fn content_type_is_json(request: &Request<Body>) -> bool {
-    request
-        .headers()
-        .get(header::CONTENT_TYPE)
-        .and_then(|v| v.to_str().ok())
-        .is_some_and(|ct| ct.starts_with(JSON_MIME_TYPE))
-}
-
-fn get_session_id(request: &Request<Body>) -> Option<String> {
-    request
-        .headers()
-        .get(HEADER_SESSION_ID)
-        .and_then(|v| v.to_str().ok())
-        .map(|s| s.to_string())
-}
-
-fn is_jsonrpc_request(value: &Value) -> bool {
-    value.get("method").is_some() && value.get("id").is_some()
-}
-
-fn is_jsonrpc_notification(value: &Value) -> bool {
-    value.get("method").is_some() && value.get("id").is_none()
-}
-
-fn is_jsonrpc_response(value: &Value) -> bool {
-    value.get("id").is_some() && (value.get("result").is_some() || value.get("error").is_some())
-}
-
-fn is_initialize_request(value: &Value) -> bool {
-    value.get("method").is_some_and(|m| m == "initialize") && value.get("id").is_some()
 }
 
 fn create_sse_stream(
@@ -365,7 +186,10 @@ async fn handle_notification_or_response(
     StatusCode::ACCEPTED.into_response()
 }
 
-async fn handle_post(State(state): State<Arc<HttpState>>, request: Request<Body>) -> Response {
+pub(crate) async fn handle_post(
+    State(state): State<Arc<HttpState>>,
+    request: Request<Body>,
+) -> Response {
     if !accepts_json_and_sse(&request) {
         return (
             StatusCode::NOT_ACCEPTABLE,
@@ -409,7 +233,7 @@ async fn handle_post(State(state): State<Arc<HttpState>>, request: Request<Body>
     }
 
     if is_initialize_request(&json_message) {
-        handle_initialize(state, &json_message).await
+        handle_initialize(state.clone(), &json_message).await
     } else if is_jsonrpc_request(&json_message) {
         let Some(id) = session_id else {
             return (
@@ -418,7 +242,7 @@ async fn handle_post(State(state): State<Arc<HttpState>>, request: Request<Body>
             )
                 .into_response();
         };
-        handle_request(state, id, &json_message).await
+        handle_request(state.clone(), id, &json_message).await
     } else if is_jsonrpc_notification(&json_message) || is_jsonrpc_response(&json_message) {
         let Some(id) = session_id else {
             return (
@@ -427,13 +251,13 @@ async fn handle_post(State(state): State<Arc<HttpState>>, request: Request<Body>
             )
                 .into_response();
         };
-        handle_notification_or_response(state, id, &json_message).await
+        handle_notification_or_response(state.clone(), id, &json_message).await
     } else {
         (StatusCode::BAD_REQUEST, "Invalid JSON-RPC message").into_response()
     }
 }
 
-async fn handle_get(State(state): State<Arc<HttpState>>, request: Request<Body>) -> Response {
+pub(crate) async fn handle_get(state: Arc<HttpState>, request: Request<Body>) -> Response {
     if !accepts_mime_type(&request, EVENT_STREAM_MIME_TYPE) {
         return (
             StatusCode::NOT_ACCEPTABLE,
@@ -478,7 +302,10 @@ async fn handle_get(State(state): State<Arc<HttpState>>, request: Request<Body>)
         .into_response()
 }
 
-async fn handle_delete(State(state): State<Arc<HttpState>>, request: Request<Body>) -> Response {
+pub(crate) async fn handle_delete(
+    State(state): State<Arc<HttpState>>,
+    request: Request<Body>,
+) -> Response {
     let session_id = match get_session_id(&request) {
         Some(id) => id,
         None => {
@@ -496,35 +323,4 @@ async fn handle_delete(State(state): State<Arc<HttpState>>, request: Request<Bod
 
     state.remove_session(&session_id).await;
     StatusCode::ACCEPTED.into_response()
-}
-
-async fn health() -> &'static str {
-    "ok"
-}
-
-pub fn create_router(state: Arc<HttpState>) -> Router {
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods([Method::GET, Method::POST, Method::DELETE, Method::OPTIONS])
-        .allow_headers([
-            header::CONTENT_TYPE,
-            header::ACCEPT,
-            HEADER_SESSION_ID.parse().unwrap(),
-        ]);
-
-    Router::new()
-        .route("/health", get(health))
-        .route("/acp", post(handle_post))
-        .route("/acp", get(handle_get))
-        .route("/acp", delete(handle_delete))
-        .layer(cors)
-        .with_state(state)
-}
-
-pub async fn serve(state: Arc<HttpState>, addr: std::net::SocketAddr) -> Result<()> {
-    let router = create_router(state);
-    let listener = tokio::net::TcpListener::bind(addr).await?;
-    info!("ACP HTTP server listening on {}", addr);
-    axum::serve(listener, router).await?;
-    Ok(())
 }
