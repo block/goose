@@ -1571,6 +1571,86 @@
         }
       }
     },
+    "/dictation/config": {
+      "get": {
+        "tags": [
+          "super::routes::dictation"
+        ],
+        "operationId": "get_dictation_config",
+        "responses": {
+          "200": {
+            "description": "Audio transcription provider configurations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/DictationProviderStatus"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dictation/transcribe": {
+      "post": {
+        "tags": [
+          "super::routes::dictation"
+        ],
+        "operationId": "transcribe_dictation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TranscribeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Audio transcribed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscribeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (bad base64 or unsupported format)"
+          },
+          "401": {
+            "description": "Invalid API key"
+          },
+          "412": {
+            "description": "DictationProvider not configured"
+          },
+          "413": {
+            "description": "Audio file too large (max 25MB)"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "500": {
+            "description": "Internal server error"
+          },
+          "502": {
+            "description": "DictationProvider API error"
+          },
+          "503": {
+            "description": "Service unavailable"
+          },
+          "504": {
+            "description": "Request timeout"
+          }
+        }
+      }
+    },
     "/handle_openrouter": {
       "post": {
         "tags": [
@@ -3437,7 +3517,7 @@
         "type": "object",
         "required": [
           "id",
-          "recipe_source",
+          "recipe",
           "cron"
         ],
         "properties": {
@@ -3447,8 +3527,8 @@
           "id": {
             "type": "string"
           },
-          "recipe_source": {
-            "type": "string"
+          "recipe": {
+            "$ref": "#/components/schemas/Recipe"
           }
         }
       },
@@ -3590,6 +3670,50 @@
           },
           "provider_name": {
             "type": "string"
+          }
+        }
+      },
+      "DictationProvider": {
+        "type": "string",
+        "enum": [
+          "openai",
+          "elevenlabs"
+        ]
+      },
+      "DictationProviderStatus": {
+        "type": "object",
+        "required": [
+          "configured",
+          "description",
+          "uses_provider_config"
+        ],
+        "properties": {
+          "config_key": {
+            "type": "string",
+            "description": "Config key name if uses_provider_config is false",
+            "nullable": true
+          },
+          "configured": {
+            "type": "boolean",
+            "description": "Whether the provider is fully configured and ready to use"
+          },
+          "description": {
+            "type": "string",
+            "description": "Description of what this provider does"
+          },
+          "host": {
+            "type": "string",
+            "description": "Custom host URL if configured (only for providers that support it)",
+            "nullable": true
+          },
+          "settings_path": {
+            "type": "string",
+            "description": "Path to settings if uses_provider_config is true",
+            "nullable": true
+          },
+          "uses_provider_config": {
+            "type": "boolean",
+            "description": "Whether this provider uses the main provider config (true) or has its own key (false)"
           }
         }
       },
@@ -6609,6 +6733,39 @@
           },
           "toolResult": {
             "type": "object"
+          }
+        }
+      },
+      "TranscribeRequest": {
+        "type": "object",
+        "required": [
+          "audio",
+          "mime_type",
+          "provider"
+        ],
+        "properties": {
+          "audio": {
+            "type": "string",
+            "description": "Base64 encoded audio data"
+          },
+          "mime_type": {
+            "type": "string",
+            "description": "MIME type of the audio (e.g., \"audio/webm\", \"audio/wav\")"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/DictationProvider"
+          }
+        }
+      },
+      "TranscribeResponse": {
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Transcribed text from the audio"
           }
         }
       },

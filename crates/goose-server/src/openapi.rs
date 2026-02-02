@@ -412,6 +412,8 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::tunnel::stop_tunnel,
         super::routes::tunnel::get_tunnel_status,
         super::routes::telemetry::send_telemetry_event,
+        super::routes::dictation::transcribe_dictation,
+        super::routes::dictation::get_dictation_config,
     ),
     components(schemas(
         super::routes::config_management::UpsertConfigQuery,
@@ -570,6 +572,10 @@ derive_utoipa!(Icon as IconSchema);
         goose::goose_apps::CspMetadata,
         goose::goose_apps::UiMetadata,
         goose::goose_apps::ResourceMetadata,
+        super::routes::dictation::TranscribeRequest,
+        super::routes::dictation::TranscribeResponse,
+        super::routes::dictation::DictationProvider,
+        super::routes::dictation::DictationProviderStatus,
     ))
 )]
 pub struct ApiDoc;

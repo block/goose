@@ -110,8 +110,12 @@ pub fn get_input(
         .map(|h| h.completion_cache.clone())
         .ok_or_else(|| anyhow::anyhow!("Editor helper not set"))?;
 
+    let newline_key = get_newline_key();
     editor.bind_sequence(
-        rustyline::KeyEvent(rustyline::KeyCode::Char('j'), rustyline::Modifiers::CTRL),
+        rustyline::KeyEvent(
+            rustyline::KeyCode::Char(newline_key),
+            rustyline::Modifiers::CTRL,
+        ),
         rustyline::EventHandler::Simple(rustyline::Cmd::Newline),
     );
 

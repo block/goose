@@ -391,7 +391,7 @@ impl Hinter for GooseCompleter {
         let cache = self.completion_cache.read().unwrap();
 
         if !line.is_empty() && cache.hint_status != HintStatus::Default {
-            drop(cache); // Release read lock
+            drop(cache);
             let mut cache_write = self.completion_cache.write().unwrap();
             cache_write.hint_status = HintStatus::Default;
             return None;
@@ -408,7 +408,13 @@ impl Hinter for GooseCompleter {
             HintStatus::MaybeExit => {
                 Some("Press Ctrl+C again to exit, or type new instructions to continue".to_string())
             }
-            HintStatus::Default => Some("Press Enter to send, Ctrl-J for new line".to_string()),
+            HintStatus::Default => {
+                let newline_key = super::input::get_newline_key().to_ascii_uppercase();
+                Some(format!(
+                    "Press Enter to send, Ctrl-{} for new line",
+                    newline_key
+                ))
+            }
         }
     }
 }
