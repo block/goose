@@ -1,60 +1,34 @@
+use super::canonical::{CanonicalModel, CanonicalModelRegistry};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-/// Models.dev API data embedded in the binary
-const MODELS_DEV_DATA: &str = include_str!("../../../../../models_dev_api.json");
+/// Provider metadata embedded in the binary
+const PROVIDER_METADATA_JSON: &str =
+    include_str!("canonical/data/provider_metadata.json");
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ModelsDevProvider {
+pub struct ProviderMetadata {
     pub id: String,
-    pub name: String,
-    #[serde(default)]
-    pub npm: String,
-    #[serde(default)]
-    pub api: String,
-    #[serde(default)]
-    pub env: Vec<String>,
-    #[serde(default)]
-    pub doc: String,
-    pub models: HashMap<String, ModelsDevModel>,
+    pub display_name: String,
+    pub format: String,
+    pub api_url: String,
+    pub doc_url: String,
+    pub env_var: String,
+    pub supports_streaming: bool,
+    pub requires_auth: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ModelsDevModel {
-    pub id: String,
-    pub name: String,
-    #[serde(default)]
-    pub family: String,
-    #[serde(default)]
-    pub attachment: bool,
-    #[serde(default)]
-    pub reasoning: bool,
-    #[serde(default)]
-    pub tool_call: bool,
-    #[serde(default)]
-    pub temperature: bool,
-    #[serde(default)]
-    pub knowledge: String,
-    pub limit: ModelsDevLimit,
-    #[serde(default)]
-    pub status: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ModelsDevLimit {
-    pub context: usize,
-    #[serde(default)]
-    pub output: Option<usize>,
-}
-
-/// Provider catalog loaded from models.dev
-static PROVIDER_CATALOG: Lazy<HashMap<String, ModelsDevProvider>> = Lazy::new(|| {
-    serde_json::from_str::<HashMap<String, ModelsDevProvider>>(MODELS_DEV_DATA)
+/// Provider metadata map loaded from JSON
+static PROVIDER_METADATA: Lazy<HashMap<String, ProviderMetadata>> = Lazy::new(|| {
+    serde_json::from_str::<Vec<ProviderMetadata>>(PROVIDER_METADATA_JSON)
         .unwrap_or_else(|e| {
-            eprintln!("Failed to parse models.dev data: {}", e);
-            HashMap::new()
+            eprintln!("Failed to parse provider metadata: {}", e);
+            Vec::new()
         })
+        .into_iter()
+        .map(|p| (p.id.clone(), p))
+        .collect()
 });
 
 /// Engine/format compatibility
@@ -81,16 +55,6 @@ impl ProviderFormat {
             "ollama" | "ollama_compatible" => Some(ProviderFormat::Ollama),
             _ => None,
         }
-    }
-}
-
-/// Detect format from npm package name
-pub fn detect_format_from_npm(npm_package: &str) -> ProviderFormat {
-    match npm_package {
-        "@ai-sdk/openai" | "@ai-sdk/openai-compatible" => ProviderFormat::OpenAI,
-        "@ai-sdk/anthropic" => ProviderFormat::Anthropic,
-        _ if npm_package.contains("ollama") => ProviderFormat::Ollama,
-        _ => ProviderFormat::OpenAI, // Default to most common
     }
 }
 
@@ -136,29 +100,50 @@ pub struct ModelCapabilities {
     pub temperature: bool,
 }
 
+/// Get models for a provider from canonical registry
+fn get_provider_models(provider_id: &str) -> Vec<CanonicalModel> {
+    let registry = match CanonicalModelRegistry::bundled() {
+        Ok(reg) => reg,
+        Err(e) => {
+            eprintln!("Failed to load canonical models: {}", e);
+            return Vec::new();
+        }
+    };
+
+    registry
+        .all_models()
+        .iter()
+        .filter(|m| m.id.starts_with(&format!("{}/", provider_id)))
+        .map(|m| (*m).clone())
+        .collect()
+}
+
 /// Get all providers from catalog filtered by format
 pub fn get_providers_by_format(format: ProviderFormat) -> Vec<ProviderCatalogEntry> {
-    let mut entries: Vec<ProviderCatalogEntry> = PROVIDER_CATALOG
+    let mut entries: Vec<ProviderCatalogEntry> = PROVIDER_METADATA
         .values()
-        .filter_map(|provider| {
-            let provider_format = detect_format_from_npm(&provider.npm);
-            if provider_format != format {
+        .filter_map(|metadata| {
+            // Filter by format
+            if metadata.format != format.as_str() {
                 return None;
             }
 
-            // Only include providers with API URLs
-            if provider.api.is_empty() {
+            // Get model count from canonical models
+            let models = get_provider_models(&metadata.id);
+
+            // Skip providers with no models
+            if models.is_empty() {
                 return None;
             }
 
             Some(ProviderCatalogEntry {
-                id: provider.id.clone(),
-                name: provider.name.clone(),
-                format: format.as_str().to_string(),
-                api_url: provider.api.clone(),
-                model_count: provider.models.len(),
-                doc_url: provider.doc.clone(),
-                env_var: provider.env.first().cloned().unwrap_or_default(),
+                id: metadata.id.clone(),
+                name: metadata.display_name.clone(),
+                format: metadata.format.clone(),
+                api_url: metadata.api_url.clone(),
+                model_count: models.len(),
+                doc_url: metadata.doc_url.clone(),
+                env_var: metadata.env_var.clone(),
             })
         })
         .collect();
@@ -170,64 +155,54 @@ pub fn get_providers_by_format(format: ProviderFormat) -> Vec<ProviderCatalogEnt
 
 /// Get provider template by ID for auto-filling form
 pub fn get_provider_template(provider_id: &str) -> Option<ProviderTemplate> {
-    let provider = PROVIDER_CATALOG.get(provider_id)?;
+    let metadata = PROVIDER_METADATA.get(provider_id)?;
 
-    // Only return providers with API URLs
-    if provider.api.is_empty() {
+    // Get models from canonical registry
+    let canonical_models = get_provider_models(provider_id);
+
+    if canonical_models.is_empty() {
         return None;
     }
 
-    let format = detect_format_from_npm(&provider.npm);
+    let models: Vec<ModelTemplate> = canonical_models
+        .iter()
+        .map(|model| {
+            // Extract just the model name (after "provider/")
+            let model_name = model
+                .id
+                .strip_prefix(&format!("{}/", provider_id))
+                .unwrap_or(&model.id);
 
-    let models: Vec<ModelTemplate> = provider
-        .models
-        .values()
-        .filter(|m| m.status.as_deref() != Some("deprecated"))
-        .map(|model| ModelTemplate {
-            id: model.id.clone(),
-            name: model.name.clone(),
-            context_limit: model.limit.context,
-            capabilities: ModelCapabilities {
-                tool_call: model.tool_call,
-                reasoning: model.reasoning,
-                attachment: model.attachment,
-                temperature: model.temperature,
-            },
-            deprecated: model.status.as_deref() == Some("deprecated"),
+            ModelTemplate {
+                id: model_name.to_string(),
+                name: model.name.clone(),
+                context_limit: model.limit.context,
+                capabilities: ModelCapabilities {
+                    tool_call: model.tool_call,
+                    reasoning: model.reasoning.unwrap_or(false),
+                    attachment: model.attachment.unwrap_or(false),
+                    temperature: model.temperature.unwrap_or(true),
+                },
+                deprecated: false, // Canonical models don't track deprecation yet
+            }
         })
         .collect();
 
     Some(ProviderTemplate {
-        id: provider.id.clone(),
-        name: provider.name.clone(),
-        format: format.as_str().to_string(),
-        api_url: provider.api.clone(),
+        id: metadata.id.clone(),
+        name: metadata.display_name.clone(),
+        format: metadata.format.clone(),
+        api_url: metadata.api_url.clone(),
         models,
-        supports_streaming: true, // Default to true for most providers
-        env_var: provider.env.first().cloned().unwrap_or_default(),
-        doc_url: provider.doc.clone(),
+        supports_streaming: metadata.supports_streaming,
+        env_var: metadata.env_var.clone(),
+        doc_url: metadata.doc_url.clone(),
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_detect_format_from_npm() {
-        assert_eq!(
-            detect_format_from_npm("@ai-sdk/openai-compatible"),
-            ProviderFormat::OpenAI
-        );
-        assert_eq!(
-            detect_format_from_npm("@ai-sdk/anthropic"),
-            ProviderFormat::Anthropic
-        );
-        assert_eq!(
-            detect_format_from_npm("@ai-sdk/openai"),
-            ProviderFormat::OpenAI
-        );
-    }
 
     #[test]
     fn test_get_providers_by_format() {
@@ -240,14 +215,28 @@ mod tests {
 
     #[test]
     fn test_get_provider_template() {
-        // Test with a provider we know exists in models.dev
-        let template = get_provider_template("deepseek");
+        // Test with providers we know exist in canonical models
+        let template = get_provider_template("anthropic");
         assert!(template.is_some());
 
         if let Some(t) = template {
-            assert_eq!(t.id, "deepseek");
+            assert_eq!(t.id, "anthropic");
             assert!(!t.models.is_empty());
             assert!(!t.api_url.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_all_metadata_providers_have_models() {
+        // Verify that all providers in metadata have models in canonical registry
+        for (provider_id, metadata) in PROVIDER_METADATA.iter() {
+            let models = get_provider_models(provider_id);
+            assert!(
+                !models.is_empty(),
+                "Provider {} ({}) has no models in canonical registry",
+                provider_id,
+                metadata.display_name
+            );
         }
     }
 }

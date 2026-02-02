@@ -1,0 +1,132 @@
+[
+  {
+    "id": "anthropic",
+    "display_name": "Anthropic",
+    "format": "anthropic",
+    "api_url": "https://api.anthropic.com/v1",
+    "doc_url": "https://docs.anthropic.com",
+    "env_var": "ANTHROPIC_API_KEY",
+    "supports_streaming": true,
+    "requires_auth": true
+  },
+  {
+    "id": "openai",
+    "display_name": "OpenAI",
+    "format": "openai",
+    "api_url": "https://api.openai.com/v1",
+    "doc_url": "https://platform.openai.com/docs",
+    "env_var": "OPENAI_API_KEY",
+    "supports_streaming": true,
+    "requires_auth": true
+  },
+  {
+    "id": "google",
+    "display_name": "Google AI",
+    "format": "openai",
+    "api_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+    "doc_url": "https://ai.google.dev/gemini-api/docs",
+    "env_var": "GOOGLE_API_KEY",
+    "supports_streaming": true,
+    "requires_auth": true
+  },
+  {
+    "id": "google-vertex",
+    "display_name": "Google Vertex AI",
+    "format": "openai",
+    "api_url": "https://{REGION}-aiplatform.googleapis.com/v1/projects/{PROJECT}/locations/{REGION}/endpoints/openapi",
+    "doc_url": "https://cloud.google.com/vertex-ai/docs",
+    "env_var": "GOOGLE_VERTEX_API_KEY",
+    "supports_streaming": true,
+    "requires_auth": true
+  },
+  {
+    "id": "openrouter",
+    "display_name": "OpenRouter",
+    "format": "openai",
+    "api_url": "https://openrouter.ai/api/v1",
+    "doc_url": "https://openrouter.ai/docs",
+    "env_var": "OPENROUTER_API_KEY",
+    "supports_streaming": true,
+    "requires_auth": true
+  },
+  {
+    "id": "meta-llama",
+    "display_name": "Meta Llama",
+    "format": "openai",
+    "api_url": "https://api.llama-api.com/v1",
+    "doc_url": "https://docs.llama-api.com",
+    "env_var": "LLAMA_API_KEY",
+    "supports_streaming": true,
+    "requires_auth": true
+  },
+  {
+    "id": "mistralai",
+    "display_name": "Mistral AI",
+    "format": "openai",
+    "api_url": "https://api.mistral.ai/v1",
+    "doc_url": "https://docs.mistral.ai",
+    "env_var": "MISTRAL_API_KEY",
+    "supports_streaming": true,
+    "requires_auth": true
+  },
+  {
+    "id": "x-ai",
+    "display_name": "xAI",
+    "format": "openai",
+    "api_url": "https://api.x.ai/v1",
+    "doc_url": "https://docs.x.ai",
+    "env_var": "XAI_API_KEY",
+    "supports_streaming": true,
+    "requires_auth": true
+  },
+  {
+    "id": "deepseek",
+    "display_name": "DeepSeek",
+    "format": "openai",
+    "api_url": "https://api.deepseek.com/v1",
+    "doc_url": "https://platform.deepseek.com/docs",
+    "env_var": "DEEPSEEK_API_KEY",
+    "supports_streaming": true,
+    "requires_auth": true
+  },
+  {
+    "id": "cohere",
+    "display_name": "Cohere",
+    "format": "openai",
+    "api_url": "https://api.cohere.com/v1",
+    "doc_url": "https://docs.cohere.com",
+    "env_var": "COHERE_API_KEY",
+    "supports_streaming": true,
+    "requires_auth": true
+  },
+  {
+    "id": "azure",
+    "display_name": "Azure OpenAI",
+    "format": "openai",
+    "api_url": "https://{RESOURCE}.openai.azure.com/openai/deployments/{DEPLOYMENT}",
+    "doc_url": "https://learn.microsoft.com/azure/ai-services/openai",
+    "env_var": "AZURE_OPENAI_API_KEY",
+    "supports_streaming": true,
+    "requires_auth": true
+  },
+  {
+    "id": "amazon-bedrock",
+    "display_name": "Amazon Bedrock",
+    "format": "openai",
+    "api_url": "https://bedrock-runtime.{REGION}.amazonaws.com",
+    "doc_url": "https://docs.aws.amazon.com/bedrock",
+    "env_var": "AWS_ACCESS_KEY_ID",
+    "supports_streaming": true,
+    "requires_auth": true
+  },
+  {
+    "id": "venice",
+    "display_name": "Venice AI",
+    "format": "openai",
+    "api_url": "https://api.venice.ai/v1",
+    "doc_url": "https://docs.venice.ai",
+    "env_var": "VENICE_API_KEY",
+    "supports_streaming": true,
+    "requires_auth": true
+  }
+]
