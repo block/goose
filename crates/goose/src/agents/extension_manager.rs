@@ -565,9 +565,11 @@ impl ExtensionManager {
             }
             ExtensionConfig::Builtin { name, timeout, .. } => {
                 let timeout_duration = Duration::from_secs(timeout.unwrap_or(300));
-                let extension_fn = get_builtin_extension(name.as_str()).ok_or_else(|| {
-                    ExtensionError::ConfigError(format!("Unknown builtin extension: {}", name))
-                })?;
+                let normalized_name = name_to_key(name);
+                let extension_fn =
+                    get_builtin_extension(normalized_name.as_str()).ok_or_else(|| {
+                        ExtensionError::ConfigError(format!("Unknown builtin extension: {}", name))
+                    })?;
 
                 if let Some(container) = container {
                     let container_id = container.id();
