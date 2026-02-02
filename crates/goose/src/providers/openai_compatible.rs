@@ -21,28 +21,18 @@ use crate::providers::formats::openai::{
 use rmcp::model::Tool;
 
 pub struct OpenAiCompatibleProvider {
+    name: String,
+    /// Client targeted at the base URL (e.g. `https://api.x.ai/v1`)
     api_client: ApiClient,
     model: ModelConfig,
-    name: String,
-    /// Base path prefix for all endpoints (e.g. "" or "openai/deployments/{name}")
-    base_path: String,
 }
 
 impl OpenAiCompatibleProvider {
-    pub fn new(name: String, model: ModelConfig, api_client: ApiClient, base_path: String) -> Self {
+    pub fn new(name: String, api_client: ApiClient, model: ModelConfig) -> Self {
         Self {
+            name,
             api_client,
             model,
-            name,
-            base_path,
-        }
-    }
-
-    fn endpoint(&self, path: &str) -> String {
-        if self.base_path.is_empty() {
-            path.to_string()
-        } else {
-            format!("{}/{}", self.base_path, path)
         }
     }
 
@@ -95,7 +85,7 @@ impl Provider for OpenAiCompatibleProvider {
             .with_retry(|| async {
                 let resp = self
                     .api_client
-                    .response_post(session_id, &self.endpoint("chat/completions"), &payload)
+                    .response_post(session_id, "chat/completions", &payload)
                     .await?;
                 handle_response_openai_compat(resp).await
             })
@@ -116,7 +106,7 @@ impl Provider for OpenAiCompatibleProvider {
     async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
         let response = self
             .api_client
-            .response_get(None, &self.endpoint("models"))
+            .response_get(None, "models")
             .await
             .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
         let json = handle_response_openai_compat(response).await?;
@@ -161,11 +151,7 @@ impl Provider for OpenAiCompatibleProvider {
             .with_retry(|| async {
                 let resp = self
                     .api_client
-                    .response_post(
-                        Some(session_id),
-                        &self.endpoint("chat/completions"),
-                        &payload,
-                    )
+                    .response_post(Some(session_id), "chat/completions", &payload)
                     .await?;
                 handle_status_openai_compat(resp).await
             })

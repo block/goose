@@ -63,9 +63,8 @@ impl ProviderDef for XaiProvider {
 
             Ok(OpenAiCompatibleProvider::new(
                 XAI_PROVIDER_NAME.to_string(),
-                model,
                 api_client,
-                String::new(),
+                model,
             ))
         })
     }

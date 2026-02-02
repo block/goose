@@ -82,16 +82,18 @@ impl ProviderDef for AzureProvider {
             })?;
 
             let auth_provider = AzureAuthProvider { auth };
-            let api_client = ApiClient::new(endpoint, AuthMethod::Custom(Box::new(auth_provider)))?
+            let host = format!(
+                "{}/openai/deployments/{}",
+                endpoint.trim_end_matches('/'),
+                deployment_name
+            );
+            let api_client = ApiClient::new(host, AuthMethod::Custom(Box::new(auth_provider)))?
                 .with_query(vec![("api-version".to_string(), api_version)]);
-
-            let path = format!("openai/deployments/{}", deployment_name);
 
             Ok(OpenAiCompatibleProvider::new(
                 AZURE_PROVIDER_NAME.to_string(),
-                model,
                 api_client,
-                path,
+                model,
             ))
         })
     }
