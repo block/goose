@@ -20,8 +20,10 @@ use std::path::PathBuf;
 
 const MODELS_DEV_API_URL: &str = "https://models.dev/api.json";
 const DEFAULT_CONTEXT_LIMIT: usize = 128_000;
-const SEPARATOR: &str = "================================================================================";
-const SUBSEPARATOR: &str = "--------------------------------------------------------------------------------";
+const SEPARATOR: &str =
+    "================================================================================";
+const SUBSEPARATOR: &str =
+    "--------------------------------------------------------------------------------";
 
 const ALLOWED_PROVIDERS: &[&str] = &[
     "anthropic",
@@ -211,13 +213,23 @@ impl MappingReport {
         let prev_map: HashMap<(&str, &str), &str> = previous
             .mapped_models
             .iter()
-            .map(|e| ((e.provider.as_str(), e.model.as_str()), e.canonical.as_str()))
+            .map(|e| {
+                (
+                    (e.provider.as_str(), e.model.as_str()),
+                    e.canonical.as_str(),
+                )
+            })
             .collect();
 
         let curr_map: HashMap<(&str, &str), &str> = self
             .mapped_models
             .iter()
-            .map(|e| ((e.provider.as_str(), e.model.as_str()), e.canonical.as_str()))
+            .map(|e| {
+                (
+                    (e.provider.as_str(), e.model.as_str()),
+                    e.canonical.as_str(),
+                )
+            })
             .collect();
 
         let mut changed_mappings = Vec::new();
