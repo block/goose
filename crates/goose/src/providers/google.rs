@@ -7,9 +7,7 @@ use super::utils::{handle_response_google_compat, unescape_json_values, RequestL
 use crate::conversation::message::Message;
 
 use crate::model::ModelConfig;
-use crate::providers::base::{
-    ConfigKey, Provider, ProviderFactory, ProviderMetadata, ProviderUsage,
-};
+use crate::providers::base::{ConfigKey, Provider, ProviderDef, ProviderMetadata, ProviderUsage};
 use crate::providers::formats::google::{
     create_request, get_usage, response_to_message, response_to_streaming_message,
 };
@@ -123,7 +121,7 @@ impl GoogleProvider {
     }
 }
 
-impl ProviderFactory for GoogleProvider {
+impl ProviderDef for GoogleProvider {
     type Provider = Self;
 
     fn metadata() -> ProviderMetadata {

@@ -1,5 +1,5 @@
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{ConfigKey, ProviderFactory, ProviderMetadata};
+use super::base::{ConfigKey, ProviderDef, ProviderMetadata};
 use super::openai_compatible::OpenAiCompatibleProvider;
 use crate::model::ModelConfig;
 use anyhow::Result;
@@ -33,7 +33,7 @@ pub const XAI_DOC_URL: &str = "https://docs.x.ai/docs/overview";
 
 pub struct XaiProvider;
 
-impl ProviderFactory for XaiProvider {
+impl ProviderDef for XaiProvider {
     type Provider = OpenAiCompatibleProvider;
 
     fn metadata() -> ProviderMetadata {

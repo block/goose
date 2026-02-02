@@ -337,7 +337,7 @@ mod tests {
         use goose::conversation::message::{Message, MessageContent};
         use goose::model::ModelConfig;
         use goose::providers::base::{
-            Provider, ProviderFactory, ProviderMetadata, ProviderUsage, Usage,
+            Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
         };
         use goose::providers::errors::ProviderError;
         use goose::session::session_manager::SessionType;
@@ -353,7 +353,7 @@ mod tests {
             }
         }
 
-        impl ProviderFactory for MockToolProvider {
+        impl ProviderDef for MockToolProvider {
             type Provider = Self;
 
             fn metadata() -> ProviderMetadata {

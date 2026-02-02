@@ -1,6 +1,6 @@
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{
-    ConfigKey, MessageStream, Provider, ProviderFactory, ProviderMetadata, ProviderUsage, Usage,
+    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
 };
 use super::errors::ProviderError;
 use super::openai_compatible::{
@@ -130,7 +130,7 @@ impl TetrateProvider {
     }
 }
 
-impl ProviderFactory for TetrateProvider {
+impl ProviderDef for TetrateProvider {
     type Provider = Self;
 
     fn metadata() -> ProviderMetadata {

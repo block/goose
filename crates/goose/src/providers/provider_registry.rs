@@ -1,4 +1,4 @@
-use super::base::{ModelInfo, Provider, ProviderFactory, ProviderMetadata, ProviderType};
+use super::base::{ModelInfo, Provider, ProviderDef, ProviderMetadata, ProviderType};
 use crate::config::DeclarativeProviderConfig;
 use crate::model::ModelConfig;
 use anyhow::Result;
@@ -38,7 +38,7 @@ impl ProviderRegistry {
 
     pub fn register<F>(&mut self, preferred: bool)
     where
-        F: ProviderFactory + 'static,
+        F: ProviderDef + 'static,
     {
         let metadata = F::metadata();
         let name = metadata.name.clone();
@@ -68,7 +68,7 @@ impl ProviderRegistry {
         provider_type: ProviderType,
         constructor: F,
     ) where
-        P: ProviderFactory + 'static,
+        P: ProviderDef + 'static,
         F: Fn(ModelConfig) -> Result<P::Provider> + Send + Sync + 'static,
     {
         let base_metadata = P::metadata();

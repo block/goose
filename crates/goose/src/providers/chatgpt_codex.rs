@@ -3,7 +3,7 @@ use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::api_client::AuthProvider;
 use crate::providers::base::{
-    ConfigKey, MessageStream, Provider, ProviderFactory, ProviderMetadata, ProviderUsage,
+    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage,
 };
 use crate::providers::errors::ProviderError;
 use crate::providers::formats::openai_responses::responses_api_to_streaming_message;
@@ -841,7 +841,7 @@ impl ChatGptCodexProvider {
     }
 }
 
-impl ProviderFactory for ChatGptCodexProvider {
+impl ProviderDef for ChatGptCodexProvider {
     type Provider = Self;
 
     fn metadata() -> ProviderMetadata {

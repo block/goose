@@ -5,9 +5,7 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{
-    ConfigKey, ModelInfo, Provider, ProviderFactory, ProviderMetadata, ProviderUsage,
-};
+use super::base::{ConfigKey, ModelInfo, Provider, ProviderDef, ProviderMetadata, ProviderUsage};
 use super::embedding::EmbeddingCapable;
 use super::errors::ProviderError;
 use super::openai_compatible::handle_response_openai_compat;
@@ -133,7 +131,7 @@ impl LiteLLMProvider {
     }
 }
 
-impl ProviderFactory for LiteLLMProvider {
+impl ProviderDef for LiteLLMProvider {
     type Provider = Self;
 
     fn metadata() -> ProviderMetadata {

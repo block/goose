@@ -3,7 +3,7 @@ use async_trait::async_trait;
 
 use super::api_client::{ApiClient, AuthMethod, AuthProvider};
 use super::azureauth::{AuthError, AzureAuth};
-use super::base::{ConfigKey, ProviderFactory, ProviderMetadata};
+use super::base::{ConfigKey, ProviderDef, ProviderMetadata};
 use super::openai_compatible::OpenAiCompatibleProvider;
 use crate::model::ModelConfig;
 use futures::future::BoxFuture;
@@ -43,7 +43,7 @@ impl AuthProvider for AzureAuthProvider {
     }
 }
 
-impl ProviderFactory for AzureProvider {
+impl ProviderDef for AzureProvider {
     type Provider = OpenAiCompatibleProvider;
 
     fn metadata() -> ProviderMetadata {

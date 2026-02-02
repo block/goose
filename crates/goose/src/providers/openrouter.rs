@@ -5,7 +5,7 @@ use serde_json::{json, Value};
 
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{
-    ConfigKey, MessageStream, Provider, ProviderFactory, ProviderMetadata, ProviderUsage, Usage,
+    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
 };
 use super::errors::ProviderError;
 use super::openai_compatible::{
@@ -231,7 +231,7 @@ async fn create_request_based_on_model(
     Ok(payload)
 }
 
-impl ProviderFactory for OpenRouterProvider {
+impl ProviderDef for OpenRouterProvider {
     type Provider = Self;
 
     fn metadata() -> ProviderMetadata {

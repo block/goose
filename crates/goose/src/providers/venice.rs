@@ -5,7 +5,7 @@ use serde::Serialize;
 use serde_json::{json, Value};
 
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{ConfigKey, Provider, ProviderFactory, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{ConfigKey, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::openai_compatible::map_http_error_to_provider_error;
 use super::retry::ProviderRetry;
@@ -194,7 +194,7 @@ impl VeniceProvider {
     }
 }
 
-impl ProviderFactory for VeniceProvider {
+impl ProviderDef for VeniceProvider {
     type Provider = Self;
 
     fn metadata() -> ProviderMetadata {

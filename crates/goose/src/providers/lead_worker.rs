@@ -5,7 +5,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use super::base::{
-    LeadWorkerProviderTrait, Provider, ProviderFactory, ProviderMetadata, ProviderUsage,
+    LeadWorkerProviderTrait, Provider, ProviderDef, ProviderMetadata, ProviderUsage,
 };
 use super::errors::ProviderError;
 use crate::conversation::message::{Message, MessageContent};
@@ -319,7 +319,7 @@ impl LeadWorkerProviderTrait for LeadWorkerProvider {
     }
 }
 
-impl ProviderFactory for LeadWorkerProvider {
+impl ProviderDef for LeadWorkerProvider {
     type Provider = Self;
 
     fn metadata() -> ProviderMetadata {

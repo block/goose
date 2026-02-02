@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::base::{ConfigKey, Provider, ProviderFactory, ProviderMetadata, ProviderUsage};
+use super::base::{ConfigKey, Provider, ProviderDef, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
 use super::retry::{ProviderRetry, RetryConfig};
 use crate::conversation::message::Message;
@@ -263,7 +263,7 @@ impl BedrockProvider {
     }
 }
 
-impl ProviderFactory for BedrockProvider {
+impl ProviderDef for BedrockProvider {
     type Provider = Self;
 
     fn metadata() -> ProviderMetadata {

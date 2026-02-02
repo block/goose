@@ -17,7 +17,7 @@ use url::Url;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::base::{
-    ConfigKey, MessageStream, Provider, ProviderFactory, ProviderMetadata, ProviderUsage,
+    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage,
 };
 
 use crate::providers::errors::ProviderError;
@@ -545,7 +545,7 @@ impl GcpVertexAIProvider {
     }
 }
 
-impl ProviderFactory for GcpVertexAIProvider {
+impl ProviderDef for GcpVertexAIProvider {
     type Provider = Self;
 
     fn metadata() -> ProviderMetadata {

@@ -10,7 +10,7 @@ use tokio_util::io::StreamReader;
 
 use super::api_client::{ApiClient, ApiResponse, AuthMethod};
 use super::base::{
-    ConfigKey, MessageStream, ModelInfo, Provider, ProviderFactory, ProviderMetadata, ProviderUsage,
+    ConfigKey, MessageStream, ModelInfo, Provider, ProviderDef, ProviderMetadata, ProviderUsage,
 };
 use super::errors::ProviderError;
 use super::formats::anthropic::{
@@ -177,7 +177,7 @@ impl AnthropicProvider {
     }
 }
 
-impl ProviderFactory for AnthropicProvider {
+impl ProviderDef for AnthropicProvider {
     type Provider = Self;
 
     fn metadata() -> ProviderMetadata {

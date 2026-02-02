@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use super::base::{Provider, ProviderFactory, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::formats::openai::{create_request, get_usage, response_to_message};
 use super::openai_compatible::handle_response_openai_compat;
@@ -379,7 +379,7 @@ impl GithubCopilotProvider {
     }
 }
 
-impl ProviderFactory for GithubCopilotProvider {
+impl ProviderDef for GithubCopilotProvider {
     type Provider = Self;
 
     fn metadata() -> ProviderMetadata {

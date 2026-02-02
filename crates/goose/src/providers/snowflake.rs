@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{ConfigKey, Provider, ProviderFactory, ProviderMetadata, ProviderUsage};
+use super::base::{ConfigKey, Provider, ProviderDef, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
 use super::formats::snowflake::{create_request, get_usage, response_to_message};
 use super::openai_compatible::map_http_error_to_provider_error;
@@ -295,7 +295,7 @@ impl SnowflakeProvider {
     }
 }
 
-impl ProviderFactory for SnowflakeProvider {
+impl ProviderDef for SnowflakeProvider {
     type Provider = Self;
 
     fn metadata() -> ProviderMetadata {

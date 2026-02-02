@@ -1,6 +1,6 @@
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{
-    ConfigKey, ModelInfo, Provider, ProviderFactory, ProviderMetadata, ProviderUsage, Usage,
+    ConfigKey, ModelInfo, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
 };
 use super::embedding::{EmbeddingCapable, EmbeddingRequest, EmbeddingResponse};
 use super::errors::ProviderError;
@@ -235,7 +235,7 @@ impl OpenAiProvider {
     }
 }
 
-impl ProviderFactory for OpenAiProvider {
+impl ProviderDef for OpenAiProvider {
     type Provider = Self;
 
     fn metadata() -> ProviderMetadata {

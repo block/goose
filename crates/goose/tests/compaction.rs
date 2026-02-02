@@ -5,7 +5,7 @@ use goose::agents::{Agent, AgentEvent, SessionConfig};
 use goose::conversation::message::{Message, MessageContent};
 use goose::conversation::Conversation;
 use goose::model::ModelConfig;
-use goose::providers::base::{Provider, ProviderFactory, ProviderMetadata, ProviderUsage, Usage};
+use goose::providers::base::{Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
 use goose::providers::errors::ProviderError;
 use goose::session::session_manager::SessionType;
 use goose::session::Session;
@@ -175,7 +175,7 @@ impl Provider for MockCompactionProvider {
     }
 }
 
-impl ProviderFactory for MockCompactionProvider {
+impl ProviderDef for MockCompactionProvider {
     type Provider = Self;
 
     fn metadata() -> ProviderMetadata {

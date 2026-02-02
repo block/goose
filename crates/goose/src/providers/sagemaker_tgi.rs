@@ -9,7 +9,7 @@ use aws_sdk_sagemakerruntime::Client as SageMakerClient;
 use rmcp::model::Tool;
 use serde_json::{json, Value};
 
-use super::base::{ConfigKey, Provider, ProviderFactory, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{ConfigKey, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::RequestLog;
@@ -270,7 +270,7 @@ impl SageMakerTgiProvider {
     }
 }
 
-impl ProviderFactory for SageMakerTgiProvider {
+impl ProviderDef for SageMakerTgiProvider {
     type Provider = Self;
 
     fn metadata() -> ProviderMetadata {

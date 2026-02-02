@@ -1,6 +1,6 @@
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{
-    ConfigKey, MessageStream, Provider, ProviderFactory, ProviderMetadata, ProviderUsage, Usage,
+    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
 };
 use super::errors::ProviderError;
 use super::openai_compatible::{
@@ -145,7 +145,7 @@ impl OllamaProvider {
     }
 }
 
-impl ProviderFactory for OllamaProvider {
+impl ProviderDef for OllamaProvider {
     type Provider = Self;
 
     fn metadata() -> ProviderMetadata {

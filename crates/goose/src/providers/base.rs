@@ -344,7 +344,7 @@ impl Usage {
 
 use async_trait::async_trait;
 
-pub trait ProviderFactory: Send + Sync {
+pub trait ProviderDef: Send + Sync {
     type Provider: Provider + 'static;
 
     fn metadata() -> ProviderMetadata

@@ -7,7 +7,7 @@ use std::fs;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-use super::base::{Provider, ProviderFactory, ProviderMetadata, ProviderUsage};
+use super::base::{Provider, ProviderDef, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
@@ -104,7 +104,7 @@ impl TestProvider {
     }
 }
 
-impl ProviderFactory for TestProvider {
+impl ProviderDef for TestProvider {
     type Provider = Self;
 
     fn metadata() -> ProviderMetadata {

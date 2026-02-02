@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use super::api_client::{ApiClient, AuthMethod, AuthProvider};
 use super::base::{
-    ConfigKey, MessageStream, Provider, ProviderFactory, ProviderMetadata, ProviderUsage, Usage,
+    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
 };
 use super::embedding::EmbeddingCapable;
 use super::errors::ProviderError;
@@ -226,7 +226,7 @@ impl DatabricksProvider {
     }
 }
 
-impl ProviderFactory for DatabricksProvider {
+impl ProviderDef for DatabricksProvider {
     type Provider = Self;
 
     fn metadata() -> ProviderMetadata {
