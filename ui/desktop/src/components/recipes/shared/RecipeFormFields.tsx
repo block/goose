@@ -326,7 +326,9 @@ export function RecipeFormFields({
             }`}
           />
           <span className="text-sm font-medium text-textStandard">Advanced Options</span>
-          <span className="text-xs text-textSubtle">Activities, parameters, response schema</span>
+          <span className="text-xs text-textSubtle">
+            Activities, parameters, response schema, subrecipe
+          </span>
         </CollapsibleTrigger>
 
         <CollapsibleContent className="mt-4 space-y-4 pl-6 border-l-2 border-borderSubtle ml-2">
