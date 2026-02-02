@@ -384,8 +384,8 @@ impl ReActTrace {
                 context.push_str(&format!("ACTION: {}\n", action.description));
                 if let Some(result) = &action.result {
                     if result.success {
-                        let truncated = if result.output.len() > 500 {
-                            format!("{}...", &result.output[..500])
+                        let truncated = if result.output.chars().count() > 500 {
+                            format!("{}...", result.output.chars().take(500).collect::<String>())
                         } else {
                             result.output.clone()
                         };
