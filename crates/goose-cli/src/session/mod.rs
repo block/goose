@@ -166,11 +166,19 @@ pub struct CliSession {
     output_format: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HintStatus {
+    Default,
+    Interrupted,
+    MaybeExit,
+}
+
 // Cache structure for completion data
-struct CompletionCache {
-    prompts: HashMap<String, Vec<String>>,
-    prompt_info: HashMap<String, output::PromptInfo>,
-    last_updated: Instant,
+pub struct CompletionCache {
+    pub prompts: HashMap<String, Vec<String>>,
+    pub prompt_info: HashMap<String, output::PromptInfo>,
+    pub last_updated: Instant,
+    pub hint_status: HintStatus,
 }
 
 impl CompletionCache {
@@ -179,6 +187,7 @@ impl CompletionCache {
             prompts: HashMap::new(),
             prompt_info: HashMap::new(),
             last_updated: Instant::now(),
+            hint_status: HintStatus::Default,
         }
     }
 }
@@ -440,9 +449,6 @@ impl CliSession {
         let history_manager = HistoryManager::new();
         history_manager.load(&mut editor);
 
-        // Create shared state for tracking Ctrl+C timing
-        let last_interrupt = Arc::new(std::sync::Mutex::new(None));
-
         output::display_greeting();
         loop {
             self.display_context_usage().await?;
@@ -461,11 +467,7 @@ impl CliSession {
                 .collect();
 
             output::run_status_hook("waiting");
-            let input = input::get_input(
-                &mut editor,
-                Some(&conversation_strings),
-                last_interrupt.clone(),
-            )?;
+            let input = input::get_input(&mut editor, Some(&conversation_strings))?;
             if matches!(input, InputResult::Exit) {
                 break;
             }
@@ -1102,7 +1104,11 @@ impl CliSession {
     }
 
     async fn handle_interrupted_messages(&mut self, interrupt: bool) -> Result<()> {
-        // First, get any tool requests from the last message if it exists
+        if interrupt {
+            let mut cache = self.completion_cache.write().unwrap();
+            cache.hint_status = HintStatus::Interrupted;
+        }
+
         let tool_requests = self
             .messages
             .last()
