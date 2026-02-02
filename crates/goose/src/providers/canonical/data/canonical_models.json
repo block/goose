@@ -369,7 +369,7 @@
     "output_modalities": [
       "text"
     ],
-    "supports_tools": true,
+    "supports_tools": false,
     "pricing": {
       "prompt": 3e-8,
       "completion": 1.1e-7
@@ -379,6 +379,7 @@
     "id": "deepseek/deepseek-r1-distill-qwen-32b",
     "name": "DeepSeek: R1 Distill Qwen 32B",
     "context_length": 32768,
+    "max_completion_tokens": 32768,
     "input_modalities": [
       "text"
     ],
@@ -622,6 +623,7 @@
     "id": "google/gemma-2-27b-it",
     "name": "Google: Gemma 2 27B",
     "context_length": 8192,
+    "max_completion_tokens": 2048,
     "input_modalities": [
       "text"
     ],
@@ -2843,6 +2845,7 @@
     "id": "qwen/qwq-32b",
     "name": "Qwen: QwQ 32B",
     "context_length": 32768,
+    "max_completion_tokens": 32768,
     "input_modalities": [
       "text"
     ],
