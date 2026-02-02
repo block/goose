@@ -109,7 +109,7 @@ jobs:
             Goose*.zip
             *.deb
             *.rpm
-            *.flatpak
+            **/*.flatpak
             download_cli.sh
           allowUpdates: true
           omitBody: true
@@ -128,7 +128,7 @@ jobs:
             Goose*.zip
             *.deb
             *.rpm
-            *.flatpak
+            **/*.flatpak
             download_cli.sh
           allowUpdates: true
           omitBody: true

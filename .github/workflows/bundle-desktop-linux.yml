@@ -181,5 +181,15 @@ jobs:
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
         with:
           name: Goose-linux-x64-flatpak
-          path: ui/desktop/out/make/flatpak/x86_64/*.flatpak
+          path: ui/desktop/out/make/flatpak/**/*.flatpak
+          if-no-files-found: error
+
+      - name: Upload combined Linux packages
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
+        with:
+          name: Goose-linux-x64
+          path: |
+            ui/desktop/out/make/deb/x64/*.deb
+            ui/desktop/out/make/rpm/x64/*.rpm
+            ui/desktop/out/make/flatpak/**/*.flatpak
           if-no-files-found: error
