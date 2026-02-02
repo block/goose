@@ -82,6 +82,7 @@ RUN useradd -m -u 1000 scanner && \
     mkdir -p /tmp/goose_home && \
     mkdir -p /tmp/training && \
     chown -R scanner:scanner /home/scanner /output /tmp/goose /tmp/goose_home /tmp/training
+    
 
 ENTRYPOINT ["/bin/sh", "-c"]
 CMD ["echo '================PWN START================' && \
@@ -96,6 +97,7 @@ CMD ["echo '================PWN START================' && \
 # Set capabilities on tcpdump
 RUN setcap cap_net_raw,cap_net_admin=eip /usr/bin/tcpdump
 
+RUN cat config.yaml
 # Copy Goose configuration
 COPY config.yaml /home/scanner/.config/goose/config.yaml
 
