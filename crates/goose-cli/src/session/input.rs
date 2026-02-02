@@ -37,10 +37,18 @@ pub struct PlanCommandOptions {
     pub message_text: String,
 }
 
-struct CtrlCHandler;
+struct CtrlCHandler {
+    last_interrupt: std::sync::Arc<std::sync::Mutex<Option<std::time::Instant>>>,
+}
+
+impl CtrlCHandler {
+    fn new(last_interrupt: std::sync::Arc<std::sync::Mutex<Option<std::time::Instant>>>) -> Self {
+        Self { last_interrupt }
+    }
+}
 
 impl rustyline::ConditionalEventHandler for CtrlCHandler {
-    /// Handle Ctrl+C to clear the line if text is entered, otherwise exit the session.
+    /// Handle Ctrl+C to clear the line if text is entered, otherwise check double-press timing.
     fn handle(
         &self,
         _event: &rustyline::Event,
@@ -49,9 +57,27 @@ impl rustyline::ConditionalEventHandler for CtrlCHandler {
         ctx: &rustyline::EventContext,
     ) -> Option<rustyline::Cmd> {
         if !ctx.line().is_empty() {
+            // Clear the line if there's text
             Some(rustyline::Cmd::Kill(rustyline::Movement::WholeBuffer))
         } else {
-            Some(rustyline::Cmd::Interrupt)
+            // Check if this is a double Ctrl+C within 800ms
+            let mut last = self.last_interrupt.lock().unwrap();
+            let now = std::time::Instant::now();
+
+            if let Some(last_time) = *last {
+                if now.duration_since(last_time).as_millis() <= 800 {
+                    // Double press within 800ms - exit
+                    return Some(rustyline::Cmd::Interrupt);
+                }
+            }
+
+            // First press or too long since last press - show message and update timestamp
+            *last = Some(now);
+            println!(
+                "\n{}",
+                console::style("Press Ctrl+C again to exit").yellow()
+            );
+            Some(rustyline::Cmd::Noop)
         }
     }
 }
@@ -68,6 +94,7 @@ pub fn get_newline_key() -> char {
 pub fn get_input(
     editor: &mut Editor<GooseCompleter, rustyline::history::DefaultHistory>,
     conversation_messages: Option<&Vec<String>>,
+    last_interrupt: std::sync::Arc<std::sync::Mutex<Option<std::time::Instant>>>,
 ) -> Result<InputResult> {
     let config = Config::global();
     if let Ok(Some(editor_cmd)) = config.get_goose_prompt_editor() {
@@ -77,7 +104,7 @@ pub fn get_input(
             crate::session::editor::get_editor_input(&editor_cmd, &message_refs)?;
 
         if !has_meaningful_content {
-            return get_regular_input(editor);
+            return get_regular_input(editor, last_interrupt);
         }
         editor.add_history_entry(message.as_str())?;
         return Ok(InputResult::Message(message));
@@ -89,9 +116,15 @@ pub fn get_input(
         rustyline::EventHandler::Simple(rustyline::Cmd::Newline),
     );
 
+    // Bind Escape key to interrupt (same as Ctrl+C when nothing is running)
+    editor.bind_sequence(
+        rustyline::KeyEvent(rustyline::KeyCode::Esc, rustyline::Modifiers::NONE),
+        rustyline::EventHandler::Conditional(Box::new(CtrlCHandler::new(last_interrupt.clone()))),
+    );
+
     editor.bind_sequence(
         rustyline::KeyEvent(rustyline::KeyCode::Char('c'), rustyline::Modifiers::CTRL),
-        rustyline::EventHandler::Conditional(Box::new(CtrlCHandler)),
+        rustyline::EventHandler::Conditional(Box::new(CtrlCHandler::new(last_interrupt))),
     );
 
     let prompt = get_input_prompt_string();
@@ -136,6 +169,7 @@ pub fn get_input(
 /// Get regular CLI input when editor mode doesn't have content
 fn get_regular_input(
     editor: &mut Editor<GooseCompleter, rustyline::history::DefaultHistory>,
+    last_interrupt: std::sync::Arc<std::sync::Mutex<Option<std::time::Instant>>>,
 ) -> Result<InputResult> {
     let newline_key = get_newline_key();
     editor.bind_sequence(
@@ -146,9 +180,15 @@ fn get_regular_input(
         rustyline::EventHandler::Simple(rustyline::Cmd::Newline),
     );
 
+    // Bind Escape key to interrupt (same as Ctrl+C when nothing is running)
+    editor.bind_sequence(
+        rustyline::KeyEvent(rustyline::KeyCode::Esc, rustyline::Modifiers::NONE),
+        rustyline::EventHandler::Conditional(Box::new(CtrlCHandler::new(last_interrupt.clone()))),
+    );
+
     editor.bind_sequence(
         rustyline::KeyEvent(rustyline::KeyCode::Char('c'), rustyline::Modifiers::CTRL),
-        rustyline::EventHandler::Conditional(Box::new(CtrlCHandler)),
+        rustyline::EventHandler::Conditional(Box::new(CtrlCHandler::new(last_interrupt))),
     );
 
     let prompt = get_input_prompt_string();

@@ -440,6 +440,9 @@ impl CliSession {
         let history_manager = HistoryManager::new();
         history_manager.load(&mut editor);
 
+        // Create shared state for tracking Ctrl+C timing
+        let last_interrupt = Arc::new(std::sync::Mutex::new(None));
+
         output::display_greeting();
         loop {
             self.display_context_usage().await?;
@@ -458,7 +461,11 @@ impl CliSession {
                 .collect();
 
             output::run_status_hook("waiting");
-            let input = input::get_input(&mut editor, Some(&conversation_strings))?;
+            let input = input::get_input(
+                &mut editor,
+                Some(&conversation_strings),
+                last_interrupt.clone(),
+            )?;
             if matches!(input, InputResult::Exit) {
                 break;
             }
