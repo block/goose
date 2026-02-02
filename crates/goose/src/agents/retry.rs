@@ -6,6 +6,7 @@ use tokio::process::Command;
 use tokio::sync::Mutex;
 use tracing::{debug, info, warn};
 
+use crate::agents::shell_guard::{CommandCheck, ShellGuard};
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{
     RetryConfig, SuccessCheck, DEFAULT_ON_FAILURE_TIMEOUT_SECONDS, DEFAULT_RETRY_TIMEOUT_SECONDS,
@@ -193,12 +194,36 @@ pub async fn execute_success_checks(
     checks: &[SuccessCheck],
     retry_config: &RetryConfig,
 ) -> Result<bool> {
+    execute_success_checks_guarded(checks, retry_config, None).await
+}
+
+/// Execute all success checks with optional ShellGuard and return true if all pass
+pub async fn execute_success_checks_guarded(
+    checks: &[SuccessCheck],
+    retry_config: &RetryConfig,
+    shell_guard: Option<&ShellGuard>,
+) -> Result<bool> {
     let timeout = get_retry_timeout(retry_config);
 
     for check in checks {
         match check {
             SuccessCheck::Shell { command } => {
-                let result = execute_shell_command(command, timeout).await?;
+                let result = if let Some(guard) = shell_guard {
+                    match execute_shell_command_guarded(command, timeout, guard).await? {
+                        GuardedCommandResult::Executed(output) => output,
+                        GuardedCommandResult::NeedsApproval { .. } => {
+                            warn!("Success check '{}' requires manual approval", command);
+                            return Ok(false);
+                        }
+                        GuardedCommandResult::Blocked { reason } => {
+                            warn!("Success check '{}' blocked: {}", command, reason);
+                            return Ok(false);
+                        }
+                    }
+                } else {
+                    execute_shell_command(command, timeout).await?
+                };
+
                 if !result.status.success() {
                     warn!(
                         "Success check failed: command '{}' exited with status {}, stderr: {}",
@@ -266,6 +291,51 @@ pub async fn execute_shell_command(
             warn!("{}", error_msg);
             Err(anyhow::anyhow!("{}", error_msg))
         }
+    }
+}
+
+/// Result of a guarded shell command execution
+#[derive(Debug)]
+pub enum GuardedCommandResult {
+    /// Command was approved and executed successfully
+    Executed(std::process::Output),
+    /// Command requires user approval before execution
+    NeedsApproval {
+        command: String,
+        reason: String,
+        risk_level: String,
+        patterns: Vec<String>,
+    },
+    /// Command was blocked by security policy
+    Blocked { reason: String },
+}
+
+/// Execute a shell command with security guard check
+/// Returns GuardedCommandResult instead of directly executing
+pub async fn execute_shell_command_guarded(
+    command: &str,
+    timeout: Duration,
+    guard: &ShellGuard,
+) -> Result<GuardedCommandResult> {
+    let check = guard.check_command(command).await?;
+
+    match check {
+        CommandCheck::Approved => {
+            let output = execute_shell_command(command, timeout).await?;
+            Ok(GuardedCommandResult::Executed(output))
+        }
+        CommandCheck::NeedsApproval {
+            command,
+            reason,
+            risk_level,
+            patterns,
+        } => Ok(GuardedCommandResult::NeedsApproval {
+            command,
+            reason,
+            risk_level,
+            patterns,
+        }),
+        CommandCheck::Blocked { reason } => Ok(GuardedCommandResult::Blocked { reason }),
     }
 }
 
@@ -347,12 +417,18 @@ mod tests {
 
     #[tokio::test]
     async fn test_execute_success_checks_all_pass() {
+        let success_command = if cfg!(target_os = "windows") {
+            "echo test"
+        } else {
+            "true"
+        };
+
         let checks = vec![
             SuccessCheck::Shell {
-                command: "echo 'test'".to_string(),
+                command: "echo test".to_string(),
             },
             SuccessCheck::Shell {
-                command: "true".to_string(),
+                command: success_command.to_string(),
             },
         ];
         let retry_config = create_test_retry_config();
@@ -364,12 +440,18 @@ mod tests {
 
     #[tokio::test]
     async fn test_execute_success_checks_one_fails() {
+        let fail_command = if cfg!(target_os = "windows") {
+            "exit 1"
+        } else {
+            "false"
+        };
+
         let checks = vec![
             SuccessCheck::Shell {
-                command: "echo 'test'".to_string(),
+                command: "echo test".to_string(),
             },
             SuccessCheck::Shell {
-                command: "false".to_string(),
+                command: fail_command.to_string(),
             },
         ];
         let retry_config = create_test_retry_config();
@@ -406,7 +488,12 @@ mod tests {
     #[tokio::test]
     async fn test_execute_on_failure_command_failure() {
         let retry_config = create_test_retry_config();
-        let result = execute_on_failure_command("false", &retry_config).await;
+        let fail_command = if cfg!(target_os = "windows") {
+            "exit 1"
+        } else {
+            "false"
+        };
+        let result = execute_on_failure_command(fail_command, &retry_config).await;
         assert!(result.is_err());
     }
 
@@ -414,7 +501,8 @@ mod tests {
     async fn test_shell_command_timeout() {
         let timeout = std::time::Duration::from_millis(100);
         let result = if cfg!(target_os = "windows") {
-            execute_shell_command("timeout /t 1", timeout).await
+            // Use ping with count 2 and no wait limit - takes ~1 second
+            execute_shell_command("ping -n 2 127.0.0.1", timeout).await
         } else {
             execute_shell_command("sleep 1", timeout).await
         };

@@ -1,6 +1,6 @@
 # AGENTS Instructions
 
-goose is an AI agent framework in Rust with CLI and Electron desktop interfaces.
+goose is a **sophisticated enterprise AI agent framework** in Rust with CLI and Electron desktop interfaces, featuring advanced multi-agent orchestration, specialist agents, and enterprise workflow automation.
 
 ## Setup
 ```bash
@@ -42,11 +42,26 @@ cd ui/desktop && npm test    # test UI
 ## Structure
 ```
 crates/
-├── goose             # core logic
+├── goose             # core logic with enterprise multi-agent platform
+│   ├── agents/       # Enhanced agent architecture
+│   │   ├── agent.rs           # Core Agent with ExecutionMode, planning, critique
+│   │   ├── orchestrator.rs    # AgentOrchestrator for multi-agent coordination
+│   │   ├── workflow_engine.rs # Enterprise workflow orchestration
+│   │   ├── specialists/       # Specialist agent implementations
+│   │   │   ├── code_agent.rs     # Code generation specialist
+│   │   │   ├── test_agent.rs     # Testing and QA specialist
+│   │   │   ├── deploy_agent.rs   # Deployment specialist
+│   │   │   ├── docs_agent.rs     # Documentation specialist
+│   │   │   └── security_agent.rs # Security analysis specialist
+│   │   ├── critic.rs          # Self-critique system
+│   │   ├── planner.rs         # Multi-step planning system
+│   │   ├── state_graph/       # Self-correcting execution loops
+│   │   ├── shell_guard.rs     # Security and approval system
+│   │   └── done_gate.rs       # Task completion verification
 ├── goose-bench       # benchmarking
-├── goose-cli         # CLI entry
+├── goose-cli         # CLI entry with workflow management
 ├── goose-server      # backend (binary: goosed)
-├── goose-mcp         # MCP extensions
+├── goose-mcp         # MCP extensions with security integration
 ├── goose-test        # test utilities
 ├── mcp-client        # MCP client
 ├── mcp-core          # MCP shared
@@ -76,6 +91,14 @@ Provider: Implement Provider trait see providers/base.rs
 MCP: Extensions in crates/goose-mcp/
 Server: Changes need just generate-openapi
 
+## Phase 5 Enterprise Rules
+
+Agent: Implement SpecialistAgent trait see specialists/mod.rs
+Orchestrator: Use AgentOrchestrator for multi-agent coordination
+Workflow: Create workflow templates in WorkflowEngine
+Specialist: Each specialist agent handles specific domain (Code, Test, Deploy, Docs, Security)
+Enterprise: Follow enterprise patterns for scalability and maintainability
+
 ## Code Quality
 
 Comments: Write self-documenting code - prefer clear names over comments
@@ -100,3 +123,6 @@ Never: Comment self-evident operations (`// Initialize`, `// Return result`), ge
 - Server: crates/goose-server/src/main.rs
 - UI: ui/desktop/src/main.ts
 - Agent: crates/goose/src/agents/agent.rs
+- Orchestrator: crates/goose/src/agents/orchestrator.rs
+- WorkflowEngine: crates/goose/src/agents/workflow_engine.rs
+- Specialists: crates/goose/src/agents/specialists/mod.rs

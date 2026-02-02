@@ -374,9 +374,7 @@ async fn list_sessions(State(state): State<AppState>) -> Json<serde_json::Value>
                     "working_dir": session.working_dir
                 }));
             }
-            Json(serde_json::json!({
-                "sessions": session_info
-            }))
+            Json(serde_json::json!({ "sessions": session_info }))
         }
         Err(e) => Json(serde_json::json!({
             "error": e.to_string()

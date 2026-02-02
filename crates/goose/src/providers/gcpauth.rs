@@ -931,8 +931,13 @@ iXVBc2YmAuU8hiOFUPxtyQfNzG5fQ0rhJSewdtyWxIadJSLj6fsK+AEsNQ==
         "refresh_token": "test_refresh"
     }"#;
 
+        // Build expected path using PathBuf to get correct separators for the platform
         let expected_path = if cfg!(windows) {
-            "/home/testuser/gcloud/application_default_credentials.json".to_string()
+            PathBuf::from("/home/testuser")
+                .join("gcloud")
+                .join("application_default_credentials.json")
+                .to_string_lossy()
+                .into_owned()
         } else {
             "/home/testuser/.config/gcloud/application_default_credentials.json".to_string()
         };
@@ -1058,15 +1063,20 @@ iXVBc2YmAuU8hiOFUPxtyQfNzG5fQ0rhJSewdtyWxIadJSLj6fsK+AEsNQ==
             .return_once(|_| Ok("/home/user".to_string()));
 
         // Mock filesystem read for the default credentials path
+        // Build expected path using PathBuf to get correct separators for the platform
         let default_creds_path = if cfg!(windows) {
-            "/home/user/gcloud/application_default_credentials.json"
+            PathBuf::from("/home/user")
+                .join("gcloud")
+                .join("application_default_credentials.json")
+                .to_string_lossy()
+                .into_owned()
         } else {
-            "/home/user/.config/gcloud/application_default_credentials.json"
+            "/home/user/.config/gcloud/application_default_credentials.json".to_string()
         };
         context
             .fs_mock
             .expect_read_to_string()
-            .with(eq(default_creds_path.to_string()))
+            .with(eq(default_creds_path.clone()))
             .times(1)
             .return_once(|_| {
                 Err(std::io::Error::new(

@@ -1,5 +1,6 @@
 pub mod action_required_manager;
 pub mod agents;
+pub mod approval;
 pub mod config;
 pub mod context_mgmt;
 pub mod conversation;
@@ -23,6 +24,7 @@ pub mod session;
 pub mod session_context;
 pub mod slash_commands;
 pub mod subprocess;
+pub mod test_parsers;
 pub mod token_counter;
 pub mod tool_inspection;
 pub mod tool_monitor;

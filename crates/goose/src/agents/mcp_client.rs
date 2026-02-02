@@ -869,11 +869,9 @@ mod tests {
 
         assert_eq!(
             &mcp_meta.0,
-            json!({
-                SESSION_ID_HEADER: session_id
-            })
-            .as_object()
-            .unwrap()
+            json!({ SESSION_ID_HEADER: session_id })
+                .as_object()
+                .unwrap()
         );
     }
 

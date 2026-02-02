@@ -103,7 +103,7 @@ pub fn format_tools(tools: &[Tool]) -> Vec<Value> {
                 "input_schema": tool.input_schema
             });
 
-            tool_specs.push(json!({"tool_spec": tool_spec}));
+            tool_specs.push(json!({ "tool_spec": tool_spec }));
         }
     }
 

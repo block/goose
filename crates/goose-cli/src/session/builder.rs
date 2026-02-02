@@ -117,6 +117,10 @@ pub struct SessionBuilderConfig {
     pub output_format: String,
     /// Docker container to run stdio extensions inside
     pub container: Option<Container>,
+    /// Approval policy for shell commands (safe, paranoid, autopilot)
+    pub approval_policy: Option<String>,
+    /// Execution mode for the agent (freeform, structured)
+    pub execution_mode: Option<String>,
 }
 
 /// Manual implementation of Default to ensure proper initialization of output_format
@@ -144,6 +148,8 @@ impl Default for SessionBuilderConfig {
             quiet: false,
             output_format: "text".to_string(),
             container: None,
+            approval_policy: None,
+            execution_mode: None,
         }
     }
 }
@@ -345,6 +351,35 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
 
     if session_config.container.is_some() {
         agent.set_container(session_config.container.clone()).await;
+    }
+
+    // Set approval policy if provided
+    if let Some(policy_str) = session_config.approval_policy {
+        let preset = match policy_str.as_str() {
+            "safe" => goose::approval::ApprovalPreset::Safe,
+            "paranoid" => goose::approval::ApprovalPreset::Paranoid,
+            "autopilot" => goose::approval::ApprovalPreset::Autopilot,
+            _ => goose::approval::ApprovalPreset::Safe,
+        };
+        agent.set_approval_policy(preset).await;
+        tracing::info!("Using approval policy: {}", policy_str);
+    }
+
+    // Set execution mode if provided
+    if let Some(mode_str) = session_config.execution_mode {
+        match mode_str.parse::<goose::agents::ExecutionMode>() {
+            Ok(mode) => {
+                agent.set_execution_mode(mode).await;
+                tracing::info!("Using execution mode: {}", mode);
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "Invalid execution mode '{}': {}. Using default (freeform)",
+                    mode_str,
+                    e
+                );
+            }
+        }
     }
 
     let session_manager = agent.config.session_manager.clone();

@@ -160,6 +160,27 @@ impl Agent {
             .with_enable_subagents(self.subagents_enabled(session_id).await)
             .build();
 
+        // Inject plan context if planning is enabled and there's an active plan
+        if let Some(plan_context) = self.get_plan_context().await {
+            system_prompt.push_str("\n\n");
+            system_prompt.push_str("# Current Execution Plan\n\n");
+            system_prompt.push_str(&plan_context);
+            system_prompt.push_str("\n\nFollow the current step in the plan. When the step is complete, proceed to the next step.");
+        }
+
+        // Inject critique context if there's a recent failed critique
+        if let Some(critique_context) = self.get_last_critique_context().await {
+            // Only inject if the last critique had issues to address
+            if let Some(critique) = self.get_last_critique().await {
+                if !critique.passed {
+                    system_prompt.push_str("\n\n");
+                    system_prompt.push_str("# Self-Critique Results\n\n");
+                    system_prompt.push_str(&critique_context);
+                    system_prompt.push_str("\n\nIMPORTANT: The above critique identified issues that must be addressed before the task can be considered complete.");
+                }
+            }
+        }
+
         // Handle toolshim if enabled
         let mut toolshim_tools = vec![];
         if model_config.toolshim {

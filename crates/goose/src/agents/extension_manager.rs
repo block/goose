@@ -1196,6 +1196,55 @@ impl ExtensionManager {
         tool_call: CallToolRequestParams,
         cancellation_token: CancellationToken,
     ) -> Result<ToolCallResult> {
+        self.dispatch_tool_call_with_guard(session_id, tool_call, cancellation_token, None)
+            .await
+    }
+
+    pub async fn dispatch_tool_call_with_guard(
+        &self,
+        session_id: &str,
+        tool_call: CallToolRequestParams,
+        cancellation_token: CancellationToken,
+        shell_guard: Option<&crate::agents::shell_guard::ShellGuard>,
+    ) -> Result<ToolCallResult> {
+        // Check if this is a shell-executing tool and apply guard if present
+        if let Some(guard) = shell_guard {
+            if let Some(command) = self.extract_shell_command(&tool_call) {
+                use crate::agents::shell_guard::CommandCheck;
+                match guard.check_command(&command).await? {
+                    CommandCheck::Approved => {
+                        // Safely truncate command for logging
+                        let truncated: String = command.chars().take(50).collect();
+                        tracing::debug!("Shell command approved by guard: {}", truncated);
+                    }
+                    CommandCheck::NeedsApproval {
+                        reason, risk_level, ..
+                    } => {
+                        // Safely truncate command for error message
+                        let truncated: String = command.chars().take(100).collect();
+                        // Return an error that will trigger the approval flow
+                        return Err(ErrorData::new(
+                            ErrorCode::INVALID_REQUEST,
+                            format!(
+                                "Shell command requires approval (risk: {}): {}. Command: {}",
+                                risk_level, reason, truncated
+                            ),
+                            None,
+                        )
+                        .into());
+                    }
+                    CommandCheck::Blocked { reason } => {
+                        return Err(ErrorData::new(
+                            ErrorCode::INVALID_REQUEST,
+                            format!("Shell command blocked: {}", reason),
+                            None,
+                        )
+                        .into());
+                    }
+                }
+            }
+        }
+
         // Some models strip the tool prefix, so auto-add it for known code_execution tools
         let tool_name_str = tool_call.name.to_string();
         let prefixed_name = if !tool_name_str.contains("__") {
@@ -1276,6 +1325,59 @@ impl ExtensionManager {
             result: Box::new(fut.boxed()),
             notification_stream: Some(Box::new(ReceiverStream::new(notifications_receiver))),
         })
+    }
+
+    /// Extract shell command from tool call if it's a shell-executing tool
+    /// Returns None if this tool doesn't execute shell commands
+    fn extract_shell_command(&self, tool_call: &CallToolRequestParams) -> Option<String> {
+        let tool_name = tool_call.name.to_string().to_lowercase();
+
+        // Known shell-executing tools from common MCP extensions
+        // These are the tool names (without extension prefix) that execute shell commands
+        let shell_tools = [
+            "bash",
+            "shell",
+            "execute",
+            "run_command",
+            "run_bash_command",
+            "execute_command",
+            "shell_execute",
+            "terminal",
+            "exec",
+        ];
+
+        // Check if this is a shell-executing tool
+        let is_shell_tool = shell_tools
+            .iter()
+            .any(|t| tool_name.ends_with(t) || tool_name.contains(&format!("__{}", t)));
+
+        if !is_shell_tool {
+            return None;
+        }
+
+        // Extract the command from arguments
+        // Different extensions use different argument names
+        let args = tool_call.arguments.as_ref()?;
+
+        // Try common command argument names
+        let command_keys = ["command", "cmd", "script", "code", "input"];
+
+        for key in &command_keys {
+            if let Some(value) = args.get(*key) {
+                if let Some(cmd) = value.as_str() {
+                    return Some(cmd.to_string());
+                }
+            }
+        }
+
+        // For tools that take the command as the first/only argument
+        if let Some(first_value) = args.values().next() {
+            if let Some(cmd) = first_value.as_str() {
+                return Some(cmd.to_string());
+            }
+        }
+
+        None
     }
 
     pub async fn list_prompts_from_extension(

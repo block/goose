@@ -24,6 +24,7 @@ use crate::commands::schedule::{
     handle_schedule_sessions,
 };
 use crate::commands::session::{handle_session_list, handle_session_remove};
+use crate::commands::workflow::handle_workflow_command;
 use crate::recipes::extract_from_cli::extract_recipe_info_from_cli;
 use crate::recipes::recipe::{explain_recipe, render_recipe_as_yaml};
 use crate::session::{build_session, SessionBuilderConfig};
@@ -110,6 +111,24 @@ pub struct SessionOptions {
         long_help = "Run extensions (stdio and built-in) inside the specified container. The extension must exist in the container. For built-in extensions, goose must be installed inside the container."
     )]
     pub container: Option<String>,
+
+    #[arg(
+        long = "approval-policy",
+        value_name = "POLICY",
+        help = "Shell command approval policy (safe, paranoid, autopilot)",
+        long_help = "Set the approval policy for shell commands:\n  - safe: Auto-approve safe commands, prompt for high-risk, block critical (default)\n  - paranoid: Prompt for all commands, block critical\n  - autopilot: Auto-approve all in Docker sandbox, use 'safe' on real filesystem",
+        value_parser = clap::builder::PossibleValuesParser::new(["safe", "paranoid", "autopilot"])
+    )]
+    pub approval_policy: Option<String>,
+
+    #[arg(
+        long = "execution-mode",
+        value_name = "MODE",
+        help = "Agent execution mode (freeform, structured)",
+        long_help = "Set the execution mode for the agent:\n  - freeform: LLM has full autonomy (default)\n  - structured: Follow code-test-fix state graph with validation gates",
+        value_parser = clap::builder::PossibleValuesParser::new(["freeform", "structured"])
+    )]
+    pub execution_mode: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -652,6 +671,154 @@ pub enum BenchCommand {
 }
 
 #[derive(Subcommand)]
+pub enum WorkflowCommand {
+    /// Execute an enterprise workflow template
+    #[command(about = "Execute an enterprise workflow template")]
+    Execute {
+        /// Workflow template name (fullstack_webapp, microservice, comprehensive_testing)
+        #[arg(help = "Workflow template name")]
+        template: String,
+
+        /// Working directory for the workflow execution
+        #[arg(
+            long = "working-dir",
+            value_name = "PATH",
+            help = "Working directory for workflow execution"
+        )]
+        working_dir: Option<String>,
+
+        /// Programming language for the workflow
+        #[arg(
+            long,
+            value_name = "LANGUAGE",
+            help = "Programming language (rust, python, typescript, javascript)"
+        )]
+        language: Option<String>,
+
+        /// Framework for the workflow
+        #[arg(
+            long,
+            value_name = "FRAMEWORK",
+            help = "Framework (axum, fastapi, react, nextjs, express)"
+        )]
+        framework: Option<String>,
+
+        /// Target environment
+        #[arg(
+            long,
+            value_name = "ENV",
+            help = "Target environment (development, staging, production)"
+        )]
+        environment: Option<String>,
+
+        /// Task to skip during execution
+        #[arg(
+            long = "skip-task",
+            value_name = "TASK",
+            help = "Task name to skip (can be specified multiple times)",
+            action = clap::ArgAction::Append
+        )]
+        skip_tasks: Vec<String>,
+
+        /// Override task timeout
+        #[arg(
+            long = "override-timeout",
+            value_name = "TASK=SECONDS",
+            help = "Override timeout for specific task (e.g., deployment_setup=1800)",
+            action = clap::ArgAction::Append,
+            value_parser = parse_key_val
+        )]
+        timeout_overrides: Vec<(String, String)>,
+
+        /// Additional workflow parameters
+        #[arg(
+            long = "param",
+            value_name = "KEY=VALUE",
+            help = "Additional workflow parameter (can be specified multiple times)",
+            action = clap::ArgAction::Append,
+            value_parser = parse_key_val
+        )]
+        parameters: Vec<(String, String)>,
+
+        /// Approval policy for workflow execution
+        #[arg(
+            long = "approval-policy",
+            value_name = "POLICY",
+            help = "Shell command approval policy (safe, paranoid, autopilot)",
+            value_parser = clap::builder::PossibleValuesParser::new(["safe", "paranoid", "autopilot"])
+        )]
+        approval_policy: Option<String>,
+
+        /// Execution mode for workflow
+        #[arg(
+            long = "execution-mode",
+            value_name = "MODE",
+            help = "Agent execution mode (freeform, structured)",
+            value_parser = clap::builder::PossibleValuesParser::new(["freeform", "structured"])
+        )]
+        execution_mode: Option<String>,
+    },
+
+    /// List available workflow templates
+    #[command(about = "List available workflow templates")]
+    List {
+        /// Output format (text, json)
+        #[arg(
+            long = "format",
+            value_name = "FORMAT",
+            help = "Output format (text, json)",
+            default_value = "text"
+        )]
+        format: String,
+
+        /// Show detailed template information
+        #[arg(short, long, help = "Show detailed template information")]
+        verbose: bool,
+    },
+
+    /// Show workflow template details
+    #[command(about = "Show workflow template details")]
+    Info {
+        /// Workflow template name
+        #[arg(help = "Workflow template name")]
+        template: String,
+    },
+
+    /// Monitor workflow execution status
+    #[command(about = "Monitor workflow execution status")]
+    Status {
+        /// Workflow execution ID
+        #[arg(help = "Workflow execution ID")]
+        workflow_id: String,
+
+        /// Follow mode - continuously monitor status
+        #[arg(
+            short,
+            long,
+            help = "Follow mode - continuously monitor status updates"
+        )]
+        follow: bool,
+    },
+
+    /// List active and completed workflow executions
+    #[command(about = "List workflow executions")]
+    Executions {
+        /// Output format (text, json)
+        #[arg(
+            long = "format",
+            value_name = "FORMAT",
+            help = "Output format (text, json)",
+            default_value = "text"
+        )]
+        format: String,
+
+        /// Limit number of results
+        #[arg(short, long, help = "Limit number of results")]
+        limit: Option<usize>,
+    },
+}
+
+#[derive(Subcommand)]
 enum RecipeCommand {
     /// Validate a recipe file
     #[command(about = "Validate a recipe")]
@@ -868,6 +1035,13 @@ enum Command {
         cmd: BenchCommand,
     },
 
+    /// Manage enterprise workflows and multi-agent orchestration
+    #[command(about = "Manage enterprise workflows and multi-agent orchestration")]
+    Workflow {
+        #[command(subcommand)]
+        command: WorkflowCommand,
+    },
+
     /// Start a web server with a chat interface
     #[command(about = "Experimental: Start a web server with a chat interface")]
     Web {
@@ -1018,6 +1192,7 @@ fn get_command_name(command: &Option<Command>) -> &'static str {
         Some(Command::Schedule { .. }) => "schedule",
         Some(Command::Update { .. }) => "update",
         Some(Command::Bench { .. }) => "bench",
+        Some(Command::Workflow { .. }) => "workflow",
         Some(Command::Recipe { .. }) => "recipe",
         Some(Command::Web { .. }) => "web",
         Some(Command::Term { .. }) => "term",
@@ -1175,6 +1350,8 @@ async fn handle_interactive_session(
         quiet: false,
         output_format: "text".to_string(),
         container: session_opts.container.map(Container::new),
+        approval_policy: session_opts.approval_policy.clone(),
+        execution_mode: session_opts.execution_mode.clone(),
     })
     .await;
 
@@ -1380,6 +1557,8 @@ async fn handle_run_command(
         quiet: output_opts.quiet,
         output_format: output_opts.output_format,
         container: session_opts.container.map(Container::new),
+        approval_policy: session_opts.approval_policy.clone(),
+        execution_mode: session_opts.execution_mode.clone(),
     })
     .await;
 
@@ -1507,6 +1686,8 @@ async fn handle_default_session() -> Result<()> {
         quiet: false,
         output_format: "text".to_string(),
         container: None,
+        approval_policy: None,
+        execution_mode: None,
     })
     .await;
     session.interactive(None).await
@@ -1595,6 +1776,7 @@ pub async fn cli() -> anyhow::Result<()> {
             Ok(())
         }
         Some(Command::Bench { cmd }) => handle_bench_command(cmd).await,
+        Some(Command::Workflow { command }) => handle_workflow_command(command).await,
         Some(Command::Recipe { command }) => handle_recipe_subcommand(command),
         Some(Command::Web {
             port,

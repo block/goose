@@ -1,5 +1,6 @@
 //! Test-only utilities for the scheduler
-#![cfg(test)]
+//!
+//! This module provides shared test utilities for scheduler testing.
 
 use once_cell::sync::Lazy;
 use std::sync::Arc;

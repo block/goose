@@ -17,11 +17,23 @@ _a local, extensible, open source AI agent that automates engineering tasks_
 </p>
 </div>
 
-goose is your on-machine AI agent, capable of automating complex development tasks from start to finish. More than just code suggestions, goose can build entire projects from scratch, write and execute code, debug failures, orchestrate workflows, and interact with external APIs - _autonomously_.
+goose is a **sophisticated enterprise AI agent framework** in Rust with CLI and Electron desktop interfaces, featuring advanced multi-agent orchestration, specialist agents, and enterprise workflow automation. **Phase 5: Enterprise Integration is now 100% complete**, delivering a production-ready autonomous development platform.
 
-Whether you're prototyping an idea, refining existing code, or managing intricate engineering pipelines, goose adapts to your workflow and executes tasks with precision.
+## 🚀 **Enterprise Multi-Agent Platform**
+- **AgentOrchestrator**: Coordinates multiple specialist AI agents for complex workflows
+- **Specialist Agents**: Code, Testing, Deployment, Documentation, and Security specialists
+- **WorkflowEngine**: Pre-built enterprise development pipelines (Full-Stack, Microservices, DevOps)
+- **Advanced Planning**: Multi-step execution with self-critique and quality validation
 
-Designed for maximum flexibility, goose works with any LLM and supports multi-model configuration to optimize performance and cost, seamlessly integrates with MCP servers, and is available as both a desktop app as well as CLI - making it the ultimate AI assistant for developers who want to move faster and focus on innovation.
+## 🎯 **Advanced Autonomous Capabilities**
+- **Structured Execution**: STATE graph-driven autonomous development with validation gates
+- **Self-Correcting Loops**: Automatic CODE→TEST→FIX→DONE workflows with quality assurance
+- **Enterprise Security**: Multi-level approval policies with environment-aware command execution
+- **MCP Integration**: Seamless integration with external tools (Playwright, OpenHands, Aider)
+
+Whether you're building enterprise applications, managing complex development pipelines, or coordinating multiple AI agents for large-scale projects, goose provides the sophisticated orchestration and autonomous execution needed for modern software development.
+
+Designed for maximum flexibility and enterprise deployment, goose works with any LLM, supports multi-model configuration, integrates with MCP servers, and provides both desktop and CLI interfaces - making it the ultimate AI development platform for teams who want to scale their development velocity.
 
 [![Watch the video](https://github.com/user-attachments/assets/ddc71240-3928-41b5-8210-626dfb28af7a)](https://youtu.be/D-DpDunrbpo)
 
