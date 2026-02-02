@@ -1,8 +1,12 @@
-import React, { memo } from 'react';
+import { memo } from 'react';
 import CardContainer from '../../subcomponents/CardContainer';
 import { Plus, Search } from 'lucide-react';
 
-export const OtherProvidersCard = memo(function OtherProvidersCard({ onClick }: { onClick: () => void }) {
+export const OtherProvidersCard = memo(function OtherProvidersCard({
+  onClick,
+}: {
+  onClick: () => void;
+}) {
   return (
     <CardContainer
       testId="add-other-providers-card"
@@ -24,7 +28,11 @@ export const OtherProvidersCard = memo(function OtherProvidersCard({ onClick }: 
   );
 });
 
-export const ManualProviderCard = memo(function ManualProviderCard({ onClick }: { onClick: () => void }) {
+export const ManualProviderCard = memo(function ManualProviderCard({
+  onClick,
+}: {
+  onClick: () => void;
+}) {
   return (
     <CardContainer
       testId="add-manual-provider-card"

@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '../../../../ui/button';
-import { Select } from '../../../../ui/Select';
 import { Search, ExternalLink, Check } from 'lucide-react';
 import { Input } from '../../../../ui/input';
 
@@ -41,10 +40,7 @@ interface ProviderCatalogPickerProps {
   onCancel: () => void;
 }
 
-export default function ProviderCatalogPicker({
-  onSelect,
-  onCancel,
-}: ProviderCatalogPickerProps) {
+export default function ProviderCatalogPicker({ onSelect, onCancel }: ProviderCatalogPickerProps) {
   const [step, setStep] = useState<'format' | 'provider'>('format');
   const [selectedFormat, setSelectedFormat] = useState<string>('openai');
   const [providers, setProviders] = useState<ProviderCatalogEntry[]>([]);
@@ -68,8 +64,7 @@ export default function ProviderCatalogPicker({
       const query = searchQuery.toLowerCase();
       setFilteredProviders(
         providers.filter(
-          (p) =>
-            p.name.toLowerCase().includes(query) || p.id.toLowerCase().includes(query)
+          (p) => p.name.toLowerCase().includes(query) || p.id.toLowerCase().includes(query)
         )
       );
     }
@@ -119,11 +114,10 @@ export default function ProviderCatalogPicker({
     return (
       <div className="space-y-4">
         <div>
-          <h3 className="text-lg font-semibold text-textStandard mb-2">
-            Choose Provider Format
-          </h3>
+          <h3 className="text-lg font-semibold text-textStandard mb-2">Choose Provider Format</h3>
           <p className="text-sm text-textSubtle mb-4">
-            Select the API format that your provider implements. Most providers use OpenAI-compatible format.
+            Select the API format that your provider implements. Most providers use
+            OpenAI-compatible format.
           </p>
         </div>
 
@@ -195,9 +189,7 @@ export default function ProviderCatalogPicker({
         >
           ← Back to format selection
         </Button>
-        <h3 className="text-lg font-semibold text-textStandard mb-2">
-          Choose Provider
-        </h3>
+        <h3 className="text-lg font-semibold text-textStandard mb-2">Choose Provider</h3>
         <p className="text-sm text-textSubtle">
           Select a provider from the catalog. We'll auto-fill the configuration for you.
         </p>
@@ -215,16 +207,8 @@ export default function ProviderCatalogPicker({
       </div>
 
       {/* Loading/Error */}
-      {loading && (
-        <div className="text-center py-8 text-textSubtle">
-          Loading providers...
-        </div>
-      )}
-      {error && (
-        <div className="text-center py-8 text-red-500">
-          Error: {error}
-        </div>
-      )}
+      {loading && <div className="text-center py-8 text-textSubtle">Loading providers...</div>}
+      {error && <div className="text-center py-8 text-red-500">Error: {error}</div>}
 
       {/* Provider List */}
       {!loading && !error && (
@@ -243,9 +227,7 @@ export default function ProviderCatalogPicker({
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <div className="font-medium text-textStandard">
-                        {provider.name}
-                      </div>
+                      <div className="font-medium text-textStandard">{provider.name}</div>
                       {provider.doc_url && (
                         <a
                           href={provider.doc_url}
@@ -258,9 +240,7 @@ export default function ProviderCatalogPicker({
                         </a>
                       )}
                     </div>
-                    <div className="text-sm text-textSubtle mt-1">
-                      {provider.api_url}
-                    </div>
+                    <div className="text-sm text-textSubtle mt-1">{provider.api_url}</div>
                     <div className="text-xs text-textSubtle mt-2">
                       {provider.model_count} models available
                       {provider.env_var && ` • Requires ${provider.env_var}`}

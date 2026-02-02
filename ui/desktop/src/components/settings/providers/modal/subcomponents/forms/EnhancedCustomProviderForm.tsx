@@ -41,7 +41,7 @@ export default function EnhancedCustomProviderForm({
   onCancel,
   template,
   initialData,
-  isEditable = true,
+  isEditable: _isEditable = true,
 }: EnhancedCustomProviderFormProps) {
   const [displayName, setDisplayName] = useState('');
   const [apiUrl, setApiUrl] = useState('');
@@ -68,11 +68,7 @@ export default function EnhancedCustomProviderForm({
       setEngine(formatToEngine[template.format] || 'openai_compatible');
 
       // Pre-select non-deprecated models
-      const defaultModels = new Set(
-        template.models
-          .filter((m) => !m.deprecated)
-          .map((m) => m.id)
-      );
+      const defaultModels = new Set(template.models.filter((m) => !m.deprecated).map((m) => m.id));
       setSelectedModels(defaultModels);
     } else if (initialData) {
       const engineMap: Record<string, string> = {
@@ -150,9 +146,7 @@ export default function EnhancedCustomProviderForm({
         <div className="p-3 bg-surfaceHover border border-border rounded-lg">
           <div className="flex items-center justify-between">
             <div className="text-sm">
-              <div className="font-medium text-textStandard">
-                Using template: {template.name}
-              </div>
+              <div className="font-medium text-textStandard">Using template: {template.name}</div>
               <div className="text-textSubtle mt-1">{template.api_url}</div>
             </div>
             {template.doc_url && (
@@ -308,9 +302,7 @@ export default function EnhancedCustomProviderForm({
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <div className="text-sm font-medium text-textStandard">
-                        {model.name}
-                      </div>
+                      <div className="text-sm font-medium text-textStandard">{model.name}</div>
                       {model.deprecated && (
                         <span className="text-xs text-yellow-600 bg-yellow-100 px-1.5 py-0.5 rounded">
                           Deprecated
@@ -357,9 +349,7 @@ export default function EnhancedCustomProviderForm({
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>
-        <Button type="submit">
-          {initialData ? 'Update Provider' : 'Create Provider'}
-        </Button>
+        <Button type="submit">{initialData ? 'Update Provider' : 'Create Provider'}</Button>
       </div>
     </form>
   );

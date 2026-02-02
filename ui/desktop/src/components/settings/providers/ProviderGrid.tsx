@@ -1,6 +1,5 @@
 import React, { memo, useMemo, useCallback, useState } from 'react';
 import { ProviderCard } from './subcomponents/ProviderCard';
-import CardContainer from './subcomponents/CardContainer';
 import ProviderConfigurationModal from './modal/ProviderConfiguationModal';
 import {
   DeclarativeProviderConfig,
@@ -196,9 +195,7 @@ function ProviderCards({
     ));
 
     // Add catalog-based providers card
-    cards.push(
-      <OtherProvidersCard key="add-catalog" onClick={() => setShowCatalogWizard(true)} />
-    );
+    cards.push(<OtherProvidersCard key="add-catalog" onClick={() => setShowCatalogWizard(true)} />);
 
     // Add manual custom provider card
     cards.push(
