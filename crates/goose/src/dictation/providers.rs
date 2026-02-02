@@ -75,7 +75,7 @@ pub const PROVIDERS: &[DictationProviderDef] = &[
         default_base_url: "",
         endpoint_path: "",
         host_key: None,
-        description: "Uses local Whisper model for offline transcription. No API key needed.",
+        description: "Uses local Whisper model for transcription. No API key needed.",
         uses_provider_config: false,
         settings_path: None,
     },

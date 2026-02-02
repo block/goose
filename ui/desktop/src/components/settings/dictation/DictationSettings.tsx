@@ -107,16 +107,7 @@ export const DictationSettings = () => {
 
   const getProviderLabel = (provider: DictationProvider | null): string => {
     if (!provider) return 'Disabled';
-    switch (provider) {
-      case 'elevenlabs':
-        return 'ElevenLabs';
-      case 'openai':
-        return 'OpenAI';
-      case 'groq':
-        return 'Groq';
-      case 'local':
-        return 'Local (Offline)';
-    }
+    return provider.charAt(0).toUpperCase() + provider.slice(1);
   };
 
   return (
