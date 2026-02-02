@@ -212,6 +212,7 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
       await ctx.audioWorklet.addModule(WORKLET_URL);
 
       const source = ctx.createMediaStreamSource(stream);
+      // eslint-disable-next-line no-undef
       const worklet = new AudioWorkletNode(ctx, 'audio-capture');
 
       worklet.port.onmessage = (e: MessageEvent<Float32Array>) => handleSamples(e.data);

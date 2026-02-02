@@ -35,6 +35,7 @@ export const LocalModelManager = () => {
   useEffect(() => {
     loadModels();
     loadSelectedModel();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Determine if we should show all models by default (if non-recommended models are downloaded)
@@ -48,7 +49,7 @@ export const LocalModelManager = () => {
     if (hasDownloadedNonRecommended && !showAllModels) {
       setShowAllModels(true);
     }
-  }, [models]);
+  }, [models, showAllModels]);
 
   const loadSelectedModel = async () => {
     try {
@@ -109,7 +110,7 @@ export const LocalModelManager = () => {
         } else {
           clearInterval(interval);
         }
-      } catch (error) {
+      } catch {
         clearInterval(interval);
       }
     }, 500);
@@ -130,7 +131,7 @@ export const LocalModelManager = () => {
   };
 
   const deleteModel = async (modelId: string) => {
-    if (!confirm('Delete this model? You can re-download it later.')) return;
+    if (!window.confirm('Delete this model? You can re-download it later.')) return;
 
     try {
       await deleteModelApi({ path: { model_id: modelId } });
