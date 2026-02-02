@@ -1024,8 +1024,6 @@ where
     R: futures::AsyncRead + Unpin + Send + 'static,
     W: futures::AsyncWrite + Unpin + Send + 'static,
 {
-    register_builtin_extensions(goose_mcp::BUILTIN_EXTENSIONS.clone());
-
     let handler = GooseAcpHandler { agent };
 
     AgentToClient::builder()
@@ -1038,6 +1036,7 @@ where
 }
 
 pub async fn run(builtins: Vec<String>) -> Result<()> {
+    register_builtin_extensions(goose_mcp::BUILTIN_EXTENSIONS.clone());
     info!("listening on stdio");
 
     let outgoing = tokio::io::stdout().compat_write();
