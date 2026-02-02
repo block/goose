@@ -1448,7 +1448,7 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
     agent.update_provider(new_provider, &session.id).await?;
     if let Some(config) = get_extension_by_name(&selected_extension_name) {
         agent
-            .add_extension(config.clone())
+            .add_extension(config.clone(), &session.id)
             .await
             .unwrap_or_else(|_| {
                 println!(

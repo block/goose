@@ -31,8 +31,8 @@ in your tool specification.
 
 ## extension_A
 
-extension_A supports resources, you can use platform__read_resource,
-and platform__list_resources on this extension.
+extension_A supports resources, you can use extensionmanager__read_resource,
+and extensionmanager__list_resources on this extension.
 ### Instructions
 <instructions on how to use extension A>
 ## extension_B

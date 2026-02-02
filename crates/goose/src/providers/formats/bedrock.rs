@@ -90,11 +90,6 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
                     result
                         .content
                         .iter()
-                        // Filter out content items that have User in their audience
-                        .filter(|c| {
-                            c.audience()
-                                .is_none_or(|audience| !audience.contains(&Role::User))
-                        })
                         .map(|c| to_bedrock_tool_result_content_block(&tool_res.id, c.clone()))
                         .collect::<Result<_>>()?,
                 ),

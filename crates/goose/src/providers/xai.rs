@@ -176,4 +176,34 @@ impl Provider for XaiProvider {
 
         stream_openai_compat(response, log)
     }
+
+    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+        let response = self.api_client.response_get(None, "models").await?;
+        let json = handle_response_openai_compat(response).await?;
+
+        if let Some(err_obj) = json.get("error") {
+            let msg = err_obj
+                .get("message")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown error");
+            return Err(ProviderError::Authentication(msg.to_string()));
+        }
+
+        let data = json.get("data").and_then(|v| v.as_array());
+        match data {
+            Some(arr) => {
+                let mut models: Vec<String> = arr
+                    .iter()
+                    .filter_map(|m| {
+                        m.get("id")
+                            .and_then(|id| id.as_str())
+                            .map(|s| s.to_string())
+                    })
+                    .collect();
+                models.sort();
+                Ok(Some(models))
+            }
+            None => Ok(None),
+        }
+    }
 }

@@ -105,104 +105,75 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                             parts.push(json!({"text":format!("Error: {}", e)}));
                         }
                     },
-                    MessageContent::ToolResponse(response) => {
-                        match &response.tool_result {
-                            Ok(result) => {
-                                // Send only contents with no audience or with Assistant in the audience
-                                let abridged: Vec<_> = result
-                                    .content
-                                    .iter()
-                                    .filter(|content| {
-                                        content.audience().is_none_or(|audience| {
-                                            audience.contains(&Role::Assistant)
-                                        })
-                                    })
-                                    .map(|content| content.raw.clone())
-                                    .collect();
-
-                                let mut tool_content = Vec::new();
-                                for content in abridged {
-                                    match content {
-                                        RawContent::Image(image) => {
-                                            parts.push(json!({
-                                                "inline_data": {
-                                                    "mime_type": image.mime_type,
-                                                    "data": image.data,
-                                                }
-                                            }));
-                                        }
-                                        _ => {
-                                            tool_content.push(content.no_annotation());
-                                        }
+                    MessageContent::ToolResponse(response) => match &response.tool_result {
+                        Ok(result) => {
+                            let mut tool_content = Vec::new();
+                            for content in result.content.iter().map(|c| c.raw.clone()) {
+                                match content {
+                                    RawContent::Image(image) => {
+                                        parts.push(json!({
+                                            "inline_data": {
+                                                "mime_type": image.mime_type,
+                                                "data": image.data,
+                                            }
+                                        }));
+                                    }
+                                    _ => {
+                                        tool_content.push(content.no_annotation());
                                     }
                                 }
-                                let mut text = tool_content
-                                    .iter()
-                                    .filter_map(|c| match c.deref() {
-                                        RawContent::Text(t) => Some(t.text.clone()),
-                                        RawContent::Resource(raw_embedded_resource) => Some(
-                                            raw_embedded_resource
-                                                .clone()
-                                                .no_annotation()
-                                                .get_text(),
-                                        ),
-                                        _ => None,
-                                    })
-                                    .collect::<Vec<_>>()
-                                    .join("\n");
-
-                                if text.is_empty() {
-                                    text = "Tool call is done.".to_string();
-                                }
-                                let mut part = Map::new();
-                                let mut function_response = Map::new();
-                                function_response.insert("name".to_string(), json!(response.id));
-                                function_response.insert(
-                                    "response".to_string(),
-                                    json!({"content": {"text": text}}),
-                                );
-                                part.insert(
-                                    "functionResponse".to_string(),
-                                    json!(function_response),
-                                );
-                                if include_signature {
-                                    if let Some(signature) =
-                                        get_thought_signature(&response.metadata)
-                                    {
-                                        part.insert(
-                                            THOUGHT_SIGNATURE_KEY.to_string(),
-                                            json!(signature),
-                                        );
-                                    }
-                                }
-                                parts.push(json!(part));
                             }
-                            Err(e) => {
-                                let mut part = Map::new();
-                                let mut function_response = Map::new();
-                                function_response.insert("name".to_string(), json!(response.id));
-                                function_response.insert(
-                                    "response".to_string(),
-                                    json!({"content": {"text": format!("Error: {}", e)}}),
-                                );
-                                part.insert(
-                                    "functionResponse".to_string(),
-                                    json!(function_response),
-                                );
-                                if include_signature {
-                                    if let Some(signature) =
-                                        get_thought_signature(&response.metadata)
-                                    {
-                                        part.insert(
-                                            THOUGHT_SIGNATURE_KEY.to_string(),
-                                            json!(signature),
-                                        );
-                                    }
-                                }
-                                parts.push(json!(part));
+                            let mut text = tool_content
+                                .iter()
+                                .filter_map(|c| match c.deref() {
+                                    RawContent::Text(t) => Some(t.text.clone()),
+                                    RawContent::Resource(raw_embedded_resource) => Some(
+                                        raw_embedded_resource.clone().no_annotation().get_text(),
+                                    ),
+                                    _ => None,
+                                })
+                                .collect::<Vec<_>>()
+                                .join("\n");
+
+                            if text.is_empty() {
+                                text = "Tool call is done.".to_string();
                             }
+                            let mut part = Map::new();
+                            let mut function_response = Map::new();
+                            function_response.insert("name".to_string(), json!(response.id));
+                            function_response
+                                .insert("response".to_string(), json!({"content": {"text": text}}));
+                            part.insert("functionResponse".to_string(), json!(function_response));
+                            if include_signature {
+                                if let Some(signature) = get_thought_signature(&response.metadata) {
+                                    part.insert(
+                                        THOUGHT_SIGNATURE_KEY.to_string(),
+                                        json!(signature),
+                                    );
+                                }
+                            }
+                            parts.push(json!(part));
                         }
-                    }
+                        Err(e) => {
+                            let mut part = Map::new();
+                            let mut function_response = Map::new();
+                            function_response.insert("name".to_string(), json!(response.id));
+                            function_response.insert(
+                                "response".to_string(),
+                                json!({"content": {"text": format!("Error: {}", e)}}),
+                            );
+                            part.insert("functionResponse".to_string(), json!(function_response));
+                            if include_signature {
+                                if let Some(signature) = get_thought_signature(&response.metadata) {
+                                    part.insert(
+                                        THOUGHT_SIGNATURE_KEY.to_string(),
+                                        json!(signature),
+                                    );
+                                }
+                            }
+                            parts.push(json!(part));
+                        }
+                    },
                     MessageContent::Thinking(thinking) => {
                         let mut part = Map::new();
                         part.insert("text".to_string(), json!(thinking.thinking));

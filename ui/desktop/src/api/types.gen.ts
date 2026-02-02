@@ -135,7 +135,7 @@ export type CreateRecipeResponse = {
 export type CreateScheduleRequest = {
     cron: string;
     id: string;
-    recipe_source: string;
+    recipe: Recipe;
 };
 
 /**
@@ -188,6 +188,35 @@ export type DetectProviderRequest = {
 export type DetectProviderResponse = {
     models: Array<string>;
     provider_name: string;
+};
+
+export type DictationProvider = 'openai' | 'elevenlabs';
+
+export type DictationProviderStatus = {
+    /**
+     * Config key name if uses_provider_config is false
+     */
+    config_key?: string | null;
+    /**
+     * Whether the provider is fully configured and ready to use
+     */
+    configured: boolean;
+    /**
+     * Description of what this provider does
+     */
+    description: string;
+    /**
+     * Custom host URL if configured (only for providers that support it)
+     */
+    host?: string | null;
+    /**
+     * Path to settings if uses_provider_config is true
+     */
+    settings_path?: string | null;
+    /**
+     * Whether this provider uses the main provider config (true) or has its own key (false)
+     */
+    uses_provider_config: boolean;
 };
 
 export type EmbeddedResource = {
@@ -253,6 +282,7 @@ export type ExtensionConfig = {
     available_tools?: Array<string>;
     bundled?: boolean | null;
     description: string;
+    display_name?: string | null;
     /**
      * The name used to identify this extension
      */
@@ -573,7 +603,7 @@ export type ModelInfo = {
      */
     currency?: string | null;
     /**
-     * Cost per token for input (optional)
+     * Cost per token for input in USD (optional)
      */
     input_token_cost?: number | null;
     /**
@@ -581,7 +611,7 @@ export type ModelInfo = {
      */
     name: string;
     /**
-     * Cost per token for output (optional)
+     * Cost per token for output in USD (optional)
      */
     output_token_cost?: number | null;
     /**
@@ -1170,6 +1200,25 @@ export type ToolResponse = {
     toolResult: {
         [key: string]: unknown;
     };
+};
+
+export type TranscribeRequest = {
+    /**
+     * Base64 encoded audio data
+     */
+    audio: string;
+    /**
+     * MIME type of the audio (e.g., "audio/webm", "audio/wav")
+     */
+    mime_type: string;
+    provider: DictationProvider;
+};
+
+export type TranscribeResponse = {
+    /**
+     * Transcribed text from the audio
+     */
+    text: string;
 };
 
 export type TunnelInfo = {
@@ -2454,6 +2503,79 @@ export type DiagnosticsResponses = {
 };
 
 export type DiagnosticsResponse = DiagnosticsResponses[keyof DiagnosticsResponses];
+
+export type GetDictationConfigData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/dictation/config';
+};
+
+export type GetDictationConfigResponses = {
+    /**
+     * Audio transcription provider configurations
+     */
+    200: {
+        [key: string]: DictationProviderStatus;
+    };
+};
+
+export type GetDictationConfigResponse = GetDictationConfigResponses[keyof GetDictationConfigResponses];
+
+export type TranscribeDictationData = {
+    body: TranscribeRequest;
+    path?: never;
+    query?: never;
+    url: '/dictation/transcribe';
+};
+
+export type TranscribeDictationErrors = {
+    /**
+     * Invalid request (bad base64 or unsupported format)
+     */
+    400: unknown;
+    /**
+     * Invalid API key
+     */
+    401: unknown;
+    /**
+     * DictationProvider not configured
+     */
+    412: unknown;
+    /**
+     * Audio file too large (max 25MB)
+     */
+    413: unknown;
+    /**
+     * Rate limit exceeded
+     */
+    429: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+    /**
+     * DictationProvider API error
+     */
+    502: unknown;
+    /**
+     * Service unavailable
+     */
+    503: unknown;
+    /**
+     * Request timeout
+     */
+    504: unknown;
+};
+
+export type TranscribeDictationResponses = {
+    /**
+     * Audio transcribed successfully
+     */
+    200: TranscribeResponse;
+};
+
+export type TranscribeDictationResponse = TranscribeDictationResponses[keyof TranscribeDictationResponses];
 
 export type StartOpenrouterSetupData = {
     body?: never;

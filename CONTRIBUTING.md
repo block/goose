@@ -41,9 +41,16 @@ If you use Goose, Copilot, Claude, or other AI tools to help with your PRs:
 
 ## Prerequisites
 
-goose includes Rust binaries alongside an electron app for the GUI. To work
-on the Rust backend, you will need to [install Rust and cargo][rustup]. To work
-on the App, you will also need to [install node and npm][nvm] - we recommend through nvm.
+goose includes Rust binaries alongside an electron app for the GUI.
+
+We use [Hermit][hermit] to manage development dependencies (Rust, Node, npm, just, etc.).
+Activate Hermit when entering the project:
+
+```bash
+source bin/activate-hermit
+```
+
+Or add [shell hook auto-activation](https://cashapp.github.io/hermit/usage/shell/#shell-hooks) so Hermit activates automatically when you `cd` into the project (recommended).
 
 We provide a shortcut to standard commands using [just][just] in our `justfile`.
 
@@ -285,8 +292,7 @@ Then you can view your traces at http://localhost:3000
 This project follows the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) specification for PR titles. Conventional Commits make it easier to understand the history of a project and facilitate automation around versioning and changelog generation.
 
 [issues]: https://github.com/block/goose/issues
-[rustup]: https://doc.rust-lang.org/cargo/getting-started/installation.html
-[nvm]: https://github.com/nvm-sh/nvm
+[hermit]: https://cashapp.github.io/hermit/
 [just]: https://github.com/casey/just?tab=readme-ov-file#installation
 
 ## Developer Certificate of Origin

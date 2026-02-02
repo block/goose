@@ -23,3 +23,4 @@ crates/goose/src/providers/formats/google.rs::format_messages
 crates/goose/src/providers/formats/openai.rs::format_messages
 crates/goose/src/providers/formats/openai.rs::response_to_streaming_message
 crates/goose/src/providers/snowflake.rs::post
+crates/goose/src/security/mod.rs::analyze_tool_requests

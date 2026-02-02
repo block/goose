@@ -156,7 +156,6 @@ export default function CreateRecipeFromSessionModal({
 
     setIsCreating(true);
     try {
-      // Create the recipe object from form data
       const recipe: Recipe = {
         title: formData.title,
         description: formData.description,
@@ -181,7 +180,6 @@ export default function CreateRecipeFromSessionModal({
                 json_schema: JSON.parse(formData.jsonSchema),
               }
             : undefined,
-        extensions: [], // Will be populated based on current extensions
       };
 
       let recipeId = await saveRecipe(recipe, null);
