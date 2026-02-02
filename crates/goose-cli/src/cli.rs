@@ -174,6 +174,12 @@ pub struct ExtensionOptions {
         value_delimiter = ','
     )]
     pub builtins: Vec<String>,
+
+    #[arg(
+        long = "no-profile",
+        help = "Don't load your default extensions, only use CLI-specified extensions"
+    )]
+    pub no_profile: bool,
 }
 
 /// Input source and recipe options for the run command
@@ -1156,6 +1162,7 @@ async fn handle_interactive_session(
         extensions: extension_opts.extensions,
         streamable_http_extensions: extension_opts.streamable_http_extensions,
         builtins: extension_opts.builtins,
+        no_profile: extension_opts.no_profile,
         recipe: None,
         additional_system_prompt: None,
         provider: None,
@@ -1360,6 +1367,7 @@ async fn handle_run_command(
         extensions: extension_opts.extensions,
         streamable_http_extensions: extension_opts.streamable_http_extensions,
         builtins: extension_opts.builtins,
+        no_profile: extension_opts.no_profile,
         recipe: recipe.clone(),
         additional_system_prompt: input_config.additional_system_prompt,
         provider: model_opts.provider,
@@ -1486,6 +1494,7 @@ async fn handle_default_session() -> Result<()> {
         extensions: Vec::new(),
         streamable_http_extensions: Vec::new(),
         builtins: Vec::new(),
+        no_profile: false,
         recipe: None,
         additional_system_prompt: None,
         provider: None,

@@ -35,6 +35,7 @@ use super::types::SharedProvider;
 use crate::agents::extension::{Envs, ProcessExit};
 use crate::agents::extension_malware_check;
 use crate::agents::mcp_client::{McpClient, McpClientTrait};
+use crate::config::extensions::name_to_key;
 use crate::config::search_path::SearchPaths;
 use crate::config::{get_all_extensions, Config};
 use crate::oauth::oauth_flow;
@@ -133,20 +134,6 @@ impl ResourceItem {
     }
 }
 
-/// Sanitizes a string by replacing invalid characters with underscores.
-/// Valid characters match [a-zA-Z0-9_-]
-pub fn normalize(input: &str) -> String {
-    let mut result = String::with_capacity(input.len());
-    for c in input.chars() {
-        result.push(match c {
-            c if c.is_ascii_alphanumeric() || c == '_' || c == '-' => c,
-            c if c.is_whitespace() => continue, // effectively "strip" whitespace
-            _ => '_',                           // Replace any other non-ASCII character with '_'
-        });
-    }
-    result.to_lowercase()
-}
-
 /// Generates extension name from server info; adds random suffix on collision.
 fn generate_extension_name(
     server_info: Option<&ServerInfo>,
@@ -155,7 +142,7 @@ fn generate_extension_name(
     let base = server_info
         .and_then(|info| {
             let name = info.server_info.name.as_str();
-            (!name.is_empty()).then(|| normalize(name))
+            (!name.is_empty()).then(|| name_to_key(name))
         })
         .unwrap_or_else(|| "unnamed".to_string());
 
@@ -484,14 +471,14 @@ impl ExtensionManager {
     /// Add an extension with an optional working directory.
     /// If working_dir is None, falls back to current_dir.
     #[allow(clippy::too_many_lines)]
-    pub async fn add_extension_with_working_dir(
+    pub async fn add_extension(
         self: &Arc<Self>,
         config: ExtensionConfig,
         working_dir: Option<PathBuf>,
         container: Option<&Container>,
     ) -> ExtensionResult<()> {
         let config_name = config.key().to_string();
-        let sanitized_name = normalize(&config_name);
+        let sanitized_name = name_to_key(&config_name);
 
         if self.extensions.lock().await.contains_key(&sanitized_name) {
             return Ok(());
@@ -577,8 +564,9 @@ impl ExtensionManager {
             }
             ExtensionConfig::Builtin { name, timeout, .. } => {
                 let timeout_duration = Duration::from_secs(timeout.unwrap_or(300));
+                let normalized_name = name_to_key(name);
 
-                if !goose_mcp::BUILTIN_EXTENSIONS.contains_key(name.as_str()) {
+                if !goose_mcp::BUILTIN_EXTENSIONS.contains_key(normalized_name.as_str()) {
                     return Err(ExtensionError::ConfigError(format!(
                         "Unknown builtin extension: {}",
                         name
@@ -599,7 +587,7 @@ impl ExtensionManager {
                             .arg(container_id)
                             .arg("goose")
                             .arg("mcp")
-                            .arg(name);
+                            .arg(&normalized_name);
                     });
 
                     let client = child_process_client(
@@ -612,7 +600,9 @@ impl ExtensionManager {
                     .await?;
                     Box::new(client)
                 } else {
-                    let def = goose_mcp::BUILTIN_EXTENSIONS.get(name.as_str()).unwrap();
+                    let def = goose_mcp::BUILTIN_EXTENSIONS
+                        .get(normalized_name.as_str())
+                        .unwrap();
 
                     // Set GOOSE_WORKING_DIR in the current process for builtin extensions
                     // since they run in-process and read from std::env::var
@@ -638,7 +628,7 @@ impl ExtensionManager {
                 }
             }
             ExtensionConfig::Platform { name, .. } => {
-                let normalized_key = normalize(name);
+                let normalized_key = name_to_key(name);
                 let def = PLATFORM_EXTENSIONS
                     .get(normalized_key.as_str())
                     .ok_or_else(|| {
@@ -713,7 +703,7 @@ impl ExtensionManager {
         info: Option<ServerInfo>,
         temp_dir: Option<TempDir>,
     ) {
-        let normalized = normalize(&name);
+        let normalized = name_to_key(&name);
         self.extensions
             .lock()
             .await
@@ -739,7 +729,7 @@ impl ExtensionManager {
 
     /// Get aggregated usage statistics
     pub async fn remove_extension(&self, name: &str) -> ExtensionResult<()> {
-        let sanitized_name = normalize(name);
+        let sanitized_name = name_to_key(name);
         self.extensions.lock().await.remove(&sanitized_name);
         self.invalidate_tools_cache_and_bump_version().await;
         Ok(())
@@ -762,7 +752,7 @@ impl ExtensionManager {
     }
 
     pub async fn is_extension_enabled(&self, name: &str) -> bool {
-        let normalized = normalize(name);
+        let normalized = name_to_key(name);
         self.extensions.lock().await.contains_key(&normalized)
     }
 
@@ -800,8 +790,8 @@ impl ExtensionManager {
         extension_name: Option<&str>,
         exclude: Option<&str>,
     ) -> Vec<Tool> {
-        let extension_name_normalized = extension_name.map(normalize);
-        let exclude_normalized = exclude.map(normalize);
+        let extension_name_normalized = extension_name.map(name_to_key);
+        let exclude_normalized = exclude.map(name_to_key);
 
         tools
             .iter()
@@ -973,9 +963,14 @@ impl ExtensionManager {
         // Loop through each extension and try to read the resource, don't raise an error if the resource is not found
         // TODO: do we want to find if a provided uri is in multiple extensions?
         // currently it will return the first match and skip any others
-
-        // Collect extension names first to avoid holding the lock during iteration
-        let extension_names: Vec<String> = self.extensions.lock().await.keys().cloned().collect();
+        let extension_names: Vec<String> = self
+            .extensions
+            .lock()
+            .await
+            .iter()
+            .filter(|(_name, ext)| ext.supports_resources())
+            .map(|(name, _)| name.clone())
+            .collect();
 
         for extension_name in extension_names {
             let read_result = self
@@ -1444,7 +1439,7 @@ impl ExtensionManager {
     }
 
     async fn get_server_client(&self, name: impl Into<String>) -> Option<McpClientBox> {
-        let normalized = normalize(&name.into());
+        let normalized = name_to_key(&name.into());
         self.extensions
             .lock()
             .await
@@ -1521,7 +1516,7 @@ mod tests {
             client: McpClientBox,
             available_tools: Vec<String>,
         ) {
-            let sanitized_name = normalize(&name);
+            let sanitized_name = name_to_key(&name);
             let config = ExtensionConfig::Builtin {
                 name: name.clone(),
                 display_name: Some(name.clone()),

@@ -67,7 +67,7 @@ impl CodeExecutionClient {
             },
             server_info: Implementation {
                 name: EXTENSION_NAME.to_string(),
-                title: Some("Code Execution".to_string()),
+                title: Some("Code Mode".to_string()),
                 version: "1.0.0".to_string(),
                 icons: None,
                 website_url: None,

@@ -314,8 +314,9 @@ impl CliSession {
                 if PLATFORM_EXTENSIONS.contains_key(extension_name) {
                     ExtensionConfig::Platform {
                         name: extension_name.to_string(),
-                        bundled: None,
                         description: extension_name.to_string(),
+                        display_name: None,
+                        bundled: None,
                         available_tools: Vec::new(),
                     }
                 } else {
@@ -335,15 +336,10 @@ impl CliSession {
     async fn add_and_persist_extensions(&mut self, configs: Vec<ExtensionConfig>) -> Result<()> {
         for config in configs {
             self.agent
-                .add_extension(config)
+                .add_extension(config, &self.session_id)
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to start extension: {}", e))?;
         }
-
-        self.agent
-            .persist_extension_state(&self.session_id)
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to save extension state: {}", e))?;
 
         self.invalidate_completion_cache().await;
 
@@ -461,6 +457,7 @@ impl CliSession {
                 })
                 .collect();
 
+            output::run_status_hook("waiting");
             let input = input::get_input(&mut editor, Some(&conversation_strings))?;
             if matches!(input, InputResult::Exit) {
                 break;
@@ -595,6 +592,7 @@ impl CliSession {
 
                 let _provider = self.agent.provider().await?;
 
+                output::run_status_hook("thinking");
                 output::show_thinking();
                 let start_time = Instant::now();
                 self.process_agent_response(true, CancellationToken::default())

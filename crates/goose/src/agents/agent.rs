@@ -678,15 +678,14 @@ impl Agent {
             }
         };
 
-        // Capture the session's working_dir to pass to extensions
-        let working_dir = session.working_dir.clone();
+        let session_id = session.id.clone();
 
         let extension_futures = enabled_configs
             .into_iter()
             .map(|config| {
                 let config_clone = config.clone();
                 let agent_ref = self.clone();
-                let working_dir_clone = working_dir.clone();
+                let session_id_clone = session_id.clone();
 
                 async move {
                     let name = config_clone.name().to_string();
@@ -705,7 +704,7 @@ impl Agent {
                     }
 
                     match agent_ref
-                        .add_extension_with_working_dir(config_clone, Some(working_dir_clone))
+                        .add_extension(config_clone, &session_id_clone)
                         .await
                     {
                         Ok(_) => ExtensionLoadResult {
@@ -730,15 +729,24 @@ impl Agent {
         futures::future::join_all(extension_futures).await
     }
 
-    pub async fn add_extension(&self, extension: ExtensionConfig) -> ExtensionResult<()> {
-        self.add_extension_with_working_dir(extension, None).await
-    }
-
-    pub async fn add_extension_with_working_dir(
+    pub async fn add_extension(
         &self,
         extension: ExtensionConfig,
-        working_dir: Option<std::path::PathBuf>,
+        session_id: &str,
     ) -> ExtensionResult<()> {
+        let session = self
+            .config
+            .session_manager
+            .get_session(session_id, false)
+            .await
+            .map_err(|e| {
+                crate::agents::extension::ExtensionError::SetupError(format!(
+                    "Failed to get session '{}': {}",
+                    session_id, e
+                ))
+            })?;
+        let working_dir = Some(session.working_dir);
+
         match &extension {
             ExtensionConfig::Frontend {
                 tools,
@@ -768,14 +776,21 @@ impl Agent {
             _ => {
                 let container = self.container.lock().await;
                 self.extension_manager
-                    .add_extension_with_working_dir(
-                        extension.clone(),
-                        working_dir,
-                        container.as_ref(),
-                    )
+                    .add_extension(extension.clone(), working_dir, container.as_ref())
                     .await?;
             }
         }
+
+        // Persist extension state after successful add
+        self.persist_extension_state(session_id)
+            .await
+            .map_err(|e| {
+                error!("Failed to persist extension state: {}", e);
+                crate::agents::extension::ExtensionError::SetupError(format!(
+                    "Failed to persist extension state: {}",
+                    e
+                ))
+            })?;
 
         Ok(())
     }
@@ -833,8 +848,17 @@ impl Agent {
         prefixed_tools
     }
 
-    pub async fn remove_extension(&self, name: &str) -> Result<()> {
+    pub async fn remove_extension(&self, name: &str, session_id: &str) -> Result<()> {
         self.extension_manager.remove_extension(name).await?;
+
+        // Persist extension state after successful removal
+        self.persist_extension_state(session_id)
+            .await
+            .map_err(|e| {
+                error!("Failed to persist extension state: {}", e);
+                anyhow!("Failed to persist extension state: {}", e)
+            })?;
+
         Ok(())
     }
 

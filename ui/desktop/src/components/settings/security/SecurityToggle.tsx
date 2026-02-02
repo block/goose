@@ -271,17 +271,73 @@ export const SecurityToggle = () => {
             />
           </div>
 
-          {/* ML Detection Toggle */}
+          {/* Command Injection Detection Toggle */}
           <div className="border-t border-border-default pt-4">
             <div className="flex items-center justify-between py-2 hover:bg-background-muted rounded-lg transition-all">
               <div>
                 <h4
                   className={`text-sm font-medium ${enabled ? 'text-text-default' : 'text-text-muted'}`}
                 >
-                  Enable ML-Based Detection
+                  Enable Command Injection ML Detection
                 </h4>
                 <p className="text-xs text-text-muted max-w-md mt-[2px]">
-                  Use machine learning models for more accurate detection
+                  Use ML models to detect malicious shell commands
+                </p>
+              </div>
+              <div className="flex items-center">
+                <Switch
+                  checked={effectiveCommandClassifierEnabled}
+                  onCheckedChange={handleCommandClassifierToggle}
+                  disabled={!enabled}
+                  variant="mono"
+                />
+              </div>
+            </div>
+
+            {hasCommandModel ? (
+              enabled &&
+              effectiveCommandClassifierEnabled && (
+                <div className="text-sm text-gray-700 dark:text-gray-300 mt-2">
+                  ✓ Command classifier active (auto-configured from environment)
+                </div>
+              )
+            ) : (
+              <div
+                className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                  enabled && effectiveCommandClassifierEnabled
+                    ? 'max-h-[32rem] opacity-100 mt-3'
+                    : 'max-h-0 opacity-0'
+                }`}
+              >
+                <div className={enabled && effectiveCommandClassifierEnabled ? '' : 'opacity-50'}>
+                  <ClassifierEndpointInputs
+                    endpointValue={commandEndpointInput}
+                    tokenValue={commandTokenInput}
+                    onEndpointChange={setCommandEndpointInput}
+                    onTokenChange={setCommandTokenInput}
+                    onEndpointBlur={handleCommandEndpointChange}
+                    onTokenBlur={handleCommandTokenChange}
+                    disabled={!enabled || !effectiveCommandClassifierEnabled}
+                    endpointPlaceholder="https://example.com/classify"
+                    tokenPlaceholder="token..."
+                    endpointDescription="Enter the full URL for your command injection classification service"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Prompt Injection Detection Toggle */}
+          <div className="border-t border-border-default pt-4">
+            <div className="flex items-center justify-between py-2 hover:bg-background-muted rounded-lg transition-all">
+              <div>
+                <h4
+                  className={`text-sm font-medium ${enabled ? 'text-text-default' : 'text-text-muted'}`}
+                >
+                  Enable Prompt Injection ML Detection
+                </h4>
+                <p className="text-xs text-text-muted max-w-md mt-[2px]">
+                  Use ML models to detect potential prompt injection in your chat
                 </p>
               </div>
               <div className="flex items-center">
@@ -347,61 +403,6 @@ export const SecurityToggle = () => {
                 )}
               </div>
             </div>
-          </div>
-
-          <div className="border-t border-border-default pt-4">
-            <div className="flex items-center justify-between py-2 hover:bg-background-muted rounded-lg transition-all">
-              <div>
-                <h4
-                  className={`text-sm font-medium ${enabled ? 'text-text-default' : 'text-text-muted'}`}
-                >
-                  Enable Command Injection ML Detection
-                </h4>
-                <p className="text-xs text-text-muted max-w-md mt-[2px]">
-                  Use ML models to detect malicious shell commands
-                </p>
-              </div>
-              <div className="flex items-center">
-                <Switch
-                  checked={effectiveCommandClassifierEnabled}
-                  onCheckedChange={handleCommandClassifierToggle}
-                  disabled={!enabled}
-                  variant="mono"
-                />
-              </div>
-            </div>
-
-            {hasCommandModel ? (
-              enabled &&
-              effectiveCommandClassifierEnabled && (
-                <div className="text-sm text-gray-700 dark:text-gray-300 mt-2">
-                  ✓ Command classifier active (auto-configured from environment)
-                </div>
-              )
-            ) : (
-              <div
-                className={`overflow-hidden transition-all duration-300 ease-in-out ${
-                  enabled && effectiveCommandClassifierEnabled
-                    ? 'max-h-[32rem] opacity-100 mt-3'
-                    : 'max-h-0 opacity-0'
-                }`}
-              >
-                <div className={enabled && effectiveCommandClassifierEnabled ? '' : 'opacity-50'}>
-                  <ClassifierEndpointInputs
-                    endpointValue={commandEndpointInput}
-                    tokenValue={commandTokenInput}
-                    onEndpointChange={setCommandEndpointInput}
-                    onTokenChange={setCommandTokenInput}
-                    onEndpointBlur={handleCommandEndpointChange}
-                    onTokenBlur={handleCommandTokenChange}
-                    disabled={!enabled || !effectiveCommandClassifierEnabled}
-                    endpointPlaceholder="https://example.com/classify"
-                    tokenPlaceholder="token..."
-                    endpointDescription="Enter the full URL for your command injection classification service"
-                  />
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>

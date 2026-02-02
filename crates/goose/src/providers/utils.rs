@@ -90,6 +90,7 @@ fn check_context_length_exceeded(text: &str) -> bool {
         "max_tokens",
         "decrease input length",
         "context limit",
+        "maximum prompt length",
     ];
     let text_lower = text.to_lowercase();
     check_phrases
