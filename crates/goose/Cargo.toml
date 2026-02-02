@@ -8,10 +8,7 @@ repository.workspace = true
 description.workspace = true
 
 [features]
-default = ["metal"]
-# GPU acceleration features
-cuda = ["candle-core/cuda", "candle-nn/cuda"]
-metal = ["candle-core/metal", "candle-nn/metal"]
+default = []
 
 [lints]
 workspace = true
@@ -96,10 +93,9 @@ unicode-normalization = "0.1"
 goose-mcp = { path = "../goose-mcp" }
 
 # For local Whisper transcription
-# Metal on macOS, CUDA on Linux (if available), CPU fallback on Windows
-candle-core = { version = "0.8.4", features = [] }
-candle-nn = { version = "0.8.4", features = [] }
-candle-transformers = { version = "0.8.4", features = [] }
+candle-core = { version = "0.8.4" }
+candle-nn = { version = "0.8.4" }
+candle-transformers = { version = "0.8.4" }
 byteorder = "1.5.0"
 tokenizers = "0.21.0"
 hf-hub = "0.3.2"
@@ -121,6 +117,15 @@ unbinder = "0.1.7"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }
+
+# Platform-specific GPU acceleration for Whisper
+[target.'cfg(target_os = "macos")'.dependencies]
+candle-core = { version = "0.8.4", features = ["metal"] }
+candle-nn = { version = "0.8.4", features = ["metal"] }
+
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+candle-core = { version = "0.8.4", features = ["cuda"] }
+candle-nn = { version = "0.8.4", features = ["cuda"] }
 
 [dev-dependencies]
 serial_test = { workspace = true }
