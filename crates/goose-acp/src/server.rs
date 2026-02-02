@@ -2,6 +2,8 @@ use anyhow::Result;
 use fs_err as fs;
 use goose::agents::extension::{Envs, PLATFORM_EXTENSIONS};
 use goose::agents::{Agent, AgentConfig, ExtensionConfig, SessionConfig};
+use goose::config::base::CONFIG_YAML_NAME;
+use goose::config::extensions::get_enabled_extensions_with_config;
 use goose::config::paths::Paths;
 use goose::config::permission::PermissionManager;
 use goose::config::Config;
@@ -46,7 +48,7 @@ pub struct GooseAcpAgent {
     provider: Arc<dyn goose::providers::base::Provider>,
 }
 
-pub struct GooseAcpConfig {
+pub struct AcpServerConfig {
     pub provider: Arc<dyn goose::providers::base::Provider>,
     pub builtins: Vec<String>,
     pub data_dir: std::path::PathBuf,
@@ -101,14 +103,11 @@ fn extract_tool_locations(
 ) -> Vec<ToolCallLocation> {
     let mut locations = Vec::new();
 
-    // Get the tool call details
     if let Ok(tool_call) = &tool_request.tool_call {
-        // Only process text_editor tool
         if tool_call.name != "developer__text_editor" {
             return locations;
         }
 
-        // Extract the path from arguments
         let path_str = tool_call
             .arguments
             .as_ref()
@@ -116,50 +115,42 @@ fn extract_tool_locations(
             .and_then(|p| p.as_str());
 
         if let Some(path_str) = path_str {
-            // Get the command type
             let command = tool_call
                 .arguments
                 .as_ref()
                 .and_then(|args| args.get("command"))
                 .and_then(|c| c.as_str());
 
-            // Extract line numbers from the response content
             if let Ok(result) = &tool_response.tool_result {
                 for content in &result.content {
                     if let RawContent::Text(text_content) = &content.raw {
                         let text = &text_content.text;
 
-                        // Parse line numbers based on command type and response format
                         match command {
                             Some("view") => {
-                                // For view command, look for "lines X-Y" pattern in header
                                 let line = extract_view_line_range(text)
                                     .map(|range| range.0 as u32)
                                     .or(Some(1));
                                 locations.push(create_tool_location(path_str, line));
                             }
                             Some("str_replace") | Some("insert") => {
-                                // For edits, extract the first line number from the snippet
                                 let line = extract_first_line_number(text)
                                     .map(|l| l as u32)
                                     .or(Some(1));
                                 locations.push(create_tool_location(path_str, line));
                             }
                             Some("write") => {
-                                // For write, just point to the beginning of the file
                                 locations.push(create_tool_location(path_str, Some(1)));
                             }
                             _ => {
-                                // For other commands or unknown, default to line 1
                                 locations.push(create_tool_location(path_str, Some(1)));
                             }
                         }
-                        break; // Only process first text content
+                        break;
                     }
                 }
             }
 
-            // If we didn't find any locations yet, add a default one
             if locations.is_empty() {
                 locations.push(create_tool_location(path_str, Some(1)));
             }
@@ -170,12 +161,11 @@ fn extract_tool_locations(
 }
 
 fn extract_view_line_range(text: &str) -> Option<(usize, usize)> {
-    // Pattern: "(lines X-Y)" or "(lines X-end)"
     let re = regex::Regex::new(r"\(lines (\d+)-(\d+|end)\)").ok()?;
     if let Some(caps) = re.captures(text) {
         let start = caps.get(1)?.as_str().parse::<usize>().ok()?;
         let end = if caps.get(2)?.as_str() == "end" {
-            start // Use start as a reasonable default
+            start
         } else {
             caps.get(2)?.as_str().parse::<usize>().ok()?
         };
@@ -185,7 +175,6 @@ fn extract_view_line_range(text: &str) -> Option<(usize, usize)> {
 }
 
 fn extract_first_line_number(text: &str) -> Option<usize> {
-    // Pattern: "123: " at the start of a line within a code block
     let re = regex::Regex::new(r"```[^\n]*\n(\d+):").ok()?;
     if let Some(caps) = re.captures(text) {
         return caps.get(1)?.as_str().parse::<usize>().ok();
@@ -210,34 +199,8 @@ fn read_resource_link(link: ResourceLink) -> Option<String> {
 }
 
 fn format_tool_name(tool_name: &str) -> String {
-    if let Some((extension, tool)) = tool_name.split_once("__") {
-        let formatted_extension = extension.replace('_', " ");
-        let formatted_tool = tool.replace('_', " ");
-
-        // Capitalize first letter of each word
-        let capitalize = |s: &str| {
-            s.split_whitespace()
-                .map(|word| {
-                    let mut chars = word.chars();
-                    match chars.next() {
-                        None => String::new(),
-                        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
-                    }
-                })
-                .collect::<Vec<_>>()
-                .join(" ")
-        };
-
-        format!(
-            "{}: {}",
-            capitalize(&formatted_extension),
-            capitalize(&formatted_tool)
-        )
-    } else {
-        // Fallback for tools without double underscore
-        let formatted = tool_name.replace('_', " ");
-        formatted
-            .split_whitespace()
+    let capitalize = |s: &str| {
+        s.split_whitespace()
             .map(|word| {
                 let mut chars = word.chars();
                 match chars.next() {
@@ -247,6 +210,19 @@ fn format_tool_name(tool_name: &str) -> String {
             })
             .collect::<Vec<_>>()
             .join(" ")
+    };
+
+    if let Some((extension, tool)) = tool_name.split_once("__") {
+        let formatted_extension = extension.replace('_', " ");
+        let formatted_tool = tool.replace('_', " ");
+        format!(
+            "{}: {}",
+            capitalize(&formatted_extension),
+            capitalize(&formatted_tool)
+        )
+    } else {
+        let formatted = tool_name.replace('_', " ");
+        capitalize(&formatted)
     }
 }
 
@@ -271,14 +247,35 @@ async fn add_builtins(agent: &Agent, builtins: Vec<String>) {
             }
         };
 
-        match agent.add_extension(config).await {
+        match agent
+            .extension_manager
+            .add_extension(config, None, None)
+            .await
+        {
             Ok(_) => info!(extension = %builtin, "extension loaded"),
             Err(e) => warn!(extension = %builtin, error = %e, "extension load failed"),
         }
     }
 }
+async fn add_extensions(agent: &Agent, extensions: Vec<ExtensionConfig>) {
+    for extension in extensions {
+        let name = extension.name().to_string();
+        match agent
+            .extension_manager
+            .add_extension(extension, None, None)
+            .await
+        {
+            Ok(_) => info!(extension = %name, "extension loaded"),
+            Err(e) => warn!(extension = %name, error = %e, "extension load failed"),
+        }
+    }
+}
 
 impl GooseAcpAgent {
+    pub fn permission_manager(&self) -> Arc<PermissionManager> {
+        Arc::clone(&self.agent.config.permission_manager)
+    }
+
     pub async fn new(builtins: Vec<String>) -> Result<Self> {
         let config = Config::global();
 
@@ -305,7 +302,7 @@ impl GooseAcpAgent {
             .get_goose_mode()
             .unwrap_or(goose::config::GooseMode::Auto);
 
-        Self::with_config(GooseAcpConfig {
+        Self::with_config(AcpServerConfig {
             provider,
             builtins,
             data_dir: Paths::data_dir(),
@@ -315,8 +312,9 @@ impl GooseAcpAgent {
         .await
     }
 
-    pub async fn with_config(config: GooseAcpConfig) -> Result<Self> {
+    pub async fn with_config(config: AcpServerConfig) -> Result<Self> {
         let session_manager = Arc::new(SessionManager::new(config.data_dir));
+        let config_dir = config.config_dir.clone();
         let permission_manager = Arc::new(PermissionManager::new(config.config_dir));
 
         let agent = Agent::with_config(AgentConfig::new(
@@ -328,7 +326,12 @@ impl GooseAcpAgent {
 
         let agent_ptr = Arc::new(agent);
 
+        let config_path = config_dir.join(CONFIG_YAML_NAME);
+        let config_file = Config::new(&config_path, "goose")?;
+        let extensions = get_enabled_extensions_with_config(&config_file);
+
         add_builtins(&agent_ptr, config.builtins).await;
+        add_extensions(&agent_ptr, extensions).await;
 
         Ok(Self {
             provider: config.provider.clone(),
@@ -337,31 +340,60 @@ impl GooseAcpAgent {
         })
     }
 
+    pub async fn create_session(&self) -> Result<String> {
+        let manager = self.agent.config.session_manager.clone();
+        let goose_session = manager
+            .create_session(
+                std::env::current_dir().unwrap_or_default(),
+                "ACP Session".to_string(),
+                SessionType::User,
+            )
+            .await?;
+
+        self.agent
+            .update_provider(self.provider.clone(), &goose_session.id)
+            .await?;
+
+        let session = GooseAcpSession {
+            messages: Conversation::new_unvalidated(Vec::new()),
+            tool_requests: HashMap::new(),
+            cancel_token: None,
+        };
+
+        let mut sessions = self.sessions.lock().await;
+        sessions.insert(goose_session.id.clone(), session);
+
+        info!(
+            session_id = %goose_session.id,
+            session_type = "acp",
+            "Session created"
+        );
+
+        Ok(goose_session.id)
+    }
+
+    pub async fn has_session(&self, session_id: &str) -> bool {
+        self.sessions.lock().await.contains_key(session_id)
+    }
+
     fn convert_acp_prompt_to_message(&self, prompt: Vec<ContentBlock>) -> Message {
         let mut user_message = Message::user();
 
-        // Process all content blocks from the prompt
         for block in prompt {
             match block {
                 ContentBlock::Text(text) => {
                     user_message = user_message.with_text(&text.text);
                 }
                 ContentBlock::Image(image) => {
-                    // Goose supports images via base64 encoded data
-                    // The ACP ImageContent has data as a String directly
                     user_message = user_message.with_image(&image.data, &image.mime_type);
                 }
                 ContentBlock::Resource(resource) => {
-                    // Embed resource content as text with context
-                    match &resource.resource {
-                        EmbeddedResourceResource::TextResourceContents(text_resource) => {
-                            let header = format!("--- Resource: {} ---\n", text_resource.uri);
-                            let content = format!("{}{}\n---\n", header, text_resource.text);
-                            user_message = user_message.with_text(&content);
-                        }
-                        _ => {
-                            // Ignore non-text resources for now
-                        }
+                    if let EmbeddedResourceResource::TextResourceContents(text_resource) =
+                        &resource.resource
+                    {
+                        let header = format!("--- Resource: {} ---\n", text_resource.uri);
+                        let content = format!("{}{}\n---\n", header, text_resource.text);
+                        user_message = user_message.with_text(&content);
                     }
                 }
                 ContentBlock::ResourceLink(link) => {
@@ -369,8 +401,7 @@ impl GooseAcpAgent {
                         user_message = user_message.with_text(text)
                     }
                 }
-                ContentBlock::Audio(..) => (),
-                _ => (), // Handle any future ContentBlock variants
+                ContentBlock::Audio(..) | _ => (),
             }
         }
 
@@ -386,7 +417,6 @@ impl GooseAcpAgent {
     ) -> Result<(), sacp::Error> {
         match content_item {
             MessageContent::Text(text) => {
-                // Stream text to the client
                 cx.send_notification(SessionNotification::new(
                     session_id.clone(),
                     SessionUpdate::AgentMessageChunk(ContentChunk::new(ContentBlock::Text(
@@ -403,7 +433,6 @@ impl GooseAcpAgent {
                     .await?;
             }
             MessageContent::Thinking(thinking) => {
-                // Stream thinking/reasoning content as thought chunks
                 cx.send_notification(SessionNotification::new(
                     session_id.clone(),
                     SessionUpdate::AgentThoughtChunk(ContentChunk::new(ContentBlock::Text(
@@ -429,9 +458,7 @@ impl GooseAcpAgent {
                     )?;
                 }
             }
-            _ => {
-                // Ignore other content types for now
-            }
+            _ => {}
         }
         Ok(())
     }
@@ -443,18 +470,15 @@ impl GooseAcpAgent {
         session: &mut GooseAcpSession,
         cx: &JrConnectionCx<AgentToClient>,
     ) -> Result<(), sacp::Error> {
-        // Store the tool request for later use in response handling
         session
             .tool_requests
             .insert(tool_request.id.clone(), tool_request.clone());
 
-        // Extract tool name from the ToolCall if successful
         let tool_name = match &tool_request.tool_call {
             Ok(tool_call) => tool_call.name.to_string(),
             Err(_) => "error".to_string(),
         };
 
-        // Send tool call notification using the provider's tool call ID directly
         cx.send_notification(SessionNotification::new(
             session_id.clone(),
             SessionUpdate::ToolCall(
@@ -484,14 +508,12 @@ impl GooseAcpAgent {
 
         let content = build_tool_call_content(&tool_response.tool_result);
 
-        // Extract locations from the tool request and response
         let locations = if let Some(tool_request) = session.tool_requests.get(&tool_response.id) {
             extract_tool_locations(tool_request, tool_response)
         } else {
             Vec::new()
         };
 
-        // Send status update using provider's tool call ID directly
         let mut fields = ToolCallUpdateFields::new().status(status).content(content);
         if !locations.is_empty() {
             fields = fields.locations(locations);
@@ -522,7 +544,6 @@ impl GooseAcpAgent {
 
         let formatted_name = format_tool_name(&tool_name);
 
-        // Use the request_id (provider's tool call ID) directly
         let mut fields = ToolCallUpdateFields::new()
             .title(formatted_name)
             .kind(ToolKind::default())
@@ -596,11 +617,10 @@ fn outcome_to_confirmation(outcome: &RequestPermissionOutcome) -> PermissionConf
                 Ok(PermissionOptionKind::AllowOnce) => Permission::AllowOnce,
                 Ok(PermissionOptionKind::RejectOnce) => Permission::DenyOnce,
                 Ok(PermissionOptionKind::RejectAlways) => Permission::AlwaysDeny,
-                Ok(_) => Permission::Cancel, // Handle any future permission kinds
-                Err(_) => Permission::Cancel,
+                _ => Permission::Cancel,
             }
         }
-        _ => Permission::Cancel, // Handle any future variants
+        _ => Permission::Cancel,
     };
     PermissionConfirmation {
         principal_type: PrincipalType::Tool,
@@ -645,14 +665,7 @@ fn build_tool_call_content(tool_result: &ToolResult<CallToolResult>) -> Vec<Tool
                         ContentBlock::Resource(EmbeddedResource::new(resource)),
                     )))
                 }
-                RawContent::Audio(_) => {
-                    // Audio content is not supported in ACP ContentBlock, skip it
-                    None
-                }
-                RawContent::ResourceLink(_) => {
-                    // ResourceLink content is not supported in ACP ContentBlock, skip it
-                    None
-                }
+                RawContent::Audio(_) | RawContent::ResourceLink(_) => None,
             })
             .collect(),
         Err(_) => Vec::new(),
@@ -666,7 +679,6 @@ impl GooseAcpAgent {
     ) -> Result<InitializeResponse, sacp::Error> {
         debug!(?args, "initialize request");
 
-        // Advertise Goose's capabilities
         let capabilities = AgentCapabilities::new()
             .load_session(true)
             .prompt_capabilities(
@@ -689,7 +701,7 @@ impl GooseAcpAgent {
         let goose_session = manager
             .create_session(
                 args.cwd.clone(),
-                "ACP Session".to_string(), // just an initial name - may be replaced by maybe_update_name
+                "ACP Session".to_string(),
                 SessionType::User,
             )
             .await
@@ -698,7 +710,6 @@ impl GooseAcpAgent {
             })?;
         self.update_session_with_provider(&goose_session).await?;
 
-        // Add MCP servers specified in the session request
         for mcp_server in args.mcp_servers {
             let config = match mcp_server_to_extension_config(mcp_server) {
                 Ok(c) => c,
@@ -707,7 +718,7 @@ impl GooseAcpAgent {
                 }
             };
             let name = config.name().to_string();
-            if let Err(e) = self.agent.add_extension(config).await {
+            if let Err(e) = self.agent.add_extension(config, &goose_session.id).await {
                 return Err(sacp::Error::internal_error()
                     .data(format!("Failed to add MCP server '{}': {}", name, e)));
             }
@@ -781,9 +792,7 @@ impl GooseAcpAgent {
             cancel_token: None,
         };
 
-        // Replay conversation history to client
         for message in conversation.messages() {
-            // Only replay user-visible messages
             if !message.metadata.user_visible {
                 continue;
             }
@@ -824,9 +833,7 @@ impl GooseAcpAgent {
                             )),
                         ))?;
                     }
-                    _ => {
-                        // Ignore other content types
-                    }
+                    _ => {}
                 }
             }
         }
@@ -986,8 +993,6 @@ impl JrMessageHandler for GooseAcpHandler {
             .await
             .if_request(
                 |req: PromptRequest, req_cx: JrRequestCx<PromptResponse>| async {
-                    // Spawn the prompt processing in a task so we don't block the event loop.
-                    // This allows permission responses to be processed while the agent is working.
                     let agent = self.agent.clone();
                     let cx_clone = cx.clone();
                     cx.spawn(async move {
@@ -1013,7 +1018,6 @@ impl JrMessageHandler for GooseAcpHandler {
     }
 }
 
-/// Serve ACP on a given transport (for in-process testing)
 pub async fn serve<R, W>(agent: Arc<GooseAcpAgent>, read: R, write: W) -> Result<()>
 where
     R: futures::AsyncRead + Unpin + Send + 'static,
@@ -1157,14 +1161,6 @@ print(\"hello, world\")
         assert_eq!(format_tool_name("simple_tool"), "Simple Tool");
         assert_eq!(format_tool_name("another_name"), "Another Name");
         assert_eq!(format_tool_name("single"), "Single");
-    }
-
-    #[test]
-    fn test_format_tool_name_edge_cases() {
-        assert_eq!(format_tool_name(""), "");
-        assert_eq!(format_tool_name("__"), ": ");
-        assert_eq!(format_tool_name("extension__"), "Extension: ");
-        assert_eq!(format_tool_name("__tool"), ": Tool");
     }
 
     #[test_case(

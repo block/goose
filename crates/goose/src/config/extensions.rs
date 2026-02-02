@@ -20,14 +20,19 @@ pub struct ExtensionEntry {
 }
 
 pub fn name_to_key(name: &str) -> String {
-    name.chars()
-        .filter(|c| !c.is_whitespace())
-        .collect::<String>()
-        .to_lowercase()
+    let mut result = String::with_capacity(name.len());
+    for c in name.chars() {
+        result.push(match c {
+            c if c.is_ascii_alphanumeric() || c == '_' || c == '-' => c,
+            c if c.is_whitespace() => continue,
+            _ => '_',
+        });
+    }
+    result.to_lowercase()
 }
 
-fn get_extensions_map() -> IndexMap<String, ExtensionEntry> {
-    let raw: Mapping = Config::global()
+fn get_extensions_map_with_config(config: &Config) -> IndexMap<String, ExtensionEntry> {
+    let raw: Mapping = config
         .get_param(EXTENSIONS_CONFIG_KEY)
         .unwrap_or_else(|err| {
             warn!(
@@ -54,6 +59,10 @@ fn get_extensions_map() -> IndexMap<String, ExtensionEntry> {
     }
 
     extensions_map
+}
+
+fn get_extensions_map() -> IndexMap<String, ExtensionEntry> {
+    get_extensions_map_with_config(Config::global())
 }
 
 fn save_extensions_map(extensions: IndexMap<String, ExtensionEntry>) {
@@ -111,6 +120,14 @@ pub fn is_extension_enabled(key: &str) -> bool {
 pub fn get_enabled_extensions() -> Vec<ExtensionConfig> {
     get_all_extensions()
         .into_iter()
+        .filter(|ext| ext.enabled)
+        .map(|ext| ext.config)
+        .collect()
+}
+
+pub fn get_enabled_extensions_with_config(config: &Config) -> Vec<ExtensionConfig> {
+    get_extensions_map_with_config(config)
+        .into_values()
         .filter(|ext| ext.enabled)
         .map(|ext| ext.config)
         .collect()
