@@ -31,7 +31,7 @@ Here's an example flow of what happens when goose renders a cocktail recipe UI:
 
 ![MCP Apps flow diagram showing how UI renders](mcp-app-flow.png)
 
-There's a lot that also goes on behind the scenes, such as widget hydration, capability negotiation, and CSPs, but this is how it works at a high level. If you're interested in the full implementation of MCP Apps, we highly recommend giving [the spec](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/draft/apps.mdx) a read.
+There's a lot that also goes on behind the scenes, such as View hydration, capability negotiation, and CSPs, but this is how it works at a high level. If you're interested in the full implementation of MCP Apps, we highly recommend giving [the spec](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/draft/apps.mdx) a read.
 
 ## Tip 1: Adapt to the Host Environment
 
@@ -41,11 +41,11 @@ Imagine a user starting an MCP App interaction inside a dark-mode agent, but the
 
 By default, your MCP App has no awareness of the surrounding agent environment because it runs inside a sandboxed iframe. It cannot tell whether the agent is in light or dark mode, how large the viewport is, or which locale the user prefers.
 
-The agent, referred to as the Host, solves this by sharing its environment details with your MCP App, known as the Guest UI. When the Guest UI connects, it sends a `ui/initialize` request. The Host responds with a `hostContext` object describing the current environment. When something changes, such as theme, viewport, or locale, the Host sends a `ui/notifications/host-context-changed` notification containing only the updated fields.
+The agent, referred to as the Host, solves this by sharing its environment details with your MCP App, known as the View. When the View connects, it sends a `ui/initialize` request. The Host responds with a `hostContext` object describing the current environment. When something changes, such as theme, viewport, or locale, the Host sends a `ui/notifications/host-context-changed` notification containing only the updated fields.
 
-Imagine this dialogue between the Guest UI and Host:
+Imagine this dialogue between the View and Host:
 
-> **Guest UI**: "I'm initializing. What does your environment look like?"<br/>
+> **View**: "I'm initializing. What does your environment look like?"<br/>
 > **Host**: "We're in dark mode, viewport is 400×300, locale is en-US, and we're on desktop."<br/>
 > *User switches to light theme*<br/>
 > **Host**: "Update: we're now in light mode."
@@ -141,11 +141,13 @@ If you're building an app that supports both MCP Apps and ChatGPT apps SDK, this
 
 ## Tip 3: Properly Handle Loading States and Error States
 
-It's pretty typical for the iFrame to render first before the tool finishes executing and the widget gets hydrated. You're going to want to let your user know that the app is loading by presenting a beautiful loading state.
+It's pretty typical for the iFrame to render first before the tool finishes executing and the View gets hydrated. You're going to want to let your user know that the app is loading by presenting a beautiful loading state.
 
 ![Loading state example showing skeleton UI](loading-state.png)
 
-To implement this, let's take a look at the same cocktail recipes app. The MCP tool fetches the cocktail data and passes it to the widget via `structuredContent`. We don't know how long it takes to fetch that cocktail data, could be anywhere from a few ms to a few seconds on a bad day.
+One powerful feature to note: `toolInputs` are sent and streamed into the View even before the tool execution is done. This allows you to create cool partial loading states where you can show the user what's being requested while the data is still being fetched.
+
+To implement this, let's take a look at the same cocktail recipes app. The MCP tool fetches the cocktail data and passes it to the View via `structuredContent`. We don't know how long it takes to fetch that cocktail data, could be anywhere from a few ms to a few seconds on a bad day.
 
 ```ts
 server.registerTool(
@@ -176,7 +178,7 @@ server.registerTool(
 );
 ```
 
-On the view side (React), the `useApp` AppBridge hook has a `app.ontoolresult` listener that listens for the tool return results and hydrates your widget. While `onToolResult` hasn't come in yet and the data is empty, we can render a beautiful loading state.
+On the View side (React), the `useApp` AppBridge hook has a `app.ontoolresult` listener that listens for the tool return results and hydrates your View. While `onToolResult` hasn't come in yet and the data is empty, we can render a beautiful loading state.
 
 ```ts
 import { useApp } from "@modelcontextprotocol/ext-apps/react";
