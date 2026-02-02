@@ -29,7 +29,7 @@ impl AppState {
     pub async fn new() -> anyhow::Result<Arc<AppState>> {
         register_builtin_extensions(goose_mcp::BUILTIN_EXTENSIONS.clone());
 
-        let agent_manager = AgentManager::initialize().await?;
+        let agent_manager = AgentManager::instance().await?;
         let tunnel_manager = Arc::new(TunnelManager::new());
 
         Ok(Arc::new(Self {

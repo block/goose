@@ -19,6 +19,6 @@ pub fn register_builtin_extensions(extensions: HashMap<&'static str, SpawnServer
 }
 
 /// Get a copy of all registered builtin extensions
-pub fn get_builtin_extensions() -> HashMap<&'static str, SpawnServerFn> {
-    BUILTIN_REGISTRY.read().unwrap().clone()
+pub fn get_builtin_extension(name: &str) -> Option<SpawnServerFn> {
+    BUILTIN_REGISTRY.read().unwrap().get(name).cloned()
 }

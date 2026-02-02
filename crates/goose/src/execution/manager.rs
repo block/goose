@@ -44,22 +44,6 @@ impl AgentManager {
         Ok(manager)
     }
 
-    pub async fn initialize() -> Result<Arc<Self>> {
-        AGENT_MANAGER
-            .get_or_try_init(|| async {
-                let max_sessions = Config::global()
-                    .get_goose_max_active_agents()
-                    .unwrap_or(DEFAULT_MAX_SESSION);
-                let schedule_file_path = Paths::data_dir().join("schedule.json");
-                let session_manager = Arc::new(SessionManager::instance());
-                let manager =
-                    Self::new(session_manager, schedule_file_path, Some(max_sessions)).await?;
-                Ok(Arc::new(manager))
-            })
-            .await
-            .cloned()
-    }
-
     pub async fn instance() -> Result<Arc<Self>> {
         AGENT_MANAGER
             .get_or_try_init(|| async {

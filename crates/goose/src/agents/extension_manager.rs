@@ -35,7 +35,7 @@ use super::types::SharedProvider;
 use crate::agents::extension::{Envs, ProcessExit};
 use crate::agents::extension_malware_check;
 use crate::agents::mcp_client::{McpClient, McpClientTrait};
-use crate::builtin_extension::get_builtin_extensions;
+use crate::builtin_extension::get_builtin_extension;
 use crate::config::extensions::name_to_key;
 use crate::config::search_path::SearchPaths;
 use crate::config::{get_all_extensions, Config};
@@ -565,14 +565,9 @@ impl ExtensionManager {
             }
             ExtensionConfig::Builtin { name, timeout, .. } => {
                 let timeout_duration = Duration::from_secs(timeout.unwrap_or(300));
-                let builtin_extensions = get_builtin_extensions();
-
-                if !builtin_extensions.contains_key(name.as_str()) {
-                    return Err(ExtensionError::ConfigError(format!(
-                        "Unknown builtin extension: {}",
-                        name
-                    )));
-                }
+                let extension_fn = get_builtin_extension(name.as_str()).ok_or_else(|| {
+                    ExtensionError::ConfigError(format!("Unknown builtin extension: {}", name))
+                })?;
 
                 if let Some(container) = container {
                     let container_id = container.id();
@@ -602,8 +597,6 @@ impl ExtensionManager {
                     .await?;
                     Box::new(client)
                 } else {
-                    let spawn_fn = builtin_extensions.get(name.as_str()).unwrap();
-
                     // Set GOOSE_WORKING_DIR in the current process for builtin extensions
                     // since they run in-process and read from std::env::var
                     if effective_working_dir.exists() && effective_working_dir.is_dir() {
@@ -616,7 +609,7 @@ impl ExtensionManager {
 
                     let (server_read, client_write) = tokio::io::duplex(65536);
                     let (client_read, server_write) = tokio::io::duplex(65536);
-                    spawn_fn(server_read, server_write);
+                    extension_fn(server_read, server_write);
                     Box::new(
                         McpClient::connect(
                             (client_read, client_write),
