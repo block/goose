@@ -18,7 +18,7 @@ use test_case::test_case;
 
 use async_trait::async_trait;
 use goose::conversation::message::Message;
-use goose::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
+use goose::providers::base::{Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
 use goose::providers::errors::ProviderError;
 use once_cell::sync::Lazy;
 use std::process::Command;
@@ -47,12 +47,20 @@ impl MockProvider {
     }
 }
 
-#[async_trait]
-impl Provider for MockProvider {
+impl ProviderDef for MockProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::empty()
     }
 
+    fn from_env(model: ModelConfig) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
+        Box::pin(async move { Ok(Self::new(model)) })
+    }
+}
+
+#[async_trait]
+impl Provider for MockProvider {
     fn get_name(&self) -> &str {
         "mock"
     }

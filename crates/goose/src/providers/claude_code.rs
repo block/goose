@@ -8,7 +8,7 @@ use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
-use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{ConfigKey, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
 use super::utils::{filter_extensions_from_system_prompt, RequestLog};
 use crate::config::base::ClaudeCodeCommand;
@@ -17,8 +17,10 @@ use crate::config::{Config, GooseMode};
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::subprocess::configure_command_no_window;
+use futures::future::BoxFuture;
 use rmcp::model::Tool;
 
+const CLAUDE_CODE_PROVIDER_NAME: &str = "claude-code";
 pub const CLAUDE_CODE_DEFAULT_MODEL: &str = "claude-sonnet-4-20250514";
 pub const CLAUDE_CODE_KNOWN_MODELS: &[&str] = &["sonnet", "opus"];
 pub const CLAUDE_CODE_DOC_URL: &str = "https://code.claude.com/docs/en/setup";
@@ -40,7 +42,7 @@ impl ClaudeCodeProvider {
         Ok(Self {
             command: resolved_command,
             model,
-            name: Self::metadata().name,
+            name: CLAUDE_CODE_PROVIDER_NAME.to_string(),
         })
     }
 
@@ -388,11 +390,12 @@ impl ClaudeCodeProvider {
     }
 }
 
-#[async_trait]
-impl Provider for ClaudeCodeProvider {
+impl ProviderDef for ClaudeCodeProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "claude-code",
+            CLAUDE_CODE_PROVIDER_NAME,
             "Claude Code CLI",
             "Requires claude CLI installed, no MCPs. Use Anthropic provider for full features.",
             CLAUDE_CODE_DEFAULT_MODEL,
@@ -402,6 +405,13 @@ impl Provider for ClaudeCodeProvider {
         )
     }
 
+    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for ClaudeCodeProvider {
     fn get_name(&self) -> &str {
         &self.name
     }

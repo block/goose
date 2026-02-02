@@ -1,15 +1,20 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use std::ops::Deref;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use super::base::{LeadWorkerProviderTrait, Provider, ProviderMetadata, ProviderUsage};
+use super::base::{
+    LeadWorkerProviderTrait, Provider, ProviderDef, ProviderMetadata, ProviderUsage,
+};
 use super::errors::ProviderError;
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
+use futures::future::BoxFuture;
 use rmcp::model::Tool;
 use rmcp::model::{Content, RawContent};
+
+const LEAD_WORKER_PROVIDER_NAME: &str = "lead_worker";
 
 /// A provider that switches between a lead model and a worker model based on turn count
 /// and can fallback to lead model on consecutive failures
@@ -314,12 +319,13 @@ impl LeadWorkerProviderTrait for LeadWorkerProvider {
     }
 }
 
-#[async_trait]
-impl Provider for LeadWorkerProvider {
+impl ProviderDef for LeadWorkerProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         // This is a wrapper provider, so we return minimal metadata
         ProviderMetadata::new(
-            "lead_worker",
+            LEAD_WORKER_PROVIDER_NAME,
             "Lead/Worker Provider",
             "A provider that switches between lead and worker models based on turn count",
             "",     // No default model as this is determined by the wrapped providers
@@ -329,6 +335,13 @@ impl Provider for LeadWorkerProvider {
         )
     }
 
+    fn from_env(_model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(async { Err(anyhow!("LeadWorkerProvider must be constructed explicitly")) })
+    }
+}
+
+#[async_trait]
+impl Provider for LeadWorkerProvider {
     fn get_name(&self) -> &str {
         // Return the lead provider's name as the default
         self.lead_provider.get_name()
@@ -486,7 +499,7 @@ impl Provider for LeadWorkerProvider {
 mod tests {
     use super::*;
     use crate::conversation::message::{Message, MessageContent};
-    use crate::providers::base::{ProviderMetadata, ProviderUsage, Usage};
+    use crate::providers::base::{ProviderUsage, Usage};
     use chrono::Utc;
     use rmcp::model::{AnnotateAble, RawTextContent, Role};
 
@@ -498,10 +511,6 @@ mod tests {
 
     #[async_trait]
     impl Provider for MockProvider {
-        fn metadata() -> ProviderMetadata {
-            ProviderMetadata::empty()
-        }
-
         fn get_name(&self) -> &str {
             "mock-lead"
         }
@@ -684,10 +693,6 @@ mod tests {
 
     #[async_trait]
     impl Provider for MockFailureProvider {
-        fn metadata() -> ProviderMetadata {
-            ProviderMetadata::empty()
-        }
-
         fn get_name(&self) -> &str {
             "mock-lead"
         }

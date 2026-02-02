@@ -1,21 +1,25 @@
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{ConfigKey, MessageStream, Provider, ProviderMetadata, ProviderUsage, Usage};
-use super::errors::ProviderError;
-use super::retry::ProviderRetry;
-use super::utils::{
-    get_model, handle_response_google_compat, handle_response_openai_compat,
-    handle_status_openai_compat, is_google_model, stream_openai_compat, RequestLog,
+use super::base::{
+    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
 };
+use super::errors::ProviderError;
+use super::openai_compatible::{
+    handle_response_openai_compat, handle_status_openai_compat, stream_openai_compat,
+};
+use super::retry::ProviderRetry;
+use super::utils::{get_model, handle_response_google_compat, is_google_model, RequestLog};
 use crate::config::signup_tetrate::TETRATE_DEFAULT_MODEL;
 use crate::conversation::message::Message;
 use anyhow::Result;
 use async_trait::async_trait;
+use futures::future::BoxFuture;
 use serde_json::Value;
 
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
 use rmcp::model::Tool;
 
+const TETRATE_PROVIDER_NAME: &str = "tetrate";
 // Tetrate Agent Router Service can run many models, we suggest the default
 pub const TETRATE_KNOWN_MODELS: &[&str] = &[
     "claude-opus-4-1",
@@ -59,7 +63,7 @@ impl TetrateProvider {
             api_client,
             model,
             supports_streaming: true,
-            name: Self::metadata().name,
+            name: TETRATE_PROVIDER_NAME.to_string(),
         })
     }
 
@@ -126,11 +130,12 @@ impl TetrateProvider {
     }
 }
 
-#[async_trait]
-impl Provider for TetrateProvider {
+impl ProviderDef for TetrateProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "tetrate",
+            TETRATE_PROVIDER_NAME,
             "Tetrate Agent Router Service",
             "Enterprise router for AI models",
             TETRATE_DEFAULT_MODEL,
@@ -148,6 +153,13 @@ impl Provider for TetrateProvider {
         )
     }
 
+    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for TetrateProvider {
     fn get_name(&self) -> &str {
         &self.name
     }

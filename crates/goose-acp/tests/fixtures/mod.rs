@@ -1,3 +1,6 @@
+#![recursion_limit = "256"]
+#![allow(unused_attributes)]
+
 use assert_json_diff::{assert_json_matches_no_panic, CompareMode, Config};
 use async_trait::async_trait;
 use fs_err as fs;
