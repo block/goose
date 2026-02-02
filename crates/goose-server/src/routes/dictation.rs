@@ -19,6 +19,7 @@ use utoipa::ToSchema;
 
 const MAX_AUDIO_SIZE_BYTES: usize = 50 * 1024 * 1024;
 
+<<<<<<< HEAD
 #[derive(Debug, Serialize, ToSchema)]
 pub struct WhisperModelResponse {
     #[serde(flatten)]
@@ -26,6 +27,54 @@ pub struct WhisperModelResponse {
     model: &'static whisper::WhisperModel,
     downloaded: bool,
     recommended: bool,
+=======
+// DictationProvider definitions
+struct DictationProviderDef {
+    config_key: &'static str,
+    default_url: &'static str,
+    host_key: Option<&'static str>,
+    description: &'static str,
+    uses_provider_config: bool,
+    settings_path: Option<&'static str>,
+}
+
+const PROVIDERS: &[(&str, DictationProviderDef)] = &[
+    (
+        "openai",
+        DictationProviderDef {
+            config_key: "OPENAI_API_KEY",
+            default_url: "https://api.openai.com/v1/audio/transcriptions",
+            host_key: Some("OPENAI_HOST"),
+            description: "Uses OpenAI Whisper API for high-quality transcription.",
+            uses_provider_config: true,
+            settings_path: Some("Settings > Models"),
+        },
+    ),
+    (
+        "elevenlabs",
+        DictationProviderDef {
+            config_key: "ELEVENLABS_API_KEY",
+            default_url: "https://api.elevenlabs.io/v1/speech-to-text",
+            host_key: None,
+            description: "Uses ElevenLabs speech-to-text API for advanced voice processing.",
+            uses_provider_config: false,
+            settings_path: None,
+        },
+    ),
+];
+
+fn get_provider_def(name: &str) -> Option<&'static DictationProviderDef> {
+    PROVIDERS
+        .iter()
+        .find_map(|(n, def)| if *n == name { Some(def) } else { None })
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum DictationProvider {
+    OpenAI,
+    ElevenLabs,
+>>>>>>> 12a31281f4 (refactor: updated lint)
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
