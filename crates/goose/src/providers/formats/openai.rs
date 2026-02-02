@@ -26,11 +26,9 @@ use uuid::Uuid;
 fn parse_xml_tool_calls(content: &str) -> (Option<String>, Vec<MessageContent>) {
     let mut tool_calls = Vec::new();
 
-    // Match <function=name>...</function> blocks
     let function_re = Regex::new(r"<function=([^>]+)>([\s\S]*?)</function>").unwrap();
     let param_re = Regex::new(r"<parameter=([^>]+)>([\s\S]*?)</parameter>").unwrap();
 
-    // Find prefix text (anything before the first <function= tag)
     let prefix = content
         .find("<function=")
         .and_then(|idx| content.get(..idx))
@@ -42,7 +40,6 @@ fn parse_xml_tool_calls(content: &str) -> (Option<String>, Vec<MessageContent>) 
         let function_name = func_cap[1].trim().to_string();
         let function_body = &func_cap[2];
 
-        // Parse parameters into JSON object
         let mut arguments = serde_json::Map::new();
         for param_cap in param_re.captures_iter(function_body) {
             let param_name = param_cap[1].trim().to_string();
@@ -63,7 +60,6 @@ fn parse_xml_tool_calls(content: &str) -> (Option<String>, Vec<MessageContent>) 
                 }),
             ));
         } else {
-            // Invalid function name - create error tool request
             let error = ErrorData {
                 code: ErrorCode::INVALID_REQUEST,
                 message: Cow::from(format!(
@@ -712,14 +708,11 @@ where
             } else if chunk.choices[0].delta.content.is_some() {
                 let text = chunk.choices[0].delta.content.as_ref().unwrap();
 
-                // Accumulate text for potential XML tool call detection
                 accumulated_text.push_str(text);
 
-                // Check if this is the final chunk with a finish_reason
                 let is_final = chunk.choices[0].finish_reason.is_some();
 
                 if is_final && accumulated_text.contains("<function=") {
-                    // Parse XML tool calls from accumulated text
                     let (prefix, xml_tool_calls) = parse_xml_tool_calls(&accumulated_text);
 
                     if !xml_tool_calls.is_empty() {
@@ -740,7 +733,6 @@ where
                         }
 
                         yield (Some(msg), usage);
-                        // Clear accumulated text since we've processed it
                         accumulated_text.clear();
                         continue;
                     }
