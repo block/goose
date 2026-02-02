@@ -284,29 +284,50 @@ total_jobs=${#JOBS[@]}
 echo "Starting $total_jobs tests..."
 echo ""
 
-# Run tests in parallel
-running_jobs=0
-for job in "${JOBS[@]}"; do
-  IFS='|' read -r provider model idx <<< "$job"
+# Run first test sequentially if any jobs exist
+if [ $total_jobs -gt 0 ]; then
+  echo "Running first test sequentially..."
+  first_job="${JOBS[0]}"
+  IFS='|' read -r provider model idx <<< "$first_job"
 
   result_file="$RESULTS_DIR/result_$idx"
   output_file="$RESULTS_DIR/output_$idx"
   meta_file="$RESULTS_DIR/meta_$idx"
   echo "$provider|$model" > "$meta_file"
 
-  # Run test in background
-  run_test "$provider" "$model" "$result_file" "$output_file" &
-  ((running_jobs++))
+  # Run first test and wait for it to complete
+  run_test "$provider" "$model" "$result_file" "$output_file"
+  echo "First test completed."
+  echo ""
+fi
 
-  # Wait if we've hit the parallel limit
-  if [ $running_jobs -ge $MAX_PARALLEL ]; then
-    wait -n 2>/dev/null || wait
-    ((running_jobs--))
-  fi
-done
+# Run remaining tests in parallel
+if [ $total_jobs -gt 1 ]; then
+  echo "Running remaining tests in parallel..."
+  running_jobs=0
+  for ((i=1; i<$total_jobs; i++)); do
+    job="${JOBS[$i]}"
+    IFS='|' read -r provider model idx <<< "$job"
 
-# Wait for all remaining jobs
-wait
+    result_file="$RESULTS_DIR/result_$idx"
+    output_file="$RESULTS_DIR/output_$idx"
+    meta_file="$RESULTS_DIR/meta_$idx"
+    echo "$provider|$model" > "$meta_file"
+
+    # Run test in background
+    run_test "$provider" "$model" "$result_file" "$output_file" &
+    ((running_jobs++))
+
+    # Wait if we've hit the parallel limit
+    if [ $running_jobs -ge $MAX_PARALLEL ]; then
+      wait -n 2>/dev/null || wait
+      ((running_jobs--))
+    fi
+  done
+
+  # Wait for all remaining jobs
+  wait
+fi
 
 echo ""
 echo "=== Test Results ==="
