@@ -11,8 +11,8 @@ use rmcp::model::Role;
 use serde::Serialize;
 use std::sync::Arc;
 use tokio::task::JoinHandle;
+use tracing::info;
 use tracing::log::warn;
-use tracing::{debug, info};
 
 pub const DEFAULT_COMPACTION_THRESHOLD: f64 = 0.8;
 
@@ -188,7 +188,7 @@ pub async fn check_if_compaction_needed(
 
     let context_limit = provider.get_model_config().context_limit();
 
-    let (current_tokens, token_source) = match session.total_tokens {
+    let (current_tokens, _token_source) = match session.total_tokens {
         Some(tokens) => (tokens as usize, "session metadata"),
         None => {
             let token_counter = create_token_counter()

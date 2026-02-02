@@ -98,7 +98,7 @@ candle-nn = { version = "0.8.4" }
 candle-transformers = { version = "0.8.4" }
 byteorder = "1.5.0"
 tokenizers = "0.21.0"
-hf-hub = "0.3.2"
+hf-hub = { version = "0.4.3", default-features = false, features = ["tokio"] }
 symphonia = { version = "0.5", features = ["all"] }
 rubato = "0.16"
 zip = "0.6"

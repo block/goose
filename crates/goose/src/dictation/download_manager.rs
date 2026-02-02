@@ -1,3 +1,4 @@
+use crate::dictation::whisper::LOCAL_WHISPER_MODEL_CONFIG_KEY;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -5,7 +6,6 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tokio::io::AsyncWriteExt;
 use utoipa::ToSchema;
-use crate::dictation::whisper::LOCAL_WHISPER_MODEL_CONFIG_KEY;
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct DownloadProgress {

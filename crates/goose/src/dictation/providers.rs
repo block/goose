@@ -1,11 +1,11 @@
 use crate::config::Config;
+use crate::dictation::whisper::LOCAL_WHISPER_MODEL_CONFIG_KEY;
 use crate::providers::api_client::{ApiClient, AuthMethod};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use std::time::Duration;
 use utoipa::ToSchema;
-use crate::dictation::whisper::LOCAL_WHISPER_MODEL_CONFIG_KEY;
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 

@@ -271,12 +271,11 @@ impl WhisperTranscriber {
             return Tokenizer::from_file(tokenizer_path)
                 .map_err(|e| anyhow::anyhow!("Failed to load tokenizer: {}", e));
         }
-        let api = hf_hub::api::sync::Api::new()?;
-        let repo = api.model("openai/whisper-small".to_string());
-        let tokenizer_file = repo.get("tokenizer.json")?;
 
-        Tokenizer::from_file(tokenizer_file)
-            .map_err(|e| anyhow::anyhow!("Failed to load tokenizer: {}", e))
+        anyhow::bail!(
+            "Tokenizer not found at {} and no bundled tokenizer provided",
+            tokenizer_path.display()
+        )
     }
 
     pub fn transcribe(&mut self, audio_data: &[u8]) -> Result<String> {
@@ -399,15 +398,28 @@ impl WhisperTranscriber {
         let mut masks = Vec::new();
         let mut mask_buffer = vec![0.0f32; vocab_size as usize];
 
-        self.apply_timestamp_pairing_rule(sampled_tokens, vocab_size, &mut masks, &mut mask_buffer, &device)?;
-        self.apply_initial_timestamp_rule(tokens.len(), vocab_size, &mut masks, &mut mask_buffer, &device)?;
+        self.apply_timestamp_pairing_rule(
+            sampled_tokens,
+            vocab_size,
+            &mut masks,
+            &mut mask_buffer,
+            &device,
+        )?;
+        self.apply_initial_timestamp_rule(
+            tokens.len(),
+            vocab_size,
+            &mut masks,
+            &mut mask_buffer,
+            &device,
+        )?;
 
         let mut logits = input_logits.clone();
         for mask in masks {
             logits = logits.broadcast_add(&mask)?;
         }
 
-        logits = self.apply_timestamp_probability_rule(&logits, vocab_size, &mut mask_buffer, &device)?;
+        logits =
+            self.apply_timestamp_probability_rule(&logits, vocab_size, &mut mask_buffer, &device)?;
 
         Ok(logits)
     }
@@ -602,9 +614,7 @@ fn decode_audio_simple(audio_data: &[u8]) -> Result<Vec<f32>> {
         match layout {
             Layout::Mono => 1,
             Layout::Stereo => 2,
-            _ => {
-                1
-            }
+            _ => 1,
         }
     } else {
         anyhow::bail!("No channel information in audio track (neither channels nor channel_layout)")
