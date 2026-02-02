@@ -156,7 +156,10 @@ export default function CreateEditRecipeModal({
             name: subRecipe.name,
             path: subRecipe.path,
             description: subRecipe.description || undefined,
-            values: subRecipe.values || undefined,
+            values:
+              subRecipe.values && Object.keys(subRecipe.values).length > 0
+                ? subRecipe.values
+                : undefined,
             sequential_when_repeated: subRecipe.sequential_when_repeated,
           }))
         : undefined;
