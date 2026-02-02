@@ -106,15 +106,24 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
         setRecipeSourcePath(filePath);
         setInternalValidationError(null);
 
-        const fileResponse = await window.electron.readFile(filePath);
-        if (fileResponse.found && !fileResponse.error) {
-          const recipe = await parseRecipeFromFile(fileResponse.file);
-          if (recipe) {
-            setParsedRecipe(recipe);
-            if (recipe.title) {
-              setScheduleIdFromTitle(recipe.title);
-            }
+        try {
+          const fileResponse = await window.electron.readFile(filePath);
+          if (!fileResponse.found || fileResponse.error) {
+            throw new Error('Failed to read the selected file.');
           }
+          const recipe = await parseRecipeFromFile(fileResponse.file);
+          if (!recipe) {
+            throw new Error('Failed to parse recipe from file.');
+          }
+          setParsedRecipe(recipe);
+          if (recipe.title) {
+            setScheduleIdFromTitle(recipe.title);
+          }
+        } catch (e) {
+          setParsedRecipe(null);
+          setInternalValidationError(
+            e instanceof Error ? e.message : 'Failed to parse recipe from file.'
+          );
         }
       } else {
         setInternalValidationError('Invalid file type: Please select a YAML file (.yaml or .yml)');
