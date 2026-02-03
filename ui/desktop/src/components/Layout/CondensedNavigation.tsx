@@ -5,6 +5,7 @@ import {
   MessageSquare,
   History,
   FileText,
+  AppWindow,
   Clock,
   Puzzle,
   Settings,
@@ -211,6 +212,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
       icon: History,
     },
     { id: 'recipes', path: '/recipes', label: 'Recipes', icon: FileText },
+    { id: 'apps', path: '/apps', label: 'Apps', icon: AppWindow },
     { id: 'scheduler', path: '/schedules', label: 'Scheduler', icon: Clock },
     {
       id: 'extensions',

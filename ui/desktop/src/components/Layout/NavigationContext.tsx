@@ -22,6 +22,7 @@ export const DEFAULT_ITEM_ORDER = [
   'chat',
   'history',
   'recipes',
+  'apps',
   'scheduler',
   'extensions',
   'settings',

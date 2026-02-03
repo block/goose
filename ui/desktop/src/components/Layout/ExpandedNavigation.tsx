@@ -5,6 +5,7 @@ import {
   MessageSquare,
   History,
   FileText,
+  AppWindow,
   Clock,
   Puzzle,
   Settings,
@@ -203,6 +204,12 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
       path: '/recipes',
       label: 'Recipes',
       icon: FileText,
+    },
+    {
+      id: 'apps',
+      path: '/apps',
+      label: 'Apps',
+      icon: AppWindow,
     },
     {
       id: 'scheduler',
