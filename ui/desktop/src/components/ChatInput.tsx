@@ -260,16 +260,37 @@ export default function ChatInput({
     isTranscribing,
     startRecording,
     stopRecording,
-    recordingDuration,
-    estimatedSize,
   } = useAudioRecorder({
     onTranscription: (text) => {
       trackVoiceDictation('transcribed');
-      // Append transcribed text to the current input
-      const newValue = displayValue.trim() ? `${displayValue.trim()} ${text}` : text;
+
+      let filteredText = text.replace(/\([^)]*\)/g, '').trim();
+
+      if (!filteredText) {
+        return;
+      }
+
+      const shouldAutoSubmit = /\bsubmit[.,!?;'"\s]*$/i.test(filteredText);
+
+      const cleanedText = shouldAutoSubmit
+        ? filteredText.replace(/\bsubmit[.,!?;'"\s]*$/i, '').trim()
+        : filteredText;
+
+      const newValue = displayValue.trim() && cleanedText
+        ? `${displayValue.trim()} ${cleanedText}`
+        : displayValue.trim() || cleanedText;
+
       setDisplayValue(newValue);
       setValue(newValue);
-      textAreaRef.current?.focus();
+
+      if (shouldAutoSubmit && newValue.trim()) {
+        trackVoiceDictation('auto_submit');
+        setTimeout(() => {
+          performSubmit(newValue);
+        }, 100);
+      } else {
+        textAreaRef.current?.focus();
+      }
     },
     onError: (message) => {
       const errorType = 'DictationError';
@@ -907,8 +928,8 @@ export default function ChatInput({
     ]
   );
 
+
   const handleKeyDown = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // If mention popover is open, handle arrow keys and enter
     if (mentionPopover.isOpen && mentionPopoverRef.current) {
       if (evt.key === 'ArrowDown') {
         evt.preventDefault();
@@ -940,7 +961,6 @@ export default function ChatInput({
       }
     }
 
-    // Handle history navigation first
     handleHistoryNavigation(evt);
 
     if (evt.key === 'Enter') {
@@ -1221,23 +1241,15 @@ export default function ChatInput({
             onBlur={() => setIsFocused(false)}
             ref={textAreaRef}
             rows={1}
+            readOnly={isRecording}
             style={{
               minHeight: `${minTextareaHeight}px`,
               maxHeight: `${maxHeight}px`,
               overflowY: 'auto',
-              opacity: isRecording ? 0 : 1,
               paddingRight: dictationProvider ? '180px' : '120px',
             }}
             className="w-full outline-none border-none focus:ring-0 bg-transparent px-3 pt-3 pb-1.5 text-sm resize-none text-textStandard placeholder:text-textPlaceholder"
           />
-          {isRecording && (
-            <div className="absolute inset-0 flex items-center pl-4 pr-32 pt-3 pb-1.5">
-              <div className="flex items-center gap-2 text-textSubtle">
-                <span className="inline-block w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                <span>Recording...</span>
-              </div>
-            </div>
-          )}
 
           {/* Inline action buttons - absolutely positioned on the right */}
           <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
@@ -1272,37 +1284,52 @@ export default function ChatInput({
                           ElevenLabs API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
                           <b>Chat</b> {'>'} <b>Voice Dictation.</b>
                         </p>
+                      ) : dictationProvider === 'local' ? (
+                        <p>
+                          Local Whisper model not found. Download a model in{' '}
+                          <b>Settings &gt; Dictation &gt; Local (Offline)</b>
+                        </p>
                       ) : (
                         <p>Dictation provider is not properly configured.</p>
                       )}
                     </TooltipContent>
                   </Tooltip>
                 ) : (
-                  <Button
-                    type="button"
-                    size="sm"
-                    shape="round"
-                    variant="outline"
-                    onClick={() => {
-                      if (isRecording) {
-                        trackVoiceDictation('stop', Math.floor(recordingDuration));
-                        stopRecording();
-                      } else {
-                        trackVoiceDictation('start');
-                        startRecording();
-                      }
-                    }}
-                    disabled={isTranscribing}
-                    className={`rounded-full px-6 py-2 ${
-                      isRecording
-                        ? 'bg-red-500 text-white hover:bg-red-600 border-red-500'
-                        : isTranscribing
-                          ? 'bg-slate-600 text-white cursor-not-allowed animate-pulse border-slate-600'
-                          : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600'
-                    }`}
-                  >
-                    <Microphone />
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        size="sm"
+                        shape="round"
+                        variant="outline"
+                        onClick={() => {
+                          if (isRecording) {
+                            trackVoiceDictation('stop');
+                            stopRecording();
+                          } else {
+                            trackVoiceDictation('start');
+                            startRecording();
+                          }
+                        }}
+                        disabled={isTranscribing}
+                        className={`rounded-full px-6 py-2 ${
+                          isRecording
+                            ? 'bg-red-500 text-white hover:bg-red-600 border-red-500'
+                            : isTranscribing
+                              ? 'bg-slate-600 text-white cursor-not-allowed animate-pulse border-slate-600'
+                              : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600'
+                        }`}
+                      >
+                        <Microphone />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>
+                        Voice dictation
+                        {isRecording ? '' : ' • Say "submit" to send'}
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
                 )}
               </>
             )}
@@ -1349,20 +1376,23 @@ export default function ChatInput({
             {/* Recording/transcribing status indicator - positioned above the button row */}
             {(isRecording || isTranscribing) && (
               <div className="absolute right-0 -top-8 bg-background-default px-2 py-1 rounded text-xs whitespace-nowrap shadow-md border border-borderSubtle">
-                {isTranscribing ? (
-                  <span className="text-blue-500 flex items-center gap-1">
-                    <span className="inline-block w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                    Transcribing...
-                  </span>
-                ) : (
-                  <span
-                    className={`flex items-center gap-2 ${estimatedSize > 20 ? 'text-orange-500' : 'text-textSubtle'}`}
-                  >
-                    <span className="inline-block w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                    {Math.floor(recordingDuration)}s • ~{estimatedSize.toFixed(1)}MB
-                    {estimatedSize > 20 && <span className="text-xs">(near 25MB limit)</span>}
-                  </span>
-                )}
+                <span className="flex items-center gap-2">
+                  {isRecording && (
+                    <span className="flex items-center gap-1 text-textSubtle">
+                      <span className="inline-block w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                      Listening
+                    </span>
+                  )}
+                  {isRecording && isTranscribing && (
+                    <span className="text-textSubtle">•</span>
+                  )}
+                  {isTranscribing && (
+                    <span className="flex items-center gap-1 text-blue-500">
+                      <span className="inline-block w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                      Transcribing
+                    </span>
+                  )}
+                </span>
               </div>
             )}
           </div>

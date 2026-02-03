@@ -7,6 +7,9 @@ license.workspace = true
 repository.workspace = true
 description.workspace = true
 
+[features]
+default = []
+
 [lints]
 workspace = true
 
@@ -87,6 +90,17 @@ dashmap = "6.1"
 ahash = "0.8"
 tokio-util = { version = "0.7.15", features = ["compat"] }
 unicode-normalization = "0.1"
+goose-mcp = { path = "../goose-mcp" }
+
+# For local Whisper transcription
+candle-core = { version = "0.8.4" }
+candle-nn = { version = "0.8.4" }
+candle-transformers = { version = "0.8.4" }
+byteorder = "1.5.0"
+tokenizers = "0.21.0"
+hf-hub = { version = "0.4.3", default-features = false, features = ["tokio"] }
+symphonia = { version = "0.5", features = ["all"] }
+rubato = "0.16"
 zip = "0.6"
 sys-info = "0.9"
 
@@ -103,6 +117,11 @@ unbinder = "0.1.7"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }
+
+# Platform-specific GPU acceleration for Whisper
+[target.'cfg(target_os = "macos")'.dependencies]
+candle-core = { version = "0.8.4", features = ["metal"] }
+candle-nn = { version = "0.8.4", features = ["metal"] }
 
 [dev-dependencies]
 serial_test = { workspace = true }
